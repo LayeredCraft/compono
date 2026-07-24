@@ -1,0 +1,19 @@
+name: PR Build
+
+on:
+  pull_request:
+    branches:
+      - main
+permissions: write-all
+jobs:
+  build:
+    uses: LayeredCraft/devops-templates/.github/workflows/pr-build.yaml@v10.1
+    with:
+      solution: Compono.slnx
+      hasTests: false
+      useMtpRunner: true
+      dotnetVersion: |
+        10.0.x
+        11.0.x
+      runCdk: false
+    secrets: inherit

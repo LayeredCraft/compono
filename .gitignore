@@ -3,6 +3,11 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# MkDocs / uv (documentation tooling)
+.venv/
+site/
+__pycache__/
+
 # User-specific files
 *.rsuser
 *.suo
@@ -427,3 +432,14 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+.idea
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
