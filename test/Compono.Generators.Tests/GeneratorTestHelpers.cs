@@ -50,15 +50,15 @@ internal static partial class GeneratorTestHelpers
             "generated code should compile without errors, but found:\n" +
             string.Join("\n---\n", errors.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
 
-        return Verifier.Verify(driver)
-            .UseDirectory("Snapshots")
-            .DisableDiff()
-            .ScrubLinesWithReplace(line =>
-                line.Contains("global::System.CodeDom.Compiler.GeneratedCode")
-                    ? GeneratedCodeAttributeRegex().Replace(line, "REPLACED")
-                    : line);
+        return VerifyDriver(driver);
     }
 
+    // A failing type can still share its generator run with a sibling that succeeded (Phase 1's
+    // transitive closure walk - e.g. Customer succeeds even though its nested Address parameter
+    // fails constructor selection), so VerifyFailure can emit real generated `.cs` output too, not
+    // just a diagnostics-only snapshot - it needs the same GeneratedCodeAttribute version scrub as
+    // Verify, or the snapshot embeds whatever commit SHA happened to be checked out locally and
+    // fails on every other machine/commit.
     internal static Task VerifyFailure(CodeGenerationOptions options, string expectedDiagnosticId, CancellationToken cancellationToken = default)
     {
         var (driver, _) = GenerateFromSource(options, cancellationToken);
@@ -69,8 +69,21 @@ internal static partial class GeneratorTestHelpers
             $"expected diagnostic {expectedDiagnosticId} to be present, but found:\n" +
             string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
 
-        return Verifier.Verify(driver).UseDirectory("Snapshots").DisableDiff();
+        return VerifyDriver(driver);
     }
+
+    // GeneratedCodeAttribute's version argument embeds the generator assembly's own build commit
+    // SHA (CompositionPlanEmitter.GeneratorVersion) - it changes every time the generator is
+    // rebuilt at a different commit, so it has to be scrubbed to a fixed placeholder before
+    // snapshotting, or the snapshot only ever matches the exact commit it was accepted against.
+    private static SettingsTask VerifyDriver(GeneratorDriver driver) =>
+        Verifier.Verify(driver)
+            .UseDirectory("Snapshots")
+            .DisableDiff()
+            .ScrubLinesWithReplace(line =>
+                line.Contains("global::System.CodeDom.Compiler.GeneratedCode")
+                    ? GeneratedCodeAttributeRegex().Replace(line, "REPLACED")
+                    : line);
 
     private static (GeneratorDriver driver, Compilation compilation) GenerateFromSource(
         CodeGenerationOptions options, CancellationToken cancellationToken)

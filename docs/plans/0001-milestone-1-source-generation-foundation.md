@@ -79,42 +79,45 @@ register it into `PlanCache<T>`.
       `Verify.SourceGenerators`/`Verify.XunitV3` — happy path +
       ambiguous-constructor diagnostic)
 
-### Phase 1 — Transitive closure (Not started)
+### Phase 1 — Transitive closure (Done, not yet opened as a PR)
 
 The real gap between "works for a flat type" and the exit criteria's
 "representative record or class" — a `Customer` with an `Address`
 property needs `Address` to get its own generated plan too, not just a
 `context.Resolve<Address>()` call with nothing behind it yet.
 
-**Open design question to settle before implementing** (light dive,
-not a full ADR — the shape is basically decided by ADR-0004, this is
-filling in a gap it left implicit): when the generator walks a
-discovered type's constructor parameters, how does it decide which
-parameter types get their *own* generated plan (recursive walk) versus
-being left as a bare `context.Resolve<TParam>()` call for
-`ICompositionContext`/Milestone 2 to handle? A parameter like `string`
-or `int` doesn't have a sensible single-constructor shape the way a
-`Customer`/`Address`-style type does, so blindly attempting constructor
-selection on every parameter type would misfire on exactly the
-primitives Milestone 2 owns. Leading option: only recurse into a
-parameter type if constructor selection on it *succeeds cleanly*
-(exactly one accessible constructor); anything that fails constructor
-selection is left to `context.Resolve<TParam>()` silently (no `CMP0001`/
-`CMP0002` diagnostic — those diagnostics are for the type actually
-requested via `Create<T>()`, not for every leaf type incidentally
-touched while walking its graph).
+**Recursion-boundary rule, confirmed with the user before implementing**:
+recurse into a constructor parameter type (give it its own generated
+plan) when it's a *concrete type eligible for generated composition* —
+implemented as `LeafTypeClassifier.IsProviderResolved`, which leaves a
+parameter as a bare `context.Resolve<TParam>()` call only for
+interfaces, abstract types, delegates, enums, the built-in C# simple
+types (`bool`/`byte`/.../`string`/`nint`/`nuint`), and a handful of BCL
+value types with no meaningful composable constructor shape
+(`DateTime`, `DateTimeOffset`, `Guid`, `TimeSpan`). A concrete type that
+*is* eligible but fails constructor selection (ambiguous, no accessible
+constructor, unsupported parameter kind, unassigned required members)
+is diagnosed at the original `Composer.Create<T>()` call site instead
+of silently left as `Resolve<TParam>()` — the diagnostic message names
+the traversal path (e.g. `'Address' (reached via Customer.HomeAddress)
+has 2 accessible constructors...`) so a nested failure isn't reported
+with no context about where in the graph it came from.
 
-- [ ] Confirm the recursion-boundary rule above with the user before
+- [x] Confirm the recursion-boundary rule above with the user before
       implementing (or replace it with whatever's actually decided)
-- [ ] Walk each discovered type's constructor parameter types
-      recursively, applying that rule
-- [ ] Dedupe the resulting set (a type reachable from two different
-      parents still gets exactly one generated plan)
-- [ ] Emit a generated plan + `PlanCache<T>` registration for every type
+- [x] Walk each discovered type's constructor parameter types
+      recursively, applying that rule (`TransitiveClosureWalker`)
+- [x] Dedupe the resulting set (a type reachable from two different
+      parents still gets exactly one generated plan) — a
+      `SymbolEqualityComparer`-backed visited set in the BFS walk
+- [x] Emit a generated plan + `PlanCache<T>` registration for every type
       in the closure, not just the top-level requested type
-- [ ] Snapshot test: a type with a nested composable property (e.g.
+- [x] Snapshot test: a type with a nested composable property (e.g.
       `Customer(string Name, Address HomeAddress)`) produces plans for
       *both* `Customer` and `Address`
+      (`NestedComposableProperty_GeneratesPlansForBothTypes`), plus
+      dedup-across-parents, leaf-type non-recursion, and nested-failure
+      diagnostic coverage
 
 ### Phase 2 — Escape-hatch attribute (Not started)
 
@@ -164,7 +167,9 @@ a new architectural fork.
 
 - `src/Compono.Generators/` — the generator project (ADR-0003):
   `ComponoIncrementalGenerator.cs` (pipeline entry point),
-  `Discovery/CreateInvocationDiscovery.cs` + `ConstructorSelector.cs`,
+  `Discovery/CreateInvocationDiscovery.cs` + `ConstructorSelector.cs` +
+  `TransitiveClosureWalker.cs` (Phase 1's recursive parameter-type walk) +
+  `LeafTypeClassifier.cs` (Phase 1's recurse-vs-`Resolve<T>()` rule),
   `WellKnownTypes/` (symbol cache, vendored `BoundedCacheWithFactory`),
   `Diagnostics/` (`DiagnosticDescriptors`, `DiagnosticInfo`),
   `Models/` (`DiscoveredTypeInfo`, `ConstructorParameterInfo`, `LocationInfo`),
@@ -441,3 +446,16 @@ out of scope for the PR that surfaced them:
   `dotnet test` is 10/10 passing (`Compono.Tests` + `Compono.Generators.Tests`,
   both TFMs); `dotnet pack` on `Compono` verified to contain just
   `Compono.Generators.dll` under `analyzers/dotnet/cs`.
+- **Phase 1 real manual verification**: `dotnet pack`'d `Compono` into a local
+  feed, referenced it from a genuinely separate throwaway console project
+  (not the repo's own test suite), and confirmed `PlanCache<Customer>.Instance`
+  *and* `PlanCache<Address>.Instance` (Address only reachable through
+  Customer's constructor parameter, no local `Create<Address>()` call site of
+  its own) were both populated by generated module initializers, and that
+  `Composer.Create<Customer>()` actually reaches the generated plan's
+  `Compose()` method (which calls `context.Resolve<string>()` and throws the
+  expected Milestone-1-placeholder `NotSupportedException`, not some other
+  failure) — proves the transitive-closure codegen works in a real build, not
+  just the snapshot test harness. As of Phase 1's completion: full solution
+  build is still 0 warnings/0 errors; `dotnet test` is 50/50 passing
+  (`Compono.Tests` + `Compono.Generators.Tests`, both TFMs).

@@ -18,8 +18,10 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
         var discoveredTypes = context.SyntaxProvider
             .CreateSyntaxProvider(CreateInvocationDiscovery.IsCandidate, CreateInvocationDiscovery.Transform)
             .WithTrackingName(TrackingNames.CreateInvocations)
-            .Where(static type => type is not null)
-            .Select(static (type, _) => type!)
+            .Where(static types => types is not null)
+            // Each call site now yields its whole transitive closure (Phase 1), not just the
+            // requested type - flatten before the rest of the pipeline dedupes/emits per type.
+            .SelectMany(static (types, _) => types!.Value)
             .WithTrackingName(TrackingNames.CreateInvocationsNotNull)
             .Collect()
             .WithTrackingName(TrackingNames.CreateInvocationsCollected)
