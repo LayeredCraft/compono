@@ -243,9 +243,12 @@ task list; see **Phases** above for what's actually left to do.
     missing `composer?.Create<T>()` (`MemberBindingExpressionSyntax`, a
     different syntax node inside a `ConditionalAccessExpressionSyntax`).
     Both are now matched in the predicate.
-  - Regression tests for all six (`CodexFeedbackRegressionTests.cs`),
-    including one that compiles a genuinely separate library assembly
-    in-memory (`GeneratorTestHelpers.CompileLibrary`) to prove the
+  - Regression tests for all six added to `CompositionPlanVerifyTests.cs`
+    (not a separate PR-specific test class — this is ongoing coverage of
+    the same generator behavior the rest of that class already tests, not
+    a one-off tied to this PR), including one that compiles a genuinely
+    separate library assembly in-memory (`GeneratorTestHelpers.CompileLibrary`)
+    to prove the
     cross-assembly accessibility case for real, not just in-compilation.
 
 - Started with "Create generator project" as the first slice, since every
