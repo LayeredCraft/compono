@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+        <!-- Internal-only; shipped inside Compono's own nupkg - see
+             docs/adr/0003-generator-package-distribution.md. -->
+        <IsPackable>false</IsPackable>
+        <!-- Scriban ships as source when this is set (its build/Scriban.targets adds its own .cs
+             files as Compile items) - matching dynamo-mapper's actual pattern. -->
+        <PackageScribanIncludeSource>true</PackageScribanIncludeSource>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Keep Roslyn deps private so they don't leak to consumers -->
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+        <!-- Polyfills modern C# language/BCL surface (IsExternalInit, nullable attributes, trimming
+             attributes, etc.) that netstandard2.0 doesn't ship - needed for records/nullable code
+             in this project and for Scriban's embedded source above. Matches dynamo-mapper's
+             pattern exactly. -->
+        <PackageReference Include="Meziantou.Polyfill">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
+             pattern exactly. -->
+        <PackageReference Include="Microsoft.CSharp" PrivateAssets="all" />
+        <!-- Templating - final plan-class assembly only; per-member codegen logic is
+             rendered to plain strings before reaching the template. See
+             docs/adr/0005-generator-implementation-conventions.md. -->
+        <PackageReference Include="Scriban" IncludeAssets="Build" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Templates\*.scriban" />
+        <EmbeddedResource Include="Templates\*.scriban" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.Generators.Tests" />
+    </ItemGroup>
+
+</Project>

@@ -30,9 +30,14 @@ Conditionally, based on what the ADR/plan actually touches:
    (check `docs/adr/README.md`'s index, or the plan referenced by the
    request) and read its Decision Outcome — that's the spec you're
    building against, not your own read of the request. If a `Plan` exists,
-   read its current Tasks/Critical files/Test plan sections too; if its
-   `Status` is still `Not Started` and the ADR is now `Accepted`, flip it
-   to `In Progress` as you begin.
+   **(re-)read the plan file from disk now**, even if it was already
+   discussed earlier in this same conversation — the plan file is the
+   source of truth for status/scope, not conversation memory
+   (`design-decisions.md`'s "Writing a Plan" section), and treating what
+   you already recall as current is exactly how a plan's Tasks checklist
+   drifts from what's actually true. If its `Status` is still `Not
+   Started` and the ADR is now `Accepted`, flip it to `In Progress` as you
+   begin.
 2. **Implement per `coding-standards.md`** — naming, nullable annotations
    (comment every `!`), async patterns, traditional constructors for new
    classes, DI-only wiring (no static singletons), 4-param-max methods,
@@ -76,9 +81,11 @@ Conditionally, based on what the ADR/plan actually touches:
 9. **Commit, and open a PR if asked**, per `contributing.md`'s "keep PRs
    scoped to one decision or one feature" rule — don't bundle an unrelated
    fix or refactor into the same diff just because you're already touching
-   nearby code (`code-of-conduct.md`). Route review through
-   `tasks/pr-review.md` once a PR exists, rather than self-reviewing
-   informally.
+   nearby code (`code-of-conduct.md`). If the plan is broken into phases,
+   this means **one PR per phase** (`design-decisions.md`'s "Writing a
+   Plan" section) — don't hold a finished phase back to bundle it with the
+   next one. Route review through `tasks/pr-review.md` once a PR exists,
+   rather than self-reviewing informally.
 
 ## Output
 

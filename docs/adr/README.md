@@ -65,3 +65,5 @@ the mechanics: numbering, status, and the index.
 | [0001](0001-source-generation-first.md) | Source Generation First | Accepted |
 | [0002](0002-constructor-selection-algorithm.md) | Constructor Selection Algorithm | Accepted |
 | [0003](0003-generator-package-distribution.md) | Generator Package Distribution | Accepted |
+| [0004](0004-composition-plan-discovery-and-dispatch.md) | Composition Plan Discovery and Dispatch | Accepted |
+| [0005](0005-generator-implementation-conventions.md) | Source Generator Implementation Conventions | Accepted |

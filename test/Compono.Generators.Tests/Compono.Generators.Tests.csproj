@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.Generators.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Verify.SourceGenerators" />
+    <PackageReference Include="Verify.XunitV3" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Basic.Reference.Assemblies.Net100" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageReference Include="Basic.Reference.Assemblies.Net110" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Referenced normally (not analyzer-only) - the test drives the generator directly via
+         CSharpGeneratorDriver, not via an analyzer/build reference. -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj" />
+    <!-- The test's inline source compiles against Compono.Composer/ICompositionPlan<T>/PlanCache<T>. -->
+    <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Snapshots\" />
+  </ItemGroup>
+
+</Project>

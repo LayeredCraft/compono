@@ -5,4 +5,36 @@
        every setting there (package metadata, DebugType, the IsTestProject
        IsPackable rule, SourceLink) still applies to everything under test/. -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Run every test project against every TFM Compono itself ships
+         (src/Compono/Compono.csproj's TargetFrameworks) - a test suite that
+         only exercises net11.0 gives zero coverage of the net10.0 build. -->
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="NSubstitute" />
+    <Using Include="AwesomeAssertions" />
+  </ItemGroup>
+
+  <!-- Common test-project package references, so individual test .csproj
+       files only need to declare what's actually specific to them (a
+       project reference, a project-specific package). Scoped to
+       IsTestProject rather than unconditional, matching AlexaVoxCraft's
+       test/Directory.Build.props paradigm - a future non-test helper
+       project under test/ (a shared TestKit, if this repo grows enough
+       test projects to warrant one) wouldn't want these forced on it. -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageReference Include="Microsoft.Testing.Platform" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
 </Project>

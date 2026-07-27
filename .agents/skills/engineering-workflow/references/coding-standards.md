@@ -440,9 +440,38 @@ alphabetical order, not chronological-by-when-it-was-added.
 - Organize by feature/concern folder (e.g. `Composition/`, `Providers/`,
   `Generators/`), not by technical layer.
 
-There's no `Directory.Build.props` yet, so `Nullable`, `ImplicitUsings`,
-and `TargetFramework` will need to be set per-csproj until one exists — if
-you add a new project before that gap is closed, copy the settings from
-`src/Compono/Compono.csproj` rather than introducing a fresh variant, and
-consider adding `Directory.Build.props` at that point if you're already
-touching multiple project files.
+**Generated code** (what `Compono.Generators` emits into consumer
+compilations — distinct from the generator's own source, which follows
+every other section of this file like any hand-written code):
+
+- **Every generator-emitted type is `file`-scoped** (`file sealed class`,
+  `file static class`) unless a consumer genuinely needs to name it —
+  which, for Compono, none do: generated plans are reached through
+  `PlanCache<T>.Instance`, never by name. This is the standard, not a
+  per-case choice, because it's the collision story: a `file` type's
+  identity is scoped to its file, so two generated files can each declare
+  a `BoxCompositionPlan` (e.g. for `Box<int>` and `Box<string>`, whose
+  simple names are identical) without conflict, with no name-mangling
+  schemes to invent or get wrong. This is exactly what C#'s `file`
+  modifier was designed for.
+- **Every type reference emitted into generated code is
+  `global::`-qualified**, via
+  `ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)` — never
+  plain `ToDisplayString()`, which despite how it reads does *not* emit
+  `global::` and mis-binds when a consumer's type shadows a namespace
+  segment in scope. Diagnostic *messages* keep the plain, readable form —
+  the rule is about emitted code, where correctness beats readability.
+- **Hint names (`AddSource`) are readable + stable-hash-suffixed**: the
+  sanitized fully-qualified name for a human scanning generated-file
+  lists, plus a short stable hash of the raw pre-sanitization identity —
+  sanitization is lossy (`N.Foo<int>` and a literal `N.Foo_int_` sanitize
+  identically), and `AddSource` throws on duplicate hints, so uniqueness
+  can't ride on the readable part alone. The hash must be a deterministic
+  algorithm (FNV-1a in `CompositionPlanEmitter`) — never
+  `string.GetHashCode()`, which is randomized per process on modern
+  runtimes and would churn hint names between builds.
+
+`Directory.Build.props` (repo root) carries shared csproj settings and
+package metadata; `test/Directory.Build.props` layers test-specific
+config on top (see `testing.md`). When adding a new project, don't
+duplicate settings those files already provide.

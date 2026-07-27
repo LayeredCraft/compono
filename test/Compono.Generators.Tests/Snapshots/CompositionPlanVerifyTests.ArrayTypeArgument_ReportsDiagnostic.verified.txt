@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (15,40)-(15,50),
+      Message: 'TestNamespace.Customer[]' is not a type Compono can compose - Composer.Create<T>() requires a named type (a class, struct, record, or interface), not an array, pointer, or other type shape,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0006,
+        Title: Unsupported type argument shape,
+        MessageFormat: '{0}' is not a type Compono can compose - Composer.Create<T>() requires a named type (a class, struct, record, or interface), not an array, pointer, or other type shape,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

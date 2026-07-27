@@ -24,5 +24,31 @@
     <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <!-- Roslyn / Source Generators: Compono.Generators only, referenced with
+         PrivateAssets="all" so they never leak to consumers - see
+         docs/adr/0003-generator-package-distribution.md. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
+    <!-- Templating, per docs/adr/0005-generator-implementation-conventions.md - shipped as source
+         (PackageScribanIncludeSource, set on Compono.Generators.csproj) rather than a compiled lib,
+         matching dynamo-mapper's pattern exactly: Scriban's code compiles directly into
+         Compono.Generators.dll, so there's no separate Scriban.dll to ship/load at generator
+         runtime. EquatableArray<T> (the incremental-cache-safety helper dynamo-mapper gets from
+         LayeredCraft.SourceGeneratorTools) is vendored locally in Compono.Generators/Types instead
+         of taking a package dependency on that one - see the attribution comment on the vendored
+         file. Its GetHashCode() uses System.HashCode, provided for netstandard2.0 by
+         Meziantou.Polyfill below, rather than a second vendored HashCode polyfill. -->
+    <PackageVersion Include="Scriban" Version="7.2.5" />
+    <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
+         Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.156" />
+    <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
+         pattern exactly. -->
+    <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
+    <!-- Generator testing: snapshot-test the generator itself, per ADR-0005. -->
+    <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
+    <PackageVersion Include="Verify.XunitV3" Version="31.27.0" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.10" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.10" />
   </ItemGroup>
 </Project>

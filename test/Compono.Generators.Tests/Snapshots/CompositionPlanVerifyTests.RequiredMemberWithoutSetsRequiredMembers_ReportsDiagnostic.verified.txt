@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (16,39)-(16,61),
+      Message: 'TestNamespace.Customer' has required members that its selected constructor doesn't set (no [SetsRequiredMembers]) - Compono can't compose required-member initialization yet,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0007,
+        Title: Required members cannot be composed yet,
+        MessageFormat: '{0}' has required members that its selected constructor doesn't set (no [SetsRequiredMembers]) - Compono can't compose required-member initialization yet,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

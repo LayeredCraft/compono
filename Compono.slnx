@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Compono/Compono.csproj" />
+    <Project Path="src/Compono.Generators/Compono.Generators.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
+    <Project Path="test/Compono.Generators.Tests/Compono.Generators.Tests.csproj" />
   </Folder>
 </Solution>
