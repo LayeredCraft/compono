@@ -348,6 +348,39 @@ task list; see **Phases** above for what's actually left to do.
   - Another Copilot finding (the `PlaceholderCompositionContext` exception
     message reading as if recursive composition works today) was also
     triaged as **no action** per the user.
+- **A fifth, final review round on PR #4 (3 Codex findings)**, triaged one
+  at a time with the user before any implementation:
+  - `Create<T>()` where `T` is a delegate type: not abstract, and Roslyn
+    exposes a delegate's synthetic `(object, IntPtr)` constructor, so it
+    passed `ConstructorSelector.Select` and the template emitted
+    `new SomeDelegate(arg1, arg2)` - not legal delegate-construction
+    syntax in C#. Fixed by rejecting `TypeKind.Delegate` alongside the
+    existing abstract-type check, reusing `CMP0003` (generalized its
+    message format from `'{0}' is abstract and...` to
+    `'{0}' is {1} and...` so both reasons share one diagnostic ID).
+  - **Deferred as an Open Item** (see below): two extern-aliased
+    references defining the same metadata name reduce to the same
+    `global::` name in generated code and could dedupe/collide.
+  - **No action**: pinning the generator's compile-time
+    `Microsoft.CodeAnalysis.CSharp` reference to the oldest
+    supported Roslyn/SDK version - a real supply-chain concern, but the
+    user deferred deciding an actual minimum-supported version for now.
+
+## Open Items
+
+Tracked but deliberately not fixed yet - valid points raised in review,
+out of scope for the PR that surfaced them:
+
+- **Extern-aliased type identity isn't preserved through discovery**
+  (Codex, PR #4 round 5). Two aliased references defining the same
+  metadata name (e.g. `A::Ns.Widget` and `B::Ns.Widget`) both reduce to
+  `global::Ns.Widget` in `CreateInvocationDiscovery`, so their
+  `DiscoveredTypeInfo` values could dedupe as "the same type" and the
+  emitted reference would be unresolved or ambiguous. Niche - extern
+  alias usage is uncommon - so deferred rather than fixed; revisit if it
+  ever actually comes up in practice (either preserve alias/assembly
+  identity through discovery and emit a corresponding `extern alias`, or
+  diagnose the case explicitly instead of producing uncompilable code).
 
 - Started with "Create generator project" as the first slice, since every
   later task depends on the project existing and being wired correctly

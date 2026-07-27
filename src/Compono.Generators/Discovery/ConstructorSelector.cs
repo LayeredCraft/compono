@@ -24,7 +24,21 @@ internal static class ConstructorSelector
             return Result.Failure(new DiagnosticInfo(
                 DiagnosticDescriptors.TypeNotConstructible,
                 location,
-                type.ToDisplayString()));
+                type.ToDisplayString(),
+                "abstract"));
+
+        // A delegate type isn't abstract, and Roslyn exposes a synthetic (object, IntPtr)
+        // constructor on it that would otherwise sail through the checks below - but
+        // `new SomeDelegate(arg1, arg2)` isn't legal delegate-construction syntax in C# (delegates
+        // are constructed from a method group or lambda, not by invoking that synthetic
+        // constructor directly), so emitting it would produce a generated plan that fails to
+        // compile.
+        if (type.TypeKind == TypeKind.Delegate)
+            return Result.Failure(new DiagnosticInfo(
+                DiagnosticDescriptors.TypeNotConstructible,
+                location,
+                type.ToDisplayString(),
+                "a delegate type"));
 
         // Checked via the real C# accessibility-domain rules (compilation.IsSymbolAccessibleWithin),
         // not a plain Public-or-Internal filter - a `type` from a referenced assembly with an

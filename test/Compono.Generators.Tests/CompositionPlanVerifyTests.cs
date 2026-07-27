@@ -114,6 +114,33 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task DelegateType_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public delegate void Handler(string message);
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Not abstract, and Roslyn exposes a synthetic (object, IntPtr)
+                            // constructor on it - `new Handler(arg1, arg2)` isn't legal delegate
+                            // construction syntax, so this must be rejected before it reaches
+                            // codegen rather than emitting uncompilable generated code.
+                            var handler = composer.Create<TestNamespace.Handler>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0003",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task SameSimpleNameInDifferentNamespaces_GeneratesBothPlans() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

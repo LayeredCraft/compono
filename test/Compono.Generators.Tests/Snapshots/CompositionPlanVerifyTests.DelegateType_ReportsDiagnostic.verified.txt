@@ -1,8 +1,8 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (14,39)-(14,61),
-      Message: 'TestNamespace.Customer' is abstract and cannot be constructed directly,
+      Location: Program.cs: (13,38)-(13,59),
+      Message: 'TestNamespace.Handler' is a delegate type and cannot be constructed directly,
       Severity: Error,
       Descriptor: {
         Id: CMP0003,
