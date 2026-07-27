@@ -1,0 +1,28 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test Framework: xUnit v3 on Microsoft.Testing.Platform v2 (MTP v2), per
+         .agents/skills/engineering-workflow/references/testing.md.
+         Use xunit.v3.mtp-v2, not the plain xunit.v3 meta-package - the latter resolves
+         xunit.v3.core.mtp-v1, whose Microsoft.Testing.Platform version is incompatible with
+         a directly-referenced/newer Microsoft.Testing.Platform and throws TypeLoadException
+         (IDataConsumer) at test-host startup. -->
+    <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.2" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- Mocking. No AutoFixture here, deliberately - Compono is a from-scratch
+         AutoFixture replacement (docs/manifesto.md), so dogfooding AutoFixture
+         inside Compono's own test suite would be a direct contradiction of the
+         product this repo exists to build. Test data is handwritten/explicit
+         until Compono itself exists and Milestone 7 (Dogfooding) can use
+         Compono to compose its own test data instead. -->
+    <PackageVersion Include="NSubstitute" Version="6.0.0" />
+    <!-- Assertions -->
+    <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
+    <!-- NuGet package metadata (Directory.Build.props) -->
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+  </ItemGroup>
+</Project>

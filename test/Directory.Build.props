@@ -1,0 +1,8 @@
+<Project>
+  <!-- A nested Directory.Build.props doesn't automatically chain to the
+       repo-root one - MSBuild imports only the nearest one found walking
+       up from the project directory. Import the root one explicitly so
+       every setting there (package metadata, DebugType, the IsTestProject
+       IsPackable rule, SourceLink) still applies to everything under test/. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+</Project>

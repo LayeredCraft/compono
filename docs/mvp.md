@@ -295,15 +295,19 @@ A composed customer can receive realistic, deterministic values without the core
 
 ## Open Decisions Before Implementation
 
-- Runtime reflection policy
+- ~~Runtime reflection policy~~ — default direction resolved by
+  [ADR-0001](adr/0001-source-generation-first.md); the exact opt-in
+  mechanism for a future compatibility mode is still open.
 - Exact public root type name
 - Attribute names
 - Shared-value matching rules
 - Sync or async provider APIs
-- Constructor selection algorithm
+- ~~Constructor selection algorithm~~ — resolved by
+  [ADR-0002](adr/0002-constructor-selection-algorithm.md).
 - Required-member population rules
 - Nullability generation defaults
-- Generator package distribution
+- ~~Generator package distribution~~ — resolved by
+  [ADR-0003](adr/0003-generator-package-distribution.md).
 - Deterministic output compatibility guarantees
 
 ## Suggested Initial GitHub Epics

@@ -20,7 +20,8 @@ jobs:
       dotnetVersion: |
         10.0.x
         11.0.x
-      hasTests: false
+      hasTests: true
+      prereleaseIdentifier: alpha
     secrets: inherit
 
   push:
