@@ -365,6 +365,28 @@ task list; see **Phases** above for what's actually left to do.
     `Microsoft.CodeAnalysis.CSharp` reference to the oldest
     supported Roslyn/SDK version - a real supply-chain concern, but the
     user deferred deciding an actual minimum-supported version for now.
+- **A sixth review round (2 Codex findings, from an extra manually-triggered
+  review) surfaced two more real gaps**, both fixed after per-item
+  triage:
+  - `composer.Create<Customer[]>()` (or any non-`INamedTypeSymbol` shape -
+    array, pointer, function pointer): `Transform` silently returned
+    `null`, so the call compiled clean with no plan generated and no
+    diagnostic, failing only at runtime via `Composer`'s generic "no plan
+    registered" message. Fixed with a new diagnostic, `CMP0006`, reported
+    wherever the type-argument-isn't-`INamedTypeSymbol` check previously
+    just returned `null`.
+  - A type with a `required` member whose selected constructor isn't
+    annotated `[SetsRequiredMembers]`: Phase 0 only ever emits bare
+    `new T(...)` (no object initializer - required-member assignment is
+    explicitly later-milestone scope), so this would produce CS9035 in
+    the generated file. Fixed with a new diagnostic, `CMP0007`, checked
+    in `ConstructorSelector.Select` right after the single accessible
+    constructor is chosen (walks `type` and its base-type chain for any
+    `IPropertySymbol`/`IFieldSymbol` with `IsRequired: true`, then checks
+    the constructor's attributes for `SetsRequiredMembersAttribute`).
+  - This round confirmed the review loop had converged: two clearly
+    distinct, real gaps, no repeats of earlier-round territory - a good
+    stopping point for this PR's review cycle.
 
 ## Open Items
 

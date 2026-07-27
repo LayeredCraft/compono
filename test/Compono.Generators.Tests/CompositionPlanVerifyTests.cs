@@ -440,6 +440,65 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task ArrayTypeArgument_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Customer
+                    {
+                        public Customer() { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Array types have no constructors for ConstructorSelector to select -
+                            // discovery must diagnose this itself instead of silently generating
+                            // nothing and failing only at runtime.
+                            var customers = composer.Create<Customer[]>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0006",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RequiredMemberWithoutSetsRequiredMembers_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Customer
+                    {
+                        // Phase 0 only ever emits bare `new Customer(...)` - no object initializer -
+                        // so a required member with no [SetsRequiredMembers] on the constructor
+                        // would make the generated call CS9035. Required-member composition is
+                        // deferred to a later milestone.
+                        public required string Name { get; init; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var customer = composer.Create<TestNamespace.Customer>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0007",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task SanitizationCollidingNames_GenerateDistinctHints() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

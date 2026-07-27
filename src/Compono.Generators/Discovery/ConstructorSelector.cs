@@ -57,7 +57,22 @@ internal static class ConstructorSelector
                 type.ToDisplayString()));
 
         if (constructors.Length == 1)
-            return ValidateParameterKinds(type, constructors[0], location);
+        {
+            var constructor = constructors[0];
+
+            // `required` member assignment (via an object initializer) is explicitly deferred to
+            // a later milestone - Phase 0 only ever emits bare `new T(...)`. If T has a required
+            // member and its constructor isn't annotated [SetsRequiredMembers] (the one way a
+            // constructor can satisfy "required" on its own), that bare call is CS9035 in the
+            // generated file. Report it instead of emitting code that doesn't compile.
+            if (HasUnassignedRequiredMembers(type, constructor))
+                return Result.Failure(new DiagnosticInfo(
+                    DiagnosticDescriptors.UnassignedRequiredMembers,
+                    location,
+                    type.ToDisplayString()));
+
+            return ValidateParameterKinds(type, constructor, location);
+        }
 
         return Result.Failure(new DiagnosticInfo(
             DiagnosticDescriptors.AmbiguousConstructor,
@@ -107,6 +122,25 @@ internal static class ConstructorSelector
         }
 
         return Result.Success(constructor);
+    }
+
+    private static bool HasUnassignedRequiredMembers(INamedTypeSymbol type, IMethodSymbol constructor)
+    {
+        var hasRequiredMembers = EnumerateTypeAndBases(type)
+            .SelectMany(t => t.GetMembers())
+            .Any(m => m is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true });
+
+        if (!hasRequiredMembers)
+            return false;
+
+        return !constructor.GetAttributes().Any(a =>
+            a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute");
+    }
+
+    private static IEnumerable<INamedTypeSymbol> EnumerateTypeAndBases(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+            yield return current;
     }
 
     internal readonly struct Result

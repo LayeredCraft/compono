@@ -59,8 +59,15 @@ internal static class CreateInvocationDiscovery
         if (ContainsTypeParameter(typeArgument))
             return OpenGenericTypeArgumentFailure(typeArgument, location);
 
+        // Anything that isn't an INamedTypeSymbol - an array (`Customer[]`), a pointer, a function
+        // pointer - has no constructors for ConstructorSelector to select from, and `new T(...)`
+        // isn't even the right syntax to construct one. Report it instead of silently doing
+        // nothing: without this, `composer.Create<Customer[]>()` compiles clean, generates no plan
+        // and no diagnostic, and only fails at runtime via Composer's generic
+        // "no plan registered" message - which gives no hint that this type shape was never
+        // supported in the first place.
         if (typeArgument is not INamedTypeSymbol composedType)
-            return null;
+            return UnsupportedTypeArgumentShapeFailure(typeArgument, location);
 
         return Analyze(composedType, context.SemanticModel.Compilation, location);
     }
@@ -110,7 +117,18 @@ internal static class CreateInvocationDiscovery
             EquatableArray<DiagnosticInfo>.Empty);
     }
 
-    private static DiscoveredTypeInfo OpenGenericTypeArgumentFailure(ITypeSymbol type, LocationInfo? location)
+    private static DiscoveredTypeInfo OpenGenericTypeArgumentFailure(ITypeSymbol type, LocationInfo? location) =>
+        TypeArgumentFailure(DiagnosticDescriptors.OpenGenericTypeArgument, type, location);
+
+    private static DiscoveredTypeInfo UnsupportedTypeArgumentShapeFailure(ITypeSymbol type, LocationInfo? location) =>
+        TypeArgumentFailure(DiagnosticDescriptors.UnsupportedTypeArgumentShape, type, location);
+
+    // Shared by every "the type argument itself is unusable" failure - none of these have a
+    // constructor to select, so there's no DiscoveredTypeInfo.Parameters to populate, just a
+    // diagnostic. `type.ContainingNamespace`/`type.Name` are empty for shapes like arrays and
+    // pointers, which is fine here: the Namespace/TypeName fields go unused once Diagnostics is
+    // non-empty (ComponoIncrementalGenerator skips codegen for any type with diagnostics).
+    private static DiscoveredTypeInfo TypeArgumentFailure(DiagnosticDescriptor descriptor, ITypeSymbol type, LocationInfo? location)
     {
         var @namespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : "";
         var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -120,13 +138,7 @@ internal static class CreateInvocationDiscovery
             type.Name,
             emittedName,
             EquatableArray<ConstructorParameterInfo>.Empty,
-            new[]
-            {
-                new DiagnosticInfo(
-                    DiagnosticDescriptors.OpenGenericTypeArgument,
-                    location,
-                    type.ToDisplayString()),
-            }.ToEquatableArray());
+            new[] { new DiagnosticInfo(descriptor, location, type.ToDisplayString()) }.ToEquatableArray());
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

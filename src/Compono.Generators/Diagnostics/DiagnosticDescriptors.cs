@@ -46,4 +46,22 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnsupportedTypeArgumentShape = new(
+        "CMP0006",
+        "Unsupported type argument shape",
+        "'{0}' is not a type Compono can compose - Composer.Create<T>() requires a named type " +
+        "(a class, struct, record, or interface), not an array, pointer, or other type shape",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnassignedRequiredMembers = new(
+        "CMP0007",
+        "Required members cannot be composed yet",
+        "'{0}' has required members that its selected constructor doesn't set (no " +
+        "[SetsRequiredMembers]) - Compono can't compose required-member initialization yet",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
