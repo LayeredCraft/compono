@@ -38,13 +38,42 @@ internal static class CreateInvocationDiscovery
         if (method.Name != "Create" || !wellKnownTypes.IsType(method.ContainingType, WellKnownTypeData.WellKnownType.Compono_Composer))
             return null;
 
-        if (method.TypeArguments.Length != 1 || method.TypeArguments[0] is not INamedTypeSymbol composedType)
+        if (method.TypeArguments.Length != 1)
             return null;
 
-        return Analyze(composedType, context.SemanticModel.Compilation);
+        var typeArgument = method.TypeArguments[0];
+
+        // Points diagnostics at the `T` in `composer.Create<T>()` itself, not at T's declaration
+        // (which may not even exist - see the ContainsTypeParameter branch below - or may just be
+        // a less useful place to highlight than the call site that actually triggered discovery).
+        var location = LocationInfo.From(GetTypeArgumentSyntax(invocation) ?? (SyntaxNode)invocation);
+
+        // Three ways a type argument can fail to be a genuine closed type, all needing the same
+        // diagnostic: `composer.Create<T>()` where `T` is the enclosing generic method's own type
+        // parameter (typeArgument is directly an ITypeParameterSymbol - not even an
+        // INamedTypeSymbol, so it wouldn't survive the cast below); `composer.Create<Box<T>>()`
+        // where `T` is nested inside a constructed generic type's arguments; and
+        // `composer.Create<Outer<T>.Inner>()` where `Inner` isn't itself generic but its
+        // *containing* type still closes over the method's `T`. ContainsTypeParameter walks all
+        // three shapes before anything downstream assumes the type argument is fully closed.
+        if (ContainsTypeParameter(typeArgument))
+            return OpenGenericTypeArgumentFailure(typeArgument, location);
+
+        if (typeArgument is not INamedTypeSymbol composedType)
+            return null;
+
+        return Analyze(composedType, context.SemanticModel.Compilation, location);
     }
 
-    private static DiscoveredTypeInfo Analyze(INamedTypeSymbol type, Compilation compilation)
+    private static TypeSyntax? GetTypeArgumentSyntax(InvocationExpressionSyntax invocation) =>
+        invocation.Expression switch
+        {
+            MemberAccessExpressionSyntax { Name: GenericNameSyntax generic } => generic.TypeArgumentList.Arguments[0],
+            MemberBindingExpressionSyntax { Name: GenericNameSyntax generic } => generic.TypeArgumentList.Arguments[0],
+            _ => null,
+        };
+
+    private static DiscoveredTypeInfo Analyze(INamedTypeSymbol type, Compilation compilation, LocationInfo? location)
     {
         // ContainingNamespace.ToDisplayString() returns the literal text "<global namespace>" for
         // a type with no namespace, not an empty string - confirmed empirically (it briefly made it
@@ -59,27 +88,7 @@ internal static class CreateInvocationDiscovery
         // diagnostic messages keep the plain form for readability.
         var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-        // `composer.Create<Box<T>>()` called inside a generic method: `T` here is an
-        // ITypeParameterSymbol scoped to that method, not a real type. It's a valid
-        // INamedTypeSymbol (so it sails through the earlier type checks), but emitting
-        // `global::TestNamespace.Box<T>` into a namespace-level generated plan references a `T`
-        // that's out of scope there, breaking the consumer's build instead of surfacing a
-        // diagnostic. Reject any type argument that isn't fully closed.
-        if (ContainsTypeParameter(type))
-            return new DiscoveredTypeInfo(
-                @namespace,
-                type.Name,
-                emittedName,
-                EquatableArray<ConstructorParameterInfo>.Empty,
-                new[]
-                {
-                    new DiagnosticInfo(
-                        DiagnosticDescriptors.OpenGenericTypeArgument,
-                        LocationInfo.From(type),
-                        type.ToDisplayString()),
-                }.ToEquatableArray());
-
-        var selection = ConstructorSelector.Select(type, compilation);
+        var selection = ConstructorSelector.Select(type, compilation, location);
 
         if (!selection.IsSuccess)
             return new DiscoveredTypeInfo(
@@ -101,10 +110,31 @@ internal static class CreateInvocationDiscovery
             EquatableArray<DiagnosticInfo>.Empty);
     }
 
+    private static DiscoveredTypeInfo OpenGenericTypeArgumentFailure(ITypeSymbol type, LocationInfo? location)
+    {
+        var @namespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : "";
+        var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        return new DiscoveredTypeInfo(
+            @namespace,
+            type.Name,
+            emittedName,
+            EquatableArray<ConstructorParameterInfo>.Empty,
+            new[]
+            {
+                new DiagnosticInfo(
+                    DiagnosticDescriptors.OpenGenericTypeArgument,
+                    location,
+                    type.ToDisplayString()),
+            }.ToEquatableArray());
+    }
+
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
     {
         ITypeParameterSymbol => true,
-        INamedTypeSymbol { IsGenericType: true } named => named.TypeArguments.Any(ContainsTypeParameter),
+        INamedTypeSymbol named =>
+            (named.IsGenericType && named.TypeArguments.Any(ContainsTypeParameter)) ||
+            (named.ContainingType is not null && ContainsTypeParameter(named.ContainingType)),
         IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
         IPointerTypeSymbol pointer => ContainsTypeParameter(pointer.PointedAtType),
         _ => false,

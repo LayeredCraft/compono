@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (2,20)-(2,26),
+      Location: Program.cs: (12,37)-(12,57),
       Message: 'TestNamespace.Widget' takes parameter 'count' by ref, which Compono cannot compose a value for,
       Severity: Error,
       Descriptor: {

@@ -11,7 +11,11 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class ConstructorSelector
 {
-    public static Result Select(INamedTypeSymbol type, Compilation compilation)
+    // `location` is the `Composer.Create<T>()` call site's type-argument location (threaded down
+    // from CreateInvocationDiscovery), not T's own declaration - a failing composition is
+    // diagnosed where the caller asked for it, not wherever T happens to be declared (which may be
+    // a different file entirely, or not even in this compilation for a referenced-assembly type).
+    public static Result Select(INamedTypeSymbol type, Compilation compilation, LocationInfo? location)
     {
         // An abstract type can legally have a public constructor (called only from a derived
         // class's constructor) - `new AbstractType(...)` is never legal regardless, so this has
@@ -19,7 +23,7 @@ internal static class ConstructorSelector
         if (type.IsAbstract)
             return Result.Failure(new DiagnosticInfo(
                 DiagnosticDescriptors.TypeNotConstructible,
-                LocationInfo.From(type),
+                location,
                 type.ToDisplayString()));
 
         // Checked via the real C# accessibility-domain rules (compilation.IsSymbolAccessibleWithin),
@@ -35,15 +39,15 @@ internal static class ConstructorSelector
         if (constructors.Length == 0)
             return Result.Failure(new DiagnosticInfo(
                 DiagnosticDescriptors.NoAccessibleConstructor,
-                LocationInfo.From(type),
+                location,
                 type.ToDisplayString()));
 
         if (constructors.Length == 1)
-            return ValidateParameterKinds(type, constructors[0]);
+            return ValidateParameterKinds(type, constructors[0], location);
 
         return Result.Failure(new DiagnosticInfo(
             DiagnosticDescriptors.AmbiguousConstructor,
-            LocationInfo.From(type),
+            location,
             type.ToDisplayString(),
             constructors.Length));
     }
@@ -54,14 +58,14 @@ internal static class ConstructorSelector
     // can't be used as a generic type argument - CS0306/CS0611). Report a diagnostic instead of
     // emitting generated code that doesn't compile. `in` is deliberately allowed: callers may
     // legally pass a plain value to an `in` parameter with no modifier at all.
-    private static Result ValidateParameterKinds(INamedTypeSymbol type, IMethodSymbol constructor)
+    private static Result ValidateParameterKinds(INamedTypeSymbol type, IMethodSymbol constructor, LocationInfo? location)
     {
         foreach (var parameter in constructor.Parameters)
         {
             if (parameter.RefKind is RefKind.Ref or RefKind.Out or RefKind.RefReadOnlyParameter)
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnsupportedParameterKind,
-                    LocationInfo.From(type),
+                    location,
                     type.ToDisplayString(),
                     parameter.Name,
                     parameter.RefKind switch
@@ -74,7 +78,7 @@ internal static class ConstructorSelector
             if (parameter.Type.IsRefLikeType)
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnsupportedParameterKind,
-                    LocationInfo.From(type),
+                    location,
                     type.ToDisplayString(),
                     parameter.Name,
                     "as a ref struct (ref-like type), which cannot be used as a generic type argument"));
@@ -82,7 +86,7 @@ internal static class ConstructorSelector
             if (parameter.Type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer)
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnsupportedParameterKind,
-                    LocationInfo.From(type),
+                    location,
                     type.ToDisplayString(),
                     parameter.Name,
                     "as a pointer type, which cannot be used as a generic type argument"));

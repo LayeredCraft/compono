@@ -1,6 +1,7 @@
 ﻿{
   Diagnostics: [
     {
+      Location: Program.cs: (5,36)-(5,64),
       Message: 'LibraryNamespace.LibraryType' has no accessible instance constructor Compono can invoke,
       Severity: Error,
       Descriptor: {

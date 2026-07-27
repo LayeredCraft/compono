@@ -351,6 +351,68 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task DirectMethodTypeParameter_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Widget
+                    {
+                        public Widget() { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        // `composer.Create<T>()` where `T` is directly the method's own type
+                        // parameter: the type argument is an ITypeParameterSymbol, not even an
+                        // INamedTypeSymbol - a narrower symbol shape than Box<T>'s constructed
+                        // generic type, and must be rejected the same way.
+                        public static void Run<T>()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var value = composer.Create<T>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0005",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NestedTypeInGenericContainer_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Outer<T>
+                    {
+                        // Not itself generic - its unresolved `T` lives on ContainingType, not on
+                        // its own (empty) TypeArguments, a shape the type-parameter walk has to
+                        // check separately from Box<T>'s case above.
+                        public sealed class Inner
+                        {
+                            public Inner() { }
+                        }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run<T>()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var value = composer.Create<TestNamespace.Outer<T>.Inner>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0005",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task SanitizationCollidingNames_GenerateDistinctHints() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

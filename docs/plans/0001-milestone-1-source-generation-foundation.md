@@ -298,6 +298,56 @@ task list; see **Phases** above for what's actually left to do.
     composed type's namespace would shadow the real one and break the
     generated plan's compile. Qualified per the same "Generated code"
     standard as every other framework reference in the template.
+- **A fourth round (Copilot + Codex) surfaced five more real issues**,
+  triaged one at a time via `AskUserQuestion` before any implementation
+  this time (a prior round had batched straight to implementation without
+  checking in first — corrected per explicit user feedback):
+  - `composer.Create<T>()` where `T` is *directly* the enclosing generic
+    method's own type parameter (not nested inside a constructed type like
+    `Box<T>`) is a narrower symbol shape — `ITypeParameterSymbol`, not even
+    an `INamedTypeSymbol` — that fell through the existing
+    `is not INamedTypeSymbol composedType` guard as a silent `return null`
+    before `CMP0005` ever ran. Fixed by checking `ContainsTypeParameter` on
+    the raw type argument *before* the `INamedTypeSymbol` cast in
+    `CreateInvocationDiscovery.Transform`, so this shape is now diagnosed
+    the same way as the nested case.
+  - `Outer<T>.Inner` (a non-generic nested type inside a generic
+    container): the unresolved `T` lives on `ContainingType`, not on
+    `Inner`'s own (empty) `TypeArguments`, a path `ContainsTypeParameter`
+    didn't walk. Fixed by also recursing through `ContainingType`.
+  - Generator diagnostics pointed at `T`'s own declaration site (or
+    nowhere, for referenced-assembly/external types) instead of the
+    `Composer.Create<T>()` call site that actually triggered discovery —
+    visible in snapshots as e.g. `CMP0001` pointing at a type name in its
+    own declaration rather than the failing call. Fixed by capturing the
+    type-argument syntax's location in `Transform` and threading it as a
+    `LocationInfo?` parameter through `Analyze`/`ConstructorSelector`,
+    replacing every `LocationInfo.From(type)` call with the threaded
+    call-site location.
+  - The `GeneratedCodeAttribute` version was hard-coded to `"1.0.0"` with
+    no real versioning wired up yet. Fixed by reading
+    `AssemblyInformationalVersionAttribute` (falling back to the assembly
+    version, then `"0.0.0"`) off the generator's own assembly once,
+    passed into the template model as `generator_version` — stays
+    accurate automatically once real release versioning lands, no
+    generator code change needed then.
+  - ADR-0005 requires `.WithTrackingName(...)` on every named incremental
+    pipeline stage so cache-hit behavior is assertable later; the
+    discovery pipeline had none. Added tracking names for all four stages
+    (`CreateInvocations`, `.NotNull`, `.Collected`, `.Distinct`) via a new
+    `TrackingNames` class — no incremental-caching test exists yet to
+    consume them (that's still open work, not done in this pass).
+  - One Copilot finding was triaged as **no action**: flagged
+    `test/Directory.Build.props`'s shared `<Using/>` `ItemGroup` as
+    inconsistent with the comment on the *separate* `PackageReference`
+    `ItemGroup` below it (which explicitly scopes to `IsTestProject`).
+    Confirmed with the user this is intentional — every project under
+    `test/` should get the shared usings unconditionally; the
+    `IsTestProject` comment only ever applied to the package references,
+    not the usings above them.
+  - Another Copilot finding (the `PlaceholderCompositionContext` exception
+    message reading as if recursive composition works today) was also
+    triaged as **no action** per the user.
 
 - Started with "Create generator project" as the first slice, since every
   later task depends on the project existing and being wired correctly

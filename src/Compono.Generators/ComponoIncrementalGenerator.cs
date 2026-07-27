@@ -17,10 +17,14 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
     {
         var discoveredTypes = context.SyntaxProvider
             .CreateSyntaxProvider(CreateInvocationDiscovery.IsCandidate, CreateInvocationDiscovery.Transform)
+            .WithTrackingName(TrackingNames.CreateInvocations)
             .Where(static type => type is not null)
             .Select(static (type, _) => type!)
+            .WithTrackingName(TrackingNames.CreateInvocationsNotNull)
             .Collect()
-            .SelectMany(static (types, _) => types.Distinct());
+            .WithTrackingName(TrackingNames.CreateInvocationsCollected)
+            .SelectMany(static (types, _) => types.Distinct())
+            .WithTrackingName(TrackingNames.CreateInvocationsDistinct);
 
         context.RegisterSourceOutput(discoveredTypes, static (productionContext, type) =>
         {
@@ -33,4 +37,18 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             CompositionPlanEmitter.Generate(productionContext, type);
         });
     }
+}
+
+/// <summary>
+/// <c>.WithTrackingName(...)</c> values for <see cref="ComponoIncrementalGenerator"/>'s pipeline
+/// stages, per <c>docs/adr/0005-generator-implementation-conventions.md</c> - named up front so
+/// incremental-caching tests can locate a stage in <c>GeneratorDriverRunResult.TrackedSteps</c> by
+/// name instead of by fragile positional/structural matching.
+/// </summary>
+internal static class TrackingNames
+{
+    public const string CreateInvocations = "CreateInvocations";
+    public const string CreateInvocationsNotNull = "CreateInvocations.NotNull";
+    public const string CreateInvocationsCollected = "CreateInvocations.Collected";
+    public const string CreateInvocationsDistinct = "CreateInvocations.Distinct";
 }

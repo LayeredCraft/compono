@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (2,22)-(2,30),
+      Location: Program.cs: (14,39)-(14,61),
       Message: 'TestNamespace.Customer' is abstract and cannot be constructed directly,
       Severity: Error,
       Descriptor: {
