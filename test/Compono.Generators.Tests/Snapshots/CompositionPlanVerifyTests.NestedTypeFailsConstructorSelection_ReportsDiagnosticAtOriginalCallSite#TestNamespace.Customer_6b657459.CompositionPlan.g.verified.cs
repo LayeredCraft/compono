@@ -4,7 +4,7 @@
 
 namespace TestNamespace
 {
-    [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "1.0.0+24b52000ef87c7be55250cd43e264c9138710555")]
+    [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
     file sealed class CustomerCompositionPlan : global::Compono.ICompositionPlan<global::TestNamespace.Customer>
     {
         public global::TestNamespace.Customer Compose(global::Compono.ICompositionContext context) =>
