@@ -34,13 +34,17 @@ process and standards. It is not a restatement of current architecture;
 code and this skill disagree, the code wins and this skill is stale — fix
 the skill in the same PR you notice the drift.
 
-Repo shape: `src/Compono` (core composition engine, source generator, the
-only package scaffolded so far). `docs/mvp.md` describes the intended full
-package set — `Compono.Generators`, `Compono.Xunit`, `Compono.NSubstitute`,
-`Compono.Bogus` — none of which exist as separate projects yet; treat any
-reference to them below as forward-looking, not current fact. There is no
-`tests/` content yet either (`test/` exists but is empty) — `references/testing.md`
-describes the intended convention, not an established one.
+Repo shape: `src/Compono` (core composition engine, no runtime provider
+pipeline yet — Milestone 2 territory) and `src/Compono.Generators` (the
+incremental source generator, Milestone 1 — see
+`docs/plans/0001-milestone-1-source-generation-foundation.md` for exactly
+how far along it is; it's a phased plan, not all-or-nothing). `docs/mvp.md`
+describes the intended full package set — `Compono.Xunit`,
+`Compono.NSubstitute`, `Compono.Bogus` don't exist as projects yet; treat
+any reference to them below as forward-looking, not current fact.
+`test/Compono.Tests` and `test/Compono.Generators.Tests` are real,
+established test projects — `references/testing.md` now describes a
+pattern actually in use, not just an intended one.
 
 ## How to use this skill
 
@@ -71,12 +75,16 @@ lives in the file itself.
 | Implement code against an already-`Accepted` ADR/plan | `tasks/implement.md` |
 | Review a PR/diff in this repo | `tasks/pr-review.md` |
 | Address/respond to feedback already posted on a PR | `tasks/respond-to-pr-feedback.md` |
+| Explain what was built — walk through the code in detail, teach it from scratch | `tasks/explain.md` |
 
 `design.md` → `implement.md` → `pr-review.md` → `respond-to-pr-feedback.md`
 is the full lifecycle of a non-trivial change in this repo, in order —
 most requests only need one or two of these (e.g. a light-dive design
 folded straight into implementation), but a genuinely new feature or
-roadmap slice touches all four in sequence.
+roadmap slice touches all four in sequence. `tasks/explain.md` sits outside
+that lifecycle — it can follow any of the other four, whenever a detailed
+walkthrough is actually wanted rather than the terse summary this skill
+otherwise favors.
 
 ### References
 
