@@ -7,7 +7,7 @@
       Descriptor: {
         Id: CMP0004,
         Title: Unsupported constructor parameter kind,
-        MessageFormat: '{0}' takes parameter '{1}' {2}, which Compono cannot compose a value for,
+        MessageFormat: {0} takes parameter '{1}' {2}, which Compono cannot compose a value for,
         Category: Compono.Usage,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

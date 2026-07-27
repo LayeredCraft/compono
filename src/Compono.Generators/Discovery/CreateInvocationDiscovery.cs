@@ -26,7 +26,7 @@ internal static class CreateInvocationDiscovery
                      or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create", TypeArgumentList.Arguments.Count: 1 } },
         };
 
-    public static DiscoveredTypeInfo? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+    public static EquatableArray<DiscoveredTypeInfo>? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 
@@ -69,7 +69,10 @@ internal static class CreateInvocationDiscovery
         if (typeArgument is not INamedTypeSymbol composedType)
             return UnsupportedTypeArgumentShapeFailure(typeArgument, location);
 
-        return Analyze(composedType, context.SemanticModel.Compilation, location);
+        // Walks the requested type's constructor parameters recursively (Phase 1) - the returned
+        // array holds the requested type itself plus every type in its transitive closure that's
+        // eligible for its own generated plan (LeafTypeClassifier), not just the top-level type.
+        return TransitiveClosureWalker.Walk(composedType, context.SemanticModel.Compilation, location);
     }
 
     private static TypeSyntax? GetTypeArgumentSyntax(InvocationExpressionSyntax invocation) =>
@@ -80,47 +83,10 @@ internal static class CreateInvocationDiscovery
             _ => null,
         };
 
-    private static DiscoveredTypeInfo Analyze(INamedTypeSymbol type, Compilation compilation, LocationInfo? location)
-    {
-        // ContainingNamespace.ToDisplayString() returns the literal text "<global namespace>" for
-        // a type with no namespace, not an empty string - confirmed empirically (it briefly made it
-        // into a generated `namespace <global namespace> { ... }`, which is obviously invalid C#).
-        // IsGlobalNamespace is the actual, correct check.
-        var @namespace = type.ContainingNamespace.IsGlobalNamespace ? "" : type.ContainingNamespace.ToDisplayString();
-
-        // FullyQualifiedFormat emits `global::`-prefixed names. Plain ToDisplayString() doesn't,
-        // despite how it reads - and an unqualified `Acme.Customer` in generated code binds through
-        // a type named `Acme` if one shadows the namespace segment in scope, breaking the
-        // consumer's build. Everything emitted into generated code goes through this format;
-        // diagnostic messages keep the plain form for readability.
-        var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-        var selection = ConstructorSelector.Select(type, compilation, location);
-
-        if (!selection.IsSuccess)
-            return new DiscoveredTypeInfo(
-                @namespace,
-                type.Name,
-                emittedName,
-                EquatableArray<ConstructorParameterInfo>.Empty,
-                new[] { selection.Diagnostic! }.ToEquatableArray());
-
-        var parameters = selection.Constructor!.Parameters
-            .Select(p => new ConstructorParameterInfo(p.Name, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-            .ToEquatableArray();
-
-        return new DiscoveredTypeInfo(
-            @namespace,
-            type.Name,
-            emittedName,
-            parameters,
-            EquatableArray<DiagnosticInfo>.Empty);
-    }
-
-    private static DiscoveredTypeInfo OpenGenericTypeArgumentFailure(ITypeSymbol type, LocationInfo? location) =>
+    private static EquatableArray<DiscoveredTypeInfo> OpenGenericTypeArgumentFailure(ITypeSymbol type, LocationInfo? location) =>
         TypeArgumentFailure(DiagnosticDescriptors.OpenGenericTypeArgument, type, location);
 
-    private static DiscoveredTypeInfo UnsupportedTypeArgumentShapeFailure(ITypeSymbol type, LocationInfo? location) =>
+    private static EquatableArray<DiscoveredTypeInfo> UnsupportedTypeArgumentShapeFailure(ITypeSymbol type, LocationInfo? location) =>
         TypeArgumentFailure(DiagnosticDescriptors.UnsupportedTypeArgumentShape, type, location);
 
     // Shared by every "the type argument itself is unusable" failure - none of these have a
@@ -128,17 +94,19 @@ internal static class CreateInvocationDiscovery
     // diagnostic. `type.ContainingNamespace`/`type.Name` are empty for shapes like arrays and
     // pointers, which is fine here: the Namespace/TypeName fields go unused once Diagnostics is
     // non-empty (ComponoIncrementalGenerator skips codegen for any type with diagnostics).
-    private static DiscoveredTypeInfo TypeArgumentFailure(DiagnosticDescriptor descriptor, ITypeSymbol type, LocationInfo? location)
+    private static EquatableArray<DiscoveredTypeInfo> TypeArgumentFailure(DiagnosticDescriptor descriptor, ITypeSymbol type, LocationInfo? location)
     {
         var @namespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : "";
         var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-        return new DiscoveredTypeInfo(
+        var failure = new DiscoveredTypeInfo(
             @namespace,
             type.Name,
             emittedName,
             EquatableArray<ConstructorParameterInfo>.Empty,
             new[] { new DiagnosticInfo(descriptor, location, type.ToDisplayString()) }.ToEquatableArray());
+
+        return new[] { failure }.ToEquatableArray();
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

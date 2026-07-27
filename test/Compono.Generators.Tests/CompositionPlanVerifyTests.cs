@@ -499,6 +499,164 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task NestedComposableProperty_GeneratesPlansForBothTypes() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Address
+                {
+                    public Address(string city) { City = city; }
+                    public string City { get; }
+                }
+
+                public sealed class Customer
+                {
+                    public Customer(string name, Address homeAddress)
+                    {
+                        Name = name;
+                        HomeAddress = homeAddress;
+                    }
+
+                    public string Name { get; }
+                    public Address HomeAddress { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Address has no local Create<Address>() call site of its own - its plan
+                        // only exists because Customer's constructor closure walk (Phase 1) reaches
+                        // it through the HomeAddress parameter.
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NestedComposablePropertySharedAcrossParents_GeneratesSinglePlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Address
+                {
+                    public Address(string city) { City = city; }
+                    public string City { get; }
+                }
+
+                public sealed class Customer
+                {
+                    public Customer(Address homeAddress) { HomeAddress = homeAddress; }
+                    public Address HomeAddress { get; }
+                }
+
+                public sealed class Order
+                {
+                    public Order(Address shipToAddress) { ShipToAddress = shipToAddress; }
+                    public Address ShipToAddress { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Address is reachable from both Customer and Order - it must still only
+                        // get exactly one generated plan (AddSource throws on a duplicate hint).
+                        var customer = composer.Create<TestNamespace.Customer>();
+                        var order = composer.Create<TestNamespace.Order>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task LeafParameterType_LeftAsResolveCallNotRecursedInto() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                using System;
+
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer(string name, DateTime birthDate)
+                    {
+                        Name = name;
+                        BirthDate = birthDate;
+                    }
+
+                    public string Name { get; }
+                    public DateTime BirthDate { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // DateTime is a recognized BCL value type (LeafTypeClassifier) - left as a
+                        // bare context.Resolve<DateTime>() call, never run through constructor
+                        // selection (which would otherwise be ambiguous - DateTime has several
+                        // constructors - and wrongly fail this compile).
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NestedTypeFailsConstructorSelection_ReportsDiagnosticAtOriginalCallSite() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Address
+                    {
+                        public Address(string city) { }
+                        public Address(string city, string state) { }
+                    }
+
+                    public sealed class Customer
+                    {
+                        public Customer(string name, Address homeAddress)
+                        {
+                            Name = name;
+                            HomeAddress = homeAddress;
+                        }
+
+                        public string Name { get; }
+                        public Address HomeAddress { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Address is eligible for generated composition (a concrete type) but
+                            // has two accessible constructors - ambiguous. Must be diagnosed at
+                            // this Create<Customer>() call site (naming the HomeAddress path), not
+                            // silently left as context.Resolve<Address>(), which would hide an
+                            // invalid generated graph behind a runtime failure instead.
+                            var customer = composer.Create<TestNamespace.Customer>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task SanitizationCollidingNames_GenerateDistinctHints() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

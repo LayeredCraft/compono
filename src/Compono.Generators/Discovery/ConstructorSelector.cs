@@ -15,7 +15,11 @@ internal static class ConstructorSelector
     // from CreateInvocationDiscovery), not T's own declaration - a failing composition is
     // diagnosed where the caller asked for it, not wherever T happens to be declared (which may be
     // a different file entirely, or not even in this compilation for a referenced-assembly type).
-    public static Result Select(INamedTypeSymbol type, Compilation compilation, LocationInfo? location)
+    // `path` is null for the type requested directly at the call site, or a dotted trail like
+    // "Customer.HomeAddress" when `type` was reached recursively while walking a parent type's
+    // constructor parameters (TransitiveClosureWalker) - it names the traversal path in the
+    // message so a nested failure doesn't just point at the top-level call site with no context.
+    public static Result Select(INamedTypeSymbol type, Compilation compilation, LocationInfo? location, string? path = null)
     {
         // An abstract type can legally have a public constructor (called only from a derived
         // class's constructor) - `new AbstractType(...)` is never legal regardless, so this has
@@ -24,7 +28,7 @@ internal static class ConstructorSelector
             return Result.Failure(new DiagnosticInfo(
                 DiagnosticDescriptors.TypeNotConstructible,
                 location,
-                type.ToDisplayString(),
+                DisplayName(type, path),
                 "abstract"));
 
         // A delegate type isn't abstract, and Roslyn exposes a synthetic (object, IntPtr)
@@ -37,7 +41,7 @@ internal static class ConstructorSelector
             return Result.Failure(new DiagnosticInfo(
                 DiagnosticDescriptors.TypeNotConstructible,
                 location,
-                type.ToDisplayString(),
+                DisplayName(type, path),
                 "a delegate type"));
 
         // Checked via the real C# accessibility-domain rules (compilation.IsSymbolAccessibleWithin),
@@ -54,7 +58,7 @@ internal static class ConstructorSelector
             return Result.Failure(new DiagnosticInfo(
                 DiagnosticDescriptors.NoAccessibleConstructor,
                 location,
-                type.ToDisplayString()));
+                DisplayName(type, path)));
 
         if (constructors.Length == 1)
         {
@@ -69,17 +73,25 @@ internal static class ConstructorSelector
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnassignedRequiredMembers,
                     location,
-                    type.ToDisplayString()));
+                    DisplayName(type, path)));
 
-            return ValidateParameterKinds(type, constructor, location);
+            return ValidateParameterKinds(type, constructor, location, path);
         }
 
         return Result.Failure(new DiagnosticInfo(
             DiagnosticDescriptors.AmbiguousConstructor,
             location,
-            type.ToDisplayString(),
+            DisplayName(type, path),
             constructors.Length));
     }
+
+    // The type-name argument passed to every CMP000x diagnostic - quoted, with an optional
+    // "(reached via ...)" suffix for a type discovered while walking a parent's constructor
+    // parameters rather than requested directly via Composer.Create<T>().
+    private static string DisplayName(INamedTypeSymbol type, string? path) =>
+        path is null
+            ? $"'{type.ToDisplayString()}'"
+            : $"'{type.ToDisplayString()}' (reached via {path})";
 
     // Every parameter shape here fails the same way: `context.Resolve<{{ type }}>()` either can't
     // be written (a `ref`/`out`/`ref readonly` parameter needs a modifier and a local, not an
@@ -87,7 +99,7 @@ internal static class ConstructorSelector
     // can't be used as a generic type argument - CS0306/CS0611). Report a diagnostic instead of
     // emitting generated code that doesn't compile. `in` is deliberately allowed: callers may
     // legally pass a plain value to an `in` parameter with no modifier at all.
-    private static Result ValidateParameterKinds(INamedTypeSymbol type, IMethodSymbol constructor, LocationInfo? location)
+    private static Result ValidateParameterKinds(INamedTypeSymbol type, IMethodSymbol constructor, LocationInfo? location, string? path)
     {
         foreach (var parameter in constructor.Parameters)
         {
@@ -95,7 +107,7 @@ internal static class ConstructorSelector
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnsupportedParameterKind,
                     location,
-                    type.ToDisplayString(),
+                    DisplayName(type, path),
                     parameter.Name,
                     parameter.RefKind switch
                     {
@@ -108,7 +120,7 @@ internal static class ConstructorSelector
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnsupportedParameterKind,
                     location,
-                    type.ToDisplayString(),
+                    DisplayName(type, path),
                     parameter.Name,
                     "as a ref struct (ref-like type), which cannot be used as a generic type argument"));
 
@@ -116,7 +128,7 @@ internal static class ConstructorSelector
                 return Result.Failure(new DiagnosticInfo(
                     DiagnosticDescriptors.UnsupportedParameterKind,
                     location,
-                    type.ToDisplayString(),
+                    DisplayName(type, path),
                     parameter.Name,
                     "as a pointer type, which cannot be used as a generic type argument"));
         }
