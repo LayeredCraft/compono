@@ -5,7 +5,6 @@
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
     <RootNamespace>Compono.Tests</RootNamespace>
-    <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
@@ -15,21 +14,6 @@
 
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Using Include="Xunit" />
-    <Using Include="NSubstitute" />
-    <Using Include="AwesomeAssertions" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Testing.Platform" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit.v3.mtp-v2" />
-    <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="NSubstitute" />
-    <PackageReference Include="AwesomeAssertions" />
   </ItemGroup>
 
   <ItemGroup>
