@@ -10,6 +10,13 @@ internal sealed class CodeGenerationOptions
     internal required string SourceCode { get; init; }
 
     internal string CodePath { get; init; } = "Program.cs";
+
+    /// <summary>
+    /// Extra metadata references beyond the BCL and <c>Compono</c> itself - used to test behavior
+    /// against a type that lives in a separate referenced assembly (e.g. accessibility checks that
+    /// only matter across an assembly boundary).
+    /// </summary>
+    internal IReadOnlyList<MetadataReference> ExtraReferences { get; init; } = [];
 }
 
 internal static partial class GeneratorTestHelpers
@@ -75,6 +82,7 @@ internal static partial class GeneratorTestHelpers
             .. Net100.References.All,
 #endif
             MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+            .. options.ExtraReferences,
         ];
 
         var compilationOptions = new CSharpCompilationOptions(
@@ -88,6 +96,43 @@ internal static partial class GeneratorTestHelpers
         var updatedDriver = driver.RunGenerators(compilation, cancellationToken);
 
         return (updatedDriver, compilation);
+    }
+
+    /// <summary>
+    /// Compiles <paramref name="sourceCode"/> into a standalone in-memory assembly (no
+    /// InternalsVisibleTo grants), for tests that need a type living in a genuinely separate
+    /// referenced assembly - e.g. proving an <c>internal</c> constructor there is correctly treated
+    /// as inaccessible to generated code in a different consuming assembly.
+    /// </summary>
+    internal static MetadataReference CompileLibrary(string sourceCode, string assemblyName)
+    {
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
+        var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode, parseOptions);
+
+        List<MetadataReference> references =
+        [
+#if NET11_0_OR_GREATER
+            .. Net110.References.All,
+#elif NET10_0_OR_GREATER
+            .. Net100.References.All,
+#endif
+        ];
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        using var stream = new MemoryStream();
+        var emitResult = compilation.Emit(stream);
+
+        emitResult.Success.Should().BeTrue(
+            "the library helper source should compile cleanly, but found:\n" +
+            string.Join("\n---\n", emitResult.Diagnostics.Select(d => $"  - {d.Id}: {d.GetMessage()}")));
+
+        stream.Position = 0;
+        return MetadataReference.CreateFromStream(stream);
     }
 
     [GeneratedRegex("""(?<=")\d+\.\d+\.\d+[\w|\+|\.|\-]*(?=")""")]

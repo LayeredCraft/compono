@@ -209,6 +209,45 @@ a new architectural fork.
 Implementation history and lessons learned, kept for context — not a
 task list; see **Phases** above for what's actually left to do.
 
+- **PR #4 review feedback (Codex) surfaced six real Phase 0 bugs**, all
+  fixed in the same PR rather than deferred, per `tasks/respond-to-pr-feedback.md`:
+  - `CompositionPlanEmitter` used to hint files by simple `TypeName` alone
+    — two same-simple-name types in different namespaces (`Sales.Customer`/
+    `Support.Customer`) collided, and Roslyn requires unique hint names per
+    generator run. Now derived from a sanitized `FullyQualifiedName`.
+  - The Scriban template always wrapped output in a `namespace { }` block.
+    A type with no namespace produced invalid C#. Worth remembering:
+    `INamedTypeSymbol.ContainingNamespace.ToDisplayString()` returns the
+    **literal string `"<global namespace>"`**, not an empty string, for a
+    type with no namespace — `IsGlobalNamespace` is the actual check; this
+    cost a debugging detour since the wrong assumption looked plausible
+    and the template itself rendered fine in isolation.
+  - `ConstructorSelector` filtered by `Accessibility.Public or Internal`,
+    which doesn't account for cross-assembly visibility — an `internal`
+    constructor on a type from a referenced assembly, with no
+    `InternalsVisibleTo` grant, isn't actually callable from generated
+    code living in a different assembly. Now uses
+    `compilation.IsSymbolAccessibleWithin(constructor, compilation.Assembly)`,
+    which correctly implements real C# accessibility-domain rules.
+  - `ConstructorSelector` didn't reject abstract types — an abstract class
+    with exactly one public constructor (legal, called only by derived
+    classes) was reported as successfully selected, and the template
+    emitted `new AbstractType(...)`, which is never legal C#. Added
+    `CMP0003` and an `IsAbstract` check ahead of constructor selection.
+  - `DiagnosticInfo.Equals`/`GetHashCode` only compared `Descriptor.Id` and
+    `Location`, ignoring `MessageArgs` — an ambiguous type's constructor
+    count changing (2 → 3) with the same location/descriptor read as
+    "unchanged" to Roslyn's incremental caching, keeping a stale message.
+    Now includes `MessageArgs` via `SequenceEqual`/incremental `HashCode`.
+  - Discovery only matched `MemberAccessExpressionSyntax` (`.Create<T>()`),
+    missing `composer?.Create<T>()` (`MemberBindingExpressionSyntax`, a
+    different syntax node inside a `ConditionalAccessExpressionSyntax`).
+    Both are now matched in the predicate.
+  - Regression tests for all six (`CodexFeedbackRegressionTests.cs`),
+    including one that compiles a genuinely separate library assembly
+    in-memory (`GeneratorTestHelpers.CompileLibrary`) to prove the
+    cross-assembly accessibility case for real, not just in-compilation.
+
 - Started with "Create generator project" as the first slice, since every
   later task depends on the project existing and being wired correctly
   (ADR-0003's packing shape in particular is easy to get subtly wrong and

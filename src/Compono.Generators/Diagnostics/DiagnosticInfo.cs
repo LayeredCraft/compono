@@ -14,9 +14,24 @@ internal sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationI
     public bool Equals(DiagnosticInfo? other) =>
         other is not null
         && Descriptor.Id == other.Descriptor.Id
-        && Equals(Location, other.Location);
+        && Equals(Location, other.Location)
+        // MessageArgs has to participate in equality, not just Descriptor.Id/Location - otherwise
+        // an ambiguous type going from 2 to 3 constructors (same location, same descriptor, different
+        // {1} message argument) reads as "unchanged" to Roslyn's incremental caching, and a stale
+        // constructor count keeps being reported.
+        && MessageArgs.SequenceEqual(other.MessageArgs);
 
-    public override int GetHashCode() => HashCode.Combine(Descriptor.Id, Location);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Descriptor.Id);
+        hash.Add(Location);
+
+        foreach (var arg in MessageArgs)
+            hash.Add(arg);
+
+        return hash.ToHashCode();
+    }
 
     public Diagnostic ToDiagnostic() => Diagnostic.Create(Descriptor, Location?.ToLocation(), MessageArgs);
 

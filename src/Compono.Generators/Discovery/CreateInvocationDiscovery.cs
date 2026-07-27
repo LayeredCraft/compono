@@ -17,10 +17,13 @@ internal static class CreateInvocationDiscovery
     public static bool IsCandidate(SyntaxNode node, CancellationToken cancellationToken) =>
         node is InvocationExpressionSyntax
         {
-            Expression: MemberAccessExpressionSyntax
-            {
-                Name: GenericNameSyntax { Identifier.ValueText: "Create", TypeArgumentList.Arguments.Count: 1 },
-            },
+            // MemberAccessExpressionSyntax covers plain `composer.Create<T>()`;
+            // MemberBindingExpressionSyntax covers null-conditional `composer?.Create<T>()` - a
+            // separate syntax shape (nested inside a ConditionalAccessExpressionSyntax) that the
+            // Roslyn syntax walker visits as its own node, so both have to be matched here or the
+            // conditional-access form is silently missed by discovery.
+            Expression: MemberAccessExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create", TypeArgumentList.Arguments.Count: 1 } }
+                     or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create", TypeArgumentList.Arguments.Count: 1 } },
         };
 
     public static DiscoveredTypeInfo? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
@@ -38,16 +41,22 @@ internal static class CreateInvocationDiscovery
         if (method.TypeArguments.Length != 1 || method.TypeArguments[0] is not INamedTypeSymbol composedType)
             return null;
 
-        return Analyze(composedType);
+        return Analyze(composedType, context.SemanticModel.Compilation);
     }
 
-    private static DiscoveredTypeInfo Analyze(INamedTypeSymbol type)
+    private static DiscoveredTypeInfo Analyze(INamedTypeSymbol type, Compilation compilation)
     {
-        var selection = ConstructorSelector.Select(type);
+        // ContainingNamespace.ToDisplayString() returns the literal text "<global namespace>" for
+        // a type with no namespace, not an empty string - confirmed empirically (it briefly made it
+        // into a generated `namespace <global namespace> { ... }`, which is obviously invalid C#).
+        // IsGlobalNamespace is the actual, correct check.
+        var @namespace = type.ContainingNamespace.IsGlobalNamespace ? "" : type.ContainingNamespace.ToDisplayString();
+
+        var selection = ConstructorSelector.Select(type, compilation);
 
         if (!selection.IsSuccess)
             return new DiscoveredTypeInfo(
-                type.ContainingNamespace.ToDisplayString(),
+                @namespace,
                 type.Name,
                 type.ToDisplayString(),
                 EquatableArray<ConstructorParameterInfo>.Empty,
@@ -58,7 +67,7 @@ internal static class CreateInvocationDiscovery
             .ToEquatableArray();
 
         return new DiscoveredTypeInfo(
-            type.ContainingNamespace.ToDisplayString(),
+            @namespace,
             type.Name,
             type.ToDisplayString(),
             parameters,

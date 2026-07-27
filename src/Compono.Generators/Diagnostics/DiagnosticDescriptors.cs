@@ -21,4 +21,12 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TypeNotConstructible = new(
+        "CMP0003",
+        "Type cannot be constructed",
+        "'{0}' is abstract and cannot be constructed directly",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
