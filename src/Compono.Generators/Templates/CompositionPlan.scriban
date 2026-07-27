@@ -7,7 +7,7 @@ namespace {{ namespace }}
 {
 {{~ end ~}}
     [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "1.0.0")]
-    internal sealed class {{ plan_class_name }} : global::Compono.ICompositionPlan<{{ fully_qualified_name }}>
+    file sealed class {{ plan_class_name }} : global::Compono.ICompositionPlan<{{ fully_qualified_name }}>
     {
         public {{ fully_qualified_name }} Compose(global::Compono.ICompositionContext context) =>
             new {{ fully_qualified_name }}(

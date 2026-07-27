@@ -39,13 +39,40 @@ internal static class ConstructorSelector
                 type.ToDisplayString()));
 
         if (constructors.Length == 1)
-            return Result.Success(constructors[0]);
+            return ValidateParameterKinds(type, constructors[0]);
 
         return Result.Failure(new DiagnosticInfo(
             DiagnosticDescriptors.AmbiguousConstructor,
             LocationInfo.From(type),
             type.ToDisplayString(),
             constructors.Length));
+    }
+
+    // A `ref`/`out`/`ref readonly` parameter can't be satisfied by an ordinary
+    // `context.Resolve<T>()` argument expression - the invocation would need a modifier and a
+    // local to pass, and composing "a value the constructor writes back to" makes no sense for
+    // test data anyway. Report a diagnostic instead of emitting generated code that doesn't
+    // compile. `in` is deliberately allowed: callers may legally pass a plain value to an `in`
+    // parameter with no modifier at all.
+    private static Result ValidateParameterKinds(INamedTypeSymbol type, IMethodSymbol constructor)
+    {
+        foreach (var parameter in constructor.Parameters)
+        {
+            if (parameter.RefKind is RefKind.Ref or RefKind.Out or RefKind.RefReadOnlyParameter)
+                return Result.Failure(new DiagnosticInfo(
+                    DiagnosticDescriptors.UnsupportedParameterKind,
+                    LocationInfo.From(type),
+                    type.ToDisplayString(),
+                    parameter.Name,
+                    parameter.RefKind switch
+                    {
+                        RefKind.Ref => "ref",
+                        RefKind.Out => "out",
+                        _ => "ref readonly",
+                    }));
+        }
+
+        return Result.Success(constructor);
     }
 
     internal readonly struct Result

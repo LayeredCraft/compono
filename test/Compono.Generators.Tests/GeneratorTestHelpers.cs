@@ -32,9 +32,13 @@ internal static partial class GeneratorTestHelpers
 
         // Re-parse generated trees with the same parse options as the original compilation, then
         // add them back and prove the generated code actually compiles - not just that it snapshots.
+        // The tree's FilePath must be preserved: file-scoped types (which generated plans are) get
+        // their identity from the file path, and re-parsing without one gives every tree path "",
+        // making same-named file-scoped types from different generated files spuriously collide in
+        // this harness even though they're legal in a real build.
         var parseOptions = originalCompilation.SyntaxTrees.First().Options;
         var reparsedTrees = result.GeneratedTrees
-            .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)parseOptions))
+            .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)parseOptions, tree.FilePath))
             .ToArray();
 
         var outputCompilation = originalCompilation.AddSyntaxTrees(reparsedTrees);

@@ -250,6 +250,31 @@ task list; see **Phases** above for what's actually left to do.
     separate library assembly in-memory (`GeneratorTestHelpers.CompileLibrary`)
     to prove the
     cross-assembly accessibility case for real, not just in-compilation.
+- **A second Codex review round on PR #4 surfaced four more real bugs**,
+  fixed the same way, and produced a new repo standard (the "Generated
+  code" section in `coding-standards.md`):
+  - Same-simple-name plan classes collided (`Box<int>`/`Box<string>` both
+    emit `BoxCompositionPlan` — `type.Name` drops generic args). Fixed by
+    making every generated plan class `file`-scoped, now the standing rule
+    for all generator-emitted types: file-scoped identity makes cross-file
+    name collisions structurally impossible, no mangling scheme needed.
+  - Emitted type names weren't `global::`-qualified — plain
+    `ToDisplayString()` doesn't emit `global::` despite how it reads, and
+    mis-binds when a consumer type shadows a namespace segment. All
+    emitted names now use `SymbolDisplayFormat.FullyQualifiedFormat`.
+  - A `ref`/`out`/`ref readonly` constructor parameter generated
+    non-compiling code; now `CMP0004` (unsupported parameter kind). `in`
+    stays allowed — callers may legally pass a plain value.
+  - Hint-name sanitization was lossy (`N.Foo<int>` vs. literal
+    `N.Foo_int_` collide) — hints now append an FNV-1a hash of the raw
+    identity (not `string.GetHashCode()`, which is per-process randomized
+    and would churn hints across builds).
+  - Test-harness gotcha worth remembering: `GeneratorTestHelpers.Verify`
+    re-parses generated trees to prove they compile, and must preserve
+    each tree's `FilePath` when doing so — `file`-scoped type identity is
+    per file path, so re-parsing with the default empty path makes
+    same-named file-scoped types spuriously collide in the harness while
+    being perfectly legal in a real build.
 
 - Started with "Create generator project" as the first slice, since every
   later task depends on the project existing and being wired correctly

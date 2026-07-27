@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (2,20)-(2,26),
+      Message: 'TestNamespace.Widget' takes parameter 'count' by ref, which Compono cannot compose a value for,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0004,
+        Title: Unsupported constructor parameter kind,
+        MessageFormat: '{0}' takes parameter '{1}' by {2}, which Compono cannot compose a value for,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

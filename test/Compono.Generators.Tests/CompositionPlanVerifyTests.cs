@@ -206,4 +206,122 @@ public sealed class CompositionPlanVerifyTests
             expectedDiagnosticId: "CMP0002",
             TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task ConstructedGenericTypes_GenerateDistinctPlans() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Box<T>
+                {
+                    public Box(T value) { Value = value; }
+                    public T Value { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Both closed forms produce a plan class named BoxCompositionPlan - only
+                        // legal because each generated plan class is file-scoped.
+                        var intBox = composer.Create<Box<int>>();
+                        var stringBox = composer.Create<Box<string>>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NamespaceShadowedByTypeName_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Acme;
+
+                // Shadows the `Acme` namespace segment inside this scope - an unqualified
+                // `Acme.Customer` in generated code would bind through this type and fail;
+                // only `global::Acme.Customer` is unambiguous.
+                public sealed class Acme
+                {
+                    public Acme() { }
+                }
+
+                public sealed class Customer
+                {
+                    public Customer(string name) { Name = name; }
+                    public string Name { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RefConstructorParameter_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Widget
+                    {
+                        public Widget(ref int count) { count++; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var widget = composer.Create<TestNamespace.Widget>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0004",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task SanitizationCollidingNames_GenerateDistinctHints() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Foo<T>
+                {
+                    public Foo(T value) { Value = value; }
+                    public T Value { get; }
+                }
+
+                // Sanitizes to the same readable hint text as Foo<int> (`Foo_int_`) - only the
+                // stable-hash suffix keeps the two AddSource hint names distinct.
+                public sealed class Foo_int_
+                {
+                    public Foo_int_(string name) { Name = name; }
+                    public string Name { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var generic = composer.Create<Foo<int>>();
+                        var literal = composer.Create<Foo_int_>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 }

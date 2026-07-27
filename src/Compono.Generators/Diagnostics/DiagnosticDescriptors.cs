@@ -29,4 +29,12 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnsupportedParameterKind = new(
+        "CMP0004",
+        "Unsupported constructor parameter kind",
+        "'{0}' takes parameter '{1}' by {2}, which Compono cannot compose a value for",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

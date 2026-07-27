@@ -23,21 +23,42 @@ internal static class CompositionPlanEmitter
 
         var source = TemplateHelper.Render("CompositionPlan.scriban", model);
 
-        // Hint names must be unique across the whole generator run - AddSource throws if two calls
-        // use the same one. TypeName alone collides for same-simple-name types in different
-        // namespaces (Sales.Customer vs. Support.Customer); FullyQualifiedName doesn't, since it
-        // includes the namespace. Still needs sanitizing - a hint name isn't a real file path, but
-        // generic-type syntax (angle brackets, commas) isn't safe to put in one unescaped.
-        context.AddSource($"{SanitizeHintName(type.FullyQualifiedName)}.CompositionPlan.g.cs", source);
+        context.AddSource($"{HintNameFor(type.FullyQualifiedName)}.CompositionPlan.g.cs", source);
     }
 
-    private static string SanitizeHintName(string fullyQualifiedName)
+    // Hint names must be unique across the whole generator run - AddSource throws if two calls use
+    // the same one. The readable part is the sanitized fully-qualified name (TypeName alone collides
+    // for same-simple-name types in different namespaces), but sanitization is lossy - `N.Foo<int>`
+    // and a literal type named `N.Foo_int_` sanitize identically - so a stable hash of the *raw*,
+    // pre-sanitization identity is appended to guarantee uniqueness regardless.
+    private static string HintNameFor(string fullyQualifiedName)
     {
-        var builder = new StringBuilder(fullyQualifiedName.Length);
+        const string globalPrefix = "global::";
+        var readable = fullyQualifiedName.StartsWith(globalPrefix, StringComparison.Ordinal)
+            ? fullyQualifiedName.Substring(globalPrefix.Length)
+            : fullyQualifiedName;
 
-        foreach (var c in fullyQualifiedName)
+        var builder = new StringBuilder(readable.Length + 9);
+
+        foreach (var c in readable)
             builder.Append(char.IsLetterOrDigit(c) || c == '.' ? c : '_');
 
-        return builder.ToString();
+        return builder.Append('_').Append(StableHash(fullyQualifiedName)).ToString();
+    }
+
+    // FNV-1a, not string.GetHashCode() - the latter is randomized per process on modern runtimes,
+    // and a hint name that changes between builds would defeat incremental caching and churn
+    // EmitCompilerGeneratedFiles output paths.
+    private static string StableHash(string value)
+    {
+        const uint offsetBasis = 2166136261;
+        const uint prime = 16777619;
+
+        var hash = offsetBasis;
+
+        foreach (var c in value)
+            hash = (hash ^ c) * prime;
+
+        return hash.ToString("x8");
     }
 }

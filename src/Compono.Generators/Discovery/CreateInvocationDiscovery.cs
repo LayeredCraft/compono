@@ -52,24 +52,31 @@ internal static class CreateInvocationDiscovery
         // IsGlobalNamespace is the actual, correct check.
         var @namespace = type.ContainingNamespace.IsGlobalNamespace ? "" : type.ContainingNamespace.ToDisplayString();
 
+        // FullyQualifiedFormat emits `global::`-prefixed names. Plain ToDisplayString() doesn't,
+        // despite how it reads - and an unqualified `Acme.Customer` in generated code binds through
+        // a type named `Acme` if one shadows the namespace segment in scope, breaking the
+        // consumer's build. Everything emitted into generated code goes through this format;
+        // diagnostic messages keep the plain form for readability.
+        var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
         var selection = ConstructorSelector.Select(type, compilation);
 
         if (!selection.IsSuccess)
             return new DiscoveredTypeInfo(
                 @namespace,
                 type.Name,
-                type.ToDisplayString(),
+                emittedName,
                 EquatableArray<ConstructorParameterInfo>.Empty,
                 new[] { selection.Diagnostic! }.ToEquatableArray());
 
         var parameters = selection.Constructor!.Parameters
-            .Select(p => new ConstructorParameterInfo(p.Name, p.Type.ToDisplayString()))
+            .Select(p => new ConstructorParameterInfo(p.Name, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
             .ToEquatableArray();
 
         return new DiscoveredTypeInfo(
             @namespace,
             type.Name,
-            type.ToDisplayString(),
+            emittedName,
             parameters,
             EquatableArray<DiagnosticInfo>.Empty);
     }
