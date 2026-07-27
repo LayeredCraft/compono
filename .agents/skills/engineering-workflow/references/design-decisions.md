@@ -170,12 +170,44 @@ document. Write a plan when the implementation is multi-file, spans more
 than one sitting, or has enough real sequencing that a checklist earns its
 keep.
 
+**The plan file on disk is the source of truth for multi-step work — never
+conversation memory or context.** A plan that only exists in what's
+already been discussed is lost the moment that context is summarized,
+cleared, or picked up by a different session — this has already happened
+once on this project and is exactly the failure mode this rule exists to
+prevent. Concretely:
+- Before resuming or continuing any work that has a plan, **re-read the
+  plan file from disk**, even if it was already discussed earlier in the
+  same conversation — it may have been updated (by a person, or by an
+  earlier step of this same task) since it was last read, and "I already
+  know what's in it" is exactly the assumption that goes stale.
+- A plan's Tasks checklist is the authoritative record of what's actually
+  done — if status isn't reflected in the checklist, treat it as not done,
+  regardless of what a conversation summary or memory implies.
+- Update the plan file itself as you go, not just at the end of a session
+  — the next reader (a person, or a future instance of this same
+  assistant with none of this session's context) needs the file to be
+  accurate on its own, without needing the conversation that produced it.
+
+**When a plan is broken into phases** (a large or multi-milestone effort
+where one PR for the whole thing would be unreviewable), **each phase
+ships as its own PR** — don't bundle multiple phases into one diff, even
+if they're all "done" by the time you get around to opening a PR. This is
+the phase-level instance of `contributing.md`'s "keep PRs scoped to one
+decision or one feature" rule, and it's what actually makes phase
+boundaries in a plan meaningful rather than cosmetic — a phase that ships
+bundled with three others might as well not have been a separate phase.
+
 A plan must encompass:
 
 - **Goal** — one or two sentences a reader could use to verify "done"
   without reading the rest of the plan.
 - **Scope** — what's in this plan and what's explicitly deferred,
   cross-referencing the ADR's Decision Outcome rather than restating it.
+- **Phases** (for anything large enough to need them) — ordered slices of
+  work, each independently shippable as its own PR per the rule above.
+  Each phase gets its own **Tasks** checklist; a phase's status (Not
+  Started/In Progress/Done) should be visible at a glance.
 - **Tasks** — a checklist, grouped logically (new files, changes to
   existing files, tests, docs), checked off as work proceeds. This is the
   part that actually changes over the life of the plan.
@@ -185,12 +217,14 @@ A plan must encompass:
 
 Mechanically:
 
-1. `docs/plans/` doesn't exist yet — create it the first time a plan is
-   actually warranted, along with a `0000-plan-template.md` covering the
-   sections above (mirror the ADR-template bootstrapping in step 1 of
-   **Writing an ADR**). Then copy that template to
-   `docs/plans/NNNN-kebab-case-title.md`, where `NNNN` matches the ADR it
-   implements (one ADR gets at most one plan).
+1. Copy `docs/plans/0000-plan-template.md` to
+   `docs/plans/NNNN-kebab-case-title.md`. `NNNN` matches the ADR it
+   implements (one ADR gets at most one plan) — unless the plan is for a
+   `docs/mvp.md` roadmap milestone that draws on more than one already-
+   `Accepted` ADR (e.g. a milestone plan implementing both a constructor-
+   selection ADR and a package-distribution ADR), in which case it gets its
+   own sequential plan number instead and its `Implements` line lists every
+   ADR it draws on — see `docs/plans/README.md`.
 2. Set `Status: Not Started`. A plan can be *drafted* alongside a
    still-`Proposed` ADR (designing the how often surfaces questions about
    the what), but don't move it to `In Progress` — i.e., don't start

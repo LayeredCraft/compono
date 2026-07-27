@@ -5,6 +5,22 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <Description>Core composition engine for Compono, a modern, source-generated test composition framework for .NET - CompositionContext, the provider resolution pipeline, and the built-in source generator. No dependency on any test framework, mocking framework, or Bogus - see docs/manifesto.md's "Modular by design" and design-decisions.md rule 3.</Description>
     </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono.Generators is never independently published - its build
+             output is packed directly into this nupkg's analyzers/dotnet/cs
+             folder, and referenced here as an Analyzer-only ProjectReference
+             (no assembly reference) so it participates in Compono's own
+             compilation. See docs/adr/0003-generator-package-distribution.md. -->
+        <ProjectReference Include="..\Compono.Generators\Compono.Generators.csproj"
+                           OutputItemType="Analyzer"
+                           ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\Compono.Generators\bin\$(Configuration)\netstandard2.0\Compono.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
 
 </Project>

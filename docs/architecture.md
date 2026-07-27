@@ -198,6 +198,18 @@ internal sealed class CustomerCompositionPlan
 
 The final generated code may use lower-level APIs for performance.
 
+### Discovery and Dispatch
+
+How the generator decides a type needs the plan above, and how
+`Create<T>()` reaches it without reflection, is
+[ADR-0004](adr/0004-composition-plan-discovery-and-dispatch.md): discovery
+walks `Create<T>()`/`CreateMany<T>()` call sites and their types'
+transitive constructor parameters (with an attribute escape hatch for
+types with no local call site), and "registers the plan with the runtime"
+above means a generated module initializer populates a closed-generic
+static field (`PlanCache<Customer>.Instance = ...`) that `Create<T>()`
+reads directly — not a `typeof(T)`-keyed dictionary lookup.
+
 ### Generator responsibilities
 
 The generator should identify:
@@ -460,7 +472,11 @@ Owns:
 - ~~Runtime reflection policy~~ — default direction resolved by
   [ADR-0001](adr/0001-source-generation-first.md); the exact opt-in
   mechanism for a future compatibility mode is still open.
-- Whether generated plans are required for external types
+- ~~Whether generated plans are required for external types~~ — resolved
+  by [ADR-0004](adr/0004-composition-plan-discovery-and-dispatch.md):
+  external/library types are fully supported via the `PlanCache<T>`
+  registry dispatch mechanism, not required to be `partial` or
+  Compono-owned.
 - Sync versus async provider contracts
 - Public versus internal use of `Type`
 - Exact profile model
