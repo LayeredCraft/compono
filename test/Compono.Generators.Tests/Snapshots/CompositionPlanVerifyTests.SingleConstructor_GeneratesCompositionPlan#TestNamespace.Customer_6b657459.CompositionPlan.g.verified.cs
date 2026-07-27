@@ -16,7 +16,7 @@ namespace TestNamespace
 
     file static class CustomerCompositionPlanRegistration
     {
-        [System.Runtime.CompilerServices.ModuleInitializer]
+        [global::System.Runtime.CompilerServices.ModuleInitializer]
         internal static void Register() =>
             global::Compono.PlanCache<global::TestNamespace.Customer>.Instance = new CustomerCompositionPlan();
     }

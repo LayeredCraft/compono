@@ -1,8 +1,8 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (2,20)-(2,26),
-      Message: 'TestNamespace.Widget' takes parameter 'count' by ref, which Compono cannot compose a value for,
+      Location: Program.cs: (4,20)-(4,26),
+      Message: 'TestNamespace.Widget' takes parameter 'values' as a ref struct (ref-like type), which cannot be used as a generic type argument, which Compono cannot compose a value for,
       Severity: Error,
       Descriptor: {
         Id: CMP0004,

@@ -15,7 +15,7 @@ namespace Sales
 
     file static class CustomerCompositionPlanRegistration
     {
-        [System.Runtime.CompilerServices.ModuleInitializer]
+        [global::System.Runtime.CompilerServices.ModuleInitializer]
         internal static void Register() =>
             global::Compono.PlanCache<global::Sales.Customer>.Instance = new CustomerCompositionPlan();
     }

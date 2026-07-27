@@ -15,7 +15,7 @@ namespace Acme
 
     file static class CustomerCompositionPlanRegistration
     {
-        [System.Runtime.CompilerServices.ModuleInitializer]
+        [global::System.Runtime.CompilerServices.ModuleInitializer]
         internal static void Register() =>
             global::Compono.PlanCache<global::Acme.Customer>.Instance = new CustomerCompositionPlan();
     }

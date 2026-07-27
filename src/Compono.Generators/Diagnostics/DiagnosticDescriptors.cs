@@ -33,7 +33,16 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor UnsupportedParameterKind = new(
         "CMP0004",
         "Unsupported constructor parameter kind",
-        "'{0}' takes parameter '{1}' by {2}, which Compono cannot compose a value for",
+        "'{0}' takes parameter '{1}' {2}, which Compono cannot compose a value for",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor OpenGenericTypeArgument = new(
+        "CMP0005",
+        "Type argument is not closed",
+        "'{0}' is not a closed type - Compono.Composer.Create<T>() requires a fully constructed type, " +
+        "not one containing an unresolved type parameter from an enclosing generic method or type",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

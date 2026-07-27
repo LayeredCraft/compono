@@ -293,6 +293,64 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task RefLikeConstructorParameter_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    using System;
+
+                    namespace TestNamespace;
+
+                    public sealed class Widget
+                    {
+                        public Widget(Span<int> values) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var widget = composer.Create<TestNamespace.Widget>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0004",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task OpenGenericTypeArgument_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Box<T>
+                    {
+                        public Box(T value) { Value = value; }
+                        public T Value { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        // `T` here is the method's own type parameter, not a real closed type -
+                        // `composer.Create<Box<T>>()` must be rejected rather than emitting a
+                        // generated plan that references an out-of-scope `T`.
+                        public static void Run<T>()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var box = composer.Create<TestNamespace.Box<T>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0005",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task SanitizationCollidingNames_GenerateDistinctHints() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

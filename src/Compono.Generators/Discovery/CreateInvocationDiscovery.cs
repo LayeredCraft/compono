@@ -59,6 +59,26 @@ internal static class CreateInvocationDiscovery
         // diagnostic messages keep the plain form for readability.
         var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
+        // `composer.Create<Box<T>>()` called inside a generic method: `T` here is an
+        // ITypeParameterSymbol scoped to that method, not a real type. It's a valid
+        // INamedTypeSymbol (so it sails through the earlier type checks), but emitting
+        // `global::TestNamespace.Box<T>` into a namespace-level generated plan references a `T`
+        // that's out of scope there, breaking the consumer's build instead of surfacing a
+        // diagnostic. Reject any type argument that isn't fully closed.
+        if (ContainsTypeParameter(type))
+            return new DiscoveredTypeInfo(
+                @namespace,
+                type.Name,
+                emittedName,
+                EquatableArray<ConstructorParameterInfo>.Empty,
+                new[]
+                {
+                    new DiagnosticInfo(
+                        DiagnosticDescriptors.OpenGenericTypeArgument,
+                        LocationInfo.From(type),
+                        type.ToDisplayString()),
+                }.ToEquatableArray());
+
         var selection = ConstructorSelector.Select(type, compilation);
 
         if (!selection.IsSuccess)
@@ -80,4 +100,13 @@ internal static class CreateInvocationDiscovery
             parameters,
             EquatableArray<DiagnosticInfo>.Empty);
     }
+
+    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol => true,
+        INamedTypeSymbol { IsGenericType: true } named => named.TypeArguments.Any(ContainsTypeParameter),
+        IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
+        IPointerTypeSymbol pointer => ContainsTypeParameter(pointer.PointedAtType),
+        _ => false,
+    };
 }

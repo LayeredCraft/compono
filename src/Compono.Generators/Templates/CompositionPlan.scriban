@@ -19,7 +19,7 @@ namespace {{ namespace }}
 
     file static class {{ plan_class_name }}Registration
     {
-        [System.Runtime.CompilerServices.ModuleInitializer]
+        [global::System.Runtime.CompilerServices.ModuleInitializer]
         internal static void Register() =>
             global::Compono.PlanCache<{{ fully_qualified_name }}>.Instance = new {{ plan_class_name }}();
     }

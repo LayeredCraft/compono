@@ -275,6 +275,29 @@ task list; see **Phases** above for what's actually left to do.
     per file path, so re-parsing with the default empty path makes
     same-named file-scoped types spuriously collide in the harness while
     being perfectly legal in a real build.
+- **A third Codex review round on PR #4 surfaced three more real bugs**,
+  addressed proactively rather than one at a time — the user asked to
+  reject every constructor parameter shape the current
+  `context.Resolve<T>()`-per-parameter codegen can't correctly handle, not
+  just whatever Codex happened to flag:
+  - `composer.Create<Box<T>>()` called inside a generic method: `T` is the
+    enclosing method's own type parameter, a valid `INamedTypeSymbol` that
+    sailed through the existing checks, but emitting `global::N.Box<T>`
+    into a namespace-level plan references a `T` out of scope there. Fixed
+    by a recursive `ContainsTypeParameter` walk (handles nested generics,
+    arrays, pointers) in `CreateInvocationDiscovery`, rejecting any
+    non-closed type argument with a new diagnostic, `CMP0005`.
+  - `ValidateParameterKinds` only checked `RefKind`; broadened to also
+    reject ref-like (ref struct, e.g. `Span<int>`) and pointer/function-pointer
+    constructor parameters — both fail for the same underlying reason as
+    ref/out (can't be written as, or can't compile as, a generic type
+    argument to `Resolve<T>()`), so they reuse `CMP0004` with a
+    parameter-shape-specific message.
+  - The `[ModuleInitializer]` attribute in the template wasn't
+    `global::`-qualified, so a consumer type named `System` in the
+    composed type's namespace would shadow the real one and break the
+    generated plan's compile. Qualified per the same "Generated code"
+    standard as every other framework reference in the template.
 
 - Started with "Create generator project" as the first slice, since every
   later task depends on the project existing and being wired correctly

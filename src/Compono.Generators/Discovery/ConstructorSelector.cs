@@ -48,12 +48,12 @@ internal static class ConstructorSelector
             constructors.Length));
     }
 
-    // A `ref`/`out`/`ref readonly` parameter can't be satisfied by an ordinary
-    // `context.Resolve<T>()` argument expression - the invocation would need a modifier and a
-    // local to pass, and composing "a value the constructor writes back to" makes no sense for
-    // test data anyway. Report a diagnostic instead of emitting generated code that doesn't
-    // compile. `in` is deliberately allowed: callers may legally pass a plain value to an `in`
-    // parameter with no modifier at all.
+    // Every parameter shape here fails the same way: `context.Resolve<{{ type }}>()` either can't
+    // be written (a `ref`/`out`/`ref readonly` parameter needs a modifier and a local, not an
+    // ordinary argument expression) or can't compile once written (a ref struct or pointer type
+    // can't be used as a generic type argument - CS0306/CS0611). Report a diagnostic instead of
+    // emitting generated code that doesn't compile. `in` is deliberately allowed: callers may
+    // legally pass a plain value to an `in` parameter with no modifier at all.
     private static Result ValidateParameterKinds(INamedTypeSymbol type, IMethodSymbol constructor)
     {
         foreach (var parameter in constructor.Parameters)
@@ -66,10 +66,26 @@ internal static class ConstructorSelector
                     parameter.Name,
                     parameter.RefKind switch
                     {
-                        RefKind.Ref => "ref",
-                        RefKind.Out => "out",
-                        _ => "ref readonly",
+                        RefKind.Ref => "by ref",
+                        RefKind.Out => "by out",
+                        _ => "by ref readonly",
                     }));
+
+            if (parameter.Type.IsRefLikeType)
+                return Result.Failure(new DiagnosticInfo(
+                    DiagnosticDescriptors.UnsupportedParameterKind,
+                    LocationInfo.From(type),
+                    type.ToDisplayString(),
+                    parameter.Name,
+                    "as a ref struct (ref-like type), which cannot be used as a generic type argument"));
+
+            if (parameter.Type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer)
+                return Result.Failure(new DiagnosticInfo(
+                    DiagnosticDescriptors.UnsupportedParameterKind,
+                    LocationInfo.From(type),
+                    type.ToDisplayString(),
+                    parameter.Name,
+                    "as a pointer type, which cannot be used as a generic type argument"));
         }
 
         return Result.Success(constructor);
