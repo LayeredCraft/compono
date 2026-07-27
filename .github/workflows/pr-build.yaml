@@ -10,7 +10,7 @@ jobs:
     uses: LayeredCraft/devops-templates/.github/workflows/pr-build.yaml@v10.1
     with:
       solution: Compono.slnx
-      hasTests: false
+      hasTests: true
       useMtpRunner: true
       dotnetVersion: |
         10.0.x

@@ -1,0 +1,12 @@
+<Project>
+  <!-- Imported after the project body (unlike Directory.Build.props, imported
+       before it), so IsTestProject is reliably set by now - the SDK/test-SDK
+       props that set it run as part of the project body's own imports. -->
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <!-- A test class/method is `public` because xUnit requires it, not
+         because it's real API surface - documentation.md's XML-doc-comment
+         requirement (see Directory.Build.props) is about the published
+         package surface, so test code doesn't need to satisfy CS1591. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

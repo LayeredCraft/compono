@@ -413,14 +413,61 @@ Owns:
 - Correlated value rules
 - Integration with Compono's deterministic seed
 
+## Package Dependency Diagram
+
+```text
+                     Compono.Generators
+                  (netstandard2.0, IsPackable=false,
+                 never independently published — see
+                          ADR-0003)
+                           |
+                           | ProjectReference,
+                           | OutputItemType="Analyzer"
+                           v
+                        Compono
+                    (core engine, no
+                   dependency on any
+                  integration package;
+                 packs Compono.Generators'
+                 output into its own nupkg
+                 under analyzers/dotnet/cs)
+                           ^
+                           |
+        +------------------+------------------+
+        |                  |                  |
+   Compono.Xunit    Compono.NSubstitute   Compono.Bogus
+        |                  |                  |
+   xunit.v3           NSubstitute            Bogus
+```
+
+- `Compono` depends on nothing else *published* in this diagram — every
+  arrow from an integration package points *into* it, never out, per the
+  "core package must not know about integrations" rule
+  (`design-decisions.md` rule 3). Its build-time-only relationship to
+  `Compono.Generators` is a different kind of dependency (analyzer, not a
+  normal reference) and doesn't violate that rule — see
+  [ADR-0003](adr/0003-generator-package-distribution.md).
+- Each integration package depends on `Compono` plus exactly one
+  third-party library (`xunit.v3`, `NSubstitute`, or `Bogus`). Integration
+  packages don't depend on each other.
+- `Compono.Generators` is never published to NuGet on its own — its
+  compiled output is packed directly into the `Compono` nupkg, so from a
+  *consumer's* point of view it doesn't exist as a separate dependency at
+  all ([ADR-0003](adr/0003-generator-package-distribution.md)).
+
 ## Open Architectural Decisions
 
-- Runtime reflection policy
+- ~~Runtime reflection policy~~ — default direction resolved by
+  [ADR-0001](adr/0001-source-generation-first.md); the exact opt-in
+  mechanism for a future compatibility mode is still open.
 - Whether generated plans are required for external types
 - Sync versus async provider contracts
 - Public versus internal use of `Type`
 - Exact profile model
 - Scope lifetime model
-- Constructor selection rules
+- ~~Constructor selection rules~~ — resolved by
+  [ADR-0002](adr/0002-constructor-selection-algorithm.md).
 - Stability guarantees for deterministic output
-- Whether source-generation contracts live in `Compono` or `Compono.Generators`
+- ~~Whether source-generation contracts live in `Compono` or
+  `Compono.Generators`~~ — resolved by
+  [ADR-0003](adr/0003-generator-package-distribution.md).
