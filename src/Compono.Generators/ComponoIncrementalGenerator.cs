@@ -1,5 +1,8 @@
+using Compono.Generators.Diagnostics;
 using Compono.Generators.Discovery;
 using Compono.Generators.Emitters;
+using Compono.Generators.Models;
+using Compono.Generators.Types;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -56,7 +59,65 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .SelectMany(static (types, _) =>
             {
                 var ((callSites, composables), assemblyComposables) = types;
-                return callSites.Concat(composables).Concat(assemblyComposables).Distinct();
+
+                // Two discoveries can share the same emission identity (Namespace/TypeName/
+                // FullyQualifiedName - what AddSource's hint name and PlanCache<T> slot actually
+                // key on) while still being structurally unequal records - e.g. composing both
+                // Box<string> and Box<string?> at two different call sites: FullyQualifiedFormat
+                // erases the top-level nullable annotation (identical hint name either way), but
+                // Roslyn substitutes Box<T>'s constructor parameter's own NullableAnnotation
+                // differently for each, so their DiscoveredTypeInfo.Parameters differ. Silently
+                // keeping "whichever one was discovered first" (an earlier version of this fix) only
+                // stops the duplicate-hint-name crash - it doesn't stop the *other* call site from
+                // silently getting the wrong Nullability for its own request, and which one wins
+                // becomes dependent on arbitrary discovery order. There's no value that's correct for
+                // both requests: Box<string> gets exactly one generated plan, so if two call sites
+                // genuinely disagree about it, that's reported (CMP0010) rather than guessed - the
+                // same "diagnose, don't guess" rule CMP0001 (ambiguous constructor) already follows.
+                // A group can still legitimately contain more than one *structurally identical* entry
+                // (the same type discovered via both a call site and [Composable], say) - that's not
+                // a conflict, just redundant discovery of the same request, and still collapses to one.
+                return callSites.Concat(composables).Concat(assemblyComposables)
+                    .GroupBy(static type => (type.Namespace, type.TypeName, type.FullyQualifiedName))
+                    .SelectMany(static group =>
+                    {
+                        var distinct = group.Distinct().ToArray();
+
+                        if (distinct.Length == 1)
+                            return distinct;
+
+                        // A failure already carries its own correct diagnostic (CMP0001,
+                        // CMP0002, ...) at its own request-site Location - DiagnosticInfo.Equals
+                        // includes Location, so the same failing type reached from two different
+                        // Create<T>() call sites naturally produces two "distinct" failure entries
+                        // even though neither is wrong. Those must always pass through as-is
+                        // (reported at both locations, exactly like before conflict-detection
+                        // existed) rather than being folded into a synthetic, locationless
+                        // CMP0010 that would erase the real diagnostics entirely.
+                        var failures = distinct.Where(static t => t.Diagnostics.Count > 0).ToArray();
+
+                        if (failures.Length > 0)
+                            return failures;
+
+                        // Every surviving entry succeeded, but disagrees on composition metadata
+                        // (e.g. differing Nullability from Box<string> vs Box<string?>) - there's
+                        // no value that's correct for every discovery sharing this one emitted
+                        // plan, so report it instead of guessing, the same "diagnose an ambiguity,
+                        // don't guess" rule CMP0001 already follows.
+                        var (@namespace, typeName, fullyQualifiedName) = group.Key;
+
+                        return new DiscoveredTypeInfo[]
+                        {
+                            new(
+                                @namespace,
+                                typeName,
+                                fullyQualifiedName,
+                                EquatableArray<ConstructorParameterInfo>.Empty,
+                                EquatableArray<RequiredMemberInfo>.Empty,
+                                new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCompositionMetadata, null, fullyQualifiedName) }
+                                    .ToEquatableArray()),
+                        };
+                    });
             })
             .WithTrackingName(TrackingNames.DiscoveredDistinct);
 

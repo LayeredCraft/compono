@@ -9,7 +9,7 @@ namespace Support
     {
         public global::Support.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::Support.Customer(
-                context.Resolve<string>()
+                context.Resolve<string>(global::Compono.Nullability.NotNullable)
             );
     }
 

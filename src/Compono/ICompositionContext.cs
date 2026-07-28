@@ -18,5 +18,9 @@ public interface ICompositionContext
     /// Resolves a value of type <typeparamref name="TValue"/>.
     /// </summary>
     /// <typeparam name="TValue">The requested value's type.</typeparam>
-    TValue Resolve<TValue>();
+    /// <param name="nullability">
+    /// Whether the requesting parameter or required member was nullable-annotated - see
+    /// <see cref="Nullability"/>.
+    /// </param>
+    TValue Resolve<TValue>(Nullability nullability);
 }

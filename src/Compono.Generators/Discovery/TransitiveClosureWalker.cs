@@ -22,7 +22,16 @@ internal static class TransitiveClosureWalker
     public static EquatableArray<DiscoveredTypeInfo> Walk(INamedTypeSymbol rootType, Compilation compilation, LocationInfo? location)
     {
         var wellKnownTypes = WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
-        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { rootType };
+
+        // IncludeNullability, not Default - Default treats Box<string> and Box<string?> as the
+        // same symbol (nullable annotations don't affect its notion of symbol identity), which
+        // would silently drop the second variant here before it ever became its own
+        // DiscoveredTypeInfo - i.e. before ComponoIncrementalGenerator's cross-discovery conflict
+        // check (CMP0010) ever got a chance to see there were two disagreeing entries to compare.
+        // With IncludeNullability, both variants get walked and each produces its own entry, so a
+        // real conflict between them surfaces through that existing check instead of being erased
+        // one layer upstream of it.
+        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability) { rootType };
         var results = new List<DiscoveredTypeInfo>();
         var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
 
@@ -31,42 +40,46 @@ internal static class TransitiveClosureWalker
         while (queue.Count > 0)
         {
             var (type, path) = queue.Dequeue();
-            var (info, constructor) = Analyze(type, compilation, location, path);
+            var (info, constructor, requiredMemberTypes) = Analyze(type, compilation, location, path);
             results.Add(info);
 
             if (constructor is null)
                 continue;
 
             foreach (var parameter in constructor.Parameters)
-                EnqueueIfEligible(parameter, type, path, wellKnownTypes, visited, queue);
+                EnqueueIfEligible(parameter.Type, parameter.Name, type, path, wellKnownTypes, visited, queue);
+
+            foreach (var (memberType, memberName) in requiredMemberTypes)
+                EnqueueIfEligible(memberType, memberName, type, path, wellKnownTypes, visited, queue);
         }
 
         return results.ToEquatableArray();
     }
 
     private static void EnqueueIfEligible(
-        IParameterSymbol parameter,
+        ITypeSymbol memberType,
+        string memberName,
         INamedTypeSymbol parentType,
         string? parentPath,
         WellKnownTypes.WellKnownTypes wellKnownTypes,
         HashSet<INamedTypeSymbol> visited,
         Queue<(INamedTypeSymbol Type, string? Path)> queue)
     {
-        if (parameter.Type is not INamedTypeSymbol parameterType)
+        if (memberType is not INamedTypeSymbol namedType)
             return;
 
-        if (LeafTypeClassifier.IsProviderResolved(parameterType, wellKnownTypes))
+        if (LeafTypeClassifier.IsProviderResolved(namedType, wellKnownTypes))
             return;
 
-        if (!visited.Add(parameterType))
+        if (!visited.Add(namedType))
             return;
 
-        var childPath = parentPath is null ? $"{parentType.Name}.{parameter.Name}" : $"{parentPath}.{parameter.Name}";
+        var childPath = parentPath is null ? $"{parentType.Name}.{memberName}" : $"{parentPath}.{memberName}";
 
-        queue.Enqueue((parameterType, childPath));
+        queue.Enqueue((namedType, childPath));
     }
 
-    private static (DiscoveredTypeInfo Info, IMethodSymbol? Constructor) Analyze(
+    private static (DiscoveredTypeInfo Info, IMethodSymbol? Constructor, IReadOnlyList<(ITypeSymbol Type, string Name)> RequiredMemberTypes) Analyze(
         INamedTypeSymbol type, Compilation compilation, LocationInfo? location, string? path)
     {
         // ContainingNamespace.ToDisplayString() returns the literal text "<global namespace>" for
@@ -86,13 +99,32 @@ internal static class TransitiveClosureWalker
                 type.Name,
                 emittedName,
                 EquatableArray<ConstructorParameterInfo>.Empty,
+                EquatableArray<RequiredMemberInfo>.Empty,
                 new[] { selection.Diagnostic! }.ToEquatableArray());
 
-            return (failure, null);
+            return (failure, null, []);
+        }
+
+        var requiredMembers = RequiredMemberCollector.Collect(type, selection.Constructor!, compilation, location, path);
+
+        if (!requiredMembers.IsSuccess)
+        {
+            var failure = new DiscoveredTypeInfo(
+                @namespace,
+                type.Name,
+                emittedName,
+                EquatableArray<ConstructorParameterInfo>.Empty,
+                EquatableArray<RequiredMemberInfo>.Empty,
+                new[] { requiredMembers.Diagnostic! }.ToEquatableArray());
+
+            return (failure, null, []);
         }
 
         var parameters = selection.Constructor!.Parameters
-            .Select(p => new ConstructorParameterInfo(p.Name, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+            .Select(p => new ConstructorParameterInfo(
+                p.Name,
+                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                p.Type.NullableAnnotation == NullableAnnotation.Annotated))
             .ToEquatableArray();
 
         var success = new DiscoveredTypeInfo(
@@ -100,8 +132,9 @@ internal static class TransitiveClosureWalker
             type.Name,
             emittedName,
             parameters,
+            requiredMembers.Members,
             EquatableArray<DiagnosticInfo>.Empty);
 
-        return (success, selection.Constructor);
+        return (success, selection.Constructor, requiredMembers.MemberTypes);
     }
 }

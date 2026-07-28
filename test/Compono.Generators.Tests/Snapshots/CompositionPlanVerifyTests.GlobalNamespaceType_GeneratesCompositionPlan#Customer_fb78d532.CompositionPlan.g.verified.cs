@@ -7,7 +7,7 @@
     {
         public global::Customer Compose(global::Compono.ICompositionContext context) =>
             new global::Customer(
-                context.Resolve<string>()
+                context.Resolve<string>(global::Compono.Nullability.NotNullable)
             );
     }
 

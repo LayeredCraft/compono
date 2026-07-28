@@ -12,9 +12,14 @@ namespace {{ namespace }}
         public {{ fully_qualified_name }} Compose(global::Compono.ICompositionContext context) =>
             new {{ fully_qualified_name }}(
 {{~ for parameter in parameters ~}}
-                context.Resolve<{{ parameter.fully_qualified_type_name }}>(){{ if !for.last }},{{ end }}
+                context.Resolve<{{ parameter.fully_qualified_type_name }}>({{ if parameter.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}){{ if !for.last }},{{ end }}
 {{~ end ~}}
-            );
+            ){{ if required_members.size > 0 }}
+            {
+{{~ for member in required_members ~}}
+                {{ member.name }} = context.Resolve<{{ member.fully_qualified_type_name }}>({{ if member.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}){{ if !for.last }},{{ end }}
+{{~ end ~}}
+            }{{ end }};
     }
 
     file static class {{ plan_class_name }}Registration

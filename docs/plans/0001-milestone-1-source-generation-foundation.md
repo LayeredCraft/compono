@@ -119,7 +119,7 @@ with no context about where in the graph it came from.
       dedup-across-parents, leaf-type non-recursion, and nested-failure
       diagnostic coverage
 
-### Phase 2 — Escape-hatch attribute (Done, PR #6 open)
+### Phase 2 — Escape-hatch attribute (Done, PR #6 merged)
 
 ADR-0004's second discovery path: a type that needs a plan but has no
 local `Create<T>()` call site in the compilation.
@@ -155,14 +155,37 @@ than the annotated type itself, for symmetry with the assembly-level form.
       `[Composable]` discover the same type, plus `CMP0008` for
       assembly-level `[Composable]` missing its `typeof(...)` argument)
 
-### Phase 3 — Required members and nullability (Not started)
+### Phase 3 — Required members and nullability (Done)
 
-- [ ] Emit required-member assignments (object-initializer-style
-      `required` properties, not just constructor parameters)
-- [ ] Emit nullability metadata onto generated request/resolve calls, so
-      a future `ICompositionContext` implementation (Milestone 2) can
-      tell a `string` parameter from a `string?` one
-- [ ] Snapshot tests covering both
+Design decided in [ADR-0006](../adr/0006-required-members-and-nullability-metadata.md):
+object-initializer emission for required members (reusing the constructor
+parameter pipeline), and a new `Nullability` enum parameter on
+`ICompositionContext.Resolve<TValue>()` carrying each request's
+nullable-annotation, since generic type arguments erase that information
+at runtime.
+
+- [x] Add `Compono.Nullability` enum (`NotNullable`/`Nullable`) and change
+      `ICompositionContext.Resolve<TValue>()` to `Resolve<TValue>(Nullability
+      nullability)`
+- [x] `ConstructorParameterInfo` gains nullability; a new
+      `RequiredMemberInfo` model (name, fully-qualified type, nullability)
+- [x] `ConstructorSelector.HasUnassignedRequiredMembers` → collect
+      required members instead of rejecting the type; reuse
+      `ValidateParameterKinds`-style checks + `TransitiveClosureWalker`/
+      `LeafTypeClassifier` per required-member type (new
+      `RequiredMemberCollector`, since the collection now returns data on
+      success instead of only ever failing)
+- [x] `CompositionPlanEmitter`/`CompositionPlan.scriban` emit an object
+      initializer block after the constructor call; every `Resolve<...>()`
+      call site (constructor args and required members) passes an explicit
+      `Nullability` argument
+- [x] Narrow `CMP0007` per ADR-0006 rather than removing it
+- [x] Snapshot tests: required properties, required fields, a
+      `[SetsRequiredMembers]` constructor (no initializer emitted),
+      nullable and non-nullable constructor parameters, nullable and
+      non-nullable required members, a ref-like required member (CMP0007),
+      and a required member reaching a composable nested type (recursion
+      through required members, not just constructor parameters)
 
 ### Phase 4 — Benchmark harness (Not started)
 
@@ -194,18 +217,24 @@ than the annotated type itself, for symmetry with the assembly-level form.
   placements) + `ComposedTypeAnalyzer.cs` (Phase 2: the closed-type
   validation + `TransitiveClosureWalker` hand-off shared by every
   discovery path) + `ConstructorSelector.cs` + `TransitiveClosureWalker.cs`
-  (Phase 1's recursive parameter-type walk) + `LeafTypeClassifier.cs`
-  (Phase 1's recurse-vs-`Resolve<T>()` rule),
+  (Phase 1's recursive parameter-type walk, Phase 3: also walks required
+  members) + `LeafTypeClassifier.cs` (Phase 1's recurse-vs-`Resolve<T>()`
+  rule) + `RequiredMemberCollector.cs` (Phase 3: collects/validates
+  required properties/fields not satisfied by `[SetsRequiredMembers]`),
   `WellKnownTypes/` (symbol cache, vendored `BoundedCacheWithFactory`),
   `Diagnostics/` (`DiagnosticDescriptors`, `DiagnosticInfo`),
-  `Models/` (`DiscoveredTypeInfo`, `ConstructorParameterInfo`, `LocationInfo`),
+  `Models/` (`DiscoveredTypeInfo`, `ConstructorParameterInfo`,
+  `RequiredMemberInfo` (Phase 3), `LocationInfo`),
   `Types/EquatableArray.cs` (vendored from `LayeredCraft.SourceGeneratorTools`,
   not referenced as a package — see attribution comment), `Emitters/`
   (`TemplateHelper`, `CompositionPlanEmitter`),
-  `Templates/CompositionPlan.scriban`,
-  `AnalyzerReleases.{Shipped,Unshipped}.md`.
+  `Templates/CompositionPlan.scriban` (Phase 3: emits an object-initializer
+  block and an explicit `Nullability` argument on every `Resolve<...>()`
+  call), `AnalyzerReleases.{Shipped,Unshipped}.md`.
 - `src/Compono/` — `ICompositionPlan.cs`, `ICompositionContext.cs`
-  (Milestone-1-only placeholder), `PlanCache.cs`, `Composer.cs` (minimal
+  (Milestone-1-only placeholder; Phase 3 changed
+  `Resolve<TValue>()` to `Resolve<TValue>(Nullability nullability)`),
+  `Nullability.cs` (Phase 3), `PlanCache.cs`, `Composer.cs` (minimal
   placeholder entry point), `ComposableAttribute.cs` (Phase 2's opt-in
   discovery marker). `Compono.csproj` — analyzer-only `ProjectReference`
   to `Compono.Generators`, packs its output into `analyzers/dotnet/cs`
@@ -605,3 +634,182 @@ out of scope for the PR that surfaced them:
     As of this round's completion: full solution build is still 0
     warnings/0 errors; `dotnet test` is 68/68 passing (`Compono.Tests` +
     `Compono.Generators.Tests`, both TFMs).
+- **Phase 3 design and implementation**: nullability shape confirmed with
+  the user via `AskUserQuestion` before writing [ADR-0006](../adr/0006-required-members-and-nullability-metadata.md)
+  (a bare `bool` was considered and rejected in favor of a `Nullability`
+  enum, per the user's stated rationale — see the ADR). Implementation
+  notes not already in the ADR:
+  - Required-member collection couldn't stay inside
+    `ConstructorSelector.HasUnassignedRequiredMembers` once it needed to
+    return data on success (not just fail) — moved to a new
+    `RequiredMemberCollector.Collect`, called from
+    `TransitiveClosureWalker.Analyze` right after constructor selection
+    succeeds, mirroring how `ConstructorSelector.Select` itself is called.
+  - `TransitiveClosureWalker`'s `EnqueueIfEligible` took an
+    `IParameterSymbol` before this phase; generalized to take a bare
+    `ITypeSymbol`/name pair so both constructor parameters and required
+    members enqueue through the same eligibility check
+    (`LeafTypeClassifier.IsProviderResolved`) without a second, parallel
+    enqueue path.
+  - The Scriban template's `required_members.size > 0` check only works
+    because `CompositionPlanEmitter` materializes `Parameters`/
+    `RequiredMembers` with `.ToArray()` before handing them to the
+    template — a plain `IEnumerable<T>` from `.Select(...)` doesn't expose
+    `.size` to Scriban (only `IList`-backed collections do), which first
+    manifested as the required-member `if` block silently never rendering
+    (no compile error, no verify-snapshot mismatch — the "New" received
+    snapshot just showed a bare constructor call with the required member
+    left unset, i.e. a real CS9035 compile failure caught by
+    `GeneratorTestHelpers.Verify`'s recompile-and-check-zero-errors step).
+  - **Manual verification**: same `dotnet pack` + local-feed + throwaway
+    console project approach as Phase 2. A `Customer` type with a
+    required, composable `Address` property (no `[SetsRequiredMembers]`)
+    and a nullable constructor parameter built and ran against the packed
+    `Compono` package: `composer.Create<Customer>()` reached the generated
+    `Compose(...)` and threw the expected `NotSupportedException` from
+    Milestone 1's placeholder `ICompositionContext` (proving the
+    object-initializer block and the `Nullability` argument are real,
+    executed code, not just something that type-checked), and both
+    `PlanCache<Customer>.Instance` and `PlanCache<Address>.Instance` were
+    non-null (proving required-member recursion generates and registers a
+    plan for the nested type). Full solution build is 0 warnings/0
+    errors; `dotnet test` is 80/80 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).
+- **PR #7 review feedback (Codex) surfaced three real Phase 3 gaps**, all
+  triaged with the user one at a time before implementing
+  (`tasks/respond-to-pr-feedback.md`):
+  - **P1 — duplicate `AddSource` hint names could crash the whole
+    generator run**: `Box<string>` and `Box<string?>` composed in the same
+    compilation emit to the identical hint name
+    (`SymbolDisplayFormat.FullyQualifiedFormat` erases the top-level
+    nullable annotation), but Roslyn substitutes `Box<T>`'s constructor
+    parameter's own `NullableAnnotation` differently for each closed
+    generic, so the two `DiscoveredTypeInfo` records differ in
+    `Parameters` and survived `ComponoIncrementalGenerator`'s plain
+    `.Distinct()` (full structural equality) as two "different" entries -
+    `AddSource` then threw on the duplicate hint name. Fixed by grouping
+    on the actual emission identity (`Namespace`, `TypeName`,
+    `FullyQualifiedName`) and keeping the first-discovered entry, so two
+    discoveries that would emit to the same hint name always collapse to
+    one regardless of what a later duplicate disagreed about.
+  - **P2 — an overridden required property was collected twice**:
+    `RequiredMemberCollector` walks a type and its base types outward:
+    both a base's virtual required property and a derived override of it
+    report `IsRequired: true` and share the same name, so both were
+    collected, and the template emitted the same object-initializer
+    target twice (a compile error in the generated file). Fixed by
+    grouping the collected members by name and keeping the first
+    occurrence - `EnumerateTypeAndBases` walks the type itself before its
+    base types, so the derived override is always encountered first.
+  - **P2 — an unescaped reserved-keyword required member name emitted
+    invalid code**: `public required string @class { get; init; }`
+    reports `member.Name` as the bare keyword text (`class`), which
+    landed directly in the object initializer (`class = ...`) - a
+    reserved word, not a valid identifier there. Fixed by escaping via
+    `SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None` at collection
+    time (a contextual keyword like `var` is a legal identifier unescaped
+    and must not get an `@` prefix, hence the real keyword-kind check
+    rather than a hand-maintained list).
+  - Regression tests added: composing both `Box<string>` and `Box<string?>`
+    dedupes to a single plan (later superseded - see below), an
+    overridden required property is emitted once
+    (`OverriddenRequiredProperty_EmittedOnlyOnce`), and a
+    `@class`-named required member escapes correctly
+    (`RequiredMemberNamedWithReservedKeyword_EscapesIdentifier`). Also
+    added `AGENTS.md` at repo root in this same round (repo-orientation
+    file for any coding agent, not Claude-specific) - designed with the
+    user, incorporating a second round of external review feedback on the
+    file itself. As of this round's completion: full solution build is
+    still 0 warnings/0 errors; `dotnet test` is 86/86 passing
+    (`Compono.Tests` + `Compono.Generators.Tests`, both TFMs).
+- **A second Codex pass on PR #7 (triggered by `@codex review` against the
+  fix commit above) caught a real gap in that same fix**, triaged with the
+  user before implementing: the `group.First()` dedup stopped the
+  duplicate-`AddSource`-hint-name crash, but didn't stop the *other* call
+  site from silently getting the wrong `Nullability` for its own request -
+  `Box<string>` and `Box<string?>` share exactly one generated plan and
+  one `PlanCache<Box<string>>.Instance`, so if two call sites genuinely
+  disagree about it, there's no value that's correct for both; picking
+  one arbitrarily just makes the outcome depend on discovery order.
+  Fixed by replacing "keep the first" with "diagnose the conflict": a
+  group's entries are deduped via `.Distinct()` first (the legitimate case
+  - the same type discovered identically via both a call site and
+  `[Composable]`, say - still collapses to one with no diagnostic), and
+  only if more than one *genuinely different* entry survives is a new
+  diagnostic reported (`CMP0010`) and no plan emitted for that identity -
+  the same "diagnose an ambiguity, don't guess" rule `CMP0001` (ambiguous
+  constructor) already follows. Regression test renamed/repurposed to
+  match: `NullableAndNonNullableGenericInstantiation_ReportsConflictDiagnostic`
+  now asserts `CMP0010` instead of asserting a (silently wrong) generated
+  plan. As of this round's completion: full solution build is still 0
+  warnings/0 errors; `dotnet test` is 86/86 passing (`Compono.Tests` +
+  `Compono.Generators.Tests`, both TFMs).
+- **A third Codex pass on PR #7 (against the CMP0010 fix commit above)
+  found two more real gaps in the same area**, both triaged with the user
+  before implementing:
+  - **P1 — the conflict check never ran for a conflict reached within a
+    single closure walk**: CMP0010 (above) only compares entries *across*
+    separate top-level discoveries (e.g. two different `Create<T>()` call
+    sites), because `TransitiveClosureWalker`'s `visited` set used
+    `SymbolEqualityComparer.Default`, which ignores nullable annotations -
+    if the *same* type's closure reached both `Box<string>` and
+    `Box<string?>` as sibling constructor parameters (or a parameter and a
+    required member), the second variant silently failed `visited.Add(...)`
+    and was dropped before it ever became its own `DiscoveredTypeInfo` -
+    one layer upstream of where CMP0010's check could ever see it. Fixed
+    by swapping the comparer to `SymbolEqualityComparer.IncludeNullability`
+    (a purpose-built Roslyn comparer for exactly this) - both variants now
+    get walked and each produces its own entry, which flows into the
+    already-existing CMP0010 check rather than needing a second, separate
+    detection path.
+  - **P2 — the CMP0010 fix could itself erase real diagnostics**: `.Distinct()`
+    on the grouped entries uses `DiscoveredTypeInfo`'s full structural
+    equality, which includes each failure's embedded `DiagnosticInfo` -
+    and `DiagnosticInfo.Equals` includes `Location`. So the *same failing*
+    type (e.g. an ambiguous constructor) reached from two different
+    `Create<T>()` call sites produced two "distinct" failure entries
+    purely because their locations differed, which the previous round's
+    conflict logic then folded into a single synthetic, locationless
+    CMP0010 - silently replacing two legitimate `CMP0001`s with a
+    misleading one. Fixed by excluding any entry that already carries a
+    diagnostic from conflict-detection entirely: failures always pass
+    through as-is, however many there are for the same identity: CMP0010
+    now only ever fires among entries that all succeeded (no diagnostics)
+    but disagree on metadata.
+  - Regression tests added: a single closure reaching both `Box<string>`
+    and `Box<string?>` via sibling constructor parameters reports CMP0010
+    (`SameClosureReachesConflictingNullableInstantiations_ReportsConflictDiagnostic`),
+    and the same ambiguous type reached from two different `Create<T>()`
+    call sites still reports `CMP0001` at both locations rather than a
+    swallowed `CMP0010`
+    (`AmbiguousTypeReachedFromTwoCallSites_StillReportsAtBothLocations`).
+    As of this round's completion: full solution build is still 0
+    warnings/0 errors; `dotnet test` is 90/90 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).
+- **A fourth Codex pass on PR #7 found one more real gap**, unrelated to
+  the nullable-conflict area above (a genuinely independent finding, not
+  another layer of the same bug) - triaged with the user, who also asked
+  directly whether this round of iteration had hit diminishing returns:
+  `RequiredMemberCollector` never validated that a required member could
+  actually be assigned from generated code - a required property with no
+  accessible setter, or a required readonly/inaccessible field, would
+  still be collected and emitted as an object-initializer assignment that
+  fails to compile (CS0272/CS0191). `ConstructorSelector` already guards
+  the analogous case for constructors
+  (`compilation.IsSymbolAccessibleWithin`), and this just hadn't been
+  carried over to the required-member path added in this same phase.
+  Fixed by adding `IsAssignableFromGeneratedCode` (checks the property's
+  `SetMethod` accessibility, or that a field is both non-readonly and
+  accessible) alongside the existing ref-like/pointer checks. **No
+  automated regression test**: the exact shape this defends against (no
+  accessible setter, or a readonly required field) is one the C# compiler
+  itself refuses to let any C#-authored type declare (confirmed by
+  attempting it via `GeneratorTestHelpers.CompileLibrary` - CS9032 fired
+  at the library's own declaration) - the gap only exists for a
+  non-C#-compiler-authored assembly (hand-crafted IL, a different .NET
+  language), which this test harness has no way to produce without adding
+  real IL-emission infrastructure, judged disproportionate for one edge
+  case. As of this round's completion: full solution build is still 0
+  warnings/0 errors; `dotnet test` is 90/90 passing (`Compono.Tests` +
+  `Compono.Generators.Tests`, both TFMs - unchanged count, since this
+  round added no new test).

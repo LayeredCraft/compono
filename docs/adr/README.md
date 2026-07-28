@@ -67,3 +67,4 @@ the mechanics: numbering, status, and the index.
 | [0003](0003-generator-package-distribution.md) | Generator Package Distribution | Accepted |
 | [0004](0004-composition-plan-discovery-and-dispatch.md) | Composition Plan Discovery and Dispatch | Accepted |
 | [0005](0005-generator-implementation-conventions.md) | Source Generator Implementation Conventions | Accepted |
+| [0006](0006-required-members-and-nullability-metadata.md) | Required Members and Nullability Metadata | Accepted |

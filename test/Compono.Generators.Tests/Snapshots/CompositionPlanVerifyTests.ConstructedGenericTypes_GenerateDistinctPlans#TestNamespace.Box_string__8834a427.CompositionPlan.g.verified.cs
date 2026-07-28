@@ -9,7 +9,7 @@ namespace TestNamespace
     {
         public global::TestNamespace.Box<string> Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Box<string>(
-                context.Resolve<string>()
+                context.Resolve<string>(global::Compono.Nullability.NotNullable)
             );
     }
 

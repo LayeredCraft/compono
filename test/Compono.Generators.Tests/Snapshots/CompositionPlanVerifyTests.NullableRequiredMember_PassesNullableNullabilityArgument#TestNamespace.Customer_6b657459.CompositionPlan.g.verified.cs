@@ -9,8 +9,11 @@ namespace TestNamespace
     {
         public global::TestNamespace.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Customer(
-                context.Resolve<global::TestNamespace.Address>(global::Compono.Nullability.NotNullable)
-            );
+            )
+            {
+                Name = context.Resolve<string>(global::Compono.Nullability.NotNullable),
+                Nickname = context.Resolve<string>(global::Compono.Nullability.Nullable)
+            };
     }
 
     file static class CustomerCompositionPlanRegistration

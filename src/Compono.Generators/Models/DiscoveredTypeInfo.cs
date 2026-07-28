@@ -13,6 +13,7 @@ internal sealed record DiscoveredTypeInfo(
     string TypeName,
     string FullyQualifiedName,
     EquatableArray<ConstructorParameterInfo> Parameters,
+    EquatableArray<RequiredMemberInfo> RequiredMembers,
     EquatableArray<DiagnosticInfo> Diagnostics)
 {
     public string PlanClassName => $"{TypeName}CompositionPlan";

@@ -56,11 +56,10 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor UnassignedRequiredMembers = new(
+    public static readonly DiagnosticDescriptor UnsupportedRequiredMemberKind = new(
         "CMP0007",
-        "Required members cannot be composed yet",
-        "{0} has required members that its selected constructor doesn't set (no " +
-        "[SetsRequiredMembers]) - Compono can't compose required-member initialization yet",
+        "Unsupported required member kind",
+        "{0} has required member '{1}' {2}, which Compono cannot compose a value for",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -79,6 +78,17 @@ internal static class DiagnosticDescriptors
         "Type argument is a ref struct",
         "'{0}' is a ref struct (ref-like type), which cannot be used as a type argument for " +
         "Compono's generated ICompositionPlan<T>/PlanCache<T>",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConflictingCompositionMetadata = new(
+        "CMP0010",
+        "Conflicting composition metadata across discoveries",
+        "'{0}' was discovered multiple times with different composition metadata (for example, " +
+        "Create<Box<string>>() and Create<Box<string?>>() in the same compilation) - Compono " +
+        "generates exactly one plan per type and can't guarantee it correctly reflects every " +
+        "discovery. Request this type with consistent nullability everywhere it's composed.",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
