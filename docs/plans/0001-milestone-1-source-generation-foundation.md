@@ -675,3 +675,51 @@ out of scope for the PR that surfaced them:
     plan for the nested type). Full solution build is 0 warnings/0
     errors; `dotnet test` is 80/80 passing (`Compono.Tests` +
     `Compono.Generators.Tests`, both TFMs).
+- **PR #7 review feedback (Codex) surfaced three real Phase 3 gaps**, all
+  triaged with the user one at a time before implementing
+  (`tasks/respond-to-pr-feedback.md`):
+  - **P1 — duplicate `AddSource` hint names could crash the whole
+    generator run**: `Box<string>` and `Box<string?>` composed in the same
+    compilation emit to the identical hint name
+    (`SymbolDisplayFormat.FullyQualifiedFormat` erases the top-level
+    nullable annotation), but Roslyn substitutes `Box<T>`'s constructor
+    parameter's own `NullableAnnotation` differently for each closed
+    generic, so the two `DiscoveredTypeInfo` records differ in
+    `Parameters` and survived `ComponoIncrementalGenerator`'s plain
+    `.Distinct()` (full structural equality) as two "different" entries -
+    `AddSource` then threw on the duplicate hint name. Fixed by grouping
+    on the actual emission identity (`Namespace`, `TypeName`,
+    `FullyQualifiedName`) and keeping the first-discovered entry, so two
+    discoveries that would emit to the same hint name always collapse to
+    one regardless of what a later duplicate disagreed about.
+  - **P2 — an overridden required property was collected twice**:
+    `RequiredMemberCollector` walks a type and its base types outward:
+    both a base's virtual required property and a derived override of it
+    report `IsRequired: true` and share the same name, so both were
+    collected, and the template emitted the same object-initializer
+    target twice (a compile error in the generated file). Fixed by
+    grouping the collected members by name and keeping the first
+    occurrence - `EnumerateTypeAndBases` walks the type itself before its
+    base types, so the derived override is always encountered first.
+  - **P2 — an unescaped reserved-keyword required member name emitted
+    invalid code**: `public required string @class { get; init; }`
+    reports `member.Name` as the bare keyword text (`class`), which
+    landed directly in the object initializer (`class = ...`) - a
+    reserved word, not a valid identifier there. Fixed by escaping via
+    `SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None` at collection
+    time (a contextual keyword like `var` is a legal identifier unescaped
+    and must not get an `@` prefix, hence the real keyword-kind check
+    rather than a hand-maintained list).
+  - Regression tests added: composing both `Box<string>` and `Box<string?>`
+    dedupes to a single plan
+    (`NullableAndNonNullableGenericInstantiation_DedupesToSinglePlan`), an
+    overridden required property is emitted once
+    (`OverriddenRequiredProperty_EmittedOnlyOnce`), and a
+    `@class`-named required member escapes correctly
+    (`RequiredMemberNamedWithReservedKeyword_EscapesIdentifier`). Also
+    added `AGENTS.md` at repo root in this same round (repo-orientation
+    file for any coding agent, not Claude-specific) - designed with the
+    user, incorporating a second round of external review feedback on the
+    file itself. As of this round's completion: full solution build is
+    still 0 warnings/0 errors; `dotnet test` is 86/86 passing
+    (`Compono.Tests` + `Compono.Generators.Tests`, both TFMs).

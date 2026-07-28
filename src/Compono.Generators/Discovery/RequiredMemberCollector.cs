@@ -2,6 +2,7 @@ using Compono.Generators.Diagnostics;
 using Compono.Generators.Models;
 using Compono.Generators.Types;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Compono.Generators.Discovery;
 
@@ -22,9 +23,18 @@ internal static class RequiredMemberCollector
                 a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
             return Result.Success(EquatableArray<RequiredMemberInfo>.Empty, []);
 
+        // EnumerateTypeAndBases walks `type` itself before its base types, so for a required
+        // property overridden in a derived class, the override is always encountered before the
+        // base declaration it overrides - both report IsRequired: true (required propagates
+        // through an override) and share the same Name, so grouping by name and keeping the first
+        // occurrence keeps the override and drops the base's now-redundant declaration. Without
+        // this, both would be collected and the template would emit the same property twice in one
+        // object initializer (a duplicate-member-initializer compile error in the generated file).
         var requiredMembers = EnumerateTypeAndBases(type)
             .SelectMany(t => t.GetMembers())
             .Where(m => m is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true })
+            .GroupBy(m => m.Name)
+            .Select(g => g.First())
             .ToArray();
 
         if (requiredMembers.Length == 0)
@@ -62,7 +72,7 @@ internal static class RequiredMemberCollector
                     "as a pointer type, which cannot be used as a generic type argument"));
 
             infos.Add(new RequiredMemberInfo(
-                member.Name,
+                EscapeIdentifier(member.Name),
                 memberType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 memberType.NullableAnnotation == NullableAnnotation.Annotated));
             memberTypes.Add((memberType, member.Name));
@@ -75,6 +85,16 @@ internal static class RequiredMemberCollector
         path is null
             ? $"'{type.ToDisplayString()}'"
             : $"'{type.ToDisplayString()}' (reached via {path})";
+
+    // A required member can legally be named with an escaped reserved keyword
+    // (`public required string @class { get; init; }`) - member.Name reports it as the bare
+    // keyword text ("class"), which the template emits directly into an object-initializer target
+    // (`class = ...`). That's a reserved word, not a valid identifier there, so it has to be
+    // re-escaped with `@` before emission - contextual keywords (`var`, `async`, ...) are legal
+    // identifiers unescaped and must NOT get an `@` prefix, so this checks the real reserved-keyword
+    // set via SyntaxFacts rather than a hand-maintained list.
+    private static string EscapeIdentifier(string name) =>
+        SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
 
     private static IEnumerable<INamedTypeSymbol> EnumerateTypeAndBases(INamedTypeSymbol type)
     {

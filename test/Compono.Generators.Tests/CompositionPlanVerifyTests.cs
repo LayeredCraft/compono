@@ -1099,4 +1099,100 @@ public sealed class CompositionPlanVerifyTests
                 }
                 """,
         }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableAndNonNullableGenericInstantiation_DedupesToSinglePlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Box<T>
+                {
+                    public Box(T value) { Value = value; }
+                    public T Value { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Box<string> and Box<string?> emit to the identical hint name
+                        // (FullyQualifiedFormat erases the top-level nullable annotation) even
+                        // though Roslyn substitutes the constructor parameter's own
+                        // NullableAnnotation differently for each - discovery must collapse these
+                        // to a single DiscoveredTypeInfo/AddSource call rather than crashing on a
+                        // duplicate hint name.
+                        var notNullable = composer.Create<Box<string>>();
+                        var nullable = composer.Create<Box<string?>>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task OverriddenRequiredProperty_EmittedOnlyOnce() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public abstract class Animal
+                {
+                    public Animal() { }
+
+                    public required virtual string Name { get; init; }
+                }
+
+                public sealed class Dog : Animal
+                {
+                    public Dog() { }
+
+                    // `required` propagates through an override - both Animal.Name and
+                    // Dog.Name report IsRequired: true and share the same member name.
+                    // RequiredMemberCollector must collect this once, not twice (a duplicate
+                    // object-initializer entry is a compile error in the generated file).
+                    public required override string Name { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var dog = composer.Create<TestNamespace.Dog>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RequiredMemberNamedWithReservedKeyword_EscapesIdentifier() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Widget
+                {
+                    public Widget() { }
+
+                    // A required member can legally use an escaped reserved-keyword identifier -
+                    // member.Name reports it as the bare keyword text ("class"), which must be
+                    // re-escaped with `@` before landing in the generated object initializer, or
+                    // the emitted file fails to compile.
+                    public required string @class { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var widget = composer.Create<TestNamespace.Widget>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 }

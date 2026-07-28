@@ -56,7 +56,22 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .SelectMany(static (types, _) =>
             {
                 var ((callSites, composables), assemblyComposables) = types;
-                return callSites.Concat(composables).Concat(assemblyComposables).Distinct();
+
+                // Two discoveries can share the same emission identity (Namespace/TypeName/
+                // FullyQualifiedName - what AddSource's hint name and PlanCache<T> slot actually
+                // key on) while still being structurally unequal records - e.g. composing both
+                // Box<string> and Box<string?> at two different call sites: FullyQualifiedFormat
+                // erases the top-level nullable annotation (identical hint name either way), but
+                // Roslyn substitutes Box<T>'s constructor parameter's own NullableAnnotation
+                // differently for each, so their DiscoveredTypeInfo.Parameters differ. A plain
+                // `.Distinct()` (full structural equality) would keep both, and AddSource throws on
+                // the resulting duplicate hint name - a whole-generator-run crash, not a diagnostic.
+                // Grouping by emission identity and keeping the first-discovered entry guarantees
+                // exactly one AddSource call per hint name regardless of what a later duplicate
+                // disagreed about.
+                return callSites.Concat(composables).Concat(assemblyComposables)
+                    .GroupBy(static type => (type.Namespace, type.TypeName, type.FullyQualifiedName))
+                    .Select(static group => group.First());
             })
             .WithTrackingName(TrackingNames.DiscoveredDistinct);
 
