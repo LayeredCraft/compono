@@ -41,7 +41,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor OpenGenericTypeArgument = new(
         "CMP0005",
         "Type argument is not closed",
-        "'{0}' is not a closed type - Compono.Composer.Create<T>() requires a fully constructed type, " +
+        "'{0}' is not a closed type - Compono requires a fully constructed type, " +
         "not one containing an unresolved type parameter from an enclosing generic method or type",
         "Compono.Usage",
         DiagnosticSeverity.Error,
@@ -50,7 +50,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor UnsupportedTypeArgumentShape = new(
         "CMP0006",
         "Unsupported type argument shape",
-        "'{0}' is not a type Compono can compose - Composer.Create<T>() requires a named type " +
+        "'{0}' is not a type Compono can compose - Compono requires a named type " +
         "(a class, struct, record, or interface), not an array, pointer, or other type shape",
         "Compono.Usage",
         DiagnosticSeverity.Error,
@@ -61,6 +61,15 @@ internal static class DiagnosticDescriptors
         "Required members cannot be composed yet",
         "{0} has required members that its selected constructor doesn't set (no " +
         "[SetsRequiredMembers]) - Compono can't compose required-member initialization yet",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor AssemblyComposableMissingType = new(
+        "CMP0008",
+        "Assembly-level [Composable] has no target type",
+        "Assembly-level [Composable] requires a type argument identifying the type to compose - " +
+        "use [assembly: Composable(typeof(SomeType))]",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

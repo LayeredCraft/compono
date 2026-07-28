@@ -688,4 +688,133 @@ public sealed class CompositionPlanVerifyTests
                 }
                 """,
         }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeOnType_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                // No local Create<T>() call site anywhere in the compilation - [Composable] is the
+                // only reason this type gets a generated plan (docs/adr/0004's escape hatch, Phase 2).
+                [Compono.Composable]
+                public sealed class Customer
+                {
+                    public Customer(string firstName)
+                    {
+                        FirstName = firstName;
+                    }
+
+                    public string FirstName { get; }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeWithTypeArgumentOnType_RequestsNamedTypeInstead() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                // [Composable(typeof(Other))] on Customer requests a plan for Other, not Customer -
+                // same shape as the assembly-level form, just anchored to an existing declaration.
+                [Compono.Composable(typeof(Widget))]
+                public sealed class Customer
+                {
+                    public Customer(string firstName)
+                    {
+                        FirstName = firstName;
+                    }
+
+                    public string FirstName { get; }
+                }
+
+                public sealed class Widget
+                {
+                    public Widget() { }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeAtAssemblyLevel_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                [assembly: Compono.Composable(typeof(TestNamespace.Customer))]
+
+                namespace TestNamespace;
+
+                // Customer can't be annotated directly here (standing in for a type this
+                // compilation doesn't own, e.g. one from a referenced assembly) - the
+                // assembly-level form is the only discovery path that reaches it.
+                public sealed class Customer
+                {
+                    public Customer(string firstName)
+                    {
+                        FirstName = firstName;
+                    }
+
+                    public string FirstName { get; }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeAtAssemblyLevelMissingTypeArgument_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    [assembly: Compono.Composable]
+
+                    namespace TestNamespace;
+
+                    public sealed class Customer
+                    {
+                        public Customer(string firstName)
+                        {
+                            FirstName = firstName;
+                        }
+
+                        public string FirstName { get; }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0008",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeAndCreateCallSite_DedupeToSinglePlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                // Discovered by both paths at once - call-site discovery and [Composable] must
+                // agree on a single DiscoveredTypeInfo, or Roslyn's AddSource throws on the
+                // resulting duplicate hint name.
+                [Compono.Composable]
+                public sealed class Customer
+                {
+                    public Customer(string firstName)
+                    {
+                        FirstName = firstName;
+                    }
+
+                    public string FirstName { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 }

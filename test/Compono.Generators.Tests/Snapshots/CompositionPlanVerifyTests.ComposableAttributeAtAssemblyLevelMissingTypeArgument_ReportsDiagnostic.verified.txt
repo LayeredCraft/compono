@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (0,11)-(0,29),
+      Message: Assembly-level [Composable] requires a type argument identifying the type to compose - use [assembly: Composable(typeof(SomeType))],
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0008,
+        Title: Assembly-level [Composable] has no target type,
+        MessageFormat: Assembly-level [Composable] requires a type argument identifying the type to compose - use [assembly: Composable(typeof(SomeType))],
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
