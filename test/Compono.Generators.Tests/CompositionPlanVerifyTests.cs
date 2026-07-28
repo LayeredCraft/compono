@@ -1101,35 +1101,40 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task NullableAndNonNullableGenericInstantiation_DedupesToSinglePlan() =>
-        GeneratorTestHelpers.Verify(new CodeGenerationOptions
-        {
-            SourceCode = """
-                namespace TestNamespace;
+    public Task NullableAndNonNullableGenericInstantiation_ReportsConflictDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
 
-                public sealed class Box<T>
-                {
-                    public Box(T value) { Value = value; }
-                    public T Value { get; }
-                }
-
-                public static class EntryPoint
-                {
-                    public static void Run()
+                    public sealed class Box<T>
                     {
-                        var composer = Compono.Composer.Create();
-                        // Box<string> and Box<string?> emit to the identical hint name
-                        // (FullyQualifiedFormat erases the top-level nullable annotation) even
-                        // though Roslyn substitutes the constructor parameter's own
-                        // NullableAnnotation differently for each - discovery must collapse these
-                        // to a single DiscoveredTypeInfo/AddSource call rather than crashing on a
-                        // duplicate hint name.
-                        var notNullable = composer.Create<Box<string>>();
-                        var nullable = composer.Create<Box<string?>>();
+                        public Box(T value) { Value = value; }
+                        public T Value { get; }
                     }
-                }
-                """,
-        }, TestContext.Current.CancellationToken);
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Box<string> and Box<string?> emit to the identical hint name
+                            // (FullyQualifiedFormat erases the top-level nullable annotation), but
+                            // Roslyn substitutes the constructor parameter's own NullableAnnotation
+                            // differently for each - there's no single Nullability value that's
+                            // correct for both requests against the one plan Compono generates, so
+                            // this must be reported (CMP0010) rather than silently picking one
+                            // (which would make the "losing" call site get incorrect metadata,
+                            // dependent on arbitrary discovery order).
+                            var notNullable = composer.Create<Box<string>>();
+                            var nullable = composer.Create<Box<string?>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0010",
+            TestContext.Current.CancellationToken);
 
     [Fact]
     public Task OverriddenRequiredProperty_EmittedOnlyOnce() =>

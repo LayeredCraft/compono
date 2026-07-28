@@ -81,4 +81,15 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConflictingCompositionMetadata = new(
+        "CMP0010",
+        "Conflicting composition metadata across discoveries",
+        "'{0}' was discovered multiple times with different composition metadata (for example, " +
+        "Create<Box<string>>() and Create<Box<string?>>() in the same compilation) - Compono " +
+        "generates exactly one plan per type and can't guarantee it correctly reflects every " +
+        "discovery. Request this type with consistent nullability everywhere it's composed.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

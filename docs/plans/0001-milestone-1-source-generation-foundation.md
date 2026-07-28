@@ -711,8 +711,7 @@ out of scope for the PR that surfaced them:
     and must not get an `@` prefix, hence the real keyword-kind check
     rather than a hand-maintained list).
   - Regression tests added: composing both `Box<string>` and `Box<string?>`
-    dedupes to a single plan
-    (`NullableAndNonNullableGenericInstantiation_DedupesToSinglePlan`), an
+    dedupes to a single plan (later superseded - see below), an
     overridden required property is emitted once
     (`OverriddenRequiredProperty_EmittedOnlyOnce`), and a
     `@class`-named required member escapes correctly
@@ -723,3 +722,25 @@ out of scope for the PR that surfaced them:
     file itself. As of this round's completion: full solution build is
     still 0 warnings/0 errors; `dotnet test` is 86/86 passing
     (`Compono.Tests` + `Compono.Generators.Tests`, both TFMs).
+- **A second Codex pass on PR #7 (triggered by `@codex review` against the
+  fix commit above) caught a real gap in that same fix**, triaged with the
+  user before implementing: the `group.First()` dedup stopped the
+  duplicate-`AddSource`-hint-name crash, but didn't stop the *other* call
+  site from silently getting the wrong `Nullability` for its own request -
+  `Box<string>` and `Box<string?>` share exactly one generated plan and
+  one `PlanCache<Box<string>>.Instance`, so if two call sites genuinely
+  disagree about it, there's no value that's correct for both; picking
+  one arbitrarily just makes the outcome depend on discovery order.
+  Fixed by replacing "keep the first" with "diagnose the conflict": a
+  group's entries are deduped via `.Distinct()` first (the legitimate case
+  - the same type discovered identically via both a call site and
+  `[Composable]`, say - still collapses to one with no diagnostic), and
+  only if more than one *genuinely different* entry survives is a new
+  diagnostic reported (`CMP0010`) and no plan emitted for that identity -
+  the same "diagnose an ambiguity, don't guess" rule `CMP0001` (ambiguous
+  constructor) already follows. Regression test renamed/repurposed to
+  match: `NullableAndNonNullableGenericInstantiation_ReportsConflictDiagnostic`
+  now asserts `CMP0010` instead of asserting a (silently wrong) generated
+  plan. As of this round's completion: full solution build is still 0
+  warnings/0 errors; `dotnet test` is 86/86 passing (`Compono.Tests` +
+  `Compono.Generators.Tests`, both TFMs).

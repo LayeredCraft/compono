@@ -1,5 +1,8 @@
+using Compono.Generators.Diagnostics;
 using Compono.Generators.Discovery;
 using Compono.Generators.Emitters;
+using Compono.Generators.Models;
+using Compono.Generators.Types;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -63,15 +66,37 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 // Box<string> and Box<string?> at two different call sites: FullyQualifiedFormat
                 // erases the top-level nullable annotation (identical hint name either way), but
                 // Roslyn substitutes Box<T>'s constructor parameter's own NullableAnnotation
-                // differently for each, so their DiscoveredTypeInfo.Parameters differ. A plain
-                // `.Distinct()` (full structural equality) would keep both, and AddSource throws on
-                // the resulting duplicate hint name - a whole-generator-run crash, not a diagnostic.
-                // Grouping by emission identity and keeping the first-discovered entry guarantees
-                // exactly one AddSource call per hint name regardless of what a later duplicate
-                // disagreed about.
+                // differently for each, so their DiscoveredTypeInfo.Parameters differ. Silently
+                // keeping "whichever one was discovered first" (an earlier version of this fix) only
+                // stops the duplicate-hint-name crash - it doesn't stop the *other* call site from
+                // silently getting the wrong Nullability for its own request, and which one wins
+                // becomes dependent on arbitrary discovery order. There's no value that's correct for
+                // both requests: Box<string> gets exactly one generated plan, so if two call sites
+                // genuinely disagree about it, that's reported (CMP0010) rather than guessed - the
+                // same "diagnose, don't guess" rule CMP0001 (ambiguous constructor) already follows.
+                // A group can still legitimately contain more than one *structurally identical* entry
+                // (the same type discovered via both a call site and [Composable], say) - that's not
+                // a conflict, just redundant discovery of the same request, and still collapses to one.
                 return callSites.Concat(composables).Concat(assemblyComposables)
                     .GroupBy(static type => (type.Namespace, type.TypeName, type.FullyQualifiedName))
-                    .Select(static group => group.First());
+                    .Select(static group =>
+                    {
+                        var distinct = group.Distinct().ToArray();
+
+                        if (distinct.Length == 1)
+                            return distinct[0];
+
+                        var (@namespace, typeName, fullyQualifiedName) = group.Key;
+
+                        return new DiscoveredTypeInfo(
+                            @namespace,
+                            typeName,
+                            fullyQualifiedName,
+                            EquatableArray<ConstructorParameterInfo>.Empty,
+                            EquatableArray<RequiredMemberInfo>.Empty,
+                            new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCompositionMetadata, null, fullyQualifiedName) }
+                                .ToEquatableArray());
+                    });
             })
             .WithTrackingName(TrackingNames.DiscoveredDistinct);
 

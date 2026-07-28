@@ -14,3 +14,4 @@ CMP0006 | Compono.Usage | Error | Type argument isn't a named type (array, point
 CMP0007 | Compono.Usage | Error | Required member is of an unsupported type shape (ref-like or pointer), which cannot be a generic type argument
 CMP0008 | Compono.Usage | Error | Assembly-level [Composable] is missing its typeof(...) target type argument
 CMP0009 | Compono.Usage | Error | Requested type is a ref struct (ref-like type), which cannot be a type argument for ICompositionPlan<T>/PlanCache<T>
+CMP0010 | Compono.Usage | Error | The same type was discovered multiple times with conflicting composition metadata (e.g. differing nullable-reference annotations across call sites)
