@@ -155,7 +155,7 @@ than the annotated type itself, for symmetry with the assembly-level form.
       `[Composable]` discover the same type, plus `CMP0008` for
       assembly-level `[Composable]` missing its `typeof(...)` argument)
 
-### Phase 3 — Required members and nullability (Done)
+### Phase 3 — Required members and nullability (Done, PR #7 merged)
 
 Design decided in [ADR-0006](../adr/0006-required-members-and-nullability-metadata.md):
 object-initializer emission for required members (reusing the constructor
