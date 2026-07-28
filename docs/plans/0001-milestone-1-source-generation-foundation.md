@@ -256,9 +256,13 @@ at runtime.
   (same shape `test/Compono.Generators.Tests` and `Compono.csproj` itself
   use) so the generator actually runs against the types declared here.
   `BenchmarkTypes.cs` (the representative `Leaf` type), `ReflectionComposer.cs`
-  (the reflection baseline), `CompositionBenchmarks.cs` (the
-  `[Benchmark]`-attributed comparison), `Program.cs`
-  (`BenchmarkSwitcher.FromAssembly`).
+  (the reflection baseline), `AutoFixtureComposer.cs` (ecosystem-comparison
+  reference point, added after initial Phase 4 completion at the user's
+  request — see Notes), `ArchitectureBenchmarks.cs` (Direct/Generated/
+  Reflection — the architecture question) + `EcosystemBenchmarks.cs`
+  (Generated/AutoFixture — the ecosystem question, kept as a separate
+  `[Benchmark]` class so it can't be mistaken for the architecture's
+  success criterion), `Program.cs` (`BenchmarkSwitcher.FromAssembly`).
 
 ## Test Plan
 
@@ -858,3 +862,24 @@ out of scope for the PR that surfaced them:
   warnings/0 errors; `dotnet test` is 90/90 passing (`Compono.Tests` +
   `Compono.Generators.Tests`, both TFMs - unchanged count, since this
   round added no new test).
+- **Phase 4 was extended, after its initial completion, to add an
+  AutoFixture ecosystem comparison** at the user's request (citing outside
+  advice that users will inevitably compare Compono to AutoFixture even
+  though it's not marketed as a replacement). Kept as a genuinely separate
+  `EcosystemBenchmarks` class rather than folded into the original
+  `CompositionBenchmarks` (renamed `ArchitectureBenchmarks`) - mixing the
+  two would let an "AutoFixture is much slower" number read as the
+  architecture's proof point, when the actual architecture question is
+  answered by `Direct`/`Generated`/`Reflection` alone.  `Direct` (`new
+  Leaf()`) was added to `ArchitectureBenchmarks` at the same time, as the
+  theoretical floor. The suggested `Customer -> Address` nested-graph
+  comparison was **not** adopted - `Leaf` (flat, parameterless) remains
+  the only type either engine can honestly construct end-to-end until
+  Milestone 2's provider-resolution pipeline exists (see
+  `docs/performance.md`'s "What's measured, and what isn't yet"), so a
+  richer type would have made the comparison less fair, not more. This is
+  a benchmark-project-only dependency - `Directory.Packages.props`'s
+  existing "no AutoFixture" rule is about Compono's own test suite (test
+  data generation would contradict the product), not benchmarking an
+  external framework as a reference point, so it stays unchanged in
+  intent, just annotated to avoid future confusion between the two.

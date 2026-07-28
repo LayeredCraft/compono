@@ -53,5 +53,11 @@
     <!-- Phase 4: benchmark harness comparing generated construction against a reflection
          baseline (docs/mvp.md's explicit Milestone 1 ask). -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <!-- Ecosystem-comparison reference point for benchmarks/Compono.Benchmarks only - not a
+         contradiction of the "no AutoFixture" rule above, which is about test data generation
+         inside Compono's own test suite. Here it's the established framework used for the same
+         job today, benchmarked as a recognizable external reference, not a target Compono is
+         trying to "beat" (see docs/performance.md). -->
+    <PackageVersion Include="AutoFixture" Version="4.18.1" />
   </ItemGroup>
 </Project>

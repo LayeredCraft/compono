@@ -63,9 +63,12 @@ opt-in.
 
 ## Performance
 
-Generated construction (`composer.Create<T>()`) runs ~6.1x faster and
-allocates ~43% as much as an equivalent reflection-based baseline, for
-the flat-type case Milestone 1 can measure end-to-end today. See
+Generated construction (`composer.Create<T>()`) runs ~6.0x faster than an
+equivalent reflection-based baseline, and within ~1 ns of a bare
+`new Leaf()`, for the flat-type case Milestone 1 can measure end-to-end
+today. A separate ecosystem-comparison benchmark against AutoFixture is
+also included as a recognizable reference point - not a claim Compono
+replaces it. See
 [Performance](https://layeredcraft.github.io/compono/performance/) (or
 `docs/performance.md`) for methodology, caveats, and how to reproduce -
 `benchmarks/Compono.Benchmarks`.

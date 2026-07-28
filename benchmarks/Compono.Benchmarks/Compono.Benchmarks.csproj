@@ -15,6 +15,9 @@
 
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" />
+        <!-- Ecosystem-comparison reference point only - see the AutoFixture comment in
+             Directory.Packages.props. -->
+        <PackageReference Include="AutoFixture" />
     </ItemGroup>
 
     <ItemGroup>
