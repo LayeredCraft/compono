@@ -13,7 +13,9 @@ namespace Compono;
 /// assembly that can't be annotated. Both forms are equivalent requests and repeated requests for
 /// the same type are deduplicated — prefer the type-level form whenever the type is owned locally.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Assembly, AllowMultiple = true, Inherited = false)]
+[AttributeUsage(
+    AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Assembly,
+    AllowMultiple = true, Inherited = false)]
 public sealed class ComposableAttribute : Attribute
 {
     /// <summary>

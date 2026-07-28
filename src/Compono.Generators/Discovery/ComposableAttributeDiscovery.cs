@@ -45,12 +45,17 @@ internal static class ComposableAttributeDiscovery
         return results.ToEquatableArray();
     }
 
+    // Deliberately no name filter here - a syntax-only check can't see through an alias
+    // (`using Marker = Compono.ComposableAttribute;` then `[assembly: Marker(typeof(Customer))]`),
+    // and rejecting on the literal syntax name would silently drop that valid usage before
+    // TransformAssemblyLevel's semantic check (which resolves aliases correctly via GetSymbolInfo)
+    // ever runs. Assembly-level attributes are rare, so admitting every candidate here and letting
+    // the semantic check downstream do the real filtering costs nothing meaningful.
     public static bool IsAssemblyCandidate(SyntaxNode node, CancellationToken cancellationToken) =>
         node is AttributeSyntax
         {
             Parent: AttributeListSyntax { Target.Identifier.RawKind: (int)SyntaxKind.AssemblyKeyword },
-        } attribute
-        && UnqualifiedName(attribute.Name) is "Composable" or "ComposableAttribute";
+        };
 
     public static EquatableArray<DiscoveredTypeInfo>? TransformAssemblyLevel(
         GeneratorSyntaxContext context, CancellationToken cancellationToken)
@@ -109,12 +114,4 @@ internal static class ComposableAttributeDiscovery
 
         return new[] { failure }.ToEquatableArray();
     }
-
-    private static string? UnqualifiedName(NameSyntax name) => name switch
-    {
-        SimpleNameSyntax simple => simple.Identifier.ValueText,
-        QualifiedNameSyntax qualified => qualified.Right.Identifier.ValueText,
-        AliasQualifiedNameSyntax aliasQualified => aliasQualified.Name.Identifier.ValueText,
-        _ => null,
-    };
 }

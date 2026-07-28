@@ -529,3 +529,38 @@ out of scope for the PR that surfaced them:
   directly. As of Phase 2's completion: full solution build is still 0
   warnings/0 errors; `dotnet test` is 60/60 passing (`Compono.Tests` +
   `Compono.Generators.Tests`, both TFMs).
+- **PR #6 review feedback (Codex + Copilot) surfaced two real Phase 2
+  gaps**, both fixed after per-item triage with the user
+  (`tasks/respond-to-pr-feedback.md`):
+  - `ComposableAttributeDiscovery.IsAssemblyCandidate` filtered on the
+    attribute's literal syntax name (`"Composable"`/`"ComposableAttribute"`)
+    before `TransformAssemblyLevel`'s semantic check ever ran - a consumer
+    aliasing the attribute (`using Marker = Compono.ComposableAttribute;`
+    then `[assembly: Marker(typeof(SomeType))]`) had the syntax name
+    silently fail the filter, so the escape hatch never even reached the
+    semantic check that would have resolved the alias correctly, and no
+    plan or diagnostic was produced. Fixed by dropping the name filter
+    entirely - the predicate now admits every `[assembly: ...]` attribute
+    syntactically and relies on the existing `GetSymbolInfo` +
+    `wellKnownTypes.IsType` check downstream to do the real filtering,
+    which already handles aliases correctly.
+  - `ComposableAttribute`'s `[AttributeUsage]` excluded
+    `AttributeTargets.Interface`, so `[Composable]` couldn't be written on
+    an interface at all - the C# compiler rejected it with a bare `CS0592`
+    before Compono's own generator ever saw it, even though the
+    assembly-level form (`[assembly: Composable(typeof(ISomeInterface))]`)
+    already handled the same case gracefully: `ConstructorSelector`
+    reports `CMP0003` for an interface the same way it does for an
+    abstract class, since `INamedTypeSymbol.IsAbstract` is `true` for
+    interfaces in Roslyn too. Fixed by adding `AttributeTargets.Interface`
+    to the usage list, so both placements now produce the same clean
+    diagnostic instead of the type-level form hitting a raw compiler error
+    with no explanation.
+  - Regression tests added: an assembly-level `[Composable]` request via
+    an aliased `using` directive still generates a plan
+    (`ComposableAttributeAtAssemblyLevelViaAlias_GeneratesCompositionPlan`),
+    and `[Composable]` on an interface reports `CMP0003`
+    (`ComposableAttributeOnInterface_ReportsDiagnostic`). As of this
+    round's completion: full solution build is still 0 warnings/0 errors;
+    `dotnet test` is 64/64 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).

@@ -817,4 +817,53 @@ public sealed class CompositionPlanVerifyTests
                 }
                 """,
         }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeAtAssemblyLevelViaAlias_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                // IsAssemblyCandidate must not filter by literal syntax name - an aliased reference
+                // to Compono.ComposableAttribute has a syntax name of "Marker", not "Composable", so
+                // a name-based syntax filter would silently drop this valid usage before the
+                // semantic check (which resolves the alias correctly) ever runs.
+                using Marker = Compono.ComposableAttribute;
+
+                [assembly: Marker(typeof(TestNamespace.Customer))]
+
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer(string firstName)
+                    {
+                        FirstName = firstName;
+                    }
+
+                    public string FirstName { get; }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeOnInterface_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    // Interfaces are a legal [Composable] target (AttributeTargets.Interface) so
+                    // this reaches Compono's own CMP0003 diagnostic instead of a bare compiler
+                    // error with no explanation - interfaces report IsAbstract: true in Roslyn, so
+                    // ConstructorSelector rejects them the same way it rejects an abstract class.
+                    [Compono.Composable]
+                    public interface IWidget
+                    {
+                        string Name { get; }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0003",
+            TestContext.Current.CancellationToken);
 }
