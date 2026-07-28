@@ -90,12 +90,25 @@ but generated code never constructs that rich request directly. Per
 there are two distinct shapes:
 
 - **`CompositionRequestDescriptor`** (`public`) — the small, compact,
-  compile-time-constructible value generated plan code actually passes:
+  compile-time-constructible value generated plan code actually passes.
+  A plain `readonly struct`, not a `record struct` — equality,
+  `Deconstruct`, and record-style formatting aren't part of its contract,
+  per [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+  second amendment:
   ```csharp
-  public readonly record struct CompositionRequestDescriptor(
-      CompositionRequestKind Kind,   // ConstructorParameter | RequiredMember
-      string Name,
-      Nullability Nullability);
+  public readonly struct CompositionRequestDescriptor
+  {
+      public CompositionRequestDescriptor(
+          CompositionRequestKind kind,   // ConstructorParameter | RequiredMember
+          int ordinal,                    // stable identity - see Deterministic Randomness, below
+          string name,                    // diagnostic display only, never identity
+          Nullability nullability);
+
+      public CompositionRequestKind Kind { get; }
+      public int Ordinal { get; }
+      public string Name { get; }
+      public Nullability Nullability { get; }
+  }
   ```
 - **`CompositionRequest`** (`internal`) — the richer record the context
   expands a descriptor into, by appending a `PathSegment`
@@ -215,14 +228,16 @@ internal sealed class CustomerCompositionPlan
         var firstName = context.Resolve<string>(
             new CompositionRequestDescriptor(
                 CompositionRequestKind.ConstructorParameter,
+                0,
                 "firstName",
-                Nullability.NotNull));
+                Nullability.NotNullable));
 
         var lastName = context.Resolve<string>(
             new CompositionRequestDescriptor(
                 CompositionRequestKind.ConstructorParameter,
+                1,
                 "lastName",
-                Nullability.NotNull));
+                Nullability.NotNullable));
 
         return new Customer(firstName, lastName);
     }
@@ -422,9 +437,16 @@ Resolved by [ADR-0012](adr/0012-composition-path-identity-and-deterministic-rand
 types — so two constructor parameters or members of the same type
 (`Customer(string FirstName, string LastName)`) fork independently
 instead of colliding on an identical key. Forking hashes the structured
-segment data directly (a per-kind tag plus its name or index) via FNV-1a,
-never a formatted display string, which is what makes the fork key
-collision-free by construction rather than by careful string-escaping.
+segment data directly (a per-kind tag plus its `Ordinal`/index — a
+constructor parameter's position in the selected constructor, or a
+required member's generator-assigned declaration-order index; never
+`Name`, which exists on the segment for diagnostic display only) via
+FNV-1a, never a formatted display string, which is what makes the fork
+key collision-free by construction rather than by careful
+string-escaping. This is a reproducibility *contract*, not an
+implementation detail: renaming a constructor parameter or required
+member (with no reordering) never changes its derived value — only
+reordering does.
 That structured state feeds a small Compono-owned PRNG (not
 `System.Random`), so the byte-for-byte output sequence is something
 Compono controls rather than an inherited BCL implementation detail. The
