@@ -15,35 +15,69 @@ namespace Compono;
 /// </remarks>
 internal sealed class CompositionContext : ICompositionContext
 {
+    private readonly CompositionSeed _seed;
     private readonly IReadOnlyList<ICompositionProvider> _profileProviders;
     private readonly IReadOnlyList<ICompositionProvider> _semanticProviders;
     private readonly IReadOnlyList<ICompositionProvider> _testDoubleProviders;
     private readonly IReadOnlyList<ICompositionProvider> _builtInProviders;
 
     private CompositionPath? _path;
+    private IRandomSource? _random;
 
-    /// <summary>Creates a <see cref="CompositionContext"/> with no providers registered in any stage.</summary>
+    /// <summary>
+    /// Creates a <see cref="CompositionContext"/> with no providers registered in any stage and a
+    /// freshly generated root seed.
+    /// </summary>
     internal CompositionContext()
-        : this(profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: [])
+        : this(CompositionSeed.Generate())
+    {
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionContext"/> with no providers registered in any stage and the
+    /// given explicit root seed - the seam <see cref="Composer.CreateRootForTesting{T}"/> uses.
+    /// </summary>
+    internal CompositionContext(CompositionSeed seed)
+        : this(seed, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: [])
     {
     }
 
     /// <summary>
     /// Creates a <see cref="CompositionContext"/> with explicit providers per extensible pipeline
-    /// stage - the seam <c>Compono.Tests</c> uses to inject fake providers and assert pipeline
-    /// ordering, since no public configuration surface exists until Milestone 3/5/6.
+    /// stage and a freshly generated root seed - the seam <c>Compono.Tests</c> uses to inject fake
+    /// providers and assert pipeline ordering, since no public configuration surface exists until
+    /// Milestone 3/5/6.
     /// </summary>
     internal CompositionContext(
         IReadOnlyList<ICompositionProvider> profileProviders,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         IReadOnlyList<ICompositionProvider> builtInProviders)
+        : this(CompositionSeed.Generate(), profileProviders, semanticProviders, testDoubleProviders, builtInProviders)
     {
+    }
+
+    private CompositionContext(
+        CompositionSeed seed,
+        IReadOnlyList<ICompositionProvider> profileProviders,
+        IReadOnlyList<ICompositionProvider> semanticProviders,
+        IReadOnlyList<ICompositionProvider> testDoubleProviders,
+        IReadOnlyList<ICompositionProvider> builtInProviders)
+    {
+        _seed = seed;
         _profileProviders = profileProviders;
         _semanticProviders = semanticProviders;
         _testDoubleProviders = testDoubleProviders;
         _builtInProviders = builtInProviders;
     }
+
+    /// <summary>
+    /// The current node's forked random source - internal test-observability seam for Phase 1's own
+    /// determinism tests (via a capturing <see cref="ICompositionPlan{T}"/>). Milestone 2 Phase 2's
+    /// built-in providers are the first real consumer of generated values.
+    /// </summary>
+    internal IRandomSource Random =>
+        _random ?? throw new InvalidOperationException("No composition operation is currently in progress.");
 
     /// <inheritdoc />
     public TValue Resolve<TValue>(in CompositionRequestDescriptor descriptor)
@@ -71,7 +105,15 @@ internal sealed class CompositionContext : ICompositionContext
     private TValue ResolveCore<TValue>(Nullability nullability, PathSegment? segment)
     {
         var requestedType = typeof(TValue);
-        _path = _path is null ? CompositionPath.Root(requestedType) : _path.Push(requestedType, segment);
+        var previousRandom = _random;
+        var isRoot = _path is null;
+
+        // A descriptor-based Resolve<T> called directly on a fresh context (no preceding
+        // ResolveRoot<T>() call) - only reachable from a test exercising the descriptor path in
+        // isolation, never from generated code - is treated as its own root, exactly like _path's
+        // existing null-check above: there is no ancestor random source to fork from either.
+        _path = isRoot ? CompositionPath.Root(requestedType) : _path!.Push(requestedType, segment);
+        _random = isRoot ? RandomSource.FromSeed(_seed) : previousRandom!.Fork(segment!);
 
         try
         {
@@ -109,6 +151,7 @@ internal sealed class CompositionContext : ICompositionContext
         finally
         {
             _path = _path.Pop();
+            _random = previousRandom;
         }
     }
 

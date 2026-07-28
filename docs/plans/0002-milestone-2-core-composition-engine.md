@@ -347,7 +347,7 @@ it.
     2 target frameworks), 20 `Compono.Tests`, `Compono.Benchmarks` builds
     clean.
 
-### Phase 1 — Seed, path identity, and forkable random source (Not Started)
+### Phase 1 — Seed, path identity, and forkable random source (Done)
 
 Built *before* any provider needs randomness, per the design review — no
 provider in Phase 2 is ever written against temporary/ad hoc randomness.
@@ -368,28 +368,20 @@ test directly, not an incidental property of the implementation.
       pop-in-`finally` behavior) — **pulled forward into Phase 0**, since
       `CompositionRequest.Path` needed a real type to compile; only the
       structural chain exists so far
-- [ ] `IRandomSource` fork-key derivation actually consuming `PathSegment`'s
+- [x] `IRandomSource` fork-key derivation actually consuming `PathSegment`'s
       `Ordinal`/`Index` (identity) via FNV-1a — the hashing this phase is
       actually about, per
       [ADR-0012](../adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
       amendment; `Name` stays diagnostic-only
-- [ ] Required-member ordinal assignment in `Compono.Generators`, per
-      ADR-0012's second amendment's canonical algorithm: walk the composed
-      type's inheritance chain base-to-derived (excluding `object`); for
-      each type in the chain, take `INamedTypeSymbol.GetMembers()` (Roslyn's
-      own deterministic, partial-declaration-merged order) filtered to
-      required members declared directly on that type; concatenate
-      base-first; `Ordinal` is the resulting sequence's index. Covers
-      partial declarations and generator-produced members automatically
-      (both are just declaring syntax references to Roslyn); a required
-      member added by a sibling generator Compono's semantic model can't
-      observe reports a diagnostic instead of being silently mis-numbered
-      — this is the "generator-controlled stable ordinal"
-      `CompositionRequestDescriptor.Ordinal` relies on for a
-      `RequiredMember` request
-- [ ] `CompositionSeed` (root seed — explicit value or generated once per
+- [x] Required-member ordinal assignment in `Compono.Generators`, per
+      ADR-0012's second amendment's canonical algorithm — **already
+      implemented in Phase 0** as an unscoped fix (see Phase 0's Notes:
+      `RequiredMemberCollector` was rewritten base-to-derived while fixing
+      the Scriban-template regression), confirmed against the canonical
+      algorithm text and left unchanged this phase
+- [x] `CompositionSeed` (root seed — explicit value or generated once per
       root composition operation)
-- [ ] `internal T Composer.CreateRootForTesting<T>(CompositionSeed seed)`
+- [x] `internal T Composer.CreateRootForTesting<T>(CompositionSeed seed)`
       and `internal IReadOnlyList<T> Composer.CreateManyForTesting<T>(int count, CompositionSeed seed)`
       ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md)'s
       second amendment — replaces the earlier, ambiguous `CreateWithSeed`
@@ -398,7 +390,7 @@ test directly, not an incidental property of the implementation.
       exercise the real `Composer`/`CompositionContext` flow with an
       explicit seed for exactly one root operation or one batch, since the
       public `WithSeed(...)` builder doesn't exist until Milestone 3
-- [ ] `IRandomSource` (`internal`) with structural key-based forking:
+- [x] `IRandomSource` (`internal`) with structural key-based forking:
       FNV-1a hash of each `PathSegment`'s tag + `Ordinal`/`Index` payload
       (never `Name`, never a formatted display string), combined with
       parent state to derive child state; type identity
@@ -406,12 +398,19 @@ test directly, not an incidental property of the implementation.
       (ADR-0012's amendment) — only ordinary, process-local `Type`
       equality is used elsewhere (provider dispatch, active-construction
       frames)
-- [ ] The Compono-owned PRNG value generator (not `System.Random`)
-      backing `IRandomSource`
-- [ ] A display-string derivation from `CompositionPath` (using each
+- [x] The Compono-owned PRNG value generator (not `System.Random`)
+      backing `IRandomSource` — SplitMix64, used both to derive a node's
+      value-stream state from its fork state and to advance that stream;
+      see `RandomSource`'s remarks for why this is SplitMix64 alone rather
+      than ADR-0009's "SplitMix64 feeding a xoshiro-family generator"
+      phrasing (a deliberate scope simplification — Phase 2's built-in
+      providers are the first real consumer of generated values, and
+      swapping the generator later doesn't change `IRandomSource`'s
+      internal contract)
+- [x] A display-string derivation from `CompositionPath` (using each
       segment's `Name`), for diagnostics only — never consumed by the
       hashing path above
-- [ ] Unit tests (via `Composer.CreateRootForTesting`): same seed + same
+- [x] Unit tests (via `Composer.CreateRootForTesting`): same seed + same
       path produces identical output across two independent resolutions;
       two sibling requests at the same path depth with different
       `Ordinal`s (e.g. two same-typed constructor parameters) fork
@@ -419,13 +418,53 @@ test directly, not an incidental property of the implementation.
       reordering) does *not* change its derived value, but reordering
       does; changing an unrelated member elsewhere in the graph doesn't
       change an already-resolved value's output
-- [ ] **Tag-collision test (ADR-0012's second amendment):** fork all five
+- [x] **Tag-collision test (ADR-0012's second amendment):** fork all five
       `PathSegment` kinds at `Ordinal`/`Index = 0` from the same parent
       state (`ConstructorParameter(0, "x")`, `RequiredMember(0, "x")`,
       `CollectionElement(0)`, `DictionaryKey(0)`, `DictionaryValue(0)`)
       and assert all five produce pairwise-distinct output — direct proof
       the per-kind tag byte actually discriminates kinds, not an inference
       from the design alone
+
+**Notes on what actually happened, versus what was scoped:**
+
+- `RandomSource` keeps two independent 64-bit states per node: a fixed
+  "fork state" derived purely from the structural path (only ever used to
+  derive children, never mutated) and a "value state" seeded from the fork
+  state and advanced by `NextUInt64()`. This wasn't spelled out in the
+  plan's task list but follows directly from the reproducibility contract:
+  without the split, how many random values a node's own provider draws
+  would perturb its children's derived state, which the contract
+  explicitly forbids.
+- `Fnv1a.Combine` chains from the parent's own derived state as the
+  running hash accumulator (instead of FNV-1a's usual fixed offset basis) —
+  a standard, legitimate "seeded FNV-1a" variant, needed so each fork is a
+  continuation of its ancestor chain rather than an independent hash.
+- `RandomSource.Fork` encodes each segment's `Ordinal`/`Index` as
+  fixed big-endian bytes (`BinaryPrimitives.WriteInt32BigEndian`), not
+  `BitConverter.GetBytes` — `BitConverter` uses host machine endianness,
+  which would silently vary the fork key's byte sequence on a big-endian
+  host and break "same seed, same output" across machines. Not called out
+  explicitly in the plan, but a direct consequence of the reproducibility
+  contract already stated there.
+- `CompositionContext.ResolveCore`'s pre-existing null-`_path` check (used
+  to detect "this is the root call") already had to double as the
+  random-source root check too — a descriptor-based `Resolve<T>` called
+  directly on a fresh context with no preceding `ResolveRoot<T>()` call
+  (only reachable from `CompositionContextTests`' own unit test exercising
+  the descriptor path in isolation, never from generated code) hits this
+  case. Handled by keying both `_path`'s and `_random`'s root-vs-nested
+  branch on the same `_path is null` check, rather than on `segment is
+  null` for `_random` — otherwise that test throws a `NullReferenceException`.
+- No changes to `CompositionRequest` this phase — Phase 2's real built-in
+  providers are the first actual consumer of `IRandomSource`, so threading
+  it through `CompositionRequest` (the natural place, alongside `Path`) is
+  deferred to when Phase 2 needs it, per the "don't design for
+  hypothetical future requirements" standard. Phase 1's own determinism
+  tests reach the current node's random source instead via an internal
+  `CompositionContext.Random` test-observability property, consumed by a
+  capturing `ICompositionPlan<T>` test double
+  (`CompositionRandomIntegrationTests`).
 
 ### Phase 2 — Built-in value providers and collections (Not Started)
 
@@ -583,17 +622,21 @@ this plan.
 - `src/Compono/PathSegment.cs` (`Ordinal`/`Index`-keyed, `Name` for
   segments that have one), `src/Compono/CompositionPath.cs` — new
   (`internal`) — **Done (Phase 0, pulled forward from Phase 1's original
-  scope; structural chain only, no FNV-1a hashing yet)**
+  scope; structural chain only, no FNV-1a hashing yet)**. `ToDisplayString()`
+  (diagnostics-only, derived from segment `Name`s) — **Done (Phase 1)**.
 - `src/Compono/CompositionContext.cs` — new (replaces the inline
   `PlaceholderCompositionContext` in `Composer.cs`); implements the
   public descriptor-based `Resolve<T>` and the internal `ResolveRoot<T>`;
   the internal test-seam constructor accepting explicit per-stage
-  provider collections — **Done (Phase 0)**. The active-construction-frame
-  stack and diagnostics trace buffer are still Phase 3/4 scope, not
-  implemented yet.
+  provider collections — **Done (Phase 0)**. Seed-aware constructors, the
+  `_random` field forked/restored alongside `_path` in `ResolveCore`, and
+  the internal `Random` test-observability property — **Done (Phase 1)**.
+  The active-construction-frame stack and diagnostics trace buffer are
+  still Phase 3/4 scope, not implemented yet.
 - `src/Compono/CompositionScope.cs` — new (`internal`)
-- `src/Compono/CompositionSeed.cs`, `src/Compono/IRandomSource.cs` — new
-  (`internal`)
+- `src/Compono/CompositionSeed.cs`, `src/Compono/IRandomSource.cs`,
+  `src/Compono/RandomSource.cs`, `src/Compono/Fnv1a.cs`,
+  `src/Compono/SplitMix64.cs` — new (`internal`) — **Done (Phase 1)**
 - `src/Compono/Providers/*.cs` — new (`internal`, one file per built-in
   provider, per `coding-standards.md`'s one-public-type-per-file rule —
   applies to `internal` types too)
@@ -605,11 +648,12 @@ this plan.
 - `src/Compono/ICompositionContext.cs` — modified (`Resolve<T>` signature
   changed to `in CompositionRequestDescriptor`) — **Done (Phase 0)**
 - `src/Compono/Composer.cs` — modified: `Create<T>()` rewired onto
-  `ResolveRoot<T>()` — **Done (Phase 0)**. `CreateMany<T>()` (with the
-  negative-count/zero-count/`IReadOnlyList<T>` contract) and the internal
+  `ResolveRoot<T>()` — **Done (Phase 0)**. The internal
   `CreateRootForTesting<T>(CompositionSeed)`/
-  `CreateManyForTesting<T>(int, CompositionSeed)` test-seam factories are
-  still Phase 1/4 scope.
+  `CreateManyForTesting<T>(int, CompositionSeed)` test-seam factories —
+  **Done (Phase 1)**. `CreateMany<T>()` itself (with the
+  negative-count/zero-count/`IReadOnlyList<T>` contract) is still Phase 4
+  scope.
 - `src/Compono.Generators/Templates/CompositionPlan.scriban`,
   `src/Compono.Generators/Emitters/CompositionPlanEmitter.cs` — modified:
   emit `CompositionRequestDescriptor` (constructor-parameter name added
@@ -620,9 +664,13 @@ this plan.
 - `src/Compono.Generators/Discovery/RequiredMemberCollector.cs` —
   modified: base-to-derived required-member ordering (was
   derived-to-base), per ADR-0012's amendment 2 — **Done (Phase 0,
-  unscoped fix — see Phase 0 Notes)**
+  unscoped fix — see Phase 0 Notes; confirmed against ADR-0012 amendment
+  2's canonical algorithm in Phase 1, no further changes needed)**
 - `test/Compono.Tests/CompositionContextTests.cs`,
   `test/Compono.Tests/ComposerTests.cs` — new — **Done (Phase 0)**
+- `test/Compono.Tests/RandomSourceTests.cs`,
+  `test/Compono.Tests/CompositionRandomIntegrationTests.cs` — new —
+  **Done (Phase 1)**
 - `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs` +
   regenerated `Snapshots/*.verified.cs` — modified — **Done (Phase 0,
   unscoped fix)**

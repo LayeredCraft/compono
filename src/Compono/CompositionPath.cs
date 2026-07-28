@@ -46,4 +46,26 @@ internal sealed class CompositionPath
     /// operation is idle between root calls.
     /// </summary>
     internal CompositionPath? Pop() => Parent;
+
+    /// <summary>
+    /// Renders this path as a dotted, human-readable string (e.g. <c>"Customer.homeAddress.street"</c>)
+    /// for diagnostic display only - built from each segment's <c>Name</c>, never consumed by random
+    /// forking (<see cref="IRandomSource"/> hashes <see cref="PathSegment"/> tag+<c>Ordinal</c>/
+    /// <c>Index</c> data directly, per
+    /// <c>docs/adr/0012-composition-path-identity-and-deterministic-random-forking.md</c>).
+    /// </summary>
+    internal string ToDisplayString() => Parent is null
+        ? RequestedType.Name
+        : Parent.ToDisplayString() + SegmentDisplayString();
+
+    private string SegmentDisplayString() => Segment switch
+    {
+        PathSegment.ConstructorParameter p => $".{p.Name}",
+        PathSegment.RequiredMember m => $".{m.Name}",
+        PathSegment.CollectionElement e => $"[{e.Index}]",
+        PathSegment.DictionaryKey k => $".Key[{k.Index}]",
+        PathSegment.DictionaryValue v => $".Value[{v.Index}]",
+        null => string.Empty,
+        _ => throw new ArgumentOutOfRangeException(nameof(Segment), Segment, "Unrecognized path segment kind."),
+    };
 }
