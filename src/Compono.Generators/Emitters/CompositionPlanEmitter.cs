@@ -32,7 +32,7 @@ internal static class CompositionPlanEmitter
             PlanClassName = type.PlanClassName,
             FullyQualifiedName = type.FullyQualifiedName,
             Parameters = type.Parameters.Select(p => new { p.Name, p.FullyQualifiedTypeName, p.IsNullable }).ToArray(),
-            RequiredMembers = type.RequiredMembers.Select(m => new { m.Name, m.FullyQualifiedTypeName, m.IsNullable }).ToArray(),
+            RequiredMembers = type.RequiredMembers.Select(m => new { m.Name, m.FullyQualifiedTypeName, m.IsNullable, m.DisplayName }).ToArray(),
             GeneratorVersion,
         };
 

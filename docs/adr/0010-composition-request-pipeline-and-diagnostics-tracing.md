@@ -422,7 +422,7 @@ distinct **internal** entry point directly:
 ```csharp
 internal T ResolveRoot<T>()
 {
-    var request = new CompositionRequest(typeof(T), Nullability.NotNull, path: CompositionPath.Root(typeof(T)), IsShared: false);
+    var request = new CompositionRequest(typeof(T), Nullability.NotNullable, path: CompositionPath.Root(typeof(T)), IsShared: false);
     return (T)RunPipeline(request)!;
 }
 ```
@@ -438,10 +438,13 @@ requests, with no root-shaped case bolted on for a caller that never uses
 it.
 
 **2. Stable identity uses ordinal, not name; names are diagnostic-only.**
-`CompositionRequestDescriptor` gains an `Ordinal`:
+`CompositionRequestDescriptor` gains an `Ordinal` (shown here as a plain
+`readonly struct`, not a `record struct` — see "Amendment 2" below, which
+settles that specific point; the shape otherwise unchanged from this
+amendment):
 
 ```csharp
-public readonly record struct CompositionRequestDescriptor(
+public readonly struct CompositionRequestDescriptor(
     CompositionRequestKind Kind,
     int Ordinal,
     string Name,

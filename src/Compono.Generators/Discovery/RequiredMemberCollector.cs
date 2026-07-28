@@ -114,7 +114,8 @@ internal static class RequiredMemberCollector
             infos.Add(new RequiredMemberInfo(
                 EscapeIdentifier(member.Name),
                 memberType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                memberType.NullableAnnotation == NullableAnnotation.Annotated));
+                memberType.NullableAnnotation == NullableAnnotation.Annotated,
+                member.Name));
             memberTypes.Add((memberType, member.Name));
         }
 

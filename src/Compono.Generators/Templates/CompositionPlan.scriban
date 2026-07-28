@@ -17,7 +17,7 @@ namespace {{ namespace }}
             ){{ if required_members.size > 0 }}
             {
 {{~ for member in required_members ~}}
-                {{ member.name }} = context.Resolve<{{ member.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, {{ for.index }}, "{{ member.name }}", {{ if member.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }})){{ if !for.last }},{{ end }}
+                {{ member.name }} = context.Resolve<{{ member.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, {{ for.index }}, "{{ member.display_name }}", {{ if member.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }})){{ if !for.last }},{{ end }}
 {{~ end ~}}
             }{{ end }};
     }
