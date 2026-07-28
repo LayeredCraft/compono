@@ -61,10 +61,22 @@ model.
 If compatibility support is ever introduced, it will require an explicit
 opt-in.
 
+## Performance
+
+Generated construction (`composer.Create<T>()`) runs ~6.0x faster than an
+equivalent reflection-based baseline, and within ~1 ns of a bare
+`new Leaf()`, for the flat-type case Milestone 1 can measure end-to-end
+today. A separate ecosystem-comparison benchmark against AutoFixture is
+also included as a recognizable reference point - not a claim Compono
+replaces it. See
+[Performance](https://layeredcraft.github.io/compono/performance/) (or
+`docs/performance.md`) for methodology, caveats, and how to reproduce -
+`benchmarks/Compono.Benchmarks`.
+
 ## Documentation
 
 See the `/docs` directory for the manifesto, architecture, public API,
-MVP roadmap, design principles, and ADRs.
+performance, MVP roadmap, design principles, and ADRs.
 
 ## Status
 

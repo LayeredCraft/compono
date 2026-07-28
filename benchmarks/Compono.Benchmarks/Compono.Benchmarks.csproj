@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+        <!-- BenchmarkDotNet requires public benchmark classes/methods - that's not real API
+             surface (documentation.md's XML-doc requirement is about the published package
+             surface), same reasoning Directory.Build.targets already applies to test projects. -->
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet" />
+        <!-- Ecosystem-comparison reference point only - see the AutoFixture comment in
+             Directory.Packages.props. -->
+        <PackageReference Include="AutoFixture" />
+        <!-- BenchmarkDotNet pulls in Microsoft.CodeAnalysis.CSharp 4.14.0 transitively, older
+             than the 5.6.0 Compono.Generators/Compono.Generators.Tests use (Directory.Packages.props).
+             CI publishes every project's output into one shared per-TFM folder, so without this
+             explicit bump the lower transitive version wins the copy and
+             Compono.Generators.Tests fails at runtime with FileNotFoundException looking for
+             Microsoft.CodeAnalysis 5.6.0.0. Pinning to the same central version here keeps every
+             published Microsoft.CodeAnalysis.dll consistent. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Referenced normally so benchmark code compiles against Composer/ICompositionPlan<T>. -->
+        <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
+        <!-- Analyzer-only, so the generator actually runs against the types declared in this
+             project - matching how test/Compono.Generators.Tests and Compono.csproj itself
+             both reference Compono.Generators. -->
+        <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                           OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+</Project>
