@@ -23,19 +23,35 @@ internal static class RequiredMemberCollector
                 a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
             return Result.Success(EquatableArray<RequiredMemberInfo>.Empty, []);
 
-        // EnumerateTypeAndBases walks `type` itself before its base types, so for a required
-        // property overridden in a derived class, the override is always encountered before the
-        // base declaration it overrides - both report IsRequired: true (required propagates
-        // through an override) and share the same Name, so grouping by name and keeping the first
-        // occurrence keeps the override and drops the base's now-redundant declaration. Without
-        // this, both would be collected and the template would emit the same property twice in one
-        // object initializer (a duplicate-member-initializer compile error in the generated file).
-        var requiredMembers = EnumerateTypeAndBases(type)
-            .SelectMany(t => t.GetMembers())
-            .Where(m => m is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true })
-            .GroupBy(m => m.Name)
-            .Select(g => g.First())
-            .ToArray();
+        // Base-to-derived, so a required member's ordinal - the stable identity
+        // CompositionRequestDescriptor carries for path/random-fork identity, per
+        // docs/adr/0012-composition-path-identity-and-deterministic-random-forking.md's amendment
+        // 2 - reflects its position in the inheritance hierarchy, not which type happens to
+        // override it. An override doesn't move its member to a new structural position: it only
+        // refines the member the base type already declared, so the base declaration's position in
+        // this walk is what determines the ordinal, while the most-derived override's symbol
+        // (correct accessibility/type info) is what actually gets emitted. Declaration order is
+        // preserved within each type's own GetMembers() call.
+        var typeChain = EnumerateTypeAndBases(type).Reverse().ToArray();
+
+        var orderedNames = new List<string>();
+        var latestByName = new Dictionary<string, ISymbol>();
+
+        foreach (var t in typeChain)
+        {
+            foreach (var member in t.GetMembers())
+            {
+                if (member is not (IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true }))
+                    continue;
+
+                if (!latestByName.ContainsKey(member.Name))
+                    orderedNames.Add(member.Name);
+
+                latestByName[member.Name] = member;
+            }
+        }
+
+        var requiredMembers = orderedNames.Select(name => latestByName[name]).ToArray();
 
         if (requiredMembers.Length == 0)
             return Result.Success(EquatableArray<RequiredMemberInfo>.Empty, []);
@@ -98,7 +114,8 @@ internal static class RequiredMemberCollector
             infos.Add(new RequiredMemberInfo(
                 EscapeIdentifier(member.Name),
                 memberType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                memberType.NullableAnnotation == NullableAnnotation.Annotated));
+                memberType.NullableAnnotation == NullableAnnotation.Annotated,
+                member.Name));
             memberTypes.Add((memberType, member.Name));
         }
 

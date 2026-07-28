@@ -1173,6 +1173,44 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task RequiredMembersOnBaseAndDerivedType_BaseOrdinalsPrecedeDerivedInDeclarationOrder() =>
+        // Proves docs/adr/0012-composition-path-identity-and-deterministic-random-forking.md's
+        // amendment 2 canonical ordinal algorithm: base type members are numbered before derived
+        // type members (Species=0, LegCount=1, Name=2 - not declaration-file order, not
+        // derived-first), and declaration order is preserved within each type (Species before
+        // LegCount, matching how they're declared on Animal).
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public abstract class Animal
+                {
+                    public Animal() { }
+
+                    public required string Species { get; init; }
+                    public required int LegCount { get; init; }
+                }
+
+                public sealed class Dog : Animal
+                {
+                    public Dog() { }
+
+                    public required string Name { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var dog = composer.Create<TestNamespace.Dog>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task RequiredMemberNamedWithReservedKeyword_EscapesIdentifier() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

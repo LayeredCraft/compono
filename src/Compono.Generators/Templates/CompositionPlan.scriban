@@ -12,12 +12,12 @@ namespace {{ namespace }}
         public {{ fully_qualified_name }} Compose(global::Compono.ICompositionContext context) =>
             new {{ fully_qualified_name }}(
 {{~ for parameter in parameters ~}}
-                context.Resolve<{{ parameter.fully_qualified_type_name }}>({{ if parameter.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}){{ if !for.last }},{{ end }}
+                context.Resolve<{{ parameter.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, {{ for.index }}, {{ parameter.name_literal }}, {{ if parameter.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }})){{ if !for.last }},{{ end }}
 {{~ end ~}}
             ){{ if required_members.size > 0 }}
             {
 {{~ for member in required_members ~}}
-                {{ member.name }} = context.Resolve<{{ member.fully_qualified_type_name }}>({{ if member.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}){{ if !for.last }},{{ end }}
+                {{ member.name }} = context.Resolve<{{ member.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, {{ for.index }}, {{ member.display_name_literal }}, {{ if member.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }})){{ if !for.last }},{{ end }}
 {{~ end ~}}
             }{{ end }};
     }

@@ -87,6 +87,17 @@ uses a generated plan for a representative record or class.
 
 ## Milestone 2: Core Composition Engine
 
+Design: [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)
+(request/pipeline/failure/diagnostics),
+[ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md)
+(scope/shared values/recursion),
+[ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)
+(path identity/random forking/CreateMany seed),
+[ADR-0013](adr/0013-collection-generation-semantics.md) (collections).
+These supersede the earlier ADR-0007/0008/0009 after a deep design
+review — see each ADR's Links section.
+Tracked by [PLAN-0002](plans/0002-milestone-2-core-composition-engine.md).
+
 ### Scope
 
 - `CompositionContext`
@@ -300,15 +311,19 @@ A composed customer can receive realistic, deterministic values without the core
   mechanism for a future compatibility mode is still open.
 - Exact public root type name
 - Attribute names
-- Shared-value matching rules
-- Sync or async provider APIs
+- ~~Shared-value matching rules~~ — type-based only for Milestone 2,
+  resolved by [ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md);
+  name/qualifier-based sharing remains open for Milestone 4.
+- ~~Sync or async provider APIs~~ — resolved by
+  [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md).
 - ~~Constructor selection algorithm~~ — resolved by
   [ADR-0002](adr/0002-constructor-selection-algorithm.md).
 - Required-member population rules
 - Nullability generation defaults
 - ~~Generator package distribution~~ — resolved by
   [ADR-0003](adr/0003-generator-package-distribution.md).
-- Deterministic output compatibility guarantees
+- ~~Deterministic output compatibility guarantees~~ — resolved by
+  [ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md).
 
 ## Suggested Initial GitHub Epics
 

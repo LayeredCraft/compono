@@ -23,4 +23,11 @@
         <None Include="..\Compono.Generators\bin\$(Configuration)\netstandard2.0\Compono.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- Internal test seams (CompositionContext's per-stage-provider constructor, and future
+             Composer.CreateRootForTesting/CreateManyForTesting) - never widened to public just so
+             a test can reach them. See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md. -->
+        <InternalsVisibleTo Include="Compono.Tests" />
+    </ItemGroup>
+
 </Project>

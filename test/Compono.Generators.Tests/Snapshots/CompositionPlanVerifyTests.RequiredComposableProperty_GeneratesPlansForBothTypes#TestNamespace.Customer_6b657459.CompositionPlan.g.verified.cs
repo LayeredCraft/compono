@@ -11,7 +11,7 @@ namespace TestNamespace
             new global::TestNamespace.Customer(
             )
             {
-                HomeAddress = context.Resolve<global::TestNamespace.Address>(global::Compono.Nullability.NotNullable)
+                HomeAddress = context.Resolve<global::TestNamespace.Address>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "HomeAddress", global::Compono.Nullability.NotNullable))
             };
     }
 

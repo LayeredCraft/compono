@@ -68,3 +68,10 @@ the mechanics: numbering, status, and the index.
 | [0004](0004-composition-plan-discovery-and-dispatch.md) | Composition Plan Discovery and Dispatch | Accepted |
 | [0005](0005-generator-implementation-conventions.md) | Source Generator Implementation Conventions | Accepted |
 | [0006](0006-required-members-and-nullability-metadata.md) | Required Members and Nullability Metadata | Accepted |
+| [0007](0007-composition-request-and-provider-pipeline.md) | Composition Request and Provider Pipeline | Superseded by ADR-0010 |
+| [0008](0008-composition-scope-shared-values-and-recursion-detection.md) | Composition Scope, Shared Values, and Recursion Detection | Superseded by ADR-0011 |
+| [0009](0009-deterministic-seed-and-forkable-random-source.md) | Deterministic Seed and Forkable Random Source | Superseded by ADR-0012 |
+| [0010](0010-composition-request-pipeline-and-diagnostics-tracing.md) | Composition Request, Provider Pipeline, Failure Semantics, and Diagnostics Tracing | Accepted |
+| [0011](0011-composition-scope-shared-values-and-recursion-detection.md) | Composition Scope, Shared Values, and Recursion Detection | Accepted |
+| [0012](0012-composition-path-identity-and-deterministic-random-forking.md) | Composition Path Identity, Deterministic Random Forking, and CreateMany Seed Derivation | Accepted |
+| [0013](0013-collection-generation-semantics.md) | Collection Generation Semantics | Accepted |

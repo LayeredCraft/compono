@@ -40,22 +40,24 @@ implied as "already how it's done here."
 | Constants (`const`) | `PascalCase` | `DefaultCollectionSize` |
 | Static readonly fields | `PascalCase` | `DefaultSeed` |
 | Configuration/options classes | `PascalCase` + `Options` suffix | `CompositionOptions`, `BogusOptions` |
-| Async methods | end in `Async`, return `Task`/`Task<T>` (or `ValueTask`/`ValueTask<T>` on the resolution hot path — see wrinkle below) | `ResolveAsync()`, `TryComposeAsync()` |
+| Async methods | end in `Async`, return `Task`/`Task<T>` (the composition resolution path is synchronous — see wrinkle below) | `SomeIoBoundMethodAsync()` |
 | Boolean properties/variables | positive assertion | `IsValid`, `HasErrors`, `CanCompose` (not `NotValid`, `NoErrors`) |
 | Abbreviations in names | treated as ordinary words, `PascalCase`/`camelCase` applies through them | `NSubstituteProvider` (not `NSUBSTITUTEProvider`), `xmlWriter` (not `XMLWriter`) |
 
 A couple of these have a repo-specific wrinkle beyond the table:
 
-- `ValueTask`/`ValueTask<T>` is reserved for the composition resolution hot
-  path — methods called once per resolved value on every composition
-  (`ICompositionProvider.TryComposeAsync`, `ICompositionContext.ResolveAsync`,
-  per `docs/architecture.md`) — where the allocation `Task<T>` costs on a
-  usually-synchronous path is worth avoiding. Everywhere else, async
-  methods return `Task`/`Task<T>` even though the naming convention
-  (`...Async`) is the same either way; don't reach for `ValueTask` as a
-  general-purpose "slightly faster `Task`" default; it has sharper rules
-  around awaiting exactly once that aren't worth taking on outside a
-  genuine hot path.
+- The composition resolution hot path is synchronous, not async —
+  `ICompositionProvider.TryCompose` and `ICompositionContext.Resolve<T>`
+  return plain values, per
+  [ADR-0010](../../../docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md):
+  every provider planned for the MVP is in-memory/CPU-bound, so there's no
+  `Task`/`ValueTask` on this path at all. Elsewhere in the codebase, async
+  methods return `Task`/`Task<T>`; reach for `ValueTask`/`ValueTask<T>`
+  only if a genuine future hot path needs it (e.g. a distinct, separately
+  designed async provider contract per ADR-0010's Negative Consequences) —
+  don't reach for `ValueTask` as a general-purpose "slightly faster
+  `Task`" default; it has sharper rules around awaiting exactly once that
+  aren't worth taking on outside a genuine hot path.
 - Classes are `sealed` by default — it's not just a style preference,
   sealed types avoid virtual-dispatch overhead and let the JIT devirtualize
   calls, which matters for a library sitting on the hot path of every
@@ -321,11 +323,15 @@ the implementation) to find out, and it bypasses the type system doing the
 job it's good at.
 
 `docs/architecture.md`'s own resolution-pipeline design already models
-this: a provider reports `NotHandled`/`Success`/`Failure` rather than
+this: an ordinary provider reports `NotHandled`/`Success` rather than
 throwing when it can't satisfy a request ("This avoids exception-driven
-provider selection and preserves meaningful failures"). The rules below
-make that explicit and give it a name, rather than introducing a new
-direction:
+provider selection and preserves meaningful failures") — synchronously,
+per [ADR-0010](../../../docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md).
+`Failure` is reserved for context-owned authoritative stages, not
+something an ordinary provider implementation can construct — see that
+ADR for the full rule. The rules below make the general "return values,
+not exceptions, for expected outcomes" principle explicit and give it a
+name, rather than introducing a new direction:
 
 - Never throw for an expected failure. Outcomes like "no provider could
   satisfy this request" or "the requested type has no compatible
