@@ -59,4 +59,23 @@ public sealed class RandomSourceTests
 
         childOfB.NextUInt64().Should().Be(expectedChildValue);
     }
+
+    [Fact]
+    public void Fork_DoesNotCollapseToAFixedZeroState_FromAZeroSeedAtOrdinalZero()
+    {
+        // Regression test: chaining Fnv1a.Combine straight from the parent's own state (rather than
+        // FNV-1a's real offset basis) has a degenerate fixed point at state 0, tag 0 (the
+        // ConstructorParameter tag), all-zero payload bytes - every mix step stays 0, so a seed of 0
+        // followed by any number of ConstructorParameter(0, ...) forks would collapse every one of
+        // those distinct structural positions to the same derived state and the same NextUInt64()
+        // output.
+        var node = RandomSource.FromSeed(new CompositionSeed(0));
+
+        var firstFork = node.Fork(new PathSegment.ConstructorParameter(0, "a"));
+        var secondFork = firstFork.Fork(new PathSegment.ConstructorParameter(0, "a"));
+        var thirdFork = secondFork.Fork(new PathSegment.ConstructorParameter(0, "a"));
+
+        new[] { firstFork.NextUInt64(), secondFork.NextUInt64(), thirdFork.NextUInt64() }
+            .Should().OnlyHaveUniqueItems();
+    }
 }

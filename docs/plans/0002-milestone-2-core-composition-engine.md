@@ -436,10 +436,17 @@ test directly, not an incidental property of the implementation.
   without the split, how many random values a node's own provider draws
   would perturb its children's derived state, which the contract
   explicitly forbids.
-- `Fnv1a.Combine` chains from the parent's own derived state as the
-  running hash accumulator (instead of FNV-1a's usual fixed offset basis) —
-  a standard, legitimate "seeded FNV-1a" variant, needed so each fork is a
-  continuation of its ancestor chain rather than an independent hash.
+- `Fnv1a.Combine` folds the parent's state in as ordinary input bytes,
+  always starting from FNV-1a's real offset basis, rather than using the
+  parent's state as the initial hash accumulator directly. The first
+  version did the latter and had a real bug caught in PR #10 review: state
+  0, the `ConstructorParameter` tag (0), and an all-zero ordinal payload
+  all mix to 0, so a seed of `0` followed by any number of
+  `ConstructorParameter(0, ...)` forks collapsed every one of those
+  distinct structural positions to the same derived state — a silent
+  violation of ADR-0012's independent-forking guarantee. Fixed by folding
+  the state in as data instead; regression test:
+  `Fork_DoesNotCollapseToAFixedZeroState_FromAZeroSeedAtOrdinalZero`.
 - `RandomSource.Fork` encodes each segment's `Ordinal`/`Index` as
   fixed big-endian bytes (`BinaryPrimitives.WriteInt32BigEndian`), not
   `BitConverter.GetBytes` — `BitConverter` uses host machine endianness,
