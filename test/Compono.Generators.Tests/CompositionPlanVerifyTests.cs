@@ -866,4 +866,50 @@ public sealed class CompositionPlanVerifyTests
             },
             expectedDiagnosticId: "CMP0003",
             TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeOnRefStruct_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    // A ref-like constructor PARAMETER is already rejected by ConstructorSelector
+                    // (CMP0004) - but nothing stopped the requested type ITSELF from being ref-like,
+                    // even though ICompositionPlan<T>/PlanCache<T> both declare a bare `T` with no
+                    // `allows ref struct` constraint and can't be closed over one.
+                    [Compono.Composable]
+                    public ref struct RefWidget
+                    {
+                        public RefWidget() { }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0009",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposableAttributeAtAssemblyLevelWithParenthesizedTypeof_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                // Legal, redundant parens around the typeof(...) argument - the extraction must not
+                // require the argument expression to be exactly TypeOfExpressionSyntax, since a
+                // ParenthesizedExpressionSyntax wrapping it is just as valid an argument.
+                [assembly: Compono.Composable((typeof(TestNamespace.Customer)))]
+
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer(string firstName)
+                    {
+                        FirstName = firstName;
+                    }
+
+                    public string FirstName { get; }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 }

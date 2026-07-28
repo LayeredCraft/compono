@@ -73,4 +73,13 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor RefLikeTypeArgument = new(
+        "CMP0009",
+        "Type argument is a ref struct",
+        "'{0}' is a ref struct (ref-like type), which cannot be used as a type argument for " +
+        "Compono's generated ICompositionPlan<T>/PlanCache<T>",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

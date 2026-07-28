@@ -86,10 +86,20 @@ internal static class ComposableAttributeDiscovery
         attribute.ConstructorArguments is [{ Kind: TypedConstantKind.Type, Value: ITypeSymbol type }] ? type : null;
 
     private static ITypeSymbol? ExtractTypeArgument(
-        AttributeSyntax attribute, SemanticModel semanticModel, CancellationToken cancellationToken) =>
-        attribute.ArgumentList?.Arguments.FirstOrDefault()?.Expression is TypeOfExpressionSyntax typeOf
+        AttributeSyntax attribute, SemanticModel semanticModel, CancellationToken cancellationToken)
+    {
+        var expression = attribute.ArgumentList?.Arguments.FirstOrDefault()?.Expression;
+
+        // `[assembly: Composable((typeof(Customer)))]` (legal, redundant parens) wraps the argument
+        // in a ParenthesizedExpressionSyntax - matching only a bare TypeOfExpressionSyntax would
+        // silently miss this and report CMP0008 for an otherwise perfectly valid request.
+        while (expression is ParenthesizedExpressionSyntax parenthesized)
+            expression = parenthesized.Expression;
+
+        return expression is TypeOfExpressionSyntax typeOf
             ? semanticModel.GetTypeInfo(typeOf.Type, cancellationToken).Type
             : null;
+    }
 
     // Points diagnostics at the attribute application itself (`[Composable]`/
     // `[assembly: Composable(typeof(...))]`) - the request site, mirroring how call-site discovery

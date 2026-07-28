@@ -564,3 +564,44 @@ out of scope for the PR that surfaced them:
     round's completion: full solution build is still 0 warnings/0 errors;
     `dotnet test` is 64/64 passing (`Compono.Tests` +
     `Compono.Generators.Tests`, both TFMs).
+- **A second round of PR #6 review feedback (Codex, via `@codex review`)
+  surfaced two more real Phase 2 gaps**, both triaged with the user before
+  implementing:
+  - `ComposedTypeAnalyzer.Analyze` never checked whether the *requested
+    type itself* is a ref struct (ref-like type) - a ref-like constructor
+    *parameter* was already rejected by `ConstructorSelector`'s
+    `ValidateParameterKinds` (`CMP0004`) whenever validating some other
+    type's constructor, but that check only ever fires in a parameter
+    context, so nothing stopped `[Composable]` (or the assembly-level
+    form) from targeting a ref struct directly. `ICompositionPlan<out T>`
+    and `PlanCache<T>` both declare a bare `T` with no
+    `allows ref struct` constraint, so the resulting
+    `ICompositionPlan<global::N.SomeRefStruct>` would fail to compile
+    (CS9244) in the generated file. Fixed with a new diagnostic, `CMP0009`,
+    checked in `ComposedTypeAnalyzer.Analyze` right after the named-type
+    check and before handing off to `TransitiveClosureWalker` - a
+    dedicated ID rather than folding into `CMP0004` (parameter-specific
+    message shape) or `CMP0006` (would have required restructuring an
+    already-tested static message), since this is a distinct failure mode:
+    the type is a perfectly valid named type, just not usable as a type
+    argument to Compono's own plan/cache types.
+  - `ComposableAttributeDiscovery`'s assembly-level `ExtractTypeArgument`
+    matched the argument expression against `is TypeOfExpressionSyntax`
+    directly, so `[assembly: Composable((typeof(Customer)))]` (legal,
+    redundant parens) wrapped the `typeof` in a
+    `ParenthesizedExpressionSyntax` the pattern never unwrapped -
+    `requestedType` came back `null` and a perfectly valid request
+    incorrectly reported `CMP0008` ("missing type argument"). Fixed by
+    unwrapping any `ParenthesizedExpressionSyntax` in a loop before the
+    `TypeOfExpressionSyntax` check, rather than switching to a full
+    semantic-binding lookup (the reviewer's suggested alternative) - the
+    only realistic wrapper shape around a `typeof(...)` argument is
+    redundant parens, so the small, targeted unwrap covers it without a
+    bigger rewrite.
+  - Regression tests added: `[Composable]` on a `ref struct` reports
+    `CMP0009` (`ComposableAttributeOnRefStruct_ReportsDiagnostic`), and a
+    parenthesized `typeof(...)` at assembly level still generates a plan
+    (`ComposableAttributeAtAssemblyLevelWithParenthesizedTypeof_GeneratesCompositionPlan`).
+    As of this round's completion: full solution build is still 0
+    warnings/0 errors; `dotnet test` is 68/68 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).

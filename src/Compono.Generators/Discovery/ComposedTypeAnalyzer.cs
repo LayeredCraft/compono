@@ -39,6 +39,15 @@ internal static class ComposedTypeAnalyzer
         if (requestedType is not INamedTypeSymbol composedType)
             return TypeArgumentFailure(DiagnosticDescriptors.UnsupportedTypeArgumentShape, requestedType, location);
 
+        // A ref struct constructor PARAMETER is already rejected by ConstructorSelector's
+        // ValidateParameterKinds (CMP0004) when validating whichever type declares it - but nothing
+        // stops the requested type itself from being ref-like, since that path never goes through
+        // parameter validation. ICompositionPlan<T>/PlanCache<T> both declare a bare `T` with no
+        // `allows ref struct` constraint, so emitting `ICompositionPlan<global::N.SomeRefStruct>`
+        // would fail to compile (CS9244) - reject it here instead, before any codegen happens.
+        if (composedType.IsRefLikeType)
+            return TypeArgumentFailure(DiagnosticDescriptors.RefLikeTypeArgument, composedType, location);
+
         // Walks the requested type's constructor parameters recursively (Phase 1) - the returned
         // array holds the requested type itself plus every type in its transitive closure that's
         // eligible for its own generated plan (LeafTypeClassifier), not just the top-level type.
