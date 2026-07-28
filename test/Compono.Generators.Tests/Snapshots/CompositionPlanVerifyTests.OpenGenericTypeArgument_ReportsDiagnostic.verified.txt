@@ -2,12 +2,12 @@
   Diagnostics: [
     {
       Location: Program.cs: (16,34)-(16,54),
-      Message: 'TestNamespace.Box<T>' is not a closed type - Compono.Composer.Create<T>() requires a fully constructed type, not one containing an unresolved type parameter from an enclosing generic method or type,
+      Message: 'TestNamespace.Box<T>' is not a closed type - Compono requires a fully constructed type, not one containing an unresolved type parameter from an enclosing generic method or type,
       Severity: Error,
       Descriptor: {
         Id: CMP0005,
         Title: Type argument is not closed,
-        MessageFormat: '{0}' is not a closed type - Compono.Composer.Create<T>() requires a fully constructed type, not one containing an unresolved type parameter from an enclosing generic method or type,
+        MessageFormat: '{0}' is not a closed type - Compono requires a fully constructed type, not one containing an unresolved type parameter from an enclosing generic method or type,
         Category: Compono.Usage,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

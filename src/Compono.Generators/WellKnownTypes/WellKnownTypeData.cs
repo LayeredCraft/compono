@@ -6,6 +6,7 @@ internal static class WellKnownTypeData
 {
     public enum WellKnownType
     {
+        Compono_ComposableAttribute,
         Compono_Composer,
         System_DateTime,
         System_DateTimeOffset,
@@ -15,6 +16,7 @@ internal static class WellKnownTypeData
 
     public static readonly string[] WellKnownTypeNames =
     [
+        "Compono.ComposableAttribute",
         "Compono.Composer",
         "System.DateTime",
         "System.DateTimeOffset",

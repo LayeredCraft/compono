@@ -56,7 +56,7 @@ at a glance instead of living only in this file's edit history.
 Plan" section) — don't bundle two phases into one diff even if both are
 finished by the time a PR gets opened.
 
-### Phase 0 — Foundation (Done, not yet opened as a PR)
+### Phase 0 — Foundation (Done)
 
 The generator exists, is wired into `Compono`'s own package, and can
 discover a flat (no nested composable parameters) type from a
@@ -79,7 +79,7 @@ register it into `PlanCache<T>`.
       `Verify.SourceGenerators`/`Verify.XunitV3` — happy path +
       ambiguous-constructor diagnostic)
 
-### Phase 1 — Transitive closure (Done, not yet opened as a PR)
+### Phase 1 — Transitive closure (Done)
 
 The real gap between "works for a flat type" and the exit criteria's
 "representative record or class" — a `Customer` with an `Address`
@@ -119,21 +119,41 @@ with no context about where in the graph it came from.
       dedup-across-parents, leaf-type non-recursion, and nested-failure
       diagnostic coverage
 
-### Phase 2 — Escape-hatch attribute (Not started)
+### Phase 2 — Escape-hatch attribute (Done, PR #6 open)
 
 ADR-0004's second discovery path: a type that needs a plan but has no
 local `Create<T>()` call site in the compilation.
 
-**Open design question**: the attribute's name and exact shape were
-explicitly left as "TBD, a Milestone 1 implementation detail" in
-ADR-0004 — needs a quick decision (light dive) before implementing, not
-a new architectural fork.
+**Attribute decision, confirmed with the user before implementing**:
+`Compono.ComposableAttribute` (`[Composable]`), framed as an opt-in
+marker rather than a fallback — the normal rule stays "reachable from a
+`Create<T>()` call site gets a plan automatically," and `[Composable]`
+exists for the cases discovery can't reach on its own. Two placements,
+both equivalent plan-generation requests deduplicated alongside call-site
+discovery: `[Composable]` directly on a type declaration this compilation
+owns (preferred whenever the type is owned locally), and
+`[assembly: Composable(typeof(SomeType))]` for a type in a referenced
+assembly that can't be annotated directly. `[Composable(typeof(Other))]`
+on a type declaration is also accepted as a request for `Other` rather
+than the annotated type itself, for symmetry with the assembly-level form.
 
-- [ ] Decide the attribute's name/namespace/shape
-- [ ] Discover attributed types alongside call-site-discovered ones,
+- [x] Decide the attribute's name/namespace/shape (`AskUserQuestion`,
+      confirmed above)
+- [x] Discover attributed types alongside call-site-discovered ones,
       feeding into the same constructor-selection/emission pipeline
-- [ ] Snapshot test: an attributed type with no local `Create<T>()`
-      call site still gets a generated plan
+      (`ComposedTypeAnalyzer` factors the shared closed-type validation +
+      `TransitiveClosureWalker` hand-off out of `CreateInvocationDiscovery`
+      so both discovery paths funnel through identical validation;
+      `ComposableAttributeDiscovery` covers both placements —
+      `ForAttributeWithMetadataName` for the type-level form,
+      `CreateSyntaxProvider` over `[assembly: ...]` attribute lists for the
+      assembly-level form, since `ForAttributeWithMetadataName` only
+      matches attributes on declarations)
+- [x] Snapshot test: an attributed type with no local `Create<T>()`
+      call site still gets a generated plan (type-level and
+      assembly-level cases, plus a dedupe case where both a call site and
+      `[Composable]` discover the same type, plus `CMP0008` for
+      assembly-level `[Composable]` missing its `typeof(...)` argument)
 
 ### Phase 3 — Required members and nullability (Not started)
 
@@ -166,10 +186,16 @@ a new architectural fork.
 ## Critical Files
 
 - `src/Compono.Generators/` — the generator project (ADR-0003):
-  `ComponoIncrementalGenerator.cs` (pipeline entry point),
-  `Discovery/CreateInvocationDiscovery.cs` + `ConstructorSelector.cs` +
-  `TransitiveClosureWalker.cs` (Phase 1's recursive parameter-type walk) +
-  `LeafTypeClassifier.cs` (Phase 1's recurse-vs-`Resolve<T>()` rule),
+  `ComponoIncrementalGenerator.cs` (pipeline entry point — merges
+  call-site, type-level `[Composable]`, and assembly-level
+  `[Composable]` discovery before dedup/emission),
+  `Discovery/CreateInvocationDiscovery.cs` (call-site discovery) +
+  `ComposableAttributeDiscovery.cs` (Phase 2: both `[Composable]`
+  placements) + `ComposedTypeAnalyzer.cs` (Phase 2: the closed-type
+  validation + `TransitiveClosureWalker` hand-off shared by every
+  discovery path) + `ConstructorSelector.cs` + `TransitiveClosureWalker.cs`
+  (Phase 1's recursive parameter-type walk) + `LeafTypeClassifier.cs`
+  (Phase 1's recurse-vs-`Resolve<T>()` rule),
   `WellKnownTypes/` (symbol cache, vendored `BoundedCacheWithFactory`),
   `Diagnostics/` (`DiagnosticDescriptors`, `DiagnosticInfo`),
   `Models/` (`DiscoveredTypeInfo`, `ConstructorParameterInfo`, `LocationInfo`),
@@ -180,10 +206,11 @@ a new architectural fork.
   `AnalyzerReleases.{Shipped,Unshipped}.md`.
 - `src/Compono/` — `ICompositionPlan.cs`, `ICompositionContext.cs`
   (Milestone-1-only placeholder), `PlanCache.cs`, `Composer.cs` (minimal
-  placeholder entry point). `Compono.csproj` — analyzer-only
-  `ProjectReference` to `Compono.Generators`, packs its output into
-  `analyzers/dotnet/cs` (Scriban is source-embedded into
-  `Compono.Generators.dll`, so no separate DLL to pack for it).
+  placeholder entry point), `ComposableAttribute.cs` (Phase 2's opt-in
+  discovery marker). `Compono.csproj` — analyzer-only `ProjectReference`
+  to `Compono.Generators`, packs its output into `analyzers/dotnet/cs`
+  (Scriban is source-embedded into `Compono.Generators.dll`, so no
+  separate DLL to pack for it).
 - `Directory.Packages.props` — `Microsoft.CodeAnalysis.CSharp`/`Analyzers`
   (generator-only, private), `Scriban` (source-embedded via
   `PackageScribanIncludeSource`), `Meziantou.Polyfill`/`Microsoft.CSharp`
@@ -459,3 +486,122 @@ out of scope for the PR that surfaced them:
   just the snapshot test harness. As of Phase 1's completion: full solution
   build is still 0 warnings/0 errors; `dotnet test` is 50/50 passing
   (`Compono.Tests` + `Compono.Generators.Tests`, both TFMs).
+- **Phase 2 design decisions, confirmed with the user via `AskUserQuestion`
+  before implementing**: `[Composable]` (over `[GenerateCompositionPlan]`/
+  `[Compose]`) framed as an opt-in marker for cases discovery can't reach
+  on its own, not a fallback/workaround - the user's framing, kept
+  verbatim in the plan's Phase 2 section above since it's the reasoning
+  future readers need. Both a type-level and an assembly-level `typeof`
+  placement are in scope for this phase (the user asked for both, not
+  type-level-only as initially proposed), with both forms treated as
+  equivalent requests and deduplicated against each other and against
+  call-site discovery.
+- **Shared discovery validation factored out as `ComposedTypeAnalyzer`**:
+  `CreateInvocationDiscovery`'s closed-type-validation-then-
+  `TransitiveClosureWalker`-handoff logic used to be call-site-specific;
+  Phase 2 needed the identical validation for `[Composable]`-requested
+  types too (an open-generic type argument, a non-`INamedTypeSymbol`
+  shape), so it moved into its own class rather than being duplicated
+  across `CreateInvocationDiscovery` and `ComposableAttributeDiscovery`.
+  `CMP0005`/`CMP0006`'s message text was generalized from
+  `Composer.Create<T>()`-specific wording to plain "Compono requires..."
+  since both diagnostics can now be reported from either discovery path.
+- **Assembly-level `[Composable(typeof(...))]` needs its own syntax
+  provider**: `ForAttributeWithMetadataName` only matches attributes
+  applied to a declaration, not `[assembly: ...]` attribute lists, so the
+  assembly-level placement is discovered via a `CreateSyntaxProvider`
+  predicate over `AttributeSyntax` nodes whose parent `AttributeListSyntax`
+  targets the `assembly` keyword, resolving the attribute constructor
+  symbol via `GetSymbolInfo` to confirm it's genuinely
+  `Compono.ComposableAttribute` (not an unrelated type that happens to be
+  named `Composable`) before extracting its `typeof(...)` argument.
+- **Phase 2 real manual verification**: `dotnet pack`'d `Compono` into a
+  local feed (after clearing the local NuGet package cache - a stale
+  cached copy of the same package version silently masked the new
+  `ComposableAttribute` type on the first attempt) and referenced it from
+  a genuinely separate throwaway console project. Confirmed all three
+  discovery paths populate `PlanCache<T>.Instance` and reach generated
+  code in a real build: a plain `Create<Order>()` call site (Phase 1's
+  existing path, still working), `[Composable]` directly on a
+  `ReportRequest` type with no local `Create<T>()` call site anywhere in
+  the project, and `[assembly: Composable(typeof(ExternalStandIn))]` for a
+  type standing in for one this project doesn't own and can't annotate
+  directly. As of Phase 2's completion: full solution build is still 0
+  warnings/0 errors; `dotnet test` is 60/60 passing (`Compono.Tests` +
+  `Compono.Generators.Tests`, both TFMs).
+- **PR #6 review feedback (Codex + Copilot) surfaced two real Phase 2
+  gaps**, both fixed after per-item triage with the user
+  (`tasks/respond-to-pr-feedback.md`):
+  - `ComposableAttributeDiscovery.IsAssemblyCandidate` filtered on the
+    attribute's literal syntax name (`"Composable"`/`"ComposableAttribute"`)
+    before `TransformAssemblyLevel`'s semantic check ever ran - a consumer
+    aliasing the attribute (`using Marker = Compono.ComposableAttribute;`
+    then `[assembly: Marker(typeof(SomeType))]`) had the syntax name
+    silently fail the filter, so the escape hatch never even reached the
+    semantic check that would have resolved the alias correctly, and no
+    plan or diagnostic was produced. Fixed by dropping the name filter
+    entirely - the predicate now admits every `[assembly: ...]` attribute
+    syntactically and relies on the existing `GetSymbolInfo` +
+    `wellKnownTypes.IsType` check downstream to do the real filtering,
+    which already handles aliases correctly.
+  - `ComposableAttribute`'s `[AttributeUsage]` excluded
+    `AttributeTargets.Interface`, so `[Composable]` couldn't be written on
+    an interface at all - the C# compiler rejected it with a bare `CS0592`
+    before Compono's own generator ever saw it, even though the
+    assembly-level form (`[assembly: Composable(typeof(ISomeInterface))]`)
+    already handled the same case gracefully: `ConstructorSelector`
+    reports `CMP0003` for an interface the same way it does for an
+    abstract class, since `INamedTypeSymbol.IsAbstract` is `true` for
+    interfaces in Roslyn too. Fixed by adding `AttributeTargets.Interface`
+    to the usage list, so both placements now produce the same clean
+    diagnostic instead of the type-level form hitting a raw compiler error
+    with no explanation.
+  - Regression tests added: an assembly-level `[Composable]` request via
+    an aliased `using` directive still generates a plan
+    (`ComposableAttributeAtAssemblyLevelViaAlias_GeneratesCompositionPlan`),
+    and `[Composable]` on an interface reports `CMP0003`
+    (`ComposableAttributeOnInterface_ReportsDiagnostic`). As of this
+    round's completion: full solution build is still 0 warnings/0 errors;
+    `dotnet test` is 64/64 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).
+- **A second round of PR #6 review feedback (Codex, via `@codex review`)
+  surfaced two more real Phase 2 gaps**, both triaged with the user before
+  implementing:
+  - `ComposedTypeAnalyzer.Analyze` never checked whether the *requested
+    type itself* is a ref struct (ref-like type) - a ref-like constructor
+    *parameter* was already rejected by `ConstructorSelector`'s
+    `ValidateParameterKinds` (`CMP0004`) whenever validating some other
+    type's constructor, but that check only ever fires in a parameter
+    context, so nothing stopped `[Composable]` (or the assembly-level
+    form) from targeting a ref struct directly. `ICompositionPlan<out T>`
+    and `PlanCache<T>` both declare a bare `T` with no
+    `allows ref struct` constraint, so the resulting
+    `ICompositionPlan<global::N.SomeRefStruct>` would fail to compile
+    (CS9244) in the generated file. Fixed with a new diagnostic, `CMP0009`,
+    checked in `ComposedTypeAnalyzer.Analyze` right after the named-type
+    check and before handing off to `TransitiveClosureWalker` - a
+    dedicated ID rather than folding into `CMP0004` (parameter-specific
+    message shape) or `CMP0006` (would have required restructuring an
+    already-tested static message), since this is a distinct failure mode:
+    the type is a perfectly valid named type, just not usable as a type
+    argument to Compono's own plan/cache types.
+  - `ComposableAttributeDiscovery`'s assembly-level `ExtractTypeArgument`
+    matched the argument expression against `is TypeOfExpressionSyntax`
+    directly, so `[assembly: Composable((typeof(Customer)))]` (legal,
+    redundant parens) wrapped the `typeof` in a
+    `ParenthesizedExpressionSyntax` the pattern never unwrapped -
+    `requestedType` came back `null` and a perfectly valid request
+    incorrectly reported `CMP0008` ("missing type argument"). Fixed by
+    unwrapping any `ParenthesizedExpressionSyntax` in a loop before the
+    `TypeOfExpressionSyntax` check, rather than switching to a full
+    semantic-binding lookup (the reviewer's suggested alternative) - the
+    only realistic wrapper shape around a `typeof(...)` argument is
+    redundant parens, so the small, targeted unwrap covers it without a
+    bigger rewrite.
+  - Regression tests added: `[Composable]` on a `ref struct` reports
+    `CMP0009` (`ComposableAttributeOnRefStruct_ReportsDiagnostic`), and a
+    parenthesized `typeof(...)` at assembly level still generates a plan
+    (`ComposableAttributeAtAssemblyLevelWithParenthesizedTypeof_GeneratesCompositionPlan`).
+    As of this round's completion: full solution build is still 0
+    warnings/0 errors; `dotnet test` is 68/68 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).

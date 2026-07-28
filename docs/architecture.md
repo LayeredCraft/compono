@@ -204,8 +204,13 @@ How the generator decides a type needs the plan above, and how
 `Create<T>()` reaches it without reflection, is
 [ADR-0004](adr/0004-composition-plan-discovery-and-dispatch.md): discovery
 walks `Create<T>()`/`CreateMany<T>()` call sites and their types'
-transitive constructor parameters (with an attribute escape hatch for
-types with no local call site), and "registers the plan with the runtime"
+transitive constructor parameters, with `[Composable]` as an opt-in marker
+for a type with no local call site — applied directly to a type this
+compilation owns, or at assembly level
+(`[assembly: Composable(typeof(SomeType))]`) for a type in a referenced
+assembly that can't be annotated directly. Both forms are equivalent
+plan-generation requests, deduplicated alongside call-site discovery.
+"Registers the plan with the runtime"
 above means a generated module initializer populates a closed-generic
 static field (`PlanCache<Customer>.Instance = ...`) that `Create<T>()`
 reads directly — not a `typeof(T)`-keyed dictionary lookup.
