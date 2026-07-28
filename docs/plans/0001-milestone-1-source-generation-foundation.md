@@ -1,6 +1,6 @@
 # [PLAN-0001] Milestone 1: Source-Generation Foundation
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0002](../adr/0002-constructor-selection-algorithm.md) (constructor selection), [ADR-0003](../adr/0003-generator-package-distribution.md) (generator package distribution), [ADR-0004](../adr/0004-composition-plan-discovery-and-dispatch.md) (discovery/dispatch), [ADR-0005](../adr/0005-generator-implementation-conventions.md) (implementation conventions)
 
@@ -194,17 +194,27 @@ at runtime.
 - [x] Record a baseline result somewhere durable (this plan's Notes, or
       a `docs/*.md` subsystem doc once one exists for the generator)
 
-### Phase 5 — Close-out
+### Phase 5 — Close-out (Done)
 
-- [ ] Real manual verification against an actual consuming project (not
+- [x] Real manual verification against an actual consuming project (not
       just the test suite) — per `tasks/implement.md`'s "real manual
-      verification for anything source-generator-facing" step: build a
-      small throwaway project referencing `Compono`, call
-      `composer.Create<Customer>()` for a representative nested type,
-      confirm the call resolves to generated code
-- [ ] Update `docs/architecture.md`/`docs/mvp.md` to reflect current
-      (not just intended) state now that code exists
-- [ ] Set this plan's `Status: Done`
+      verification for anything source-generator-facing" step. The
+      original wording here ("call `composer.Create<Customer>()` for a
+      representative nested type, confirm the call resolves to generated
+      code") assumed nested construction fully succeeds - it doesn't yet,
+      `PlaceholderCompositionContext.Resolve<TValue>()`
+      (`src/Compono/Composer.cs`) unconditionally throws
+      `NotSupportedException`, so that call was always going to throw. See
+      Notes for what was actually verified instead, and why that's still
+      the real proof the exit criteria needs.
+- [x] Update `docs/architecture.md`/`docs/mvp.md` to reflect current
+      (not just intended) state now that code exists - reviewed both;
+      neither asserts anything false about Milestone 1's current state
+      (`docs/architecture.md`'s "Open Architectural Decisions" already
+      tracks resolved-vs-open items with strikethrough per ADR, and
+      `docs/mvp.md` is scope/exit-criteria language, not a status
+      tracker - that's this plan's job). No edits needed.
+- [x] Set this plan's `Status: Done`
 
 ## Critical Files
 
@@ -883,3 +893,24 @@ out of scope for the PR that surfaced them:
   data generation would contradict the product), not benchmarking an
   external framework as a reference point, so it stays unchanged in
   intent, just annotated to avoid future confusion between the two.
+- **Phase 5's manual verification used real dogfooding rather than a
+  throwaway project**: `/Users/ncipollina/source/repos/ncipollina/lightsaber-skill`
+  (a real, unrelated production repo not previously using AutoFixture)
+  added `Compono` 0.1.0-alpha.8 from nuget.org as a normal `PackageReference`
+  in its test project and added
+  `test/Lightsaber.Skill.Tests/Compono/ComponoVerificationTests.cs` with
+  two cases: a flat parameterless type (`LightsaberHilt`) constructs
+  end-to-end via its generated plan, and a nested type (`Lightsaber`,
+  taking a `Crystal`) dispatches to its own generated
+  `ICompositionPlan<Lightsaber>` and throws `NotSupportedException`
+  specifically from inside `Resolve<Crystal>()` - not earlier from a
+  missing plan registration (`InvalidOperationException`) or a compile
+  error. Both passed, in a real `dotnet build`/`dotnet test` run against
+  the published NuGet package (not a `ProjectReference` back into this
+  repo) - confirming discovery, transitive closure, constructor
+  selection, and `PlanCache<T>` dispatch all work correctly end-to-end
+  outside this repo's own test harness, for a nested type, which is
+  exactly what the exit criteria needs even though full nested value
+  resolution is honestly out of scope until Milestone 2. Committed
+  locally on that repo's `main` (not pushed, pending the user's own
+  review).

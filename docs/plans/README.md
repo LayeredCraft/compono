@@ -43,4 +43,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 
 | Plan | Title | Status |
 |---|---|---|
-| [0001](0001-milestone-1-source-generation-foundation.md) | Milestone 1: Source-Generation Foundation | In Progress |
+| [0001](0001-milestone-1-source-generation-foundation.md) | Milestone 1: Source-Generation Foundation | Done |
