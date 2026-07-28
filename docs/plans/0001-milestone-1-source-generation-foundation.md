@@ -744,3 +744,45 @@ out of scope for the PR that surfaced them:
   plan. As of this round's completion: full solution build is still 0
   warnings/0 errors; `dotnet test` is 86/86 passing (`Compono.Tests` +
   `Compono.Generators.Tests`, both TFMs).
+- **A third Codex pass on PR #7 (against the CMP0010 fix commit above)
+  found two more real gaps in the same area**, both triaged with the user
+  before implementing:
+  - **P1 — the conflict check never ran for a conflict reached within a
+    single closure walk**: CMP0010 (above) only compares entries *across*
+    separate top-level discoveries (e.g. two different `Create<T>()` call
+    sites), because `TransitiveClosureWalker`'s `visited` set used
+    `SymbolEqualityComparer.Default`, which ignores nullable annotations -
+    if the *same* type's closure reached both `Box<string>` and
+    `Box<string?>` as sibling constructor parameters (or a parameter and a
+    required member), the second variant silently failed `visited.Add(...)`
+    and was dropped before it ever became its own `DiscoveredTypeInfo` -
+    one layer upstream of where CMP0010's check could ever see it. Fixed
+    by swapping the comparer to `SymbolEqualityComparer.IncludeNullability`
+    (a purpose-built Roslyn comparer for exactly this) - both variants now
+    get walked and each produces its own entry, which flows into the
+    already-existing CMP0010 check rather than needing a second, separate
+    detection path.
+  - **P2 — the CMP0010 fix could itself erase real diagnostics**: `.Distinct()`
+    on the grouped entries uses `DiscoveredTypeInfo`'s full structural
+    equality, which includes each failure's embedded `DiagnosticInfo` -
+    and `DiagnosticInfo.Equals` includes `Location`. So the *same failing*
+    type (e.g. an ambiguous constructor) reached from two different
+    `Create<T>()` call sites produced two "distinct" failure entries
+    purely because their locations differed, which the previous round's
+    conflict logic then folded into a single synthetic, locationless
+    CMP0010 - silently replacing two legitimate `CMP0001`s with a
+    misleading one. Fixed by excluding any entry that already carries a
+    diagnostic from conflict-detection entirely: failures always pass
+    through as-is, however many there are for the same identity: CMP0010
+    now only ever fires among entries that all succeeded (no diagnostics)
+    but disagree on metadata.
+  - Regression tests added: a single closure reaching both `Box<string>`
+    and `Box<string?>` via sibling constructor parameters reports CMP0010
+    (`SameClosureReachesConflictingNullableInstantiations_ReportsConflictDiagnostic`),
+    and the same ambiguous type reached from two different `Create<T>()`
+    call sites still reports `CMP0001` at both locations rather than a
+    swallowed `CMP0010`
+    (`AmbiguousTypeReachedFromTwoCallSites_StillReportsAtBothLocations`).
+    As of this round's completion: full solution build is still 0
+    warnings/0 errors; `dotnet test` is 90/90 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).

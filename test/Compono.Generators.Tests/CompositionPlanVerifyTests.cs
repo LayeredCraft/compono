@@ -1200,4 +1200,96 @@ public sealed class CompositionPlanVerifyTests
                 }
                 """,
         }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task SameClosureReachesConflictingNullableInstantiations_ReportsConflictDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Box<T>
+                    {
+                        public Box(T value) { Value = value; }
+                        public T Value { get; }
+                    }
+
+                    public sealed class Container
+                    {
+                        public Container(Box<string> first, Box<string?> second)
+                        {
+                            First = first;
+                            Second = second;
+                        }
+
+                        public Box<string> First { get; }
+                        public Box<string?> Second { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Both Box<string> and Box<string?> are reached within the SAME
+                            // transitive closure walk (sibling constructor parameters of
+                            // Container), not from two separate Create<T>() call sites -
+                            // SymbolEqualityComparer.Default (ignores nullable annotations) would
+                            // silently collapse the second one into the visited set before it ever
+                            // became its own DiscoveredTypeInfo, hiding the conflict entirely
+                            // instead of reporting CMP0010.
+                            var container = composer.Create<TestNamespace.Container>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0010",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task AmbiguousTypeReachedFromTwoCallSites_StillReportsAtBothLocations() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Address
+                    {
+                        public Address(string city) { }
+                        public Address(string city, string state) { }
+                    }
+
+                    public sealed class Customer
+                    {
+                        public Customer(Address homeAddress) { HomeAddress = homeAddress; }
+                        public Address HomeAddress { get; }
+                    }
+
+                    public sealed class Order
+                    {
+                        public Order(Address shipToAddress) { ShipToAddress = shipToAddress; }
+                        public Address ShipToAddress { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Address is ambiguous (two accessible constructors) and reached from
+                            // two different Create<T>() call sites. Each produces its own failure
+                            // DiscoveredTypeInfo carrying its own CMP0001 at its own Location -
+                            // DiagnosticInfo.Equals includes Location, so these two failures are
+                            // never "equal", and conflict-detection must not fold them into a
+                            // synthetic, locationless CMP0010 instead of the real CMP0001s.
+                            var customer = composer.Create<TestNamespace.Customer>();
+                            var order = composer.Create<TestNamespace.Order>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
 }

@@ -79,23 +79,44 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 // a conflict, just redundant discovery of the same request, and still collapses to one.
                 return callSites.Concat(composables).Concat(assemblyComposables)
                     .GroupBy(static type => (type.Namespace, type.TypeName, type.FullyQualifiedName))
-                    .Select(static group =>
+                    .SelectMany(static group =>
                     {
                         var distinct = group.Distinct().ToArray();
 
                         if (distinct.Length == 1)
-                            return distinct[0];
+                            return distinct;
 
+                        // A failure already carries its own correct diagnostic (CMP0001,
+                        // CMP0002, ...) at its own request-site Location - DiagnosticInfo.Equals
+                        // includes Location, so the same failing type reached from two different
+                        // Create<T>() call sites naturally produces two "distinct" failure entries
+                        // even though neither is wrong. Those must always pass through as-is
+                        // (reported at both locations, exactly like before conflict-detection
+                        // existed) rather than being folded into a synthetic, locationless
+                        // CMP0010 that would erase the real diagnostics entirely.
+                        var failures = distinct.Where(static t => t.Diagnostics.Count > 0).ToArray();
+
+                        if (failures.Length > 0)
+                            return failures;
+
+                        // Every surviving entry succeeded, but disagrees on composition metadata
+                        // (e.g. differing Nullability from Box<string> vs Box<string?>) - there's
+                        // no value that's correct for every discovery sharing this one emitted
+                        // plan, so report it instead of guessing, the same "diagnose an ambiguity,
+                        // don't guess" rule CMP0001 already follows.
                         var (@namespace, typeName, fullyQualifiedName) = group.Key;
 
-                        return new DiscoveredTypeInfo(
-                            @namespace,
-                            typeName,
-                            fullyQualifiedName,
-                            EquatableArray<ConstructorParameterInfo>.Empty,
-                            EquatableArray<RequiredMemberInfo>.Empty,
-                            new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCompositionMetadata, null, fullyQualifiedName) }
-                                .ToEquatableArray());
+                        return new DiscoveredTypeInfo[]
+                        {
+                            new(
+                                @namespace,
+                                typeName,
+                                fullyQualifiedName,
+                                EquatableArray<ConstructorParameterInfo>.Empty,
+                                EquatableArray<RequiredMemberInfo>.Empty,
+                                new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCompositionMetadata, null, fullyQualifiedName) }
+                                    .ToEquatableArray()),
+                        };
                     });
             })
             .WithTrackingName(TrackingNames.DiscoveredDistinct);

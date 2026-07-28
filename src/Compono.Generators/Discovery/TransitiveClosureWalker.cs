@@ -22,7 +22,16 @@ internal static class TransitiveClosureWalker
     public static EquatableArray<DiscoveredTypeInfo> Walk(INamedTypeSymbol rootType, Compilation compilation, LocationInfo? location)
     {
         var wellKnownTypes = WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
-        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { rootType };
+
+        // IncludeNullability, not Default - Default treats Box<string> and Box<string?> as the
+        // same symbol (nullable annotations don't affect its notion of symbol identity), which
+        // would silently drop the second variant here before it ever became its own
+        // DiscoveredTypeInfo - i.e. before ComponoIncrementalGenerator's cross-discovery conflict
+        // check (CMP0010) ever got a chance to see there were two disagreeing entries to compare.
+        // With IncludeNullability, both variants get walked and each produces its own entry, so a
+        // real conflict between them surfaces through that existing check instead of being erased
+        // one layer upstream of it.
+        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability) { rootType };
         var results = new List<DiscoveredTypeInfo>();
         var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
 
