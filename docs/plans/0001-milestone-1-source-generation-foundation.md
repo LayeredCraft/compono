@@ -119,7 +119,7 @@ with no context about where in the graph it came from.
       dedup-across-parents, leaf-type non-recursion, and nested-failure
       diagnostic coverage
 
-### Phase 2 — Escape-hatch attribute (Done, PR #6 open)
+### Phase 2 — Escape-hatch attribute (Done, PR #6 merged)
 
 ADR-0004's second discovery path: a type that needs a plan but has no
 local `Create<T>()` call site in the compilation.
