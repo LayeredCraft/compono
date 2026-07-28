@@ -105,7 +105,7 @@ internal static class TransitiveClosureWalker
             return (failure, null, []);
         }
 
-        var requiredMembers = RequiredMemberCollector.Collect(type, selection.Constructor!, location, path);
+        var requiredMembers = RequiredMemberCollector.Collect(type, selection.Constructor!, compilation, location, path);
 
         if (!requiredMembers.IsSuccess)
         {

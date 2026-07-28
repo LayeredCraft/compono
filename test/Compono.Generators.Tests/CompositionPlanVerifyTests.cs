@@ -1292,4 +1292,14 @@ public sealed class CompositionPlanVerifyTests
             },
             expectedDiagnosticId: "CMP0001",
             TestContext.Current.CancellationToken);
+
+    // No automated regression test for RequiredMemberCollector.IsAssignableFromGeneratedCode: the
+    // shape it defends against (a required member with no accessible setter, or a required
+    // readonly field) is one the C# compiler itself refuses to let *any* C#-authored type declare
+    // (CS9032/CS9033 fire at the library's own declaration, before this generator ever runs) -
+    // confirmed by attempting exactly this shape via GeneratorTestHelpers.CompileLibrary. The gap
+    // only exists for a non-C#-compiler-produced assembly (hand-authored IL, a different .NET
+    // language with laxer rules), which this test harness has no way to produce without adding
+    // real IL-emission infrastructure - disproportionate for this one edge case. The fix itself
+    // mirrors ConstructorSelector's already-tested compilation.IsSymbolAccessibleWithin pattern.
 }

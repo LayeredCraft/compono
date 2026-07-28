@@ -786,3 +786,30 @@ out of scope for the PR that surfaced them:
     As of this round's completion: full solution build is still 0
     warnings/0 errors; `dotnet test` is 90/90 passing (`Compono.Tests` +
     `Compono.Generators.Tests`, both TFMs).
+- **A fourth Codex pass on PR #7 found one more real gap**, unrelated to
+  the nullable-conflict area above (a genuinely independent finding, not
+  another layer of the same bug) - triaged with the user, who also asked
+  directly whether this round of iteration had hit diminishing returns:
+  `RequiredMemberCollector` never validated that a required member could
+  actually be assigned from generated code - a required property with no
+  accessible setter, or a required readonly/inaccessible field, would
+  still be collected and emitted as an object-initializer assignment that
+  fails to compile (CS0272/CS0191). `ConstructorSelector` already guards
+  the analogous case for constructors
+  (`compilation.IsSymbolAccessibleWithin`), and this just hadn't been
+  carried over to the required-member path added in this same phase.
+  Fixed by adding `IsAssignableFromGeneratedCode` (checks the property's
+  `SetMethod` accessibility, or that a field is both non-readonly and
+  accessible) alongside the existing ref-like/pointer checks. **No
+  automated regression test**: the exact shape this defends against (no
+  accessible setter, or a readonly required field) is one the C# compiler
+  itself refuses to let any C#-authored type declare (confirmed by
+  attempting it via `GeneratorTestHelpers.CompileLibrary` - CS9032 fired
+  at the library's own declaration) - the gap only exists for a
+  non-C#-compiler-authored assembly (hand-crafted IL, a different .NET
+  language), which this test harness has no way to produce without adding
+  real IL-emission infrastructure, judged disproportionate for one edge
+  case. As of this round's completion: full solution build is still 0
+  warnings/0 errors; `dotnet test` is 90/90 passing (`Compono.Tests` +
+  `Compono.Generators.Tests`, both TFMs - unchanged count, since this
+  round added no new test).

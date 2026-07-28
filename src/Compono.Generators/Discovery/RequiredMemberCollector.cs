@@ -17,7 +17,7 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class RequiredMemberCollector
 {
-    public static Result Collect(INamedTypeSymbol type, IMethodSymbol constructor, LocationInfo? location, string? path)
+    public static Result Collect(INamedTypeSymbol type, IMethodSymbol constructor, Compilation compilation, LocationInfo? location, string? path)
     {
         if (constructor.GetAttributes().Any(a =>
                 a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
@@ -71,6 +71,30 @@ internal static class RequiredMemberCollector
                     member.Name,
                     "as a pointer type, which cannot be used as a generic type argument"));
 
+            // The C# compiler only lets a *C#-authored* required member declare a shape the
+            // generated object initializer can actually assign (an accessible init/set accessor,
+            // a non-readonly field) - but `IsRequired` is ultimately just metadata Roslyn reads off
+            // any assembly, C#-authored or not. A required property with no accessible setter, or
+            // a required field that's readonly or itself inaccessible, is a shape the C# compiler
+            // would never let a C# type declare but a non-C# (or hand-crafted IL) assembly can
+            // still expose - emitting an assignment to either produces CS0272 (no accessible
+            // setter) or CS0191 (assigning a readonly field outside its declaring constructor) in
+            // the generated file. Same rationale as ConstructorSelector's own
+            // compilation.IsSymbolAccessibleWithin check on constructors: verify against the real
+            // accessibility-domain rules, not just an accessibility-enum check, since a member
+            // that's merely `internal` in a referenced assembly is only actually assignable from
+            // generated code (which lives in the consuming assembly) with an InternalsVisibleTo
+            // grant.
+            if (!IsAssignableFromGeneratedCode(member, compilation))
+                return Result.Failure(new DiagnosticInfo(
+                    DiagnosticDescriptors.UnsupportedRequiredMemberKind,
+                    location,
+                    DisplayName(type, path),
+                    member.Name,
+                    member is IFieldSymbol
+                        ? "as a readonly or inaccessible field, which Compono cannot assign in a generated object initializer"
+                        : "with no accessible init/set accessor, which Compono cannot assign in a generated object initializer"));
+
             infos.Add(new RequiredMemberInfo(
                 EscapeIdentifier(member.Name),
                 memberType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -85,6 +109,14 @@ internal static class RequiredMemberCollector
         path is null
             ? $"'{type.ToDisplayString()}'"
             : $"'{type.ToDisplayString()}' (reached via {path})";
+
+    private static bool IsAssignableFromGeneratedCode(ISymbol member, Compilation compilation) => member switch
+    {
+        IPropertySymbol { SetMethod: { } setMethod } => compilation.IsSymbolAccessibleWithin(setMethod, compilation.Assembly),
+        IPropertySymbol => false,
+        IFieldSymbol field => !field.IsReadOnly && compilation.IsSymbolAccessibleWithin(field, compilation.Assembly),
+        _ => throw new InvalidOperationException("Unreachable: filtered to properties/fields above."),
+    };
 
     // A required member can legally be named with an escaped reserved keyword
     // (`public required string @class { get; init; }`) - member.Name reports it as the bare
