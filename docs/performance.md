@@ -9,11 +9,11 @@ baselines" exit criteria (`docs/mvp.md`).
 
 ## What's measured, and what isn't yet
 
-Milestone 1 only implements direct constructor invocation for a type whose
-constructor takes no arguments, or whose argument types are themselves
-composed the same way - `ICompositionContext.Resolve<TValue>()` is a
-placeholder that throws `NotSupportedException` for any real value
-resolution (`src/Compono/Composer.cs`). Concretely: a type with a
+Milestone 1 only implements direct constructor invocation end-to-end for a
+type whose constructor takes no arguments -
+`ICompositionContext.Resolve<TValue>()` is a placeholder that throws
+`NotSupportedException` for any real value resolution
+(`src/Compono/Composer.cs`). Concretely: a type with a
 constructor parameter - even a parameter whose type has its own generated
 plan - can't be composed end-to-end yet, because generated code resolves
 every constructor argument through `context.Resolve<TParam>()`

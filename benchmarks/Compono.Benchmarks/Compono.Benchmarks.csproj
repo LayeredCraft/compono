@@ -18,6 +18,14 @@
         <!-- Ecosystem-comparison reference point only - see the AutoFixture comment in
              Directory.Packages.props. -->
         <PackageReference Include="AutoFixture" />
+        <!-- BenchmarkDotNet pulls in Microsoft.CodeAnalysis.CSharp 4.14.0 transitively, older
+             than the 5.6.0 Compono.Generators/Compono.Generators.Tests use (Directory.Packages.props).
+             CI publishes every project's output into one shared per-TFM folder, so without this
+             explicit bump the lower transitive version wins the copy and
+             Compono.Generators.Tests fails at runtime with FileNotFoundException looking for
+             Microsoft.CodeAnalysis 5.6.0.0. Pinning to the same central version here keeps every
+             published Microsoft.CodeAnalysis.dll consistent. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     </ItemGroup>
 
     <ItemGroup>
