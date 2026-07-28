@@ -47,7 +47,7 @@ public sealed class Composer
 
     private sealed class PlaceholderCompositionContext : ICompositionContext
     {
-        public TValue Resolve<TValue>() =>
+        public TValue Resolve<TValue>(Nullability nullability) =>
             throw new NotSupportedException(
                 "Value resolution isn't implemented yet - it's Milestone 2's Core Composition Engine scope. " +
                 "Milestone 1 only supports types whose constructors take no arguments, or whose argument " +

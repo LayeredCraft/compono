@@ -469,20 +469,111 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task RequiredMemberWithoutSetsRequiredMembers_ReportsDiagnostic() =>
+    public Task RequiredProperty_EmitsObjectInitializer() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer(int id) { Id = id; }
+
+                    public int Id { get; }
+
+                    // No [SetsRequiredMembers] on the constructor - Phase 3 emits an
+                    // object-initializer assignment for this after the constructor call, rather
+                    // than rejecting the type outright (Phase 0's behavior).
+                    public required string Name { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RequiredField_EmitsObjectInitializer() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer() { }
+
+                    // `required` applies to fields too, not just properties - collected and
+                    // validated the same way.
+                    public required string Name;
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task SetsRequiredMembersConstructor_NoInitializerEmitted() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                using System.Diagnostics.CodeAnalysis;
+
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    // The constructor already satisfies every required member itself - no
+                    // object-initializer assignment should be emitted, just the bare constructor
+                    // call (Phase 0's shape).
+                    [SetsRequiredMembers]
+                    public Customer(string name) { Name = name; }
+
+                    public required string Name { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RequiredMemberRefLikeType_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions
             {
                 SourceCode = """
+                    using System;
+
                     namespace TestNamespace;
 
-                    public sealed class Customer
+                    public sealed class Widget
                     {
-                        // Phase 0 only ever emits bare `new Customer(...)` - no object initializer -
-                        // so a required member with no [SetsRequiredMembers] on the constructor
-                        // would make the generated call CS9035. Required-member composition is
-                        // deferred to a later milestone.
-                        public required string Name { get; init; }
+                        public Widget() { }
+
+                        // A ref-like member type can't be Resolve<T>()'s generic type argument
+                        // (CS0306/CS0611) - same reasoning as a ref-like constructor parameter
+                        // (CMP0004), narrowed onto required-member validation instead (CMP0007).
+                        public required Span<int> Values { get; init; }
                     }
 
                     public static class EntryPoint
@@ -490,13 +581,109 @@ public sealed class CompositionPlanVerifyTests
                         public static void Run()
                         {
                             var composer = Compono.Composer.Create();
-                            var customer = composer.Create<TestNamespace.Customer>();
+                            var widget = composer.Create<TestNamespace.Widget>();
                         }
                     }
                     """,
             },
             expectedDiagnosticId: "CMP0007",
             TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableConstructorParameter_PassesNullableNullabilityArgument() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    // A generic type argument alone can't distinguish string from string? at
+                    // runtime (nullable-reference annotations are erased) - the generated
+                    // Resolve<T>() call must pass the annotation explicitly instead.
+                    public Customer(string name, string? nickname)
+                    {
+                        Name = name;
+                        Nickname = nickname;
+                    }
+
+                    public string Name { get; }
+                    public string? Nickname { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableRequiredMember_PassesNullableNullabilityArgument() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer() { }
+
+                    public required string Name { get; init; }
+
+                    // Nullability applies to required-member Resolve<T>() calls the same way it
+                    // does to constructor parameters.
+                    public required string? Nickname { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RequiredComposableProperty_GeneratesPlansForBothTypes() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Address
+                {
+                    public Address(string city) { City = city; }
+                    public string City { get; }
+                }
+
+                public sealed class Customer
+                {
+                    public Customer() { }
+
+                    // A required member's type walks the same transitive-closure/leaf-type rules
+                    // a constructor parameter's does - Address gets its own generated plan here
+                    // even though it's only reachable through a required property.
+                    public required Address HomeAddress { get; init; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var customer = composer.Create<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 
     [Fact]
     public Task NestedComposableProperty_GeneratesPlansForBothTypes() =>

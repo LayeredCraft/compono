@@ -120,6 +120,7 @@ internal static class ComposableAttributeDiscovery
             TypeName: "",
             FullyQualifiedName: "",
             EquatableArray<ConstructorParameterInfo>.Empty,
+            EquatableArray<RequiredMemberInfo>.Empty,
             new[] { new DiagnosticInfo(DiagnosticDescriptors.AssemblyComposableMissingType, location) }.ToEquatableArray());
 
         return new[] { failure }.ToEquatableArray();

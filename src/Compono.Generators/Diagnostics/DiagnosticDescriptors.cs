@@ -56,11 +56,10 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor UnassignedRequiredMembers = new(
+    public static readonly DiagnosticDescriptor UnsupportedRequiredMemberKind = new(
         "CMP0007",
-        "Required members cannot be composed yet",
-        "{0} has required members that its selected constructor doesn't set (no " +
-        "[SetsRequiredMembers]) - Compono can't compose required-member initialization yet",
+        "Unsupported required member kind",
+        "{0} has required member '{1}' {2}, which Compono cannot compose a value for",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

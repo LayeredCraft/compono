@@ -155,14 +155,37 @@ than the annotated type itself, for symmetry with the assembly-level form.
       `[Composable]` discover the same type, plus `CMP0008` for
       assembly-level `[Composable]` missing its `typeof(...)` argument)
 
-### Phase 3 — Required members and nullability (Not started)
+### Phase 3 — Required members and nullability (Done)
 
-- [ ] Emit required-member assignments (object-initializer-style
-      `required` properties, not just constructor parameters)
-- [ ] Emit nullability metadata onto generated request/resolve calls, so
-      a future `ICompositionContext` implementation (Milestone 2) can
-      tell a `string` parameter from a `string?` one
-- [ ] Snapshot tests covering both
+Design decided in [ADR-0006](../adr/0006-required-members-and-nullability-metadata.md):
+object-initializer emission for required members (reusing the constructor
+parameter pipeline), and a new `Nullability` enum parameter on
+`ICompositionContext.Resolve<TValue>()` carrying each request's
+nullable-annotation, since generic type arguments erase that information
+at runtime.
+
+- [x] Add `Compono.Nullability` enum (`NotNullable`/`Nullable`) and change
+      `ICompositionContext.Resolve<TValue>()` to `Resolve<TValue>(Nullability
+      nullability)`
+- [x] `ConstructorParameterInfo` gains nullability; a new
+      `RequiredMemberInfo` model (name, fully-qualified type, nullability)
+- [x] `ConstructorSelector.HasUnassignedRequiredMembers` → collect
+      required members instead of rejecting the type; reuse
+      `ValidateParameterKinds`-style checks + `TransitiveClosureWalker`/
+      `LeafTypeClassifier` per required-member type (new
+      `RequiredMemberCollector`, since the collection now returns data on
+      success instead of only ever failing)
+- [x] `CompositionPlanEmitter`/`CompositionPlan.scriban` emit an object
+      initializer block after the constructor call; every `Resolve<...>()`
+      call site (constructor args and required members) passes an explicit
+      `Nullability` argument
+- [x] Narrow `CMP0007` per ADR-0006 rather than removing it
+- [x] Snapshot tests: required properties, required fields, a
+      `[SetsRequiredMembers]` constructor (no initializer emitted),
+      nullable and non-nullable constructor parameters, nullable and
+      non-nullable required members, a ref-like required member (CMP0007),
+      and a required member reaching a composable nested type (recursion
+      through required members, not just constructor parameters)
 
 ### Phase 4 — Benchmark harness (Not started)
 
@@ -194,18 +217,24 @@ than the annotated type itself, for symmetry with the assembly-level form.
   placements) + `ComposedTypeAnalyzer.cs` (Phase 2: the closed-type
   validation + `TransitiveClosureWalker` hand-off shared by every
   discovery path) + `ConstructorSelector.cs` + `TransitiveClosureWalker.cs`
-  (Phase 1's recursive parameter-type walk) + `LeafTypeClassifier.cs`
-  (Phase 1's recurse-vs-`Resolve<T>()` rule),
+  (Phase 1's recursive parameter-type walk, Phase 3: also walks required
+  members) + `LeafTypeClassifier.cs` (Phase 1's recurse-vs-`Resolve<T>()`
+  rule) + `RequiredMemberCollector.cs` (Phase 3: collects/validates
+  required properties/fields not satisfied by `[SetsRequiredMembers]`),
   `WellKnownTypes/` (symbol cache, vendored `BoundedCacheWithFactory`),
   `Diagnostics/` (`DiagnosticDescriptors`, `DiagnosticInfo`),
-  `Models/` (`DiscoveredTypeInfo`, `ConstructorParameterInfo`, `LocationInfo`),
+  `Models/` (`DiscoveredTypeInfo`, `ConstructorParameterInfo`,
+  `RequiredMemberInfo` (Phase 3), `LocationInfo`),
   `Types/EquatableArray.cs` (vendored from `LayeredCraft.SourceGeneratorTools`,
   not referenced as a package — see attribution comment), `Emitters/`
   (`TemplateHelper`, `CompositionPlanEmitter`),
-  `Templates/CompositionPlan.scriban`,
-  `AnalyzerReleases.{Shipped,Unshipped}.md`.
+  `Templates/CompositionPlan.scriban` (Phase 3: emits an object-initializer
+  block and an explicit `Nullability` argument on every `Resolve<...>()`
+  call), `AnalyzerReleases.{Shipped,Unshipped}.md`.
 - `src/Compono/` — `ICompositionPlan.cs`, `ICompositionContext.cs`
-  (Milestone-1-only placeholder), `PlanCache.cs`, `Composer.cs` (minimal
+  (Milestone-1-only placeholder; Phase 3 changed
+  `Resolve<TValue>()` to `Resolve<TValue>(Nullability nullability)`),
+  `Nullability.cs` (Phase 3), `PlanCache.cs`, `Composer.cs` (minimal
   placeholder entry point), `ComposableAttribute.cs` (Phase 2's opt-in
   discovery marker). `Compono.csproj` — analyzer-only `ProjectReference`
   to `Compono.Generators`, packs its output into `analyzers/dotnet/cs`
@@ -604,4 +633,45 @@ out of scope for the PR that surfaced them:
     (`ComposableAttributeAtAssemblyLevelWithParenthesizedTypeof_GeneratesCompositionPlan`).
     As of this round's completion: full solution build is still 0
     warnings/0 errors; `dotnet test` is 68/68 passing (`Compono.Tests` +
+    `Compono.Generators.Tests`, both TFMs).
+- **Phase 3 design and implementation**: nullability shape confirmed with
+  the user via `AskUserQuestion` before writing [ADR-0006](../adr/0006-required-members-and-nullability-metadata.md)
+  (a bare `bool` was considered and rejected in favor of a `Nullability`
+  enum, per the user's stated rationale — see the ADR). Implementation
+  notes not already in the ADR:
+  - Required-member collection couldn't stay inside
+    `ConstructorSelector.HasUnassignedRequiredMembers` once it needed to
+    return data on success (not just fail) — moved to a new
+    `RequiredMemberCollector.Collect`, called from
+    `TransitiveClosureWalker.Analyze` right after constructor selection
+    succeeds, mirroring how `ConstructorSelector.Select` itself is called.
+  - `TransitiveClosureWalker`'s `EnqueueIfEligible` took an
+    `IParameterSymbol` before this phase; generalized to take a bare
+    `ITypeSymbol`/name pair so both constructor parameters and required
+    members enqueue through the same eligibility check
+    (`LeafTypeClassifier.IsProviderResolved`) without a second, parallel
+    enqueue path.
+  - The Scriban template's `required_members.size > 0` check only works
+    because `CompositionPlanEmitter` materializes `Parameters`/
+    `RequiredMembers` with `.ToArray()` before handing them to the
+    template — a plain `IEnumerable<T>` from `.Select(...)` doesn't expose
+    `.size` to Scriban (only `IList`-backed collections do), which first
+    manifested as the required-member `if` block silently never rendering
+    (no compile error, no verify-snapshot mismatch — the "New" received
+    snapshot just showed a bare constructor call with the required member
+    left unset, i.e. a real CS9035 compile failure caught by
+    `GeneratorTestHelpers.Verify`'s recompile-and-check-zero-errors step).
+  - **Manual verification**: same `dotnet pack` + local-feed + throwaway
+    console project approach as Phase 2. A `Customer` type with a
+    required, composable `Address` property (no `[SetsRequiredMembers]`)
+    and a nullable constructor parameter built and ran against the packed
+    `Compono` package: `composer.Create<Customer>()` reached the generated
+    `Compose(...)` and threw the expected `NotSupportedException` from
+    Milestone 1's placeholder `ICompositionContext` (proving the
+    object-initializer block and the `Nullability` argument are real,
+    executed code, not just something that type-checked), and both
+    `PlanCache<Customer>.Instance` and `PlanCache<Address>.Instance` were
+    non-null (proving required-member recursion generates and registers a
+    plan for the nested type). Full solution build is 0 warnings/0
+    errors; `dotnet test` is 80/80 passing (`Compono.Tests` +
     `Compono.Generators.Tests`, both TFMs).

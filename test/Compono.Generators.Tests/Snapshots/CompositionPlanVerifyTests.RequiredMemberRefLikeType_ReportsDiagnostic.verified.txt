@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (19,37)-(19,57),
+      Message: 'TestNamespace.Widget' has required member 'Values' as a ref struct (ref-like type), which cannot be used as a generic type argument, which Compono cannot compose a value for,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0007,
+        Title: Unsupported required member kind,
+        MessageFormat: {0} has required member '{1}' {2}, which Compono cannot compose a value for,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

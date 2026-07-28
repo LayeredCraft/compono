@@ -9,7 +9,7 @@ namespace Sales
     {
         public global::Sales.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::Sales.Customer(
-                context.Resolve<string>()
+                context.Resolve<string>(global::Compono.Nullability.NotNullable)
             );
     }
 

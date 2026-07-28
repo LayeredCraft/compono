@@ -69,6 +69,7 @@ internal static class ComposedTypeAnalyzer
             type.Name,
             emittedName,
             EquatableArray<ConstructorParameterInfo>.Empty,
+            EquatableArray<RequiredMemberInfo>.Empty,
             new[] { new DiagnosticInfo(descriptor, location, type.ToDisplayString()) }.ToEquatableArray());
 
         return new[] { failure }.ToEquatableArray();
