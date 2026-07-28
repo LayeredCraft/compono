@@ -187,11 +187,11 @@ at runtime.
       and a required member reaching a composable nested type (recursion
       through required members, not just constructor parameters)
 
-### Phase 4 — Benchmark harness (Not started)
+### Phase 4 — Benchmark harness (Done)
 
-- [ ] Add a benchmark project comparing generated construction against
+- [x] Add a benchmark project comparing generated construction against
       a reflection baseline (`docs/mvp.md`'s explicit Milestone 1 ask)
-- [ ] Record a baseline result somewhere durable (this plan's Notes, or
+- [x] Record a baseline result somewhere durable (this plan's Notes, or
       a `docs/*.md` subsystem doc once one exists for the generator)
 
 ### Phase 5 — Close-out
@@ -251,8 +251,14 @@ at runtime.
   the generator via `CSharpGeneratorDriver`, asserts generated code
   actually compiles, not just that it snapshots),
   `CompositionPlanVerifyTests.cs`, `Snapshots/*.verified.{cs,txt}`.
-- (Phase 4) a new `benchmarks/` or `test/Compono.Benchmarks/` project —
-  exact location TBD when that phase starts.
+- `benchmarks/Compono.Benchmarks/` (Phase 4) — `BenchmarkDotNet` project,
+  referencing `Compono.Generators` as an analyzer-only `ProjectReference`
+  (same shape `test/Compono.Generators.Tests` and `Compono.csproj` itself
+  use) so the generator actually runs against the types declared here.
+  `BenchmarkTypes.cs` (the representative `Leaf` type), `ReflectionComposer.cs`
+  (the reflection baseline), `CompositionBenchmarks.cs` (the
+  `[Benchmark]`-attributed comparison), `Program.cs`
+  (`BenchmarkSwitcher.FromAssembly`).
 
 ## Test Plan
 
@@ -448,6 +454,45 @@ task list; see **Phases** above for what's actually left to do.
   - This round confirmed the review loop had converged: two clearly
     distinct, real gaps, no repeats of earlier-round territory - a good
     stopping point for this PR's review cycle.
+
+- **Phase 4 (benchmark harness)**: `benchmarks/Compono.Benchmarks/`, a
+  `BenchmarkDotNet` console project referencing `Compono.Generators` as an
+  analyzer-only `ProjectReference` (the same shape
+  `test/Compono.Generators.Tests` and `Compono.csproj` itself already use)
+  so the generator genuinely runs against types declared in the benchmark
+  project itself, rather than benchmarking against a pre-packed nupkg.
+  - **A representative nested-composable type (`docs/mvp.md`'s exit
+    criteria shape, e.g. `Customer(Address HomeAddress)`) turned out to be
+    impossible to benchmark end-to-end in Milestone 1, discovered by
+    actually trying it first**: every constructor argument in generated
+    code — including one whose type has its own generated plan — is
+    resolved via `context.Resolve<TParam>()`
+    (`CompositionPlan.scriban`), and Milestone 1's placeholder
+    `ICompositionContext` (`Composer.cs`) throws `NotSupportedException`
+    unconditionally there, regardless of whether `PlanCache<TParam>` is
+    populated. Dispatching `Resolve<TParam>()` to the matching
+    `PlanCache<TParam>` is real provider-resolution — Milestone 2 scope,
+    not yet wired up. Confirmed by generating and inspecting the actual
+    `.g.cs` output for a `Root(Branch Left, Branch Right)` shape: both
+    `Root` and `Branch` got their own correct generated plans, but
+    `Root.Compose(...)` still throws at runtime because it calls
+    `context.Resolve<Branch>()` rather than invoking `Branch`'s plan
+    directly. So the benchmark only measures a flat, parameterless type
+    (`Leaf`) — the one shape Milestone 1 can actually execute — rather
+    than the nested shape originally planned; revisit once Milestone 2's
+    real `CompositionContext` makes nested end-to-end composition
+    possible.
+  - **Baseline result** (Apple M3 Max, .NET 10.0.3 arm64 RyuJIT, Release,
+    `BenchmarkDotNet` `DefaultJob`, recorded at this phase's completion):
+    generated construction (`composer.Create<Leaf>()`) averaged 3.29 ns
+    and 24 B allocated per op, vs. a reflection baseline
+    (`ReflectionComposer.Compose<Leaf>()`, `Type.GetConstructors().Single()`
+    + `ConstructorInfo.Invoke`) averaging 20.07 ns and 56 B allocated per
+    op — generated construction ran ~6.1x faster and allocated ~43% as
+    much as the reflection baseline.
+  - Full solution build is still 0 warnings/0 errors; `dotnet test` is
+    90/90 passing (unchanged - a benchmark project isn't a test project
+    and adds no new tests).
 
 ## Open Items
 

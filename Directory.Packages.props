@@ -50,5 +50,8 @@
     <PackageVersion Include="Verify.XunitV3" Version="31.27.0" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.10" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.10" />
+    <!-- Phase 4: benchmark harness comparing generated construction against a reflection
+         baseline (docs/mvp.md's explicit Milestone 1 ask). -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
 </Project>
