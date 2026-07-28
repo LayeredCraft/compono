@@ -9,7 +9,7 @@ namespace Acme
     {
         public global::Acme.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::Acme.Customer(
-                context.Resolve<string>(global::Compono.Nullability.NotNullable)
+                context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "name", global::Compono.Nullability.NotNullable))
             );
     }
 

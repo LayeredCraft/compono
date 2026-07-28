@@ -7,7 +7,7 @@
     {
         public global::Customer Compose(global::Compono.ICompositionContext context) =>
             new global::Customer(
-                context.Resolve<string>(global::Compono.Nullability.NotNullable)
+                context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "firstName", global::Compono.Nullability.NotNullable))
             );
     }
 

@@ -11,8 +11,8 @@ namespace TestNamespace
             new global::TestNamespace.Customer(
             )
             {
-                Name = context.Resolve<string>(global::Compono.Nullability.NotNullable),
-                Nickname = context.Resolve<string>(global::Compono.Nullability.Nullable)
+                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Name", global::Compono.Nullability.NotNullable)),
+                Nickname = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 1, "Nickname", global::Compono.Nullability.Nullable))
             };
     }
 

@@ -9,8 +9,8 @@ namespace TestNamespace
     {
         public global::TestNamespace.Container Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Container(
-                context.Resolve<global::TestNamespace.Box<string>>(global::Compono.Nullability.NotNullable),
-                context.Resolve<global::TestNamespace.Box<string>>(global::Compono.Nullability.NotNullable)
+                context.Resolve<global::TestNamespace.Box<string>>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "first", global::Compono.Nullability.NotNullable)),
+                context.Resolve<global::TestNamespace.Box<string>>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 1, "second", global::Compono.Nullability.NotNullable))
             );
     }
 
