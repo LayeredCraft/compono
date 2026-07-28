@@ -1,6 +1,7 @@
 using System.Text;
 using Compono.Generators.Models;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Compono.Generators.Emitters;
 
@@ -31,8 +32,26 @@ internal static class CompositionPlanEmitter
             Namespace = type.Namespace,
             PlanClassName = type.PlanClassName,
             FullyQualifiedName = type.FullyQualifiedName,
-            Parameters = type.Parameters.Select(p => new { p.Name, p.FullyQualifiedTypeName, p.IsNullable }).ToArray(),
-            RequiredMembers = type.RequiredMembers.Select(m => new { m.Name, m.FullyQualifiedTypeName, m.IsNullable, m.DisplayName }).ToArray(),
+            // A CLR metadata name (a constructor parameter or member on an external/library type,
+            // per ADR-0004's discovery of types Compono doesn't own) isn't bound by C# identifier
+            // syntax - it can legally contain a quote, backslash, or newline. NameLiteral is a full,
+            // pre-quoted C# string literal (SymbolDisplay.FormatLiteral already includes the
+            // surrounding quotes), so the template interpolates it directly rather than
+            // hand-wrapping a raw name between quotes, which would emit invalid C# - or silently
+            // change the diagnostic name - for a name FormatLiteral needs to escape.
+            Parameters = type.Parameters.Select(p => new
+            {
+                p.FullyQualifiedTypeName,
+                p.IsNullable,
+                NameLiteral = SymbolDisplay.FormatLiteral(p.Name, quote: true),
+            }).ToArray(),
+            RequiredMembers = type.RequiredMembers.Select(m => new
+            {
+                m.Name,
+                m.FullyQualifiedTypeName,
+                m.IsNullable,
+                DisplayNameLiteral = SymbolDisplay.FormatLiteral(m.DisplayName, quote: true),
+            }).ToArray(),
             GeneratorVersion,
         };
 
