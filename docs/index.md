@@ -61,6 +61,14 @@ model.
 If compatibility support is ever introduced, it will require an explicit
 opt-in.
 
+## Performance
+
+Generated construction (`composer.Create<T>()`) runs ~6.1x faster and
+allocates ~43% as much as an equivalent reflection-based baseline, for
+the flat-type case Milestone 1 can measure end-to-end today. See
+[Performance](performance.md) for methodology, caveats, and how to
+reproduce - `benchmarks/Compono.Benchmarks`.
+
 ## Status
 
 Compono is under active development. APIs are experimental until the
@@ -68,4 +76,5 @@ first public preview.
 
 See the [Manifesto](manifesto.md), [Architecture](architecture.md),
 [Design Principles](design-principles.md), [Public API](public-api.md),
-[MVP](mvp.md), and [ADRs](adr/0001-source-generation-first.md) for more.
+[Performance](performance.md), [MVP](mvp.md), and
+[ADRs](adr/0001-source-generation-first.md) for more.

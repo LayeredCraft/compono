@@ -61,10 +61,19 @@ model.
 If compatibility support is ever introduced, it will require an explicit
 opt-in.
 
+## Performance
+
+Generated construction (`composer.Create<T>()`) runs ~6.1x faster and
+allocates ~43% as much as an equivalent reflection-based baseline, for
+the flat-type case Milestone 1 can measure end-to-end today. See
+[Performance](https://layeredcraft.github.io/compono/performance/) (or
+`docs/performance.md`) for methodology, caveats, and how to reproduce -
+`benchmarks/Compono.Benchmarks`.
+
 ## Documentation
 
 See the `/docs` directory for the manifesto, architecture, public API,
-MVP roadmap, design principles, and ADRs.
+performance, MVP roadmap, design principles, and ADRs.
 
 ## Status
 

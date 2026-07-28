@@ -109,6 +109,7 @@ nav:
   - Architecture: architecture.md
   - Design Principles: design-principles.md
   - Public API: public-api.md
+  - Performance: performance.md
   - MVP: mvp.md
   - ADRs:
     - Source Generation First: adr/0001-source-generation-first.md
