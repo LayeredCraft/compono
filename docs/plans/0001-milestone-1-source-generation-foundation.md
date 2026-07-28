@@ -56,7 +56,7 @@ at a glance instead of living only in this file's edit history.
 Plan" section) — don't bundle two phases into one diff even if both are
 finished by the time a PR gets opened.
 
-### Phase 0 — Foundation (Done, not yet opened as a PR)
+### Phase 0 — Foundation (Done)
 
 The generator exists, is wired into `Compono`'s own package, and can
 discover a flat (no nested composable parameters) type from a
@@ -79,7 +79,7 @@ register it into `PlanCache<T>`.
       `Verify.SourceGenerators`/`Verify.XunitV3` — happy path +
       ambiguous-constructor diagnostic)
 
-### Phase 1 — Transitive closure (Done, not yet opened as a PR)
+### Phase 1 — Transitive closure (Done)
 
 The real gap between "works for a flat type" and the exit criteria's
 "representative record or class" — a `Customer` with an `Address`
@@ -119,7 +119,7 @@ with no context about where in the graph it came from.
       dedup-across-parents, leaf-type non-recursion, and nested-failure
       diagnostic coverage
 
-### Phase 2 — Escape-hatch attribute (Done, not yet opened as a PR)
+### Phase 2 — Escape-hatch attribute (Done, PR #6 open)
 
 ADR-0004's second discovery path: a type that needs a plan but has no
 local `Create<T>()` call site in the compilation.
