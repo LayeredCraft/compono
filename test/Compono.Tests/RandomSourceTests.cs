@@ -45,19 +45,18 @@ public sealed class RandomSourceTests
     }
 
     [Fact]
-    public void NextUInt64_DoesNotAffectSiblingForkState_RegardlessOfHowManyValuesAreDrawn()
+    public void NextUInt64_DoesNotAffectThisNodesOwnFutureForks_RegardlessOfHowManyValuesAreDrawn()
     {
-        var parent = RandomSource.FromSeed(new CompositionSeed(4219));
-        var sibling = parent.Fork(new PathSegment.ConstructorParameter(1, "sibling"));
-        var expectedSiblingValue = sibling.NextUInt64();
+        var nodeA = RandomSource.FromSeed(new CompositionSeed(4219)).Fork(new PathSegment.ConstructorParameter(0, "node"));
+        var childOfA = nodeA.Fork(new PathSegment.ConstructorParameter(0, "child"));
+        var expectedChildValue = childOfA.NextUInt64();
 
-        var parentAgain = RandomSource.FromSeed(new CompositionSeed(4219));
-        var thisNode = parentAgain.Fork(new PathSegment.ConstructorParameter(0, "thisNode"));
-        thisNode.NextUInt64();
-        thisNode.NextUInt64();
-        thisNode.NextUInt64();
-        var siblingAgain = parentAgain.Fork(new PathSegment.ConstructorParameter(1, "sibling"));
+        var nodeB = RandomSource.FromSeed(new CompositionSeed(4219)).Fork(new PathSegment.ConstructorParameter(0, "node"));
+        nodeB.NextUInt64();
+        nodeB.NextUInt64();
+        nodeB.NextUInt64();
+        var childOfB = nodeB.Fork(new PathSegment.ConstructorParameter(0, "child"));
 
-        siblingAgain.NextUInt64().Should().Be(expectedSiblingValue);
+        childOfB.NextUInt64().Should().Be(expectedChildValue);
     }
 }
