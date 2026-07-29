@@ -1,6 +1,6 @@
 # [PLAN-0002] Milestone 2: Core Composition Engine
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0010](../adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)
 (composition request/descriptor, synchronous provider pipeline, failure
@@ -1201,7 +1201,7 @@ ADR-0014. The task list below reflects the corrected shape.
   and confirming an invalid first value doesn't poison the scope for a
   subsequent shared request.
 
-### Phase 4 — `CreateMany<T>()` and diagnostics polish (In Progress)
+### Phase 4 — `CreateMany<T>()` and diagnostics polish (Done, PR #13 merged)
 
 - [x] `Composer.CreateMany<T>(int count)` — `count` independent root
       composition operations (Execution Flow section, above), each
