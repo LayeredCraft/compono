@@ -1,0 +1,30 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (9,36)-(9,80),
+      Message: 'TestNamespace.Container.PrivateEnum' cannot be an element or key type of a generated collection plan for 'System.Collections.Generic.List<TestNamespace.Container.PrivateEnum>' - every generated collection plan is emitted as a top-level type outside any containing type, so a private or protected element/key type can never be referenced from it, even from a call site that could otherwise see it. Use a collection of an accessible type, or widen 'TestNamespace.Container.PrivateEnum''s accessibility.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0012,
+        Title: Collection element or key type is not accessible,
+        MessageFormat: '{0}' cannot be an element or key type of a generated collection plan for '{1}' - every generated collection plan is emitted as a top-level type outside any containing type, so a private or protected element/key type can never be referenced from it, even from a call site that could otherwise see it. Use a collection of an accessible type, or widen '{0}''s accessibility.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: Program.cs: (15,36)-(15,80),
+      Message: 'TestNamespace.Container.PrivateEnum' cannot be an element or key type of a generated collection plan for 'System.Collections.Generic.List<TestNamespace.Container.PrivateEnum>' - every generated collection plan is emitted as a top-level type outside any containing type, so a private or protected element/key type can never be referenced from it, even from a call site that could otherwise see it. Use a collection of an accessible type, or widen 'TestNamespace.Container.PrivateEnum''s accessibility.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0012,
+        Title: Collection element or key type is not accessible,
+        MessageFormat: '{0}' cannot be an element or key type of a generated collection plan for '{1}' - every generated collection plan is emitted as a top-level type outside any containing type, so a private or protected element/key type can never be referenced from it, even from a call site that could otherwise see it. Use a collection of an accessible type, or widen '{0}''s accessibility.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

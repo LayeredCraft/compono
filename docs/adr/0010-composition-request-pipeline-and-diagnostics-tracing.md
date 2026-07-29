@@ -624,3 +624,12 @@ value, on runtimes where JIT is available at all.
 - [ADR-0013](0013-collection-generation-semantics.md) — built-in
   collection providers occupying stage 7, and how they interact with
   `Failure` semantics and path identity.
+- [ADR-0014](0014-generator-emitted-collection-plans.md) — retracts and
+  replaces Amendment 2's collection-dispatch-bridge sub-decision
+  (`MakeGenericMethod`/`CreateDelegate`) with generator-emitted collection
+  plans dispatched through `CollectionPlanCache<T>`/`UniqueValueResolver`;
+  this ADR's other decisions (the pipeline model, the descriptor shape,
+  diagnostics tracing, visibility) are unaffected and remain in force.
+  Per the "an accepted ADR is a historical record" rule, that retraction
+  is recorded only here in ADR-0014's own Context, not by editing
+  Amendment 2's text above.

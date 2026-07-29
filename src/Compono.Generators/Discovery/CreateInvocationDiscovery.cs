@@ -25,7 +25,7 @@ internal static class CreateInvocationDiscovery
                      or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create", TypeArgumentList.Arguments.Count: 1 } },
         };
 
-    public static EquatableArray<DiscoveredTypeInfo>? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+    public static TransitiveClosureResult? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 

@@ -440,7 +440,7 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task ArrayTypeArgument_ReportsDiagnostic() =>
+    public Task MultiDimensionalArrayTypeArgument_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions
             {
@@ -457,10 +457,37 @@ public sealed class CompositionPlanVerifyTests
                         public static void Run()
                         {
                             var composer = Compono.Composer.Create();
-                            // Array types have no constructors for ConstructorSelector to select -
-                            // discovery must diagnose this itself instead of silently generating
-                            // nothing and failing only at runtime.
-                            var customers = composer.Create<Customer[]>();
+                            // A rank-1 array root (Customer[]) is a supported collection shape (see
+                            // ArrayRootType_GeneratesCollectionPlan) - only rank>1 arrays remain
+                            // genuinely unsupported (CollectionWellKnownTypes only classifies
+                            // IArrayTypeSymbol { Rank: 1 }), and still need diagnosing here instead of
+                            // silently generating nothing and failing only at runtime.
+                            var customers = composer.Create<Customer[,]>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0006",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task PointerElementArrayTypeArgument_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    public static class EntryPoint
+                    {
+                        public static unsafe void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // int*[] is legal C# (unlike List<int*>, which the C# compiler itself
+                            // rejects as a generic type argument) - CollectionWellKnownTypes must not
+                            // classify a pointer/function-pointer element array as a collection shape,
+                            // or a generated collection plan would try to emit context.Resolve<int*>(),
+                            // a compiler error in generated code rather than a Compono diagnostic.
+                            // Regression coverage for the PR #11 review finding.
+                            var value = composer.Create<int*[]>();
                         }
                     }
                     """,
@@ -798,6 +825,267 @@ public sealed class CompositionPlanVerifyTests
                 }
                 """,
         }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task DateOnlyAndTimeOnlyParameters_LeftAsResolveCallsNotRecursedInto() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Reservation
+                {
+                    public Reservation(System.DateOnly checkIn, System.TimeOnly checkInTime)
+                    {
+                        CheckIn = checkIn;
+                        CheckInTime = checkInTime;
+                    }
+
+                    public System.DateOnly CheckIn { get; }
+                    public System.TimeOnly CheckInTime { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // DateOnly/TimeOnly are recognized BCL value types (LeafTypeClassifier) -
+                        // left as bare context.Resolve<T>() calls, never run through constructor
+                        // selection (which would otherwise be ambiguous and wrongly fail this
+                        // compile - regression coverage for the PR #11 review finding).
+                        var reservation = composer.Create<TestNamespace.Reservation>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task PrimitiveRootType_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // int is provider-resolved - Composer.Create<int>() must generate no plan at
+                        // all (stage 7's built-in provider satisfies it directly at runtime), and must
+                        // not reach constructor selection - regression coverage for the PR #11 review
+                        // finding that the root type skipped this check entirely (either failing to
+                        // compile for types like Guid/string with multiple constructors, or silently
+                        // generating a dead plan that always produced default(T) for types like int).
+                        var value = composer.Create<int>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task EnumRootType_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var value = composer.Create<System.DayOfWeek>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableValueTypeRootType_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Nullable<T> (int?) is provider-resolved - Composer.Create<int?>() must
+                        // generate no plan and not reach constructor selection. Regression coverage
+                        // for a real bug caught during PR #11's required manual consuming-project
+                        // verification (a genuinely separate throwaway console project, not this test
+                        // harness): LeafTypeClassifier never had a Nullable<T> case at all, so any
+                        // nullable value type (root or member) reached ConstructorSelector, which sees
+                        // Nullable<T>'s two accessible constructors (the parameterless one and
+                        // Nullable(T value)) and reports CMP0001 ambiguous construction - a real defect
+                        // no generator snapshot test had ever exercised.
+                        var value = composer.Create<int?>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableValueTypeConstructorParameter_LeftAsResolveCallNotRecursedInto() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public enum Priority { Low, Medium, High }
+
+                public sealed class Order
+                {
+                    public Order(int? quantity, Priority? priority)
+                    {
+                        Quantity = quantity;
+                        Priority = priority;
+                    }
+
+                    public int? Quantity { get; }
+                    public Priority? Priority { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Regression coverage for the same PR #11 manual-verification finding as
+                        // NullableValueTypeRootType_GeneratesNoPlan, for the member case specifically
+                        // (a nullable primitive and a nullable enum, both as constructor parameters).
+                        var order = composer.Create<TestNamespace.Order>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableCustomStructRootType_ReportsDiagnostic_NotASilentRuntimeFailure() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public struct Money
+                    {
+                        public Money(decimal amount) { Amount = amount; }
+                        public decimal Amount { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // NullableValueProvider only composes a Nullable<T> whose underlying type
+                            // is a primitive/enum/recognized BCL value type - a custom struct's
+                            // Nullable<T> (Money?) used to be classified as a leaf regardless of the
+                            // underlying type, so this compiled with zero diagnostics and always threw
+                            // at runtime ("no registration, provider, or generated plan could satisfy
+                            // the request"), confirmed directly before fixing. Now it falls through to
+                            // ordinary composable-type handling like any other concrete type;
+                            // Nullable<T> has two accessible constructors to Roslyn's symbol model (the
+                            // implicit parameterless one and `Nullable(T value)`), so this correctly
+                            // reports the same CMP0001 ambiguous-construction diagnostic any other
+                            // multi-constructor type gets, at compile time, naming the actual call site.
+                            var value = composer.Create<Money?>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableCustomStructConstructorParameter_ReportsDiagnostic_NotASilentRuntimeFailure() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public struct Money
+                    {
+                        public Money(decimal amount) { Amount = amount; }
+                        public decimal Amount { get; }
+                    }
+
+                    public sealed class Order
+                    {
+                        public Order(Money? total) { Total = total; }
+                        public Money? Total { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Same gap as NullableCustomStructRootType_ReportsDiagnostic, for the
+                            // member case: unlike a member of an ordinary provider-resolved type (left
+                            // silently as a bare Resolve<T>() call for a possible future
+                            // registration/provider to claim), a member of type Money? could never be
+                            // satisfied by anything - NullableValueProvider always declines it, and no
+                            // generated plan is ever produced for Nullable<Money> unless it's recursed
+                            // into like this fix now does.
+                            var order = composer.Create<TestNamespace.Order>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task BclValueTypeRootWithMultipleConstructors_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Guid has 8 accessible constructors - before the PR #11 fix, this reached
+                        // constructor selection and failed to compile with CMP0001 (ambiguous
+                        // construction), even though Guid is a recognized BCL value type with a
+                        // built-in runtime provider.
+                        var value = composer.Create<System.Guid>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task AbstractRootType_StillReportsDiagnostic_AfterRootProviderCheck() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public abstract class Customer
+                    {
+                        public Customer(string firstName) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Regression guard for the PR #11 root-type fix: an abstract root has no
+                            // runtime provider either (LeafTypeClassifier.IsRuntimeProviderResolved is
+                            // narrower than IsProviderResolved specifically to keep this case reaching
+                            // constructor selection), so it must still get CMP0003 at compile time
+                            // rather than silently compiling into a call that can only fail at runtime.
+                            var customer = composer.Create<TestNamespace.Customer>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0003",
+            TestContext.Current.CancellationToken);
 
     [Fact]
     public Task NestedTypeFailsConstructorSelection_ReportsDiagnosticAtOriginalCallSite() =>

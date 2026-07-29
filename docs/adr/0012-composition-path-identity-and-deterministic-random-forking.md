@@ -403,3 +403,15 @@ it from three separate places.
   frame stack used for recursion detection.
 - [ADR-0013](0013-collection-generation-semantics.md) — the producer of
   `CollectionElement`/`DictionaryKey`/`DictionaryValue` segments.
+- [ADR-0014](0014-generator-emitted-collection-plans.md) — corrects this
+  ADR's Decision Outcome statement that
+  "`CollectionElement`/`DictionaryKey`/`DictionaryValue` segments are
+  never generator-supplied": collections are now built by generator-
+  emitted plans that construct these segments via
+  `CompositionRequestDescriptor`/`CompositionRequestKind`, the same
+  mechanism `ConstructorParameter`/`RequiredMember` already use.
+  `PathSegment` itself, its `Ordinal`/`Index`-based identity, and the
+  fork-key hashing this ADR specifies are all unchanged. Per the "an
+  accepted ADR is a historical record" rule, that correction is recorded
+  only in ADR-0014, not by editing this ADR's Decision Outcome text
+  above.

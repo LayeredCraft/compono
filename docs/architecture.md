@@ -99,7 +99,8 @@ there are two distinct shapes:
   public readonly struct CompositionRequestDescriptor
   {
       public CompositionRequestDescriptor(
-          CompositionRequestKind kind,   // ConstructorParameter | RequiredMember
+          CompositionRequestKind kind,   // ConstructorParameter | RequiredMember |
+                                          // CollectionElement | DictionaryKey | DictionaryValue
           int ordinal,                    // stable identity - see Deterministic Randomness, below
           string name,                    // diagnostic display only, never identity
           Nullability nullability);
@@ -157,7 +158,7 @@ not every stage is the same *kind* of thing:
 | 4 | Profile rules | Ordered `ICompositionProvider` collection — empty until Milestone 3 |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus) |
 | 6 | Test-double providers | Ordered `ICompositionProvider` collection — empty until Milestone 5 (NSubstitute) |
-| 7 | Built-in value providers | Ordered `ICompositionProvider` collection, populated internally by `Compono` itself |
+| 7 | Built-in value providers | **Hybrid** (ADR-0014): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
 | 9 | Diagnostic failure | Context-owned terminal stage |
 
@@ -166,7 +167,11 @@ Milestone 2 (and of those, only 7 has anything registered in it — 4/5/6
 are wired but empty until their owning milestone). Provider order
 *within* an extensible stage is registration order; no richer ordering
 rule exists yet because no stage has more than one competing provider to
-order.
+order. Stage 7's `CollectionPlanCache<T>` dispatch is tried only after
+its ordered provider collection has already declined, so a registration,
+profile rule, semantic provider, or test-double provider (stages 1–6)
+still gets first refusal over a collection request — collections stay
+ordinary pipeline requests, per ADR-0013.
 
 ## Providers
 
@@ -619,10 +624,13 @@ Owns:
   resolved by
   [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md):
   `CompositionRequest`, `ICompositionProvider`, `CompositionResult`, and
-  `IRandomSource` are `internal` in Milestone 2; only
-  `CompositionRequestDescriptor` and `ICompositionContext` are `public`,
-  since they're the two types generated code actually crosses the
-  assembly boundary to use.
+  `IRandomSource` are `internal` in Milestone 2; `CompositionRequestDescriptor`,
+  `CompositionRequestKind`, and `ICompositionContext` are `public`, since
+  they're the generated-code call surface every plan crosses the assembly
+  boundary to use. [ADR-0014](adr/0014-generator-emitted-collection-plans.md)
+  extends that same surface for generated collection plans specifically:
+  `CollectionPlanCache<T>` and `UniqueValueResolver` are also `public` for
+  the identical reason, not a discretionary API design choice.
 - Public versus internal use of `Type`
 - Exact profile model
 - ~~Scope lifetime model~~ — resolved for Milestone 2 by
@@ -654,3 +662,53 @@ Owns:
 - ~~Whether source-generation contracts live in `Compono` or
   `Compono.Generators`~~ — resolved by
   [ADR-0003](adr/0003-generator-package-distribution.md).
+- **Cross-assembly plan-cache collision** — `PlanCache<T>` (ADR-0004) and
+  `CollectionPlanCache<T>` (ADR-0014) both register via
+  an unconditional `Instance = new ...Plan()` in a generated module
+  initializer; if two different consuming assemblies loaded into the same
+  process both discover a generated plan for the exact same closed type
+  (most plausible for `CollectionPlanCache<T>`, since a BCL collection
+  type like `List<Address>` is exactly the kind of type two independently
+  compiled assemblies could both legitimately reach if they share a
+  library type), whichever assembly's module initializer runs last wins
+  silently — module initializer order across assemblies isn't something
+  either `PlanCache<T>` or `CollectionPlanCache<T>` controls or detects.
+  Flagged during PR #11 review as a `CollectionPlanCache<T>` concern, but
+  it's actually a `PlanCache<T>`-level property unchanged since Milestone
+  1 (ADR-0004) that `CollectionPlanCache<T>` deliberately mirrors, not a
+  new defect Milestone 2 introduced — deferred as a class-of-problem
+  design question (assembly-qualified keys? last-wins-with-a-diagnostic?
+  something else?) affecting both caches uniformly, not patched narrowly
+  into just the newer one. Revisit if/when a real multi-assembly
+  collision is actually hit — no design has been chosen yet.
+- **`CollectionPlanCache<T>` rooting a collectible `AssemblyLoadContext`**
+  — flagged during PR #11 review. For an ordinary composable type
+  (`PlanCache<Customer>`), if `Customer` is defined in a collectible ALC,
+  the CLR ties the closed generic instantiation `PlanCache<Customer>`
+  itself to that same collectible context (a closed generic's home
+  context is the narrowest context spanned by its generic definition and
+  all of its type arguments), so the static field disappears when the ALC
+  unloads — no external root survives it. `CollectionPlanCache<T>` breaks
+  this for a collection whose type arguments are *entirely* BCL types
+  (`List<int>`, `Dictionary<System.Guid, string>`): every type composing
+  that closed `T` lives in the non-collectible default context, so
+  `CollectionPlanCache<List<int>>`'s instantiation also lives there — but
+  its generated `[ModuleInitializer]`, running from the collectible
+  consumer assembly, still stores an instance of a plan class *defined in
+  that consumer assembly* into it. The default-context static field then
+  permanently roots the consumer assembly (and its whole ALC), the same
+  leak class the `EnumValueProvider` cache fix (`ConditionalWeakTable<Type,
+  Array>` in place of `ConcurrentDictionary<Type, Array>`) closed
+  elsewhere. That fix doesn't transfer here: `CollectionPlanCache<T>.Instance`
+  is a plain closed-generic static field precisely so stage 7 dispatch is
+  one direct field read (ADR-0004's zero-overhead dispatch), not a
+  `Type`-keyed lookup; any weak-reference indirection able to key off the
+  consumer assembly/ALC instead of `T` would reintroduce a per-resolve
+  lookup on every collection, undoing the reason `CollectionPlanCache<T>`
+  mirrors `PlanCache<T>`'s shape in the first place. Deferred, consistent
+  with the cross-assembly-collision item above: this only manifests for a
+  collectible `AssemblyLoadContext` unloading a consumer assembly that
+  composes a BCL-only-typed collection, which neither `docs/mvp.md`'s
+  scope nor Compono's primary xUnit-test-runner consumer currently
+  exercises. Revisit alongside the collision item if collectible-ALC
+  hosting becomes an actual target — no design has been chosen yet.

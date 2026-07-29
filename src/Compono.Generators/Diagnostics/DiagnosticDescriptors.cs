@@ -92,4 +92,28 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConflictingCollectionMetadata = new(
+        "CMP0011",
+        "Conflicting collection metadata across discoveries",
+        "'{0}' was discovered multiple times with different element/key nullability (for example, " +
+        "a List<string> member and a List<string?> member reaching the same closed collection type " +
+        "in the same compilation) - Compono generates exactly one collection plan per closed type " +
+        "and can't guarantee it correctly reflects every discovery. Request this collection type " +
+        "with consistent element/key nullability everywhere it's composed.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InaccessibleCollectionElementType = new(
+        "CMP0012",
+        "Collection element or key type is not accessible",
+        "'{0}' cannot be an element or key type of a generated collection plan for '{1}' - every " +
+        "generated collection plan is emitted as a top-level type outside any containing type, so a " +
+        "private or protected element/key type can never be referenced from it, even from a call " +
+        "site that could otherwise see it. Use a collection of an accessible type, or widen '{0}''s " +
+        "accessibility.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

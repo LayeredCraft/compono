@@ -10,11 +10,15 @@ semantics, diagnostics tracing),
 [ADR-0012](../adr/0012-composition-path-identity-and-deterministic-random-forking.md)
 (path identity, deterministic random forking, `CreateMany` seed
 derivation), [ADR-0013](../adr/0013-collection-generation-semantics.md)
-(collection generation semantics)
+(collection generation semantics),
+[ADR-0014](../adr/0014-generator-emitted-collection-plans.md)
+(reflection-free collection dispatch via generator-emitted plans)
 
-These four ADRs supersede the plan's original ADR-0007/0008/0009 basis
+These five ADRs supersede the plan's original ADR-0007/0008/0009 basis
 after a deep design review of this plan's first draft — see each ADR's
-Links section for the supersession chain.
+Links section for the supersession chain. ADR-0014 was added mid-Phase-2
+(PR #11 review) to hold the collection-dispatch redesign originally
+recorded as ADR-0010's Amendment 3.
 
 ## Goal
 
@@ -473,62 +477,646 @@ test directly, not an incidental property of the implementation.
   capturing `ICompositionPlan<T>` test double
   (`CompositionRandomIntegrationTests`).
 
-### Phase 2 — Built-in value providers and collections (Not Started)
+### Phase 2 — Built-in value providers and collections (In Progress)
 
 Every provider here is written directly against Phase 1's real
 `IRandomSource` — there is no ad hoc/temporary randomness at any point in
 this plan.
 
-- [ ] Primitive/simple-type providers (`string`, `bool`, integral types,
+**Corrected mid-phase, before implementation started, per
+[ADR-0010](../adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+Amendment 3:** the originally-scoped reflection-based collection-dispatch
+bridge (`MakeGenericMethod` + `CreateDelegate`) is **removed** — it
+violated [ADR-0001](../adr/0001-source-generation-first.md)'s
+no-reflection-by-default rule, caught before any code was written against
+it. Collections are now built by `Compono.Generators`-emitted, strongly
+typed collection plans (no runtime reflection anywhere in this phase), per
+ADR-0014. The task list below reflects the corrected shape.
+
+- [x] Primitive/simple-type providers (`string`, `bool`, integral types,
       floating-point types, `decimal`, `Guid`, `DateTime`,
-      `DateTimeOffset`, `DateOnly`, `TimeOnly`, `TimeSpan`)
-- [ ] Enum provider (random valid enum member, via `IRandomSource`)
-- [ ] Nullable value type provider (composes the underlying type;
-      nullable-generation *default* beyond that is a still-open
-      `docs/mvp.md` item this phase doesn't resolve — see ADR-0013)
-- [ ] Cached generic-dispatch bridge (`internal`,
-      [ADR-0010](../adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-      second amendment): one explicitly-typed delegate per collection
-      shape (`ListFactory`, `ArrayFactory`, `HashSetFactory`,
-      `DictionaryFactory`), each with its own dedicated
-      `ConcurrentDictionary<Type, TDelegate>` cache — not a single
-      `ConcurrentDictionary<Type, Delegate>` requiring an untyped cast at
-      the call site. Populated once per distinct closed collection type
-      via `MethodInfo.MakeGenericMethod` + `CreateDelegate` (not
-      `Expression.Compile`, not `Activator.CreateInstance`, not
-      `MethodInfo.Invoke` per value) — every built-in collection provider
-      below dispatches element/key/value resolution through this bridge.
-      **Native AOT/trimming position, stated explicitly:** this is
-      reflection-based and not AOT-safe in general; accepted because
-      `docs/mvp.md`'s MVP Non-goals already excludes Native AOT
-      certification — if that changes post-MVP, this is the identified
-      place to move to generator-emitted registration instead (ADR-0010's
-      amendment)
-- [ ] Collection providers (`Array`, `List<T>`, `IReadOnlyList<T>`,
-      `HashSet<T>`, `Dictionary<TKey, TValue>`) per ADR-0013: default size
-      3; each element/key/value gets its own `CollectionElement`/
-      `DictionaryKey`/`DictionaryValue` path segment and its own
-      `Resolve<T>()` call through the full pipeline (still an ordinary
-      pipeline request — a registration can still override a specific
-      collection type); duplicate values retry (fork-derived by retry
-      attempt, bounded) then fail with a diagnostic naming the element/key
-      type — this uniqueness rule applies to **both** `Dictionary<TKey, ...>`
-      keys and `HashSet<T>` elements via one shared internal retry helper
-      (ADR-0013's amendment); unsupported collection shapes return
-      `NotHandled` like any other unhandled type; no ordering guarantee
+      `DateTimeOffset`, `DateOnly`, `TimeOnly`, `TimeSpan`) — ordinary
+      `ICompositionProvider`s in stage 7's provider collection, unchanged
+      from the plan's original shape
+- [x] Enum provider (random valid enum member, via `IRandomSource`) —
+      ordinary stage-7 provider, unchanged
+- [x] Nullable value type provider (composes the underlying type when
+      it's a primitive/enum/recognized BCL value type; nullable-generation
+      *default* beyond that is a still-open `docs/mvp.md` item this phase
+      doesn't resolve — see ADR-0013) — ordinary stage-7 provider,
+      unchanged. `Nullable<T>` over any other (composable, custom-struct)
+      `T` is not a stage-7 provider case at all — round 13 fixed
+      `LeafTypeClassifier` to fall through to ordinary composable-type
+      handling for that `T` instead of silently treating every
+      `Nullable<T>` as resolved regardless of the underlying type; see the
+      round 13 note below.
+- [x] `CompositionRequestKind` gains `CollectionElement`/`DictionaryKey`/
+      `DictionaryValue`; `CompositionContext.Resolve<TValue>`'s
+      descriptor-to-segment switch extends to cover them (`Ordinal` maps
+      to the segment's `Index`, `Name` unused) — ADR-0010 Amendment 3
+- [x] `CollectionPlanCache<T>` (`public`, mirrors `PlanCache<T>` exactly —
+      ADR-0004's zero-overhead closed-generic-field dispatch shape) and
+      the `CompositionContext.ResolveCore<TValue>` direct field-read check
+      for it, positioned at stage 7 immediately after the ordinary
+      built-in provider collection declines and before stage 8's
+      `PlanCache<TValue>` check
+- [x] `UniqueValueResolver` (`public`, generic, reflection-free): the
+      bounded duplicate-value retry helper (ADR-0013) generated
+      `HashSet<T>`/`Dictionary<TKey, ...>` collection plans call once per
+      element/key position; fork-derived deterministic retry indices
+      (attempt 0 = the position unchanged; each retry attempt forks from a
+      disjoint, deterministic index), bounded `MaxAttempts`, exhaustion
+      reported by the generated plan throwing `CompositionException`
+      naming the element/key type and requested count
+- [x] `Compono.Generators`: `TransitiveClosureWalker` extended to
+      recognize the five ADR-0013 shapes (`T[]`, `List<T>`,
+      `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`)
+      wherever they appear in the walked graph, including nested inside
+      another collection; a recognized shape is not walked as an ordinary
+      composable type — its element/key type(s) feed back into the same
+      eligibility walk instead
+- [x] `Compono.Generators`: a new collection-plan emitter + template
+      emitting one `file`-scoped `ICompositionPlan<TCollection>` per
+      distinct closed collection type reached, each registering itself
+      into `CollectionPlanCache<TCollection>.Instance` via a module
+      initializer (same registration shape as an ordinary composition
+      plan) — default size 3 (ADR-0013), each element/key/value its own
+      `Resolve<T>()` call via a `CollectionElement`/`DictionaryKey`/
+      `DictionaryValue` descriptor; `HashSet<T>`/`Dictionary<TKey, ...>`
+      plans call `UniqueValueResolver.TryResolve<TValue>` per
+      element/key; unsupported collection shapes are never classified as
+      collections in the first place, so they fall through to ordinary
+      composable-type handling (and, having no usable constructor, to
+      that path's existing diagnostics) exactly like any other unhandled
+      shape — no distinct "unsupported collection" error path, per
+      ADR-0013's unchanged Decision Outcome; no ordering guarantee
       documented or tested for `HashSet<T>`/`Dictionary<TKey, TValue>`
-- [ ] Unit tests per provider type, plus: a test confirming built-in
-      providers only apply at stage 7 (after registrations/profile/
-      semantic/test-double would have had first refusal); a duplicate-value
-      retry-exhaustion test for both a low-cardinality `Dictionary<TKey, ...>`
-      key type and a low-cardinality `HashSet<T>` element type; a
-      collection-index **path-construction** test (e.g. `List<Address>`
-      with 3 elements) asserting each element gets its own distinct
-      `CollectionElement(i)` segment and correspondingly independent
-      output — using a non-recursive element type, since the recursion
-      detector this uniqueness/path machinery would otherwise be tangled
-      with doesn't exist until Phase 3 (the actual cycle test moved there
-      — see Phase 3, below)
+- [x] Unit tests per provider type (`PrimitiveValueProviderTests`,
+      `EnumValueProviderTests`, `NullableValueProviderTests`), plus a test
+      confirming `CollectionPlanCache` dispatch only applies after the
+      built-in provider collection and registration/profile/semantic/
+      test-double stages have declined, and after it wins over stage 8's
+      `PlanCache<TValue>` (`CollectionPlanCacheDispatchTests`); a
+      duplicate-value retry/retry-exhaustion test at the
+      `UniqueValueResolver` level, covering both a successful retry and
+      full exhaustion (`UniqueValueResolverTests`)
+- [x] A duplicate-value retry-exhaustion test through an actual generated
+      `HashSet<T>`/`Dictionary<TKey, ...>` plan against a genuinely
+      low-cardinality element/key type, and a collection-index
+      **path-construction** test (e.g. `List<Address>` with 3 elements)
+      asserting each element's independent output at the runtime level —
+      closed via `GeneratorTestHelpers.CompileAndExecute` (compiles source
+      plus real generated output to an in-memory assembly, loads it, and
+      invokes it by reflection) and
+      `GeneratedCollectionPlanExecutionTests`'s
+      `HashSetRetryExhaustion_ThrowsCompositionException_ThroughARealDispatchedPlan`
+      and `ListElements_EachGetsIndependentOutput_ThroughARealDispatchedPlan`;
+      `UniqueValueResolverTests` covers the retry/exhaustion *algorithm*
+      directly (with a stub context), and the tag-collision/
+      structural-independence guarantee `CollectionElement(i)` relies on
+      is already covered by Phase 1's `RandomSourceTests`/
+      `CompositionRandomIntegrationTests` — this item added the remaining
+      end-to-end runtime assertion through a real dispatched collection
+      plan
+- [x] `Compono.Generators.Tests`: snapshot coverage for at least one
+      generated plan per collection shape (array, `List<T>`,
+      `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), plus
+      a nested-collection case (`List<List<int>>`) proving the walker
+      recurses into a collection's element type correctly
+      (`CollectionPlanVerifyTests`)
+
+**Notes on what actually happened, versus what was scoped:**
+
+- `Compono.Generators`'s discovery pipeline (`CreateInvocationDiscovery`,
+  `ComposableAttributeDiscovery`, `ComposedTypeAnalyzer`,
+  `TransitiveClosureWalker`) changed its return shape from
+  `EquatableArray<DiscoveredTypeInfo>` to a new `TransitiveClosureResult`
+  (`Types` + `Collections`) throughout, not just at the walker — every
+  discovery entry point needed to carry collections alongside types for
+  `ComponoIncrementalGenerator` to collect/dedupe/emit both. Not called
+  out explicitly in the corrected task list above, but a direct
+  consequence of "the walker discovers collections too."
+- Collection-shape recognition (`CollectionWellKnownTypes`) is a distinct
+  type from `WellKnownTypes`, not an extension of its enum table — that
+  type's debug self-check (`AssertEnumAndTableInSync`) assumes a metadata
+  name derivable from the enum member's own name via a simple
+  underscore-to-dot transform, which doesn't produce the generic-arity
+  backtick suffix (`` `1 ``/`` `2 ``) closed BCL generic types need.
+  Adding generic-shape entries there would have required changing that
+  self-check's transform; a small dedicated cache sidesteps it entirely.
+- A real C# parser quirk, not caught until actually compiling generated
+  output: `global::Some.Member` is **not** parsed as a qualified-alias
+  member when it's the first token inside a string-interpolation hole
+  (`$"...{global::Foo.Bar}..."` fails `CS0103`, "the name 'global' does
+  not exist in the current context") — confirmed with a minimal repro
+  outside this repo. Fixed by parenthesizing (`{(global::Foo.Bar)}`) in
+  `CollectionPlan.scriban`'s two retry-exhaustion diagnostic messages,
+  the only places a `global::`-qualified reference appears as the first
+  token of an interpolation hole in generated code.
+- `UniqueValueResolver`'s retry-index encoding (`RetryIndex`) uses a
+  negative index for every retry attempt (`attempt >= 1`), disjoint by
+  construction from any position's non-negative base index — simpler than
+  an arithmetic scheme that could theoretically coincide with another
+  position's own index, and avoids a false "this looks like position N's
+  own value" reading in a fork-key trace.
+- Collection dispatch is a hybrid within stage 7, not a third `Provider`
+  collection: `CompositionContext.ResolveCore<TValue>` tries the ordinary
+  `_builtInProviders` list first (primitives/enum/nullable, unchanged),
+  then reads `CollectionPlanCache<TValue>.Instance` directly — the same
+  reasoning ADR-0010 already used to keep stage 8's `PlanCache<T>` off
+  the `ICompositionProvider` interface applies identically here.
+- The same-closed-collection-type-discovered-twice-with-different-
+  nullability case (the collection-shape analogue of `CMP0010`'s
+  conflicting-composition-metadata check for ordinary types) was initially
+  shipped as first-discovered-wins with no diagnostic, flagged during PR
+  #11 review, and fixed in the same PR: `DiscoveredCollectionInfo` gained
+  a `Diagnostics` field, and `ComponoIncrementalGenerator`'s collection
+  dedupe now detects a genuine disagreement within a `FullyQualifiedCollectionTypeName`
+  group and reports **CMP0011** (mirroring `CMP0010`'s synthetic-conflict-entry
+  shape exactly) instead of picking one discovery arbitrarily — see
+  `CollectionPlanVerifyTests.SameClosedListReachedWithDifferentElementNullability_ReportsConflictDiagnostic`.
+- Two more PR #11 review findings, both fixed in the same PR: (1)
+  `LeafTypeClassifier` never gained `DateOnly`/`TimeOnly` — those two
+  types are new in Phase 2's built-in type list, but the generator's
+  provider-resolved classification (Milestone 1 code) wasn't updated
+  alongside `PrimitiveValueProvider`, so a composed type with a
+  `DateOnly`/`TimeOnly` member failed constructor selection instead of
+  reaching the new provider. Fixed by adding both to `WellKnownTypeData`/
+  `LeafTypeClassifier.IsRecognizedBclValueType`. (2)
+  `LeafTypeClassifier.IsBuiltInSimpleType` already classified
+  `char`/`nint`/`nuint` as provider-resolved (Milestone 1), but
+  `PrimitiveValueProvider`'s factory table never covered them, so a
+  generated plan referencing any of the three compiled fine and then
+  always failed at runtime with `CompositionException`. Fixed by adding
+  factories for all three.
+- A second round of PR #11 review caught two more real gaps, both fixed
+  in the same PR: (1) **root-type discovery never applied
+  `LeafTypeClassifier`/collection classification to the requested type
+  itself** — only nested members got that check. `Composer.Create<Guid>()`,
+  `Composer.Create<string>()`, and `Composer.Create<List<int>>()` all
+  failed to *compile* (`CMP0001`, ambiguous constructor); `Composer.Create<int>()`/
+  `Composer.Create<DayOfWeek>()` compiled but silently generated a dead
+  `PlanCache<T>` entry that always produced `default(T)` (harmless only
+  because stage 7's built-in provider always won first, but confusing
+  generated output). Fixed by routing the root through the same
+  classify-first logic as any member (`TransitiveClosureWalker.EnqueueRoot`),
+  with one refinement beyond the review's own suggested fix: a root that's
+  abstract or a delegate has no runtime provider either, so it must still
+  reach constructor selection for its existing `CMP0003` diagnostic — a
+  first pass that reused `LeafTypeClassifier.IsProviderResolved` verbatim
+  for the root regressed three passing tests
+  (`AbstractType_ReportsDiagnostic`, `DelegateType_ReportsDiagnostic`,
+  `ComposableAttributeOnInterface_ReportsDiagnostic`) by silently skipping
+  them instead. Fixed with a narrower `LeafTypeClassifier.IsRuntimeProviderResolved`
+  (enums, built-in simple types, recognized BCL value types only) used
+  solely for the root check. (2) `EnumValueProvider` called
+  `Enum.GetValues(type)` — an allocating call — on every resolution;
+  cached per enum type via a `ConcurrentDictionary<Type, Array>` instead.
+- A third round of PR #11 review caught the same root-classification gap
+  had one more hole: **array roots** (`Composer.Create<Address[]>()`)
+  still failed to compile (`CMP0006`) — `ComposedTypeAnalyzer.Analyze`'s
+  own `requestedType is not INamedTypeSymbol` check runs *before*
+  `TransitiveClosureWalker.Walk` is ever called, rejecting an array root
+  regardless of `EnqueueRoot`'s fix, since `IArrayTypeSymbol` is never an
+  `INamedTypeSymbol`. Fixed by checking collection classification in
+  `ComposedTypeAnalyzer.Analyze` itself, before the named-type check, and
+  widening `TransitiveClosureWalker.Walk`/`EnqueueRoot`/`EnqueueMember`'s
+  `parentType` parameter from `INamedTypeSymbol` to `ITypeSymbol`
+  (defensively narrowed back at the one place — the composable-type
+  fallback — that actually needs an `INamedTypeSymbol` to enqueue).
+  `CompositionPlanVerifyTests.ArrayTypeArgument_ReportsDiagnostic` was
+  renamed to `MultiDimensionalArrayTypeArgument_ReportsDiagnostic` and
+  changed to a rank-2 array (`Customer[,]`, still genuinely unsupported —
+  `CollectionWellKnownTypes` only classifies rank-1 arrays) since its
+  original rank-1 array premise is now correct, supported behavior. Also
+  fixed in the same round: `docs/architecture.md`'s stage-7 table row
+  still described that stage as solely an ordered `ICompositionProvider`
+  collection, silently stale against ADR-0010's third amendment (the
+  `CollectionPlanCache<T>` hybrid dispatch) — updated to describe the
+  actual current shape.
+- A fourth round of PR #11 review found two more real gaps and one
+  pre-existing, out-of-scope property: (1) **`EnumValueProvider` used
+  `Enum.GetValues(Type)`** — the non-generic, `Type`-based overload,
+  which is annotated `[RequiresDynamicCode]` (confirmed directly via
+  reflection on the BCL method's attributes) and breaks under Native AOT
+  — a real violation of ADR-0001's no-reflection-by-default rule, the
+  same rule ADR-0010's third amendment retracted the reflection-based
+  collection bridge over. Fixed by switching to
+  `Enum.GetValuesAsUnderlyingType(Type)` + `Enum.ToObject(Type, object)`
+  (neither carries the annotation, confirmed the same way) — with one
+  subtlety caught before it shipped: a boxed *underlying-type* value
+  (e.g. boxed `int`) unboxes correctly to a non-nullable enum type but
+  throws `InvalidCastException` unboxing to `Nullable<TEnum>`
+  specifically, so the fix must box via `Enum.ToObject` (boxed as the
+  actual enum type), not hand back the underlying-type box directly —
+  `NullableValueProviderTests.ComposeNullableEnum_ComposesTheUnderlyingType_NeverNull`
+  (already existing) is the regression guard, and stayed green through
+  the fix since it was never actually broken, only would have been by a
+  more naive version of this fix. (2) **A pointer/function-pointer-element
+  rank-1 array root or member** (`composer.Create<int*[]>()`) reached
+  collection classification and a generated collection plan tried to
+  emit `context.Resolve<int*>()` — a compiler error in generated code
+  (pointer types can't be generic type arguments), confirmed directly.
+  `List<T>`/`HashSet<T>`/`Dictionary<TKey, TValue>` can't have this
+  problem (the C# compiler already rejects a pointer generic type
+  argument before this code ever runs), so this was array-specific.
+  Fixed in `CollectionWellKnownTypes.TryClassify`: a rank-1 array whose
+  element type is `IPointerTypeSymbol`/`IFunctionPointerTypeSymbol` is
+  left unclassified, falling through to the existing CMP0006 diagnostic
+  path like any other unsupported shape. (3) The review's third finding
+  — `CollectionPlanCache<T>`'s module initializer unconditionally
+  overwriting `Instance` across multiple consuming assemblies in one
+  process — was verified to be an unchanged property of `PlanCache<T>`
+  itself (Milestone 1, ADR-0004), not a defect Milestone 2 introduced;
+  `CollectionPlanCache<T>` deliberately mirrors `PlanCache<T>`'s exact
+  registration shape. Deferred as a class-of-problem design question
+  affecting both caches, not patched narrowly into just the new one —
+  see `docs/architecture.md`'s Open Architectural Decisions, new
+  "Cross-assembly plan-cache collision" entry.
+- A fifth round of PR #11 review found one more real gap (fixed) and
+  correctly flagged that this phase had never actually done the
+  **required real manual verification** for source-generator-facing
+  work (`AGENTS.md`'s Build and test section, `tasks/implement.md` step
+  7) — every check so far had been generator snapshot tests plus direct
+  `Compono.Tests`/`Compono.Generators.Tests` unit tests, never a real
+  `dotnet pack` into a throwaway consuming project, unlike every phase
+  of PLAN-0001 (Milestone 1). Doing that verification is what actually
+  caught the real gap:
+  - **`Nullable<T>` was never added to `LeafTypeClassifier`** — a real,
+    previously-undiscovered bug no generator snapshot test had ever
+    exercised (none used a nullable value type as a constructor
+    parameter, and the existing nullable coverage was all
+    `Composer.CreateRootForTesting<T>`-level runtime tests, which never
+    go through the generator at all). Any nullable value type, root or
+    member (`int?`, a nullable enum, etc.), reached
+    `ConstructorSelector`, which sees `Nullable<T>`'s two accessible
+    constructors (the parameterless one and `Nullable(T value)`) and
+    reports `CMP0001` ambiguous construction — caught immediately by the
+    real consuming-project verification (`Order`'s `Priority?`
+    constructor parameter failed to compile) before anything else did.
+    Fixed by adding a `Nullable<T>` case to both
+    `LeafTypeClassifier.IsProviderResolved` and
+    `IsRuntimeProviderResolved` (`named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T`),
+    covering `Nullable<T>` **regardless of what `T` is** — a custom
+    struct's `Nullable<T>` isn't runtime-satisfiable either, but
+    `NullableValueProvider` already attempts and cleanly declines any
+    unsupported `Nullable<T>` at runtime (reaching stage 9's diagnostic,
+    correctly naming the request), so there's no compile-time
+    distinction worth drawing between a supported and unsupported
+    `Nullable<T>` here, the same reasoning already applied to
+    `Enum`/built-in-simple/BCL-value-type roots. Added regression
+    coverage: `CompositionPlanVerifyTests.NullableValueTypeRootType_GeneratesNoPlan`,
+    `NullableValueTypeConstructorParameter_LeftAsResolveCallNotRecursedInto`.
+  - Also fixed in the same round: `EnumValueProvider`'s per-enum-type
+    cache used `ConcurrentDictionary<Type, Array>`, which strongly roots
+    every enum `Type` ever composed for the process lifetime — a real
+    concern for a long-lived host that loads/unloads consumer assemblies
+    via a collectible `AssemblyLoadContext`. Swapped for
+    `ConditionalWeakTable<Type, Array>`, whose keys don't root anything.
+  - **Real manual verification, done for the first time this phase**:
+    `dotnet pack`'d `Compono` into a local feed (clearing both the local
+    feed and `~/.nuget/packages/compono` first, per PLAN-0001's Phase 2
+    stale-cache lesson) and referenced it from a genuinely separate
+    throwaway console project. Composed a representative nested graph
+    (`Order` → `Address`, exercising every Phase 2 built-in: primitives,
+    an enum, a nullable enum, `DateOnly`, and all five collection shapes
+    including a nested `List<List<int>>`) plus four root-level
+    `Create<T>()` calls (`int`, `Guid`, `List<int>`, `string[]`).
+    Confirmed, in a real build/run rather than the test harness:
+    `PlanCache<Order>`/`PlanCache<Address>` and every
+    `CollectionPlanCache<T>` slot actually populated by generated module
+    initializers; every collection produced exactly 3 elements (the
+    ADR-0013 default size); the nullable enum was always set, never
+    null; and every composed value was plausible (defined enum members,
+    non-empty strings, in-range dates). All checks passed after the
+    `Nullable<T>` fix above (the run before the fix failed to compile,
+    confirming the bug was real and the fix's coverage). This satisfies
+    `tasks/implement.md` step 7 for this phase, retroactively — should
+    have been done alongside Phase 2's original implementation, not only
+    once review flagged its absence.
+- A sixth round of PR #11 review found one more real gap: **a
+  private/protected collection element or key type**
+  (`composer.Create<List<PrivateEnum>>()` called from inside
+  `PrivateEnum`'s own containing type) compiled fine at the call site
+  (private members are accessible within their own containing type) but
+  failed inside the *generated collection plan* with `CS0122` — every
+  generated collection plan is a top-level `file`-scoped type outside
+  any containing type, so it can never reference a private/protected
+  element/key type even when the original call site legitimately could.
+  Confirmed directly before fixing. Fixed by checking
+  `compilation.IsSymbolAccessibleWithin(elementType/keyType, compilation.Assembly)`
+  in `TransitiveClosureWalker.ToDiscoveredCollectionInfo` — the same
+  accessibility API `ConstructorSelector`/`RequiredMemberCollector`
+  already use for constructor/required-member accessibility — reporting
+  a new diagnostic, **CMP0012**, instead of letting an inaccessible type
+  reach emission. `compilation`/`location` had to be threaded through
+  `EnqueueRoot`/`EnqueueMember` to reach this check (previously only
+  `Walk`'s top-level scope had them). Added regression coverage:
+  `CollectionPlanVerifyTests.PrivateElementTypeInCollectionRoot_ReportsDiagnostic`.
+  Scope note: the identical accessibility gap plausibly exists for an
+  *ordinary* (non-collection) composable type's constructor-parameter
+  type too (any generated composition plan is equally a top-level type),
+  but constructing a legal, compiling repro for that case is
+  significantly more constrained by C#'s own accessibility-consistency
+  rules (CS0051/CS0053 already reject a public constructor exposing a
+  less-accessible parameter type) — not fixed here since it wasn't what
+  was flagged and a real repro wasn't confirmed; worth a follow-up look
+  if it's ever hit in practice.
+- A seventh round of PR #11 review found a real gap in round 6's own
+  fix: when the **same** inaccessible collection type was discovered
+  from **two different call sites**, each `DiscoveredCollectionInfo`
+  carried the identical CMP0012 diagnostic but at a different
+  `Location` — since `DiagnosticInfo.Equals` includes `Location`, the
+  two entries counted as "distinct" and the collections merge step
+  (added for CMP0011 in round 3) incorrectly synthesized a locationless
+  CMP0011 "conflicting nullability" diagnostic instead, erasing both
+  real, actionable CMP0012 failures. Confirmed directly before fixing
+  (a two-call-site repro produced exactly the wrong CMP0011). This is
+  the exact class of bug the *ordinary-type* merge already guarded
+  against (`failures = distinct.Where(t => t.Diagnostics.Count > 0)`,
+  present since round 3's original CMP0011 work modeled itself on it) —
+  the guard just hadn't been ported to the newer collections merge
+  branch when CMP0012 introduced the first real per-discovery
+  collection failure. Fixed by adding the identical
+  failures-preserved-before-conflict-detection branch to the
+  collections merge in `ComponoIncrementalGenerator`. Added regression
+  coverage: `CollectionPlanVerifyTests.SameInaccessibleCollectionFromTwoCallSites_ReportsCMP0012NotCMP0011`.
+- An eighth round of PR #11 review found one real gap (fixed) and one
+  legitimate process concern (also fixed, as a documentation
+  reorganization): (1) **no test compiled, loaded, and actually
+  executed a real generated collection plan** — every existing test
+  either snapshotted/compiled generated source without running it
+  (`CollectionPlanVerifyTests` et al.), or exercised the runtime
+  pipeline against a hand-written test double
+  (`UniqueValueResolverTests`, `CollectionPlanCacheDispatchTests` in
+  `Compono.Tests`), so module-initializer registration, template
+  output, and real fork-path integration regressions could all go
+  undetected. This was already an explicitly-acknowledged open item in
+  this plan (Phase 2's task list), not a newly-discovered gap, but
+  review correctly pressed for it to actually close in this PR rather
+  than stay deferred. Closed by adding
+  `GeneratorTestHelpers.CompileAndExecute` (compiles source + real
+  generated output to an in-memory assembly, loads it, and invokes a
+  method via reflection) and a new
+  `GeneratedCollectionPlanExecutionTests`: a `HashSet<bool>`
+  retry-exhaustion test (bool's 2-value cardinality makes this
+  deterministically fail regardless of randomness, exercising
+  `UniqueValueResolver`'s exhaustion path through a real dispatched
+  `HashSet<T>` plan) and a `List<Guid>` test asserting 3 genuinely
+  distinct elements through a real dispatched `List<T>` plan. Both
+  passed on the first run. (2) **ADR-0010's Amendment 3 (the
+  collection-dispatch-bridge retraction) should have been its own ADR**,
+  not appended in place to an already-`Accepted` ADR whose *other*
+  decisions had already shipped in merged PRs (#9, #10) — the
+  pre-implementation "amend in place" pattern ADR-0010's own Amendments
+  1/2 used was correct for those (nothing in the whole ADR had been
+  built yet), but no longer fit once real code existed against parts of
+  the ADR, even though the specific sub-decision being corrected (the
+  reflection bridge) had itself never been implemented either. Fixed by
+  extracting the full redesign into
+  [ADR-0014](../adr/0014-generator-emitted-collection-plans.md),
+  reducing ADR-0010's Amendment 3 to a short pointer, and updating every
+  cross-reference (ADR-0012, ADR-0013, `docs/architecture.md`, this
+  plan's `Implements:` line, and the handful of source-comment
+  references) that pointed at "ADR-0010's [third] amendment" to point at
+  ADR-0014 instead — except this plan's own historical round-3/round-4
+  narrative entries above, left as written since they're an accurate
+  record of what was true *at that point in time*, not a live
+  cross-reference.
+- A ninth round of PR #11 review found one more real gap, worse than
+  described: a `dynamic` collection element or key type
+  (`composer.Create<HashSet<dynamic>>()`,
+  `Dictionary<dynamic, int>`) doesn't just make the generated plan emit
+  an illegal `typeof(dynamic)` (`CS1962`) — the generated plan class
+  can't even **implement** `ICompositionPlan<HashSet<dynamic>>` at all
+  (`CS1966`, "cannot implement a dynamic interface"), confirmed
+  directly, so no template-body fix could have addressed this; the
+  element/key type has to be rejected at classification time, before a
+  collection plan is ever attempted. `dynamic` is a materially different
+  case from round 4's pointer-element-array fix: a pointer can *only*
+  ever appear as a rank-1 array element (never as a `List<T>`/
+  `HashSet<T>`/`Dictionary<TKey, TValue>` type argument — the C#
+  compiler already rejects `List<int*>` before Compono's code runs), but
+  `dynamic` is legal as a type argument for **all five** shapes. Fixed
+  in `CollectionWellKnownTypes.TryClassify`: refactored into a
+  `FindShape` helper returning the shape candidate, plus one shared
+  rejection check (`ElementType`/`KeyType.TypeKind` is
+  `Pointer`/`FunctionPointer`/`Dynamic`) applied uniformly across all
+  five shapes, rather than the array-only special case round 4 added.
+  Rejected candidates fall through to the ordinary composable-type walk
+  exactly like round 4's pointer-array fix — for `HashSet<dynamic>`/
+  `Dictionary<dynamic, int>` specifically, that walk reaches `CMP0001`
+  (ambiguous construction, since both types have multiple accessible
+  constructors), not `CMP0006` — still a real Compono diagnostic
+  instead of a compiler error inside generated code, which is what
+  actually matters here. Added regression coverage:
+  `CollectionPlanVerifyTests.DynamicHashSetElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`,
+  `DynamicDictionaryKey_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`.
+- A tenth round of PR #11 review found two items, both resolved without a
+  behavior-changing code fix. First, a checklist/status mismatch: this
+  plan's own "generated-plan execution coverage" item (above) was still
+  unchecked even though round 8's `GeneratedCollectionPlanExecutionTests`
+  had already closed it — checked off, with a pointer to the tests that
+  closed it. Second, a genuine but narrower-than-first-glance leak
+  concern in `CollectionPlanCache<T>`: when a collection's type arguments
+  are entirely BCL types (`List<int>`, `Dictionary<Guid, string>`), the
+  CLR homes that closed generic instantiation in the non-collectible
+  default context regardless of which assembly's module initializer
+  populates it, so a consuming assembly loaded into a collectible
+  `AssemblyLoadContext` gets permanently rooted by its own plan instance
+  - the same leak class the `EnumValueProvider` cache fix (round 5)
+  closed elsewhere, but not fixable the same way here, since
+  `CollectionPlanCache<T>.Instance` being a plain closed-generic static
+  field (rather than a `Type`-keyed lookup) is exactly what makes stage 7
+  dispatch a direct field read per ADR-0004 - any fix able to key off the
+  consuming assembly/ALC instead of `T` would reintroduce a per-resolve
+  lookup on every collection composition, undoing that. Verified the CLR
+  loader-context claim directly against how `PlanCache<T>` avoids the
+  same problem for ordinary composable types (a collectible type's own
+  closed instantiation stays tied to its own collectible context, so no
+  external root survives unload) before accepting the finding as real.
+  Deferred alongside the pre-existing `PlanCache<T>`/`CollectionPlanCache<T>`
+  cross-assembly-collision item (round 4) with the same reasoning:
+  neither `docs/mvp.md`'s scope nor Compono's primary xUnit-test-runner
+  consumer exercises collectible-ALC hosting today. Documented in
+  `docs/architecture.md`'s Open Architectural Decisions and in
+  `CollectionPlanCache<T>`'s own XML doc comment (which also had a stale
+  "ADR-0010's third amendment" reference from before the round-8
+  ADR-0014 extraction, fixed in the same pass).
+- An eleventh round of PR #11 review found one more real gap in round
+  9's `dynamic`-rejection fix: `CollectionWellKnownTypes.TryClassify`
+  only checked the *immediate* element/key type's `TypeKind`, so
+  `List<dynamic[]>` slipped through - `dynamic[]`'s own `TypeKind` is
+  `Array`, not `Dynamic`, even though its element is `dynamic`.
+  Confirmed directly before fixing: this reached the emitter and failed
+  with `CS1966` (`cannot implement a dynamic interface`) on the
+  **outer** `ICompositionPlan<List<dynamic[]>>` interface itself, not
+  just on a `Resolve<dynamic[]>()` call inside the plan body -
+  `dynamic` nested anywhere in an interface's constructed generic
+  arguments triggers `CS1966`, not just at the top level. Fixed by
+  replacing the shallow `TypeKind` check with a recursive
+  `ContainsUnsupportedTypeKind` helper that looks through both array
+  element types and generic type arguments for
+  `Dynamic`/`Pointer`/`FunctionPointer` at any depth (a pointer array
+  nested one level down, e.g. `List<int*[]>`, is equally legal C# and
+  has the same problem class as the array case, so the fix covers both
+  in one pass rather than patching `dynamic` alone). Rejected
+  candidates fall through to the same `CMP0001` path round 9's direct
+  `HashSet<dynamic>`/`Dictionary<dynamic, int>` fix already established.
+  Added regression coverage:
+  `CollectionPlanVerifyTests.DynamicArrayNestedInsideListElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
+  (the array-recursion case that reproduces the actual finding) and
+  `DynamicNestedInsideDictionaryValueTypeArgument_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
+  (the generic-type-argument-recursion case, `Dictionary<int,
+  List<dynamic>>`, proving the fix isn't array-specific).
+- A twelfth round of PR #11 review found one real issue and one
+  status question resolved as no-action. The real issue:
+  `GeneratedCollectionPlanExecutionTests.ListElements_EachGetsIndependentOutput_ThroughARealDispatchedPlan`
+  called `Composer.Create()` (a fresh, non-deterministic seed every
+  run), so a failure couldn't be reproduced from a bug report, and the
+  `OnlyHaveUniqueItems()` assertion carried a (astronomically small but
+  nonzero) theoretical dependence on GUID-space collision. Fixed by
+  switching the asserted call to `Composer.CreateRootForTesting<T>`
+  with a fixed seed, the same seam `CompositionRandomIntegrationTests`
+  already uses in `Compono.Tests` - which required granting
+  `Compono`'s `InternalsVisibleTo` to `"TestsAssembly"`, the fixed name
+  `GeneratorTestHelpers.CompileAndExecute` gives every in-memory
+  compiled test assembly, alongside the existing `Compono.Tests` grant.
+  Since the generator only discovers a type from a `Composer.Create<T>()`
+  call-site pattern (`CreateInvocationDiscovery`), not from
+  `CreateRootForTesting`, the test source keeps a discarded
+  `composer.Create<List<Guid>>()` call purely to trigger plan
+  generation/registration, then asserts against
+  `CreateRootForTesting`'s fixed-seed result - both dispatch through the
+  exact same generated, `CollectionPlanCache`-registered plan instance,
+  so this is still real end-to-end dispatch, not a shortcut around it.
+  The status question: whether Phase 2's header should already read
+  `Done` now that every checklist item is checked - resolved as
+  no-action, consistent with round 10's answer to the same question and
+  with this plan's own established convention: Phase 0 and Phase 1 both
+  stayed at their working status until their PRs (#10 and its
+  predecessor) actually merged, only becoming `Done` at that point, per
+  `AGENTS.md`'s "the prior phase's status/PR-merge state should be
+  current before the next phase starts." PR #11 is still open, so
+  Phase 2 stays `In Progress` until it merges - `Done` now would
+  contradict that established pattern, not fix a real inconsistency.
+- A thirteenth round of PR #11 review found three real issues, the
+  largest of this whole review cycle. **Nullable custom struct silently
+  never composed at runtime (P1).** `LeafTypeClassifier` treated every
+  `Nullable<T>` as a provider-resolved leaf regardless of `T`, but
+  `NullableValueProvider` only ever composes a primitive/enum/recognized
+  BCL underlying type - a custom struct's `Nullable<T>` (e.g. `Money?`)
+  compiled with zero diagnostics and then always threw at runtime
+  (confirmed directly: "no registration, provider, or generated plan
+  could satisfy the request"), for both a root `Composer.Create<Money?>()`
+  and a constructor-parameter member. Fixed by making `IsNullableValueType`
+  check the underlying type: only primitive/enum/recognized-BCL
+  `Nullable<T>` stays a leaf; any other `T` now falls through to ordinary
+  composable-type handling, exactly like any other concrete type. This
+  does **not** add a new nullable-composition mechanism - `Nullable<T>`
+  has two accessible constructors to Roslyn's symbol model (the implicit
+  parameterless one and `Nullable(T value)`), so the *existing*
+  `ConstructorSelector` ambiguity check reports the same `CMP0001`
+  ambiguous-construction diagnostic any other multi-constructor type
+  gets, converting the silent runtime failure into a real compile-time
+  one for free, without new diagnostic code or a parallel dispatch
+  architecture (rejected as disproportionate to this finding, and as
+  "building ahead of the milestone" per `AGENTS.md`, given `docs/mvp.md`'s
+  "Nullable value types" Initial Built-in Type sits directly alongside
+  the primitive/enum list, not as its own arbitrary-custom-struct
+  feature). Added regression coverage:
+  `CompositionPlanVerifyTests.NullableCustomStructRootType_ReportsDiagnostic_NotASilentRuntimeFailure`
+  and `NullableCustomStructConstructorParameter_ReportsDiagnostic_NotASilentRuntimeFailure`
+  (both `CMP0001`, root and member); confirmed no regression for
+  `Nullable<int>`/`Nullable<Priority>` (the existing
+  `NullableValueTypeRootType_GeneratesNoPlan`/
+  `NullableValueTypeConstructorParameter_LeftAsResolveCallNotRecursedInto`
+  tests still pass unchanged). **Accepted-ADR immutability violated by
+  this PR's own amendments (P1).** ADR-0010's "Amendment 3," ADR-0012's
+  "Amendment 3," and ADR-0013's "Amendment 2" - all three added earlier
+  in this PR (round 8/the original ADR-0014 extraction), not inherited
+  from an earlier merged PR - edited already-`Accepted` ADRs' content in
+  place, which `design-decisions.md` explicitly prohibits ("don't edit
+  [an accepted ADR's] Decision/Rationale/Consequences... write a new
+  ADR"), regardless of ADR-0010/0012/0013's own earlier, pre-existing
+  Amendments (1/2, predating this PR) having already established that
+  same drift from the documented rule. Fixed by removing all three
+  sections' prose entirely and replacing each with a `Links`-section
+  entry pointing to ADR-0014 instead (metadata/cross-reference, not
+  decision content) - ADR-0014's own Context and Negative Consequences
+  wording updated to match (it previously described these as "reduced to
+  a pointer" rather than removed). ADR-0010/0012/0013's pre-existing
+  Amendments (1/2) are untouched, since they predate this PR and are a
+  separate, pre-existing concern out of this PR's scope. **Spoofable
+  `InternalsVisibleTo` grant (P2, found against round 12's own fix).**
+  Round 12's `InternalsVisibleTo Include="TestsAssembly"` grant
+  authenticates only a simple assembly name (unsigned) - any real
+  consumer could name their own assembly `TestsAssembly` and gain the
+  identical internal access to the shipped `Compono` package. Fixed by
+  reverting that grant entirely and switching
+  `GeneratedCollectionPlanExecutionTests`'s fixed-seed test to reach
+  `Composer.CreateRootForTesting`/`CompositionSeed` via reflection from
+  within its compiled test source instead - already how
+  `GeneratorTestHelpers.CompileAndExecute` invokes every test's entry
+  point, so this adds no new public/friend surface to the shipped
+  package at all.
+- A fourteenth round of PR #11 review found two real issues, both
+  small. **A rejected array-shaped member silently produced no
+  diagnostic (P2).** A root `dynamic[]`/pointer-element array already
+  reported `CMP0006` correctly via `ComposedTypeAnalyzer` (confirmed
+  directly: `composer.Create<dynamic[]>()` does report it), but the
+  equivalent *member* case didn't: `TransitiveClosureWalker.EnqueueMember`
+  correctly declines to classify a rejected array as a collection (same
+  reason as always - building `ICompositionPlan<dynamic[]>` would hit
+  `CS1966`), but its fallback for a non-`INamedTypeSymbol` member
+  (`if (memberType is not INamedTypeSymbol) return;`) silently dropped it
+  instead of reporting anything - unlike a rejected *generic* collection
+  shape (`HashSet<dynamic>` as a member), which is still an
+  `INamedTypeSymbol` and so still reaches `ConstructorSelector`'s own
+  `CMP0001` via the ordinary ("ambiguous constructor") path. Confirmed
+  directly before fixing: a `dynamic[]` constructor parameter compiled
+  with zero diagnostics, emitting `context.Resolve<dynamic[]>()` for a
+  type nothing would ever register a plan for. Fixed by threading the
+  walker's `results` list into `EnqueueMember` (and `EnqueueRoot`, for
+  the recursive element/key calls it makes) and reporting the same
+  `CMP0006` `ComposedTypeAnalyzer` already uses for the root case,
+  reusing its `TypeArgumentFailure` helper rather than duplicating the
+  diagnostic-construction logic. Added regression coverage:
+  `CollectionPlanVerifyTests.DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`.
+  **`docs/architecture.md`'s `CompositionRequestKind` contract was stale
+  (P2).** Its `CompositionRequestDescriptor` code sample still commented
+  `kind` as `ConstructorParameter | RequiredMember` only, missing the
+  three collection-plan cases (`CollectionElement`/`DictionaryKey`/
+  `DictionaryValue`) ADR-0014 added, and its public-vs-internal-visibility
+  discussion didn't mention `CollectionPlanCache<T>`/`UniqueValueResolver`
+  joining `CompositionRequestDescriptor`/`ICompositionContext` as public
+  generated-code call surface. Fixed by updating both spots. Also
+  self-caught (not a review finding) while replying to this thread: seven
+  source-code doc comments across both projects still cited "ADR-0010's
+  third amendment" - the section round 13 had just removed entirely -
+  repointed all seven to ADR-0014 directly.
+- A fifteenth round of PR #11 review found one real issue: a regression
+  introduced by round 14's own `CMP0006`-for-rejected-array-members fix,
+  not a pre-existing gap. Reporting `CMP0006` for *every*
+  non-`INamedTypeSymbol` member unconditionally also caught plain
+  `dynamic` (not `dynamic[]`) - `dynamic` is likewise not an
+  `INamedTypeSymbol`, but unlike an array/pointer/function-pointer it
+  isn't a permanently-unsatisfiable shape: `Resolve<dynamic>()` is legal
+  and is the established, intentional way to leave a member for a future
+  registration/semantic provider (dynamic erases to `object`, so
+  virtually anything could satisfy it). Confirmed directly before fixing:
+  a plain `dynamic` constructor parameter, previously compiling clean
+  with `context.Resolve<dynamic>()` left for a provider, started
+  reporting `CMP0006` after round 14's fix - a real regression, not a
+  restatement of round 14's finding. Fixed by narrowing the diagnostic to
+  only `IArrayTypeSymbol`/`IPointerTypeSymbol`/`IFunctionPointerTypeSymbol`
+  specifically, leaving `dynamic` (and anything else non-named) to fall
+  through silently exactly as it did before round 14. Added regression
+  coverage:
+  `CollectionPlanVerifyTests.PlainDynamicConstructorParameter_GeneratesNoDiagnostic_StaysProviderResolved`,
+  alongside the existing
+  `DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
+  proving the array case still correctly reports `CMP0006`.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 
@@ -596,11 +1184,33 @@ this plan.
       third that fails produces a diagnostic trace containing only the
       failing parameter's attempts (and its ancestors' own attempts) —
       not the two already-succeeded siblings'
-- [ ] Benchmark (extending `Compono.Benchmarks` from Milestone 1): confirm
+- [ ] Benchmark (extending `Compono.Benchmarks` from Milestone 1, widened
+      mid-plan per PR #11 review — see this section's note below): confirm
       the trace buffer is actually allocation-free on the success path;
       if it measurably harms the hot path, fall back to shallow
       diagnostics by default with full tracing behind an explicit
-      diagnostic-mode opt-in (ADR-0010's stated fallback)
+      diagnostic-mode opt-in (ADR-0010's stated fallback). Milestone 1's
+      `ArchitectureBenchmarks`/`EcosystemBenchmarks` only cover generated
+      *construction* dispatch versus reflection — nothing in
+      `Compono.Benchmarks` yet exercises the resolution pipeline itself
+      (provider dispatch, random forking, collection generation), and
+      Phase 4 is the first point a representative end-to-end graph
+      (nested composable type + every Phase 2 built-in + a collection)
+      actually exists to benchmark. Add that end-to-end coverage here
+      rather than deferring it further:
+      - `Create<T>()` and `CreateMany<T>(count)` throughput for a
+        representative graph (the Execution Flow section's
+        `Customer`/`Address` shape, extended with a collection member),
+        alongside the existing reflection/generated-construction baseline
+        — establishes Compono's actual per-call cost, not just its
+        construction-dispatch cost
+      - Allocations for that same graph, success path only — the trace
+        buffer's allocation-free claim (above) is one contributor to this
+        number, not the whole story once collections/providers are in the
+        mix
+      - `CreateMany<T>(count)` scaling behavior across a couple of `count`
+        values, to catch anything unexpectedly super-linear (fork-key
+        derivation, scope allocation) before it ships
 - [ ] Exit-criteria pass: representative object graph (nested composable
       type + built-ins + a collection) composes deterministically end to
       end via `Create<T>()` and `CreateMany<T>()`, matching the Execution
@@ -645,13 +1255,43 @@ this plan.
   `src/Compono/RandomSource.cs`, `src/Compono/Fnv1a.cs`,
   `src/Compono/SplitMix64.cs` — new (`internal`) — **Done (Phase 1)**
 - `src/Compono/Providers/*.cs` — new (`internal`, one file per built-in
-  provider, per `coding-standards.md`'s one-public-type-per-file rule —
-  applies to `internal` types too)
-- `src/Compono/Providers/CollectionDispatchBridge.cs` — new (`internal`);
-  the strongly-typed per-shape (`ListFactory`/`ArrayFactory`/
-  `HashSetFactory`/`DictionaryFactory`) cached `MakeGenericMethod`/
-  `CreateDelegate` bridge every collection provider dispatches
-  element/key/value resolution through
+  primitive/enum/nullable provider, per `coding-standards.md`'s
+  one-public-type-per-file rule — applies to `internal` types too) —
+  **Done (Phase 2)**
+- `src/Compono/CollectionPlanCache.cs` — new (`public`); mirrors
+  `PlanCache<T>`'s shape exactly (ADR-0010 Amendment 3) — **Done (Phase 2)**
+- `src/Compono/UniqueValueResolver.cs` — new (`public`); the bounded
+  duplicate-value retry helper generated `HashSet<T>`/
+  `Dictionary<TKey, ...>` collection plans call (ADR-0010 Amendment 3) —
+  **Done (Phase 2)**
+- `src/Compono/CompositionRequestKind.cs` — modified: `CollectionElement`/
+  `DictionaryKey`/`DictionaryValue` cases added (ADR-0010 Amendment 3) —
+  **Done (Phase 2)**
+- `src/Compono.Generators/Discovery/TransitiveClosureWalker.cs` —
+  modified: recognizes the five ADR-0013 collection shapes, recursing
+  into element/key type(s) instead of walking the collection itself as a
+  composable type — **Done (Phase 2)**
+- `src/Compono.Generators/Discovery/CollectionWellKnownTypes.cs` — new;
+  classifies a symbol as one of the five supported closed collection
+  shapes (or not), extracting element/key type(s) — **Done (Phase 2)**
+- `src/Compono.Generators/Models/DiscoveredCollectionInfo.cs`,
+  `src/Compono.Generators/Models/TransitiveClosureResult.cs` — new —
+  **Done (Phase 2)**
+- `src/Compono.Generators/Emitters/CollectionPlanEmitter.cs`,
+  `src/Compono.Generators/Emitters/GeneratedFileNaming.cs` (hint-naming
+  logic extracted out of `CompositionPlanEmitter` for reuse),
+  `src/Compono.Generators/Templates/CollectionPlan.scriban` — new —
+  **Done (Phase 2)**
+- `src/Compono.Generators/ComponoIncrementalGenerator.cs`,
+  `src/Compono.Generators/Discovery/{CreateInvocationDiscovery,ComposableAttributeDiscovery,ComposedTypeAnalyzer}.cs` —
+  modified: return `TransitiveClosureResult` instead of a bare
+  `EquatableArray<DiscoveredTypeInfo>` throughout, and the generator
+  collects/dedupes/emits discovered collections alongside types —
+  **Done (Phase 2)**
+- `test/Compono.Tests/Providers/*.cs`, `test/Compono.Tests/UniqueValueResolverTests.cs`,
+  `test/Compono.Tests/CollectionPlanCacheDispatchTests.cs`,
+  `test/Compono.Generators.Tests/CollectionPlanVerifyTests.cs` — new —
+  **Done (Phase 2)**
 - `src/Compono/ICompositionContext.cs` — modified (`Resolve<T>` signature
   changed to `in CompositionRequestDescriptor`) — **Done (Phase 0)**
 - `src/Compono/Composer.cs` — modified: `Create<T>()` rewired onto
@@ -718,7 +1358,12 @@ Per `references/testing.md`'s established pattern in
 - `CreateMany` semantics, argument/return contract, and seed-stability
   tests (via `Composer.CreateRootForTesting`/`CreateManyForTesting`), a
   diagnostics-trace-retention test (active failing branch only, not
-  completed siblings), and a trace-buffer allocation benchmark (Phase 4).
+  completed siblings), and a benchmark suite (Phase 4) covering both the
+  trace buffer's allocation-free claim and end-to-end `Create<T>()`/
+  `CreateMany<T>()` throughput/allocations/scaling for a representative
+  graph — the first point in this plan a graph exists that's
+  representative enough to be worth benchmarking end to end, not just at
+  the construction-dispatch layer Milestone 1's benchmarks already cover.
 - An end-to-end `Create<T>()`/`CreateMany<T>()` test against the
   `Customer`/`Address` shape from the Execution Flow section (Phase 4),
   matching the Milestone 1 plan's "representative record or class" bar.
@@ -760,3 +1405,12 @@ for stages 2/3; and moving the `Node(List<Node> Children)` recursion test
 to Phase 3, where the recursion detector it depends on actually exists —
 see ADR-0010/0011/0012's `## Amendment 2 (2026-07-28)` sections for the
 full detail behind each.
+
+A fourth review, mid-Phase-2 and before any Phase 2 code was written,
+caught that the collection-dispatch bridge scoped by the third review
+(`MakeGenericMethod`/`CreateDelegate`, cached per closed collection type)
+is a genuine violation of ADR-0001's no-reflection-by-default rule, not
+an acceptable bounded exception. Replaced with generator-emitted,
+strongly typed collection plans dispatched via a new `CollectionPlanCache<T>` —
+see ADR-0010's `## Amendment 3 (2026-07-28)` section, and this plan's
+Phase 2 section above, for the corrected shape.

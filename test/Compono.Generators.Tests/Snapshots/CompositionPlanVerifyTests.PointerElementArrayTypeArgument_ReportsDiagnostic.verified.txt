@@ -1,8 +1,8 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (15,40)-(15,50),
-      Message: 'TestNamespace.Customer[]' is not a type Compono can compose - Compono requires a named type (a class, struct, record, or interface), not an array, pointer, or other type shape,
+      Location: Program.cs: (11,36)-(11,42),
+      Message: 'int*[]' is not a type Compono can compose - Compono requires a named type (a class, struct, record, or interface), not an array, pointer, or other type shape,
       Severity: Error,
       Descriptor: {
         Id: CMP0006,

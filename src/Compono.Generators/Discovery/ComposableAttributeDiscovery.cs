@@ -21,13 +21,14 @@ internal static class ComposableAttributeDiscovery
 {
     public const string AttributeMetadataName = "Compono.ComposableAttribute";
 
-    public static EquatableArray<DiscoveredTypeInfo> TransformTypeLevel(
+    public static TransitiveClosureResult TransformTypeLevel(
         GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not INamedTypeSymbol annotatedType)
-            return EquatableArray<DiscoveredTypeInfo>.Empty;
+            return new TransitiveClosureResult(EquatableArray<DiscoveredTypeInfo>.Empty, EquatableArray<DiscoveredCollectionInfo>.Empty);
 
-        var results = new List<DiscoveredTypeInfo>();
+        var types = new List<DiscoveredTypeInfo>();
+        var collections = new List<DiscoveredCollectionInfo>();
 
         foreach (var attribute in context.Attributes)
         {
@@ -39,10 +40,12 @@ internal static class ComposableAttributeDiscovery
             var requestedType = ExtractTypeArgument(attribute) ?? annotatedType;
             var location = LocationOf(attribute, annotatedType, cancellationToken);
 
-            results.AddRange(ComposedTypeAnalyzer.Analyze(requestedType, context.SemanticModel.Compilation, location));
+            var result = ComposedTypeAnalyzer.Analyze(requestedType, context.SemanticModel.Compilation, location);
+            types.AddRange(result.Types);
+            collections.AddRange(result.Collections);
         }
 
-        return results.ToEquatableArray();
+        return new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray());
     }
 
     // Deliberately no name filter here - a syntax-only check can't see through an alias
@@ -57,7 +60,7 @@ internal static class ComposableAttributeDiscovery
             Parent: AttributeListSyntax { Target.Identifier.RawKind: (int)SyntaxKind.AssemblyKeyword },
         };
 
-    public static EquatableArray<DiscoveredTypeInfo>? TransformAssemblyLevel(
+    public static TransitiveClosureResult? TransformAssemblyLevel(
         GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
         var attribute = (AttributeSyntax)context.Node;
@@ -110,7 +113,7 @@ internal static class ComposableAttributeDiscovery
             ? LocationInfo.From(syntax)
             : LocationInfo.From(annotatedType);
 
-    private static EquatableArray<DiscoveredTypeInfo> AssemblyComposableMissingTypeFailure(LocationInfo? location)
+    private static TransitiveClosureResult AssemblyComposableMissingTypeFailure(LocationInfo? location)
     {
         // No requested type means there's nothing real to put in the type-identity fields - they go
         // unused anyway once Diagnostics is non-empty (ComponoIncrementalGenerator skips codegen
@@ -123,6 +126,6 @@ internal static class ComposableAttributeDiscovery
             EquatableArray<RequiredMemberInfo>.Empty,
             new[] { new DiagnosticInfo(DiagnosticDescriptors.AssemblyComposableMissingType, location) }.ToEquatableArray());
 
-        return new[] { failure }.ToEquatableArray();
+        return new TransitiveClosureResult(new[] { failure }.ToEquatableArray(), EquatableArray<DiscoveredCollectionInfo>.Empty);
     }
 }

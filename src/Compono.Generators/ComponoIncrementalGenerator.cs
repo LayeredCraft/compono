@@ -19,36 +19,109 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var callSiteTypes = context.SyntaxProvider
+        var callSiteResults = context.SyntaxProvider
             .CreateSyntaxProvider(CreateInvocationDiscovery.IsCandidate, CreateInvocationDiscovery.Transform)
             .WithTrackingName(TrackingNames.CreateInvocations)
-            .Where(static types => types is not null)
-            // Each call site yields its whole transitive closure (Phase 1), not just the requested
-            // type - flatten before the rest of the pipeline dedupes/emits per type.
-            .SelectMany(static (types, _) => types!.Value)
+            .Where(static result => result is not null)
+            .Select(static (result, _) => result!)
             .WithTrackingName(TrackingNames.CreateInvocationsNotNull);
 
         // [Composable] on a type declaration (Phase 2) - the AttributeUsage on ComposableAttribute
         // restricts placement to classes/structs, so TypeDeclarationSyntax is the only shape that
         // can reach the transform.
-        var composableTypes = context.SyntaxProvider
+        var composableResults = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ComposableAttributeDiscovery.AttributeMetadataName,
                 static (node, _) => node is TypeDeclarationSyntax,
                 ComposableAttributeDiscovery.TransformTypeLevel)
-            .WithTrackingName(TrackingNames.ComposableTypes)
-            .SelectMany(static (types, _) => types)
-            .WithTrackingName(TrackingNames.ComposableTypesFlattened);
+            .WithTrackingName(TrackingNames.ComposableTypes);
 
         // [assembly: Composable(typeof(...))] (Phase 2) - assembly-level attributes aren't
         // reachable through ForAttributeWithMetadataName (it only matches attributes on
         // declarations), so this form gets its own syntax provider over `[assembly: ...]` lists.
-        var assemblyComposableTypes = context.SyntaxProvider
+        var assemblyComposableResults = context.SyntaxProvider
             .CreateSyntaxProvider(ComposableAttributeDiscovery.IsAssemblyCandidate, ComposableAttributeDiscovery.TransformAssemblyLevel)
             .WithTrackingName(TrackingNames.AssemblyComposables)
-            .Where(static types => types is not null)
-            .SelectMany(static (types, _) => types!.Value)
+            .Where(static result => result is not null)
+            .Select(static (result, _) => result!)
             .WithTrackingName(TrackingNames.AssemblyComposablesNotNull);
+
+        // Each discovery result carries its own transitive closure (Types) alongside every closed
+        // collection shape reached within it (Collections, ADR-0014) - flatten both
+        // before the rest of the pipeline dedupes/emits per type/collection.
+        var callSiteTypes = callSiteResults.SelectMany(static (result, _) => result.Types)
+            .WithTrackingName(TrackingNames.CreateInvocationsTypes);
+        var composableTypes = composableResults.SelectMany(static (result, _) => result.Types)
+            .WithTrackingName(TrackingNames.ComposableTypesFlattened);
+        var assemblyComposableTypes = assemblyComposableResults.SelectMany(static (result, _) => result.Types)
+            .WithTrackingName(TrackingNames.AssemblyComposablesTypes);
+
+        var discoveredCollections = callSiteResults.SelectMany(static (result, _) => result.Collections)
+            .Collect()
+            .Combine(composableResults.SelectMany(static (result, _) => result.Collections).Collect())
+            .Combine(assemblyComposableResults.SelectMany(static (result, _) => result.Collections).Collect())
+            .WithTrackingName(TrackingNames.DiscoveredCollectionsCollected)
+            .SelectMany(static (collections, _) =>
+            {
+                var ((callSites, composables), assemblyComposables) = collections;
+
+                // The same closed collection type can legitimately be reached from more than one
+                // discovery path (or more than one member site) - collapse to one emitted plan per
+                // distinct closed collection type. Two discoveries of the *same* closed type that
+                // disagree on element/key nullability (e.g. a List<string> member and a List<string?>
+                // member both reaching List<string>) have no value that's correct for both - reported
+                // as CMP0011 instead of silently picking whichever discovery happened to come first,
+                // mirroring DiscoveredTypeInfo's CMP0010 conflict check for ordinary composable types.
+                return callSites.Concat(composables).Concat(assemblyComposables)
+                    .GroupBy(static collection => collection.FullyQualifiedCollectionTypeName)
+                    .SelectMany(static group =>
+                    {
+                        var distinct = group.Distinct().ToArray();
+
+                        if (distinct.Length == 1)
+                            return distinct;
+
+                        // Mirrors the ordinary-type merge below: an entry that already carries its own
+                        // diagnostic (e.g. CMP0012, an inaccessible element/key type) has a real,
+                        // actionable failure at its own request-site Location - DiagnosticInfo.Equals
+                        // includes Location, so the same failing collection reached from two different
+                        // call sites naturally produces two "distinct" failure entries even though
+                        // neither is wrong. PR #11 review caught that this branch previously folded
+                        // those straight into a synthetic, locationless CMP0011 "conflicting
+                        // nullability" diagnostic instead - erasing the real, more specific failures
+                        // entirely. Preserve and report them as-is instead of treating this as a
+                        // metadata conflict.
+                        var failures = distinct.Where(static c => c.Diagnostics.Count > 0).ToArray();
+
+                        if (failures.Length > 0)
+                            return failures;
+
+                        return new DiscoveredCollectionInfo[]
+                        {
+                            new(
+                                distinct[0].Shape,
+                                group.Key,
+                                distinct[0].ElementFullyQualifiedTypeName,
+                                distinct[0].ElementIsNullable,
+                                distinct[0].KeyFullyQualifiedTypeName,
+                                distinct[0].KeyIsNullable,
+                                new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCollectionMetadata, null, group.Key) }
+                                    .ToEquatableArray()),
+                        };
+                    });
+            })
+            .WithTrackingName(TrackingNames.DiscoveredCollectionsDistinct);
+
+        context.RegisterSourceOutput(discoveredCollections, static (productionContext, collection) =>
+        {
+            foreach (var diagnostic in collection.Diagnostics)
+                diagnostic.Report(productionContext);
+
+            if (collection.Diagnostics.Count > 0)
+                return;
+
+            CollectionPlanEmitter.Generate(productionContext, collection);
+        });
 
         // All discovery paths produce equivalent plan-generation requests - merge before deduping
         // so a type discovered via both a call site and [Composable] still gets exactly one plan.
@@ -144,10 +217,14 @@ internal static class TrackingNames
 {
     public const string CreateInvocations = "CreateInvocations";
     public const string CreateInvocationsNotNull = "CreateInvocations.NotNull";
+    public const string CreateInvocationsTypes = "CreateInvocations.Types";
     public const string ComposableTypes = "ComposableTypes";
     public const string ComposableTypesFlattened = "ComposableTypes.Flattened";
     public const string AssemblyComposables = "AssemblyComposables";
     public const string AssemblyComposablesNotNull = "AssemblyComposables.NotNull";
+    public const string AssemblyComposablesTypes = "AssemblyComposables.Types";
     public const string DiscoveredCollected = "Discovered.Collected";
     public const string DiscoveredDistinct = "Discovered.Distinct";
+    public const string DiscoveredCollectionsCollected = "DiscoveredCollections.Collected";
+    public const string DiscoveredCollectionsDistinct = "DiscoveredCollections.Distinct";
 }
