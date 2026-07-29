@@ -1598,6 +1598,38 @@ ADR-0014. The task list below reflects the corrected shape.
   measurement moving by almost exactly the same amount. Recorded as an
   accepted tradeoff (a real "which provider" answer for ~10% more
   allocation on the failure-adjacent path), not chased back down.
+- A sixth PR #13 review round found one more real gap, the same
+  ancestor-visibility class as the `GeneratedPlan`/collection-plan
+  `Pending` fixes above, at a third dispatch site (P2). **`TryProviders`
+  (stages 4-7) didn't record an in-flight attempt before calling
+  `candidate.TryCompose(...)`.** `ICompositionProvider.TryCompose` is
+  handed the live `ICompositionContext` specifically so a provider can
+  recursively resolve part of its own value (no built-in provider does
+  this today, but nothing about the contract forbids it, and it's exactly
+  the extension point Milestone 3/5/6 profile/semantic/test-double
+  providers are expected to use) - if that nested `Resolve<T>()` call
+  throws, `candidate` was never recorded anywhere, since `TryProviders`
+  only recorded `NotHandled` *after* `TryCompose` returned normally. The
+  materialized diagnostic then permanently omitted the provider and stage
+  that led to the failing child. Fixed by applying the same
+  checkpoint/`Pending`/rewind pattern already used for stage 8 and the
+  collection-plan branch: record `(stage, candidate.GetType(), Pending)`
+  immediately before `TryCompose` runs, then rewind that marker away once
+  `TryCompose` actually returns (success or decline) - if it throws
+  instead, the rewind never executes and the `Pending` marker survives
+  into the failing trace. Verified with a new regression test
+  (`ResolveRoot_DiagnosticTrace_RecordsAPendingEntry_WhenAProviderRecursivelyResolvesAFailingNestedRequest`
+  in `CompositionDiagnosticsTests.cs`) using the injectable-provider test
+  seam and a fake provider whose `TryCompose` calls
+  `context.Resolve<T>()` for an unsatisfiable nested type; reverted the
+  fix and confirmed the test fails, restored and confirmed it and the
+  full suite (152 `Compono.Tests`, 146 `Compono.Generators.Tests`) pass.
+  Re-measured the allocation-per-`Create<T>()` benchmark before and after
+  this specific fix in isolation (a throwaway test, deleted after
+  measuring): identical 1384.00 B/op both times - the extra
+  checkpoint/record/rewind calls stay well under the trace buffer's
+  32-entry initial capacity for an ordinary graph, so they cost stack
+  work only, no heap allocation. `docs/performance.md` is unchanged.
 
 ## Critical Files
 
@@ -1653,7 +1685,12 @@ ADR-0014. The task list below reflects the corrected shape.
   test seam — **Done (Phase 3)**. The `CompositionTraceBuffer`
   checkpoint/record/rewind wiring and `BuildException` (materializes a
   `CompositionDiagnostic` from the current path/trace/seed) —
-  **Done (Phase 4)**
+  **Done (Phase 4)**. `TryProviders` records a `Pending` marker for each
+  candidate provider immediately before calling `TryCompose`, rewound on
+  a normal return — closes the same ancestor-visibility gap already fixed
+  for stage 8/collection-plan dispatch, for a provider that recursively
+  resolves a nested request that fails — **Done (Phase 4, PR #13 review
+  round 6)**
 - `src/Compono/CompositionScope.cs`, `src/Compono/CompositionRegistrations.cs`
   — new (`internal`) — **Done (Phase 3)**
 - `src/Compono/CompositionSeed.cs`, `src/Compono/IRandomSource.cs`,

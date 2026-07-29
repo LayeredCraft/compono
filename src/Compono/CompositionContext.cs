@@ -326,12 +326,29 @@ internal sealed class CompositionContext : ICompositionContext
     // is deliberately left unrecorded here - it's still unvalidated (StoreSharedAndReturn hasn't run
     // yet) - but its identity is handed back via `provider` so the caller can tag
     // that eventual recording correctly.
+    //
+    // ICompositionProvider.TryCompose is handed the live context, so a provider is free to call
+    // context.Resolve<T>() itself to compose part of its value (no built-in provider does today, but
+    // nothing about the contract forbids it, and a Milestone 3/5/6 profile/semantic/test-double
+    // provider is exactly the kind of extension point expected to) - if that nested resolution
+    // fails, BuildException materializes the trace while this candidate's own TryCompose call is
+    // still on the stack. Same ancestor-visibility gap the Pending marker already closes for stage
+    // 8/collection-plan dispatch (PR #13 review): record Pending immediately before the call, so a
+    // nested failure still shows this provider's own in-flight attempt instead of omitting it
+    // entirely, and rewind that marker away once TryCompose actually returns (success or decline) -
+    // it's superseded at that point by either the winning-provider return below or the definitive
+    // NotHandled recorded right after.
     private bool TryProviders(
         IReadOnlyList<ICompositionProvider> providers, PipelineStage stage, in CompositionRequest request, out object? value, out Type? provider)
     {
         foreach (var candidate in providers)
         {
-            if (candidate.TryCompose(request, this) is CompositionResult.Success success)
+            var checkpoint = _trace.Checkpoint;
+            _trace.Record(stage, candidate.GetType(), CompositionAttemptOutcome.Pending);
+            var result = candidate.TryCompose(request, this);
+            _trace.Rewind(checkpoint);
+
+            if (result is CompositionResult.Success success)
             {
                 value = success.Value;
                 provider = candidate.GetType();

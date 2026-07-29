@@ -154,6 +154,33 @@ public sealed class CompositionDiagnosticsTests
     }
 
     [Fact]
+    public void ResolveRoot_DiagnosticTrace_RecordsAPendingEntry_WhenAProviderRecursivelyResolvesAFailingNestedRequest()
+    {
+        var provider = new NestedResolvingProvider();
+        var context = new CompositionContext(
+            profileProviders: [provider],
+            semanticProviders: [],
+            testDoubleProviders: [],
+            builtInProviders: []);
+
+        var act = () => context.ResolveRoot<Wrapper>();
+
+        var trace = act.Should().Throw<CompositionException>().Which.Diagnostic!.Trace;
+
+        // Regression for a real gap (PR #13 review, sixth round): ICompositionProvider.TryCompose is
+        // handed the live context specifically so a provider can recursively resolve part of its
+        // value - if that nested Resolve<T> call throws, TryProviders never returns to record this
+        // candidate at all, so the ancestor provider/stage that led to the failing child was silently
+        // absent from the trace. Same class of bug as the GeneratedPlan/collection-plan Pending fixes
+        // above, at a third dispatch site. Now a Pending marker is recorded immediately before
+        // TryCompose runs, so a nested failure still surfaces this provider's own in-flight attempt.
+        trace.Should().Contain(attempt =>
+            attempt.Stage == PipelineStage.ProfileRule
+            && attempt.Provider == typeof(NestedResolvingProvider)
+            && attempt.Outcome == CompositionAttemptOutcome.Pending);
+    }
+
+    [Fact]
     public void ResolveRoot_DiagnosticTrace_RecordsADistinctEntryPerBuiltInProvider_NotOneIndistinguishableAggregateEntry()
     {
         // The real BuiltInProviders.Default - PrimitiveValueProvider, EnumValueProvider,
@@ -241,6 +268,8 @@ public sealed class CompositionDiagnosticsTests
 
     private sealed record Widget;
 
+    private sealed record Wrapper;
+
     private sealed class OuterPlan : ICompositionPlan<Outer>
     {
         public Outer Compose(ICompositionContext context) =>
@@ -287,5 +316,24 @@ public sealed class CompositionDiagnosticsTests
             request.RequestedType == typeof(Widget)
                 ? new CompositionResult.Success(null)
                 : CompositionResult.NotHandled.Instance;
+    }
+
+    // Stands in for a Milestone 3/5/6 profile/semantic/test-double provider that composes part of
+    // its own value by recursively calling back into the context - nothing today's built-in
+    // providers do, but the ICompositionProvider contract explicitly allows it.
+    private sealed class NestedResolvingProvider : ICompositionProvider
+    {
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
+        {
+            if (request.RequestedType != typeof(Wrapper))
+            {
+                return CompositionResult.NotHandled.Instance;
+            }
+
+            // Missing has no registration, provider, or generated plan, so this throws - the point of
+            // the test is to observe what the trace looks like while this call is still on the stack.
+            context.Resolve<Missing>(Descriptor(0, "value"));
+            return new CompositionResult.Success(new Wrapper());
+        }
     }
 }
