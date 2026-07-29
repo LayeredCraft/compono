@@ -201,8 +201,23 @@ internal static class TransitiveClosureWalker
             // review caught that only the member case was missing it, confirmed directly before
             // fixing (composer.Create<dynamic[]>() already reported CMP0006 correctly; a dynamic[]
             // constructor parameter did not).
-            results.AddRange(ComposedTypeAnalyzer.TypeArgumentFailure(
-                DiagnosticDescriptors.UnsupportedTypeArgumentShape, memberType, location).Types);
+            //
+            // `dynamic` itself (not `dynamic[]`) is also not an INamedTypeSymbol, but it's not one of
+            // these permanently-unsatisfiable shapes - `Resolve<dynamic>()` is legal and is the
+            // established, intentional way to leave a member for a future registration/semantic
+            // provider to satisfy at runtime (dynamic erases to object, so virtually anything could
+            // claim it). A second PR #11 review caught that reporting CMP0006 unconditionally for
+            // every non-INamedTypeSymbol member also caught `dynamic` itself, silently turning a
+            // previously-valid provider-resolved graph into a hard generator error - confirmed
+            // directly. Only a genuinely unsatisfiable shape (array, pointer, function pointer) gets
+            // the diagnostic; `dynamic` (and anything else that isn't one of those three) falls
+            // through exactly as it did before this diagnostic existed.
+            if (memberType is IArrayTypeSymbol or IPointerTypeSymbol or IFunctionPointerTypeSymbol)
+            {
+                results.AddRange(ComposedTypeAnalyzer.TypeArgumentFailure(
+                    DiagnosticDescriptors.UnsupportedTypeArgumentShape, memberType, location).Types);
+            }
+
             return;
         }
 

@@ -1090,7 +1090,33 @@ ADR-0014. The task list below reflects the corrected shape.
   `DictionaryValue`) ADR-0014 added, and its public-vs-internal-visibility
   discussion didn't mention `CollectionPlanCache<T>`/`UniqueValueResolver`
   joining `CompositionRequestDescriptor`/`ICompositionContext` as public
-  generated-code call surface. Fixed by updating both spots.
+  generated-code call surface. Fixed by updating both spots. Also
+  self-caught (not a review finding) while replying to this thread: seven
+  source-code doc comments across both projects still cited "ADR-0010's
+  third amendment" - the section round 13 had just removed entirely -
+  repointed all seven to ADR-0014 directly.
+- A fifteenth round of PR #11 review found one real issue: a regression
+  introduced by round 14's own `CMP0006`-for-rejected-array-members fix,
+  not a pre-existing gap. Reporting `CMP0006` for *every*
+  non-`INamedTypeSymbol` member unconditionally also caught plain
+  `dynamic` (not `dynamic[]`) - `dynamic` is likewise not an
+  `INamedTypeSymbol`, but unlike an array/pointer/function-pointer it
+  isn't a permanently-unsatisfiable shape: `Resolve<dynamic>()` is legal
+  and is the established, intentional way to leave a member for a future
+  registration/semantic provider (dynamic erases to `object`, so
+  virtually anything could satisfy it). Confirmed directly before fixing:
+  a plain `dynamic` constructor parameter, previously compiling clean
+  with `context.Resolve<dynamic>()` left for a provider, started
+  reporting `CMP0006` after round 14's fix - a real regression, not a
+  restatement of round 14's finding. Fixed by narrowing the diagnostic to
+  only `IArrayTypeSymbol`/`IPointerTypeSymbol`/`IFunctionPointerTypeSymbol`
+  specifically, leaving `dynamic` (and anything else non-named) to fall
+  through silently exactly as it did before round 14. Added regression
+  coverage:
+  `CollectionPlanVerifyTests.PlainDynamicConstructorParameter_GeneratesNoDiagnostic_StaysProviderResolved`,
+  alongside the existing
+  `DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
+  proving the array case still correctly reports `CMP0006`.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

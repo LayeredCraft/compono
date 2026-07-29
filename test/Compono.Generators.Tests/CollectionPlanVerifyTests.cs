@@ -142,6 +142,41 @@ public sealed class CollectionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task PlainDynamicConstructorParameter_GeneratesNoDiagnostic_StaysProviderResolved() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Container
+                {
+                    public Container(dynamic value) { Value = value; }
+                    public dynamic Value { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Unlike dynamic[] (structurally unsatisfiable - see
+                        // DynamicArrayConstructorParameter_ReportsDiagnostic above), plain `dynamic`
+                        // is not an array/pointer/function-pointer, so it's not covered by that
+                        // diagnostic - Resolve<dynamic>() is legal and is the established, intentional
+                        // way to leave a member for a future registration/semantic provider (dynamic
+                        // erases to object, so virtually anything could satisfy it). Regression
+                        // coverage for a real regression the CMP0006 fix above introduced: reporting
+                        // CMP0006 for every non-INamedTypeSymbol member unconditionally also caught
+                        // `dynamic` itself, silently turning a previously-valid provider-resolved graph
+                        // into a hard generator error - confirmed directly before fixing (a second PR
+                        // #11 review finding, against this PR's own previous commit).
+                        var value = composer.Create<TestNamespace.Container>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task PrivateElementTypeInCollectionRoot_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions
