@@ -807,6 +807,25 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   less-accessible parameter type) — not fixed here since it wasn't what
   was flagged and a real repro wasn't confirmed; worth a follow-up look
   if it's ever hit in practice.
+- A seventh round of PR #11 review found a real gap in round 6's own
+  fix: when the **same** inaccessible collection type was discovered
+  from **two different call sites**, each `DiscoveredCollectionInfo`
+  carried the identical CMP0012 diagnostic but at a different
+  `Location` — since `DiagnosticInfo.Equals` includes `Location`, the
+  two entries counted as "distinct" and the collections merge step
+  (added for CMP0011 in round 3) incorrectly synthesized a locationless
+  CMP0011 "conflicting nullability" diagnostic instead, erasing both
+  real, actionable CMP0012 failures. Confirmed directly before fixing
+  (a two-call-site repro produced exactly the wrong CMP0011). This is
+  the exact class of bug the *ordinary-type* merge already guarded
+  against (`failures = distinct.Where(t => t.Diagnostics.Count > 0)`,
+  present since round 3's original CMP0011 work modeled itself on it) —
+  the guard just hadn't been ported to the newer collections merge
+  branch when CMP0012 introduced the first real per-discovery
+  collection failure. Fixed by adding the identical
+  failures-preserved-before-conflict-detection branch to the
+  collections merge in `ComponoIncrementalGenerator`. Added regression
+  coverage: `CollectionPlanVerifyTests.SameInaccessibleCollectionFromTwoCallSites_ReportsCMP0012NotCMP0011`.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

@@ -74,22 +74,40 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 // mirroring DiscoveredTypeInfo's CMP0010 conflict check for ordinary composable types.
                 return callSites.Concat(composables).Concat(assemblyComposables)
                     .GroupBy(static collection => collection.FullyQualifiedCollectionTypeName)
-                    .Select(static group =>
+                    .SelectMany(static group =>
                     {
                         var distinct = group.Distinct().ToArray();
 
                         if (distinct.Length == 1)
-                            return distinct[0];
+                            return distinct;
 
-                        return new DiscoveredCollectionInfo(
-                            distinct[0].Shape,
-                            group.Key,
-                            distinct[0].ElementFullyQualifiedTypeName,
-                            distinct[0].ElementIsNullable,
-                            distinct[0].KeyFullyQualifiedTypeName,
-                            distinct[0].KeyIsNullable,
-                            new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCollectionMetadata, null, group.Key) }
-                                .ToEquatableArray());
+                        // Mirrors the ordinary-type merge below: an entry that already carries its own
+                        // diagnostic (e.g. CMP0012, an inaccessible element/key type) has a real,
+                        // actionable failure at its own request-site Location - DiagnosticInfo.Equals
+                        // includes Location, so the same failing collection reached from two different
+                        // call sites naturally produces two "distinct" failure entries even though
+                        // neither is wrong. PR #11 review caught that this branch previously folded
+                        // those straight into a synthetic, locationless CMP0011 "conflicting
+                        // nullability" diagnostic instead - erasing the real, more specific failures
+                        // entirely. Preserve and report them as-is instead of treating this as a
+                        // metadata conflict.
+                        var failures = distinct.Where(static c => c.Diagnostics.Count > 0).ToArray();
+
+                        if (failures.Length > 0)
+                            return failures;
+
+                        return new DiscoveredCollectionInfo[]
+                        {
+                            new(
+                                distinct[0].Shape,
+                                group.Key,
+                                distinct[0].ElementFullyQualifiedTypeName,
+                                distinct[0].ElementIsNullable,
+                                distinct[0].KeyFullyQualifiedTypeName,
+                                distinct[0].KeyIsNullable,
+                                new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCollectionMetadata, null, group.Key) }
+                                    .ToEquatableArray()),
+                        };
                     });
             })
             .WithTrackingName(TrackingNames.DiscoveredCollectionsDistinct);

@@ -33,6 +33,35 @@ public sealed class CollectionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task SameInaccessibleCollectionFromTwoCallSites_ReportsCMP0012NotCMP0011() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Container
+                    {
+                        private enum PrivateEnum { A, B, C }
+
+                        public static void RunOne()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var value = composer.Create<System.Collections.Generic.List<PrivateEnum>>();
+                        }
+
+                        public static void RunTwo()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var value = composer.Create<System.Collections.Generic.List<PrivateEnum>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0012",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ListRootType_GeneratesOnlyACollectionPlan_NoCompositionPlanForTheElementType() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {
