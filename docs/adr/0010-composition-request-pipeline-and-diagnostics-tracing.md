@@ -633,3 +633,9 @@ value, on runtimes where JIT is available at all.
   Per the "an accepted ADR is a historical record" rule, that retraction
   is recorded only here in ADR-0014's own Context, not by editing
   Amendment 2's text above.
+- [ADR-0015](0015-provider-identity-deferred-in-provider-attempt.md) —
+  narrows this ADR's Diagnostics tracing text ("stage id, provider id,
+  outcome enum") for `ProviderAttempt`'s shipped Milestone 2 shape: no
+  provider-id field yet, deferred until a stage has a real second
+  provider. This ADR's Diagnostics tracing text is otherwise unaffected
+  and unedited, per the same rule ADR-0014's entry above already applied.

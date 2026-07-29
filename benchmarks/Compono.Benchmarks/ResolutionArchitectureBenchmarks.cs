@@ -10,20 +10,20 @@ namespace Compono.Benchmarks;
 /// flat, property-less type.
 /// </summary>
 /// <remarks>
-/// Unlike <see cref="ArchitectureBenchmarks"/>' <c>Leaf</c> (where <see cref="Direct"/>,
-/// <see cref="Generated"/>, and <see cref="Reflection"/> all agree on "what work gets done" -
-/// nothing, there are no fields to fill), <see cref="Reflection"/> here is *not* an
-/// apples-to-apples value-generation comparison: <see cref="ReflectionComposer.ComposeRecursive{T}"/>
-/// stamps fixed placeholder values (a literal <c>"value"</c> string, etc.), while
-/// <see cref="Generated"/> does Compono's real deterministic random-value generation per field. So
-/// <see cref="Reflection"/> being faster than <see cref="Generated"/> here isn't "reflection beats
-/// source generation" - it's "doing less work is faster than doing real randomized generation
-/// work," the mirror image of <see cref="ResolutionEcosystemBenchmarks"/>' AutoFixture caveat.
-/// This benchmark isolates dispatch-mechanism cost for the theoretical floor and generated
-/// comparisons; it does not isolate dispatch cost alone for the reflection comparison, since
-/// building a reflection-based composer that also does Compono's real random-value generation
-/// would mean reimplementing the engine reflectively, disproportionate to what this benchmark
-/// needs to establish.
+/// <see cref="Direct"/> stays the theoretical floor (no fields to fill, same as
+/// <see cref="ArchitectureBenchmarks"/>' <c>Leaf</c>), but <see cref="Reflection"/> here does
+/// comparable real work to <see cref="Generated"/>: <see cref="ReflectionComposer.ComposeRecursive{T}"/>
+/// fills every field with a genuinely random value (an 8-character alphanumeric string, a
+/// 3-element collection - Compono's own defaults), not a fixed placeholder. An earlier version of
+/// this baseline used fixed placeholders, which made <see cref="Reflection"/> faster than
+/// <see cref="Generated"/> for doing categorically less work rather than because reflective
+/// dispatch actually beats source-generated dispatch - a misleading comparison caught in PR #13
+/// review, fixed by rewriting <see cref="ReflectionComposer.ComposeRecursive{T}"/> to do real
+/// value generation. The one remaining, deliberate asymmetry: <see cref="Reflection"/>'s randomness
+/// is ordinary <see cref="Random.Shared"/>, not Compono's deterministic, seed-forked
+/// <see cref="IRandomSource"/> - reproducibility is a Compono product feature
+/// (<c>README.md</c>'s "Deterministic by design"), not a cost every random-value generator has to
+/// pay, so <see cref="Generated"/>'s cost here includes work <see cref="Reflection"/>'s doesn't.
 /// </remarks>
 [MemoryDiagnoser]
 public class ResolutionArchitectureBenchmarks
@@ -40,8 +40,8 @@ public class ResolutionArchitectureBenchmarks
 
     /// <summary>
     /// Constructs <see cref="Customer"/> via a recursive reflection-based composer that fills every
-    /// field with a fixed placeholder value - see this class' remarks for why that makes this a
-    /// dispatch-cost-only baseline, not a value-generation comparison.
+    /// field with a genuinely random value - see this class' remarks for the one remaining,
+    /// deliberate asymmetry (ordinary randomness, not Compono's deterministic seed-forking).
     /// </summary>
     [Benchmark]
     public Customer Reflection() => ReflectionComposer.ComposeRecursive<Customer>();

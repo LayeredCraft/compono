@@ -1275,15 +1275,12 @@ ADR-0014. The task list below reflects the corrected shape.
 **Notes on what actually happened, versus what was scoped:**
 
 - `ProviderAttempt` ended up `(PipelineStage Stage, CompositionAttemptOutcome
-  Outcome)` — no distinct "provider id" field. Milestone 2 has at most one
-  competing provider per extensible stage (`docs/architecture.md`'s own
-  note: "no stage has more than one competing provider to order" yet), so
-  a provider-id field would have nothing to discriminate today; threading
-  one through now would mean inventing an identity scheme
-  (index-in-list? a name string, which the ADR explicitly ruled out?)
-  with no real consumer, ahead of the milestone that actually registers
-  more than one provider per stage. Revisit once a stage/provider actually
-  needs the distinction.
+  Outcome)` — no distinct "provider id" field, despite ADR-0010's own text
+  describing one. A PR #13 review (Codex) flagged this as contradicting
+  the accepted ADR; formalized as its own record rather than an in-place
+  ADR-0010 edit (this repo's own established "extract a sub-decision into
+  a new ADR" pattern, per ADR-0014's precedent) —
+  [ADR-0015](../adr/0015-provider-identity-deferred-in-provider-attempt.md).
 - `PipelineStage` and `CompositionAttemptOutcome` are `public` (not
   `internal`), and so, transitively, is `ProviderAttempt` — a public
   `CompositionDiagnostic.Trace` can't expose an internal element type.
@@ -1376,6 +1373,61 @@ ADR-0014. The task list below reflects the corrected shape.
   [`docs/performance.md`](../performance.md#milestone-2-phase-4-resolution-pipeline-result)
   (`docs/architecture.md`'s Diagnostics section links there too, rather
   than duplicating the table).
+- A PR #13 review round (Codex) found three real issues, all fixed in the
+  same PR. **Trace buffer's own allocation was asserted, not measured
+  (P1).** The Phase 4 benchmark result above reported total allocation
+  without isolating what fraction the trace buffer itself contributes,
+  so "allocation-free on success" read as a stronger claim than actually
+  verified. Fixed by measuring `CompositionTraceBuffer` in isolation
+  (`GC.GetAllocatedBytesForCurrentThread()` around 1,000,000 direct
+  constructions, Release, .NET 10.0.3 arm64): 184 B/instance, ~6.6% of a
+  real `Customer` composition's 2.73 KB - real, consistent with
+  ADR-0010's "near-zero, not zero-cost" framing, not a violation of it.
+  `docs/performance.md` and `docs/architecture.md` now state this
+  precisely instead of the unqualified claim; a true zero-allocation
+  design (pooling `CompositionTraceBuffer` across root operations) is
+  recorded as a new deferred item in `docs/architecture.md`'s Open
+  Architectural Decisions, not attempted as a same-PR fix. **`Success`
+  recorded before composition actually completed (P2, worse than
+  reported).** The review flagged one site
+  (`CollectionPlanCache<TValue>.Compose(this)` recording
+  `BuiltInProvider: Success` *before* `Compose` ran, so an element
+  failure inside the collection left a false `Success` in the
+  materialized diagnostic) - confirmed, and the identical bug pattern
+  was present in five more places: the profile/semantic/test-double/
+  built-in provider branches (recording `Success` before
+  `StoreSharedAndReturn`'s authoritative shared-value validation, which
+  can still throw) and `ResolveViaGeneratedPlan`'s shared path (same
+  issue, after `Compose` but before `StoreSharedAndReturn`). Fixed at all
+  six sites by moving each `_trace.Record(..., Success)` to strictly
+  after the corresponding value has actually been returned/stored
+  without throwing. Verified as a real regression, not just a
+  theoretical one: temporarily reverted the fix and confirmed the new
+  regression tests actually fail without it, then restored the fix -
+  `CompositionDiagnosticsTests.ResolveRoot_DiagnosticTrace_DoesNotRecordSuccess_WhenACollectionPlanElementFails`
+  (the exact collection scenario reported) and
+  `..._WhenASharedProviderValueFailsValidation` (the broader pattern, at
+  the cheapest site to exercise via the injectable-provider test seam).
+  **Provider identity dropped from the public trace record (P1).**
+  Already covered above and in [ADR-0015](../adr/0015-provider-identity-deferred-in-provider-attempt.md) -
+  a real, but already-intentional and now-formally-recorded, deviation
+  from ADR-0010's literal text, not a gap.
+- The same PR #13 review round separately prompted rebuilding the
+  resolution benchmark's reflection baseline, once its flawed comparison
+  was noticed on inspection rather than via a specific finding:
+  `ReflectionComposer.ComposeRecursive<T>()` originally filled every
+  field with a fixed placeholder value (`"value"`, etc.), making
+  `ResolutionArchitectureBenchmarks`' `Reflection` column faster than
+  `Generated` for doing categorically less work - a comparison that
+  invited exactly the wrong conclusion ("why not just use reflection").
+  Rewritten to generate real random values matching Compono's own
+  defaults (an 8-character alphanumeric string per `PrimitiveValueProvider`'s
+  `StringLength`, a 3-element collection per ADR-0013's default
+  collection size) via `System.Random.Shared` - the actual reflection-based
+  alternative someone would reach for, not a dispatch-cost-only strawman.
+  Re-run at `DefaultJob` after the rewrite; `docs/performance.md`'s
+  Resolution architecture benchmark table reflects the new, honest
+  numbers.
 
 ## Critical Files
 

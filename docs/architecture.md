@@ -497,22 +497,31 @@ Seed: 8492173
 ```
 
 Per [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md),
-this level of detail is not free to collect and must not cost anything on
-the normal successful path: a context-owned, reusable, array-backed trace
-buffer (`CompositionTraceBuffer`) records a compact struct (`ProviderAttempt`:
-stage, outcome — no strings, no allocation) per stage attempt, and rewinds
-on success instead of retaining anything. Only a failing request
-materializes its slice of that buffer into the durable
-`CompositionDiagnostic` above (`exception.Diagnostic`, `docs/public-api.md`'s
-Diagnostics API), before the buffer unwinds further.
+this level of detail is designed to cost as little as possible on the
+normal successful path — "near-zero-allocation on success, not
+zero-cost," in the ADR's own words: a context-owned, reusable,
+array-backed trace buffer (`CompositionTraceBuffer`) records a compact
+struct (`ProviderAttempt`: stage, outcome — no strings, no per-append
+allocation) per stage attempt, and rewinds on success instead of
+retaining anything. Only a failing request materializes its slice of that
+buffer into the durable `CompositionDiagnostic` above
+(`exception.Diagnostic`, `docs/public-api.md`'s Diagnostics API), before
+the buffer unwinds further.
+
+`CompositionTraceBuffer` itself is not literally zero-allocation, though:
+its backing `ProviderAttempt[16]` array is allocated once per root
+`CompositionContext`, measured directly at **184 B per instance** — see
+this page's Open Architectural Decisions entry below for the precise
+breakdown and why that's deferred rather than fixed as a same-PR change.
 
 Confirmed via `Compono.Benchmarks`' `ResolutionBenchmarks` (Milestone 2
 Phase 4, full `DefaultJob` numbers in [`docs/performance.md`](performance.md)):
 composing the `Customer`/`Address` representative graph allocates ~2.73 KB
-regardless of the trace buffer's presence, and `CreateMany<T>(count)`
-scales linearly with `count` (10.18× allocation at `count=10`, 101.47× at
-`count=100`, against a `count=1` baseline) — no super-linear growth from
-checkpoint/rewind bookkeeping. No fallback to shallow diagnostics was
+total (of which the trace buffer's 184 B is ~6.6%) regardless of the
+trace buffer's presence, and `CreateMany<T>(count)` scales linearly with
+`count` (10.18× allocation at `count=10`, 101.47× at `count=100`, against
+a `count=1` baseline) — no super-linear growth from checkpoint/rewind
+bookkeeping. No fallback to shallow diagnostics was
 needed.
 
 ## Package Boundaries
@@ -721,3 +730,23 @@ Owns:
   scope nor Compono's primary xUnit-test-runner consumer currently
   exercises. Revisit alongside the collision item if collectible-ALC
   hosting becomes an actual target — no design has been chosen yet.
+- **`CompositionTraceBuffer`'s own array allocation, per root operation**
+  — flagged during PR #13 review: `CompositionTraceBuffer`'s backing
+  `ProviderAttempt[16]` array (allocated eagerly in its constructor, one
+  instance per `CompositionContext`) is a genuine, unconditional
+  allocation on every `Create<T>()`/`CreateMany<T>()` item, not literally
+  zero — measured directly (isolated from the rest of a real composition)
+  at 184 B per `CompositionTraceBuffer` instance, ~43% of a bare, freshly
+  constructed `CompositionContext`'s own 424 B. Against a real
+  representative composition (`ResolutionBenchmarks`' `Customer`/`Address`
+  graph, `docs/performance.md`), that 184 B is ~6.6% of the ~2.73 KB total
+  — consistent with [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+  explicit "near-zero-allocation on success, not zero-cost" framing, not
+  a violation of it, but real enough that this page and `docs/performance.md`
+  now state the precise figure instead of an unqualified "allocation-free"
+  claim. A true zero-allocation design would need the buffer pooled/reused
+  across root operations (`CompositionContext` isn't currently pooled or
+  reset-and-reused at all) — a real architecture change, not a
+  same-PR-sized fix. Deferred: revisit if a future benchmark shows this
+  mattering at a scale `docs/mvp.md`'s scope actually exercises — no
+  design has been chosen yet.

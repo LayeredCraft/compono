@@ -193,10 +193,16 @@ internal sealed class CompositionContext : ICompositionContext
 
             _trace.Record(PipelineStage.ExactRegistration, CompositionAttemptOutcome.NotHandled);
 
+            // Every Success recording below happens *after* StoreSharedAndReturn/Compose has already
+            // returned without throwing - never before. StoreSharedAndReturn can still throw (a
+            // shared request whose value fails ADR-0011's authoritative null/type validation), and a
+            // collection/generated plan's Compose can throw if one of its own elements fails; a stage
+            // whose outward call hasn't actually completed yet has no business being recorded as
+            // "Success" in a trace a later BuildException might materialize.
             if (TryProviders(_profileProviders, request, out var profileValue))
             {
-                _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.Success);
                 var value = StoreSharedAndReturn<TValue>(profileValue, request);
+                _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.Success);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -205,8 +211,8 @@ internal sealed class CompositionContext : ICompositionContext
 
             if (TryProviders(_semanticProviders, request, out var semanticValue))
             {
-                _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.Success);
                 var value = StoreSharedAndReturn<TValue>(semanticValue, request);
+                _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.Success);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -215,8 +221,8 @@ internal sealed class CompositionContext : ICompositionContext
 
             if (TryProviders(_testDoubleProviders, request, out var testDoubleValue))
             {
-                _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.Success);
                 var value = StoreSharedAndReturn<TValue>(testDoubleValue, request);
+                _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.Success);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -225,8 +231,8 @@ internal sealed class CompositionContext : ICompositionContext
 
             if (TryProviders(_builtInProviders, request, out var builtInValue))
             {
-                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
                 var value = StoreSharedAndReturn<TValue>(builtInValue, request);
+                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -238,8 +244,8 @@ internal sealed class CompositionContext : ICompositionContext
             // See docs/adr/0014-generator-emitted-collection-plans.md.
             if (CollectionPlanCache<TValue>.Instance is { } collectionPlan)
             {
-                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
                 var value = StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request);
+                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -285,10 +291,11 @@ internal sealed class CompositionContext : ICompositionContext
         try
         {
             var value = plan.Compose(this);
-            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Success);
-            return request.IsShared
+            var result = request.IsShared
                 ? StoreSharedAndReturn<TValue>(value, request)
                 : value;
+            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Success);
+            return result;
         }
         finally
         {

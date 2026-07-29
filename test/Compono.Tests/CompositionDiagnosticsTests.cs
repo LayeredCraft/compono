@@ -64,6 +64,56 @@ public sealed class CompositionDiagnosticsTests
     }
 
     [Fact]
+    public void ResolveRoot_DiagnosticTrace_DoesNotRecordSuccess_WhenACollectionPlanElementFails()
+    {
+        CollectionPlanCache<List<Missing>>.Instance = new FailingListPlan();
+
+        try
+        {
+            var context = new CompositionContext();
+
+            var act = () => context.ResolveRoot<List<Missing>>();
+
+            var trace = act.Should().Throw<CompositionException>().Which.Diagnostic!.Trace;
+
+            // Regression for a real bug (PR #13 review): the collection-dispatch branch used to
+            // record "BuiltInProvider: Success" *before* calling collectionPlan.Compose(this) -
+            // since Compose throws here (its one element can't be satisfied), the pre-fix trace
+            // would have falsely claimed this collection request succeeded, even though it's the
+            // root of the failing branch.
+            trace.Should().NotContain(attempt => attempt.Outcome == CompositionAttemptOutcome.Success);
+        }
+        finally
+        {
+            CollectionPlanCache<List<Missing>>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void ResolveRoot_DiagnosticTrace_DoesNotRecordSuccess_WhenASharedProviderValueFailsValidation()
+    {
+        var provider = new NullProvider();
+        var context = new CompositionContext(
+            profileProviders: [provider],
+            semanticProviders: [],
+            testDoubleProviders: [],
+            builtInProviders: []);
+
+        var act = () => context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
+
+        var trace = act.Should().Throw<CompositionException>().Which.Diagnostic!.Trace;
+
+        // Same class of bug as the collection case above, at a different site: the profile-provider
+        // branch used to record "ProfileRule: Success" before StoreSharedAndReturn's authoritative
+        // null/type validation ran - a provider that hands back an invalid value for a shared
+        // request would have left a false "Success" in the trace even though StoreSharedAndReturn
+        // goes on to throw. The same fix applies to the semantic/test-double/built-in provider
+        // branches and the generated-plan shared path - this test covers the pattern once, at the
+        // stage that's cheapest to exercise via the injectable-provider test seam.
+        trace.Should().NotContain(attempt => attempt.Outcome == CompositionAttemptOutcome.Success);
+    }
+
+    [Fact]
     public void ResolveRoot_DiagnosticPath_RendersClosedGenericTypes_InCSharpStyleNotRawClrForm()
     {
         PlanCache<HasGenericMember>.Instance = new HasGenericMemberPlan();
@@ -97,6 +147,8 @@ public sealed class CompositionDiagnosticsTests
 
     private sealed record HasGenericMember(List<Missing> Values);
 
+    private sealed record Widget;
+
     private sealed class OuterPlan : ICompositionPlan<Outer>
     {
         public Outer Compose(ICompositionContext context) =>
@@ -126,5 +178,22 @@ public sealed class CompositionDiagnosticsTests
     {
         public HasGenericMember Compose(ICompositionContext context) =>
             new(context.Resolve<List<Missing>>(Descriptor(0, "values")));
+    }
+
+    // Simulates a real generated List<Missing> collection plan whose one element can't be
+    // satisfied - matching the shape a genuine CollectionPlanCache<T> entry has (a CollectionElement
+    // descriptor per position), per docs/adr/0014-generator-emitted-collection-plans.md.
+    private sealed class FailingListPlan : ICompositionPlan<List<Missing>>
+    {
+        public List<Missing> Compose(ICompositionContext context) =>
+            [context.Resolve<Missing>(new CompositionRequestDescriptor(CompositionRequestKind.CollectionElement, 0, "", Nullability.NotNullable))];
+    }
+
+    private sealed class NullProvider : ICompositionProvider
+    {
+        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context) =>
+            request.RequestedType == typeof(Widget)
+                ? new CompositionResult.Success(null)
+                : CompositionResult.NotHandled.Instance;
     }
 }

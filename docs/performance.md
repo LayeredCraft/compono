@@ -100,21 +100,23 @@ mirroring `ArchitectureBenchmarks`/`EcosystemBenchmarks`' split so
 ecosystem numbers stay separate from the architecture question:
 
 - **`ResolutionArchitectureBenchmarks`** - `Direct`/`Generated`/`Reflection`,
-  same shape as `ArchitectureBenchmarks` above. **Not a clean win/loss
-  read like the `Leaf` comparison**: `Direct`/`Generated`/`Reflection` all
-  agreed on "what work gets done" for `Leaf` (nothing - no fields to
-  fill), but here `ReflectionComposer.ComposeRecursive<T>()` fills every
-  field with a fixed placeholder value while `Generated` does Compono's
-  real deterministic random-value generation per field. `Reflection`
-  coming out faster than `Generated` below isn't "reflection beats source
-  generation" - it's "doing less work is faster than doing real
-  randomized-generation work," the mirror image of the AutoFixture caveat
-  below. This isolates dispatch-mechanism cost for `Direct`/`Generated`;
-  it does not isolate dispatch cost alone for `Reflection`, since a
-  reflection-based composer that also replicates Compono's real
-  random-value generation would mean reimplementing the engine
-  reflectively - disproportionate to what this benchmark needs to
-  establish.
+  same shape as `ArchitectureBenchmarks` above. `Direct` stays the
+  theoretical floor (no fields to fill, same as `Leaf`), but `Reflection`
+  here does comparable real work to `Generated`:
+  `ReflectionComposer.ComposeRecursive<T>()` fills every field with a
+  genuinely random value (an 8-character alphanumeric string, a
+  3-element collection - Compono's own defaults), not a fixed
+  placeholder. An earlier version of this baseline used fixed
+  placeholders, which made `Reflection` faster than `Generated` for
+  doing categorically less work rather than because reflective dispatch
+  actually beats source-generated dispatch - a misleading comparison
+  caught in PR #13 review and fixed by rewriting the baseline to do real
+  value generation. The one remaining, deliberate asymmetry:
+  `Reflection`'s randomness is ordinary `Random.Shared`, not Compono's
+  deterministic, seed-forked `IRandomSource` - reproducibility is a
+  Compono product feature (`README.md`'s "Deterministic by design"), not
+  a cost every random-value generator has to pay, so `Generated`'s cost
+  below includes work `Reflection`'s doesn't.
 - **`ResolutionEcosystemBenchmarks`** - `Generated`/`AutoFixture`, same
   shape as `EcosystemBenchmarks` above, except this time `Customer`
   actually has fields for AutoFixture's real randomized-value-generation
@@ -135,17 +137,23 @@ arm64 RyuJIT, Release configuration, `BenchmarkDotNet` `DefaultJob`:
 
 | Method     | Mean      | Allocated |
 |------------|----------:|----------:|
-| Direct     |  14.02 ns |     160 B |
-| Generated  | 876.16 ns |   2,792 B |
-| Reflection | 224.57 ns |     552 B |
+| Direct     |  13.84 ns |     160 B |
+| Generated  | 873.03 ns |   2,792 B |
+| Reflection | 383.80 ns |     832 B |
 
-Generated resolution ran ~62.5x slower than `Direct`'s theoretical-floor
-hardcoded construction, and allocated ~17.5x as much - the real cost of
+Generated resolution ran ~63.1x slower than `Direct`'s theoretical-floor
+hardcoded construction and allocated ~17.5x as much - the real cost of
 provider dispatch, random forking, collection generation, and diagnostics
-tracing for this graph, not just constructor invocation. See the caveat
-above for why `Reflection` being ~3.9x faster than `Generated` isn't a
-regression: it's doing categorically less work (fixed values, no
-randomized generation).
+tracing for this graph, not just constructor invocation. Against a
+reflection baseline doing genuinely comparable work (real random values,
+not placeholders), `Generated` ran ~2.3x slower and allocated ~3.4x as
+much as `Reflection` - a real, honest gap, not the ~3.9x-faster inversion
+the placeholder-value baseline previously (and misleadingly) showed. This
+is the number worth discussing if the question is "why not just use
+reflection": Compono's overhead over a comparable hand-rolled reflective
+composer is real, and this table is where to look for it, not the
+`Direct` comparison above (which was never a fair alternative to begin
+with - nobody ships hardcoded test data).
 
 **Resolution ecosystem comparison**
 
@@ -176,7 +184,30 @@ process. `CreateMany<T>(count)` scales linearly with `count` (10.18×
 allocation at `count=10`, 101.47× at `count=100`, against the `count=1`
 baseline) - no super-linear growth from the checkpoint/rewind trace
 buffer's bookkeeping, `IRandomSource`'s per-item seed forking, or scope
-allocation. **No fallback to shallow diagnostics was needed** - the
+allocation.
+
+**Isolating the trace buffer's own share of that 2.73 KB** (a PR #13
+review point: the table above alone can't tell you how much of it is
+diagnostics-tracing overhead versus real value generation) - measured
+directly via `GC.GetAllocatedBytesForCurrentThread()` around
+`new CompositionTraceBuffer()` in isolation, 1,000,000 iterations,
+Release, .NET 10.0.3 arm64:
+
+| What                                                     | Bytes/instance |
+|-----------------------------------------------------------|---------------:|
+| `CompositionTraceBuffer` alone (its `ProviderAttempt[16]`) |          184 B |
+| Bare `new CompositionContext()` (scope + active-frames + trace, no resolution) | 424 B |
+
+The trace buffer is ~43% of an empty context's own setup cost, and ~6.6%
+of a real `Customer` composition's full 2.73 KB - real, not literally
+zero (`ADR-0010`'s "near-zero-allocation on success, not zero-cost," not
+a stronger claim than that), but a small and bounded fraction dominated
+by the actual random-value-generation work happening around it. A true
+zero-allocation trace buffer would need pooling/reuse across root
+operations - `docs/architecture.md`'s Open Architectural Decisions tracks
+this as a deferred item, not a same-PR fix.
+
+**No fallback to shallow diagnostics was needed** - the
 allocation-free-on-success trace buffer design shipped as scoped.
 
 ## Reproducing

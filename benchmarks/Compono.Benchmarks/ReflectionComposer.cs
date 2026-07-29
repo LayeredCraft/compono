@@ -8,6 +8,11 @@ namespace Compono.Benchmarks;
 /// </summary>
 public static class ReflectionComposer
 {
+    // Matches Compono's own defaults exactly, so this baseline does comparable real work rather
+    // than a cheaper strawman: PrimitiveValueProvider.StringLength (src/Compono/Providers) and
+    // ADR-0013's default collection size.
+    private const string Alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private const int StringLength = 8;
     private const int CollectionSize = 3;
 
     /// <summary>
@@ -24,12 +29,18 @@ public static class ReflectionComposer
 
     /// <summary>
     /// Constructs an instance of <typeparamref name="T"/> by walking its constructor's parameters
-    /// recursively through reflection - the reflection-based alternative to a generated
-    /// <see cref="ICompositionPlan{T}"/> graph (<see cref="ResolutionBenchmarks"/>), not just a
-    /// single flat type (<see cref="Compose{T}"/>). Deliberately narrow: only the shapes
-    /// <see cref="Customer"/>/<see cref="Address"/> actually use (<c>string</c>,
+    /// recursively through reflection, filling every leaf field with a genuinely random value
+    /// (an 8-character alphanumeric string, a 3-element collection - Compono's own defaults) rather
+    /// than a fixed placeholder. This is the actual reflection-based alternative someone would write
+    /// by hand for <see cref="ResolutionBenchmarks"/>' representative graph, not a dispatch-cost-only
+    /// strawman: an earlier version of this method used fixed placeholder values, which made it
+    /// faster than <see cref="Composer.Create{T}"/> for doing categorically less work, not because
+    /// reflective dispatch beats source-generated dispatch (PR #13 review). Deliberately narrow:
+    /// only the shapes <see cref="Customer"/>/<see cref="Address"/> actually use (<c>string</c>,
     /// <c>List&lt;T&gt;</c>, and a type with a single public constructor) - this is a benchmark
-    /// baseline, not a general reflection-based composer.
+    /// baseline, not a general reflection-based composer, and its randomness is ordinary
+    /// <see cref="Random.Shared"/>, not Compono's deterministic, seed-forked
+    /// <see cref="IRandomSource"/> - reproducibility isn't a property this baseline needs.
     /// </summary>
     /// <typeparam name="T">The type to construct.</typeparam>
     public static T ComposeRecursive<T>() => (T)ComposeValue(typeof(T))!;
@@ -37,10 +48,13 @@ public static class ReflectionComposer
     private static object? ComposeValue(Type type)
     {
         if (type == typeof(string))
-            return "value";
+            return NextString();
 
         if (type.IsEnum)
-            return Enum.GetValues(type).GetValue(0);
+        {
+            var values = Enum.GetValues(type);
+            return values.GetValue(Random.Shared.Next(values.Length));
+        }
 
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
         {
@@ -58,5 +72,14 @@ public static class ReflectionComposer
             .ToArray();
 
         return constructor.Invoke(arguments);
+    }
+
+    private static string NextString()
+    {
+        Span<char> chars = stackalloc char[StringLength];
+        for (var i = 0; i < StringLength; i++)
+            chars[i] = Alphabet[Random.Shared.Next(Alphabet.Length)];
+
+        return new string(chars);
     }
 }

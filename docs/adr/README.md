@@ -76,3 +76,4 @@ the mechanics: numbering, status, and the index.
 | [0012](0012-composition-path-identity-and-deterministic-random-forking.md) | Composition Path Identity, Deterministic Random Forking, and CreateMany Seed Derivation | Accepted |
 | [0013](0013-collection-generation-semantics.md) | Collection Generation Semantics | Accepted |
 | [0014](0014-generator-emitted-collection-plans.md) | Generator-Emitted Collection Plans Replace the Reflection-Based Dispatch Bridge | Accepted |
+| [0015](0015-provider-identity-deferred-in-provider-attempt.md) | Provider Identity Deferred in `ProviderAttempt` | Accepted |
