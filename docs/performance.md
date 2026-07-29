@@ -44,9 +44,10 @@ numbers can't be mistaken for the architecture's success criterion:
   - **Generated** - same as above, repeated as this group's baseline.
   - **AutoFixture** - `new Fixture().Create<Leaf>()`.
 
-This will expand once Milestone 2 makes nested/primitive composition real -
-the interesting comparison (a representative graph with several nested
-composable properties) isn't measurable honestly until then.
+This expanded once Milestone 2 made nested/primitive composition real -
+see "Milestone 2 Phase 4: resolution-pipeline result" below for the
+representative-graph comparison this section couldn't measure honestly
+until then.
 
 ## Baseline result
 
@@ -89,20 +90,75 @@ as a permanent result.
 generated *construction* dispatch versus reflection for a flat,
 parameterless type - nothing exercised the real resolution pipeline
 (provider dispatch, deterministic random forking, collection generation,
-the diagnostics trace buffer) until Milestone 2 made it real. `ResolutionBenchmarks`
-closes that gap with the `Customer`/`Address` representative graph from
-`docs/plans/0002-milestone-2-core-composition-engine.md`'s Execution Flow
-section (a nested composable type, every Phase 2 built-in kind via
-`string`, and a `List<string>` collection member), run through the real
-generator (`benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`).
+the diagnostics trace buffer) until Milestone 2 made it real. Three new
+benchmark classes close that gap with the `Customer`/`Address`
+representative graph from `docs/plans/0002-milestone-2-core-composition-engine.md`'s
+Execution Flow section (a nested composable type, every Phase 2 built-in
+kind via `string`, and a `List<string>` collection member), run through
+the real generator (`benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`),
+mirroring `ArchitectureBenchmarks`/`EcosystemBenchmarks`' split so
+ecosystem numbers stay separate from the architecture question:
 
-This was also the benchmark gate [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)
-reserved for the diagnostics trace buffer: confirm it's actually
-allocation-free on the success path, and fall back to shallow diagnostics
-by default if it measurably harms the hot path.
+- **`ResolutionArchitectureBenchmarks`** - `Direct`/`Generated`/`Reflection`,
+  same shape as `ArchitectureBenchmarks` above. **Not a clean win/loss
+  read like the `Leaf` comparison**: `Direct`/`Generated`/`Reflection` all
+  agreed on "what work gets done" for `Leaf` (nothing - no fields to
+  fill), but here `ReflectionComposer.ComposeRecursive<T>()` fills every
+  field with a fixed placeholder value while `Generated` does Compono's
+  real deterministic random-value generation per field. `Reflection`
+  coming out faster than `Generated` below isn't "reflection beats source
+  generation" - it's "doing less work is faster than doing real
+  randomized-generation work," the mirror image of the AutoFixture caveat
+  below. This isolates dispatch-mechanism cost for `Direct`/`Generated`;
+  it does not isolate dispatch cost alone for `Reflection`, since a
+  reflection-based composer that also replicates Compono's real
+  random-value generation would mean reimplementing the engine
+  reflectively - disproportionate to what this benchmark needs to
+  establish.
+- **`ResolutionEcosystemBenchmarks`** - `Generated`/`AutoFixture`, same
+  shape as `EcosystemBenchmarks` above, except this time `Customer`
+  actually has fields for AutoFixture's real randomized-value-generation
+  work to fill (unlike `Leaf`).
+- **`ResolutionBenchmarks`** - `Create`/`CreateMany` only, no external
+  baseline; the comparison here is intrinsic (`CreateMany`'s cost at
+  `count=10`/`count=100` against its own `count=1` baseline), the scaling
+  question `docs/plans/0002-...`'s Phase 4 benchmark task asks. This is
+  also the benchmark gate [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)
+  reserved for the diagnostics trace buffer: confirm it's actually
+  allocation-free on the success path, and fall back to shallow
+  diagnostics by default if it measurably harms the hot path.
 
 Recorded at Milestone 2 Phase 4's completion, Apple M3 Max, .NET 10.0.3
 arm64 RyuJIT, Release configuration, `BenchmarkDotNet` `DefaultJob`:
+
+**Resolution architecture benchmark**
+
+| Method     | Mean      | Allocated |
+|------------|----------:|----------:|
+| Direct     |  14.02 ns |     160 B |
+| Generated  | 876.16 ns |   2,792 B |
+| Reflection | 224.57 ns |     552 B |
+
+Generated resolution ran ~62.5x slower than `Direct`'s theoretical-floor
+hardcoded construction, and allocated ~17.5x as much - the real cost of
+provider dispatch, random forking, collection generation, and diagnostics
+tracing for this graph, not just constructor invocation. See the caveat
+above for why `Reflection` being ~3.9x faster than `Generated` isn't a
+regression: it's doing categorically less work (fixed values, no
+randomized generation).
+
+**Resolution ecosystem comparison**
+
+| Method      | Mean         | Allocated |
+|-------------|-------------:|----------:|
+| Generated   |    859.48 ns |   2.73 KB |
+| AutoFixture | 78,095.80 ns |  99.21 KB |
+
+Generated construction ran **~90.9x faster** and allocated **~2.75%** as
+much as AutoFixture - this time with `Customer` actually giving
+AutoFixture real randomized-value-generation work to do, unlike `Leaf`.
+
+**Resolution pipeline (`Create`/`CreateMany`)**
 
 | Method     | Count | Mean         | Allocated  | Alloc Ratio |
 |------------|------:|-------------:|-----------:|------------:|
@@ -130,6 +186,6 @@ dotnet run -c Release --project benchmarks/Compono.Benchmarks -f net10.0
 ```
 
 `-c Release` is required - `BenchmarkDotNet` refuses to run a Debug build.
-Add `-- --filter "*ResolutionBenchmarks*"` to run only the Milestone 2
+Add `-- --filter "*Resolution*"` to run only the Milestone 2
 resolution-pipeline benchmarks (the full suite, including
 `ArchitectureBenchmarks`/`EcosystemBenchmarks`, takes several minutes).

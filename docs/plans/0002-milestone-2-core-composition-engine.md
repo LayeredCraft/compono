@@ -1345,17 +1345,34 @@ ADR-0014. The task list below reflects the corrected shape.
   already only reads `Name` values off `PathSegment`, never `RequestedType.Name`,
   so it was never affected by this gap.
 - **Benchmark result (real, not extrapolated, `DefaultJob` — not a quick
-  `--job short` smoke test):** `Compono.Benchmarks`' new
-  `ResolutionBenchmarks` (`Customer`/`Address`, including a `List<string>`
-  collection member, run through the real generator via
-  `dotnet run -c Release -- --filter *ResolutionBenchmarks*`) measured
+  `--job short` smoke test):** three new `Compono.Benchmarks` classes,
+  all against the same `Customer`/`Address` graph (including a
+  `List<string>` collection member), run through the real generator via
+  `dotnet run -c Release -- --filter "*Resolution*"`, mirroring
+  `ArchitectureBenchmarks`/`EcosystemBenchmarks`' split - a review round
+  flagged that the first version of this benchmark had no `new()`/
+  reflection/AutoFixture comparison at all, unlike Milestone 1's
+  benchmarks. `ResolutionBenchmarks` (`Create`/`CreateMany`) measured
   `Create<Customer>()` at ~2.73 KB allocated per call regardless of
   `CreateMany`'s batch size, and `CreateMany<T>(count)` scaling linearly
   with `count` (10.18× allocation at `count=10`, 101.47× at `count=100`,
   against the `count=1` baseline - no super-linear growth). This confirms
   the checkpoint/rewind trace buffer doesn't measurably harm the hot path;
   the shallow-diagnostics fallback ADR-0010 reserved for that case was not
-  needed. Full table and reproduction steps recorded permanently in
+  needed. `ResolutionEcosystemBenchmarks` (`Generated` vs `AutoFixture`)
+  measured Generated at ~90.9x faster and ~2.75% of AutoFixture's
+  allocation - `Customer` actually gives AutoFixture real
+  randomized-value-generation work, unlike `Leaf`.
+  `ResolutionArchitectureBenchmarks` (`Direct`/`Generated`/`Reflection`,
+  the new `ReflectionComposer.ComposeRecursive<T>()`) is **not** a clean
+  win/loss read like the `Leaf` comparison: the reflection baseline fills
+  every field with a fixed placeholder value rather than replicating
+  Compono's real random-value generation, so it's faster than `Generated`
+  for doing categorically less work, not because reflection dispatch
+  beats source-generated dispatch - documented explicitly in both the
+  class' XML doc `<remarks>` and `docs/performance.md`, the mirror image
+  of the AutoFixture caveat. Full tables and reproduction steps recorded
+  permanently in
   [`docs/performance.md`](../performance.md#milestone-2-phase-4-resolution-pipeline-result)
   (`docs/architecture.md`'s Diagnostics section links there too, rather
   than duplicating the table).
@@ -1479,7 +1496,15 @@ ADR-0014. The task list below reflects the corrected shape.
   `test/Compono.Tests/CompositionEndToEndTests.cs` — new — **Done (Phase 4)**
 - `benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`
   (`Customer`/`Address`), `benchmarks/Compono.Benchmarks/ResolutionBenchmarks.cs`
-  — new — **Done (Phase 4)**
+  (`Create`/`CreateMany` scaling),
+  `benchmarks/Compono.Benchmarks/ResolutionArchitectureBenchmarks.cs`
+  (`Direct`/`Generated`/`Reflection`),
+  `benchmarks/Compono.Benchmarks/ResolutionEcosystemBenchmarks.cs`
+  (`Generated`/`AutoFixture`) — new;
+  `benchmarks/Compono.Benchmarks/ReflectionComposer.cs` — modified:
+  `ComposeRecursive<T>()` added (fixed-placeholder-value recursive
+  reflection composer, alongside the existing parameterless-only
+  `Compose<T>()`) — **Done (Phase 4)**
 - `test/Compono.Tests/**` — new tests per phase above
 
 ## Test Plan
