@@ -44,7 +44,7 @@ internal sealed class PrimitiveValueProvider : ICompositionProvider
             [typeof(TimeSpan)] = NextTimeSpan,
         };
 
-    public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
+    public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
     {
         // Every provider in the pipeline is invoked with the real CompositionContext - the only
         // ICompositionContext implementation that exists - so this node's own forked random source is

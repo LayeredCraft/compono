@@ -509,20 +509,27 @@ buffer into the durable `CompositionDiagnostic` above
 the buffer unwinds further.
 
 `CompositionTraceBuffer` itself is not literally zero-allocation, though:
-its backing `ProviderAttempt[16]` array is allocated once per root
-`CompositionContext`, measured directly at **184 B per instance** — see
-this page's Open Architectural Decisions entry below for the precise
-breakdown and why that's deferred rather than fixed as a same-PR change.
+its backing `ProviderAttempt[32]` array is allocated once per root
+`CompositionContext`, measured directly at **~280 B per instance** (32
+entries, bumped from an original 16 after a second PR #13 review round —
+see below) — see this page's Open Architectural Decisions entry below for
+the precise breakdown and why pooling it entirely is deferred rather than
+fixed as a same-PR change.
 
 Confirmed via `Compono.Benchmarks`' `ResolutionBenchmarks` (Milestone 2
 Phase 4, full `DefaultJob` numbers in [`docs/performance.md`](performance.md)):
-composing the `Customer`/`Address` representative graph allocates ~2.73 KB
-total (of which the trace buffer's 184 B is ~6.6%) regardless of the
+composing the `Customer`/`Address` representative graph allocates ~2.46 KB
+total (of which the trace buffer's ~280 B is ~11%) regardless of the
 trace buffer's presence, and `CreateMany<T>(count)` scales linearly with
-`count` (10.18× allocation at `count=10`, 101.47× at `count=100`, against
+`count` (10.20× allocation at `count=10`, 101.63× at `count=100`, against
 a `count=1` baseline) — no super-linear growth from checkpoint/rewind
-bookkeeping. No fallback to shallow diagnostics was
-needed.
+bookkeeping. That graph is only 2 levels deep, though — never deep enough
+to trigger `CompositionTraceBuffer`'s own growth path (each active
+ancestor frame retains ~6 entries until its own child returns, so a
+32-entry buffer holds ~5 levels before resizing); `docs/performance.md`'s
+"Deep graph result" measures an 8-level-deep graph that does trigger a
+real `Array.Resize`, rather than only benchmarking the shallow case. No
+fallback to shallow diagnostics was needed.
 
 ## Package Boundaries
 
@@ -732,19 +739,34 @@ Owns:
   hosting becomes an actual target — no design has been chosen yet.
 - **`CompositionTraceBuffer`'s own array allocation, per root operation**
   — flagged during PR #13 review: `CompositionTraceBuffer`'s backing
-  `ProviderAttempt[16]` array (allocated eagerly in its constructor, one
+  `ProviderAttempt[]` array (allocated eagerly in its constructor, one
   instance per `CompositionContext`) is a genuine, unconditional
   allocation on every `Create<T>()`/`CreateMany<T>()` item, not literally
   zero — measured directly (isolated from the rest of a real composition)
-  at 184 B per `CompositionTraceBuffer` instance, ~43% of a bare, freshly
-  constructed `CompositionContext`'s own 424 B. Against a real
-  representative composition (`ResolutionBenchmarks`' `Customer`/`Address`
-  graph, `docs/performance.md`), that 184 B is ~6.6% of the ~2.73 KB total
+  at ~280 B per `CompositionTraceBuffer` instance (32-entry initial
+  capacity), ~11% of a real `Customer`/`Address` representative
+  composition's ~2.46 KB total (`ResolutionBenchmarks`, `docs/performance.md`)
   — consistent with [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
   explicit "near-zero-allocation on success, not zero-cost" framing, not
   a violation of it, but real enough that this page and `docs/performance.md`
   now state the precise figure instead of an unqualified "allocation-free"
-  claim. A true zero-allocation design would need the buffer pooled/reused
+  claim.
+
+  A second PR #13 review round found the *growth* path is real too, not
+  just the fixed initial allocation: each active ancestor frame dispatching
+  through stage 8 or a collection plan retains ~6 trace entries (5 declined
+  stages plus a `CompositionAttemptOutcome.Pending` marker) until its own
+  child returns, so a composable-type chain more than ~5 levels deep
+  exceeds a 32-entry buffer and triggers a real `Array.Resize` — the
+  shallow, 2-level-deep `Customer` graph the original benchmark used never
+  exercised this at all. Fixed in two parts: the initial capacity was
+  bumped from 16 to 32 (covering `docs/architecture.md`'s own 4-level
+  Diagnostics example without resizing), and `docs/performance.md`'s
+  `DeepGraphBenchmarks` now measures an 8-level-deep chain that does
+  trigger a resize, so the growth cost is a real recorded number, not an
+  assumed-away one.
+
+  A true zero-allocation design would still need the buffer pooled/reused
   across root operations (`CompositionContext` isn't currently pooled or
   reset-and-reused at all) — a real architecture change, not a
   same-PR-sized fix. Deferred: revisit if a future benchmark shows this

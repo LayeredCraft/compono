@@ -116,7 +116,10 @@ internal sealed class CompositionPath
 
     // Type.Name on a closed generic gives the raw CLR form ("List`1"), unreadable in a diagnostic -
     // renders the C#-style form ("List<Node>") instead, recursing for a nested generic type argument.
-    private static string FriendlyTypeName(Type type)
+    // internal (not private): CompositionDiagnostic.ToString()'s heading and CompositionContext's
+    // stage-9 failure message both need the same rendering for a generic RequestedType/RootType,
+    // not just this type's own tree/display strings.
+    internal static string FriendlyTypeName(Type type)
     {
         if (!type.IsGenericType)
             return type.Name;

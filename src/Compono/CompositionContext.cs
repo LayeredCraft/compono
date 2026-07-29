@@ -244,6 +244,12 @@ internal sealed class CompositionContext : ICompositionContext
             // See docs/adr/0014-generator-emitted-collection-plans.md.
             if (CollectionPlanCache<TValue>.Instance is { } collectionPlan)
             {
+                // Recorded *before* Compose runs (unlike every Success recording above): if an
+                // element inside this collection fails, this entry - not a Success or a NotHandled -
+                // is what should survive in a failing descendant's materialized trace, showing this
+                // ancestor genuinely entered collection-plan dispatch rather than looking like it was
+                // never tried (PR #13 review).
+                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Pending);
                 var value = StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request);
                 _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
                 _trace.Rewind(checkpoint);
@@ -264,7 +270,7 @@ internal sealed class CompositionContext : ICompositionContext
 
             throw BuildException(
                 requestedType,
-                $"No registration, profile rule, semantic provider, test-double provider, built-in provider, or generated plan could satisfy '{requestedType.Name}'.");
+                $"No registration, profile rule, semantic provider, test-double provider, built-in provider, or generated plan could satisfy '{CompositionPath.FriendlyTypeName(requestedType)}'.");
         }
         finally
         {
@@ -277,7 +283,7 @@ internal sealed class CompositionContext : ICompositionContext
     // docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md. Stages 1-7 above
     // (explicit/shared/registration/profile/semantic/test-double/built-in) all get a chance to
     // terminate a self-referencing graph before this ever runs.
-    private TValue ResolveViaGeneratedPlan<TValue>(ICompositionPlan<TValue> plan, CompositionRequest request)
+    private TValue ResolveViaGeneratedPlan<TValue>(ICompositionPlan<TValue> plan, in CompositionRequest request)
     {
         var requestedType = request.RequestedType;
 
@@ -290,6 +296,10 @@ internal sealed class CompositionContext : ICompositionContext
         _activeFrames.Add(requestedType);
         try
         {
+            // Same reasoning as the collection-dispatch Pending recording above: this ancestor's
+            // generated-plan dispatch genuinely started before any descendant could fail, so it
+            // shouldn't be silently absent from a failing descendant's materialized trace.
+            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Pending);
             var value = plan.Compose(this);
             var result = request.IsShared
                 ? StoreSharedAndReturn<TValue>(value, request)
@@ -308,7 +318,7 @@ internal sealed class CompositionContext : ICompositionContext
         $"would construct '{requestedType}' again, which is already under construction. Use a registration " +
         "or a shared value to terminate the cycle.";
 
-    private bool TryProviders(IReadOnlyList<ICompositionProvider> providers, CompositionRequest request, out object? value)
+    private bool TryProviders(IReadOnlyList<ICompositionProvider> providers, in CompositionRequest request, out object? value)
     {
         foreach (var provider in providers)
         {
@@ -329,7 +339,7 @@ internal sealed class CompositionContext : ICompositionContext
     // ever enters _scope - a bad first population must fail right here with a CompositionException,
     // not get cached and surface a confusing InvalidCastException/NullReferenceException later, on
     // whichever subsequent shared request happens to read it back out.
-    private TValue StoreSharedAndReturn<TValue>(object? value, CompositionRequest request)
+    private TValue StoreSharedAndReturn<TValue>(object? value, in CompositionRequest request)
     {
         if (!request.IsShared)
             return CastResult<TValue>(value);
@@ -344,7 +354,7 @@ internal sealed class CompositionContext : ICompositionContext
     // Stages 2/3's authoritative validation, per ADR-0011's second amendment: a null value for a
     // non-nullable request, or a value whose runtime type isn't assignable to RequestedType, is a
     // Failure at that stage - never silently passed through as NotHandled.
-    private static CompositionResult ValidateAuthoritativeValue(object? value, CompositionRequest request, string source)
+    private static CompositionResult ValidateAuthoritativeValue(object? value, in CompositionRequest request, string source)
     {
         if (value is null)
         {

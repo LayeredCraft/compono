@@ -130,39 +130,39 @@ ecosystem numbers stay separate from the architecture question:
   allocation-free on the success path, and fall back to shallow
   diagnostics by default if it measurably harms the hot path.
 
-Recorded at Milestone 2 Phase 4's completion, Apple M3 Max, .NET 10.0.3
-arm64 RyuJIT, Release configuration, `BenchmarkDotNet` `DefaultJob`:
+Recorded at Milestone 2 Phase 4's completion (updated after a second PR #13
+review round - see below), Apple M3 Max, .NET 10.0.3 arm64 RyuJIT, Release
+configuration, `BenchmarkDotNet` `DefaultJob`:
 
 **Resolution architecture benchmark**
 
 | Method     | Mean      | Allocated |
 |------------|----------:|----------:|
-| Direct     |  13.84 ns |     160 B |
-| Generated  | 873.03 ns |   2,792 B |
-| Reflection | 383.80 ns |     832 B |
+| Direct     |  14.51 ns |     160 B |
+| Generated  | 834.81 ns |   2,520 B |
+| Reflection | 386.70 ns |     832 B |
 
-Generated resolution ran ~63.1x slower than `Direct`'s theoretical-floor
-hardcoded construction and allocated ~17.5x as much - the real cost of
+Generated resolution ran ~57.6x slower than `Direct`'s theoretical-floor
+hardcoded construction and allocated ~15.8x as much - the real cost of
 provider dispatch, random forking, collection generation, and diagnostics
 tracing for this graph, not just constructor invocation. Against a
 reflection baseline doing genuinely comparable work (real random values,
-not placeholders), `Generated` ran ~2.3x slower and allocated ~3.4x as
-much as `Reflection` - a real, honest gap, not the ~3.9x-faster inversion
-the placeholder-value baseline previously (and misleadingly) showed. This
-is the number worth discussing if the question is "why not just use
-reflection": Compono's overhead over a comparable hand-rolled reflective
-composer is real, and this table is where to look for it, not the
-`Direct` comparison above (which was never a fair alternative to begin
-with - nobody ships hardcoded test data).
+not placeholders), `Generated` ran ~2.2x slower and allocated ~3.0x as
+much as `Reflection` - a real, honest gap. This is the number worth
+discussing if the question is "why not just use reflection": Compono's
+overhead over a comparable hand-rolled reflective composer is real, and
+this table is where to look for it, not the `Direct` comparison above
+(which was never a fair alternative to begin with - nobody ships
+hardcoded test data).
 
 **Resolution ecosystem comparison**
 
 | Method      | Mean         | Allocated |
 |-------------|-------------:|----------:|
-| Generated   |    859.48 ns |   2.73 KB |
-| AutoFixture | 78,095.80 ns |  99.21 KB |
+| Generated   |    840.90 ns |   2.46 KB |
+| AutoFixture | 80,440.90 ns |  99.21 KB |
 
-Generated construction ran **~90.9x faster** and allocated **~2.75%** as
+Generated construction ran **~95.7x faster** and allocated **~2.5%** as
 much as AutoFixture - this time with `Customer` actually giving
 AutoFixture real randomized-value-generation work to do, unlike `Leaf`.
 
@@ -170,45 +170,103 @@ AutoFixture real randomized-value-generation work to do, unlike `Leaf`.
 
 | Method     | Count | Mean         | Allocated  | Alloc Ratio |
 |------------|------:|-------------:|-----------:|------------:|
-| Create     |     1 |    878.4 ns  |    2.73 KB |        1.00 |
-| CreateMany |     1 |    927.7 ns  |    2.86 KB |        1.05 |
-| Create     |    10 |    896.2 ns  |    2.73 KB |        1.00 |
-| CreateMany |    10 |  9,298.4 ns  |   27.75 KB |       10.18 |
-| Create     |   100 |    930.0 ns  |    2.73 KB |        1.00 |
-| CreateMany |   100 | 97,435.5 ns  |  276.66 KB |      101.47 |
+| Create     |     1 |    829.2 ns  |    2.46 KB |        1.00 |
+| CreateMany |     1 |    896.7 ns  |    2.59 KB |        1.05 |
+| Create     |    10 |    826.5 ns  |    2.46 KB |        1.00 |
+| CreateMany |    10 |  8,301.9 ns  |   25.09 KB |       10.20 |
+| Create     |   100 |    821.2 ns  |    2.46 KB |        1.00 |
+| CreateMany |   100 | 85,411.8 ns  |  250.10 KB |      101.63 |
 
-`Create<Customer>()` allocates ~2.73 KB per call regardless of
+`Create<Customer>()` allocates ~2.46 KB per call regardless of
 `CreateMany`'s batch size - a single root operation's cost, unaffected by
 how many other independent items get composed around it in the same
-process. `CreateMany<T>(count)` scales linearly with `count` (10.18×
-allocation at `count=10`, 101.47× at `count=100`, against the `count=1`
+process. `CreateMany<T>(count)` scales linearly with `count` (10.20×
+allocation at `count=10`, 101.63× at `count=100`, against the `count=1`
 baseline) - no super-linear growth from the checkpoint/rewind trace
 buffer's bookkeeping, `IRandomSource`'s per-item seed forking, or scope
 allocation.
 
-**Isolating the trace buffer's own share of that 2.73 KB** (a PR #13
-review point: the table above alone can't tell you how much of it is
-diagnostics-tracing overhead versus real value generation) - measured
-directly via `GC.GetAllocatedBytesForCurrentThread()` around
-`new CompositionTraceBuffer()` in isolation, 1,000,000 iterations,
-Release, .NET 10.0.3 arm64:
+### A second PR #13 review round: real fixes, not just documentation
+
+A follow-up review pass found three more real issues (all fixed) beyond
+the trace-buffer-isolation point already addressed above, plus a
+separately-requested optimization:
+
+- **`CompositionRequest` converted from a class to a `readonly record
+  struct`.** It's never stored beyond the synchronous `ResolveCore` call
+  that builds it, so the heap allocation was pure waste. Measured directly
+  (constructed and consumed the same way `ResolveCore` does, passed by
+  `in`, not boxed): **40 B → 0 B**, **14.9 ns → 5.5 ns**. This is what
+  moved every table above from their original numbers (`Generated` was
+  2,792 B/873.0 ns in the first version of this page) to the ones shown
+  now.
+- **A generic root type rendered in raw CLR form in the diagnostic
+  heading and failure message** (`Unable to compose List\`1.` instead of
+  `List<Missing>`) - the same class of bug `CompositionPath.FriendlyTypeName`
+  was added to fix for the path tree, just missed at two more call sites
+  (`CompositionDiagnostic.ToString()`'s heading, and the stage-9 failure
+  `Message` text). Fixed by reusing the same helper at both sites.
+- **An ancestor's in-flight generated-plan/collection-plan dispatch was
+  silently absent from the trace** when a descendant failed - `Success`
+  was (correctly, per the earlier fix) only ever recorded *after*
+  `Compose` returned, but that meant an ancestor still waiting on a
+  failing descendant never got *any* entry for its own stage-8/collection
+  dispatch. Fixed by recording a new `CompositionAttemptOutcome.Pending`
+  immediately before `Compose` runs - rewound away on success exactly like
+  every other entry, but surviving (correctly) when a descendant's failure
+  means the ancestor's own `Success` never gets recorded either.
+- **The trace buffer's growth path wasn't measured** - only the shallow
+  `Customer` graph (2 levels deep) had been benchmarked, which never gets
+  deep enough to trigger a resize. See "Deep graph result" below for a
+  graph that does.
+
+**Isolating the trace buffer's own share** of `Create<Customer>()`'s
+2.46 KB - measured directly via `GC.GetAllocatedBytesForCurrentThread()`
+around `new CompositionTraceBuffer()` in isolation, 1,000,000 iterations,
+Release, .NET 10.0.3 arm64 (re-measured after bumping the buffer's initial
+capacity from 16 to 32 - see "Deep graph result" below for why):
 
 | What                                                     | Bytes/instance |
 |-----------------------------------------------------------|---------------:|
-| `CompositionTraceBuffer` alone (its `ProviderAttempt[16]`) |          184 B |
-| Bare `new CompositionContext()` (scope + active-frames + trace, no resolution) | 424 B |
+| `CompositionTraceBuffer` alone (its `ProviderAttempt[32]`) |          ~280 B |
+| Bare `new CompositionContext()` (scope + active-frames + trace, no resolution) | ~520 B |
 
-The trace buffer is ~43% of an empty context's own setup cost, and ~6.6%
-of a real `Customer` composition's full 2.73 KB - real, not literally
-zero (`ADR-0010`'s "near-zero-allocation on success, not zero-cost," not
-a stronger claim than that), but a small and bounded fraction dominated
-by the actual random-value-generation work happening around it. A true
-zero-allocation trace buffer would need pooling/reuse across root
-operations - `docs/architecture.md`'s Open Architectural Decisions tracks
-this as a deferred item, not a same-PR fix.
+Still real, not literally zero (`ADR-0010`'s "near-zero-allocation on
+success, not zero-cost," not a stronger claim than that) - and, per the
+second review round, **not bounded at that number for every graph**: see
+below. A true zero-allocation trace buffer would need pooling/reuse across
+root operations - `docs/architecture.md`'s Open Architectural Decisions
+tracks this as a deferred item, not a same-PR fix.
+
+### Deep graph result
+
+`ResolutionBenchmarks`' `Customer`/`Address` graph is only 2 levels deep -
+never enough to exercise `CompositionTraceBuffer`'s growth path, since
+each active ancestor frame dispatching through stage 8/a collection plan
+retains ~6 entries (5 declined stages + a `Pending` marker) until its own
+child returns. `DeepGraphBenchmarks` composes an 8-level-deep chain of
+single-field composable types (`DeepLevel1` through `DeepLevel8`) instead
+- deep enough (~48 entries at its deepest point) to exceed the buffer's
+32-entry initial capacity and trigger a real `Array.Resize`:
+
+| Method | Mean     | Allocated |
+|--------|---------:|----------:|
+| Create | 765.8 ns |   2.62 KB |
+
+That's a genuinely deeper graph allocating *more* than the shallower,
+wider `Customer` graph (2.46 KB) despite composing fewer total leaf values
+(8 strings vs. `Customer`'s 7 strings + a 3-element list) - the resize is
+a real, measurable contributor, not a theoretical one. The fix isn't to
+pretend resizing can't happen (any growable array-backed collection
+resizes eventually); it's to size the initial capacity for a typical
+graph (bumped 16 → 32, covering ~5 levels of nesting without resizing -
+`docs/architecture.md`'s own Diagnostics example is 4 levels) and be
+honest that deeper graphs still pay a real, amortized `Array.Resize` cost,
+which this table now measures rather than assumes away.
 
 **No fallback to shallow diagnostics was needed** - the
-allocation-free-on-success trace buffer design shipped as scoped.
+allocation-free-on-success trace buffer design shipped as scoped, with
+the growth-path caveat above now documented rather than glossed over.
 
 ## Reproducing
 
@@ -217,6 +275,6 @@ dotnet run -c Release --project benchmarks/Compono.Benchmarks -f net10.0
 ```
 
 `-c Release` is required - `BenchmarkDotNet` refuses to run a Debug build.
-Add `-- --filter "*Resolution*"` to run only the Milestone 2
+Add `-- --filter "*Resolution*" "*DeepGraph*"` to run only the Milestone 2
 resolution-pipeline benchmarks (the full suite, including
 `ArchitectureBenchmarks`/`EcosystemBenchmarks`, takes several minutes).

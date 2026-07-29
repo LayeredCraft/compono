@@ -27,12 +27,41 @@ public sealed class CompositionDiagnosticsTests
             diagnostic.Message.Should().Contain("Missing");
             diagnostic.ToString().Should().Be(
                 $"Unable to compose Outer.\n\n{diagnostic.Path}\n\n{diagnostic.Message}\n\nSeed: {diagnostic.Seed}");
+
+            // Regression for a real gap (PR #13 review, second round): Outer and Inner were both
+            // still "in flight" (their own GeneratedPlan dispatch had started but not concluded) when
+            // Missing's failure propagated up - before the fix, neither ancestor's GeneratedPlan
+            // attempt appeared in the trace at all, since Success was only ever recorded *after*
+            // Compose returned (which never happened for either of them). Now each ancestor's
+            // in-flight dispatch survives as a Pending entry instead of being silently absent.
+            diagnostic.Trace.Count(attempt =>
+                attempt.Stage == PipelineStage.GeneratedPlan && attempt.Outcome == CompositionAttemptOutcome.Pending)
+                .Should().Be(2);
         }
         finally
         {
             PlanCache<Outer>.Instance = null;
             PlanCache<Inner>.Instance = null;
         }
+    }
+
+    [Fact]
+    public void ResolveRoot_Throws_WithAFriendlyGenericRootName_NotTheRawClrForm()
+    {
+        var context = new CompositionContext();
+
+        var act = () => context.ResolveRoot<List<Missing>>();
+
+        var exception = act.Should().Throw<CompositionException>().Which;
+        var diagnostic = exception.Diagnostic!;
+
+        // Regression for a real gap (PR #13 review, second round): CompositionDiagnostic.ToString()'s
+        // heading rendered RootType.Name directly, so a closed generic root type showed as the raw
+        // CLR form ("List`1") even though Path already rendered the same type correctly via
+        // FriendlyTypeName. The stage-9 failure Message had the identical bug.
+        diagnostic.RootType.Should().Be(typeof(List<Missing>));
+        diagnostic.Message.Should().Contain("List<Missing>").And.NotContain("List`1");
+        diagnostic.ToString().Should().StartWith("Unable to compose List<Missing>.");
     }
 
     [Fact]
@@ -191,7 +220,7 @@ public sealed class CompositionDiagnosticsTests
 
     private sealed class NullProvider : ICompositionProvider
     {
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context) =>
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context) =>
             request.RequestedType == typeof(Widget)
                 ? new CompositionResult.Success(null)
                 : CompositionResult.NotHandled.Instance;

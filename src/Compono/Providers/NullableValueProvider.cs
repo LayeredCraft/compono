@@ -10,7 +10,7 @@ namespace Compono.Providers;
 /// </summary>
 internal sealed class NullableValueProvider : ICompositionProvider
 {
-    public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
+    public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
     {
         var underlyingType = Nullable.GetUnderlyingType(request.RequestedType);
 

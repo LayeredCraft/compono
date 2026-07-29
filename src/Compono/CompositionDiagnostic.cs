@@ -36,5 +36,8 @@ public sealed class CompositionDiagnostic
 
     /// <summary>Renders this diagnostic in <c>docs/architecture.md</c>'s Diagnostics example format.</summary>
     public override string ToString() =>
-        $"Unable to compose {RootType.Name}.\n\n{Path}\n\n{Message}\n\nSeed: {Seed}";
+        // CompositionPath.FriendlyTypeName, not RootType.Name directly - a closed generic root
+        // (Create<List<Missing>>()) would otherwise render the raw CLR form ("List`1") here even
+        // though Path below already renders the same type correctly (PR #13 review).
+        $"Unable to compose {CompositionPath.FriendlyTypeName(RootType)}.\n\n{Path}\n\n{Message}\n\nSeed: {Seed}";
 }

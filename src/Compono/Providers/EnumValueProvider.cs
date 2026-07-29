@@ -31,7 +31,7 @@ internal sealed class EnumValueProvider : ICompositionProvider
     // Type (e.g. its collectible assembly unloads), this cache entry collects with it.
     private static readonly ConditionalWeakTable<Type, Array> UnderlyingValuesByType = new();
 
-    public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
+    public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
     {
         var random = ((CompositionContext)context).Random;
 

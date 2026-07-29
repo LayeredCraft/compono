@@ -1428,13 +1428,66 @@ ADR-0014. The task list below reflects the corrected shape.
   Re-run at `DefaultJob` after the rewrite; `docs/performance.md`'s
   Resolution architecture benchmark table reflects the new, honest
   numbers.
+- A second PR #13 review round (`@codex review`, triggered after the
+  first round's fixes landed) found three more real issues, all fixed in
+  the same PR, plus a separately-requested optimization landed alongside
+  them. **`CompositionRequest`: class → `readonly record struct` (the
+  "easy win," requested directly rather than found by review).** It's
+  never stored beyond the synchronous `ResolveCore` call that builds it -
+  never captured, never crosses an async boundary - so the heap
+  allocation was pure waste. Prototyped and measured before touching
+  production code: 40 B → 0 B, 14.9 ns → 5.5 ns, constructed and consumed
+  the same way `ResolveCore` actually does (passed by `in`, not boxed).
+  Applied for real: `CompositionRequest` is now `internal readonly record
+  struct`, `ICompositionProvider.TryCompose` and every internal consumer
+  (`TryProviders`, `StoreSharedAndReturn`, `ValidateAuthoritativeValue`,
+  `ResolveViaGeneratedPlan`) take it by `in`, matching
+  `CompositionRequestDescriptor`'s existing convention. This is what
+  moved every benchmark table in `docs/performance.md` to new, lower
+  numbers - re-measured, not estimated. **A generic root type rendered in
+  raw CLR form at two more sites (P2).** `CompositionDiagnostic.ToString()`'s
+  heading (`RootType.Name`) and the stage-9 failure `Message` text
+  (`requestedType.Name`) both had the identical bug
+  `CompositionPath.FriendlyTypeName` was added to fix for the path tree in
+  the first review round - just missed at these two call sites. Fixed by
+  making `FriendlyTypeName` `internal` (not `private`) on `CompositionPath`
+  and reusing it at both sites. **An ancestor's in-flight dispatch was
+  silently absent from the trace on a nested failure (P2).** The first
+  round's `Success`-after-not-before fix was correct but incomplete: an
+  ancestor whose own `Compose` was still running when a descendant failed
+  never got *any* trace entry for its stage-8/collection-plan attempt,
+  since `Success` is (correctly) only recorded after `Compose` returns,
+  which never happens for an ancestor still waiting on a failing
+  descendant. Fixed by adding `CompositionAttemptOutcome.Pending`,
+  recorded immediately before `Compose` runs at both dispatch sites -
+  rewound away on success like every other entry, but surviving
+  (correctly) when the eventual `Success` never gets recorded either.
+  **The trace buffer's growth path was never benchmarked (P2).** Only the
+  shallow, 2-level-deep `Customer` graph had been measured, which never
+  gets deep enough to trigger `CompositionTraceBuffer`'s own
+  `Array.Resize` (each active ancestor frame retains ~6 entries with the
+  `Pending` fix above, so a 16-entry buffer resizes past depth ~2-3 -
+  already true of `docs/architecture.md`'s own 4-level Diagnostics
+  example). Fixed in two parts: bumped the initial capacity from 16 to 32
+  (covers ~5 levels without resizing) and added `DeepGraphBenchmarks` (an
+  8-level-deep chain, `DeepLevel1` through `DeepLevel8`, deep enough to
+  guarantee a resize) so the growth cost is a real measured number in
+  `docs/performance.md` rather than assumed away. All four changes
+  verified against regression tests reverted-and-reran (same discipline
+  as the first review round) before being restored — see
+  `CompositionDiagnosticsTests.ResolveRoot_Throws_WithADiagnosticTree_MatchingTheNestedFailurePath`'s
+  `Pending`-count assertion and
+  `ResolveRoot_Throws_WithAFriendlyGenericRootName_NotTheRawClrForm`.
 
 ## Critical Files
 
 - `src/Compono/CompositionRequestDescriptor.cs` (`Kind`, `Ordinal`,
   `Name`, `Nullability`), `src/Compono/CompositionRequestKind.cs` — new
   (`public`) — **Done (Phase 0)**
-- `src/Compono/CompositionRequest.cs` — new (`internal`) — **Done (Phase 0)**
+- `src/Compono/CompositionRequest.cs` — new (`internal`) — **Done (Phase 0)**.
+  Converted from `sealed record` (class) to `internal readonly record
+  struct`, all consumers taking it by `in` — **Done (Phase 4, PR #13
+  review round 2)**
 - `src/Compono/CompositionResult.cs` — new (`internal`) — **Done (Phase 0)**.
   `Failure` case added — **Done (Phase 3)**
 - `src/Compono/ICompositionProvider.cs` — new (`internal`) — **Done (Phase 0)**
@@ -1445,14 +1498,22 @@ ADR-0014. The task list below reflects the corrected shape.
 - `src/Compono/CompositionDiagnostic.cs`, `src/Compono/ProviderAttempt.cs`,
   `src/Compono/PipelineStage.cs`, `src/Compono/CompositionAttemptOutcome.cs`
   — new (`public`); `src/Compono/CompositionTraceBuffer.cs` — new
-  (`internal`) — **Done (Phase 4)**
+  (`internal`) — **Done (Phase 4)**. `CompositionAttemptOutcome.Pending`
+  added, recorded before `Compose` at both generated-plan/collection-plan
+  dispatch sites; `CompositionTraceBuffer`'s initial capacity bumped 16 →
+  32; `CompositionDiagnostic.ToString()` renders `RootType` via
+  `CompositionPath.FriendlyTypeName` instead of raw `.Name` — **Done
+  (Phase 4, PR #13 review round 2)**
 - `src/Compono/PathSegment.cs` (`Ordinal`/`Index`-keyed, `Name` for
   segments that have one), `src/Compono/CompositionPath.cs` — new
   (`internal`) — **Done (Phase 0, pulled forward from Phase 1's original
   scope; structural chain only, no FNV-1a hashing yet)**. `ToDisplayString()`
   (diagnostics-only, derived from segment `Name`s) — **Done (Phase 1)**.
   `RootType` and `ToTreeString()` (the `CompositionDiagnostic.Path` tree
-  format) — **Done (Phase 4)**
+  format) — **Done (Phase 4)**. `FriendlyTypeName` widened from `private`
+  to `internal` so `CompositionDiagnostic` and `CompositionContext` can
+  reuse it for the heading/failure-message sites the first review round
+  missed — **Done (Phase 4, PR #13 review round 2)**
 - `src/Compono/CompositionContext.cs` — new (replaces the inline
   `PlaceholderCompositionContext` in `Composer.cs`); implements the
   public descriptor-based `Resolve<T>` and the internal `ResolveRoot<T>`;
@@ -1552,7 +1613,10 @@ ADR-0014. The task list below reflects the corrected shape.
   `benchmarks/Compono.Benchmarks/ResolutionArchitectureBenchmarks.cs`
   (`Direct`/`Generated`/`Reflection`),
   `benchmarks/Compono.Benchmarks/ResolutionEcosystemBenchmarks.cs`
-  (`Generated`/`AutoFixture`) — new;
+  (`Generated`/`AutoFixture`),
+  `benchmarks/Compono.Benchmarks/DeepGraphBenchmarks.cs` (`DeepLevel1`-`DeepLevel8`,
+  an 8-level-deep chain exercising `CompositionTraceBuffer`'s
+  `Array.Resize` growth path) — new;
   `benchmarks/Compono.Benchmarks/ReflectionComposer.cs` — modified:
   `ComposeRecursive<T>()` added (fixed-placeholder-value recursive
   reflection composer, alongside the existing parameterless-only
