@@ -959,6 +959,84 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task NullableCustomStructRootType_ReportsDiagnostic_NotASilentRuntimeFailure() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public struct Money
+                    {
+                        public Money(decimal amount) { Amount = amount; }
+                        public decimal Amount { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // NullableValueProvider only composes a Nullable<T> whose underlying type
+                            // is a primitive/enum/recognized BCL value type - a custom struct's
+                            // Nullable<T> (Money?) used to be classified as a leaf regardless of the
+                            // underlying type, so this compiled with zero diagnostics and always threw
+                            // at runtime ("no registration, provider, or generated plan could satisfy
+                            // the request"), confirmed directly before fixing. Now it falls through to
+                            // ordinary composable-type handling like any other concrete type;
+                            // Nullable<T> has two accessible constructors to Roslyn's symbol model (the
+                            // implicit parameterless one and `Nullable(T value)`), so this correctly
+                            // reports the same CMP0001 ambiguous-construction diagnostic any other
+                            // multi-constructor type gets, at compile time, naming the actual call site.
+                            var value = composer.Create<Money?>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableCustomStructConstructorParameter_ReportsDiagnostic_NotASilentRuntimeFailure() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public struct Money
+                    {
+                        public Money(decimal amount) { Amount = amount; }
+                        public decimal Amount { get; }
+                    }
+
+                    public sealed class Order
+                    {
+                        public Order(Money? total) { Total = total; }
+                        public Money? Total { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Same gap as NullableCustomStructRootType_ReportsDiagnostic, for the
+                            // member case: unlike a member of an ordinary provider-resolved type (left
+                            // silently as a bare Resolve<T>() call for a possible future
+                            // registration/provider to claim), a member of type Money? could never be
+                            // satisfied by anything - NullableValueProvider always declines it, and no
+                            // generated plan is ever produced for Nullable<Money> unless it's recursed
+                            // into like this fix now does.
+                            var order = composer.Create<TestNamespace.Order>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task BclValueTypeRootWithMultipleConstructors_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

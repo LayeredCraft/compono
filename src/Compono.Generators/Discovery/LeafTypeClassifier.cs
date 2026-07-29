@@ -20,7 +20,7 @@ internal static class LeafTypeClassifier
         if (named.IsAbstract || named.TypeKind is TypeKind.Enum or TypeKind.Delegate)
             return true;
 
-        return IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named);
+        return IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named, wellKnownTypes);
     }
 
     /// <summary>
@@ -38,15 +38,16 @@ internal static class LeafTypeClassifier
     /// diagnostic (CMP0003) instead of silently compiling into a call that can only ever fail at
     /// runtime with a generic "nothing could satisfy this" exception - the exact regression PR #11
     /// review caught when the root skipped classification entirely. <see cref="Nullable{T}"/> is
-    /// included here (unlike abstract/delegate) even though a <em>custom</em> struct's
-    /// <c>Nullable&lt;T&gt;</c> isn't runtime-satisfiable either - <c>NullableValueProvider</c> always
-    /// attempts and cleanly declines any unsupported <c>Nullable&lt;T&gt;</c> at runtime (reaching
-    /// stage 9's diagnostic, which correctly names the request), so there's no compile-time
-    /// distinction worth drawing between "a supported Nullable&lt;T&gt;" and "an unsupported one" here.
+    /// included here only when its underlying type is one <c>NullableValueProvider</c> actually
+    /// composes (primitive/enum/recognized BCL value type) - for any other underlying type,
+    /// <see cref="IsNullableValueType"/> returns <see langword="false"/> for both this method and
+    /// <see cref="IsProviderResolved"/>, so a root/member <c>Nullable&lt;T&gt;</c> over a composable
+    /// custom struct falls through to ordinary composable-type handling and gets a real generated
+    /// plan instead of silently compiling into a call that can only ever fail at runtime.
     /// </remarks>
     public static bool IsRuntimeProviderResolved(ITypeSymbol type, WellKnownTypes.WellKnownTypes wellKnownTypes) =>
         type is INamedTypeSymbol named &&
-        (named.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named));
+        (named.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named, wellKnownTypes));
 
     private static bool IsBuiltInSimpleType(INamedTypeSymbol type) => type.SpecialType is
         SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte or
@@ -64,11 +65,23 @@ internal static class LeafTypeClassifier
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_DateOnly) ||
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_TimeOnly);
 
-    // Nullable<T> is always left as a leaf regardless of T - NullableValueProvider (Compono core)
-    // already attempts any Nullable<T> at runtime and cleanly declines (reaching stage 9's
-    // diagnostic, naming the actual request) when T isn't one of the primitive/enum types it composes
-    // - a custom struct's Nullable<T> is exactly the same "no provider/plan could satisfy this" shape
-    // as any other unhandled type, not a distinct compile-time-diagnosable case.
-    private static bool IsNullableValueType(INamedTypeSymbol type) =>
-        type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
+    // Only a leaf when the underlying type is one NullableValueProvider (Compono core) actually
+    // composes at runtime (a primitive, an enum, or a recognized BCL value type) - PR #11 review
+    // caught that treating every Nullable<T> as a leaf regardless of T left a custom struct's
+    // Nullable<T> (e.g. Money?) compiling with zero diagnostics and then always throwing at runtime
+    // ("no registration, provider, or generated plan could satisfy the request"), since
+    // NullableValueProvider declines any T it doesn't recognize and nothing else was ever given a
+    // chance to handle it. For a T this doesn't recognize, Nullable<T> now falls through to ordinary
+    // composable-type handling instead - Nullable<T> has exactly one accessible constructor
+    // (`Nullable(T value)`), so ConstructorSelector picks it like any other single-constructor type,
+    // and T is recursed into and given its own real generated plan through the same machinery
+    // constructor parameters already use, not a distinct nullable-specific mechanism.
+    private static bool IsNullableValueType(INamedTypeSymbol type, WellKnownTypes.WellKnownTypes wellKnownTypes)
+    {
+        if (type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T)
+            return false;
+
+        return type.TypeArguments[0] is INamedTypeSymbol underlying &&
+            (underlying.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(underlying) || IsRecognizedBclValueType(underlying, wellKnownTypes));
+    }
 }

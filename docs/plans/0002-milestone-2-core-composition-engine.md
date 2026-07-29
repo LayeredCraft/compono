@@ -500,10 +500,16 @@ ADR-0014. The task list below reflects the corrected shape.
       from the plan's original shape
 - [x] Enum provider (random valid enum member, via `IRandomSource`) —
       ordinary stage-7 provider, unchanged
-- [x] Nullable value type provider (composes the underlying type;
-      nullable-generation *default* beyond that is a still-open
-      `docs/mvp.md` item this phase doesn't resolve — see ADR-0013) —
-      ordinary stage-7 provider, unchanged
+- [x] Nullable value type provider (composes the underlying type when
+      it's a primitive/enum/recognized BCL value type; nullable-generation
+      *default* beyond that is a still-open `docs/mvp.md` item this phase
+      doesn't resolve — see ADR-0013) — ordinary stage-7 provider,
+      unchanged. `Nullable<T>` over any other (composable, custom-struct)
+      `T` is not a stage-7 provider case at all — round 13 fixed
+      `LeafTypeClassifier` to fall through to ordinary composable-type
+      handling for that `T` instead of silently treating every
+      `Nullable<T>` as resolved regardless of the underlying type; see the
+      round 13 note below.
 - [x] `CompositionRequestKind` gains `CollectionElement`/`DictionaryKey`/
       `DictionaryValue`; `CompositionContext.Resolve<TValue>`'s
       descriptor-to-segment switch extends to cover them (`Ordinal` maps
@@ -994,6 +1000,66 @@ ADR-0014. The task list below reflects the corrected shape.
   current before the next phase starts." PR #11 is still open, so
   Phase 2 stays `In Progress` until it merges - `Done` now would
   contradict that established pattern, not fix a real inconsistency.
+- A thirteenth round of PR #11 review found three real issues, the
+  largest of this whole review cycle. **Nullable custom struct silently
+  never composed at runtime (P1).** `LeafTypeClassifier` treated every
+  `Nullable<T>` as a provider-resolved leaf regardless of `T`, but
+  `NullableValueProvider` only ever composes a primitive/enum/recognized
+  BCL underlying type - a custom struct's `Nullable<T>` (e.g. `Money?`)
+  compiled with zero diagnostics and then always threw at runtime
+  (confirmed directly: "no registration, provider, or generated plan
+  could satisfy the request"), for both a root `Composer.Create<Money?>()`
+  and a constructor-parameter member. Fixed by making `IsNullableValueType`
+  check the underlying type: only primitive/enum/recognized-BCL
+  `Nullable<T>` stays a leaf; any other `T` now falls through to ordinary
+  composable-type handling, exactly like any other concrete type. This
+  does **not** add a new nullable-composition mechanism - `Nullable<T>`
+  has two accessible constructors to Roslyn's symbol model (the implicit
+  parameterless one and `Nullable(T value)`), so the *existing*
+  `ConstructorSelector` ambiguity check reports the same `CMP0001`
+  ambiguous-construction diagnostic any other multi-constructor type
+  gets, converting the silent runtime failure into a real compile-time
+  one for free, without new diagnostic code or a parallel dispatch
+  architecture (rejected as disproportionate to this finding, and as
+  "building ahead of the milestone" per `AGENTS.md`, given `docs/mvp.md`'s
+  "Nullable value types" Initial Built-in Type sits directly alongside
+  the primitive/enum list, not as its own arbitrary-custom-struct
+  feature). Added regression coverage:
+  `CompositionPlanVerifyTests.NullableCustomStructRootType_ReportsDiagnostic_NotASilentRuntimeFailure`
+  and `NullableCustomStructConstructorParameter_ReportsDiagnostic_NotASilentRuntimeFailure`
+  (both `CMP0001`, root and member); confirmed no regression for
+  `Nullable<int>`/`Nullable<Priority>` (the existing
+  `NullableValueTypeRootType_GeneratesNoPlan`/
+  `NullableValueTypeConstructorParameter_LeftAsResolveCallNotRecursedInto`
+  tests still pass unchanged). **Accepted-ADR immutability violated by
+  this PR's own amendments (P1).** ADR-0010's "Amendment 3," ADR-0012's
+  "Amendment 3," and ADR-0013's "Amendment 2" - all three added earlier
+  in this PR (round 8/the original ADR-0014 extraction), not inherited
+  from an earlier merged PR - edited already-`Accepted` ADRs' content in
+  place, which `design-decisions.md` explicitly prohibits ("don't edit
+  [an accepted ADR's] Decision/Rationale/Consequences... write a new
+  ADR"), regardless of ADR-0010/0012/0013's own earlier, pre-existing
+  Amendments (1/2, predating this PR) having already established that
+  same drift from the documented rule. Fixed by removing all three
+  sections' prose entirely and replacing each with a `Links`-section
+  entry pointing to ADR-0014 instead (metadata/cross-reference, not
+  decision content) - ADR-0014's own Context and Negative Consequences
+  wording updated to match (it previously described these as "reduced to
+  a pointer" rather than removed). ADR-0010/0012/0013's pre-existing
+  Amendments (1/2) are untouched, since they predate this PR and are a
+  separate, pre-existing concern out of this PR's scope. **Spoofable
+  `InternalsVisibleTo` grant (P2, found against round 12's own fix).**
+  Round 12's `InternalsVisibleTo Include="TestsAssembly"` grant
+  authenticates only a simple assembly name (unsigned) - any real
+  consumer could name their own assembly `TestsAssembly` and gain the
+  identical internal access to the shipped `Compono` package. Fixed by
+  reverting that grant entirely and switching
+  `GeneratedCollectionPlanExecutionTests`'s fixed-seed test to reach
+  `Composer.CreateRootForTesting`/`CompositionSeed` via reflection from
+  within its compiled test source instead - already how
+  `GeneratorTestHelpers.CompileAndExecute` invokes every test's entry
+  point, so this adds no new public/friend surface to the shipped
+  package at all.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

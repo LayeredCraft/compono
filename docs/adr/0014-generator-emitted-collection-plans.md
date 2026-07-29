@@ -35,24 +35,21 @@ bridge ever became unacceptable. It became unacceptable before any code
 was written against it, so this ADR is that change, made pre-implementation
 rather than as a later migration once real reflection-based code shipped.
 
-This ADR was originally recorded as
-[ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-Amendment 3, appended in place per this repo's established pattern for
-pre-implementation corrections discovered within the same design cycle
-(ADR-0010's own Amendments 1 and 2 used the identical pattern, since no
-code existed yet for any part of that ADR at the time). By the point this
-correction was made, however, ADR-0010's *other* decisions (the pipeline
-model, the descriptor shape, diagnostics tracing) had already been
-implemented and merged (Milestone 2 Phases 0 and 1), even though the
-collection-dispatch-bridge sub-decision this correction retracts had not.
-A second review during PR #11 correctly flagged that appending a
-significant redesign in place, once real shipped code exists against
-other parts of the same ADR, reads misleadingly to a future reader — this
-ADR is that redesign extracted into its own numbered, indexed record,
-with ADR-0010's own Amendment 3 reduced to a short pointer here rather
-than duplicating the full design. ADR-0010's other decisions are
-unaffected and remain in force; this ADR does not supersede ADR-0010 as a
-whole, only the collection-dispatch-bridge sub-decision within it.
+This ADR was originally recorded as an in-place "Amendment 3" appended to
+[ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)
+itself. A second PR #11 review correctly flagged that as a violation of
+this repo's actual documented rule (`design-decisions.md`: "don't edit
+[an accepted ADR's] Decision/Rationale/Consequences... write a new ADR")
+regardless of ADR-0010's own pre-existing Amendments 1/2, which predate
+this PR and are themselves the same kind of drift from that rule, not a
+sanctioned exception to it. This ADR is that correction done properly:
+its own new, numbered, indexed record, with ADR-0010, ADR-0012, and
+ADR-0013 each left completely untouched in their Decision/Amendment
+content and only gaining a `Links`-section pointer here (metadata, not
+decision content). ADR-0010's other decisions (the pipeline model, the
+descriptor shape, diagnostics tracing) are unaffected and remain in
+force; this ADR does not supersede ADR-0010 as a whole, only the
+collection-dispatch-bridge sub-decision within it.
 
 ## Decision Drivers
 
@@ -248,8 +245,8 @@ already established for `PlanCache<T>`.
   anything it must call is necessarily part of the public generated-code
   contract, not a discretionary API design choice.
 - ADR-0012 and ADR-0013 are not re-opened or superseded by this ADR —
-  both carry a short pointer note to this ADR rather than having their
-  own Decision Outcome text rewritten, per the "an accepted ADR is a
+  both gain only a `Links`-section pointer to this ADR, with no Decision
+  Outcome or Amendment content rewritten, per the "an accepted ADR is a
   historical record" rule; this ADR is the authoritative current shape
   for collection-segment construction and dispatch.
 - `CollectionPlanCache<T>` inherits the same cross-assembly module-

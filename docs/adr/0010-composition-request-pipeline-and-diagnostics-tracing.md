@@ -607,32 +607,6 @@ JIT/reflection cost is paid once per distinct closed collection type
 (typically a handful of types across a whole test run), not per resolved
 value, on runtimes where JIT is available at all.
 
-## Amendment 3 (2026-07-28): collection-dispatch bridge retracted — see ADR-0014
-
-Amendment 2's collection-dispatch bridge (`MakeGenericMethod` +
-`CreateDelegate`, cached per closed collection type) was caught, before
-any Phase 2 implementation was written against it, as a real violation of
-[ADR-0001](0001-source-generation-first.md)'s no-reflection-by-default
-rule — a fixed, bounded set of reflected shapes is still reflection
-introduced into the default architecture, which ADR-0001 doesn't carve an
-exception for. Amendment 2's point 5 (and the Decision Outcome/Amendment
-2 point 2/3 content it depended on — the `ListFactory`/`ArrayFactory`/
-`HashSetFactory`/`DictionaryFactory` delegate cache and its AOT position)
-is retracted.
-
-This correction was originally recorded here in full as this ADR's own
-Amendment 3. PR #11 review correctly flagged that appending a redesign of
-this size in place, once this ADR's *other* decisions had already been
-implemented and merged (Milestone 2 Phases 0/1), reads misleadingly to a
-future reader versus the original pre-implementation Amendments 1/2 (made
-when nothing in this ADR had been built yet). The full replacement
-design — generator-emitted collection plans dispatched via a new
-`CollectionPlanCache<T>` — now lives in its own record,
-[ADR-0014](0014-generator-emitted-collection-plans.md). This ADR's other
-decisions (the pipeline model, the descriptor shape, diagnostics tracing,
-visibility) are unaffected and remain in force; only the collection-
-dispatch-bridge sub-decision is retracted.
-
 ## Links
 
 - Supersedes [ADR-0007](0007-composition-request-and-provider-pipeline.md)
@@ -650,6 +624,12 @@ dispatch-bridge sub-decision is retracted.
 - [ADR-0013](0013-collection-generation-semantics.md) — built-in
   collection providers occupying stage 7, and how they interact with
   `Failure` semantics and path identity.
-- [ADR-0014](0014-generator-emitted-collection-plans.md) — the full
-  design for stage 7's collection dispatch (`CollectionPlanCache<T>`,
-  `UniqueValueResolver`), replacing this ADR's Amendment 3.
+- [ADR-0014](0014-generator-emitted-collection-plans.md) — retracts and
+  replaces Amendment 2's collection-dispatch-bridge sub-decision
+  (`MakeGenericMethod`/`CreateDelegate`) with generator-emitted collection
+  plans dispatched through `CollectionPlanCache<T>`/`UniqueValueResolver`;
+  this ADR's other decisions (the pipeline model, the descriptor shape,
+  diagnostics tracing, visibility) are unaffected and remain in force.
+  Per the "an accepted ADR is a historical record" rule, that retraction
+  is recorded only here in ADR-0014's own Context, not by editing
+  Amendment 2's text above.

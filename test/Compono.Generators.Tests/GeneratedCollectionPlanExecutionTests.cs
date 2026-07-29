@@ -56,12 +56,14 @@ public sealed class GeneratedCollectionPlanExecutionTests
         //
         // Composer.CreateRootForTesting (not Composer.Create) - a fixed seed makes this reproducible
         // on failure and removes any dependence, however astronomically small, on GUID-space
-        // collision odds; "TestsAssembly" (this harness's fixed compiled-assembly name, see
-        // GeneratorTestHelpers.GenerateFromSource) is granted the same InternalsVisibleTo seam
-        // Compono.Tests already has, specifically so generated-plan execution tests can reach it.
-        // Confirmed directly before fixing: PR #11 review caught that the original Composer.Create()
-        // version couldn't be reproduced from a bug report and could theoretically (not practically)
-        // fail OnlyHaveUniqueItems() on a genuine collision despite correct path construction.
+        // collision odds. CreateRootForTesting and CompositionSeed are both internal, and this test's
+        // source is compiled into its own separate in-memory assembly (GeneratorTestHelpers), so
+        // reaching them needs *some* seam - granting Compono's InternalsVisibleTo to that assembly's
+        // name was rejected (confirmed directly, then reverted): an unsigned InternalsVisibleTo
+        // authenticates only a simple name, so any real consumer could name their own assembly the
+        // same thing and gain the identical internal access to the shipped package (PR #11 review
+        // caught this). Reflection instead - already how CompileAndExecute invokes every test's entry
+        // point below, so this adds no new public/friend surface to the shipped package at all.
         var result = GeneratorTestHelpers.CompileAndExecute(
             new CodeGenerationOptions
             {
@@ -81,8 +83,14 @@ public sealed class GeneratedCollectionPlanExecutionTests
                             var composer = Compono.Composer.Create();
                             _ = composer.Create<System.Collections.Generic.List<System.Guid>>();
 
-                            var seed = new Compono.CompositionSeed(4219);
-                            return Compono.Composer.CreateRootForTesting<System.Collections.Generic.List<System.Guid>>(seed);
+                            var composerType = typeof(Compono.Composer);
+                            var seedType = composerType.Assembly.GetType("Compono.CompositionSeed")!;
+                            var seed = System.Activator.CreateInstance(seedType, 4219UL)!;
+                            var createRootForTesting = composerType
+                                .GetMethod("CreateRootForTesting", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                                .MakeGenericMethod(typeof(System.Collections.Generic.List<System.Guid>));
+
+                            return createRootForTesting.Invoke(null, new object?[] { seed })!;
                         }
                     }
                     """,

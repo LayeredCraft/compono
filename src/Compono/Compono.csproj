@@ -27,12 +27,14 @@
         <!-- Internal test seams (CompositionContext's per-stage-provider constructor, and future
              Composer.CreateRootForTesting/CreateManyForTesting) - never widened to public just so
              a test can reach them. See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md.
-             "TestsAssembly" is the fixed name Compono.Generators.Tests' GeneratorTestHelpers gives
-             every in-memory assembly it compiles for CompileAndExecute (real end-to-end execution of
-             a generated plan) - granting it the same seam lets those tests use a fixed seed via
-             Composer.CreateRootForTesting instead of Composer.Create()'s non-deterministic one. -->
+             Deliberately NOT granted to Compono.Generators.Tests' dynamically-compiled "TestsAssembly" -
+             an unsigned InternalsVisibleTo authenticates only a simple name, so any consumer could name
+             their own assembly "TestsAssembly" and gain the same internal access to the shipped package
+             (PR #11 review caught this). Compono.Generators.Tests reaches these seams via reflection
+             from within its compiled test source instead (GeneratedCollectionPlanExecutionTests) -
+             already how GeneratorTestHelpers.CompileAndExecute invokes every test's entry point, so this
+             adds no new public/friend surface to the shipped package. -->
         <InternalsVisibleTo Include="Compono.Tests" />
-        <InternalsVisibleTo Include="TestsAssembly" />
     </ItemGroup>
 
 </Project>
