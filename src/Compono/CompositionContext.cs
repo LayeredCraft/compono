@@ -222,10 +222,9 @@ internal sealed class CompositionContext : ICompositionContext
         try
         {
             var value = plan.Compose(this);
-            if (request.IsShared)
-                _scope.Set(requestedType, value);
-
-            return value;
+            return request.IsShared
+                ? StoreSharedAndReturn<TValue>(value, request)
+                : value;
         }
         finally
         {
@@ -253,12 +252,22 @@ internal sealed class CompositionContext : ICompositionContext
         return false;
     }
 
+    // A non-shared request is untouched - an ordinary provider's output is only ever validated by
+    // its own contract, never by the context. A request the caller marked IsShared is validated the
+    // same way ValidateAuthoritativeValue already validates a scope/registration hit, *before* it
+    // ever enters _scope - a bad first population must fail right here with a CompositionException,
+    // not get cached and surface a confusing InvalidCastException/NullReferenceException later, on
+    // whichever subsequent shared request happens to read it back out.
     private TValue StoreSharedAndReturn<TValue>(object? value, CompositionRequest request)
     {
-        if (request.IsShared)
-            _scope.Set(request.RequestedType, value);
+        if (!request.IsShared)
+            return CastResult<TValue>(value);
 
-        return CastResult<TValue>(value);
+        var result = ValidateAuthoritativeValue(value, request, "shared value");
+        if (result is CompositionResult.Success success)
+            _scope.Set(request.RequestedType, success.Value);
+
+        return Authoritative<TValue>(result);
     }
 
     // Stages 2/3's authoritative validation, per ADR-0011's second amendment: a null value for a
