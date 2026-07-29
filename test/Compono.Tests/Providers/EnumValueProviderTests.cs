@@ -27,7 +27,9 @@ public sealed class EnumValueProviderTests
     public void ComposeDifferentEnumTypes_BothReturnDefinedMembers()
     {
         // Regression coverage for the PR #11 review finding: EnumValueProvider caches
-        // Enum.GetValuesAsUnderlyingType(type) per enum type (ConcurrentDictionary<Type, Array>)
+        // Enum.GetValuesAsUnderlyingType(type) per enum type (a ConditionalWeakTable<Type, Array>,
+        // not a strongly-rooting ConcurrentDictionary, per the follow-up review finding that a
+        // long-lived host would otherwise leak every composed enum's Type for the process lifetime)
         // rather than re-allocating on every resolution - composing two distinct enum types in the
         // same process must not have the second type's cache entry collide with or overwrite the
         // first's.

@@ -718,6 +718,67 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   affecting both caches, not patched narrowly into just the new one —
   see `docs/architecture.md`'s Open Architectural Decisions, new
   "Cross-assembly plan-cache collision" entry.
+- A fifth round of PR #11 review found one more real gap (fixed) and
+  correctly flagged that this phase had never actually done the
+  **required real manual verification** for source-generator-facing
+  work (`AGENTS.md`'s Build and test section, `tasks/implement.md` step
+  7) — every check so far had been generator snapshot tests plus direct
+  `Compono.Tests`/`Compono.Generators.Tests` unit tests, never a real
+  `dotnet pack` into a throwaway consuming project, unlike every phase
+  of PLAN-0001 (Milestone 1). Doing that verification is what actually
+  caught the real gap:
+  - **`Nullable<T>` was never added to `LeafTypeClassifier`** — a real,
+    previously-undiscovered bug no generator snapshot test had ever
+    exercised (none used a nullable value type as a constructor
+    parameter, and the existing nullable coverage was all
+    `Composer.CreateRootForTesting<T>`-level runtime tests, which never
+    go through the generator at all). Any nullable value type, root or
+    member (`int?`, a nullable enum, etc.), reached
+    `ConstructorSelector`, which sees `Nullable<T>`'s two accessible
+    constructors (the parameterless one and `Nullable(T value)`) and
+    reports `CMP0001` ambiguous construction — caught immediately by the
+    real consuming-project verification (`Order`'s `Priority?`
+    constructor parameter failed to compile) before anything else did.
+    Fixed by adding a `Nullable<T>` case to both
+    `LeafTypeClassifier.IsProviderResolved` and
+    `IsRuntimeProviderResolved` (`named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T`),
+    covering `Nullable<T>` **regardless of what `T` is** — a custom
+    struct's `Nullable<T>` isn't runtime-satisfiable either, but
+    `NullableValueProvider` already attempts and cleanly declines any
+    unsupported `Nullable<T>` at runtime (reaching stage 9's diagnostic,
+    correctly naming the request), so there's no compile-time
+    distinction worth drawing between a supported and unsupported
+    `Nullable<T>` here, the same reasoning already applied to
+    `Enum`/built-in-simple/BCL-value-type roots. Added regression
+    coverage: `CompositionPlanVerifyTests.NullableValueTypeRootType_GeneratesNoPlan`,
+    `NullableValueTypeConstructorParameter_LeftAsResolveCallNotRecursedInto`.
+  - Also fixed in the same round: `EnumValueProvider`'s per-enum-type
+    cache used `ConcurrentDictionary<Type, Array>`, which strongly roots
+    every enum `Type` ever composed for the process lifetime — a real
+    concern for a long-lived host that loads/unloads consumer assemblies
+    via a collectible `AssemblyLoadContext`. Swapped for
+    `ConditionalWeakTable<Type, Array>`, whose keys don't root anything.
+  - **Real manual verification, done for the first time this phase**:
+    `dotnet pack`'d `Compono` into a local feed (clearing both the local
+    feed and `~/.nuget/packages/compono` first, per PLAN-0001's Phase 2
+    stale-cache lesson) and referenced it from a genuinely separate
+    throwaway console project. Composed a representative nested graph
+    (`Order` → `Address`, exercising every Phase 2 built-in: primitives,
+    an enum, a nullable enum, `DateOnly`, and all five collection shapes
+    including a nested `List<List<int>>`) plus four root-level
+    `Create<T>()` calls (`int`, `Guid`, `List<int>`, `string[]`).
+    Confirmed, in a real build/run rather than the test harness:
+    `PlanCache<Order>`/`PlanCache<Address>` and every
+    `CollectionPlanCache<T>` slot actually populated by generated module
+    initializers; every collection produced exactly 3 elements (the
+    ADR-0013 default size); the nullable enum was always set, never
+    null; and every composed value was plausible (defined enum members,
+    non-empty strings, in-range dates). All checks passed after the
+    `Nullable<T>` fix above (the run before the fix failed to compile,
+    confirming the bug was real and the fix's coverage). This satisfies
+    `tasks/implement.md` step 7 for this phase, retroactively — should
+    have been done alongside Phase 2's original implementation, not only
+    once review flagged its absence.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

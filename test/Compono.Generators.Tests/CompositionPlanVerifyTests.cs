@@ -899,6 +899,66 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task NullableValueTypeRootType_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Nullable<T> (int?) is provider-resolved - Composer.Create<int?>() must
+                        // generate no plan and not reach constructor selection. Regression coverage
+                        // for a real bug caught during PR #11's required manual consuming-project
+                        // verification (a genuinely separate throwaway console project, not this test
+                        // harness): LeafTypeClassifier never had a Nullable<T> case at all, so any
+                        // nullable value type (root or member) reached ConstructorSelector, which sees
+                        // Nullable<T>'s two accessible constructors (the parameterless one and
+                        // Nullable(T value)) and reports CMP0001 ambiguous construction - a real defect
+                        // no generator snapshot test had ever exercised.
+                        var value = composer.Create<int?>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableValueTypeConstructorParameter_LeftAsResolveCallNotRecursedInto() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public enum Priority { Low, Medium, High }
+
+                public sealed class Order
+                {
+                    public Order(int? quantity, Priority? priority)
+                    {
+                        Quantity = quantity;
+                        Priority = priority;
+                    }
+
+                    public int? Quantity { get; }
+                    public Priority? Priority { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Regression coverage for the same PR #11 manual-verification finding as
+                        // NullableValueTypeRootType_GeneratesNoPlan, for the member case specifically
+                        // (a nullable primitive and a nullable enum, both as constructor parameters).
+                        var order = composer.Create<TestNamespace.Order>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task BclValueTypeRootWithMultipleConstructors_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

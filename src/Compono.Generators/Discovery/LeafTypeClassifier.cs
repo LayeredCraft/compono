@@ -20,7 +20,7 @@ internal static class LeafTypeClassifier
         if (named.IsAbstract || named.TypeKind is TypeKind.Enum or TypeKind.Delegate)
             return true;
 
-        return IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes);
+        return IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named);
     }
 
     /// <summary>
@@ -37,11 +37,16 @@ internal static class LeafTypeClassifier
     /// abstract/delegate root must still reach constructor selection so it gets a real compile-time
     /// diagnostic (CMP0003) instead of silently compiling into a call that can only ever fail at
     /// runtime with a generic "nothing could satisfy this" exception - the exact regression PR #11
-    /// review caught when the root skipped classification entirely.
+    /// review caught when the root skipped classification entirely. <see cref="Nullable{T}"/> is
+    /// included here (unlike abstract/delegate) even though a <em>custom</em> struct's
+    /// <c>Nullable&lt;T&gt;</c> isn't runtime-satisfiable either - <c>NullableValueProvider</c> always
+    /// attempts and cleanly declines any unsupported <c>Nullable&lt;T&gt;</c> at runtime (reaching
+    /// stage 9's diagnostic, which correctly names the request), so there's no compile-time
+    /// distinction worth drawing between "a supported Nullable&lt;T&gt;" and "an unsupported one" here.
     /// </remarks>
     public static bool IsRuntimeProviderResolved(ITypeSymbol type, WellKnownTypes.WellKnownTypes wellKnownTypes) =>
         type is INamedTypeSymbol named &&
-        (named.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes));
+        (named.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named));
 
     private static bool IsBuiltInSimpleType(INamedTypeSymbol type) => type.SpecialType is
         SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte or
@@ -58,4 +63,12 @@ internal static class LeafTypeClassifier
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_TimeSpan) ||
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_DateOnly) ||
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_TimeOnly);
+
+    // Nullable<T> is always left as a leaf regardless of T - NullableValueProvider (Compono core)
+    // already attempts any Nullable<T> at runtime and cleanly declines (reaching stage 9's
+    // diagnostic, naming the actual request) when T isn't one of the primitive/enum types it composes
+    // - a custom struct's Nullable<T> is exactly the same "no provider/plan could satisfy this" shape
+    // as any other unhandled type, not a distinct compile-time-diagnosable case.
+    private static bool IsNullableValueType(INamedTypeSymbol type) =>
+        type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
 }

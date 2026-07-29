@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Compono;
 
 namespace Compono.Providers;
@@ -23,10 +23,13 @@ internal sealed class EnumValueProvider : ICompositionProvider
 {
     // Enum.GetValuesAsUnderlyingType(Type) allocates a fresh array on every call - caching per enum
     // type keeps the resolution hot path from re-allocating and re-copying the same metadata-derived
-    // array for every resolved value of a given enum type. Lock-free (ConcurrentDictionary), per
-    // coding-standards.md's "shared mutable state" guidance - the cache is populated at most once per
-    // distinct enum type.
-    private static readonly ConcurrentDictionary<Type, Array> UnderlyingValuesByType = new();
+    // array for every resolved value of a given enum type. ConditionalWeakTable, not
+    // ConcurrentDictionary<Type, Array> - a long-lived host that loads/unloads consumer assemblies via
+    // a collectible AssemblyLoadContext would otherwise have this cache strongly root every enum Type
+    // it ever composed for the process lifetime, preventing those assemblies from ever unloading. A
+    // conditional weak table's keys don't root anything - once nothing else references a given enum
+    // Type (e.g. its collectible assembly unloads), this cache entry collects with it.
+    private static readonly ConditionalWeakTable<Type, Array> UnderlyingValuesByType = new();
 
     public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
     {
@@ -52,7 +55,7 @@ internal sealed class EnumValueProvider : ICompositionProvider
             return false;
         }
 
-        var underlyingValues = UnderlyingValuesByType.GetOrAdd(type, static t => Enum.GetValuesAsUnderlyingType(t));
+        var underlyingValues = UnderlyingValuesByType.GetValue(type, static t => Enum.GetValuesAsUnderlyingType(t));
 
         if (underlyingValues.Length == 0)
         {
