@@ -41,7 +41,7 @@
     <PackageVersion Include="Scriban" Version="7.2.5" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.156" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.157" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
