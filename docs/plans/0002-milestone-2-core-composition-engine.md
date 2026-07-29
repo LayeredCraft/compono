@@ -1201,9 +1201,9 @@ ADR-0014. The task list below reflects the corrected shape.
   and confirming an invalid first value doesn't poison the scope for a
   subsequent shared request.
 
-### Phase 4 — `CreateMany<T>()` and diagnostics polish (Not Started)
+### Phase 4 — `CreateMany<T>()` and diagnostics polish (In Progress)
 
-- [ ] `Composer.CreateMany<T>(int count)` — `count` independent root
+- [x] `Composer.CreateMany<T>(int count)` — `count` independent root
       composition operations (Execution Flow section, above), each
       item's root seed forked from the batch root via `"CreateMany"` +
       index (ADR-0012) — no cross-item scope reuse. Contract, per
@@ -1213,7 +1213,7 @@ ADR-0014. The task list below reflects the corrected shape.
       returns an empty, materialized, non-null `IReadOnlyList<T>`; return
       type is `IReadOnlyList<T>` (not `IEnumerable<T>` — the batch is
       always fully, eagerly materialized, never deferred)
-- [ ] The allocation-free-on-success trace buffer (ADR-0010): checkpoint
+- [x] The allocation-free-on-success trace buffer (ADR-0010): checkpoint
       on `Resolve<T>`/`ResolveRoot<T>` entry, append a compact
       `ProviderAttempt` per stage/provider tried, rewind on success,
       materialize into the durable diagnostic on failure before the
@@ -1222,16 +1222,16 @@ ADR-0014. The task list below reflects the corrected shape.
       next sibling is even attempted), the materialized trace on failure
       naturally contains only the active failing branch's own attempts —
       never an already-succeeded, already-rewound sibling's
-- [ ] Structured diagnostic type surfaces root request, full path (as a
+- [x] Structured diagnostic type surfaces root request, full path (as a
       display string derived from `CompositionPath`), the materialized
       trace, seed, and a human-readable remediation-oriented message,
       matching `docs/architecture.md`'s example format
-- [ ] Unit test asserting the trace-retention property directly: a type
+- [x] Unit test asserting the trace-retention property directly: a type
       with two successfully-resolved constructor parameters followed by a
       third that fails produces a diagnostic trace containing only the
       failing parameter's attempts (and its ancestors' own attempts) —
       not the two already-succeeded siblings'
-- [ ] Benchmark (extending `Compono.Benchmarks` from Milestone 1, widened
+- [x] Benchmark (extending `Compono.Benchmarks` from Milestone 1, widened
       mid-plan per PR #11 review — see this section's note below): confirm
       the trace buffer is actually allocation-free on the success path;
       if it measurably harms the hot path, fall back to shallow
@@ -1258,19 +1258,107 @@ ADR-0014. The task list below reflects the corrected shape.
       - `CreateMany<T>(count)` scaling behavior across a couple of `count`
         values, to catch anything unexpectedly super-linear (fork-key
         derivation, scope allocation) before it ships
-- [ ] Exit-criteria pass: representative object graph (nested composable
+- [x] Exit-criteria pass: representative object graph (nested composable
       type + built-ins + a collection) composes deterministically end to
       end via `Create<T>()` and `CreateMany<T>()`, matching the Execution
       Flow section above exactly
-- [ ] `CreateMany` stability test: items 0–2 of `CreateMany<T>(3)` and
+- [x] `CreateMany` stability test: items 0–2 of `CreateMany<T>(3)` and
       `CreateMany<T>(10)` (same explicit root seed) are byte-for-byte
       identical
-- [ ] `CreateMany` argument/return contract tests: `count < 0` throws
+- [x] `CreateMany` argument/return contract tests: `count < 0` throws
       `ArgumentOutOfRangeException`; `count == 0` returns an empty,
       non-null `IReadOnlyList<T>`; a standalone `Create<T>()` (via
       `CreateRootForTesting`) called twice with the same explicit seed
       produces identical output, confirming no hidden per-call state
       beyond the seed itself
+
+**Notes on what actually happened, versus what was scoped:**
+
+- `ProviderAttempt` ended up `(PipelineStage Stage, CompositionAttemptOutcome
+  Outcome)` — no distinct "provider id" field. Milestone 2 has at most one
+  competing provider per extensible stage (`docs/architecture.md`'s own
+  note: "no stage has more than one competing provider to order" yet), so
+  a provider-id field would have nothing to discriminate today; threading
+  one through now would mean inventing an identity scheme
+  (index-in-list? a name string, which the ADR explicitly ruled out?)
+  with no real consumer, ahead of the milestone that actually registers
+  more than one provider per stage. Revisit once a stage/provider actually
+  needs the distinction.
+- `PipelineStage` and `CompositionAttemptOutcome` are `public` (not
+  `internal`), and so, transitively, is `ProviderAttempt` — a public
+  `CompositionDiagnostic.Trace` can't expose an internal element type.
+  This is a deliberate, narrow widening of the public surface
+  (`coding-standards.md`'s "as narrow as the actual callers require"),
+  justified by `docs/public-api.md`'s own pre-existing Diagnostics API
+  section already showing `exception.Diagnostic` as consumer-facing.
+- `CompositionException`'s existing `Message` (the short, single-line
+  reason - e.g. `"The shared value for 'Widget' is null..."`) is left
+  exactly as-is; the new `CompositionDiagnostic.Message` carries the same
+  string. `CompositionDiagnostic.ToString()` (what
+  `Console.WriteLine(exception.Diagnostic)` renders, per
+  `docs/public-api.md`) is the only place the full tree + seed text lives
+  - keeping `Exception.Message` short avoids relitigating every existing
+    `WithMessage("*...*")` test's substring assumption, and matches
+    `docs/public-api.md`'s own example, which reads `exception.Diagnostic`
+    separately from the base exception.
+- The materialized `Trace` slice is always taken from checkpoint `0` (the
+  whole operation), not the checkpoint of the `Resolve<T>` call that
+  actually threw - the per-call `checkpoint` local is still used for each
+  call's own `Rewind` on success, but a failing call reports the *entire*
+  surviving buffer, which by construction (every already-succeeded
+  sibling already rewound itself out) is exactly "the failing branch's
+  own attempts and its ancestors'," per the task list wording above.
+  Threading the local checkpoint into `BuildException` instead would have
+  produced only the failing leaf's own attempts, silently dropping every
+  ancestor's - caught while writing
+  `CompositionDiagnosticsTests.ResolveRoot_DiagnosticTrace_RetainsOnlyTheFailingBranch_NotAlreadySucceededSiblings`
+  before it was ever committed as a bug.
+- `CompositionPath` gained `RootType` and `ToTreeString()` alongside the
+  existing `ToDisplayString()` (kept unchanged, still used by the
+  recursion-cycle message) rather than replacing it - the tree format is
+  specific to `CompositionDiagnostic.Path`, and the dotted form's callers
+  (`BuildCycleMessage`) have their own established test coverage
+  (`CompositionRecursionTests`) that doesn't need to move.
+- `Compono.Tests` doesn't reference `Compono.Generators` as an analyzer
+  (Phase 0's note, still true) - every Phase 4 test (`CreateMany`
+  contract/stability, the diagnostics trace-retention test, and the
+  `Customer`/`Address` end-to-end exit-criteria test) uses a hand-written
+  `ICompositionPlan<T>` test double via `PlanCache<T>.Instance`, the same
+  pattern every earlier phase's tests already established.
+- **Real manual verification** (`tasks/implement.md` step 7, this
+  phase's own new public API surface): `dotnet pack`'d `Compono` into a
+  clean local feed and referenced it from a genuinely separate throwaway
+  console project (same pattern Phase 2's round 5 established) exercising
+  `Create<T>()`, `CreateMany<T>(count)` (positive/zero/negative), and a
+  real recursion failure's `exception.Diagnostic` through the real
+  generator - not `Compono.Tests`' hand-written `PlanCache<T>` fakes. This
+  caught one real gap: `CompositionPath.ToTreeString()`'s node labels used
+  `Type.Name` directly, which renders a closed generic in its raw CLR
+  form (`List\`1`) instead of a readable one - `Console.WriteLine(exception.Diagnostic)`
+  for a `List<Node>` member printed `` List`1 Children `` instead of
+  `List<Node> Children`. Fixed by adding `CompositionPath.FriendlyTypeName`
+  (recurses through nested generic type arguments, e.g.
+  `Dictionary<string, List<int>>`) and using it in both `ToTreeString()`
+  call sites; `CompositionDiagnosticsTests.ResolveRoot_DiagnosticPath_RendersClosedGenericTypes_InCSharpStyleNotRawClrForm`
+  is the regression guard. `ToDisplayString()` (the dotted form the
+  recursion-cycle *message* still uses) was deliberately left alone - it
+  already only reads `Name` values off `PathSegment`, never `RequestedType.Name`,
+  so it was never affected by this gap.
+- **Benchmark result (real, not extrapolated, `DefaultJob` — not a quick
+  `--job short` smoke test):** `Compono.Benchmarks`' new
+  `ResolutionBenchmarks` (`Customer`/`Address`, including a `List<string>`
+  collection member, run through the real generator via
+  `dotnet run -c Release -- --filter *ResolutionBenchmarks*`) measured
+  `Create<Customer>()` at ~2.73 KB allocated per call regardless of
+  `CreateMany`'s batch size, and `CreateMany<T>(count)` scaling linearly
+  with `count` (10.18× allocation at `count=10`, 101.47× at `count=100`,
+  against the `count=1` baseline - no super-linear growth). This confirms
+  the checkpoint/rewind trace buffer doesn't measurably harm the hot path;
+  the shallow-diagnostics fallback ADR-0010 reserved for that case was not
+  needed. Full table and reproduction steps recorded permanently in
+  [`docs/performance.md`](../performance.md#milestone-2-phase-4-resolution-pipeline-result)
+  (`docs/architecture.md`'s Diagnostics section links there too, rather
+  than duplicating the table).
 
 ## Critical Files
 
@@ -1282,13 +1370,20 @@ ADR-0014. The task list below reflects the corrected shape.
   `Failure` case added — **Done (Phase 3)**
 - `src/Compono/ICompositionProvider.cs` — new (`internal`) — **Done (Phase 0)**
 - `src/Compono/CompositionException.cs` — new (`public`); minimal message-only
-  exception for now, enriched into the full structured diagnostic in
-  Phase 4 — **Done (Phase 0)**
+  exception for now — **Done (Phase 0)**. Second constructor accepting a
+  `CompositionDiagnostic` (the shape every pipeline-thrown instance uses)
+  and the `Diagnostic` property — **Done (Phase 4)**
+- `src/Compono/CompositionDiagnostic.cs`, `src/Compono/ProviderAttempt.cs`,
+  `src/Compono/PipelineStage.cs`, `src/Compono/CompositionAttemptOutcome.cs`
+  — new (`public`); `src/Compono/CompositionTraceBuffer.cs` — new
+  (`internal`) — **Done (Phase 4)**
 - `src/Compono/PathSegment.cs` (`Ordinal`/`Index`-keyed, `Name` for
   segments that have one), `src/Compono/CompositionPath.cs` — new
   (`internal`) — **Done (Phase 0, pulled forward from Phase 1's original
   scope; structural chain only, no FNV-1a hashing yet)**. `ToDisplayString()`
   (diagnostics-only, derived from segment `Name`s) — **Done (Phase 1)**.
+  `RootType` and `ToTreeString()` (the `CompositionDiagnostic.Path` tree
+  format) — **Done (Phase 4)**
 - `src/Compono/CompositionContext.cs` — new (replaces the inline
   `PlaceholderCompositionContext` in `Composer.cs`); implements the
   public descriptor-based `Resolve<T>` and the internal `ResolveRoot<T>`;
@@ -1298,8 +1393,10 @@ ADR-0014. The task list below reflects the corrected shape.
   the internal `Random` test-observability property — **Done (Phase 1)**.
   Stages 2/3 (shared/scoped values, exact registrations), the
   active-construction-frame stack, and the `ResolveSharedForTesting<T>`
-  test seam — **Done (Phase 3)**. The diagnostics trace buffer is still
-  Phase 4 scope, not implemented yet.
+  test seam — **Done (Phase 3)**. The `CompositionTraceBuffer`
+  checkpoint/record/rewind wiring and `BuildException` (materializes a
+  `CompositionDiagnostic` from the current path/trace/seed) —
+  **Done (Phase 4)**
 - `src/Compono/CompositionScope.cs`, `src/Compono/CompositionRegistrations.cs`
   — new (`internal`) — **Done (Phase 3)**
 - `src/Compono/CompositionSeed.cs`, `src/Compono/IRandomSource.cs`,
@@ -1349,9 +1446,10 @@ ADR-0014. The task list below reflects the corrected shape.
   `ResolveRoot<T>()` — **Done (Phase 0)**. The internal
   `CreateRootForTesting<T>(CompositionSeed)`/
   `CreateManyForTesting<T>(int, CompositionSeed)` test-seam factories —
-  **Done (Phase 1)**. `CreateMany<T>()` itself (with the
-  negative-count/zero-count/`IReadOnlyList<T>` contract) is still Phase 4
-  scope.
+  **Done (Phase 1)**. Public `CreateMany<T>(int count)` (negative-count/
+  zero-count/`IReadOnlyList<T>` contract), sharing its seed-derivation
+  logic with `CreateManyForTesting` via a private `ComposeMany<T>` helper
+  — **Done (Phase 4)**
 - `src/Compono.Generators/Templates/CompositionPlan.scriban`,
   `src/Compono.Generators/Emitters/CompositionPlanEmitter.cs` — modified:
   emit `CompositionRequestDescriptor` (constructor-parameter name added
@@ -1375,6 +1473,13 @@ ADR-0014. The task list below reflects the corrected shape.
 - `test/Compono.Tests/CompositionScopeTests.cs`,
   `test/Compono.Tests/CompositionRegistrationTests.cs`,
   `test/Compono.Tests/CompositionRecursionTests.cs` — new — **Done (Phase 3)**
+- `test/Compono.Tests/CompositionTraceBufferTests.cs`,
+  `test/Compono.Tests/CompositionDiagnosticsTests.cs`,
+  `test/Compono.Tests/ComposerCreateManyTests.cs`,
+  `test/Compono.Tests/CompositionEndToEndTests.cs` — new — **Done (Phase 4)**
+- `benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`
+  (`Customer`/`Address`), `benchmarks/Compono.Benchmarks/ResolutionBenchmarks.cs`
+  — new — **Done (Phase 4)**
 - `test/Compono.Tests/**` — new tests per phase above
 
 ## Test Plan

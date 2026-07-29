@@ -16,11 +16,29 @@ namespace Compono;
 public sealed class CompositionException : Exception
 {
     /// <summary>
-    /// Creates a <see cref="CompositionException"/>.
+    /// The structured detail behind this failure, or <see langword="null"/> if this instance was
+    /// constructed from a plain message.
+    /// </summary>
+    public CompositionDiagnostic? Diagnostic { get; }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionException"/> with no structured <see cref="Diagnostic"/>.
     /// </summary>
     /// <param name="message">A message describing what couldn't be composed and why.</param>
     public CompositionException(string message)
         : base(message)
     {
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionException"/> from a structured <see cref="CompositionDiagnostic"/>
+    /// - the shape every pipeline-thrown instance uses, per <c>docs/public-api.md</c>'s Diagnostics
+    /// API.
+    /// </summary>
+    /// <param name="diagnostic">The structured detail behind this failure.</param>
+    public CompositionException(CompositionDiagnostic diagnostic)
+        : base(diagnostic.Message)
+    {
+        Diagnostic = diagnostic;
     }
 }

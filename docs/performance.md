@@ -83,6 +83,46 @@ Numbers will shift as the composition engine grows past Milestone 1's
 placeholder context - re-run and update this page rather than treating it
 as a permanent result.
 
+## Milestone 2 Phase 4: resolution-pipeline result
+
+`ArchitectureBenchmarks`/`EcosystemBenchmarks` above only ever measured
+generated *construction* dispatch versus reflection for a flat,
+parameterless type - nothing exercised the real resolution pipeline
+(provider dispatch, deterministic random forking, collection generation,
+the diagnostics trace buffer) until Milestone 2 made it real. `ResolutionBenchmarks`
+closes that gap with the `Customer`/`Address` representative graph from
+`docs/plans/0002-milestone-2-core-composition-engine.md`'s Execution Flow
+section (a nested composable type, every Phase 2 built-in kind via
+`string`, and a `List<string>` collection member), run through the real
+generator (`benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`).
+
+This was also the benchmark gate [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)
+reserved for the diagnostics trace buffer: confirm it's actually
+allocation-free on the success path, and fall back to shallow diagnostics
+by default if it measurably harms the hot path.
+
+Recorded at Milestone 2 Phase 4's completion, Apple M3 Max, .NET 10.0.3
+arm64 RyuJIT, Release configuration, `BenchmarkDotNet` `DefaultJob`:
+
+| Method     | Count | Mean         | Allocated  | Alloc Ratio |
+|------------|------:|-------------:|-----------:|------------:|
+| Create     |     1 |    878.4 ns  |    2.73 KB |        1.00 |
+| CreateMany |     1 |    927.7 ns  |    2.86 KB |        1.05 |
+| Create     |    10 |    896.2 ns  |    2.73 KB |        1.00 |
+| CreateMany |    10 |  9,298.4 ns  |   27.75 KB |       10.18 |
+| Create     |   100 |    930.0 ns  |    2.73 KB |        1.00 |
+| CreateMany |   100 | 97,435.5 ns  |  276.66 KB |      101.47 |
+
+`Create<Customer>()` allocates ~2.73 KB per call regardless of
+`CreateMany`'s batch size - a single root operation's cost, unaffected by
+how many other independent items get composed around it in the same
+process. `CreateMany<T>(count)` scales linearly with `count` (10.18×
+allocation at `count=10`, 101.47× at `count=100`, against the `count=1`
+baseline) - no super-linear growth from the checkpoint/rewind trace
+buffer's bookkeeping, `IRandomSource`'s per-item seed forking, or scope
+allocation. **No fallback to shallow diagnostics was needed** - the
+allocation-free-on-success trace buffer design shipped as scoped.
+
 ## Reproducing
 
 ```
@@ -90,3 +130,6 @@ dotnet run -c Release --project benchmarks/Compono.Benchmarks -f net10.0
 ```
 
 `-c Release` is required - `BenchmarkDotNet` refuses to run a Debug build.
+Add `-- --filter "*ResolutionBenchmarks*"` to run only the Milestone 2
+resolution-pipeline benchmarks (the full suite, including
+`ArchitectureBenchmarks`/`EcosystemBenchmarks`, takes several minutes).

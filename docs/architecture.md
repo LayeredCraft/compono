@@ -499,12 +499,21 @@ Seed: 8492173
 Per [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md),
 this level of detail is not free to collect and must not cost anything on
 the normal successful path: a context-owned, reusable, array-backed trace
-buffer records a compact struct (stage, provider, outcome — no strings,
-no allocation) per stage/provider attempt, and rewinds on success instead
-of retaining anything. Only a failing request materializes its slice of
-that buffer into the durable diagnostic above, before the buffer unwinds
-further. This is allocation-free on success, not necessarily free —
-worth confirming against a benchmark once implemented.
+buffer (`CompositionTraceBuffer`) records a compact struct (`ProviderAttempt`:
+stage, outcome — no strings, no allocation) per stage attempt, and rewinds
+on success instead of retaining anything. Only a failing request
+materializes its slice of that buffer into the durable
+`CompositionDiagnostic` above (`exception.Diagnostic`, `docs/public-api.md`'s
+Diagnostics API), before the buffer unwinds further.
+
+Confirmed via `Compono.Benchmarks`' `ResolutionBenchmarks` (Milestone 2
+Phase 4, full `DefaultJob` numbers in [`docs/performance.md`](performance.md)):
+composing the `Customer`/`Address` representative graph allocates ~2.73 KB
+regardless of the trace buffer's presence, and `CreateMany<T>(count)`
+scales linearly with `count` (10.18× allocation at `count=10`, 101.47× at
+`count=100`, against a `count=1` baseline) — no super-linear growth from
+checkpoint/rewind bookkeeping. No fallback to shallow diagnostics was
+needed.
 
 ## Package Boundaries
 

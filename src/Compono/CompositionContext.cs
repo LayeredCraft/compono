@@ -8,7 +8,7 @@ namespace Compono;
 /// </summary>
 /// <remarks>
 /// One instance per root operation (one <see cref="Composer.Create{T}"/> call, or one item of a
-/// future <c>CreateMany&lt;T&gt;()</c> call) - never reused across multiple root calls, per
+/// <see cref="Composer.CreateMany{T}"/> call) - never reused across multiple root calls, per
 /// <c>docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md</c>. Stage 1
 /// (explicit values) has no mechanism yet - it stays Milestone 3 scope (the public builder). Stages
 /// 2/3 (shared/scoped values, exact registrations) and the active-construction-frame recursion check
@@ -21,6 +21,7 @@ internal sealed class CompositionContext : ICompositionContext
     private readonly CompositionRegistrations _registrations;
     private readonly CompositionScope _scope = new();
     private readonly List<Type> _activeFrames = [];
+    private readonly CompositionTraceBuffer _trace = new();
     private readonly IReadOnlyList<ICompositionProvider> _profileProviders;
     private readonly IReadOnlyList<ICompositionProvider> _semanticProviders;
     private readonly IReadOnlyList<ICompositionProvider> _testDoubleProviders;
@@ -141,6 +142,7 @@ internal sealed class CompositionContext : ICompositionContext
         var requestedType = typeof(TValue);
         var previousRandom = _random;
         var isRoot = _path is null;
+        var checkpoint = _trace.Checkpoint;
 
         // A descriptor-based Resolve<T> called directly on a fresh context (no preceding
         // ResolveRoot<T>() call) - only reachable from a test exercising the descriptor path in
@@ -160,45 +162,103 @@ internal sealed class CompositionContext : ICompositionContext
             };
 
             // Stage 1 (explicit values) has no mechanism until Milestone 3's public builder - every
-            // request falls through it.
+            // request falls through it; nothing to trace.
 
             // Stage 2: shared/scoped values - only a request the caller marked IsShared reads from
             // scope; an ordinary request never does, even if the same type was already shared
             // elsewhere in this operation.
-            if (request.IsShared && _scope.TryGet(requestedType, out var sharedValue))
-                return Authoritative<TValue>(ValidateAuthoritativeValue(sharedValue, request, "shared value"));
+            if (request.IsShared)
+            {
+                if (_scope.TryGet(requestedType, out var sharedValue))
+                {
+                    var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
+                    _trace.Record(PipelineStage.SharedOrScopedValue, OutcomeOf(result));
+                    var value = Authoritative<TValue>(result);
+                    _trace.Rewind(checkpoint);
+                    return value;
+                }
+
+                _trace.Record(PipelineStage.SharedOrScopedValue, CompositionAttemptOutcome.NotHandled);
+            }
 
             // Stage 3: exact registrations (mechanism only - no public builder.Register(...) yet).
             if (_registrations.TryGet(requestedType, out var registeredValue))
-                return Authoritative<TValue>(ValidateAuthoritativeValue(registeredValue, request, "registration"));
+            {
+                var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
+                _trace.Record(PipelineStage.ExactRegistration, OutcomeOf(result));
+                var value = Authoritative<TValue>(result);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
+
+            _trace.Record(PipelineStage.ExactRegistration, CompositionAttemptOutcome.NotHandled);
 
             if (TryProviders(_profileProviders, request, out var profileValue))
-                return StoreSharedAndReturn<TValue>(profileValue, request);
+            {
+                _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(profileValue, request);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
+
+            _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.NotHandled);
 
             if (TryProviders(_semanticProviders, request, out var semanticValue))
-                return StoreSharedAndReturn<TValue>(semanticValue, request);
+            {
+                _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(semanticValue, request);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
+
+            _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.NotHandled);
 
             if (TryProviders(_testDoubleProviders, request, out var testDoubleValue))
-                return StoreSharedAndReturn<TValue>(testDoubleValue, request);
+            {
+                _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(testDoubleValue, request);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
+
+            _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.NotHandled);
 
             if (TryProviders(_builtInProviders, request, out var builtInValue))
-                return StoreSharedAndReturn<TValue>(builtInValue, request);
+            {
+                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(builtInValue, request);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
 
             // Still stage 7 conceptually (docs/architecture.md) - a generated collection plan is
             // "a built-in value provider," just dispatched via a direct closed-generic field read
             // (like stage 8's PlanCache<TValue> below) rather than through ICompositionProvider,
             // which can't itself construct a generic collection without reflection or boxing/erasure.
-            // See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md's third
-            // amendment.
+            // See docs/adr/0014-generator-emitted-collection-plans.md.
             if (CollectionPlanCache<TValue>.Instance is { } collectionPlan)
-                return StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request);
+            {
+                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
+
+            _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.NotHandled);
 
             var plan = PlanCache<TValue>.Instance;
             if (plan is not null)
-                return ResolveViaGeneratedPlan(plan, request);
+            {
+                var value = ResolveViaGeneratedPlan(plan, request);
+                _trace.Rewind(checkpoint);
+                return value;
+            }
 
-            throw new CompositionException(
-                $"Unable to compose '{requestedType}'. No registration, provider, or generated plan could satisfy the request.");
+            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.NotHandled);
+
+            throw BuildException(
+                requestedType,
+                $"No registration, profile rule, semantic provider, test-double provider, built-in provider, or generated plan could satisfy '{requestedType.Name}'.");
         }
         finally
         {
@@ -216,12 +276,16 @@ internal sealed class CompositionContext : ICompositionContext
         var requestedType = request.RequestedType;
 
         if (_activeFrames.Contains(requestedType))
+        {
+            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Failure);
             return Authoritative<TValue>(new CompositionResult.Failure(BuildCycleMessage(requestedType)));
+        }
 
         _activeFrames.Add(requestedType);
         try
         {
             var value = plan.Compose(this);
+            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Success);
             return request.IsShared
                 ? StoreSharedAndReturn<TValue>(value, request)
                 : value;
@@ -293,12 +357,33 @@ internal sealed class CompositionContext : ICompositionContext
     // The outward-facing conversion from a context-owned authoritative stage's CompositionResult to
     // either a plain TValue or a thrown CompositionException - the same NotHandled/Success/Failure ->
     // exception boundary stage 9 already uses, per docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md.
-    private static TValue Authoritative<TValue>(CompositionResult result) => result switch
+    private TValue Authoritative<TValue>(CompositionResult result) => result switch
     {
         CompositionResult.Success success => CastResult<TValue>(success.Value),
-        CompositionResult.Failure failure => throw new CompositionException(failure.Message),
+        CompositionResult.Failure failure => throw BuildException(typeof(TValue), failure.Message),
         _ => throw new ArgumentOutOfRangeException(nameof(result), result, "An authoritative composition stage must produce Success or Failure."),
     };
+
+    private static CompositionAttemptOutcome OutcomeOf(CompositionResult result) => result switch
+    {
+        CompositionResult.Success => CompositionAttemptOutcome.Success,
+        CompositionResult.Failure => CompositionAttemptOutcome.Failure,
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "An authoritative composition stage must produce Success or Failure."),
+    };
+
+    // Materializes this operation's whole surviving trace (checkpoint 0 - every already-succeeded
+    // sibling has already rewound itself out, per CompositionTraceBuffer's remarks) into a durable
+    // CompositionDiagnostic. _path is always non-null here: this is only ever called from inside
+    // ResolveCore's try block, after _path has been pushed for the current node.
+    private CompositionException BuildException(Type failedType, string message) => new(new CompositionDiagnostic
+    {
+        RootType = _path!.RootType,
+        FailedType = failedType,
+        Path = _path.ToTreeString(),
+        Trace = _trace.Slice(0),
+        Seed = _seed.Value,
+        Message = message,
+    });
 
     // A provider-composed value is boxed for a value type TValue (CompositionResult.Success
     // carries object?) - this is the single unbox/cast point back to the generic caller's type.
