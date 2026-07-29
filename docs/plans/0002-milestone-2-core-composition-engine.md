@@ -634,6 +634,29 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   generated plan referencing any of the three compiled fine and then
   always failed at runtime with `CompositionException`. Fixed by adding
   factories for all three.
+- A second round of PR #11 review caught two more real gaps, both fixed
+  in the same PR: (1) **root-type discovery never applied
+  `LeafTypeClassifier`/collection classification to the requested type
+  itself** — only nested members got that check. `Composer.Create<Guid>()`,
+  `Composer.Create<string>()`, and `Composer.Create<List<int>>()` all
+  failed to *compile* (`CMP0001`, ambiguous constructor); `Composer.Create<int>()`/
+  `Composer.Create<DayOfWeek>()` compiled but silently generated a dead
+  `PlanCache<T>` entry that always produced `default(T)` (harmless only
+  because stage 7's built-in provider always won first, but confusing
+  generated output). Fixed by routing the root through the same
+  classify-first logic as any member (`TransitiveClosureWalker.EnqueueRoot`),
+  with one refinement beyond the review's own suggested fix: a root that's
+  abstract or a delegate has no runtime provider either, so it must still
+  reach constructor selection for its existing `CMP0003` diagnostic — a
+  first pass that reused `LeafTypeClassifier.IsProviderResolved` verbatim
+  for the root regressed three passing tests
+  (`AbstractType_ReportsDiagnostic`, `DelegateType_ReportsDiagnostic`,
+  `ComposableAttributeOnInterface_ReportsDiagnostic`) by silently skipping
+  them instead. Fixed with a narrower `LeafTypeClassifier.IsRuntimeProviderResolved`
+  (enums, built-in simple types, recognized BCL value types only) used
+  solely for the root check. (2) `EnumValueProvider` called
+  `Enum.GetValues(type)` — an allocating call — on every resolution;
+  cached per enum type via a `ConcurrentDictionary<Type, Array>` instead.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

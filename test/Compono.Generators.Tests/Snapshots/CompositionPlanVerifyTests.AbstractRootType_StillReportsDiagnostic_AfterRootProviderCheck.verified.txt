@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (17,39)-(17,61),
+      Message: 'TestNamespace.Customer' is abstract and cannot be constructed directly,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0003,
+        Title: Type cannot be constructed,
+        MessageFormat: {0} is {1} and cannot be constructed directly,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

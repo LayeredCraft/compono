@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Compono;
 
 namespace Compono.Providers;
@@ -8,6 +9,12 @@ namespace Compono.Providers;
 /// </summary>
 internal sealed class EnumValueProvider : ICompositionProvider
 {
+    // Enum.GetValues(Type) allocates a fresh array on every call - caching per enum type keeps the
+    // resolution hot path from re-allocating and re-copying the same metadata-derived array for every
+    // resolved value of a given enum type. Lock-free (ConcurrentDictionary), per coding-standards.md's
+    // "shared mutable state" guidance - the cache is populated at most once per distinct enum type.
+    private static readonly ConcurrentDictionary<Type, Array> ValuesByType = new();
+
     public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
     {
         var random = ((CompositionContext)context).Random;
@@ -26,7 +33,7 @@ internal sealed class EnumValueProvider : ICompositionProvider
             return false;
         }
 
-        var values = Enum.GetValues(type);
+        var values = ValuesByType.GetOrAdd(type, static t => Enum.GetValues(t));
 
         if (values.Length == 0)
         {

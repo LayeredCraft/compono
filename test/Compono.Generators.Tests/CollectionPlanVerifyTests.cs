@@ -3,6 +3,27 @@ namespace Compono.Generators.Tests;
 public sealed class CollectionPlanVerifyTests
 {
     [Fact]
+    public Task ListRootType_GeneratesOnlyACollectionPlan_NoCompositionPlanForTheElementType() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // A collection root (List<int>) must be recorded as a collection - exactly
+                        // like a collection reached as a nested member - not walked as an ordinary
+                        // composable type. Regression coverage for the PR #11 review finding: before
+                        // the fix, this failed to compile with CMP0001 (List<int> has 3 accessible
+                        // constructors).
+                        var value = composer.Create<System.Collections.Generic.List<int>>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ArrayConstructorParameter_GeneratesCollectionPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

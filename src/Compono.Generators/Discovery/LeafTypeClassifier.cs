@@ -23,6 +23,26 @@ internal static class LeafTypeClassifier
         return IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes);
     }
 
+    /// <summary>
+    /// The narrower subset of <see cref="IsProviderResolved"/> that a stage-7 built-in
+    /// <c>ICompositionProvider</c> actually claims at runtime - enums, built-in simple types, and the
+    /// recognized BCL value types, but <b>not</b> abstract types or delegates (which
+    /// <see cref="IsProviderResolved"/> also treats as "leave as a bare <c>Resolve&lt;T&gt;()</c> call,"
+    /// but nothing ever satisfies at runtime either).
+    /// </summary>
+    /// <remarks>
+    /// Used only for the <em>root</em> of <see cref="TransitiveClosureWalker.Walk"/> - a member of an
+    /// abstract/delegate type is legitimately left unresolved for now (a future provider/registration
+    /// might claim it), but the root of <c>Composer.Create&lt;T&gt;()</c> has no such off-ramp: an
+    /// abstract/delegate root must still reach constructor selection so it gets a real compile-time
+    /// diagnostic (CMP0003) instead of silently compiling into a call that can only ever fail at
+    /// runtime with a generic "nothing could satisfy this" exception - the exact regression PR #11
+    /// review caught when the root skipped classification entirely.
+    /// </remarks>
+    public static bool IsRuntimeProviderResolved(ITypeSymbol type, WellKnownTypes.WellKnownTypes wellKnownTypes) =>
+        type is INamedTypeSymbol named &&
+        (named.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes));
+
     private static bool IsBuiltInSimpleType(INamedTypeSymbol type) => type.SpecialType is
         SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte or
         SpecialType.System_Char or SpecialType.System_Decimal or SpecialType.System_Double or

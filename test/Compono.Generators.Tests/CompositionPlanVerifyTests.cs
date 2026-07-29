@@ -834,6 +834,95 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task PrimitiveRootType_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // int is provider-resolved - Composer.Create<int>() must generate no plan at
+                        // all (stage 7's built-in provider satisfies it directly at runtime), and must
+                        // not reach constructor selection - regression coverage for the PR #11 review
+                        // finding that the root type skipped this check entirely (either failing to
+                        // compile for types like Guid/string with multiple constructors, or silently
+                        // generating a dead plan that always produced default(T) for types like int).
+                        var value = composer.Create<int>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task EnumRootType_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var value = composer.Create<System.DayOfWeek>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task BclValueTypeRootWithMultipleConstructors_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Guid has 8 accessible constructors - before the PR #11 fix, this reached
+                        // constructor selection and failed to compile with CMP0001 (ambiguous
+                        // construction), even though Guid is a recognized BCL value type with a
+                        // built-in runtime provider.
+                        var value = composer.Create<System.Guid>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task AbstractRootType_StillReportsDiagnostic_AfterRootProviderCheck() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public abstract class Customer
+                    {
+                        public Customer(string firstName) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Regression guard for the PR #11 root-type fix: an abstract root has no
+                            // runtime provider either (LeafTypeClassifier.IsRuntimeProviderResolved is
+                            // narrower than IsProviderResolved specifically to keep this case reaching
+                            // constructor selection), so it must still get CMP0003 at compile time
+                            // rather than silently compiling into a call that can only fail at runtime.
+                            var customer = composer.Create<TestNamespace.Customer>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0003",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task NestedTypeFailsConstructorSelection_ReportsDiagnosticAtOriginalCallSite() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions

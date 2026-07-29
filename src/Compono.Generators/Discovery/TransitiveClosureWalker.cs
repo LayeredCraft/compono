@@ -27,6 +27,19 @@ namespace Compono.Generators.Discovery;
 /// collection element type (<c>List&lt;List&lt;Address&gt;&gt;</c>) recurses through this same
 /// collection-shape check again.
 /// </para>
+/// <para>
+/// The root type itself goes through this exact same classification before anything else - a
+/// provider-resolved root (<c>Composer.Create&lt;int&gt;()</c>, <c>Composer.Create&lt;Guid&gt;()</c>)
+/// needs no generated plan at all (stage 7's built-in providers satisfy it directly at runtime,
+/// per ADR-0010's third amendment), and a collection-shaped root
+/// (<c>Composer.Create&lt;List&lt;Address&gt;&gt;()</c>) is recorded as a
+/// <see cref="DiscoveredCollectionInfo"/> exactly like a collection reached as a nested member,
+/// not walked as an ordinary composable type. Only a genuinely composable root reaches constructor
+/// selection - PR #11 review caught that an earlier version of this method skipped this check for
+/// the root, so a provider-resolved/collection root either failed to compile (ambiguous
+/// constructor) or silently generated a dead, always-default-value plan that was never actually
+/// reached at runtime.
+/// </para>
 /// </summary>
 internal static class TransitiveClosureWalker
 {
@@ -43,13 +56,13 @@ internal static class TransitiveClosureWalker
         // With IncludeNullability, both variants get walked and each produces its own entry, so a
         // real conflict between them surfaces through that existing check instead of being erased
         // one layer upstream of it.
-        var visitedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability) { rootType };
+        var visitedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         var visitedCollections = new HashSet<ITypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         var results = new List<DiscoveredTypeInfo>();
         var collections = new List<DiscoveredCollectionInfo>();
         var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
 
-        queue.Enqueue((rootType, null));
+        EnqueueRoot(rootType, wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
 
         while (queue.Count > 0)
         {
@@ -76,6 +89,47 @@ internal static class TransitiveClosureWalker
         }
 
         return new TransitiveClosureResult(results.ToEquatableArray(), collections.ToEquatableArray());
+    }
+
+    // Mirrors EnqueueMember's classification (collection shape -> provider-resolved leaf ->
+    // genuinely composable type), but for the root, which has no parent/member name to build a
+    // diagnostic path from - the root's own type name stands in for both when recursing into a
+    // collection root's element/key type(s).
+    private static void EnqueueRoot(
+        INamedTypeSymbol rootType,
+        WellKnownTypes.WellKnownTypes wellKnownTypes,
+        CollectionWellKnownTypes collectionTypes,
+        HashSet<INamedTypeSymbol> visitedTypes,
+        HashSet<ITypeSymbol> visitedCollections,
+        List<DiscoveredCollectionInfo> collections,
+        Queue<(INamedTypeSymbol Type, string? Path)> queue)
+    {
+        if (collectionTypes.TryClassify(rootType, out var shape))
+        {
+            if (!visitedCollections.Add(rootType))
+                return;
+
+            collections.Add(ToDiscoveredCollectionInfo(rootType, shape));
+
+            EnqueueMember(
+                shape.ElementType, "element", rootType, null,
+                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+
+            if (shape.KeyType is { } keyType)
+            {
+                EnqueueMember(
+                    keyType, "key", rootType, null,
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+            }
+
+            return;
+        }
+
+        if (LeafTypeClassifier.IsRuntimeProviderResolved(rootType, wellKnownTypes))
+            return;
+
+        visitedTypes.Add(rootType);
+        queue.Enqueue((rootType, null));
     }
 
     private static void EnqueueMember(
