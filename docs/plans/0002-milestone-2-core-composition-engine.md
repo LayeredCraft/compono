@@ -779,6 +779,34 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
     `tasks/implement.md` step 7 for this phase, retroactively — should
     have been done alongside Phase 2's original implementation, not only
     once review flagged its absence.
+- A sixth round of PR #11 review found one more real gap: **a
+  private/protected collection element or key type**
+  (`composer.Create<List<PrivateEnum>>()` called from inside
+  `PrivateEnum`'s own containing type) compiled fine at the call site
+  (private members are accessible within their own containing type) but
+  failed inside the *generated collection plan* with `CS0122` — every
+  generated collection plan is a top-level `file`-scoped type outside
+  any containing type, so it can never reference a private/protected
+  element/key type even when the original call site legitimately could.
+  Confirmed directly before fixing. Fixed by checking
+  `compilation.IsSymbolAccessibleWithin(elementType/keyType, compilation.Assembly)`
+  in `TransitiveClosureWalker.ToDiscoveredCollectionInfo` — the same
+  accessibility API `ConstructorSelector`/`RequiredMemberCollector`
+  already use for constructor/required-member accessibility — reporting
+  a new diagnostic, **CMP0012**, instead of letting an inaccessible type
+  reach emission. `compilation`/`location` had to be threaded through
+  `EnqueueRoot`/`EnqueueMember` to reach this check (previously only
+  `Walk`'s top-level scope had them). Added regression coverage:
+  `CollectionPlanVerifyTests.PrivateElementTypeInCollectionRoot_ReportsDiagnostic`.
+  Scope note: the identical accessibility gap plausibly exists for an
+  *ordinary* (non-collection) composable type's constructor-parameter
+  type too (any generated composition plan is equally a top-level type),
+  but constructing a legal, compiling repro for that case is
+  significantly more constrained by C#'s own accessibility-consistency
+  rules (CS0051/CS0053 already reject a public constructor exposing a
+  less-accessible parameter type) — not fixed here since it wasn't what
+  was flagged and a real repro wasn't confirmed; worth a follow-up look
+  if it's ever hit in practice.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

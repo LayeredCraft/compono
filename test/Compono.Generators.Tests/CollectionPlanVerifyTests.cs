@@ -3,6 +3,36 @@ namespace Compono.Generators.Tests;
 public sealed class CollectionPlanVerifyTests
 {
     [Fact]
+    public Task PrivateElementTypeInCollectionRoot_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Container
+                    {
+                        private enum PrivateEnum { A, B, C }
+
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // The call site is inside PrivateEnum's own containing type, so this
+                            // compiles fine at the call site itself - but a generated collection plan
+                            // is always a top-level type outside any containing type, so it can never
+                            // reference a private/protected element type. Before the fix, this failed
+                            // to compile with CS0122 inside the generated file instead of a Compono
+                            // diagnostic. Regression coverage for the PR #11 review finding, confirmed
+                            // directly before fixing.
+                            var value = composer.Create<System.Collections.Generic.List<PrivateEnum>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0012",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ListRootType_GeneratesOnlyACollectionPlan_NoCompositionPlanForTheElementType() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

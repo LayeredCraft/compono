@@ -62,7 +62,7 @@ internal static class TransitiveClosureWalker
         var collections = new List<DiscoveredCollectionInfo>();
         var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
 
-        EnqueueRoot(rootType, wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+        EnqueueRoot(rootType, compilation, location, wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
 
         while (queue.Count > 0)
         {
@@ -76,14 +76,14 @@ internal static class TransitiveClosureWalker
             foreach (var parameter in constructor.Parameters)
             {
                 EnqueueMember(
-                    parameter.Type, parameter.Name, type, path,
+                    parameter.Type, parameter.Name, type, path, compilation, location,
                     wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
             }
 
             foreach (var (memberType, memberName) in requiredMemberTypes)
             {
                 EnqueueMember(
-                    memberType, memberName, type, path,
+                    memberType, memberName, type, path, compilation, location,
                     wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
             }
         }
@@ -97,6 +97,8 @@ internal static class TransitiveClosureWalker
     // collection root's element/key type(s).
     private static void EnqueueRoot(
         ITypeSymbol rootType,
+        Compilation compilation,
+        LocationInfo? location,
         WellKnownTypes.WellKnownTypes wellKnownTypes,
         CollectionWellKnownTypes collectionTypes,
         HashSet<INamedTypeSymbol> visitedTypes,
@@ -109,16 +111,20 @@ internal static class TransitiveClosureWalker
             if (!visitedCollections.Add(rootType))
                 return;
 
-            collections.Add(ToDiscoveredCollectionInfo(rootType, shape));
+            var collectionInfo = ToDiscoveredCollectionInfo(rootType, shape, compilation, location);
+            collections.Add(collectionInfo);
+
+            if (collectionInfo.Diagnostics.Count > 0)
+                return;
 
             EnqueueMember(
-                shape.ElementType, "element", rootType, null,
+                shape.ElementType, "element", rootType, null, compilation, location,
                 wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
 
             if (shape.KeyType is { } keyType)
             {
                 EnqueueMember(
-                    keyType, "key", rootType, null,
+                    keyType, "key", rootType, null, compilation, location,
                     wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
             }
 
@@ -144,6 +150,8 @@ internal static class TransitiveClosureWalker
         string memberName,
         ITypeSymbol parentType,
         string? parentPath,
+        Compilation compilation,
+        LocationInfo? location,
         WellKnownTypes.WellKnownTypes wellKnownTypes,
         CollectionWellKnownTypes collectionTypes,
         HashSet<INamedTypeSymbol> visitedTypes,
@@ -158,16 +166,20 @@ internal static class TransitiveClosureWalker
             if (!visitedCollections.Add(memberType))
                 return;
 
-            collections.Add(ToDiscoveredCollectionInfo(memberType, shape));
+            var collectionInfo = ToDiscoveredCollectionInfo(memberType, shape, compilation, location);
+            collections.Add(collectionInfo);
+
+            if (collectionInfo.Diagnostics.Count > 0)
+                return;
 
             EnqueueMember(
-                shape.ElementType, "element", parentType, childPath,
+                shape.ElementType, "element", parentType, childPath, compilation, location,
                 wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
 
             if (shape.KeyType is { } keyType)
             {
                 EnqueueMember(
-                    keyType, "key", parentType, childPath,
+                    keyType, "key", parentType, childPath, compilation, location,
                     wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
             }
 
@@ -186,15 +198,55 @@ internal static class TransitiveClosureWalker
         queue.Enqueue((namedType, childPath));
     }
 
-    private static DiscoveredCollectionInfo ToDiscoveredCollectionInfo(ITypeSymbol collectionType, CollectionShapeInfo shape) =>
-        new(
+    // Every generated collection plan is emitted as a `file`-scoped top-level type
+    // (coding-standards.md's "Generated code" section) - it is never nested inside the type that
+    // reached this collection, even when the collection was discovered from a call site that could
+    // itself see a private/protected element or key type there. IsSymbolAccessibleWithin against the
+    // whole compilation assembly is the same check ConstructorSelector/RequiredMemberCollector
+    // already use for constructor/required-member accessibility - a private or protected member type
+    // is never "accessible from anywhere in the assembly," which is exactly the accessibility domain
+    // a top-level generated type actually gets. PR #11 review caught this for collections
+    // specifically (Composer.Create<List<PrivateEnum>>() called from inside PrivateEnum's own
+    // containing type compiled at the call site but failed in the generated collection plan with
+    // CS0122) - confirmed directly before fixing.
+    private static DiscoveredCollectionInfo ToDiscoveredCollectionInfo(
+        ITypeSymbol collectionType, CollectionShapeInfo shape, Compilation compilation, LocationInfo? location)
+    {
+        var collectionTypeName = collectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        var inaccessibleType = !compilation.IsSymbolAccessibleWithin(shape.ElementType, compilation.Assembly)
+            ? shape.ElementType
+            : shape.KeyType is { } keyType && !compilation.IsSymbolAccessibleWithin(keyType, compilation.Assembly)
+                ? keyType
+                : null;
+
+        if (inaccessibleType is not null)
+        {
+            var diagnostic = new DiagnosticInfo(
+                DiagnosticDescriptors.InaccessibleCollectionElementType,
+                location,
+                inaccessibleType.ToDisplayString(),
+                collectionType.ToDisplayString());
+
+            return new DiscoveredCollectionInfo(
+                shape.Shape,
+                collectionTypeName,
+                shape.ElementType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                shape.ElementType.NullableAnnotation == NullableAnnotation.Annotated,
+                shape.KeyType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                shape.KeyType?.NullableAnnotation == NullableAnnotation.Annotated,
+                new[] { diagnostic }.ToEquatableArray());
+        }
+
+        return new DiscoveredCollectionInfo(
             shape.Shape,
-            collectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            collectionTypeName,
             shape.ElementType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             shape.ElementType.NullableAnnotation == NullableAnnotation.Annotated,
             shape.KeyType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             shape.KeyType?.NullableAnnotation == NullableAnnotation.Annotated,
             EquatableArray<DiagnosticInfo>.Empty);
+    }
 
     private static (DiscoveredTypeInfo Info, IMethodSymbol? Constructor, IReadOnlyList<(ITypeSymbol Type, string Name)> RequiredMemberTypes) Analyze(
         INamedTypeSymbol type, Compilation compilation, LocationInfo? location, string? path)

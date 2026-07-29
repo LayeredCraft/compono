@@ -104,4 +104,16 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InaccessibleCollectionElementType = new(
+        "CMP0012",
+        "Collection element or key type is not accessible",
+        "'{0}' cannot be an element or key type of a generated collection plan for '{1}' - every " +
+        "generated collection plan is emitted as a top-level type outside any containing type, so a " +
+        "private or protected element/key type can never be referenced from it, even from a call " +
+        "site that could otherwise see it. Use a collection of an accessible type, or widen '{0}''s " +
+        "accessibility.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

@@ -16,3 +16,4 @@ CMP0008 | Compono.Usage | Error | Assembly-level [Composable] is missing its typ
 CMP0009 | Compono.Usage | Error | Requested type is a ref struct (ref-like type), which cannot be a type argument for ICompositionPlan<T>/PlanCache<T>
 CMP0010 | Compono.Usage | Error | The same type was discovered multiple times with conflicting composition metadata (e.g. differing nullable-reference annotations across call sites)
 CMP0011 | Compono.Usage | Error | The same closed collection type was discovered multiple times with conflicting element/key nullability
+CMP0012 | Compono.Usage | Error | A collection's element or key type is private/protected and not accessible from the generated top-level collection plan
