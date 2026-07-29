@@ -5,8 +5,7 @@ namespace Compono.Generators.Discovery;
 
 /// <summary>
 /// The five closed collection shapes <c>docs/adr/0013-collection-generation-semantics.md</c> and
-/// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>'s third amendment
-/// give a generated collection plan.
+/// <c>docs/adr/0014-generator-emitted-collection-plans.md</c> give a generated collection plan.
 /// </summary>
 internal enum CollectionShape
 {

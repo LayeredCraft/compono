@@ -7,7 +7,7 @@ namespace Compono.Generators.Emitters;
 /// Renders a <see cref="DiscoveredCollectionInfo"/> into a generated
 /// <c>ICompositionPlan&lt;TCollection&gt;</c> class + <c>CollectionPlanCache&lt;TCollection&gt;</c>
 /// module-initializer registration, per
-/// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>'s third amendment.
+/// <c>docs/adr/0014-generator-emitted-collection-plans.md</c>.
 /// </summary>
 internal static class CollectionPlanEmitter
 {

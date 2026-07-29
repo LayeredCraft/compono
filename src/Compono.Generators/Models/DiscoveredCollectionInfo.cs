@@ -7,7 +7,7 @@ namespace Compono.Generators.Models;
 /// <summary>
 /// A closed collection type reached in a discovered type's transitive graph, needing its own
 /// generated collection plan, per
-/// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>'s third amendment.
+/// <c>docs/adr/0014-generator-emitted-collection-plans.md</c>.
 /// </summary>
 /// <remarks>
 /// <see cref="Diagnostics"/> is always empty for an ordinary walker-discovered entry - it's only ever

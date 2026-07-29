@@ -4,7 +4,7 @@ namespace Compono;
 /// The bounded, deterministic duplicate-value retry helper a generated <c>HashSet&lt;T&gt;</c>/
 /// <c>Dictionary&lt;TKey, TValue&gt;</c> collection plan calls once per element/key position, per
 /// <c>docs/adr/0013-collection-generation-semantics.md</c> (bounded retry, then diagnosable failure)
-/// and <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>'s third amendment
+/// and <c>docs/adr/0014-generator-emitted-collection-plans.md</c>
 /// (generated code, not a runtime provider, builds collections).
 /// </summary>
 /// <remarks>

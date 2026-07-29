@@ -14,7 +14,7 @@ public enum CompositionRequestKind
     /// <summary>
     /// The request is for one element of a sequence-shaped collection (array, <c>List&lt;T&gt;</c>,
     /// <c>HashSet&lt;T&gt;</c>) at a given index - emitted only by a generated collection plan, per
-    /// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>'s third amendment.
+    /// <c>docs/adr/0014-generator-emitted-collection-plans.md</c>.
     /// </summary>
     CollectionElement,
 
