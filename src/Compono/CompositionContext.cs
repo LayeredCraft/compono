@@ -9,15 +9,18 @@ namespace Compono;
 /// <remarks>
 /// One instance per root operation (one <see cref="Composer.Create{T}"/> call, or one item of a
 /// future <c>CreateMany&lt;T&gt;()</c> call) - never reused across multiple root calls, per
-/// <c>docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md</c>. Stages 1-3
-/// (explicit values, shared/scoped values, exact registrations) and the active-construction-frame
-/// recursion check are Milestone 2 Phase 3 scope and are not implemented yet - every request falls
-/// through stages 1-3 to the extensible provider stages below. Stage 8 (generated-plan dispatch via
+/// <c>docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md</c>. Stage 1
+/// (explicit values) has no mechanism yet - it stays Milestone 3 scope (the public builder). Stages
+/// 2/3 (shared/scoped values, exact registrations) and the active-construction-frame recursion check
+/// are implemented as of Milestone 2 Phase 3. Stage 8 (generated-plan dispatch via
 /// <see cref="PlanCache{T}"/>) is unchanged from Milestone 1.
 /// </remarks>
 internal sealed class CompositionContext : ICompositionContext
 {
     private readonly CompositionSeed _seed;
+    private readonly CompositionRegistrations _registrations;
+    private readonly CompositionScope _scope = new();
+    private readonly List<Type> _activeFrames = [];
     private readonly IReadOnlyList<ICompositionProvider> _profileProviders;
     private readonly IReadOnlyList<ICompositionProvider> _semanticProviders;
     private readonly IReadOnlyList<ICompositionProvider> _testDoubleProviders;
@@ -41,7 +44,18 @@ internal sealed class CompositionContext : ICompositionContext
     /// <see cref="Composer.CreateRootForTesting{T}"/> uses.
     /// </summary>
     internal CompositionContext(CompositionSeed seed)
-        : this(seed, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default)
+        : this(seed, CompositionRegistrations.Empty)
+    {
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, the given
+    /// explicit stage-3 registrations, and the given explicit root seed - the seam
+    /// <c>Compono.Tests</c> uses to exercise stage 3 (exact registrations) directly, since no public
+    /// <c>builder.Register(...)</c> surface exists until Milestone 3.
+    /// </summary>
+    internal CompositionContext(CompositionSeed seed, CompositionRegistrations registrations)
+        : this(seed, registrations, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default)
     {
     }
 
@@ -56,18 +70,20 @@ internal sealed class CompositionContext : ICompositionContext
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         IReadOnlyList<ICompositionProvider> builtInProviders)
-        : this(CompositionSeed.Generate(), profileProviders, semanticProviders, testDoubleProviders, builtInProviders)
+        : this(CompositionSeed.Generate(), CompositionRegistrations.Empty, profileProviders, semanticProviders, testDoubleProviders, builtInProviders)
     {
     }
 
     private CompositionContext(
         CompositionSeed seed,
+        CompositionRegistrations registrations,
         IReadOnlyList<ICompositionProvider> profileProviders,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         IReadOnlyList<ICompositionProvider> builtInProviders)
     {
         _seed = seed;
+        _registrations = registrations;
         _profileProviders = profileProviders;
         _semanticProviders = semanticProviders;
         _testDoubleProviders = testDoubleProviders;
@@ -100,7 +116,7 @@ internal sealed class CompositionContext : ICompositionContext
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Kind, "Unrecognized composition request kind."),
         };
 
-        return ResolveCore<TValue>(descriptor.Nullability, segment);
+        return ResolveCore<TValue>(descriptor.Nullability, segment, isShared: false);
     }
 
     /// <summary>
@@ -109,9 +125,18 @@ internal sealed class CompositionContext : ICompositionContext
     /// <see cref="Resolve{TValue}"/> generated code uses. Both funnel into the same pipeline
     /// execution, so the root type is resolved identically to any nested type.
     /// </summary>
-    internal TValue ResolveRoot<TValue>() => ResolveCore<TValue>(Nullability.NotNullable, segment: null);
+    internal TValue ResolveRoot<TValue>() => ResolveCore<TValue>(Nullability.NotNullable, segment: null, isShared: false);
 
-    private TValue ResolveCore<TValue>(Nullability nullability, PathSegment? segment)
+    /// <summary>
+    /// Resolves <typeparamref name="TValue"/> as a shared request (stage 2) - the internal test seam
+    /// Phase 3's own scope-reuse tests use before the public <c>[Shared]</c> attribute exists
+    /// (Milestone 4). <paramref name="ordinal"/>/<paramref name="name"/> only affect path identity
+    /// and diagnostic display, matching an ordinary constructor-parameter request.
+    /// </summary>
+    internal TValue ResolveSharedForTesting<TValue>(int ordinal, string name) =>
+        ResolveCore<TValue>(Nullability.NotNullable, new PathSegment.ConstructorParameter(ordinal, name), isShared: true);
+
+    private TValue ResolveCore<TValue>(Nullability nullability, PathSegment? segment, bool isShared)
     {
         var requestedType = typeof(TValue);
         var previousRandom = _random;
@@ -131,24 +156,33 @@ internal sealed class CompositionContext : ICompositionContext
                 RequestedType = requestedType,
                 Nullability = nullability,
                 Path = _path,
-                IsShared = false,
+                IsShared = isShared,
             };
 
-            // Stages 1-3 (explicit values, shared/scoped values, exact registrations) are
-            // context-owned deterministic checks - Milestone 2 Phase 3 scope, not implemented yet.
-            // Every request currently falls through to the extensible provider stages below.
+            // Stage 1 (explicit values) has no mechanism until Milestone 3's public builder - every
+            // request falls through it.
+
+            // Stage 2: shared/scoped values - only a request the caller marked IsShared reads from
+            // scope; an ordinary request never does, even if the same type was already shared
+            // elsewhere in this operation.
+            if (request.IsShared && _scope.TryGet(requestedType, out var sharedValue))
+                return Authoritative<TValue>(ValidateAuthoritativeValue(sharedValue, request, "shared value"));
+
+            // Stage 3: exact registrations (mechanism only - no public builder.Register(...) yet).
+            if (_registrations.TryGet(requestedType, out var registeredValue))
+                return Authoritative<TValue>(ValidateAuthoritativeValue(registeredValue, request, "registration"));
 
             if (TryProviders(_profileProviders, request, out var profileValue))
-                return CastResult<TValue>(profileValue);
+                return StoreSharedAndReturn<TValue>(profileValue, request);
 
             if (TryProviders(_semanticProviders, request, out var semanticValue))
-                return CastResult<TValue>(semanticValue);
+                return StoreSharedAndReturn<TValue>(semanticValue, request);
 
             if (TryProviders(_testDoubleProviders, request, out var testDoubleValue))
-                return CastResult<TValue>(testDoubleValue);
+                return StoreSharedAndReturn<TValue>(testDoubleValue, request);
 
             if (TryProviders(_builtInProviders, request, out var builtInValue))
-                return CastResult<TValue>(builtInValue);
+                return StoreSharedAndReturn<TValue>(builtInValue, request);
 
             // Still stage 7 conceptually (docs/architecture.md) - a generated collection plan is
             // "a built-in value provider," just dispatched via a direct closed-generic field read
@@ -157,11 +191,11 @@ internal sealed class CompositionContext : ICompositionContext
             // See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md's third
             // amendment.
             if (CollectionPlanCache<TValue>.Instance is { } collectionPlan)
-                return collectionPlan.Compose(this);
+                return StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request);
 
             var plan = PlanCache<TValue>.Instance;
             if (plan is not null)
-                return plan.Compose(this);
+                return ResolveViaGeneratedPlan(plan, request);
 
             throw new CompositionException(
                 $"Unable to compose '{requestedType}'. No registration, provider, or generated plan could satisfy the request.");
@@ -172,6 +206,36 @@ internal sealed class CompositionContext : ICompositionContext
             _random = previousRandom;
         }
     }
+
+    // Stage 8: generated-plan dispatch - the only place recursion is checked, per
+    // docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md. Stages 1-7 above
+    // (explicit/shared/registration/profile/semantic/test-double/built-in) all get a chance to
+    // terminate a self-referencing graph before this ever runs.
+    private TValue ResolveViaGeneratedPlan<TValue>(ICompositionPlan<TValue> plan, CompositionRequest request)
+    {
+        var requestedType = request.RequestedType;
+
+        if (_activeFrames.Contains(requestedType))
+            return Authoritative<TValue>(new CompositionResult.Failure(BuildCycleMessage(requestedType)));
+
+        _activeFrames.Add(requestedType);
+        try
+        {
+            var value = plan.Compose(this);
+            return request.IsShared
+                ? StoreSharedAndReturn<TValue>(value, request)
+                : value;
+        }
+        finally
+        {
+            _activeFrames.RemoveAt(_activeFrames.Count - 1);
+        }
+    }
+
+    private string BuildCycleMessage(Type requestedType) =>
+        $"Recursive composition detected while composing '{requestedType}': '{_path!.ToDisplayString()}' " +
+        $"would construct '{requestedType}' again, which is already under construction. Use a registration " +
+        "or a shared value to terminate the cycle.";
 
     private bool TryProviders(IReadOnlyList<ICompositionProvider> providers, CompositionRequest request, out object? value)
     {
@@ -187,6 +251,54 @@ internal sealed class CompositionContext : ICompositionContext
         value = null;
         return false;
     }
+
+    // A non-shared request is untouched - an ordinary provider's output is only ever validated by
+    // its own contract, never by the context. A request the caller marked IsShared is validated the
+    // same way ValidateAuthoritativeValue already validates a scope/registration hit, *before* it
+    // ever enters _scope - a bad first population must fail right here with a CompositionException,
+    // not get cached and surface a confusing InvalidCastException/NullReferenceException later, on
+    // whichever subsequent shared request happens to read it back out.
+    private TValue StoreSharedAndReturn<TValue>(object? value, CompositionRequest request)
+    {
+        if (!request.IsShared)
+            return CastResult<TValue>(value);
+
+        var result = ValidateAuthoritativeValue(value, request, "shared value");
+        if (result is CompositionResult.Success success)
+            _scope.Set(request.RequestedType, success.Value);
+
+        return Authoritative<TValue>(result);
+    }
+
+    // Stages 2/3's authoritative validation, per ADR-0011's second amendment: a null value for a
+    // non-nullable request, or a value whose runtime type isn't assignable to RequestedType, is a
+    // Failure at that stage - never silently passed through as NotHandled.
+    private static CompositionResult ValidateAuthoritativeValue(object? value, CompositionRequest request, string source)
+    {
+        if (value is null)
+        {
+            return request.Nullability == Nullability.Nullable
+                ? new CompositionResult.Success(null)
+                : new CompositionResult.Failure(
+                    $"The {source} for '{request.RequestedType}' is null, but '{request.RequestedType}' is not nullable.");
+        }
+
+        return request.RequestedType.IsInstanceOfType(value)
+            ? new CompositionResult.Success(value)
+            : new CompositionResult.Failure(
+                $"The {source} for '{request.RequestedType}' produced a value of type '{value.GetType()}', " +
+                "which is not assignable to the requested type.");
+    }
+
+    // The outward-facing conversion from a context-owned authoritative stage's CompositionResult to
+    // either a plain TValue or a thrown CompositionException - the same NotHandled/Success/Failure ->
+    // exception boundary stage 9 already uses, per docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md.
+    private static TValue Authoritative<TValue>(CompositionResult result) => result switch
+    {
+        CompositionResult.Success success => CastResult<TValue>(success.Value),
+        CompositionResult.Failure failure => throw new CompositionException(failure.Message),
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "An authoritative composition stage must produce Success or Failure."),
+    };
 
     // A provider-composed value is boxed for a value type TValue (CompositionResult.Success
     // carries object?) - this is the single unbox/cast point back to the generic caller's type.

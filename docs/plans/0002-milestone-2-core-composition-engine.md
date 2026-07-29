@@ -477,7 +477,7 @@ test directly, not an incidental property of the implementation.
   capturing `ICompositionPlan<T>` test double
   (`CompositionRandomIntegrationTests`).
 
-### Phase 2 — Built-in value providers and collections (In Progress)
+### Phase 2 — Built-in value providers and collections (Done, PR #11 merged)
 
 Every provider here is written directly against Phase 1's real
 `IRandomSource` — there is no ad hoc/temporary randomness at any point in
@@ -1118,27 +1118,27 @@ ADR-0014. The task list below reflects the corrected shape.
   `DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
   proving the array case still correctly reports `CMP0006`.
 
-### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
+### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Done)
 
-- [ ] `CompositionScope` (type-keyed, one per root composition operation)
-- [ ] Wire `IsShared` requests through the scope-check pipeline stage
+- [x] `CompositionScope` (type-keyed, one per root composition operation)
+- [x] Wire `IsShared` requests through the scope-check pipeline stage
       (stage 2)
-- [ ] Internal test-only exact-registration store satisfying pipeline
+- [x] Internal test-only exact-registration store satisfying pipeline
       stage 3, exercised via `InternalsVisibleTo` from `Compono.Tests`
       (no public API yet, per ADR-0011's scope note)
-- [ ] Authoritative null/type validation for stages 2 and 3
+- [x] Authoritative null/type validation for stages 2 and 3
       ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md)'s
       second amendment): a shared/scoped or registration-produced value
       that is `null` for a non-nullable request, or whose runtime type
       isn't assignable to `CompositionRequest.RequestedType`, is an
       authoritative `Failure` at that stage — never passed through as
       `NotHandled` to a later stage
-- [ ] Active-construction-frame stack (`internal`, distinct from
+- [x] Active-construction-frame stack (`internal`, distinct from
       `CompositionPath`): pushed only immediately before stage 8 invokes
       a generated plan, popped in `finally`; a request for a type whose
       frame is already active is an authoritative recursion `Failure`
       carrying the chain of active frames
-- [ ] Unit tests: a shared request resolves once and reuses the value for
+- [x] Unit tests: a shared request resolves once and reuses the value for
       a second shared request of the same type in the same scope; a
       non-shared request never reads from scope even if the same type was
       already shared; a registered/shared value legitimately terminates a
@@ -1153,6 +1153,36 @@ ADR-0014. The task list below reflects the corrected shape.
       `Node → Node`) — moved here from Phase 2 since the
       active-construction-frame stack this test depends on doesn't exist
       until now
+
+**Notes on what actually happened, versus what was scoped:**
+
+- No public entry point can mark a request `IsShared: true` yet (the
+  `[Shared]` attribute is Milestone 4) and `CompositionRequestDescriptor`
+  deliberately wasn't widened to carry that flag early — so stage 2 is
+  exercised through a new internal test seam,
+  `CompositionContext.ResolveSharedForTesting<TValue>(ordinal, name)`,
+  mirroring `Composer.CreateRootForTesting`'s existing "explicitly-named
+  test seam per unimplemented public surface" pattern rather than
+  overloading `Resolve<TValue>`.
+- The exact-registration store is a small dedicated type,
+  `CompositionRegistrations` (wrapping a type-keyed
+  `IReadOnlyDictionary<Type, object?>`), rather than a bare dictionary
+  field on `CompositionContext` — kept symmetrical with `CompositionScope`
+  as its own named concept per the ADR's wording, and gives stage 3 a
+  single `TryGet` call site.
+- `CompositionResult` gained the `Failure` case ADR-0010 always reserved
+  for context-owned authoritative stages but that no code had constructed
+  yet — used by stages 2/3's null/type validation and stage 8's recursion
+  check. A new private `CompositionContext.Authoritative<TValue>` helper
+  converts a `Failure` into the same thrown `CompositionException`
+  stage 9's terminal case already uses, keeping exactly one
+  result-to-exception conversion point.
+- The recursion diagnostic reuses `CompositionPath.ToDisplayString()`
+  (already tracking every request edge, including collection-index
+  segments) rather than building a separate message from the
+  active-construction-frame stack directly — the frame stack only needed
+  to answer "is this type already under construction," not carry its own
+  display representation.
 
 ### Phase 4 — `CreateMany<T>()` and diagnostics polish (Not Started)
 
@@ -1231,7 +1261,8 @@ ADR-0014. The task list below reflects the corrected shape.
   `Name`, `Nullability`), `src/Compono/CompositionRequestKind.cs` — new
   (`public`) — **Done (Phase 0)**
 - `src/Compono/CompositionRequest.cs` — new (`internal`) — **Done (Phase 0)**
-- `src/Compono/CompositionResult.cs` — new (`internal`) — **Done (Phase 0)**
+- `src/Compono/CompositionResult.cs` — new (`internal`) — **Done (Phase 0)**.
+  `Failure` case added — **Done (Phase 3)**
 - `src/Compono/ICompositionProvider.cs` — new (`internal`) — **Done (Phase 0)**
 - `src/Compono/CompositionException.cs` — new (`public`); minimal message-only
   exception for now, enriched into the full structured diagnostic in
@@ -1248,9 +1279,12 @@ ADR-0014. The task list below reflects the corrected shape.
   provider collections — **Done (Phase 0)**. Seed-aware constructors, the
   `_random` field forked/restored alongside `_path` in `ResolveCore`, and
   the internal `Random` test-observability property — **Done (Phase 1)**.
-  The active-construction-frame stack and diagnostics trace buffer are
-  still Phase 3/4 scope, not implemented yet.
-- `src/Compono/CompositionScope.cs` — new (`internal`)
+  Stages 2/3 (shared/scoped values, exact registrations), the
+  active-construction-frame stack, and the `ResolveSharedForTesting<T>`
+  test seam — **Done (Phase 3)**. The diagnostics trace buffer is still
+  Phase 4 scope, not implemented yet.
+- `src/Compono/CompositionScope.cs`, `src/Compono/CompositionRegistrations.cs`
+  — new (`internal`) — **Done (Phase 3)**
 - `src/Compono/CompositionSeed.cs`, `src/Compono/IRandomSource.cs`,
   `src/Compono/RandomSource.cs`, `src/Compono/Fnv1a.cs`,
   `src/Compono/SplitMix64.cs` — new (`internal`) — **Done (Phase 1)**
@@ -1321,6 +1355,9 @@ ADR-0014. The task list below reflects the corrected shape.
 - `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs` +
   regenerated `Snapshots/*.verified.cs` — modified — **Done (Phase 0,
   unscoped fix)**
+- `test/Compono.Tests/CompositionScopeTests.cs`,
+  `test/Compono.Tests/CompositionRegistrationTests.cs`,
+  `test/Compono.Tests/CompositionRecursionTests.cs` — new — **Done (Phase 3)**
 - `test/Compono.Tests/**` — new tests per phase above
 
 ## Test Plan
