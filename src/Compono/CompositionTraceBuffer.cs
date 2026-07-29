@@ -40,13 +40,17 @@ internal sealed class CompositionTraceBuffer
     /// </summary>
     internal int Checkpoint => _count;
 
-    /// <summary>Appends one stage attempt.</summary>
-    internal void Record(PipelineStage stage, CompositionAttemptOutcome outcome)
+    /// <summary>
+    /// Appends one stage attempt. <paramref name="provider"/> is the concrete
+    /// <see cref="ICompositionProvider"/> type that made the attempt, or <see langword="null"/> for
+    /// a context-owned stage (per <see cref="ProviderAttempt.Provider"/>'s remarks).
+    /// </summary>
+    internal void Record(PipelineStage stage, Type? provider, CompositionAttemptOutcome outcome)
     {
         if (_count == _attempts.Length)
             Array.Resize(ref _attempts, _attempts.Length * 2);
 
-        _attempts[_count] = new ProviderAttempt(stage, outcome);
+        _attempts[_count] = new ProviderAttempt(stage, provider, outcome);
         _count++;
     }
 

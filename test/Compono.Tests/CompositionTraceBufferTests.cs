@@ -6,13 +6,13 @@ public sealed class CompositionTraceBufferTests
     public void Slice_ReturnsOnlyAttemptsRecordedSinceTheCheckpoint()
     {
         var buffer = new CompositionTraceBuffer();
-        buffer.Record(PipelineStage.ExactRegistration, CompositionAttemptOutcome.NotHandled);
+        buffer.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.NotHandled);
         var checkpoint = buffer.Checkpoint;
-        buffer.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
+        buffer.Record(PipelineStage.BuiltInProvider, typeof(string), CompositionAttemptOutcome.Success);
 
         var slice = buffer.Slice(checkpoint);
 
-        slice.Should().Equal(new ProviderAttempt(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success));
+        slice.Should().Equal(new ProviderAttempt(PipelineStage.BuiltInProvider, typeof(string), CompositionAttemptOutcome.Success));
     }
 
     [Fact]
@@ -20,8 +20,8 @@ public sealed class CompositionTraceBufferTests
     {
         var buffer = new CompositionTraceBuffer();
         var checkpoint = buffer.Checkpoint;
-        buffer.Record(PipelineStage.ExactRegistration, CompositionAttemptOutcome.NotHandled);
-        buffer.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
+        buffer.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.NotHandled);
+        buffer.Record(PipelineStage.BuiltInProvider, typeof(string), CompositionAttemptOutcome.Success);
 
         buffer.Rewind(checkpoint);
 
@@ -35,7 +35,7 @@ public sealed class CompositionTraceBufferTests
         var buffer = new CompositionTraceBuffer();
 
         for (var i = 0; i < 64; i++)
-            buffer.Record(PipelineStage.ExactRegistration, CompositionAttemptOutcome.NotHandled);
+            buffer.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.NotHandled);
 
         buffer.Slice(0).Should().HaveCount(64);
     }

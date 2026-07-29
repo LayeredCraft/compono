@@ -510,27 +510,37 @@ this level of detail is designed to cost as little as possible on the
 normal successful path — "near-zero-allocation on success, not
 zero-cost," in the ADR's own words: a context-owned, reusable,
 array-backed trace buffer (`CompositionTraceBuffer`) records a compact
-struct (`ProviderAttempt`: stage, outcome — no strings, no per-append
-allocation) per stage attempt, and rewinds on success instead of
-retaining anything. Only a failing request materializes its slice of that
-buffer into the durable `CompositionDiagnostic` above
+struct (`ProviderAttempt`: stage, provider type, outcome — no strings, no
+per-append allocation) per stage attempt, and rewinds on success instead
+of retaining anything. Only a failing request materializes its slice of
+that buffer into the durable `CompositionDiagnostic` above
 (`exception.Diagnostic`, `docs/public-api.md`'s Diagnostics API), before
-the buffer unwinds further.
+the buffer unwinds further. `ProviderAttempt.Provider` is the concrete
+`ICompositionProvider` type that made the attempt (`null` for a
+context-owned stage, which isn't a provider instance at all) —
+[ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md)
+restores this identity field after
+[ADR-0015](adr/0015-provider-identity-deferred-in-provider-attempt.md)
+deferred it on a premise (no stage has more than one provider) that was
+already false for stage 7's three built-in providers.
 
 `CompositionTraceBuffer` itself is not literally zero-allocation, though:
 its backing `ProviderAttempt[32]` array is allocated once per root
-`CompositionContext`, measured directly at **~280 B per instance** (32
-entries, bumped from an original 16 after a second PR #13 review round —
-see below) — see this page's Open Architectural Decisions entry below for
-the precise breakdown and why pooling it entirely is deferred rather than
+`CompositionContext`, measured directly at **~536 B per instance** (32
+entries; capacity bumped from an original 16 after a second PR #13
+review round, and each entry's own size roughly doubled after a fourth
+round restored `ProviderAttempt.Provider` —
+[ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md))
+— see this page's Open Architectural Decisions entry below for the
+precise breakdown and why pooling it entirely is deferred rather than
 fixed as a same-PR change.
 
 Confirmed via `Compono.Benchmarks`' `ResolutionBenchmarks` (Milestone 2
 Phase 4, full `DefaultJob` numbers in [`docs/performance.md`](performance.md)):
-composing the `Customer`/`Address` representative graph allocates ~2.46 KB
-total (of which the trace buffer's ~280 B is ~11%) regardless of the
+composing the `Customer`/`Address` representative graph allocates ~2.71 KB
+total (of which the trace buffer's ~536 B is ~20%) regardless of the
 trace buffer's presence, and `CreateMany<T>(count)` scales linearly with
-`count` (10.20× allocation at `count=10`, 101.63× at `count=100`, against
+`count` (10.18× allocation at `count=10`, 101.48× at `count=100`, against
 a `count=1` baseline) — no super-linear growth from checkpoint/rewind
 bookkeeping. That graph is only 2 levels deep, though — never deep enough
 to trigger `CompositionTraceBuffer`'s own growth path (each active
@@ -752,14 +762,19 @@ Owns:
   instance per `CompositionContext`) is a genuine, unconditional
   allocation on every `Create<T>()`/`CreateMany<T>()` item, not literally
   zero — measured directly (isolated from the rest of a real composition)
-  at ~280 B per `CompositionTraceBuffer` instance (32-entry initial
-  capacity), ~11% of a real `Customer`/`Address` representative
-  composition's ~2.46 KB total (`ResolutionBenchmarks`, `docs/performance.md`)
+  at ~536 B per `CompositionTraceBuffer` instance (32-entry initial
+  capacity), ~20% of a real `Customer`/`Address` representative
+  composition's ~2.71 KB total (`ResolutionBenchmarks`, `docs/performance.md`)
   — consistent with [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
   explicit "near-zero-allocation on success, not zero-cost" framing, not
   a violation of it, but real enough that this page and `docs/performance.md`
   now state the precise figure instead of an unqualified "allocation-free"
-  claim.
+  claim. (The jump from an earlier-measured ~280 B is itself real, not a
+  re-measurement artifact — a fourth PR #13 review round restored
+  `ProviderAttempt.Provider`, per
+  [ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md),
+  roughly doubling each trace entry's size; `docs/performance.md` records
+  that as an accepted tradeoff, not a regression.)
 
   A second PR #13 review round found the *growth* path is real too, not
   just the fixed initial allocation: each active ancestor frame dispatching

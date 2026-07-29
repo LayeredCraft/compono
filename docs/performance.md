@@ -138,16 +138,16 @@ configuration, `BenchmarkDotNet` `DefaultJob`:
 
 | Method     | Mean      | Allocated |
 |------------|----------:|----------:|
-| Direct     |  14.51 ns |     160 B |
-| Generated  | 834.81 ns |   2,520 B |
-| Reflection | 386.70 ns |     832 B |
+| Direct     |  14.17 ns |     160 B |
+| Generated  | 837.50 ns |   2,776 B |
+| Reflection | 403.08 ns |     832 B |
 
-Generated resolution ran ~57.6x slower than `Direct`'s theoretical-floor
-hardcoded construction and allocated ~15.8x as much - the real cost of
+Generated resolution ran ~59.1x slower than `Direct`'s theoretical-floor
+hardcoded construction and allocated ~17.3x as much - the real cost of
 provider dispatch, random forking, collection generation, and diagnostics
 tracing for this graph, not just constructor invocation. Against a
 reflection baseline doing genuinely comparable work (real random values,
-not placeholders), `Generated` ran ~2.2x slower and allocated ~3.0x as
+not placeholders), `Generated` ran ~2.1x slower and allocated ~3.3x as
 much as `Reflection` - a real, honest gap. This is the number worth
 discussing if the question is "why not just use reflection": Compono's
 overhead over a comparable hand-rolled reflective composer is real, and
@@ -159,10 +159,10 @@ hardcoded test data).
 
 | Method      | Mean         | Allocated |
 |-------------|-------------:|----------:|
-| Generated   |    840.90 ns |   2.46 KB |
-| AutoFixture | 80,440.90 ns |  99.21 KB |
+| Generated   |    832.50 ns |   2.71 KB |
+| AutoFixture | 76,314.30 ns |  99.21 KB |
 
-Generated construction ran **~95.7x faster** and allocated **~2.5%** as
+Generated construction ran **~91.7x faster** and allocated **~2.7%** as
 much as AutoFixture - this time with `Customer` actually giving
 AutoFixture real randomized-value-generation work to do, unlike `Leaf`.
 
@@ -170,18 +170,18 @@ AutoFixture real randomized-value-generation work to do, unlike `Leaf`.
 
 | Method     | Count | Mean         | Allocated  | Alloc Ratio |
 |------------|------:|-------------:|-----------:|------------:|
-| Create     |     1 |    829.2 ns  |    2.46 KB |        1.00 |
-| CreateMany |     1 |    896.7 ns  |    2.59 KB |        1.05 |
-| Create     |    10 |    826.5 ns  |    2.46 KB |        1.00 |
-| CreateMany |    10 |  8,301.9 ns  |   25.09 KB |       10.20 |
-| Create     |   100 |    821.2 ns  |    2.46 KB |        1.00 |
-| CreateMany |   100 | 85,411.8 ns  |  250.10 KB |      101.63 |
+| Create     |     1 |    848.7 ns  |    2.71 KB |        1.00 |
+| CreateMany |     1 |    883.0 ns  |    2.84 KB |        1.05 |
+| Create     |    10 |    853.6 ns  |    2.71 KB |        1.00 |
+| CreateMany |    10 |  8,898.3 ns  |   27.59 KB |       10.18 |
+| Create     |   100 |    826.2 ns  |    2.71 KB |        1.00 |
+| CreateMany |   100 | 87,801.8 ns  |  275.10 KB |      101.48 |
 
-`Create<Customer>()` allocates ~2.46 KB per call regardless of
+`Create<Customer>()` allocates ~2.71 KB per call regardless of
 `CreateMany`'s batch size - a single root operation's cost, unaffected by
 how many other independent items get composed around it in the same
-process. `CreateMany<T>(count)` scales linearly with `count` (10.20×
-allocation at `count=10`, 101.63× at `count=100`, against the `count=1`
+process. `CreateMany<T>(count)` scales linearly with `count` (10.18×
+allocation at `count=10`, 101.48× at `count=100`, against the `count=1`
 baseline) - no super-linear growth from the checkpoint/rewind trace
 buffer's bookkeeping, `IRandomSource`'s per-item seed forking, or scope
 allocation.
@@ -247,15 +247,17 @@ every table above is unchanged within normal run-to-run noise).
   recursing into `GetElementType()`.
 
 **Isolating the trace buffer's own share** of `Create<Customer>()`'s
-2.46 KB - measured directly via `GC.GetAllocatedBytesForCurrentThread()`
+2.71 KB - measured directly via `GC.GetAllocatedBytesForCurrentThread()`
 around `new CompositionTraceBuffer()` in isolation, 1,000,000 iterations,
 Release, .NET 10.0.3 arm64 (re-measured after bumping the buffer's initial
-capacity from 16 to 32 - see "Deep graph result" below for why):
+capacity from 16 to 32, and again after
+[ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md)
+widened `ProviderAttempt` - see below):
 
 | What                                                     | Bytes/instance |
 |-----------------------------------------------------------|---------------:|
-| `CompositionTraceBuffer` alone (its `ProviderAttempt[32]`) |          ~280 B |
-| Bare `new CompositionContext()` (scope + active-frames + trace, no resolution) | ~520 B |
+| `CompositionTraceBuffer` alone (its `ProviderAttempt[32]`) |          ~536 B |
+| Bare `new CompositionContext()` (scope + active-frames + trace, no resolution) | ~780 B |
 
 Still real, not literally zero (`ADR-0010`'s "near-zero-allocation on
 success, not zero-cost," not a stronger claim than that) - and, per the
@@ -277,10 +279,10 @@ single-field composable types (`DeepLevel1` through `DeepLevel8`) instead
 
 | Method | Mean     | Allocated |
 |--------|---------:|----------:|
-| Create | 765.8 ns |   2.62 KB |
+| Create | 846.1 ns |   3.37 KB |
 
 That's a genuinely deeper graph allocating *more* than the shallower,
-wider `Customer` graph (2.46 KB) despite composing fewer total leaf values
+wider `Customer` graph (2.71 KB) despite composing fewer total leaf values
 (8 strings vs. `Customer`'s 7 strings + a 3-element list) - the resize is
 a real, measurable contributor, not a theoretical one. The fix isn't to
 pretend resizing can't happen (any growable array-backed collection
@@ -293,6 +295,27 @@ which this table now measures rather than assumes away.
 **No fallback to shallow diagnostics was needed** - the
 allocation-free-on-success trace buffer design shipped as scoped, with
 the growth-path caveat above now documented rather than glossed over.
+
+### A fourth PR #13 review round: provider identity restored, a real (accepted) allocation increase
+
+Unlike the third round, this one *does* move every number above -
+honestly, not glossed over. [ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md)
+reverses [ADR-0015](adr/0015-provider-identity-deferred-in-provider-attempt.md)'s
+deferral: `ProviderAttempt` gained a `Type? Provider` field so a failing
+request's trace can tell stage 7's three real built-in providers apart,
+not just count that three attempts happened. Widening the struct
+(`PipelineStage` + `Type?` + `CompositionAttemptOutcome`) roughly doubles
+each trace entry's size, which is exactly what moved
+`CompositionTraceBuffer`'s own isolated cost from ~280 B to ~536 B per
+instance, and `Create<Customer>()`'s total from 2.46 KB to 2.71 KB (+256 B,
+~10%) - fully attributable to the wider struct, confirmed by the isolated
+`CompositionTraceBuffer` measurement moving by almost exactly the same
+256 B on its own. This is a real, accepted cost, not an oversight: three
+indistinguishable `(BuiltInProvider, NotHandled)` trace entries were a
+genuine diagnostic-quality gap, and paying ~10% more allocation on the
+failure-adjacent bookkeeping path for a working "which provider" answer
+is the tradeoff ADR-0016 accepts explicitly, not a regression to chase
+back down.
 
 ## Reproducing
 

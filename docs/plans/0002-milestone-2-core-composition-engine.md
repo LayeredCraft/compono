@@ -1546,6 +1546,58 @@ ADR-0014. The task list below reflects the corrected shape.
   project calling only `composer.CreateMany<Customer>(3)`, confirming
   real end-to-end output (three distinct composed `Customer`s) through
   the actual published package, not just the in-memory test harness.
+- A fifth PR #13 review round found four more real issues, the largest
+  being a genuine reversal of ADR-0015's own decision. **Provider identity
+  restored in `ProviderAttempt` (P1) - the user directed this explicitly
+  ("Codex is pushing back on that provider identity decision. I'm
+  inclined to agree. Let's add it back in") after independently agreeing
+  with the review finding.** ADR-0015's deferral rested on "no stage has
+  more than one competing provider yet" - already false for stage 7's
+  three real built-in providers when ADR-0015 was written, and the round-3
+  per-provider-trace fix only made the gap visible (three indistinguishable
+  `(BuiltInProvider, NotHandled)` entries) rather than closing it. Per
+  `design-decisions.md`'s ADR-immutability rule, this is a genuine decision
+  reversal, not a factual correction like round 3's ADR-0015 issue - so it
+  gets its own ADR ([ADR-0016](../adr/0016-provider-identity-restored-in-provider-attempt.md))
+  superseding ADR-0015 (Status flipped, body left unedited), rather than
+  editing ADR-0015 in place. `ProviderAttempt` gains a `Type? Provider`
+  field - the provider's own concrete CLR type (`null` for a context-owned
+  stage, which isn't an `ICompositionProvider` instance), chosen over a
+  provider index (unstable once Milestone 3 allows reordering, per
+  ADR-0015's own still-valid Option 2 reasoning) or an opaque token
+  (needs a new `ICompositionProvider` member, per ADR-0015's own Option 3
+  reasoning) - `Type` identity is already established elsewhere in this
+  engine (`PlanCache<T>`, the active-construction-frame stack,
+  `EnumValueProvider`'s cache), so this isn't a new pattern. Fixing this
+  meant redesigning where outcomes get recorded: `TryProviders` now hands
+  back the winning provider's `Type` via an `out` parameter, and
+  `StoreSharedAndReturn` records the stage's real outcome (`Success` *or*
+  `Failure`) itself, before `Authoritative` can throw - which also fixed
+  **finding two of this round (P2): a shared request's validation failure
+  left no trace entry for the provider that produced the bad value at
+  all**, the same "recorded after, not before" ordering bug as earlier
+  rounds, just at a site those rounds hadn't reached yet. **Finding three
+  (P1): a `Links` entry I'd added to the already-Accepted ADR-0010 in an
+  earlier round was itself a rule violation** - reviewed and agreed;
+  removed entirely, restoring ADR-0010 to its pre-Phase-4 text. The
+  cross-reference lives only in ADR-0015/ADR-0016's own `Links` sections
+  and the ADR index now, never in ADR-0010 itself. **Finding four (P2):
+  `CompositionException(CompositionDiagnostic)` dereferenced `diagnostic.Message`
+  in its `base(...)` initializer before the constructor body could guard
+  it**, so a `null` argument surfaced as `NullReferenceException` instead
+  of `ArgumentNullException` - fixed by routing the null check through a
+  static helper called from the initializer itself
+  (`base(RequireDiagnostic(diagnostic).Message)`), since a guard clause in
+  the body runs too late. All four fixes verified against regression tests
+  reverted-and-rerun before being restored, matching every prior round's
+  discipline. Re-measured benchmarks honestly this time: unlike round 3,
+  this round *does* move every number in `docs/performance.md` - widening
+  `ProviderAttempt` roughly doubles each trace entry's size, moving
+  `Create<Customer>()` from 2.46 KB to 2.71 KB (+256 B, ~10%), confirmed
+  attributable to the struct width by the isolated `CompositionTraceBuffer`
+  measurement moving by almost exactly the same amount. Recorded as an
+  accepted tradeoff (a real "which provider" answer for ~10% more
+  allocation on the failure-adjacent path), not chased back down.
 
 ## Critical Files
 
@@ -1562,7 +1614,10 @@ ADR-0014. The task list below reflects the corrected shape.
 - `src/Compono/CompositionException.cs` — new (`public`); minimal message-only
   exception for now — **Done (Phase 0)**. Second constructor accepting a
   `CompositionDiagnostic` (the shape every pipeline-thrown instance uses)
-  and the `Diagnostic` property — **Done (Phase 4)**
+  and the `Diagnostic` property — **Done (Phase 4)**. Null-`diagnostic`
+  guard routed through a static helper called from the `base(...)`
+  initializer itself, since a body-level guard clause runs too late —
+  **Done (Phase 4, PR #13 review round 5)**
 - `src/Compono/CompositionDiagnostic.cs`, `src/Compono/ProviderAttempt.cs`,
   `src/Compono/PipelineStage.cs`, `src/Compono/CompositionAttemptOutcome.cs`
   — new (`public`); `src/Compono/CompositionTraceBuffer.cs` — new
@@ -1571,7 +1626,11 @@ ADR-0014. The task list below reflects the corrected shape.
   dispatch sites; `CompositionTraceBuffer`'s initial capacity bumped 16 →
   32; `CompositionDiagnostic.ToString()` renders `RootType` via
   `CompositionPath.FriendlyTypeName` instead of raw `.Name` — **Done
-  (Phase 4, PR #13 review round 2)**
+  (Phase 4, PR #13 review round 2)**. `ProviderAttempt` gained a
+  `Type? Provider` field ([ADR-0016](../adr/0016-provider-identity-restored-in-provider-attempt.md),
+  reversing [ADR-0015](../adr/0015-provider-identity-deferred-in-provider-attempt.md));
+  `CompositionTraceBuffer.Record` takes the provider type alongside stage
+  and outcome — **Done (Phase 4, PR #13 review round 5)**
 - `src/Compono/PathSegment.cs` (`Ordinal`/`Index`-keyed, `Name` for
   segments that have one), `src/Compono/CompositionPath.cs` — new
   (`internal`) — **Done (Phase 0, pulled forward from Phase 1's original
@@ -1683,7 +1742,9 @@ ADR-0014. The task list below reflects the corrected shape.
 - `test/Compono.Tests/CompositionTraceBufferTests.cs`,
   `test/Compono.Tests/CompositionDiagnosticsTests.cs`,
   `test/Compono.Tests/ComposerCreateManyTests.cs`,
-  `test/Compono.Tests/CompositionEndToEndTests.cs` — new — **Done (Phase 4)**
+  `test/Compono.Tests/CompositionEndToEndTests.cs` — new — **Done (Phase 4)**.
+  `test/Compono.Tests/CompositionExceptionTests.cs` — new (round 5's
+  null-`diagnostic` guard) — **Done (Phase 4, PR #13 review round 5)**
 - `benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`
   (`Customer`/`Address`), `benchmarks/Compono.Benchmarks/ResolutionBenchmarks.cs`
   (`Create`/`CreateMany` scaling),

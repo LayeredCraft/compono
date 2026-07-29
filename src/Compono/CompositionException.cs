@@ -36,9 +36,20 @@ public sealed class CompositionException : Exception
     /// API.
     /// </summary>
     /// <param name="diagnostic">The structured detail behind this failure.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="diagnostic"/> is <see langword="null"/>.</exception>
     public CompositionException(CompositionDiagnostic diagnostic)
-        : base(diagnostic.Message)
+        : base(RequireDiagnostic(diagnostic).Message)
     {
         Diagnostic = diagnostic;
+    }
+
+    // The base(...) initializer runs before this constructor's own body, so a guard clause in the
+    // body would already be too late - diagnostic.Message is dereferenced in the initializer itself.
+    // Routing the null check through this helper is what lets a null argument surface as
+    // ArgumentNullException instead of a base-initializer NullReferenceException.
+    private static CompositionDiagnostic RequireDiagnostic(CompositionDiagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        return diagnostic;
     }
 }

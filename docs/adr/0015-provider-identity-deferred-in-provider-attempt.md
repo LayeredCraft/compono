@@ -1,6 +1,6 @@
 # [ADR-0015] Provider Identity Deferred in `ProviderAttempt`
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0016](0016-provider-identity-restored-in-provider-attempt.md)
 
 **Date:** 2026-07-29
 

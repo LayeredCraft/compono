@@ -140,28 +140,52 @@ public sealed class CompositionDiagnosticsTests
         // branches and the generated-plan shared path - this test covers the pattern once, at the
         // stage that's cheapest to exercise via the injectable-provider test seam.
         trace.Should().NotContain(attempt => attempt.Outcome == CompositionAttemptOutcome.Success);
+
+        // Regression for a real gap (PR #13 review, fourth round): the pre-fix shape recorded the
+        // winning provider's Success *after* StoreSharedAndReturn returned, so a validation failure
+        // that throws left no entry for the provider that actually produced the bad value - the
+        // provider attempt was silently absent, not just missing its outcome. Now
+        // StoreSharedAndReturn records the real outcome (Success or Failure) itself, before
+        // Authoritative can throw, tagged with the provider that produced it.
+        trace.Should().Contain(attempt =>
+            attempt.Stage == PipelineStage.ProfileRule
+            && attempt.Provider == typeof(NullProvider)
+            && attempt.Outcome == CompositionAttemptOutcome.Failure);
     }
 
     [Fact]
-    public void ResolveRoot_DiagnosticTrace_RecordsOneNotHandledEntryPerBuiltInProvider_NotOneAggregateEntry()
+    public void ResolveRoot_DiagnosticTrace_RecordsADistinctEntryPerBuiltInProvider_NotOneIndistinguishableAggregateEntry()
     {
         // The real BuiltInProviders.Default - PrimitiveValueProvider, EnumValueProvider,
         // NullableValueProvider - all three actually registered in stage 7 today, not a
-        // hypothetical future case (this is what PR #13 review caught: ADR-0015's "no stage has
-        // more than one competing provider yet" claim was already wrong for stage 7).
+        // hypothetical future case. ADR-0015 deferred giving ProviderAttempt a provider-identity
+        // field on the premise that no stage has more than one competing provider - already false
+        // for stage 7 when ADR-0015 was written; ADR-0016 reverses that deferral.
         var context = new CompositionContext();
 
         var act = () => context.ResolveRoot<Missing>();
 
         var trace = act.Should().Throw<CompositionException>().Which.Diagnostic!.Trace;
+        var builtInAttempts = trace.Where(attempt => attempt.Stage == PipelineStage.BuiltInProvider).ToList();
 
         // Regression for a real gap (PR #13 review, third round): TryProviders used to let its
         // caller record a single aggregate NotHandled for the whole stage regardless of how many
-        // providers were actually tried, collapsing 3 real declines into 1 trace entry. Now each
-        // provider's own decline is recorded as it's tried.
-        trace.Count(attempt =>
-            attempt.Stage == PipelineStage.BuiltInProvider && attempt.Outcome == CompositionAttemptOutcome.NotHandled)
+        // providers were actually tried, collapsing 3 real declines into 1 trace entry.
+        builtInAttempts.Count(attempt => attempt.Outcome == CompositionAttemptOutcome.NotHandled)
             .Should().BeGreaterThanOrEqualTo(3);
+
+        // Regression for the fourth-round finding specifically: even after the count was fixed, the
+        // three entries were indistinguishable - (BuiltInProvider, NotHandled) three times over, with
+        // no way to tell PrimitiveValueProvider's decline from EnumValueProvider's or
+        // NullableValueProvider's. Provider now carries each one's concrete type.
+        builtInAttempts
+            .Where(attempt => attempt.Outcome == CompositionAttemptOutcome.NotHandled)
+            .Select(attempt => attempt.Provider)
+            .Should().Contain([
+                typeof(Compono.Providers.PrimitiveValueProvider),
+                typeof(Compono.Providers.EnumValueProvider),
+                typeof(Compono.Providers.NullableValueProvider),
+            ]);
     }
 
     [Fact]

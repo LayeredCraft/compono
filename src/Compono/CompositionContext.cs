@@ -166,70 +166,65 @@ internal sealed class CompositionContext : ICompositionContext
 
             // Stage 2: shared/scoped values - only a request the caller marked IsShared reads from
             // scope; an ordinary request never does, even if the same type was already shared
-            // elsewhere in this operation.
+            // elsewhere in this operation. Not an ICompositionProvider, so Provider is null.
             if (request.IsShared)
             {
                 if (_scope.TryGet(requestedType, out var sharedValue))
                 {
                     var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
-                    _trace.Record(PipelineStage.SharedOrScopedValue, OutcomeOf(result));
+                    _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, OutcomeOf(result));
                     var value = Authoritative<TValue>(result);
                     _trace.Rewind(checkpoint);
                     return value;
                 }
 
-                _trace.Record(PipelineStage.SharedOrScopedValue, CompositionAttemptOutcome.NotHandled);
+                _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, CompositionAttemptOutcome.NotHandled);
             }
 
             // Stage 3: exact registrations (mechanism only - no public builder.Register(...) yet).
             if (_registrations.TryGet(requestedType, out var registeredValue))
             {
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
-                _trace.Record(PipelineStage.ExactRegistration, OutcomeOf(result));
+                _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
                 var value = Authoritative<TValue>(result);
                 _trace.Rewind(checkpoint);
                 return value;
             }
 
-            _trace.Record(PipelineStage.ExactRegistration, CompositionAttemptOutcome.NotHandled);
+            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.NotHandled);
 
-            // Every Success recording below happens *after* StoreSharedAndReturn/Compose has already
-            // returned without throwing - never before. StoreSharedAndReturn can still throw (a
-            // shared request whose value fails ADR-0011's authoritative null/type validation), and a
-            // collection/generated plan's Compose can throw if one of its own elements fails; a stage
-            // whose outward call hasn't actually completed yet has no business being recorded as
-            // "Success" in a trace a later BuildException might materialize. TryProviders itself
-            // records a NotHandled entry per provider it actually tries (PR #13 review: stage 7 alone
-            // has three real built-in providers today, not a hypothetical future case) - only the
-            // eventual winning provider's outcome is left for the caller to record here, once.
-            if (TryProviders(_profileProviders, PipelineStage.ProfileRule, request, out var profileValue))
+            // TryProviders records one NotHandled entry per provider it actually tries, tagged with
+            // that provider's own concrete type (PR #13 review: stage 7 alone has three real
+            // providers today, not a hypothetical future case - a single aggregate entry can't tell
+            // them apart). The eventual winning provider's own outcome (Success, or Failure if a
+            // shared request's value fails validation) is recorded by StoreSharedAndReturn itself,
+            // tagged with that same provider type - never by this method returning first and the
+            // caller recording second, which is exactly the ordering bug (PR #13 review, prior
+            // rounds) that let a validation failure throw before anything got recorded at all.
+            if (TryProviders(_profileProviders, PipelineStage.ProfileRule, request, out var profileValue, out var profileProvider))
             {
-                var value = StoreSharedAndReturn<TValue>(profileValue, request);
-                _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(profileValue, request, PipelineStage.ProfileRule, profileProvider);
                 _trace.Rewind(checkpoint);
                 return value;
             }
 
-            if (TryProviders(_semanticProviders, PipelineStage.SemanticProvider, request, out var semanticValue))
+            if (TryProviders(_semanticProviders, PipelineStage.SemanticProvider, request, out var semanticValue, out var semanticProvider))
             {
-                var value = StoreSharedAndReturn<TValue>(semanticValue, request);
-                _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(semanticValue, request, PipelineStage.SemanticProvider, semanticProvider);
                 _trace.Rewind(checkpoint);
                 return value;
             }
 
-            if (TryProviders(_testDoubleProviders, PipelineStage.TestDoubleProvider, request, out var testDoubleValue))
+            if (TryProviders(_testDoubleProviders, PipelineStage.TestDoubleProvider, request, out var testDoubleValue, out var testDoubleProvider))
             {
-                var value = StoreSharedAndReturn<TValue>(testDoubleValue, request);
-                _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(testDoubleValue, request, PipelineStage.TestDoubleProvider, testDoubleProvider);
                 _trace.Rewind(checkpoint);
                 return value;
             }
 
-            if (TryProviders(_builtInProviders, PipelineStage.BuiltInProvider, request, out var builtInValue))
+            if (TryProviders(_builtInProviders, PipelineStage.BuiltInProvider, request, out var builtInValue, out var builtInProvider))
             {
-                var value = StoreSharedAndReturn<TValue>(builtInValue, request);
-                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
+                var value = StoreSharedAndReturn<TValue>(builtInValue, request, PipelineStage.BuiltInProvider, builtInProvider);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -237,23 +232,22 @@ internal sealed class CompositionContext : ICompositionContext
             // Still stage 7 conceptually (docs/architecture.md) - a generated collection plan is
             // "a built-in value provider," just dispatched via a direct closed-generic field read
             // (like stage 8's PlanCache<TValue> below) rather than through ICompositionProvider,
-            // which can't itself construct a generic collection without reflection or boxing/erasure.
-            // See docs/adr/0014-generator-emitted-collection-plans.md.
+            // which can't itself construct a generic collection without reflection or boxing/erasure
+            // (so Provider is null here too - CollectionPlanCache<T> holds an ICompositionPlan<T>,
+            // not an ICompositionProvider instance). See docs/adr/0014-generator-emitted-collection-plans.md.
             if (CollectionPlanCache<TValue>.Instance is { } collectionPlan)
             {
-                // Recorded *before* Compose runs (unlike every Success recording above): if an
-                // element inside this collection fails, this entry - not a Success or a NotHandled -
-                // is what should survive in a failing descendant's materialized trace, showing this
-                // ancestor genuinely entered collection-plan dispatch rather than looking like it was
-                // never tried (PR #13 review).
-                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Pending);
-                var value = StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request);
-                _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
+                // Recorded *before* Compose runs: if an element inside this collection fails, this
+                // entry - not a Success or a NotHandled - is what should survive in a failing
+                // descendant's materialized trace, showing this ancestor genuinely entered
+                // collection-plan dispatch rather than looking like it was never tried (PR #13 review).
+                _trace.Record(PipelineStage.BuiltInProvider, provider: null, CompositionAttemptOutcome.Pending);
+                var value = StoreSharedAndReturn<TValue>(collectionPlan.Compose(this), request, PipelineStage.BuiltInProvider, provider: null);
                 _trace.Rewind(checkpoint);
                 return value;
             }
 
-            _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.NotHandled);
+            _trace.Record(PipelineStage.BuiltInProvider, provider: null, CompositionAttemptOutcome.NotHandled);
 
             var plan = PlanCache<TValue>.Instance;
             if (plan is not null)
@@ -263,7 +257,7 @@ internal sealed class CompositionContext : ICompositionContext
                 return value;
             }
 
-            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.NotHandled);
+            _trace.Record(PipelineStage.GeneratedPlan, provider: null, CompositionAttemptOutcome.NotHandled);
 
             throw BuildException(
                 requestedType,
@@ -279,14 +273,15 @@ internal sealed class CompositionContext : ICompositionContext
     // Stage 8: generated-plan dispatch - the only place recursion is checked, per
     // docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md. Stages 1-7 above
     // (explicit/shared/registration/profile/semantic/test-double/built-in) all get a chance to
-    // terminate a self-referencing graph before this ever runs.
+    // terminate a self-referencing graph before this ever runs. Not an ICompositionProvider (it's
+    // ICompositionPlan<T> dispatch via PlanCache<T>), so Provider is null throughout.
     private TValue ResolveViaGeneratedPlan<TValue>(ICompositionPlan<TValue> plan, in CompositionRequest request)
     {
         var requestedType = request.RequestedType;
 
         if (_activeFrames.Contains(requestedType))
         {
-            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Failure);
+            _trace.Record(PipelineStage.GeneratedPlan, provider: null, CompositionAttemptOutcome.Failure);
             return Authoritative<TValue>(new CompositionResult.Failure(BuildCycleMessage(requestedType)));
         }
 
@@ -296,13 +291,19 @@ internal sealed class CompositionContext : ICompositionContext
             // Same reasoning as the collection-dispatch Pending recording above: this ancestor's
             // generated-plan dispatch genuinely started before any descendant could fail, so it
             // shouldn't be silently absent from a failing descendant's materialized trace.
-            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Pending);
+            _trace.Record(PipelineStage.GeneratedPlan, provider: null, CompositionAttemptOutcome.Pending);
             var value = plan.Compose(this);
-            var result = request.IsShared
-                ? StoreSharedAndReturn<TValue>(value, request)
-                : value;
-            _trace.Record(PipelineStage.GeneratedPlan, CompositionAttemptOutcome.Success);
-            return result;
+
+            if (!request.IsShared)
+            {
+                _trace.Record(PipelineStage.GeneratedPlan, provider: null, CompositionAttemptOutcome.Success);
+                return value;
+            }
+
+            // StoreSharedAndReturn records this stage's real outcome (Success or Failure) itself -
+            // not a second, separate recording here - so a shared value that fails validation still
+            // gets an entry even though Authoritative throws before returning.
+            return StoreSharedAndReturn<TValue>(value, request, PipelineStage.GeneratedPlan, provider: null);
         }
         finally
         {
@@ -315,42 +316,53 @@ internal sealed class CompositionContext : ICompositionContext
         $"would construct '{requestedType}' again, which is already under construction. Use a registration " +
         "or a shared value to terminate the cycle.";
 
-    // Records one NotHandled entry per provider actually tried, not one aggregate entry for the
-    // whole stage (PR #13 review) - an ordinary ICompositionProvider can only ever decline
-    // (NotHandled) or hand back a value (Success, still unvalidated at this point), so every
-    // iteration here that doesn't return true is a real, completed NotHandled outcome, safe to
-    // record immediately. The winning provider's own outcome is deliberately left unrecorded here -
-    // it's still unvalidated (StoreSharedAndReturn hasn't run yet), so the caller records it, once,
-    // after validation actually completes.
-    private bool TryProviders(IReadOnlyList<ICompositionProvider> providers, PipelineStage stage, in CompositionRequest request, out object? value)
+    // Records one NotHandled entry per provider actually tried, tagged with that provider's own
+    // concrete type (PR #13 review) - not one aggregate entry for the whole stage, and not the
+    // provider instance itself (ProviderAttempt stays a value-type struct; the Type is enough to
+    // identify which provider without holding a live reference to it). An ordinary
+    // ICompositionProvider can only ever decline (NotHandled) or hand back a value (Success, still
+    // unvalidated at this point), so every iteration here that doesn't return true is a real,
+    // completed NotHandled outcome, safe to record immediately. The winning provider's own outcome
+    // is deliberately left unrecorded here - it's still unvalidated (StoreSharedAndReturn hasn't run
+    // yet) - but its identity is handed back via `provider` so the caller can tag
+    // that eventual recording correctly.
+    private bool TryProviders(
+        IReadOnlyList<ICompositionProvider> providers, PipelineStage stage, in CompositionRequest request, out object? value, out Type? provider)
     {
-        foreach (var provider in providers)
+        foreach (var candidate in providers)
         {
-            if (provider.TryCompose(request, this) is CompositionResult.Success success)
+            if (candidate.TryCompose(request, this) is CompositionResult.Success success)
             {
                 value = success.Value;
+                provider = candidate.GetType();
                 return true;
             }
 
-            _trace.Record(stage, CompositionAttemptOutcome.NotHandled);
+            _trace.Record(stage, candidate.GetType(), CompositionAttemptOutcome.NotHandled);
         }
 
         value = null;
+        provider = null;
         return false;
     }
 
-    // A non-shared request is untouched - an ordinary provider's output is only ever validated by
-    // its own contract, never by the context. A request the caller marked IsShared is validated the
-    // same way ValidateAuthoritativeValue already validates a scope/registration hit, *before* it
-    // ever enters _scope - a bad first population must fail right here with a CompositionException,
-    // not get cached and surface a confusing InvalidCastException/NullReferenceException later, on
-    // whichever subsequent shared request happens to read it back out.
-    private TValue StoreSharedAndReturn<TValue>(object? value, in CompositionRequest request)
+    // Records this stage's real outcome itself (Success, or Failure if a shared request's value
+    // fails ADR-0011's authoritative validation) - the single point of truth for what actually
+    // happened at `stage`/`provider`, so a validation failure that
+    // throws via Authoritative still leaves a real trace entry instead of silently having none (PR
+    // #13 review: the previous shape recorded Success only after this method returned, which a
+    // thrown exception never reaches). A non-shared request's output is only ever validated by its
+    // own provider's contract, never by the context, so it's always Success here.
+    private TValue StoreSharedAndReturn<TValue>(object? value, in CompositionRequest request, PipelineStage stage, Type? provider)
     {
         if (!request.IsShared)
+        {
+            _trace.Record(stage, provider, CompositionAttemptOutcome.Success);
             return CastResult<TValue>(value);
+        }
 
         var result = ValidateAuthoritativeValue(value, request, "shared value");
+        _trace.Record(stage, provider, OutcomeOf(result));
         if (result is CompositionResult.Success success)
             _scope.Set(request.RequestedType, success.Value);
 
