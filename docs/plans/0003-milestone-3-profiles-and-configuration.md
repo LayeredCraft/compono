@@ -75,11 +75,13 @@ concrete shape:
   (member-scoped), `CollectionSizePolicy` on `CompositionConfiguration`, and the new
   `ICompositionContext.ResolveCollectionSize()` — **parameterless**, not a
   descriptor-taking overload (a generated collection plan's `Compose(ICompositionContext)`
-  has no descriptor to pass; the context already knows the current member's
-  declaring type/name internally, from the segment it already pushed onto its own
-  path before dispatching to the collection plan — the same "no parameter needed,
-  the context already knows" shape `ResolveRoot<T>()` uses) — one method, used
-  identically by root-level and member-scoped collection plans alike — ADR-0020.
+  has no descriptor to pass; the context reads the current member's declaring
+  type/name from the already-expanded `CompositionRequest` it's still resolving —
+  the **same `DeclaringType` field member value-rule matching uses**, not a
+  separately-derived parent-path-node type, which would be wrong for an inherited
+  required member — the same "no parameter needed, the context already knows"
+  shape `ResolveRoot<T>()` uses) — one method, used identically by root-level and
+  member-scoped collection plans alike — ADR-0020.
   Requires updating `Compono.Generators`' collection-plan template
   (`CollectionPlan.scriban`) to call the new query instead of emitting the literal
   `3` ADR-0013 hardcoded.
@@ -423,18 +425,22 @@ exist to source anything).
       `CollectionSizePolicy` on `CompositionConfiguration`, not compiled into any
       stage-4 rule
 - [ ] `ICompositionContext.ResolveCollectionSize()` — **parameterless**, the
-      **only** new public context method for collection size. Corrected after
-      review: a generated collection plan's `Compose(ICompositionContext)` has no
-      descriptor to pass (that's fully consumed before `CollectionPlanCache<T>`
+      **only** new public context method for collection size. Corrected twice
+      during review: (1) a generated collection plan's `Compose(ICompositionContext)`
+      has no descriptor to pass (that's fully consumed before `CollectionPlanCache<T>`
       dispatch ever runs), so the earlier descriptor-taking design was
-      unimplementable as scoped. The context reads the current member's declaring
-      type/name from its own already-pushed path segment internally — the same
-      "context already knows, no parameter needed" shape `ResolveRoot<T>()` uses.
-      Root-level and member-scoped collection plans call the exact same method; a
-      root request simply has no parent segment to match a member override
-      against, and falls through to the global default/built-in `3` the same way.
-      The three-level precedence lookup (member-scoped override → global default →
-      ADR-0013's built-in `3`) is a plain configuration read — no randomness, no
+      unimplementable as scoped; (2) the member-override key must come from the
+      current request's own `DeclaringType` field (the same field member value-rule
+      matching already uses, base-aware for inherited required members) — **not**
+      from the parent path node's `RequestedType` (a first-draft fix for (1) that
+      introduced a new bug: for an inherited member, the parent path node's type is
+      the composed/runtime type, not the declaring type a `.Member(...)` rule
+      captures via reflection, so the override would silently never match for
+      inheritance). Root-level and member-scoped collection plans call the exact
+      same method; a root request has no `DeclaringType` at all and falls through
+      to the global default/built-in `3`. The three-level precedence lookup
+      (member-scoped override → global default → ADR-0013's built-in `3`) is a
+      plain configuration read — no randomness, no
       *new* path segment pushed (it reads the one already there)
 - [ ] `Compono.Generators`: `CollectionPlan.scriban` (and its emitter model) updated
       to call `context.ResolveCollectionSize(...)` instead of emitting the literal
@@ -451,7 +457,14 @@ exist to source anything).
       `DuplicateConfigurationOption` error; global `WithCollectionSize` changes default
       collection length end-to-end through a real generated collection plan;
       member-scoped `WithCollectionSize` overrides the global default for that
-      member only, confirmed against a sibling member that keeps the global default
+      member only, confirmed against a sibling member that keeps the global default;
+      **a member rule matches a positional-record constructor parameter correctly**
+      (`Customer(string FirstName, ...)` — the primary documented usage shape,
+      exercised through a real generated plan, not a hand-written test double) —
+      this is the coverage that actually proves the documented "records always
+      match, hand-written classes with divergent parameter/property naming are a
+      known limitation" claim (ADR-0020) rather than leaving it asserted but
+      unverified
 - [ ] `Compono.Generators.Tests`: at least one regenerated snapshot confirming
       `DeclaringType` in an emitted descriptor construction, and at least one
       regenerated collection-plan snapshot confirming the `ResolveCollectionSize`

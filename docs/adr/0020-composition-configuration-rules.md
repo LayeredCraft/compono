@@ -129,13 +129,15 @@ actually needs.
 
 The fix needs no interface change at all, because **the context already has
 everything it needs internally by the time it reaches stage 7's collection
-dispatch.** `CompositionContext.ResolveCore` pushes the current request's segment
-onto `_path` at the very top of the method, before any pipeline stage runs
-(`docs/architecture.md`'s Composition Requests section) — so by the time collection
-dispatch is reached, `_path`'s current node already carries the parent's
-`RequestedType` and the current segment's member name, exactly the `(declaring
-type, member name)` pair a member-scoped override is keyed by. This is the same
-"the context already knows, no parameter needed" shape `ResolveRoot<T>()`
+dispatch.** `CompositionContext.ResolveCore` expands the incoming descriptor into
+the internal `CompositionRequest` — carrying that same `DeclaringType` field this
+ADR added earlier, base-aware for an inherited required member per ADR-0012's
+inheritance-ordinal algorithm — at the very top of the method, before any pipeline
+stage runs. By the time collection dispatch (stage 7) is reached, that
+already-expanded `CompositionRequest` for the *current* request (the collection
+member itself — collection dispatch resolves this exact request, not some child of
+it) is still in scope. This is the same "the context already knows, no parameter
+needed" shape `ResolveRoot<T>()`
 ([ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)
 Amendment) already uses for the analogous "no descriptor at the root" case — a
 collection plan simply doesn't need to hand the context back data the context
@@ -154,10 +156,10 @@ and a member-scoped one — there is no second overload and no "which one do I c
 question for generated code to get right. Internally:
 
 ```csharp
-private int ResolveCollectionSizeCore()
+private int ResolveCollectionSizeCore(in CompositionRequest currentRequest)
 {
-    if (_path is { Segment: { } segment, ParentRequestedType: { } declaringType }
-        && _configuration.CollectionSizePolicy.MemberOverrides.TryGetValue((declaringType, segment.Name), out var overrideSize))
+    if (currentRequest is { DeclaringType: { } declaringType, Path.Segment.Name: { } memberName }
+        && _configuration.CollectionSizePolicy.MemberOverrides.TryGetValue((declaringType, memberName), out var overrideSize))
     {
         return overrideSize;
     }
@@ -166,27 +168,42 @@ private int ResolveCollectionSizeCore()
 }
 ```
 
-A root-level collection request has no parent node/segment at all (`_path`'s
-current node *is* the root), so the member-override branch never matches and
-resolution falls straight through to the global default or ADR-0013's built-in
-`3` — the same outcome the earlier, more complicated "optional member key passed
-by the caller" design produced, just derived from state the context already
-tracks instead of state a caller would have had to reconstruct and hand back.
-Precedence is unchanged: member-scoped override, then global default, then
-ADR-0013's built-in `3` — a plain, three-level data lookup with no randomness or
-hashing involved (it never advances `IRandomSource`, never pushes a *new* path
-segment of its own — it reads the segment already pushed for the current request,
-it doesn't push another). This is a **parameterization** of ADR-0013's
-previously-fixed constant, not a change to that ADR's retry/uniqueness/ordering
-semantics, which remain exactly as decided — noted here explicitly since
-ADR-0013/ADR-0014 are `Accepted` and this ADR doesn't reopen either.
+**Corrected after a second review pass: the lookup key comes from
+`CompositionRequest.DeclaringType` — the exact same field value-rule matching
+(above) already uses — not from the parent path node's `RequestedType`,** an
+earlier draft of this section's own mistake. Those two are not the same thing for
+an inherited required member: for `Derived : Base` with `Base` declaring `Orders`,
+a `.Member(x => x.Orders)` rule captures `DeclaringType = typeof(Base)` (reflection
+on an inherited member reports its *declaring* type, not the derived type it's
+accessed through) — exactly what `CompositionRequest.DeclaringType` for that
+request already carries, copied forward from the generator-emitted descriptor,
+correctly base-aware. The parent path node's `RequestedType` in that same scenario
+would be `typeof(Derived)` (the composed/runtime type) — a different value that
+would silently never match a `.Member(x => x.Orders)` rule's key. Reading
+`CompositionRequest.DeclaringType` directly, rather than re-deriving anything from
+path state, is both simpler than the rejected alternative and automatically
+correct for inheritance, since it's the identical field/identical value the
+value-rule matching earlier in this ADR already relies on — one shared notion of
+"this request's declaring type," not two independently-derived ones that can
+disagree. A root-level collection request has no `DeclaringType` at all (root
+requests aren't member requests — `ResolveRoot<T>()` never sets it), so the
+member-override branch never matches and resolution falls straight through to the
+global default or ADR-0013's built-in `3`, the correct outcome for a root.
+Precedence is otherwise unchanged: member-scoped override, then global default,
+then ADR-0013's built-in `3` — a plain, three-level data lookup with no randomness
+or hashing involved (it never advances `IRandomSource`, never pushes a path
+segment of its own). This is a **parameterization** of ADR-0013's previously-fixed
+constant, not a change to that ADR's retry/uniqueness/ordering semantics, which
+remain exactly as decided — noted here explicitly since ADR-0013/ADR-0014 are
+`Accepted` and this ADR doesn't reopen either.
 
-Exact field names above (`_path.Segment`/`ParentRequestedType`) describe the shape
-`CompositionPath`/`CompositionPathNode` needs to expose internally for this lookup,
-not a requirement that those exact members already exist unchanged from ADR-0012 —
-implementation may thread this through however is cleanest against `CompositionPath`'s
-real current shape, as long as the member-override key is read from state the
-context already possesses at collection-dispatch time, never from a
+The exact shape shown above (`in CompositionRequest currentRequest`, `Path.Segment.Name`)
+describes what state needs to be read, not a requirement that
+`ResolveCollectionSizeCore` literally takes a `CompositionRequest` parameter with
+that exact member-access chain — implementation may thread the current request
+through `CompositionContext`'s private state however is cleanest against its real
+current shape, as long as the member-override key is read from the same
+`DeclaringType`/member-name pair value-rule matching uses, never re-derived from a
 caller-supplied parameter.
 
 The public builder surface stays unified even though the internal mechanism now
@@ -349,6 +366,47 @@ concern (stage-4 dispatch, evaluated before any hashing happens for that request
 that happens to reuse fields already on the request — never fed into any hash,
 exactly as ADR-0012's existing type-identity-never-hashed rule already establishes
 for `DeclaringType` specifically.
+
+**Known limitation, stated explicitly per review: `.Member(x => x.Y)` name matching
+depends on the composed type's *property* name equaling its generated request's
+`Name` — which is not guaranteed for every possible constructor shape.** A
+`.Member(...)` expression can only ever capture a *property* name (that's what
+`MemberExpression.Member.Name` reports); `Compono.Generators` emits a
+`ConstructorParameter` request's `Name` as the constructor parameter's own
+identifier, exactly as written in source (`CompositionPlan.scriban`'s
+`parameter.name_literal`), unchanged since Milestone 1 — it was never correlated to
+any property, because nothing before this ADR needed that correlation (`Name` was
+purely diagnostic display until now). For a **positional record** —
+`Customer(string FirstName, string LastName)`, the shape every example throughout
+this repo's docs uses — the constructor parameter's name and the compiler-
+synthesized property's name are the *identical string*, by C#'s own record
+semantics (no casing transform happens at all), so exact-match matching always
+works. For a **required/init member** (`RequiredMember` requests), the descriptor's
+`Name` is always the member's own actual name — also always matches. For a
+**traditional hand-written class** with a conventionally-cased constructor
+parameter mapped to a differently-cased (or differently-named) property —
+`public Customer(string firstName) { FirstName = firstName; }` — the parameter
+name (`"firstName"`) and the property name (`"FirstName"`) are different strings,
+and a `.Member(x => x.FirstName)` rule will **silently never match** that
+parameter's request.
+
+This is accepted as a **documented scope limitation for Milestone 3, not solved
+here** — building a real constructor-parameter-to-property correlation into
+`Compono.Generators` (matching by position + type + case-insensitive/convention-
+based name comparison, handling ambiguous or unmappable cases) is real generator
+design work with its own edge cases, out of proportion to fold into a
+configuration-rules ADR as a side effect. Per `docs/mvp.md`'s explicit non-goal
+("Compono is not an AutoFixture migration layer and does not aim for feature
+parity"), Compono's primary supported authoring style is the positional-record
+shape already used throughout every doc example, for which this limitation simply
+doesn't arise. A consumer hitting this with a hand-written class has two immediate
+workarounds without waiting on a generator fix: match the constructor parameter's
+own name-as-written instead of the property's (i.e. name the parameter
+`FirstName` too, not `firstName` — a source change entirely within the consumer's
+control), or use an exact type registration (`Register<T>`, [ADR-0019](0019-registrations-and-service-provider-injection.md))
+for that specific type instead of a member rule. A real generator-side name
+correlation is a candidate for a future ADR if this friction turns out to matter
+in practice — not designed here.
 
 ### Expression parsing: at `.Member(...)`/`.Use(...)` call time, not deferred to `Build()`
 

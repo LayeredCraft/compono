@@ -563,10 +563,12 @@ not yet implemented). Two structurally different mechanisms share one public
   it's immutable policy on `CompositionConfiguration`, queried directly by stage 7's
   collection dispatch. A single, **parameterless** `ICompositionContext.ResolveCollectionSize()`
   method (not a descriptor-taking overload — a generated collection plan's
-  `Compose(ICompositionContext)` has no descriptor to pass; the context already
-  knows the current member's declaring type/name internally, from the segment it
-  already pushed onto its own path before dispatching to the collection plan) —
-  used identically by root-level and member-scoped collection plans — replaces
+  `Compose(ICompositionContext)` has no descriptor to pass; the context reads the
+  current member's declaring type/name off the already-expanded internal request
+  it's still resolving — the same `DeclaringType` field member value-rule matching
+  uses, correctly base-aware for an inherited required member, not a
+  separately-derived parent-path-node type) — used identically by root-level and
+  member-scoped collection plans — replaces
   [ADR-0013](adr/0013-collection-generation-semantics.md)'s previously-hardcoded
   default of `3`. This parameterizes ADR-0013's constant without reopening its
   retry/uniqueness/ordering semantics.

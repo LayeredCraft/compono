@@ -12,7 +12,11 @@ namespace Compono;
 /// </remarks>
 public sealed class CompositionConfigurationException : Exception
 {
-    /// <summary>Every conflict found - always at least one.</summary>
+    /// <summary>
+    /// Every conflict found - always at least one. An immutable snapshot taken at construction, never
+    /// the caller-supplied list itself - it can never drift from the already-rendered
+    /// <see cref="Exception.Message"/>.
+    /// </summary>
     public IReadOnlyList<CompositionConfigurationError> Errors { get; }
 
     /// <summary>
@@ -20,13 +24,22 @@ public sealed class CompositionConfigurationException : Exception
     /// Its <see cref="Exception.Message"/> is rendered from <paramref name="errors"/>, not the other
     /// way around - inspect <see cref="Errors"/> directly rather than parsing the message.
     /// </summary>
-    /// <param name="errors">Every conflict found.</param>
+    /// <param name="errors">
+    /// Every conflict found. Copied into an immutable snapshot - mutating a list passed here after
+    /// this constructor returns has no effect on <see cref="Errors"/>.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="errors"/> is empty.</exception>
     public CompositionConfigurationException(IReadOnlyList<CompositionConfigurationError> errors)
         : base(BuildMessage(RequireErrors(errors)))
     {
-        Errors = errors;
+        // Snapshotted, not the caller-supplied list itself - Message above is rendered once, from
+        // this same base-initializer call; if Errors instead aliased a caller-retained mutable list
+        // (Build()'s own accumulator is a plain List<T> under the IReadOnlyList<T> parameter type),
+        // a later mutation would make Errors and the already-rendered Message silently disagree.
+        // errors has already passed RequireErrors' validation by the time this line runs - the base
+        // initializer above would have thrown first otherwise - so no need to validate it again here.
+        Errors = [.. errors];
     }
 
     private static IReadOnlyList<CompositionConfigurationError> RequireErrors(IReadOnlyList<CompositionConfigurationError> errors)
