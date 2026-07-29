@@ -607,6 +607,182 @@ JIT/reflection cost is paid once per distinct closed collection type
 (typically a handful of types across a whole test run), not per resolved
 value, on runtimes where JIT is available at all.
 
+## Amendment 3 (2026-07-28): reflection-free collection dispatch — generator-emitted collection plans replace the dispatch bridge
+
+Before Phase 2 implementation began, a review caught that Amendment 2's
+collection-dispatch bridge (`MakeGenericMethod` + `CreateDelegate`, cached
+per closed collection type) is a real violation of
+[ADR-0001](0001-source-generation-first.md)'s no-reflection-by-default
+rule (`design-decisions.md` rule 4), not an acceptable narrow exception —
+Amendment 2 argued it was "categorically different from the
+arbitrary-user-type reflection fallback ADR-0001 prohibits," but a fixed,
+bounded set of reflected shapes is still reflection introduced into the
+default architecture, which ADR-0001 doesn't carve an exception for. This
+amendment retracts Amendment 2's point 5 (and the corresponding Decision
+Outcome/Amendment 2 point 2/3 content it depended on: the `ListFactory`/
+`ArrayFactory`/`HashSetFactory`/`DictionaryFactory` delegate cache and its
+AOT position) and replaces it with a generator-emitted mechanism — the
+same fix ADR-0001's own Consequences section already named as the correct
+path for a shape the generator doesn't yet cover, and the fallback
+Amendment 2 itself flagged as "the specific, already-identified place to
+change to" if reflection ever became unacceptable. It became unacceptable
+before any code was written against it, so this is that change, made
+pre-implementation rather than as a later migration.
+
+**Decision: `Compono.Generators` discovers the fixed Milestone 2
+collection shapes in the transitive composition graph and emits a
+strongly-typed collection plan per closed shape, dispatched through a new
+closed-generic cache — `CollectionPlanCache<T>` — read directly inside
+`CompositionContext.ResolveCore<TValue>`, exactly the same zero-reflection
+mechanism [ADR-0004](0004-composition-plan-discovery-and-dispatch.md)
+already established for `PlanCache<T>`.**
+
+- **Discovery.** `TransitiveClosureWalker` (Milestone 1) is extended to
+  recognize the five ADR-0013 shapes (`T[]`, `List<T>`, `IReadOnlyList<T>`,
+  `HashSet<T>`, `Dictionary<TKey, TValue>`) wherever they appear as a
+  constructor parameter or required member type in the walked graph —
+  including nested inside another collection (`List<List<Address>>`).
+  A recognized collection shape is **not** walked as an ordinary
+  composable type (no constructor selection is attempted against `List<T>`
+  itself); instead its element type (and key type, for `Dictionary`) is
+  fed back into the same eligibility walk, so a composable element type
+  still gets its own ordinary plan, a provider-resolved element type stays
+  a bare `Resolve<TElement>()` call, and a nested collection element type
+  recurses through this same collection-shape check.
+- **Emission.** For each distinct closed collection type reached, the
+  generator emits one `file`-scoped `ICompositionPlan<TCollection>`
+  implementation (same `file`-scoping convention as an ordinary
+  composition plan, per `coding-standards.md`'s "Generated code" section)
+  whose `Compose` method builds the collection with ordinary, strongly
+  typed C# — a `for` loop calling `context.Resolve<TElement>(descriptor)`
+  per element/key/value — and registers itself via a module initializer
+  into `CollectionPlanCache<TCollection>.Instance`, mirroring
+  `PlanCache<T>`'s own registration shape exactly. No reflection, no
+  `Activator`, no `Expression.Compile` appears anywhere in this path — the
+  generator, not the runtime, is what turns a runtime-only-known
+  `Type` into compile-time-known `TElement`/`TKey`/`TValue` type
+  arguments, which is the same trick `PlanCache<T>` already relies on for
+  ordinary composable types.
+- **Dispatch stays at "stage 7."** `ICompositionProvider` is deliberately
+  non-generic (this ADR's original Decision Outcome), so it cannot itself
+  construct a `List<Address>` without either boxing/erasure or the
+  reflection this amendment just rejected — the same reason stage 8's
+  `PlanCache<T>` dispatch was never modeled as a provider in the first
+  place. Collection dispatch has the identical shape and gets the
+  identical treatment: inside `CompositionContext.ResolveCore<TValue>`,
+  immediately after the ordinary stage-7 `ICompositionProvider` collection
+  (which still exists and still holds the primitive/enum/nullable-value
+  providers) has declined, a direct `CollectionPlanCache<TValue>.Instance`
+  field read is tried — an ordinary closed-generic field read, exactly
+  like `PlanCache<TValue>.Instance`'s stage-8 read two lines below it —
+  before falling through to stage 8. Stage 7 in the product-facing sense
+  (`docs/architecture.md`'s 9-stage list) is unchanged: one stage, tried
+  in the same position, still "built-in value providers, including
+  collections." Only its internal implementation is now a provider
+  collection *plus* one context-owned generic-dispatch check, the same
+  hybrid shape stage 2/3-vs-4/5/6/7 already has at the model level.
+  Because this check runs after stages 1–6, a registration, shared value,
+  profile rule, semantic provider, or test-double provider can still claim
+  a specific collection type ahead of the built-in collection plan,
+  unchanged from ADR-0013's original "collections stay ordinary pipeline
+  requests" decision — generated containing-type plans still call
+  `context.Resolve<List<Address>>(descriptor)` exactly as they call
+  `Resolve<TParam>()` for anything else; they never inline collection
+  construction or know that a `CollectionPlanCache<T>` exists.
+- **`CollectionElement`/`DictionaryKey`/`DictionaryValue` now flow through
+  `CompositionRequestDescriptor`, reversing ADR-0012/ADR-0013's original
+  "provider constructs the segment directly" position.** Because the
+  collection is now built by *generated* code living in the consumer
+  assembly (not by an internal runtime provider), it only has the same
+  public surface any other generated plan has — `ICompositionContext.Resolve<TValue>(in CompositionRequestDescriptor)`.
+  `CompositionRequestKind` gains three cases —
+  `CollectionElement`, `DictionaryKey`, `DictionaryValue` — and
+  `CompositionContext.Resolve<TValue>` extends its descriptor-to-segment
+  switch to cover them, using `Ordinal` as the segment's `Index` exactly
+  as `ConstructorParameter`/`RequiredMember` already use it as their
+  ordinal; `Name` is unused for these three kinds (`CompositionPath`'s
+  existing display-string derivation never reads `Name` for them either —
+  see `CompositionPath.SegmentDisplayString()`). This is a direct
+  correction to ADR-0012's Decision Outcome ("`CollectionElement`/
+  `DictionaryKey`/`DictionaryValue` segments are never generator-supplied")
+  and ADR-0013's Decision Outcome ("constructed directly by the collection
+  provider itself... never via `CompositionRequestDescriptor`") — both
+  written when a runtime provider, not generated code, was expected to
+  build collections. `PathSegment` itself, its fork-key hashing, and the
+  tag-collision test (ADR-0012 Amendment 2) are unaffected: only *who
+  constructs* the segment changed, not its shape or its role in hashing.
+- **Bounded duplicate-value retry (`HashSet<T>` elements, `Dictionary<TKey, ...>`
+  keys) moves into a small public runtime helper, `UniqueValueResolver`,
+  callable from generated code.** The retry loop itself (ADR-0013's
+  bounded-retry, fork-derived-per-attempt rule) can't live in the
+  generator's emitted code directly without duplicating non-trivial logic
+  into every generated collection plan — instead, `Compono` exposes one
+  generic, reflection-free static method generated code calls once per
+  element/key position:
+  ```csharp
+  public static class UniqueValueResolver
+  {
+      public const int MaxAttempts = 10;
+
+      public static bool TryResolve<TValue>(
+          ICompositionContext context,
+          CompositionRequestKind kind,
+          int position,
+          Nullability nullability,
+          HashSet<TValue> alreadyResolved,
+          out TValue value);
+  }
+  ```
+  `alreadyResolved` is the `HashSet<T>`/dictionary-key-tracking set being
+  built — a successful call both returns the unique value and leaves it
+  already added, so the generated plan doesn't separately re-add it. This
+  is `public` for the same reason `CompositionRequestDescriptor`/
+  `CompositionRequestKind`/`ICompositionContext` already are (Visibility
+  decision, above): it's a piece of the generated-code call surface, not
+  part of the internal engine. Retry attempts stay deterministic: each
+  attempt forks from a distinct, deterministic index derived from
+  `(position, attempt)` — attempt `0` uses `position` unchanged (so a
+  position that never collides forks identically to how it would with no
+  retry mechanism at all, meaning tuning `MaxAttempts` never perturbs a
+  non-colliding result), and every retry attempt (`attempt >= 1`) uses a
+  negative, disjoint index — deterministic, and never coincides with any
+  position's own base index — rather than a non-deterministic re-roll.
+  Exhausting `MaxAttempts` is reported by the generated plan throwing
+  `CompositionException` naming the element/key type and requested count,
+  matching ADR-0013's original diagnostic wording exactly — this stays a
+  thrown exception at the generated-plan/outward boundary (same shape as
+  any other terminal pipeline failure) rather than a new
+  `CompositionResult` case, since `ICompositionPlan<T>.Compose` returns a
+  plain `T`, not a result type, just like any other generated `Compose`
+  method.
+- **Native AOT/trimming position, updated.** Amendment 2's explicit AOT
+  exception for the reflection bridge is retracted along with the bridge
+  itself — there is nothing to except. Every collection plan is ordinary,
+  fully AOT/trim-safe generated C#, same as any other composition plan.
+
+### Consequences of this amendment
+
+- Removes the one place Milestone 2's design would have introduced
+  reflection into the runtime hot path — the whole engine stays
+  consistent with ADR-0001's "no reflection by default" rule, not
+  "no reflection by default, except this one bounded case."
+- `TransitiveClosureWalker` picks up real new complexity (recursive
+  collection-shape recognition, alongside its existing composable-type
+  walk) — accepted as the direct cost of moving this logic from a runtime
+  bridge into the generator, where ADR-0001 says it belongs.
+- `CollectionPlanCache<T>`, `UniqueValueResolver`, and three new
+  `CompositionRequestKind` cases are new `public` surface — larger than
+  Amendment 2's shape, which kept the bridge entirely `internal`. This is
+  accepted the same way `CompositionRequestDescriptor`/`ICompositionContext`
+  already are: generated code lives outside `Compono`'s assembly, so
+  anything it must call is necessarily part of the public generated-code
+  contract, not a discretionary API design choice.
+- ADR-0012 and ADR-0013 are not re-opened or superseded by this amendment
+  — both carry a short pointer note to this section rather than having
+  their own Decision Outcome text rewritten, per the "an accepted ADR is a
+  historical record" rule; this ADR's amendment is the authoritative
+  current shape for collection-segment construction and dispatch.
+
 ## Links
 
 - Supersedes [ADR-0007](0007-composition-request-and-provider-pipeline.md)

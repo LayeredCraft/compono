@@ -390,6 +390,21 @@ rule are all specific consequences of — worth stating once, as the
 contract those are downstream of, rather than leaving a reader to infer
 it from three separate places.
 
+## Amendment 3 (2026-07-28): pointer to ADR-0010 — collection segments now flow through the descriptor
+
+[ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+Amendment 3 corrects this ADR's Decision Outcome statement that
+"`CollectionElement`/`DictionaryKey`/`DictionaryValue` segments are never
+generator-supplied" — the reflection-based collection-dispatch bridge that
+premise depended on was retracted before implementation, and collections
+are now built by generator-emitted plans that construct these segments via
+`CompositionRequestDescriptor`/`CompositionRequestKind`, the same
+mechanism `ConstructorParameter`/`RequiredMember` already use. `PathSegment`
+itself, its `Ordinal`/`Index`-based identity, and the fork-key hashing this
+ADR specifies are all unchanged — see ADR-0010's Amendment 3 for the full
+current shape; this ADR's own Decision Outcome text is left as originally
+written, per the "an accepted ADR is a historical record" rule.
+
 ## Links
 
 - Supersedes [ADR-0009](0009-deterministic-seed-and-forkable-random-source.md)

@@ -14,7 +14,7 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class ComposedTypeAnalyzer
 {
-    public static EquatableArray<DiscoveredTypeInfo> Analyze(ITypeSymbol requestedType, Compilation compilation, LocationInfo? location)
+    public static TransitiveClosureResult Analyze(ITypeSymbol requestedType, Compilation compilation, LocationInfo? location)
     {
         // Three ways a requested type can fail to be a genuine closed type, all needing the same
         // diagnostic: `composer.Create<T>()` where `T` is the enclosing generic method's own type
@@ -59,7 +59,7 @@ internal static class ComposedTypeAnalyzer
     // diagnostic. `type.ContainingNamespace`/`type.Name` are empty for shapes like arrays and
     // pointers, which is fine here: the Namespace/TypeName fields go unused once Diagnostics is
     // non-empty (ComponoIncrementalGenerator skips codegen for any type with diagnostics).
-    public static EquatableArray<DiscoveredTypeInfo> TypeArgumentFailure(DiagnosticDescriptor descriptor, ITypeSymbol type, LocationInfo? location)
+    public static TransitiveClosureResult TypeArgumentFailure(DiagnosticDescriptor descriptor, ITypeSymbol type, LocationInfo? location)
     {
         var @namespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : "";
         var emittedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -72,7 +72,7 @@ internal static class ComposedTypeAnalyzer
             EquatableArray<RequiredMemberInfo>.Empty,
             new[] { new DiagnosticInfo(descriptor, location, type.ToDisplayString()) }.ToEquatableArray());
 
-        return new[] { failure }.ToEquatableArray();
+        return new TransitiveClosureResult(new[] { failure }.ToEquatableArray(), EquatableArray<DiscoveredCollectionInfo>.Empty);
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

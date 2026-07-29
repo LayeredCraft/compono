@@ -16,12 +16,24 @@ namespace Compono.Generators.Discovery;
 /// the original <c>Composer.Create&lt;T&gt;()</c> call site rather than silently left as
 /// <c>Resolve&lt;TParam&gt;()</c> - that would hide an invalid generated graph and turn a
 /// compile-time composition failure into a runtime one.
+/// <para>
+/// A member type recognized as one of ADR-0013's five closed collection shapes
+/// (<see cref="CollectionWellKnownTypes"/>) is never walked as an ordinary composable type - no
+/// constructor selection is attempted against, say, <c>List&lt;Address&gt;</c> itself. Instead it's
+/// recorded as a <see cref="DiscoveredCollectionInfo"/> needing its own generated collection plan
+/// (ADR-0010's third amendment), and its element type (and key type, for <c>Dictionary</c>) feeds
+/// back into this same eligibility walk - so a composable element type still gets its own plan, a
+/// provider-resolved element type stays a bare <c>Resolve&lt;TElement&gt;()</c> call, and a nested
+/// collection element type (<c>List&lt;List&lt;Address&gt;&gt;</c>) recurses through this same
+/// collection-shape check again.
+/// </para>
 /// </summary>
 internal static class TransitiveClosureWalker
 {
-    public static EquatableArray<DiscoveredTypeInfo> Walk(INamedTypeSymbol rootType, Compilation compilation, LocationInfo? location)
+    public static TransitiveClosureResult Walk(INamedTypeSymbol rootType, Compilation compilation, LocationInfo? location)
     {
         var wellKnownTypes = WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
+        var collectionTypes = CollectionWellKnownTypes.GetOrCreate(compilation);
 
         // IncludeNullability, not Default - Default treats Box<string> and Box<string?> as the
         // same symbol (nullable annotations don't affect its notion of symbol identity), which
@@ -31,8 +43,10 @@ internal static class TransitiveClosureWalker
         // With IncludeNullability, both variants get walked and each produces its own entry, so a
         // real conflict between them surfaces through that existing check instead of being erased
         // one layer upstream of it.
-        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability) { rootType };
+        var visitedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability) { rootType };
+        var visitedCollections = new HashSet<ITypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         var results = new List<DiscoveredTypeInfo>();
+        var collections = new List<DiscoveredCollectionInfo>();
         var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
 
         queue.Enqueue((rootType, null));
@@ -47,37 +61,78 @@ internal static class TransitiveClosureWalker
                 continue;
 
             foreach (var parameter in constructor.Parameters)
-                EnqueueIfEligible(parameter.Type, parameter.Name, type, path, wellKnownTypes, visited, queue);
+            {
+                EnqueueMember(
+                    parameter.Type, parameter.Name, type, path,
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+            }
 
             foreach (var (memberType, memberName) in requiredMemberTypes)
-                EnqueueIfEligible(memberType, memberName, type, path, wellKnownTypes, visited, queue);
+            {
+                EnqueueMember(
+                    memberType, memberName, type, path,
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+            }
         }
 
-        return results.ToEquatableArray();
+        return new TransitiveClosureResult(results.ToEquatableArray(), collections.ToEquatableArray());
     }
 
-    private static void EnqueueIfEligible(
+    private static void EnqueueMember(
         ITypeSymbol memberType,
         string memberName,
         INamedTypeSymbol parentType,
         string? parentPath,
         WellKnownTypes.WellKnownTypes wellKnownTypes,
-        HashSet<INamedTypeSymbol> visited,
+        CollectionWellKnownTypes collectionTypes,
+        HashSet<INamedTypeSymbol> visitedTypes,
+        HashSet<ITypeSymbol> visitedCollections,
+        List<DiscoveredCollectionInfo> collections,
         Queue<(INamedTypeSymbol Type, string? Path)> queue)
     {
+        var childPath = parentPath is null ? $"{parentType.Name}.{memberName}" : $"{parentPath}.{memberName}";
+
+        if (collectionTypes.TryClassify(memberType, out var shape))
+        {
+            if (!visitedCollections.Add(memberType))
+                return;
+
+            collections.Add(ToDiscoveredCollectionInfo(memberType, shape));
+
+            EnqueueMember(
+                shape.ElementType, "element", parentType, childPath,
+                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+
+            if (shape.KeyType is { } keyType)
+            {
+                EnqueueMember(
+                    keyType, "key", parentType, childPath,
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+            }
+
+            return;
+        }
+
         if (memberType is not INamedTypeSymbol namedType)
             return;
 
         if (LeafTypeClassifier.IsProviderResolved(namedType, wellKnownTypes))
             return;
 
-        if (!visited.Add(namedType))
+        if (!visitedTypes.Add(namedType))
             return;
-
-        var childPath = parentPath is null ? $"{parentType.Name}.{memberName}" : $"{parentPath}.{memberName}";
 
         queue.Enqueue((namedType, childPath));
     }
+
+    private static DiscoveredCollectionInfo ToDiscoveredCollectionInfo(ITypeSymbol collectionType, CollectionShapeInfo shape) =>
+        new(
+            shape.Shape,
+            collectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            shape.ElementType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            shape.ElementType.NullableAnnotation == NullableAnnotation.Annotated,
+            shape.KeyType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            shape.KeyType?.NullableAnnotation == NullableAnnotation.Annotated);
 
     private static (DiscoveredTypeInfo Info, IMethodSymbol? Constructor, IReadOnlyList<(ITypeSymbol Type, string Name)> RequiredMemberTypes) Analyze(
         INamedTypeSymbol type, Compilation compilation, LocationInfo? location, string? path)

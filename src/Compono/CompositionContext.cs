@@ -1,3 +1,5 @@
+using Compono.Providers;
+
 namespace Compono;
 
 /// <summary>
@@ -34,11 +36,12 @@ internal sealed class CompositionContext : ICompositionContext
     }
 
     /// <summary>
-    /// Creates a <see cref="CompositionContext"/> with no providers registered in any stage and the
-    /// given explicit root seed - the seam <see cref="Composer.CreateRootForTesting{T}"/> uses.
+    /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, no
+    /// providers registered in any other stage, and the given explicit root seed - the seam
+    /// <see cref="Composer.CreateRootForTesting{T}"/> uses.
     /// </summary>
     internal CompositionContext(CompositionSeed seed)
-        : this(seed, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: [])
+        : this(seed, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default)
     {
     }
 
@@ -88,6 +91,12 @@ internal sealed class CompositionContext : ICompositionContext
                 new PathSegment.ConstructorParameter(descriptor.Ordinal, descriptor.Name),
             CompositionRequestKind.RequiredMember =>
                 new PathSegment.RequiredMember(descriptor.Ordinal, descriptor.Name),
+            // CollectionElement/DictionaryKey/DictionaryValue carry no Name - a generated collection
+            // plan's Ordinal is the segment's Index; CompositionPath's display-string derivation
+            // never reads Name for these three kinds either, per ADR-0010's third amendment.
+            CompositionRequestKind.CollectionElement => new PathSegment.CollectionElement(descriptor.Ordinal),
+            CompositionRequestKind.DictionaryKey => new PathSegment.DictionaryKey(descriptor.Ordinal),
+            CompositionRequestKind.DictionaryValue => new PathSegment.DictionaryValue(descriptor.Ordinal),
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Kind, "Unrecognized composition request kind."),
         };
 
@@ -140,6 +149,15 @@ internal sealed class CompositionContext : ICompositionContext
 
             if (TryProviders(_builtInProviders, request, out var builtInValue))
                 return CastResult<TValue>(builtInValue);
+
+            // Still stage 7 conceptually (docs/architecture.md) - a generated collection plan is
+            // "a built-in value provider," just dispatched via a direct closed-generic field read
+            // (like stage 8's PlanCache<TValue> below) rather than through ICompositionProvider,
+            // which can't itself construct a generic collection without reflection or boxing/erasure.
+            // See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md's third
+            // amendment.
+            if (CollectionPlanCache<TValue>.Instance is { } collectionPlan)
+                return collectionPlan.Compose(this);
 
             var plan = PlanCache<TValue>.Instance;
             if (plan is not null)
