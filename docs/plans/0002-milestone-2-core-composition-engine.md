@@ -554,19 +554,24 @@ ADR-0014. The task list below reflects the corrected shape.
       duplicate-value retry/retry-exhaustion test at the
       `UniqueValueResolver` level, covering both a successful retry and
       full exhaustion (`UniqueValueResolverTests`)
-- [ ] A duplicate-value retry-exhaustion test through an actual generated
+- [x] A duplicate-value retry-exhaustion test through an actual generated
       `HashSet<T>`/`Dictionary<TKey, ...>` plan against a genuinely
       low-cardinality element/key type, and a collection-index
       **path-construction** test (e.g. `List<Address>` with 3 elements)
       asserting each element's independent output at the runtime level —
-      still open; `UniqueValueResolverTests` covers the retry/exhaustion
-      *algorithm* directly (with a stub context), and the tag-collision/
+      closed via `GeneratorTestHelpers.CompileAndExecute` (compiles source
+      plus real generated output to an in-memory assembly, loads it, and
+      invokes it by reflection) and
+      `GeneratedCollectionPlanExecutionTests`'s
+      `HashSetRetryExhaustion_ThrowsCompositionException_ThroughARealDispatchedPlan`
+      and `ListElements_EachGetsIndependentOutput_ThroughARealDispatchedPlan`;
+      `UniqueValueResolverTests` covers the retry/exhaustion *algorithm*
+      directly (with a stub context), and the tag-collision/
       structural-independence guarantee `CollectionElement(i)` relies on
       is already covered by Phase 1's `RandomSourceTests`/
-      `CompositionRandomIntegrationTests`, so this remaining item is
-      narrower than originally scoped: an end-to-end runtime assertion
-      through a real dispatched collection plan, not new coverage of
-      previously-untested behavior
+      `CompositionRandomIntegrationTests` — this item added the remaining
+      end-to-end runtime assertion through a real dispatched collection
+      plan
 - [x] `Compono.Generators.Tests`: snapshot coverage for at least one
       generated plan per collection shape (array, `List<T>`,
       `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), plus
@@ -901,6 +906,37 @@ ADR-0014. The task list below reflects the corrected shape.
   actually matters here. Added regression coverage:
   `CollectionPlanVerifyTests.DynamicHashSetElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`,
   `DynamicDictionaryKey_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`.
+- A tenth round of PR #11 review found two items, both resolved without a
+  behavior-changing code fix. First, a checklist/status mismatch: this
+  plan's own "generated-plan execution coverage" item (above) was still
+  unchecked even though round 8's `GeneratedCollectionPlanExecutionTests`
+  had already closed it — checked off, with a pointer to the tests that
+  closed it. Second, a genuine but narrower-than-first-glance leak
+  concern in `CollectionPlanCache<T>`: when a collection's type arguments
+  are entirely BCL types (`List<int>`, `Dictionary<Guid, string>`), the
+  CLR homes that closed generic instantiation in the non-collectible
+  default context regardless of which assembly's module initializer
+  populates it, so a consuming assembly loaded into a collectible
+  `AssemblyLoadContext` gets permanently rooted by its own plan instance
+  - the same leak class the `EnumValueProvider` cache fix (round 5)
+  closed elsewhere, but not fixable the same way here, since
+  `CollectionPlanCache<T>.Instance` being a plain closed-generic static
+  field (rather than a `Type`-keyed lookup) is exactly what makes stage 7
+  dispatch a direct field read per ADR-0004 - any fix able to key off the
+  consuming assembly/ALC instead of `T` would reintroduce a per-resolve
+  lookup on every collection composition, undoing that. Verified the CLR
+  loader-context claim directly against how `PlanCache<T>` avoids the
+  same problem for ordinary composable types (a collectible type's own
+  closed instantiation stays tied to its own collectible context, so no
+  external root survives unload) before accepting the finding as real.
+  Deferred alongside the pre-existing `PlanCache<T>`/`CollectionPlanCache<T>`
+  cross-assembly-collision item (round 4) with the same reasoning:
+  neither `docs/mvp.md`'s scope nor Compono's primary xUnit-test-runner
+  consumer exercises collectible-ALC hosting today. Documented in
+  `docs/architecture.md`'s Open Architectural Decisions and in
+  `CollectionPlanCache<T>`'s own XML doc comment (which also had a stale
+  "ADR-0010's third amendment" reference from before the round-8
+  ADR-0014 extraction, fixed in the same pass).
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

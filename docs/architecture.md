@@ -677,3 +677,34 @@ Owns:
   something else?) affecting both caches uniformly, not patched narrowly
   into just the newer one. Revisit if/when a real multi-assembly
   collision is actually hit — no design has been chosen yet.
+- **`CollectionPlanCache<T>` rooting a collectible `AssemblyLoadContext`**
+  — flagged during PR #11 review. For an ordinary composable type
+  (`PlanCache<Customer>`), if `Customer` is defined in a collectible ALC,
+  the CLR ties the closed generic instantiation `PlanCache<Customer>`
+  itself to that same collectible context (a closed generic's home
+  context is the narrowest context spanned by its generic definition and
+  all of its type arguments), so the static field disappears when the ALC
+  unloads — no external root survives it. `CollectionPlanCache<T>` breaks
+  this for a collection whose type arguments are *entirely* BCL types
+  (`List<int>`, `Dictionary<System.Guid, string>`): every type composing
+  that closed `T` lives in the non-collectible default context, so
+  `CollectionPlanCache<List<int>>`'s instantiation also lives there — but
+  its generated `[ModuleInitializer]`, running from the collectible
+  consumer assembly, still stores an instance of a plan class *defined in
+  that consumer assembly* into it. The default-context static field then
+  permanently roots the consumer assembly (and its whole ALC), the same
+  leak class the `EnumValueProvider` cache fix (`ConditionalWeakTable<Type,
+  Array>` in place of `ConcurrentDictionary<Type, Array>`) closed
+  elsewhere. That fix doesn't transfer here: `CollectionPlanCache<T>.Instance`
+  is a plain closed-generic static field precisely so stage 7 dispatch is
+  one direct field read (ADR-0004's zero-overhead dispatch), not a
+  `Type`-keyed lookup; any weak-reference indirection able to key off the
+  consumer assembly/ALC instead of `T` would reintroduce a per-resolve
+  lookup on every collection, undoing the reason `CollectionPlanCache<T>`
+  mirrors `PlanCache<T>`'s shape in the first place. Deferred, consistent
+  with the cross-assembly-collision item above: this only manifests for a
+  collectible `AssemblyLoadContext` unloading a consumer assembly that
+  composes a BCL-only-typed collection, which neither `docs/mvp.md`'s
+  scope nor Compono's primary xUnit-test-runner consumer currently
+  exercises. Revisit alongside the collision item if collectible-ALC
+  hosting becomes an actual target — no design has been chosen yet.

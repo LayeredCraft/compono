@@ -3,7 +3,7 @@ namespace Compono;
 /// <summary>
 /// Holds the generated collection <see cref="ICompositionPlan{T}"/> for the closed collection type
 /// <typeparamref name="T"/> (e.g. <c>List&lt;Address&gt;</c>), per
-/// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>'s third amendment.
+/// <c>docs/adr/0014-generator-emitted-collection-plans.md</c>.
 /// </summary>
 /// <remarks>
 /// Mirrors <see cref="PlanCache{T}"/> exactly - a closed generic static field is a direct field read
@@ -17,6 +17,13 @@ namespace Compono;
 /// consuming assembly (never by <c>Compono</c> itself) - the same cross-assembly reason
 /// <see cref="PlanCache{T}"/>'s setter is <see langword="public"/> despite <c>coding-standards.md</c>'s
 /// "no static singletons" rule.
+/// </para>
+/// <para>
+/// When every type composing the closed <typeparamref name="T"/> is a BCL type (e.g.
+/// <c>List&lt;int&gt;</c>), this closed instantiation's home context is the non-collectible default
+/// context, even though the plan instance stored in it is defined in the consuming assembly - if that
+/// assembly is loaded into a collectible <c>AssemblyLoadContext</c>, this field permanently roots it.
+/// Deferred - see <c>docs/architecture.md</c>'s Open Architectural Decisions.
 /// </para>
 /// </remarks>
 /// <typeparam name="T">The closed collection type the cached plan constructs.</typeparam>
