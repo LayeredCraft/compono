@@ -1060,6 +1060,37 @@ ADR-0014. The task list below reflects the corrected shape.
   `GeneratorTestHelpers.CompileAndExecute` invokes every test's entry
   point, so this adds no new public/friend surface to the shipped
   package at all.
+- A fourteenth round of PR #11 review found two real issues, both
+  small. **A rejected array-shaped member silently produced no
+  diagnostic (P2).** A root `dynamic[]`/pointer-element array already
+  reported `CMP0006` correctly via `ComposedTypeAnalyzer` (confirmed
+  directly: `composer.Create<dynamic[]>()` does report it), but the
+  equivalent *member* case didn't: `TransitiveClosureWalker.EnqueueMember`
+  correctly declines to classify a rejected array as a collection (same
+  reason as always - building `ICompositionPlan<dynamic[]>` would hit
+  `CS1966`), but its fallback for a non-`INamedTypeSymbol` member
+  (`if (memberType is not INamedTypeSymbol) return;`) silently dropped it
+  instead of reporting anything - unlike a rejected *generic* collection
+  shape (`HashSet<dynamic>` as a member), which is still an
+  `INamedTypeSymbol` and so still reaches `ConstructorSelector`'s own
+  `CMP0001` via the ordinary ("ambiguous constructor") path. Confirmed
+  directly before fixing: a `dynamic[]` constructor parameter compiled
+  with zero diagnostics, emitting `context.Resolve<dynamic[]>()` for a
+  type nothing would ever register a plan for. Fixed by threading the
+  walker's `results` list into `EnqueueMember` (and `EnqueueRoot`, for
+  the recursive element/key calls it makes) and reporting the same
+  `CMP0006` `ComposedTypeAnalyzer` already uses for the root case,
+  reusing its `TypeArgumentFailure` helper rather than duplicating the
+  diagnostic-construction logic. Added regression coverage:
+  `CollectionPlanVerifyTests.DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`.
+  **`docs/architecture.md`'s `CompositionRequestKind` contract was stale
+  (P2).** Its `CompositionRequestDescriptor` code sample still commented
+  `kind` as `ConstructorParameter | RequiredMember` only, missing the
+  three collection-plan cases (`CollectionElement`/`DictionaryKey`/
+  `DictionaryValue`) ADR-0014 added, and its public-vs-internal-visibility
+  discussion didn't mention `CollectionPlanCache<T>`/`UniqueValueResolver`
+  joining `CompositionRequestDescriptor`/`ICompositionContext` as public
+  generated-code call surface. Fixed by updating both spots.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

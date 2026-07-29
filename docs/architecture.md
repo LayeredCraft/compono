@@ -99,7 +99,8 @@ there are two distinct shapes:
   public readonly struct CompositionRequestDescriptor
   {
       public CompositionRequestDescriptor(
-          CompositionRequestKind kind,   // ConstructorParameter | RequiredMember
+          CompositionRequestKind kind,   // ConstructorParameter | RequiredMember |
+                                          // CollectionElement | DictionaryKey | DictionaryValue
           int ordinal,                    // stable identity - see Deterministic Randomness, below
           string name,                    // diagnostic display only, never identity
           Nullability nullability);
@@ -623,10 +624,13 @@ Owns:
   resolved by
   [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md):
   `CompositionRequest`, `ICompositionProvider`, `CompositionResult`, and
-  `IRandomSource` are `internal` in Milestone 2; only
-  `CompositionRequestDescriptor` and `ICompositionContext` are `public`,
-  since they're the two types generated code actually crosses the
-  assembly boundary to use.
+  `IRandomSource` are `internal` in Milestone 2; `CompositionRequestDescriptor`,
+  `CompositionRequestKind`, and `ICompositionContext` are `public`, since
+  they're the generated-code call surface every plan crosses the assembly
+  boundary to use. [ADR-0014](adr/0014-generator-emitted-collection-plans.md)
+  extends that same surface for generated collection plans specifically:
+  `CollectionPlanCache<T>` and `UniqueValueResolver` are also `public` for
+  the identical reason, not a discretionary API design choice.
 - Public versus internal use of `Type`
 - Exact profile model
 - ~~Scope lifetime model~~ — resolved for Milestone 2 by

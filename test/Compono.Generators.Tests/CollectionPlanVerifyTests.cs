@@ -102,6 +102,46 @@ public sealed class CollectionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Container
+                    {
+                        public Container(dynamic[] items) { Items = items; }
+                        public dynamic[] Items { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // A root dynamic[]/pointer-array already reports CMP0006 via
+                            // ComposedTypeAnalyzer, but a *member* of the same rejected shape had no
+                            // equivalent path: TryClassify correctly declines to classify it as a
+                            // collection (would hit CS1966 the same as any other dynamic-containing
+                            // interface argument), but EnqueueMember's fallback for a non-INamedTypeSymbol
+                            // member silently returned instead of reporting anything - unlike a rejected
+                            // *generic* collection shape (HashSet<dynamic>), which is still an
+                            // INamedTypeSymbol and so still reaches ConstructorSelector's own CMP0001.
+                            // Before the fix, this compiled with zero diagnostics, emitting
+                            // context.Resolve<dynamic[]>() for a type nothing would ever register a plan
+                            // for, and only failed at runtime with a generic "no plan registered" message
+                            // - confirmed directly before fixing. Regression coverage for the PR #11
+                            // review finding.
+                            var value = composer.Create<TestNamespace.Container>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0006",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task PrivateElementTypeInCollectionRoot_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions

@@ -62,7 +62,7 @@ internal static class TransitiveClosureWalker
         var collections = new List<DiscoveredCollectionInfo>();
         var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
 
-        EnqueueRoot(rootType, compilation, location, wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+        EnqueueRoot(rootType, compilation, location, wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
 
         while (queue.Count > 0)
         {
@@ -77,14 +77,14 @@ internal static class TransitiveClosureWalker
             {
                 EnqueueMember(
                     parameter.Type, parameter.Name, type, path, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
             }
 
             foreach (var (memberType, memberName) in requiredMemberTypes)
             {
                 EnqueueMember(
                     memberType, memberName, type, path, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
             }
         }
 
@@ -104,6 +104,7 @@ internal static class TransitiveClosureWalker
         HashSet<INamedTypeSymbol> visitedTypes,
         HashSet<ITypeSymbol> visitedCollections,
         List<DiscoveredCollectionInfo> collections,
+        List<DiscoveredTypeInfo> results,
         Queue<(INamedTypeSymbol Type, string? Path)> queue)
     {
         if (collectionTypes.TryClassify(rootType, out var shape))
@@ -119,13 +120,13 @@ internal static class TransitiveClosureWalker
 
             EnqueueMember(
                 shape.ElementType, "element", rootType, null, compilation, location,
-                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
 
             if (shape.KeyType is { } keyType)
             {
                 EnqueueMember(
                     keyType, "key", rootType, null, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
             }
 
             return;
@@ -157,6 +158,7 @@ internal static class TransitiveClosureWalker
         HashSet<INamedTypeSymbol> visitedTypes,
         HashSet<ITypeSymbol> visitedCollections,
         List<DiscoveredCollectionInfo> collections,
+        List<DiscoveredTypeInfo> results,
         Queue<(INamedTypeSymbol Type, string? Path)> queue)
     {
         var childPath = parentPath is null ? $"{parentType.Name}.{memberName}" : $"{parentPath}.{memberName}";
@@ -174,20 +176,35 @@ internal static class TransitiveClosureWalker
 
             EnqueueMember(
                 shape.ElementType, "element", parentType, childPath, compilation, location,
-                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
 
             if (shape.KeyType is { } keyType)
             {
                 EnqueueMember(
                     keyType, "key", parentType, childPath, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, queue);
+                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
             }
 
             return;
         }
 
         if (memberType is not INamedTypeSymbol namedType)
+        {
+            // An array/pointer/function-pointer member has no constructor for ConstructorSelector to
+            // select and no ordinary-composable-type fallback (unlike a rejected generic collection
+            // shape, e.g. HashSet<dynamic>, which is still an INamedTypeSymbol and so still reaches
+            // ConstructorSelector's own CMP0001 below via the ordinary path) - without this, the
+            // containing type's generated plan still compiles clean, emitting
+            // `context.Resolve<TMember>(...)` for a type nothing will ever register a plan for, and
+            // only fails at runtime with a generic "no plan registered" message. Same diagnostic
+            // (CMP0006) ComposedTypeAnalyzer already reports for the equivalent *root* case - PR #11
+            // review caught that only the member case was missing it, confirmed directly before
+            // fixing (composer.Create<dynamic[]>() already reported CMP0006 correctly; a dynamic[]
+            // constructor parameter did not).
+            results.AddRange(ComposedTypeAnalyzer.TypeArgumentFailure(
+                DiagnosticDescriptors.UnsupportedTypeArgumentShape, memberType, location).Types);
             return;
+        }
 
         if (LeafTypeClassifier.IsProviderResolved(namedType, wellKnownTypes))
             return;
