@@ -103,14 +103,24 @@ there are two distinct shapes:
                                           // CollectionElement | DictionaryKey | DictionaryValue
           int ordinal,                    // stable identity - see Deterministic Randomness, below
           string name,                    // diagnostic display only, never identity
+          Type declaringType,             // Milestone 3 - see Configuration Rules, below
           Nullability nullability);
 
       public CompositionRequestKind Kind { get; }
       public int Ordinal { get; }
       public string Name { get; }
+      public Type DeclaringType { get; }
       public Nullability Nullability { get; }
   }
   ```
+  `DeclaringType` ([ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+  third amendment, Milestone 3, not yet implemented) is the type whose
+  constructor/required-member declares this parameter/member —
+  generator-emitted alongside `Ordinal`/`Name`, meaningful only for
+  `ConstructorParameter`/`RequiredMember` requests. It exists so a
+  configuration rule can match by declaring type + member name directly
+  off the request, rather than inferring the declaring type from path
+  state — see Configuration Rules, below.
 - **`CompositionRequest`** (`internal`) — the richer record the context
   expands a descriptor into, by appending a `PathSegment`
   ([ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md))
@@ -120,9 +130,10 @@ there are two distinct shapes:
 
 Only fields with a real Milestone 2 consumer exist today — `RequestedType`,
 `Nullability`, the descriptor's `Kind`/`Name` (folded into the request's
-path segment), `Path`, `IsShared`. `CustomAttributes`, generic context,
+path segment), `Path`, `IsShared`. `DeclaringType` is Milestone 3's first
+addition to this set (above). `CustomAttributes`, generic context,
 requested lifetime, semantic hints, and "whether a test double is
-acceptable" are deliberately not modeled yet — they get added once a
+acceptable" are still deliberately not modeled — they get added once a
 later milestone (xUnit inline values, Bogus hints, NSubstitute
 eligibility) has an actual consumer for them, not speculatively now.
 
@@ -137,7 +148,7 @@ The default resolution order is:
 1. Explicit values
 2. Shared or scoped values
 3. Exact registrations
-4. Profile rules
+4. Configuration rules
 5. Semantic value providers
 6. Test-double providers
 7. Built-in value providers
@@ -154,10 +165,10 @@ not every stage is the same *kind* of thing:
 |---|---|---|
 | 1 | Explicit values | Context-owned deterministic check (no consumer until a later milestone's inline-value API exists) |
 | 2 | Shared or scoped values | Context-owned deterministic check against the scope |
-| 3 | Exact registrations | Context-owned deterministic lookup (Milestone 2: internal only, no public builder yet) |
-| 4 | Profile rules | Ordered `ICompositionProvider` collection — empty until Milestone 3 |
-| 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus) |
-| 6 | Test-double providers | Ordered `ICompositionProvider` collection — empty until Milestone 5 (NSubstitute) |
+| 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (Milestone 3, not yet implemented): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 is the design for its real public shape. |
+| 4 | Configuration rules | Ordered `ICompositionProvider` collection — empty until Milestone 3, per [ADR-0020](adr/0020-composition-configuration-rules.md) (not yet implemented). Renamed from "profile rules": populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile's `Configure` — a profile is a reusable application mechanism over this stage, not its owner ([ADR-0018](adr/0018-composition-profiles.md)). Collection-size configuration does **not** populate this stage — see Configuration Rules, below. |
+| 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus). How an integration package populates this stage with open-ended, pattern-matching logic is deliberately undesigned until Milestone 5 gives it a real consumer — see Open Architectural Decisions, below. |
+| 6 | Test-double providers | Ordered `ICompositionProvider` collection — empty until Milestone 5 (NSubstitute), same deferred-extensibility note as stage 5. |
 | 7 | Built-in value providers | **Hybrid** (ADR-0014): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
 | 9 | Diagnostic failure | Context-owned terminal stage |
@@ -416,20 +427,145 @@ construction cycle does, and the resulting diagnostic reports the chain
 of active frames — the request edges that formed the cycle — not just a
 list of repeated types.
 
+## Immutable Configuration Model
+
+Resolved by [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md).
+**The builder/configuration split and `WithSeed` are implemented (Milestone 3
+Phase 0, [PLAN-0003](plans/0003-milestone-3-profiles-and-configuration.md)); every
+other configuration verb below (`Register`, `AddProfile`, `UseServiceProvider`, the
+`.For<T>()` rule DSL, `WithCollectionSize`) is still Milestone 3 scope, not yet
+implemented, per that plan's later phases.** `CompositionBuilder` is a mutable
+accumulator that exists only for the duration of the `Composer.Create(builder =>
+...)` callback; when the callback returns, its accumulated state is validated and
+frozen into an internal `CompositionConfiguration` — a `Composer` holds exactly one,
+reused across every `Create<T>()`/`CreateMany<T>()` call it ever serves, with no
+mutable state on that hot path at all. Every scalar configuration verb — `WithSeed`
+(implemented), `WithCollectionSize`'s global default, `UseServiceProvider` (both
+still pending) — may be set at most once per configuration, the same fail-fast rule
+keyed configuration (registrations, rules) will follow once implemented: a second
+call is a build-time conflict, never last-wins, so a scalar's effective value never
+depends on `AddProfile` call order.
+
+Two distinct failure moments both surface from `Composer.Create(...)`, but aren't
+the same mechanism: a profile cycle ([ADR-0018](adr/0018-composition-profiles.md),
+not yet implemented — Milestone 3 Phase 2) is detected **eagerly**, during
+`AddProfile` itself, and throws immediately with exactly one error naming the cycle
+— configuration stops right there, nothing further is aggregated. Every other
+conflict (duplicate registrations, duplicate rules, duplicate scalars — a duplicate
+`WithSeed` call is real today; the rest arrive with their own phases) is detected by
+`Build()`'s single validation pass, which runs
+only after the whole `configure(builder)` callback has already returned
+successfully, and aggregates every conflict found across the complete accumulated
+state into one `CompositionConfigurationException` — distinct from the per-value
+`CompositionException` a running `Create<T>()` call can throw. That exception
+carries a structured, inspectable list of errors (kind, affected type/member,
+contributing sources) that its rendered message is derived from, not the other way
+around — a test (or a consumer) can assert on the structured data directly rather
+than parsing message text.
+
 ## Profiles
 
-Profiles provide reusable configuration without mutable global state.
+Resolved by [ADR-0018](adr/0018-composition-profiles.md) (Milestone 3, not yet
+implemented). A profile is `ICompositionProfile` — one method,
+`void Configure(CompositionBuilder builder)` — not an abstract base class: profiles
+define behavior, not shared implementation, matching the repo's composition-over-
+inheritance preference and AutoFixture's `ICustomization` prior art.
 
-A profile may:
+```csharp
+public sealed class ApplicationTestProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder)
+    {
+        builder
+            .UseNSubstitute()
+            .UseBogus(options => options.Locale = "en_US")
+            .Register<IClock>(_ => new FakeClock(...));
+    }
+}
+```
 
-- Add providers
-- Add registrations
-- Configure collection sizes
-- Configure nullability behavior
-- Enable integration packages
-- Add type or member rules
+`builder.AddProfile<TProfile>()` (where `TProfile : ICompositionProfile, new()`) or
+`builder.AddProfile(ICompositionProfile profile)` runs `Configure` **immediately**,
+synchronously, against the same shared `CompositionBuilder` a direct call would use
+— a profile is a named, reusable grouping over the builder's ordinary surface, not a
+distinct configuration mechanism. Multiple profiles combine purely through call
+order (`AddProfile<A>().AddProfile<B>()`); there is no separate merge step. A
+profile calling `AddProfile` for another profile already being applied
+(`ProfileA → ProfileB → ProfileA`) is a build-time
+`CompositionConfigurationException` naming the cycle — detected via a type-keyed
+stack pushed around `Configure`, mirroring the shape of the engine's own
+active-construction-frame recursion check. Every accumulated registration/rule
+entry retains its full source chain (direct, or the nested profile types that
+applied it) so a conflict or cycle diagnostic can always name where each entry
+actually came from.
 
-Profiles should be immutable after construction or compiled into immutable runtime configuration.
+## Registrations and Service Injection
+
+Resolved by [ADR-0019](adr/0019-registrations-and-service-provider-injection.md)
+(Milestone 3, not yet implemented). `builder.Register<T>(Func<ICompositionContext, T>
+factory)` (plus a `Register<T>(Func<T> factory)` convenience overload) populates
+pipeline stage 3's exact-registration table. A duplicate registration for the same
+type — from any combination of direct calls and profiles — is a build-time
+`CompositionConfigurationException` naming every conflicting source; there is no
+last-wins override in Milestone 3.
+
+`ICompositionContext` gains a second, descriptor-less `Resolve<T>()` overload
+alongside the existing descriptor-based one, for hand-written registration/
+configuration-rule factories that have no generated-plan position to describe. Each
+factory invocation gets its own manual-resolve invocation frame (pushed before the
+factory runs, popped in `finally` after it returns or throws); every descriptor-less
+`Resolve<T>()` call made during that invocation shares and advances that frame's
+counter (`PathSegment.ManualResolve`, a call-sequence ordinal, never the requested
+type), while a nested factory invocation gets its own independent frame — defined in
+[ADR-0012's Amendment 3](adr/0012-composition-path-identity-and-deterministic-random-forking.md#amendment-3-2026-07-29-manualresolve-segments-for-factoryrule-authored-resolution).
+
+Service injection — this milestone's headline new capability — is a fallback *inside*
+stage 3, not a new pipeline stage or a new public extensibility surface:
+`builder.UseServiceProvider(IServiceProvider provider)` stores the BCL's own
+`System.IServiceProvider` (no new package dependency for core `Compono`, since it
+ships in `System`, not a NuGet package). On a stage-3 registration miss, the
+configured provider is consulted before falling through to stage 4; `null` means
+unresolved, an exception the provider throws is authoritative (surfaced as
+`CompositionException` with the original preserved as `InnerException`, never
+swallowed), and a non-null result is checked assignable to the requested type before
+use. `Compono` never creates or disposes a scope — the caller owns the provider and
+its lifetime entirely. A richer `Microsoft.Extensions.DependencyInjection`-specific
+integration (`IServiceCollection` auto-registration, scoping, keyed services) is
+explicitly out of scope for core — a future optional package, not designed yet,
+would build on `UseServiceProvider` the same way `Compono.NSubstitute`/
+`Compono.Bogus` build on core's other extension points.
+
+## Configuration Rules
+
+Resolved by [ADR-0020](adr/0020-composition-configuration-rules.md) (Milestone 3,
+not yet implemented). Two structurally different mechanisms share one public
+`builder.For<T>()` DSL:
+
+- **Type and member value rules** (`.For<T>().Use(...)`,
+  `.For<T>().Member(x => x.Y).Use(...)`) compile into small, internal,
+  Compono-authored `ICompositionProvider` implementations registered into stage 4 —
+  a user never implements `ICompositionProvider` directly. A member rule's matching
+  identity is `(declaring type, member name)`, matched directly against the
+  incoming request's `DeclaringType`/`Name` (Composition Requests, above, and
+  [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+  third amendment) — never inferred from path state — with the rule's own key
+  captured from the member-access expression at the point `.Member(...)` is called;
+  a type rule matches any request for exactly that type (no assignability matching
+  in Milestone 3). Member rules take precedence over type rules for the same
+  effective request — specificity-based, not call-order-based. Two rules claiming
+  the identical key is a build-time `CompositionConfigurationException`, the same as
+  a duplicate registration.
+- **Collection-size configuration** (`builder.WithCollectionSize(n)`,
+  `.For<T>().Member(x => x.Y).WithCollectionSize(n)`) is **not** a stage-4 rule —
+  it's immutable policy on `CompositionConfiguration`, queried directly by stage 7's
+  collection dispatch. A single new `ICompositionContext.ResolveCollectionSize(in
+  CompositionRequestDescriptor)` method (not a root/member pair — a root-level
+  collection plan reads the configuration's global default directly from internal
+  runtime code, with no public API call needed, since it never crosses the
+  generated-code boundary) replaces
+  [ADR-0013](adr/0013-collection-generation-semantics.md)'s previously-hardcoded
+  default of `3`. This parameterizes ADR-0013's constant without reopening its
+  retry/uniqueness/ordering semantics.
 
 ## Deterministic Randomness
 
@@ -676,7 +812,31 @@ Owns:
   `CollectionPlanCache<T>` and `UniqueValueResolver` are also `public` for
   the identical reason, not a discretionary API design choice.
 - Public versus internal use of `Type`
-- Exact profile model
+- ~~Exact profile model~~ — resolved by
+  [ADR-0018](adr/0018-composition-profiles.md): `ICompositionProfile` interface
+  (not an abstract base class), eager in-order application, type-keyed cycle
+  detection.
+- **Public provider extensibility (how integration packages contribute open-ended
+  pattern-matching logic to stages 5/6)** — evaluated and explicitly deferred to
+  Milestone 5 during the Milestone 3 design review: Milestone 3's own scope
+  (registrations, profiles, type/member rules, `IServiceProvider` fallback) needs no
+  such interface — type/member value rules compile into internal,
+  Compono-authored providers ([ADR-0020](adr/0020-composition-configuration-rules.md)),
+  and service injection folds into stage 3 as a context-owned fallback
+  ([ADR-0019](adr/0019-registrations-and-service-provider-injection.md)) — neither
+  needs a public `ICompositionProvider`-shaped contract. NSubstitute (Milestone 5)
+  is expected to be the first real consumer that needs one (matching "any interface
+  type," a pattern no closed-set rule can express), so the interface gets designed
+  against that concrete need rather than speculatively now. No design has been
+  chosen yet.
+- **Richer `Microsoft.Extensions.DependencyInjection` integration** (`IServiceCollection`
+  auto-registration, per-composition scoping, keyed services) — explicitly out of
+  scope for `Compono` core per
+  [ADR-0019](adr/0019-registrations-and-service-provider-injection.md); core only
+  supports the BCL's own `System.IServiceProvider` via `UseServiceProvider(...)`. A
+  future optional package could build MEDI-specific ergonomics on top of that
+  extension point, but isn't designed here — no concrete requirement has motivated
+  one yet.
 - ~~Scope lifetime model~~ — resolved for Milestone 2 by
   [ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md)
   (carried forward from the now-superseded ADR-0008): one scope per root

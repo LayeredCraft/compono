@@ -4,9 +4,8 @@ namespace Compono;
 
 /// <summary>
 /// A composition operation's root deterministic state - either generated once per root operation, or
-/// an explicit value a test seam supplies (<see cref="Composer.CreateRootForTesting{T}"/>/
-/// <see cref="Composer.CreateManyForTesting{T}"/>) before Milestone 3's public <c>WithSeed(...)</c>
-/// builder exists.
+/// an explicit value from <see cref="CompositionBuilder.WithSeed"/> (or, internally, a test seam:
+/// <see cref="Composer.CreateRootForTesting{T}"/>/<see cref="Composer.CreateManyForTesting{T}"/>).
 /// </summary>
 /// <remarks>
 /// Per <c>docs/adr/0009-deterministic-seed-and-forkable-random-source.md</c>, the same seed produces

@@ -607,6 +607,66 @@ JIT/reflection cost is paid once per distinct closed collection type
 (typically a handful of types across a whole test run), not per resolved
 value, on runtimes where JIT is available at all.
 
+## Amendment 3 (2026-07-29): `CompositionRequestDescriptor` gains `DeclaringType`
+
+Milestone 3 design review ([ADR-0020](0020-composition-configuration-rules.md))
+needs a member rule (`.For<Customer>().Member(x => x.Email).Use(...)`) to match a
+request by **declaring type + member name**, decided against without ambiguity for
+any generated request shape — nested graphs, records, and any future generated-plan
+change alike. The design review's first draft inferred the declaring type from the
+*parent* `CompositionPathNode`'s `RequestedType` in the path chain; on reflection
+that's indirection a rule shouldn't have to rely on when the generator already knows
+the declaring type at the exact point it emits the request. This amendment adds it
+directly to the descriptor instead:
+
+```csharp
+public readonly struct CompositionRequestDescriptor
+{
+    public CompositionRequestKind Kind { get; }
+    public int Ordinal { get; }
+    public string Name { get; }
+    public Type DeclaringType { get; }   // new
+    public Nullability Nullability { get; }
+
+    public CompositionRequestDescriptor(
+        CompositionRequestKind kind, int ordinal, string name, Type declaringType, Nullability nullability)
+    {
+        Kind = kind;
+        Ordinal = ordinal;
+        Name = name;
+        DeclaringType = declaringType;
+        Nullability = nullability;
+    }
+}
+```
+
+`DeclaringType` is the type whose constructor/required-member declares this
+parameter/member — for `Customer(string firstName, ...)`, every constructor
+parameter's descriptor carries `DeclaringType = typeof(Customer)`, generator-emitted
+exactly like `Ordinal`/`Name` already are (no new generator capability needed — the
+declaring type is already in scope at descriptor-emission time, since it's the type
+the whole plan is being generated for, or an ancestor type for an inherited required
+member per [ADR-0012](0012-composition-path-identity-and-deterministic-random-forking.md)
+Amendment 2's base-to-derived ordinal algorithm — `DeclaringType` is the type that
+*declares* the member, which for an inherited required member is the base type, not
+the composed leaf type). `CompositionContext` carries `DeclaringType` forward
+unchanged onto the internal `CompositionRequest` it expands the descriptor into, so
+stage 4's compiled rule matching (ADR-0020) reads it directly off the request rather
+than inferring it from path state. `CompositionRequestKind.ConstructorParameter`/
+`RequiredMember` are the only kinds that populate it meaningfully — `DeclaringType`
+is unused (and unread) for a request with no member identity to speak of (a
+collection element/dictionary key/value, or a `ManualResolve` invocation, per
+[ADR-0012 Amendment 3](0012-composition-path-identity-and-deterministic-random-forking.md#amendment-3-2026-07-29-manualresolve-segments-for-factoryrule-authored-resolution)).
+
+This is purely additive to this ADR's descriptor shape — every existing field is
+unchanged, and `DeclaringType` is never an input to random-fork hashing (ADR-0012's
+existing ban on type identity feeding hashing is unaffected; `DeclaringType` is used
+only for rule *matching*, evaluated at stage 4, before any hashing for that request
+happens). `Compono.Generators`' descriptor-emission templates and every existing
+generated-plan snapshot need updating to emit the new argument — a mechanical,
+`global::`-qualified `typeof(...)` reference alongside the existing `Kind`/
+`Ordinal`/`Name`/`Nullability` arguments.
+
 ## Links
 
 - Supersedes [ADR-0007](0007-composition-request-and-provider-pipeline.md)
@@ -633,3 +693,5 @@ value, on runtimes where JIT is available at all.
   Per the "an accepted ADR is a historical record" rule, that retraction
   is recorded only here in ADR-0014's own Context, not by editing
   Amendment 2's text above.
+- [ADR-0020](0020-composition-configuration-rules.md) — the member-rule matching
+  that motivates Amendment 3's `DeclaringType` field.

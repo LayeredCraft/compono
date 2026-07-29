@@ -44,4 +44,5 @@ one. This file is just the mechanics: numbering, status, and the index.
 | Plan | Title | Status |
 |---|---|---|
 | [0001](0001-milestone-1-source-generation-foundation.md) | Milestone 1: Source-Generation Foundation | Done |
-| [0002](0002-milestone-2-core-composition-engine.md) | Milestone 2: Core Composition Engine | Not Started |
+| [0002](0002-milestone-2-core-composition-engine.md) | Milestone 2: Core Composition Engine | Done |
+| [0003](0003-milestone-3-profiles-and-configuration.md) | Milestone 3: Profiles and Configuration | In Progress |

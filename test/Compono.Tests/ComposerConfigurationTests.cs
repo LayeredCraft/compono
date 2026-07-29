@@ -1,0 +1,105 @@
+namespace Compono.Tests;
+
+/// <summary>
+/// Exercises Milestone 3 Phase 0's public configuration surface -
+/// <see cref="Composer.Create(Action{CompositionBuilder})"/>, <see cref="CompositionBuilder.WithSeed"/>,
+/// and the resulting <see cref="Composer"/>'s reuse across multiple <see cref="Composer.Create{T}"/>/
+/// <see cref="Composer.CreateMany{T}"/> calls.
+/// </summary>
+public sealed class ComposerConfigurationTests
+{
+    [Fact]
+    public void Create_WithNullConfigureCallback_Throws()
+    {
+        var act = () => Composer.Create(configure: null!);
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void Create_WithEmptyConfigureCallback_ComposesSuccessfully()
+    {
+        PlanCache<ConfigurationProbe>.Instance = new FixedPlan(new ConfigurationProbe("from-empty-callback"));
+
+        try
+        {
+            var composer = Composer.Create(_ => { });
+
+            var result = composer.Create<ConfigurationProbe>();
+
+            result.Value.Should().Be("from-empty-callback");
+        }
+        finally
+        {
+            PlanCache<ConfigurationProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void Create_WithExplicitSeed_MatchesCreateRootForTesting_WithTheSameSeed()
+    {
+        PlanCache<RandomProbe>.Instance = new RandomCapturingPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.WithSeed(4219));
+
+            var viaBuilder = composer.Create<RandomProbe>();
+            var viaTestSeam = Composer.CreateRootForTesting<RandomProbe>(new CompositionSeed(unchecked((ulong)4219)));
+
+            viaBuilder.Should().Be(viaTestSeam);
+        }
+        finally
+        {
+            PlanCache<RandomProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void Create_CalledTwiceOnTheSameComposer_ProducesIdenticalOutput_WhenSeedIsExplicit()
+    {
+        PlanCache<RandomProbe>.Instance = new RandomCapturingPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.WithSeed(4219));
+
+            var first = composer.Create<RandomProbe>();
+            var second = composer.Create<RandomProbe>();
+
+            first.Should().Be(second);
+        }
+        finally
+        {
+            PlanCache<RandomProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void WithSeed_CalledTwice_ThrowsWithOneDuplicateConfigurationOptionErrorNamingBothSources()
+    {
+        var act = () => Composer.Create(builder => builder.WithSeed(1).WithSeed(2));
+
+        var exception = act.Should().Throw<CompositionConfigurationException>().Which;
+        exception.Errors.Should().ContainSingle();
+        var error = exception.Errors[0].Should().BeOfType<CompositionConfigurationError.DuplicateConfigurationOption>().Which;
+        error.OptionName.Should().Be("WithSeed");
+        error.Sources.Should().HaveCount(2);
+        error.Sources.Should().AllSatisfy(source => source.Should().Be(ConfigurationSource.Direct));
+    }
+
+    private sealed record ConfigurationProbe(string Value);
+
+    private sealed record RandomProbe(ulong Value);
+
+    private sealed class FixedPlan(ConfigurationProbe value) : ICompositionPlan<ConfigurationProbe>
+    {
+        public ConfigurationProbe Compose(ICompositionContext context) => value;
+    }
+
+    private sealed class RandomCapturingPlan : ICompositionPlan<RandomProbe>
+    {
+        public RandomProbe Compose(ICompositionContext context) =>
+            new(((CompositionContext)context).Random.NextUInt64());
+    }
+}
