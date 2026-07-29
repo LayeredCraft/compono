@@ -32,4 +32,17 @@ internal abstract record CompositionResult
     /// requested type.
     /// </param>
     internal sealed record Success(object? Value) : CompositionResult;
+
+    /// <summary>
+    /// A context-owned authoritative stage established exclusive ownership of the request but
+    /// couldn't complete it - never constructed by an ordinary <see cref="ICompositionProvider"/>.
+    /// </summary>
+    /// <param name="Message">
+    /// Describes what went wrong (an invalid shared/registered value, or a detected construction
+    /// cycle) - <see cref="CompositionContext"/> converts this directly into a thrown
+    /// <see cref="CompositionException"/> at the outward-facing <c>Resolve</c>/<c>ResolveRoot</c>
+    /// boundary, per
+    /// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>.
+    /// </param>
+    internal sealed record Failure(string Message) : CompositionResult;
 }
