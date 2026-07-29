@@ -26,8 +26,13 @@
     <ItemGroup>
         <!-- Internal test seams (CompositionContext's per-stage-provider constructor, and future
              Composer.CreateRootForTesting/CreateManyForTesting) - never widened to public just so
-             a test can reach them. See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md. -->
+             a test can reach them. See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md.
+             "TestsAssembly" is the fixed name Compono.Generators.Tests' GeneratorTestHelpers gives
+             every in-memory assembly it compiles for CompileAndExecute (real end-to-end execution of
+             a generated plan) - granting it the same seam lets those tests use a fixed seed via
+             Composer.CreateRootForTesting instead of Composer.Create()'s non-deterministic one. -->
         <InternalsVisibleTo Include="Compono.Tests" />
+        <InternalsVisibleTo Include="TestsAssembly" />
     </ItemGroup>
 
 </Project>

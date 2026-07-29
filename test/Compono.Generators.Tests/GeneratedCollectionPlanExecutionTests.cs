@@ -53,6 +53,15 @@ public sealed class GeneratedCollectionPlanExecutionTests
         // that the template emits the right shape (CollectionPlanVerifyTests) or that IRandomSource
         // forks independently in isolation (RandomSourceTests/CompositionRandomIntegrationTests in
         // Compono.Tests).
+        //
+        // Composer.CreateRootForTesting (not Composer.Create) - a fixed seed makes this reproducible
+        // on failure and removes any dependence, however astronomically small, on GUID-space
+        // collision odds; "TestsAssembly" (this harness's fixed compiled-assembly name, see
+        // GeneratorTestHelpers.GenerateFromSource) is granted the same InternalsVisibleTo seam
+        // Compono.Tests already has, specifically so generated-plan execution tests can reach it.
+        // Confirmed directly before fixing: PR #11 review caught that the original Composer.Create()
+        // version couldn't be reproduced from a bug report and could theoretically (not practically)
+        // fail OnlyHaveUniqueItems() on a genuine collision despite correct path construction.
         var result = GeneratorTestHelpers.CompileAndExecute(
             new CodeGenerationOptions
             {
@@ -63,8 +72,17 @@ public sealed class GeneratedCollectionPlanExecutionTests
                     {
                         public static object Run()
                         {
+                            // The generator only discovers a type from a `Composer.Create<T>()` call
+                            // site (CreateInvocationDiscovery), not from CreateRootForTesting - this
+                            // discarded call exists purely so the generator emits
+                            // ICompositionPlan<List<Guid>>/registers it into CollectionPlanCache; the
+                            // actual assertion runs the same generated, cache-dispatched plan through
+                            // CreateRootForTesting's fixed seed instead, for reproducibility.
                             var composer = Compono.Composer.Create();
-                            return composer.Create<System.Collections.Generic.List<System.Guid>>();
+                            _ = composer.Create<System.Collections.Generic.List<System.Guid>>();
+
+                            var seed = new Compono.CompositionSeed(4219);
+                            return Compono.Composer.CreateRootForTesting<System.Collections.Generic.List<System.Guid>>(seed);
                         }
                     }
                     """,

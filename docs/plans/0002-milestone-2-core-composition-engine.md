@@ -963,6 +963,37 @@ ADR-0014. The task list below reflects the corrected shape.
   `DynamicNestedInsideDictionaryValueTypeArgument_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
   (the generic-type-argument-recursion case, `Dictionary<int,
   List<dynamic>>`, proving the fix isn't array-specific).
+- A twelfth round of PR #11 review found one real issue and one
+  status question resolved as no-action. The real issue:
+  `GeneratedCollectionPlanExecutionTests.ListElements_EachGetsIndependentOutput_ThroughARealDispatchedPlan`
+  called `Composer.Create()` (a fresh, non-deterministic seed every
+  run), so a failure couldn't be reproduced from a bug report, and the
+  `OnlyHaveUniqueItems()` assertion carried a (astronomically small but
+  nonzero) theoretical dependence on GUID-space collision. Fixed by
+  switching the asserted call to `Composer.CreateRootForTesting<T>`
+  with a fixed seed, the same seam `CompositionRandomIntegrationTests`
+  already uses in `Compono.Tests` - which required granting
+  `Compono`'s `InternalsVisibleTo` to `"TestsAssembly"`, the fixed name
+  `GeneratorTestHelpers.CompileAndExecute` gives every in-memory
+  compiled test assembly, alongside the existing `Compono.Tests` grant.
+  Since the generator only discovers a type from a `Composer.Create<T>()`
+  call-site pattern (`CreateInvocationDiscovery`), not from
+  `CreateRootForTesting`, the test source keeps a discarded
+  `composer.Create<List<Guid>>()` call purely to trigger plan
+  generation/registration, then asserts against
+  `CreateRootForTesting`'s fixed-seed result - both dispatch through the
+  exact same generated, `CollectionPlanCache`-registered plan instance,
+  so this is still real end-to-end dispatch, not a shortcut around it.
+  The status question: whether Phase 2's header should already read
+  `Done` now that every checklist item is checked - resolved as
+  no-action, consistent with round 10's answer to the same question and
+  with this plan's own established convention: Phase 0 and Phase 1 both
+  stayed at their working status until their PRs (#10 and its
+  predecessor) actually merged, only becoming `Done` at that point, per
+  `AGENTS.md`'s "the prior phase's status/PR-merge state should be
+  current before the next phase starts." PR #11 is still open, so
+  Phase 2 stays `In Progress` until it merges - `Done` now would
+  contradict that established pattern, not fix a real inconsistency.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 
