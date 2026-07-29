@@ -471,6 +471,31 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task PointerElementArrayTypeArgument_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    public static class EntryPoint
+                    {
+                        public static unsafe void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // int*[] is legal C# (unlike List<int*>, which the C# compiler itself
+                            // rejects as a generic type argument) - CollectionWellKnownTypes must not
+                            // classify a pointer/function-pointer element array as a collection shape,
+                            // or a generated collection plan would try to emit context.Resolve<int*>(),
+                            // a compiler error in generated code rather than a Compono diagnostic.
+                            // Regression coverage for the PR #11 review finding.
+                            var value = composer.Create<int*[]>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0006",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task RequiredProperty_EmitsObjectInitializer() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

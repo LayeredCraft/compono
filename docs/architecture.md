@@ -658,3 +658,22 @@ Owns:
 - ~~Whether source-generation contracts live in `Compono` or
   `Compono.Generators`~~ — resolved by
   [ADR-0003](adr/0003-generator-package-distribution.md).
+- **Cross-assembly plan-cache collision** — `PlanCache<T>` (ADR-0004) and
+  `CollectionPlanCache<T>` (ADR-0010's third amendment) both register via
+  an unconditional `Instance = new ...Plan()` in a generated module
+  initializer; if two different consuming assemblies loaded into the same
+  process both discover a generated plan for the exact same closed type
+  (most plausible for `CollectionPlanCache<T>`, since a BCL collection
+  type like `List<Address>` is exactly the kind of type two independently
+  compiled assemblies could both legitimately reach if they share a
+  library type), whichever assembly's module initializer runs last wins
+  silently — module initializer order across assemblies isn't something
+  either `PlanCache<T>` or `CollectionPlanCache<T>` controls or detects.
+  Flagged during PR #11 review as a `CollectionPlanCache<T>` concern, but
+  it's actually a `PlanCache<T>`-level property unchanged since Milestone
+  1 (ADR-0004) that `CollectionPlanCache<T>` deliberately mirrors, not a
+  new defect Milestone 2 introduced — deferred as a class-of-problem
+  design question (assembly-qualified keys? last-wins-with-a-diagnostic?
+  something else?) affecting both caches uniformly, not patched narrowly
+  into just the newer one. Revisit if/when a real multi-assembly
+  collision is actually hit — no design has been chosen yet.

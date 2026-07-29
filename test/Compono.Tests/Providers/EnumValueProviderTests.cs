@@ -27,9 +27,10 @@ public sealed class EnumValueProviderTests
     public void ComposeDifferentEnumTypes_BothReturnDefinedMembers()
     {
         // Regression coverage for the PR #11 review finding: EnumValueProvider caches
-        // Enum.GetValues(type) per enum type (ConcurrentDictionary<Type, Array>) rather than
-        // re-allocating on every resolution - composing two distinct enum types in the same process
-        // must not have the second type's cache entry collide with or overwrite the first's.
+        // Enum.GetValuesAsUnderlyingType(type) per enum type (ConcurrentDictionary<Type, Array>)
+        // rather than re-allocating on every resolution - composing two distinct enum types in the
+        // same process must not have the second type's cache entry collide with or overwrite the
+        // first's.
         var dayOfWeekSeed = new CompositionSeed(3);
         var consoleColorSeed = new CompositionSeed(4);
 
@@ -38,5 +39,23 @@ public sealed class EnumValueProviderTests
 
         Enum.IsDefined(dayOfWeek).Should().BeTrue();
         Enum.IsDefined(consoleColor).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ComposeEnum_DoesNotUseARequiresDynamicCodeApi()
+    {
+        // Regression coverage for the PR #11 review finding: Enum.GetValues(Type) - the non-generic,
+        // Type-based overload EnumValueProvider originally used - is annotated [RequiresDynamicCode]
+        // and breaks under Native AOT. This test can't observe an actual AOT publish, but proves the
+        // provider still works correctly against Enum.GetValuesAsUnderlyingType(Type)/Enum.ToObject
+        // (neither carries that annotation) for every declared member of a real enum type, across
+        // many draws, not just one - see also NullableValueProviderTests.
+        var seed = new CompositionSeed(5);
+
+        for (var i = 0; i < 50; i++)
+        {
+            var result = Composer.CreateRootForTesting<DayOfWeek>(seed.Fork(i.ToString()));
+            Enum.IsDefined(result).Should().BeTrue();
+        }
     }
 }

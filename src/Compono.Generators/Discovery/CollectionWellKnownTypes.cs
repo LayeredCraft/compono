@@ -48,6 +48,21 @@ internal sealed class CollectionWellKnownTypes
 
     internal bool TryClassify(ITypeSymbol type, out CollectionShapeInfo shape)
     {
+        // A pointer/function-pointer element type is legal C# for a rank-1 array
+        // (`int*[]`/`delegate*<int, int>[]`) even though it's never legal as a generic type
+        // argument - unlike List<T>/HashSet<T>/Dictionary<TKey, TValue>, whose element type can
+        // never be a pointer in the first place (the C# compiler already rejects `List<int*>` before
+        // this code ever runs). Left unclassified here, this falls through to
+        // ComposedTypeAnalyzer's ordinary "not a named type" diagnostic (CMP0006) instead of being
+        // treated as a collection root/member and reaching a generated collection plan that would
+        // try (and fail) to emit `context.Resolve<int*>()` - pointer types can't be generic type
+        // arguments, so that would be a compiler error in generated code, not a Compono diagnostic.
+        if (type is IArrayTypeSymbol { Rank: 1, ElementType: IPointerTypeSymbol or IFunctionPointerTypeSymbol })
+        {
+            shape = default;
+            return false;
+        }
+
         if (type is IArrayTypeSymbol { Rank: 1 } array)
         {
             shape = new CollectionShapeInfo(CollectionShape.Array, array.ElementType, KeyType: null);

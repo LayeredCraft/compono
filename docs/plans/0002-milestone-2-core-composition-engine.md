@@ -679,6 +679,45 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   collection, silently stale against ADR-0010's third amendment (the
   `CollectionPlanCache<T>` hybrid dispatch) — updated to describe the
   actual current shape.
+- A fourth round of PR #11 review found two more real gaps and one
+  pre-existing, out-of-scope property: (1) **`EnumValueProvider` used
+  `Enum.GetValues(Type)`** — the non-generic, `Type`-based overload,
+  which is annotated `[RequiresDynamicCode]` (confirmed directly via
+  reflection on the BCL method's attributes) and breaks under Native AOT
+  — a real violation of ADR-0001's no-reflection-by-default rule, the
+  same rule ADR-0010's third amendment retracted the reflection-based
+  collection bridge over. Fixed by switching to
+  `Enum.GetValuesAsUnderlyingType(Type)` + `Enum.ToObject(Type, object)`
+  (neither carries the annotation, confirmed the same way) — with one
+  subtlety caught before it shipped: a boxed *underlying-type* value
+  (e.g. boxed `int`) unboxes correctly to a non-nullable enum type but
+  throws `InvalidCastException` unboxing to `Nullable<TEnum>`
+  specifically, so the fix must box via `Enum.ToObject` (boxed as the
+  actual enum type), not hand back the underlying-type box directly —
+  `NullableValueProviderTests.ComposeNullableEnum_ComposesTheUnderlyingType_NeverNull`
+  (already existing) is the regression guard, and stayed green through
+  the fix since it was never actually broken, only would have been by a
+  more naive version of this fix. (2) **A pointer/function-pointer-element
+  rank-1 array root or member** (`composer.Create<int*[]>()`) reached
+  collection classification and a generated collection plan tried to
+  emit `context.Resolve<int*>()` — a compiler error in generated code
+  (pointer types can't be generic type arguments), confirmed directly.
+  `List<T>`/`HashSet<T>`/`Dictionary<TKey, TValue>` can't have this
+  problem (the C# compiler already rejects a pointer generic type
+  argument before this code ever runs), so this was array-specific.
+  Fixed in `CollectionWellKnownTypes.TryClassify`: a rank-1 array whose
+  element type is `IPointerTypeSymbol`/`IFunctionPointerTypeSymbol` is
+  left unclassified, falling through to the existing CMP0006 diagnostic
+  path like any other unsupported shape. (3) The review's third finding
+  — `CollectionPlanCache<T>`'s module initializer unconditionally
+  overwriting `Instance` across multiple consuming assemblies in one
+  process — was verified to be an unchanged property of `PlanCache<T>`
+  itself (Milestone 1, ADR-0004), not a defect Milestone 2 introduced;
+  `CollectionPlanCache<T>` deliberately mirrors `PlanCache<T>`'s exact
+  registration shape. Deferred as a class-of-problem design question
+  affecting both caches, not patched narrowly into just the new one —
+  see `docs/architecture.md`'s Open Architectural Decisions, new
+  "Cross-assembly plan-cache collision" entry.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 
