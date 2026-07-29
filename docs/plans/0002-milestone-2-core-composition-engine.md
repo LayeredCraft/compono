@@ -1201,9 +1201,9 @@ ADR-0014. The task list below reflects the corrected shape.
   and confirming an invalid first value doesn't poison the scope for a
   subsequent shared request.
 
-### Phase 4 — `CreateMany<T>()` and diagnostics polish (Not Started)
+### Phase 4 — `CreateMany<T>()` and diagnostics polish (In Progress)
 
-- [ ] `Composer.CreateMany<T>(int count)` — `count` independent root
+- [x] `Composer.CreateMany<T>(int count)` — `count` independent root
       composition operations (Execution Flow section, above), each
       item's root seed forked from the batch root via `"CreateMany"` +
       index (ADR-0012) — no cross-item scope reuse. Contract, per
@@ -1213,7 +1213,7 @@ ADR-0014. The task list below reflects the corrected shape.
       returns an empty, materialized, non-null `IReadOnlyList<T>`; return
       type is `IReadOnlyList<T>` (not `IEnumerable<T>` — the batch is
       always fully, eagerly materialized, never deferred)
-- [ ] The allocation-free-on-success trace buffer (ADR-0010): checkpoint
+- [x] The allocation-free-on-success trace buffer (ADR-0010): checkpoint
       on `Resolve<T>`/`ResolveRoot<T>` entry, append a compact
       `ProviderAttempt` per stage/provider tried, rewind on success,
       materialize into the durable diagnostic on failure before the
@@ -1222,16 +1222,16 @@ ADR-0014. The task list below reflects the corrected shape.
       next sibling is even attempted), the materialized trace on failure
       naturally contains only the active failing branch's own attempts —
       never an already-succeeded, already-rewound sibling's
-- [ ] Structured diagnostic type surfaces root request, full path (as a
+- [x] Structured diagnostic type surfaces root request, full path (as a
       display string derived from `CompositionPath`), the materialized
       trace, seed, and a human-readable remediation-oriented message,
       matching `docs/architecture.md`'s example format
-- [ ] Unit test asserting the trace-retention property directly: a type
+- [x] Unit test asserting the trace-retention property directly: a type
       with two successfully-resolved constructor parameters followed by a
       third that fails produces a diagnostic trace containing only the
       failing parameter's attempts (and its ancestors' own attempts) —
       not the two already-succeeded siblings'
-- [ ] Benchmark (extending `Compono.Benchmarks` from Milestone 1, widened
+- [x] Benchmark (extending `Compono.Benchmarks` from Milestone 1, widened
       mid-plan per PR #11 review — see this section's note below): confirm
       the trace buffer is actually allocation-free on the success path;
       if it measurably harms the hot path, fall back to shallow
@@ -1258,37 +1258,421 @@ ADR-0014. The task list below reflects the corrected shape.
       - `CreateMany<T>(count)` scaling behavior across a couple of `count`
         values, to catch anything unexpectedly super-linear (fork-key
         derivation, scope allocation) before it ships
-- [ ] Exit-criteria pass: representative object graph (nested composable
+- [x] Exit-criteria pass: representative object graph (nested composable
       type + built-ins + a collection) composes deterministically end to
       end via `Create<T>()` and `CreateMany<T>()`, matching the Execution
       Flow section above exactly
-- [ ] `CreateMany` stability test: items 0–2 of `CreateMany<T>(3)` and
+- [x] `CreateMany` stability test: items 0–2 of `CreateMany<T>(3)` and
       `CreateMany<T>(10)` (same explicit root seed) are byte-for-byte
       identical
-- [ ] `CreateMany` argument/return contract tests: `count < 0` throws
+- [x] `CreateMany` argument/return contract tests: `count < 0` throws
       `ArgumentOutOfRangeException`; `count == 0` returns an empty,
       non-null `IReadOnlyList<T>`; a standalone `Create<T>()` (via
       `CreateRootForTesting`) called twice with the same explicit seed
       produces identical output, confirming no hidden per-call state
       beyond the seed itself
 
+**Notes on what actually happened, versus what was scoped:**
+
+- `ProviderAttempt` ended up `(PipelineStage Stage, CompositionAttemptOutcome
+  Outcome)` — no distinct "provider id" field, despite ADR-0010's own text
+  describing one. A PR #13 review (Codex) flagged this as contradicting
+  the accepted ADR; formalized as its own record rather than an in-place
+  ADR-0010 edit (this repo's own established "extract a sub-decision into
+  a new ADR" pattern, per ADR-0014's precedent) —
+  [ADR-0015](../adr/0015-provider-identity-deferred-in-provider-attempt.md).
+- `PipelineStage` and `CompositionAttemptOutcome` are `public` (not
+  `internal`), and so, transitively, is `ProviderAttempt` — a public
+  `CompositionDiagnostic.Trace` can't expose an internal element type.
+  This is a deliberate, narrow widening of the public surface
+  (`coding-standards.md`'s "as narrow as the actual callers require"),
+  justified by `docs/public-api.md`'s own pre-existing Diagnostics API
+  section already showing `exception.Diagnostic` as consumer-facing.
+- `CompositionException`'s existing `Message` (the short, single-line
+  reason - e.g. `"The shared value for 'Widget' is null..."`) is left
+  exactly as-is; the new `CompositionDiagnostic.Message` carries the same
+  string. `CompositionDiagnostic.ToString()` (what
+  `Console.WriteLine(exception.Diagnostic)` renders, per
+  `docs/public-api.md`) is the only place the full tree + seed text lives
+  - keeping `Exception.Message` short avoids relitigating every existing
+    `WithMessage("*...*")` test's substring assumption, and matches
+    `docs/public-api.md`'s own example, which reads `exception.Diagnostic`
+    separately from the base exception.
+- The materialized `Trace` slice is always taken from checkpoint `0` (the
+  whole operation), not the checkpoint of the `Resolve<T>` call that
+  actually threw - the per-call `checkpoint` local is still used for each
+  call's own `Rewind` on success, but a failing call reports the *entire*
+  surviving buffer, which by construction (every already-succeeded
+  sibling already rewound itself out) is exactly "the failing branch's
+  own attempts and its ancestors'," per the task list wording above.
+  Threading the local checkpoint into `BuildException` instead would have
+  produced only the failing leaf's own attempts, silently dropping every
+  ancestor's - caught while writing
+  `CompositionDiagnosticsTests.ResolveRoot_DiagnosticTrace_RetainsOnlyTheFailingBranch_NotAlreadySucceededSiblings`
+  before it was ever committed as a bug.
+- `CompositionPath` gained `RootType` and `ToTreeString()` alongside the
+  existing `ToDisplayString()` (kept unchanged, still used by the
+  recursion-cycle message) rather than replacing it - the tree format is
+  specific to `CompositionDiagnostic.Path`, and the dotted form's callers
+  (`BuildCycleMessage`) have their own established test coverage
+  (`CompositionRecursionTests`) that doesn't need to move.
+- `Compono.Tests` doesn't reference `Compono.Generators` as an analyzer
+  (Phase 0's note, still true) - every Phase 4 test (`CreateMany`
+  contract/stability, the diagnostics trace-retention test, and the
+  `Customer`/`Address` end-to-end exit-criteria test) uses a hand-written
+  `ICompositionPlan<T>` test double via `PlanCache<T>.Instance`, the same
+  pattern every earlier phase's tests already established.
+- **Real manual verification** (`tasks/implement.md` step 7, this
+  phase's own new public API surface): `dotnet pack`'d `Compono` into a
+  clean local feed and referenced it from a genuinely separate throwaway
+  console project (same pattern Phase 2's round 5 established) exercising
+  `Create<T>()`, `CreateMany<T>(count)` (positive/zero/negative), and a
+  real recursion failure's `exception.Diagnostic` through the real
+  generator - not `Compono.Tests`' hand-written `PlanCache<T>` fakes. This
+  caught one real gap: `CompositionPath.ToTreeString()`'s node labels used
+  `Type.Name` directly, which renders a closed generic in its raw CLR
+  form (`List\`1`) instead of a readable one - `Console.WriteLine(exception.Diagnostic)`
+  for a `List<Node>` member printed `` List`1 Children `` instead of
+  `List<Node> Children`. Fixed by adding `CompositionPath.FriendlyTypeName`
+  (recurses through nested generic type arguments, e.g.
+  `Dictionary<string, List<int>>`) and using it in both `ToTreeString()`
+  call sites; `CompositionDiagnosticsTests.ResolveRoot_DiagnosticPath_RendersClosedGenericTypes_InCSharpStyleNotRawClrForm`
+  is the regression guard. `ToDisplayString()` (the dotted form the
+  recursion-cycle *message* still uses) was deliberately left alone - it
+  already only reads `Name` values off `PathSegment`, never `RequestedType.Name`,
+  so it was never affected by this gap.
+- **Benchmark result (real, not extrapolated, `DefaultJob` — not a quick
+  `--job short` smoke test):** three new `Compono.Benchmarks` classes,
+  all against the same `Customer`/`Address` graph (including a
+  `List<string>` collection member), run through the real generator via
+  `dotnet run -c Release -- --filter "*Resolution*"`, mirroring
+  `ArchitectureBenchmarks`/`EcosystemBenchmarks`' split - a review round
+  flagged that the first version of this benchmark had no `new()`/
+  reflection/AutoFixture comparison at all, unlike Milestone 1's
+  benchmarks. `ResolutionBenchmarks` (`Create`/`CreateMany`) measured
+  `Create<Customer>()` at ~2.73 KB allocated per call regardless of
+  `CreateMany`'s batch size, and `CreateMany<T>(count)` scaling linearly
+  with `count` (10.18× allocation at `count=10`, 101.47× at `count=100`,
+  against the `count=1` baseline - no super-linear growth). This confirms
+  the checkpoint/rewind trace buffer doesn't measurably harm the hot path;
+  the shallow-diagnostics fallback ADR-0010 reserved for that case was not
+  needed. `ResolutionEcosystemBenchmarks` (`Generated` vs `AutoFixture`)
+  measured Generated at ~90.9x faster and ~2.75% of AutoFixture's
+  allocation - `Customer` actually gives AutoFixture real
+  randomized-value-generation work, unlike `Leaf`.
+  `ResolutionArchitectureBenchmarks` (`Direct`/`Generated`/`Reflection`,
+  the new `ReflectionComposer.ComposeRecursive<T>()`) is **not** a clean
+  win/loss read like the `Leaf` comparison: the reflection baseline fills
+  every field with a fixed placeholder value rather than replicating
+  Compono's real random-value generation, so it's faster than `Generated`
+  for doing categorically less work, not because reflection dispatch
+  beats source-generated dispatch - documented explicitly in both the
+  class' XML doc `<remarks>` and `docs/performance.md`, the mirror image
+  of the AutoFixture caveat. Full tables and reproduction steps recorded
+  permanently in
+  [`docs/performance.md`](../performance.md#milestone-2-phase-4-resolution-pipeline-result)
+  (`docs/architecture.md`'s Diagnostics section links there too, rather
+  than duplicating the table).
+- A PR #13 review round (Codex) found three real issues, all fixed in the
+  same PR. **Trace buffer's own allocation was asserted, not measured
+  (P1).** The Phase 4 benchmark result above reported total allocation
+  without isolating what fraction the trace buffer itself contributes,
+  so "allocation-free on success" read as a stronger claim than actually
+  verified. Fixed by measuring `CompositionTraceBuffer` in isolation
+  (`GC.GetAllocatedBytesForCurrentThread()` around 1,000,000 direct
+  constructions, Release, .NET 10.0.3 arm64): 184 B/instance, ~6.6% of a
+  real `Customer` composition's 2.73 KB - real, consistent with
+  ADR-0010's "near-zero, not zero-cost" framing, not a violation of it.
+  `docs/performance.md` and `docs/architecture.md` now state this
+  precisely instead of the unqualified claim; a true zero-allocation
+  design (pooling `CompositionTraceBuffer` across root operations) is
+  recorded as a new deferred item in `docs/architecture.md`'s Open
+  Architectural Decisions, not attempted as a same-PR fix. **`Success`
+  recorded before composition actually completed (P2, worse than
+  reported).** The review flagged one site
+  (`CollectionPlanCache<TValue>.Compose(this)` recording
+  `BuiltInProvider: Success` *before* `Compose` ran, so an element
+  failure inside the collection left a false `Success` in the
+  materialized diagnostic) - confirmed, and the identical bug pattern
+  was present in five more places: the profile/semantic/test-double/
+  built-in provider branches (recording `Success` before
+  `StoreSharedAndReturn`'s authoritative shared-value validation, which
+  can still throw) and `ResolveViaGeneratedPlan`'s shared path (same
+  issue, after `Compose` but before `StoreSharedAndReturn`). Fixed at all
+  six sites by moving each `_trace.Record(..., Success)` to strictly
+  after the corresponding value has actually been returned/stored
+  without throwing. Verified as a real regression, not just a
+  theoretical one: temporarily reverted the fix and confirmed the new
+  regression tests actually fail without it, then restored the fix -
+  `CompositionDiagnosticsTests.ResolveRoot_DiagnosticTrace_DoesNotRecordSuccess_WhenACollectionPlanElementFails`
+  (the exact collection scenario reported) and
+  `..._WhenASharedProviderValueFailsValidation` (the broader pattern, at
+  the cheapest site to exercise via the injectable-provider test seam).
+  **Provider identity dropped from the public trace record (P1).**
+  Already covered above and in [ADR-0015](../adr/0015-provider-identity-deferred-in-provider-attempt.md) -
+  a real, but already-intentional and now-formally-recorded, deviation
+  from ADR-0010's literal text, not a gap.
+- The same PR #13 review round separately prompted rebuilding the
+  resolution benchmark's reflection baseline, once its flawed comparison
+  was noticed on inspection rather than via a specific finding:
+  `ReflectionComposer.ComposeRecursive<T>()` originally filled every
+  field with a fixed placeholder value (`"value"`, etc.), making
+  `ResolutionArchitectureBenchmarks`' `Reflection` column faster than
+  `Generated` for doing categorically less work - a comparison that
+  invited exactly the wrong conclusion ("why not just use reflection").
+  Rewritten to generate real random values matching Compono's own
+  defaults (an 8-character alphanumeric string per `PrimitiveValueProvider`'s
+  `StringLength`, a 3-element collection per ADR-0013's default
+  collection size) via `System.Random.Shared` - the actual reflection-based
+  alternative someone would reach for, not a dispatch-cost-only strawman.
+  Re-run at `DefaultJob` after the rewrite; `docs/performance.md`'s
+  Resolution architecture benchmark table reflects the new, honest
+  numbers.
+- A second PR #13 review round (`@codex review`, triggered after the
+  first round's fixes landed) found three more real issues, all fixed in
+  the same PR, plus a separately-requested optimization landed alongside
+  them. **`CompositionRequest`: class → `readonly record struct` (the
+  "easy win," requested directly rather than found by review).** It's
+  never stored beyond the synchronous `ResolveCore` call that builds it -
+  never captured, never crosses an async boundary - so the heap
+  allocation was pure waste. Prototyped and measured before touching
+  production code: 40 B → 0 B, 14.9 ns → 5.5 ns, constructed and consumed
+  the same way `ResolveCore` actually does (passed by `in`, not boxed).
+  Applied for real: `CompositionRequest` is now `internal readonly record
+  struct`, `ICompositionProvider.TryCompose` and every internal consumer
+  (`TryProviders`, `StoreSharedAndReturn`, `ValidateAuthoritativeValue`,
+  `ResolveViaGeneratedPlan`) take it by `in`, matching
+  `CompositionRequestDescriptor`'s existing convention. This is what
+  moved every benchmark table in `docs/performance.md` to new, lower
+  numbers - re-measured, not estimated. **A generic root type rendered in
+  raw CLR form at two more sites (P2).** `CompositionDiagnostic.ToString()`'s
+  heading (`RootType.Name`) and the stage-9 failure `Message` text
+  (`requestedType.Name`) both had the identical bug
+  `CompositionPath.FriendlyTypeName` was added to fix for the path tree in
+  the first review round - just missed at these two call sites. Fixed by
+  making `FriendlyTypeName` `internal` (not `private`) on `CompositionPath`
+  and reusing it at both sites. **An ancestor's in-flight dispatch was
+  silently absent from the trace on a nested failure (P2).** The first
+  round's `Success`-after-not-before fix was correct but incomplete: an
+  ancestor whose own `Compose` was still running when a descendant failed
+  never got *any* trace entry for its stage-8/collection-plan attempt,
+  since `Success` is (correctly) only recorded after `Compose` returns,
+  which never happens for an ancestor still waiting on a failing
+  descendant. Fixed by adding `CompositionAttemptOutcome.Pending`,
+  recorded immediately before `Compose` runs at both dispatch sites -
+  rewound away on success like every other entry, but surviving
+  (correctly) when the eventual `Success` never gets recorded either.
+  **The trace buffer's growth path was never benchmarked (P2).** Only the
+  shallow, 2-level-deep `Customer` graph had been measured, which never
+  gets deep enough to trigger `CompositionTraceBuffer`'s own
+  `Array.Resize` (each active ancestor frame retains ~6 entries with the
+  `Pending` fix above, so a 16-entry buffer resizes past depth ~2-3 -
+  already true of `docs/architecture.md`'s own 4-level Diagnostics
+  example). Fixed in two parts: bumped the initial capacity from 16 to 32
+  (covers ~5 levels without resizing) and added `DeepGraphBenchmarks` (an
+  8-level-deep chain, `DeepLevel1` through `DeepLevel8`, deep enough to
+  guarantee a resize) so the growth cost is a real measured number in
+  `docs/performance.md` rather than assumed away. All four changes
+  verified against regression tests reverted-and-reran (same discipline
+  as the first review round) before being restored — see
+  `CompositionDiagnosticsTests.ResolveRoot_Throws_WithADiagnosticTree_MatchingTheNestedFailurePath`'s
+  `Pending`-count assertion and
+  `ResolveRoot_Throws_WithAFriendlyGenericRootName_NotTheRawClrForm`.
+- A third PR #13 review round (`@codex review` again) found two more real
+  gaps, plus surfaced a factual error in ADR-0015's own Context that
+  needed correcting. **Stage 7's three built-in providers collapsed into
+  one aggregate trace entry (P2).** `TryProviders` let its caller record
+  a single `NotHandled` for the whole stage regardless of how many
+  providers actually declined - `BuiltInProviders.Default` genuinely has
+  three registered today (`PrimitiveValueProvider`, `EnumValueProvider`,
+  `NullableValueProvider`), so a failing request's trace showed 1
+  aggregate entry instead of the real count. This directly falsified
+  ADR-0015's own Decision Drivers claim ("no stage in Milestone 2 ...
+  registers more than one competing provider yet") - stage 7 already
+  does, today, not hypothetically. Fixed by moving the `NotHandled`
+  recording into `TryProviders` itself, one entry per provider actually
+  tried (a new `PipelineStage stage` parameter); the winning provider's
+  own outcome is still left for the caller to record once, after
+  `StoreSharedAndReturn` validates it - unaffected by the earlier
+  Success-ordering fix. Per `design-decisions.md`'s "an accepted ADR is a
+  historical record" rule, ADR-0015's own text is left as originally
+  written (an accurate record of the reasoning *at the time*, even though
+  one of its cited facts turned out to be wrong) - the correction instead
+  lands where it actually matters going forward: `docs/architecture.md`'s
+  identical claim (a living doc, meant to be kept current) is fixed in
+  place, and this note records the correction for anyone reading the plan
+  forward. ADR-0015's actual Decision Outcome (defer provider *identity*,
+  not attempt *counting*) still holds - this fix only restores accurate
+  attempt counts, it doesn't add a way to tell *which* provider each
+  entry belongs to, so the ADR's core deferral is unaffected by the
+  correction. **`FriendlyTypeName` didn't recurse into array element
+  types (P2).** `Type.IsGenericType` is `false` for an array type itself
+  (array-ness and generic-ness are orthogonal in reflection), so
+  `List<Missing>[]` fell straight through to the raw CLR form
+  (`List\`1[]`) - the same defect class `FriendlyTypeName` exists to
+  prevent, just not handled for arrays. Fixed by checking `IsArray` first
+  and recursing into `GetElementType()`, reapplying the array's own rank.
+  Both fixes verified against regression tests reverted-and-rerun before
+  being restored, matching prior rounds' discipline; neither changed any
+  benchmark number (re-measured to confirm - `docs/performance.md`'s
+  tables are unchanged within normal noise, since both are trace-fidelity/
+  formatting fixes, not allocation or timing changes).
+- A fourth PR #13 review round found the most severe gap of the whole
+  review cycle (P1): **`CreateMany<T>()` was never wired into the source
+  generator's discovery, so the single most-advertised `CreateMany<T>`
+  usage threw `CompositionException` at runtime.** A consumer calling
+  only `composer.CreateMany<Customer>(3)` - never `Create<Customer>()`,
+  no `[Composable]` attribute - got no generated plan for `Customer` at
+  all: `CreateInvocationDiscovery.IsCandidate`/`Transform`
+  (`src/Compono.Generators/Discovery/CreateInvocationDiscovery.cs`) still
+  hardcoded the method name `"Create"` only. Notably, this was **not** a
+  design gap - [ADR-0004](../adr/0004-composition-plan-discovery-and-dispatch.md)
+  already specified "call-site driven (find `Create<T>()`/`CreateMany<T>()`
+  invocations..." and `docs/architecture.md`'s Discovery and Dispatch
+  section already said the same - the generator's implementation simply
+  never caught up once Phase 4 shipped the real `CreateMany<T>()` method,
+  since `CreateInvocationDiscovery` predates it (Milestone 1). Fixed by
+  widening both the syntax-level `IsCandidate` pattern and the
+  symbol-level `Transform` check to accept `"Create"` or `"CreateMany"` -
+  a two-line change once located, per the ADR's already-correct design.
+  Verified three ways, matching the bar for source-generator-facing
+  changes (`tasks/implement.md` step 7): (1) a new generator snapshot
+  test, `CompositionPlanVerifyTests.CreateManyOnlyInvocation_GeneratesCompositionPlan`,
+  compiling source with a `CreateMany<Customer>(3)` call site and no
+  `Create<Customer>()`/`[Composable]` anywhere, confirming a real plan
+  gets generated; (2) reverted the fix and confirmed that test fails,
+  restored and confirmed it passes; (3) `dotnet pack`'d `Compono` into a
+  clean local feed and ran a genuinely separate throwaway console
+  project calling only `composer.CreateMany<Customer>(3)`, confirming
+  real end-to-end output (three distinct composed `Customer`s) through
+  the actual published package, not just the in-memory test harness.
+- A fifth PR #13 review round found four more real issues, the largest
+  being a genuine reversal of ADR-0015's own decision. **Provider identity
+  restored in `ProviderAttempt` (P1) - the user directed this explicitly
+  ("Codex is pushing back on that provider identity decision. I'm
+  inclined to agree. Let's add it back in") after independently agreeing
+  with the review finding.** ADR-0015's deferral rested on "no stage has
+  more than one competing provider yet" - already false for stage 7's
+  three real built-in providers when ADR-0015 was written, and the round-3
+  per-provider-trace fix only made the gap visible (three indistinguishable
+  `(BuiltInProvider, NotHandled)` entries) rather than closing it. Per
+  `design-decisions.md`'s ADR-immutability rule, this is a genuine decision
+  reversal, not a factual correction like round 3's ADR-0015 issue - so it
+  gets its own ADR ([ADR-0016](../adr/0016-provider-identity-restored-in-provider-attempt.md))
+  superseding ADR-0015 (Status flipped, body left unedited), rather than
+  editing ADR-0015 in place. `ProviderAttempt` gains a `Type? Provider`
+  field - the provider's own concrete CLR type (`null` for a context-owned
+  stage, which isn't an `ICompositionProvider` instance), chosen over a
+  provider index (unstable once Milestone 3 allows reordering, per
+  ADR-0015's own still-valid Option 2 reasoning) or an opaque token
+  (needs a new `ICompositionProvider` member, per ADR-0015's own Option 3
+  reasoning) - `Type` identity is already established elsewhere in this
+  engine (`PlanCache<T>`, the active-construction-frame stack,
+  `EnumValueProvider`'s cache), so this isn't a new pattern. Fixing this
+  meant redesigning where outcomes get recorded: `TryProviders` now hands
+  back the winning provider's `Type` via an `out` parameter, and
+  `StoreSharedAndReturn` records the stage's real outcome (`Success` *or*
+  `Failure`) itself, before `Authoritative` can throw - which also fixed
+  **finding two of this round (P2): a shared request's validation failure
+  left no trace entry for the provider that produced the bad value at
+  all**, the same "recorded after, not before" ordering bug as earlier
+  rounds, just at a site those rounds hadn't reached yet. **Finding three
+  (P1): a `Links` entry I'd added to the already-Accepted ADR-0010 in an
+  earlier round was itself a rule violation** - reviewed and agreed;
+  removed entirely, restoring ADR-0010 to its pre-Phase-4 text. The
+  cross-reference lives only in ADR-0015/ADR-0016's own `Links` sections
+  and the ADR index now, never in ADR-0010 itself. **Finding four (P2):
+  `CompositionException(CompositionDiagnostic)` dereferenced `diagnostic.Message`
+  in its `base(...)` initializer before the constructor body could guard
+  it**, so a `null` argument surfaced as `NullReferenceException` instead
+  of `ArgumentNullException` - fixed by routing the null check through a
+  static helper called from the initializer itself
+  (`base(RequireDiagnostic(diagnostic).Message)`), since a guard clause in
+  the body runs too late. All four fixes verified against regression tests
+  reverted-and-rerun before being restored, matching every prior round's
+  discipline. Re-measured benchmarks honestly this time: unlike round 3,
+  this round *does* move every number in `docs/performance.md` - widening
+  `ProviderAttempt` roughly doubles each trace entry's size, moving
+  `Create<Customer>()` from 2.46 KB to 2.71 KB (+256 B, ~10%), confirmed
+  attributable to the struct width by the isolated `CompositionTraceBuffer`
+  measurement moving by almost exactly the same amount. Recorded as an
+  accepted tradeoff (a real "which provider" answer for ~10% more
+  allocation on the failure-adjacent path), not chased back down.
+- A sixth PR #13 review round found one more real gap, the same
+  ancestor-visibility class as the `GeneratedPlan`/collection-plan
+  `Pending` fixes above, at a third dispatch site (P2). **`TryProviders`
+  (stages 4-7) didn't record an in-flight attempt before calling
+  `candidate.TryCompose(...)`.** `ICompositionProvider.TryCompose` is
+  handed the live `ICompositionContext` specifically so a provider can
+  recursively resolve part of its own value (no built-in provider does
+  this today, but nothing about the contract forbids it, and it's exactly
+  the extension point Milestone 3/5/6 profile/semantic/test-double
+  providers are expected to use) - if that nested `Resolve<T>()` call
+  throws, `candidate` was never recorded anywhere, since `TryProviders`
+  only recorded `NotHandled` *after* `TryCompose` returned normally. The
+  materialized diagnostic then permanently omitted the provider and stage
+  that led to the failing child. Fixed by applying the same
+  checkpoint/`Pending`/rewind pattern already used for stage 8 and the
+  collection-plan branch: record `(stage, candidate.GetType(), Pending)`
+  immediately before `TryCompose` runs, then rewind that marker away once
+  `TryCompose` actually returns (success or decline) - if it throws
+  instead, the rewind never executes and the `Pending` marker survives
+  into the failing trace. Verified with a new regression test
+  (`ResolveRoot_DiagnosticTrace_RecordsAPendingEntry_WhenAProviderRecursivelyResolvesAFailingNestedRequest`
+  in `CompositionDiagnosticsTests.cs`) using the injectable-provider test
+  seam and a fake provider whose `TryCompose` calls
+  `context.Resolve<T>()` for an unsatisfiable nested type; reverted the
+  fix and confirmed the test fails, restored and confirmed it and the
+  full suite (152 `Compono.Tests`, 146 `Compono.Generators.Tests`) pass.
+  Re-measured the allocation-per-`Create<T>()` benchmark before and after
+  this specific fix in isolation (a throwaway test, deleted after
+  measuring): identical 1384.00 B/op both times - the extra
+  checkpoint/record/rewind calls stay well under the trace buffer's
+  32-entry initial capacity for an ordinary graph, so they cost stack
+  work only, no heap allocation. `docs/performance.md` is unchanged.
+
 ## Critical Files
 
 - `src/Compono/CompositionRequestDescriptor.cs` (`Kind`, `Ordinal`,
   `Name`, `Nullability`), `src/Compono/CompositionRequestKind.cs` — new
   (`public`) — **Done (Phase 0)**
-- `src/Compono/CompositionRequest.cs` — new (`internal`) — **Done (Phase 0)**
+- `src/Compono/CompositionRequest.cs` — new (`internal`) — **Done (Phase 0)**.
+  Converted from `sealed record` (class) to `internal readonly record
+  struct`, all consumers taking it by `in` — **Done (Phase 4, PR #13
+  review round 2)**
 - `src/Compono/CompositionResult.cs` — new (`internal`) — **Done (Phase 0)**.
   `Failure` case added — **Done (Phase 3)**
 - `src/Compono/ICompositionProvider.cs` — new (`internal`) — **Done (Phase 0)**
 - `src/Compono/CompositionException.cs` — new (`public`); minimal message-only
-  exception for now, enriched into the full structured diagnostic in
-  Phase 4 — **Done (Phase 0)**
+  exception for now — **Done (Phase 0)**. Second constructor accepting a
+  `CompositionDiagnostic` (the shape every pipeline-thrown instance uses)
+  and the `Diagnostic` property — **Done (Phase 4)**. Null-`diagnostic`
+  guard routed through a static helper called from the `base(...)`
+  initializer itself, since a body-level guard clause runs too late —
+  **Done (Phase 4, PR #13 review round 5)**
+- `src/Compono/CompositionDiagnostic.cs`, `src/Compono/ProviderAttempt.cs`,
+  `src/Compono/PipelineStage.cs`, `src/Compono/CompositionAttemptOutcome.cs`
+  — new (`public`); `src/Compono/CompositionTraceBuffer.cs` — new
+  (`internal`) — **Done (Phase 4)**. `CompositionAttemptOutcome.Pending`
+  added, recorded before `Compose` at both generated-plan/collection-plan
+  dispatch sites; `CompositionTraceBuffer`'s initial capacity bumped 16 →
+  32; `CompositionDiagnostic.ToString()` renders `RootType` via
+  `CompositionPath.FriendlyTypeName` instead of raw `.Name` — **Done
+  (Phase 4, PR #13 review round 2)**. `ProviderAttempt` gained a
+  `Type? Provider` field ([ADR-0016](../adr/0016-provider-identity-restored-in-provider-attempt.md),
+  reversing [ADR-0015](../adr/0015-provider-identity-deferred-in-provider-attempt.md));
+  `CompositionTraceBuffer.Record` takes the provider type alongside stage
+  and outcome — **Done (Phase 4, PR #13 review round 5)**
 - `src/Compono/PathSegment.cs` (`Ordinal`/`Index`-keyed, `Name` for
   segments that have one), `src/Compono/CompositionPath.cs` — new
   (`internal`) — **Done (Phase 0, pulled forward from Phase 1's original
   scope; structural chain only, no FNV-1a hashing yet)**. `ToDisplayString()`
   (diagnostics-only, derived from segment `Name`s) — **Done (Phase 1)**.
+  `RootType` and `ToTreeString()` (the `CompositionDiagnostic.Path` tree
+  format) — **Done (Phase 4)**. `FriendlyTypeName` widened from `private`
+  to `internal` so `CompositionDiagnostic` and `CompositionContext` can
+  reuse it for the heading/failure-message sites the first review round
+  missed — **Done (Phase 4, PR #13 review round 2)**
 - `src/Compono/CompositionContext.cs` — new (replaces the inline
   `PlaceholderCompositionContext` in `Composer.cs`); implements the
   public descriptor-based `Resolve<T>` and the internal `ResolveRoot<T>`;
@@ -1298,8 +1682,15 @@ ADR-0014. The task list below reflects the corrected shape.
   the internal `Random` test-observability property — **Done (Phase 1)**.
   Stages 2/3 (shared/scoped values, exact registrations), the
   active-construction-frame stack, and the `ResolveSharedForTesting<T>`
-  test seam — **Done (Phase 3)**. The diagnostics trace buffer is still
-  Phase 4 scope, not implemented yet.
+  test seam — **Done (Phase 3)**. The `CompositionTraceBuffer`
+  checkpoint/record/rewind wiring and `BuildException` (materializes a
+  `CompositionDiagnostic` from the current path/trace/seed) —
+  **Done (Phase 4)**. `TryProviders` records a `Pending` marker for each
+  candidate provider immediately before calling `TryCompose`, rewound on
+  a normal return — closes the same ancestor-visibility gap already fixed
+  for stage 8/collection-plan dispatch, for a provider that recursively
+  resolves a nested request that fails — **Done (Phase 4, PR #13 review
+  round 6)**
 - `src/Compono/CompositionScope.cs`, `src/Compono/CompositionRegistrations.cs`
   — new (`internal`) — **Done (Phase 3)**
 - `src/Compono/CompositionSeed.cs`, `src/Compono/IRandomSource.cs`,
@@ -1349,9 +1740,10 @@ ADR-0014. The task list below reflects the corrected shape.
   `ResolveRoot<T>()` — **Done (Phase 0)**. The internal
   `CreateRootForTesting<T>(CompositionSeed)`/
   `CreateManyForTesting<T>(int, CompositionSeed)` test-seam factories —
-  **Done (Phase 1)**. `CreateMany<T>()` itself (with the
-  negative-count/zero-count/`IReadOnlyList<T>` contract) is still Phase 4
-  scope.
+  **Done (Phase 1)**. Public `CreateMany<T>(int count)` (negative-count/
+  zero-count/`IReadOnlyList<T>` contract), sharing its seed-derivation
+  logic with `CreateManyForTesting` via a private `ComposeMany<T>` helper
+  — **Done (Phase 4)**
 - `src/Compono.Generators/Templates/CompositionPlan.scriban`,
   `src/Compono.Generators/Emitters/CompositionPlanEmitter.cs` — modified:
   emit `CompositionRequestDescriptor` (constructor-parameter name added
@@ -1364,6 +1756,15 @@ ADR-0014. The task list below reflects the corrected shape.
   derived-to-base), per ADR-0012's amendment 2 — **Done (Phase 0,
   unscoped fix — see Phase 0 Notes; confirmed against ADR-0012 amendment
   2's canonical algorithm in Phase 1, no further changes needed)**
+- `src/Compono.Generators/Discovery/CreateInvocationDiscovery.cs` —
+  modified: `IsCandidate`/`Transform` recognize `CreateMany<T>()` call
+  sites, not just `Create<T>()` — closes a real gap against
+  [ADR-0004](../adr/0004-composition-plan-discovery-and-dispatch.md)'s
+  already-correct design, discovered once `CreateMany<T>()` shipped as a
+  real method — **Done (Phase 4, PR #13 review round 4)**.
+  `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs`'s
+  `CreateManyOnlyInvocation_GeneratesCompositionPlan` (+ its snapshot) —
+  new — **Done (Phase 4, PR #13 review round 4)**
 - `test/Compono.Tests/CompositionContextTests.cs`,
   `test/Compono.Tests/ComposerTests.cs` — new — **Done (Phase 0)**
 - `test/Compono.Tests/RandomSourceTests.cs`,
@@ -1375,6 +1776,26 @@ ADR-0014. The task list below reflects the corrected shape.
 - `test/Compono.Tests/CompositionScopeTests.cs`,
   `test/Compono.Tests/CompositionRegistrationTests.cs`,
   `test/Compono.Tests/CompositionRecursionTests.cs` — new — **Done (Phase 3)**
+- `test/Compono.Tests/CompositionTraceBufferTests.cs`,
+  `test/Compono.Tests/CompositionDiagnosticsTests.cs`,
+  `test/Compono.Tests/ComposerCreateManyTests.cs`,
+  `test/Compono.Tests/CompositionEndToEndTests.cs` — new — **Done (Phase 4)**.
+  `test/Compono.Tests/CompositionExceptionTests.cs` — new (round 5's
+  null-`diagnostic` guard) — **Done (Phase 4, PR #13 review round 5)**
+- `benchmarks/Compono.Benchmarks/ResolutionBenchmarkTypes.cs`
+  (`Customer`/`Address`), `benchmarks/Compono.Benchmarks/ResolutionBenchmarks.cs`
+  (`Create`/`CreateMany` scaling),
+  `benchmarks/Compono.Benchmarks/ResolutionArchitectureBenchmarks.cs`
+  (`Direct`/`Generated`/`Reflection`),
+  `benchmarks/Compono.Benchmarks/ResolutionEcosystemBenchmarks.cs`
+  (`Generated`/`AutoFixture`),
+  `benchmarks/Compono.Benchmarks/DeepGraphBenchmarks.cs` (`DeepLevel1`-`DeepLevel8`,
+  an 8-level-deep chain exercising `CompositionTraceBuffer`'s
+  `Array.Resize` growth path) — new;
+  `benchmarks/Compono.Benchmarks/ReflectionComposer.cs` — modified:
+  `ComposeRecursive<T>()` added (fixed-placeholder-value recursive
+  reflection composer, alongside the existing parameterless-only
+  `Compose<T>()`) — **Done (Phase 4)**
 - `test/Compono.Tests/**` — new tests per phase above
 
 ## Test Plan

@@ -16,11 +16,40 @@ namespace Compono;
 public sealed class CompositionException : Exception
 {
     /// <summary>
-    /// Creates a <see cref="CompositionException"/>.
+    /// The structured detail behind this failure, or <see langword="null"/> if this instance was
+    /// constructed from a plain message.
+    /// </summary>
+    public CompositionDiagnostic? Diagnostic { get; }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionException"/> with no structured <see cref="Diagnostic"/>.
     /// </summary>
     /// <param name="message">A message describing what couldn't be composed and why.</param>
     public CompositionException(string message)
         : base(message)
     {
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionException"/> from a structured <see cref="CompositionDiagnostic"/>
+    /// - the shape every pipeline-thrown instance uses, per <c>docs/public-api.md</c>'s Diagnostics
+    /// API.
+    /// </summary>
+    /// <param name="diagnostic">The structured detail behind this failure.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="diagnostic"/> is <see langword="null"/>.</exception>
+    public CompositionException(CompositionDiagnostic diagnostic)
+        : base(RequireDiagnostic(diagnostic).Message)
+    {
+        Diagnostic = diagnostic;
+    }
+
+    // The base(...) initializer runs before this constructor's own body, so a guard clause in the
+    // body would already be too late - diagnostic.Message is dereferenced in the initializer itself.
+    // Routing the null check through this helper is what lets a null argument surface as
+    // ArgumentNullException instead of a base-initializer NullReferenceException.
+    private static CompositionDiagnostic RequireDiagnostic(CompositionDiagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        return diagnostic;
     }
 }

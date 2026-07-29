@@ -16,5 +16,5 @@ internal interface ICompositionProvider
     /// </summary>
     /// <param name="request">The request to attempt.</param>
     /// <param name="context">The active composition context, for resolving nested requests.</param>
-    CompositionResult TryCompose(CompositionRequest request, ICompositionContext context);
+    CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context);
 }

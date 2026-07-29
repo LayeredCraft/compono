@@ -165,9 +165,18 @@ not every stage is the same *kind* of thing:
 Only stages 4/6/7 hold an actual ordered collection of providers in
 Milestone 2 (and of those, only 7 has anything registered in it — 4/5/6
 are wired but empty until their owning milestone). Provider order
-*within* an extensible stage is registration order; no richer ordering
-rule exists yet because no stage has more than one competing provider to
-order. Stage 7's `CollectionPlanCache<T>` dispatch is tried only after
+*within* an extensible stage is registration order; stage 7 alone already
+holds three real providers (`PrimitiveValueProvider`, `EnumValueProvider`,
+`NullableValueProvider` — `BuiltInProviders.Default`), so "no stage has
+more than one provider" is not actually true today, a stale claim
+corrected during PR #13 review. No *richer* ordering rule (priority,
+specificity, or similar) exists yet because none has been needed:
+`PrimitiveValueProvider`/`EnumValueProvider`/`NullableValueProvider`
+claim disjoint type sets, so plain registration order has never had two
+providers genuinely compete for the same request — a richer rule becomes
+a real question only once two providers could plausibly both claim the
+same type differently. Stage 7's `CollectionPlanCache<T>` dispatch is
+tried only after
 its ordered provider collection has already declined, so a registration,
 profile rule, semantic provider, or test-double provider (stages 1–6)
 still gets first refusal over a collection request — collections stay
@@ -497,14 +506,49 @@ Seed: 8492173
 ```
 
 Per [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md),
-this level of detail is not free to collect and must not cost anything on
-the normal successful path: a context-owned, reusable, array-backed trace
-buffer records a compact struct (stage, provider, outcome — no strings,
-no allocation) per stage/provider attempt, and rewinds on success instead
+this level of detail is designed to cost as little as possible on the
+normal successful path — "near-zero-allocation on success, not
+zero-cost," in the ADR's own words: a context-owned, reusable,
+array-backed trace buffer (`CompositionTraceBuffer`) records a compact
+struct (`ProviderAttempt`: stage, provider type, outcome — no strings, no
+per-append allocation) per stage attempt, and rewinds on success instead
 of retaining anything. Only a failing request materializes its slice of
-that buffer into the durable diagnostic above, before the buffer unwinds
-further. This is allocation-free on success, not necessarily free —
-worth confirming against a benchmark once implemented.
+that buffer into the durable `CompositionDiagnostic` above
+(`exception.Diagnostic`, `docs/public-api.md`'s Diagnostics API), before
+the buffer unwinds further. `ProviderAttempt.Provider` is the concrete
+`ICompositionProvider` type that made the attempt (`null` for a
+context-owned stage, which isn't a provider instance at all) —
+[ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md)
+restores this identity field after
+[ADR-0015](adr/0015-provider-identity-deferred-in-provider-attempt.md)
+deferred it on a premise (no stage has more than one provider) that was
+already false for stage 7's three built-in providers.
+
+`CompositionTraceBuffer` itself is not literally zero-allocation, though:
+its backing `ProviderAttempt[32]` array is allocated once per root
+`CompositionContext`, measured directly at **~536 B per instance** (32
+entries; capacity bumped from an original 16 after a second PR #13
+review round, and each entry's own size roughly doubled after a fourth
+round restored `ProviderAttempt.Provider` —
+[ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md))
+— see this page's Open Architectural Decisions entry below for the
+precise breakdown and why pooling it entirely is deferred rather than
+fixed as a same-PR change.
+
+Confirmed via `Compono.Benchmarks`' `ResolutionBenchmarks` (Milestone 2
+Phase 4, full `DefaultJob` numbers in [`docs/performance.md`](performance.md)):
+composing the `Customer`/`Address` representative graph allocates ~2.71 KB
+total (of which the trace buffer's ~536 B is ~20%) regardless of the
+trace buffer's presence, and `CreateMany<T>(count)` scales linearly with
+`count` (10.18× allocation at `count=10`, 101.48× at `count=100`, against
+a `count=1` baseline) — no super-linear growth from checkpoint/rewind
+bookkeeping. That graph is only 2 levels deep, though — never deep enough
+to trigger `CompositionTraceBuffer`'s own growth path (each active
+ancestor frame retains ~6 entries until its own child returns, so a
+32-entry buffer holds ~5 levels before resizing); `docs/performance.md`'s
+"Deep graph result" measures an 8-level-deep graph that does trigger a
+real `Array.Resize`, rather than only benchmarking the shallow case. No
+fallback to shallow diagnostics was needed.
 
 ## Package Boundaries
 
@@ -712,3 +756,43 @@ Owns:
   scope nor Compono's primary xUnit-test-runner consumer currently
   exercises. Revisit alongside the collision item if collectible-ALC
   hosting becomes an actual target — no design has been chosen yet.
+- **`CompositionTraceBuffer`'s own array allocation, per root operation**
+  — flagged during PR #13 review: `CompositionTraceBuffer`'s backing
+  `ProviderAttempt[]` array (allocated eagerly in its constructor, one
+  instance per `CompositionContext`) is a genuine, unconditional
+  allocation on every `Create<T>()`/`CreateMany<T>()` item, not literally
+  zero — measured directly (isolated from the rest of a real composition)
+  at ~536 B per `CompositionTraceBuffer` instance (32-entry initial
+  capacity), ~20% of a real `Customer`/`Address` representative
+  composition's ~2.71 KB total (`ResolutionBenchmarks`, `docs/performance.md`)
+  — consistent with [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+  explicit "near-zero-allocation on success, not zero-cost" framing, not
+  a violation of it, but real enough that this page and `docs/performance.md`
+  now state the precise figure instead of an unqualified "allocation-free"
+  claim. (The jump from an earlier-measured ~280 B is itself real, not a
+  re-measurement artifact — a fourth PR #13 review round restored
+  `ProviderAttempt.Provider`, per
+  [ADR-0016](adr/0016-provider-identity-restored-in-provider-attempt.md),
+  roughly doubling each trace entry's size; `docs/performance.md` records
+  that as an accepted tradeoff, not a regression.)
+
+  A second PR #13 review round found the *growth* path is real too, not
+  just the fixed initial allocation: each active ancestor frame dispatching
+  through stage 8 or a collection plan retains ~6 trace entries (5 declined
+  stages plus a `CompositionAttemptOutcome.Pending` marker) until its own
+  child returns, so a composable-type chain more than ~5 levels deep
+  exceeds a 32-entry buffer and triggers a real `Array.Resize` — the
+  shallow, 2-level-deep `Customer` graph the original benchmark used never
+  exercised this at all. Fixed in two parts: the initial capacity was
+  bumped from 16 to 32 (covering `docs/architecture.md`'s own 4-level
+  Diagnostics example without resizing), and `docs/performance.md`'s
+  `DeepGraphBenchmarks` now measures an 8-level-deep chain that does
+  trigger a resize, so the growth cost is a real recorded number, not an
+  assumed-away one.
+
+  A true zero-allocation design would still need the buffer pooled/reused
+  across root operations (`CompositionContext` isn't currently pooled or
+  reset-and-reused at all) — a real architecture change, not a
+  same-PR-sized fix. Deferred: revisit if a future benchmark shows this
+  mattering at a scale `docs/mvp.md`'s scope actually exercises — no
+  design has been chosen yet.

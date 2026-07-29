@@ -91,7 +91,7 @@ public sealed class CompositionScopeTests
     {
         internal int CallCount { get; private set; }
 
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
         {
             if (request.RequestedType != typeof(Widget))
                 return CompositionResult.NotHandled.Instance;
@@ -103,7 +103,7 @@ public sealed class CompositionScopeTests
 
     private sealed class StubProvider(object? value) : ICompositionProvider
     {
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context) =>
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context) =>
             request.RequestedType == typeof(Widget)
                 ? new CompositionResult.Success(value)
                 : CompositionResult.NotHandled.Instance;
@@ -113,7 +113,7 @@ public sealed class CompositionScopeTests
     {
         private bool _invoked;
 
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
         {
             if (request.RequestedType != typeof(Widget))
                 return CompositionResult.NotHandled.Instance;

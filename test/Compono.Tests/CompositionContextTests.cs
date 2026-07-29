@@ -97,13 +97,13 @@ public sealed class CompositionContextTests
 
     private sealed class StubProvider(bool handles, object? value) : ICompositionProvider
     {
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context) =>
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context) =>
             handles ? new CompositionResult.Success(value) : CompositionResult.NotHandled.Instance;
     }
 
     private sealed class RecordingProvider(List<string> callOrder, string name, bool handles) : ICompositionProvider
     {
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context)
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context)
         {
             callOrder.Add(name);
             return handles ? new CompositionResult.Success("value") : CompositionResult.NotHandled.Instance;

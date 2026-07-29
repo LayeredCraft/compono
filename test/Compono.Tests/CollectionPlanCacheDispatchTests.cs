@@ -80,7 +80,7 @@ public sealed class CollectionPlanCacheDispatchTests
 
     private sealed class StubProvider(List<int> value) : ICompositionProvider
     {
-        public CompositionResult TryCompose(CompositionRequest request, ICompositionContext context) =>
+        public CompositionResult TryCompose(in CompositionRequest request, ICompositionContext context) =>
             new CompositionResult.Success(value);
     }
 }
