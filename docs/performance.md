@@ -220,6 +220,32 @@ separately-requested optimization:
   deep enough to trigger a resize. See "Deep graph result" below for a
   graph that does.
 
+### A third PR #13 review round: two more real gaps, no benchmark impact
+
+A third pass found two more real issues - both fixed, neither changing
+any number in this page, since they're trace-fidelity/formatting
+corrections, not allocation or timing changes (re-measured to confirm:
+every table above is unchanged within normal run-to-run noise).
+
+- **Stage 7's three built-in providers collapsed into one trace entry.**
+  `BuiltInProviders.Default` genuinely has three providers registered
+  today (`PrimitiveValueProvider`, `EnumValueProvider`,
+  `NullableValueProvider`) - directly contradicting a claim this page's
+  own earlier review-round text (and `docs/architecture.md`, now also
+  fixed) had made: "no stage has more than one competing provider yet."
+  That claim was simply wrong for stage 7. `TryProviders` used to let its
+  caller record a single aggregate `NotHandled` for the whole stage
+  regardless of how many providers actually declined - now each
+  provider's own decline is recorded as it's tried, so a failing
+  request's trace shows the real number of attempts made, not a
+  collapsed count of 1.
+- **`FriendlyTypeName` didn't handle arrays of generic types.** `Type.IsGenericType`
+  is `false` for an array type itself (array-ness and generic-ness are
+  orthogonal in reflection), so `List<Missing>[]` fell straight through
+  to the raw CLR form (`List\`1[]`) despite `FriendlyTypeName` existing
+  specifically to prevent that. Fixed by checking `IsArray` first and
+  recursing into `GetElementType()`.
+
 **Isolating the trace buffer's own share** of `Create<Customer>()`'s
 2.46 KB - measured directly via `GC.GetAllocatedBytesForCurrentThread()`
 around `new CompositionTraceBuffer()` in isolation, 1,000,000 iterations,

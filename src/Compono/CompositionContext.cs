@@ -198,8 +198,11 @@ internal sealed class CompositionContext : ICompositionContext
             // shared request whose value fails ADR-0011's authoritative null/type validation), and a
             // collection/generated plan's Compose can throw if one of its own elements fails; a stage
             // whose outward call hasn't actually completed yet has no business being recorded as
-            // "Success" in a trace a later BuildException might materialize.
-            if (TryProviders(_profileProviders, request, out var profileValue))
+            // "Success" in a trace a later BuildException might materialize. TryProviders itself
+            // records a NotHandled entry per provider it actually tries (PR #13 review: stage 7 alone
+            // has three real built-in providers today, not a hypothetical future case) - only the
+            // eventual winning provider's outcome is left for the caller to record here, once.
+            if (TryProviders(_profileProviders, PipelineStage.ProfileRule, request, out var profileValue))
             {
                 var value = StoreSharedAndReturn<TValue>(profileValue, request);
                 _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.Success);
@@ -207,9 +210,7 @@ internal sealed class CompositionContext : ICompositionContext
                 return value;
             }
 
-            _trace.Record(PipelineStage.ProfileRule, CompositionAttemptOutcome.NotHandled);
-
-            if (TryProviders(_semanticProviders, request, out var semanticValue))
+            if (TryProviders(_semanticProviders, PipelineStage.SemanticProvider, request, out var semanticValue))
             {
                 var value = StoreSharedAndReturn<TValue>(semanticValue, request);
                 _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.Success);
@@ -217,9 +218,7 @@ internal sealed class CompositionContext : ICompositionContext
                 return value;
             }
 
-            _trace.Record(PipelineStage.SemanticProvider, CompositionAttemptOutcome.NotHandled);
-
-            if (TryProviders(_testDoubleProviders, request, out var testDoubleValue))
+            if (TryProviders(_testDoubleProviders, PipelineStage.TestDoubleProvider, request, out var testDoubleValue))
             {
                 var value = StoreSharedAndReturn<TValue>(testDoubleValue, request);
                 _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.Success);
@@ -227,9 +226,7 @@ internal sealed class CompositionContext : ICompositionContext
                 return value;
             }
 
-            _trace.Record(PipelineStage.TestDoubleProvider, CompositionAttemptOutcome.NotHandled);
-
-            if (TryProviders(_builtInProviders, request, out var builtInValue))
+            if (TryProviders(_builtInProviders, PipelineStage.BuiltInProvider, request, out var builtInValue))
             {
                 var value = StoreSharedAndReturn<TValue>(builtInValue, request);
                 _trace.Record(PipelineStage.BuiltInProvider, CompositionAttemptOutcome.Success);
@@ -318,7 +315,14 @@ internal sealed class CompositionContext : ICompositionContext
         $"would construct '{requestedType}' again, which is already under construction. Use a registration " +
         "or a shared value to terminate the cycle.";
 
-    private bool TryProviders(IReadOnlyList<ICompositionProvider> providers, in CompositionRequest request, out object? value)
+    // Records one NotHandled entry per provider actually tried, not one aggregate entry for the
+    // whole stage (PR #13 review) - an ordinary ICompositionProvider can only ever decline
+    // (NotHandled) or hand back a value (Success, still unvalidated at this point), so every
+    // iteration here that doesn't return true is a real, completed NotHandled outcome, safe to
+    // record immediately. The winning provider's own outcome is deliberately left unrecorded here -
+    // it's still unvalidated (StoreSharedAndReturn hasn't run yet), so the caller records it, once,
+    // after validation actually completes.
+    private bool TryProviders(IReadOnlyList<ICompositionProvider> providers, PipelineStage stage, in CompositionRequest request, out object? value)
     {
         foreach (var provider in providers)
         {
@@ -327,6 +331,8 @@ internal sealed class CompositionContext : ICompositionContext
                 value = success.Value;
                 return true;
             }
+
+            _trace.Record(stage, CompositionAttemptOutcome.NotHandled);
         }
 
         value = null;

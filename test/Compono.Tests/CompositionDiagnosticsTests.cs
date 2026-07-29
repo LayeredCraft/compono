@@ -143,6 +143,45 @@ public sealed class CompositionDiagnosticsTests
     }
 
     [Fact]
+    public void ResolveRoot_DiagnosticTrace_RecordsOneNotHandledEntryPerBuiltInProvider_NotOneAggregateEntry()
+    {
+        // The real BuiltInProviders.Default - PrimitiveValueProvider, EnumValueProvider,
+        // NullableValueProvider - all three actually registered in stage 7 today, not a
+        // hypothetical future case (this is what PR #13 review caught: ADR-0015's "no stage has
+        // more than one competing provider yet" claim was already wrong for stage 7).
+        var context = new CompositionContext();
+
+        var act = () => context.ResolveRoot<Missing>();
+
+        var trace = act.Should().Throw<CompositionException>().Which.Diagnostic!.Trace;
+
+        // Regression for a real gap (PR #13 review, third round): TryProviders used to let its
+        // caller record a single aggregate NotHandled for the whole stage regardless of how many
+        // providers were actually tried, collapsing 3 real declines into 1 trace entry. Now each
+        // provider's own decline is recorded as it's tried.
+        trace.Count(attempt =>
+            attempt.Stage == PipelineStage.BuiltInProvider && attempt.Outcome == CompositionAttemptOutcome.NotHandled)
+            .Should().BeGreaterThanOrEqualTo(3);
+    }
+
+    [Fact]
+    public void ResolveRoot_DiagnosticPath_RendersArraysOfGenericTypes_Recursively()
+    {
+        var context = new CompositionContext();
+
+        var act = () => context.ResolveRoot<List<Missing>[]>();
+
+        var diagnostic = act.Should().Throw<CompositionException>().Which.Diagnostic!;
+
+        // Regression for a real gap (PR #13 review, third round): FriendlyTypeName checked
+        // IsGenericType before IsArray, so an array of a generic type (List<Missing>[]) fell
+        // straight through to the raw CLR form ("List`1[]") - arrays aren't generic types in the
+        // reflection sense, so the generic-formatting branch never ran for them at all.
+        diagnostic.Path.Should().Be("List<Missing>[]");
+        diagnostic.Message.Should().Contain("List<Missing>[]").And.NotContain("`1");
+    }
+
+    [Fact]
     public void ResolveRoot_DiagnosticPath_RendersClosedGenericTypes_InCSharpStyleNotRawClrForm()
     {
         PlanCache<HasGenericMember>.Instance = new HasGenericMemberPlan();

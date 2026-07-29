@@ -165,9 +165,18 @@ not every stage is the same *kind* of thing:
 Only stages 4/6/7 hold an actual ordered collection of providers in
 Milestone 2 (and of those, only 7 has anything registered in it — 4/5/6
 are wired but empty until their owning milestone). Provider order
-*within* an extensible stage is registration order; no richer ordering
-rule exists yet because no stage has more than one competing provider to
-order. Stage 7's `CollectionPlanCache<T>` dispatch is tried only after
+*within* an extensible stage is registration order; stage 7 alone already
+holds three real providers (`PrimitiveValueProvider`, `EnumValueProvider`,
+`NullableValueProvider` — `BuiltInProviders.Default`), so "no stage has
+more than one provider" is not actually true today, a stale claim
+corrected during PR #13 review. No *richer* ordering rule (priority,
+specificity, or similar) exists yet because none has been needed:
+`PrimitiveValueProvider`/`EnumValueProvider`/`NullableValueProvider`
+claim disjoint type sets, so plain registration order has never had two
+providers genuinely compete for the same request — a richer rule becomes
+a real question only once two providers could plausibly both claim the
+same type differently. Stage 7's `CollectionPlanCache<T>` dispatch is
+tried only after
 its ordered provider collection has already declined, so a registration,
 profile rule, semantic provider, or test-double provider (stages 1–6)
 still gets first refusal over a collection request — collections stay

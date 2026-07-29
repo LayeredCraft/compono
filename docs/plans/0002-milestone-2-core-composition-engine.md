@@ -1478,6 +1478,45 @@ ADR-0014. The task list below reflects the corrected shape.
   `CompositionDiagnosticsTests.ResolveRoot_Throws_WithADiagnosticTree_MatchingTheNestedFailurePath`'s
   `Pending`-count assertion and
   `ResolveRoot_Throws_WithAFriendlyGenericRootName_NotTheRawClrForm`.
+- A third PR #13 review round (`@codex review` again) found two more real
+  gaps, plus surfaced a factual error in ADR-0015's own Context that
+  needed correcting. **Stage 7's three built-in providers collapsed into
+  one aggregate trace entry (P2).** `TryProviders` let its caller record
+  a single `NotHandled` for the whole stage regardless of how many
+  providers actually declined - `BuiltInProviders.Default` genuinely has
+  three registered today (`PrimitiveValueProvider`, `EnumValueProvider`,
+  `NullableValueProvider`), so a failing request's trace showed 1
+  aggregate entry instead of the real count. This directly falsified
+  ADR-0015's own Decision Drivers claim ("no stage in Milestone 2 ...
+  registers more than one competing provider yet") - stage 7 already
+  does, today, not hypothetically. Fixed by moving the `NotHandled`
+  recording into `TryProviders` itself, one entry per provider actually
+  tried (a new `PipelineStage stage` parameter); the winning provider's
+  own outcome is still left for the caller to record once, after
+  `StoreSharedAndReturn` validates it - unaffected by the earlier
+  Success-ordering fix. Per `design-decisions.md`'s "an accepted ADR is a
+  historical record" rule, ADR-0015's own text is left as originally
+  written (an accurate record of the reasoning *at the time*, even though
+  one of its cited facts turned out to be wrong) - the correction instead
+  lands where it actually matters going forward: `docs/architecture.md`'s
+  identical claim (a living doc, meant to be kept current) is fixed in
+  place, and this note records the correction for anyone reading the plan
+  forward. ADR-0015's actual Decision Outcome (defer provider *identity*,
+  not attempt *counting*) still holds - this fix only restores accurate
+  attempt counts, it doesn't add a way to tell *which* provider each
+  entry belongs to, so the ADR's core deferral is unaffected by the
+  correction. **`FriendlyTypeName` didn't recurse into array element
+  types (P2).** `Type.IsGenericType` is `false` for an array type itself
+  (array-ness and generic-ness are orthogonal in reflection), so
+  `List<Missing>[]` fell straight through to the raw CLR form
+  (`List\`1[]`) - the same defect class `FriendlyTypeName` exists to
+  prevent, just not handled for arrays. Fixed by checking `IsArray` first
+  and recursing into `GetElementType()`, reapplying the array's own rank.
+  Both fixes verified against regression tests reverted-and-rerun before
+  being restored, matching prior rounds' discipline; neither changed any
+  benchmark number (re-measured to confirm - `docs/performance.md`'s
+  tables are unchanged within normal noise, since both are trace-fidelity/
+  formatting fixes, not allocation or timing changes).
 
 ## Critical Files
 

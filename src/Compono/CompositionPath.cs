@@ -121,6 +121,18 @@ internal sealed class CompositionPath
     // not just this type's own tree/display strings.
     internal static string FriendlyTypeName(Type type)
     {
+        // An array's element type isn't itself IsGenericType-visible on the array Type - Type.Name
+        // for List<Missing>[] is the raw "List`1[]", not just the array suffix, since arrays aren't
+        // generic types (array-ness and generic-ness are orthogonal reflection concepts). Recurse
+        // into the element type first so a generic (or another array) element still renders
+        // correctly, then reapply the array's own rank (PR #13 review).
+        if (type.IsArray)
+        {
+            var elementName = FriendlyTypeName(type.GetElementType()!);
+            var rank = type.GetArrayRank();
+            return rank == 1 ? $"{elementName}[]" : $"{elementName}[{new string(',', rank - 1)}]";
+        }
+
         if (!type.IsGenericType)
             return type.Name;
 
