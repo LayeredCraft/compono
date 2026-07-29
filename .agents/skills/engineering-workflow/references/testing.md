@@ -40,3 +40,26 @@ of a large established pattern yet:
   randomness-dependent should assert on a fixed seed rather than a
   property-based "run it many times and hope" approach — a flaky test here
   would be a direct contradiction of the thing the library promises to do.
+
+**Verifying a new public entry point into the composition engine
+(`Composer.Create<T>()`, `CreateMany<T>()`, and whatever a later milestone
+adds) must exercise that entry point in isolation, on a type nothing else
+in the same test/verification also reaches.** `Compono.Tests` never
+exercises the real source generator at all (it uses hand-written
+`PlanCache<T>.Instance` fakes throughout, since it doesn't reference
+`Compono.Generators` as an analyzer) — only `Compono.Generators.Tests`'
+snapshot tests, and a genuinely separate `dotnet pack`-and-consume
+project, touch real generator discovery. This matters because pairing a
+new entry point with an already-working one in the same test/consumer
+project can pass while the new entry point's own discovery is silently
+broken — exactly what happened with `CreateMany<T>()`: every verification
+pass (unit tests via fakes, and a manual consumer-project check) called
+`Create<T>()` and `CreateMany<T>()` on the *same* type, so `Create<T>()`
+did the real discovery work and `CreateMany<T>()` rode along on a plan
+that already existed — masking a real gap (`CreateInvocationDiscovery`
+never recognized `CreateMany<T>()` call sites at all) until a later PR
+review caught it. A `Compono.Generators.Tests` snapshot test compiling
+*only* the new entry point's call site — no other call site or
+`[Composable]` attribute that could independently trigger discovery for
+the same type — is what actually would have caught it, and is required
+for any new entry point going forward.
