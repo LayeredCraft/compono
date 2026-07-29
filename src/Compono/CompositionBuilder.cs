@@ -57,7 +57,7 @@ public sealed class CompositionBuilder
 
         return new CompositionConfiguration
         {
-            Seed = _seed.Value,
+            Seed = _seed.HasValue ? _seed.Value : null,
         };
     }
 }

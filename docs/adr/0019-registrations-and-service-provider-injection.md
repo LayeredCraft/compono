@@ -113,9 +113,10 @@ one appears — not the default behavior of `Register`.
 **Service injection — Option 1, native `IServiceProvider` fallback inside stage 3**,
 confirmed directly with the user, with the exact ordering they specified: "1. Exact
 Compono registrations, 2. Configured IServiceProvider, 3. continue to configuration
-rules (stage 4) if unresolved." This is the same *kind* of move ADR-0010's Amendment 3 already made for
-stage 7 (a context-owned deterministic stage internally trying more than one thing in
-order, before falling through to the next pipeline stage) — extending stage 3 the same
+rules (stage 4) if unresolved." This is the same *kind* of move [ADR-0014](0014-generator-emitted-collection-plans.md)
+already made for stage 7 (a context-owned deterministic stage internally trying more
+than one thing in order, before falling through to the next pipeline stage) —
+extending stage 3 the same
 way keeps the top-level 9-stage contract completely unchanged, adds no new public
 extensibility surface, and costs core `Compono` nothing beyond a BCL interface
 reference:
@@ -204,14 +205,97 @@ public interface ICompositionContext
 ```
 
 This is purely additive to the `Accepted` ADR-0010 contract — generated code is
-unaffected, still calls the descriptor overload exclusively. Internally, the new
-overload expands to a `CompositionRequest` carrying a new
-`PathSegment.ManualResolve` case — defined, and verified in full against
-`ADR-0012`'s reproducibility contract (sibling-call distinctness, nested-factory path
-correctness, recursion detection, cross-run reproducibility), in
-[ADR-0012's Amendment 3](0012-composition-path-identity-and-deterministic-random-forking.md#amendment-3-2026-07-29-manualresolve-segments-for-factoryrule-authored-resolution) —
-not specified here, per the design review's direction that this belongs alongside
-`CompositionPath`'s other identity rules rather than duplicated into a second ADR.
+unaffected, still calls the descriptor overload exclusively.
+
+**A new `PathSegment` kind, ordinal-based like `ConstructorParameter`/`RequiredMember`
+([ADR-0012](0012-composition-path-identity-and-deterministic-random-forking.md)'s
+existing shape, extended additively — that ADR's own `Accepted` text is unedited by
+this ADR):**
+
+```csharp
+internal abstract record PathSegment
+{
+    // ...existing cases unchanged...
+    internal sealed record ManualResolve(int Ordinal) : PathSegment;
+}
+```
+
+`Ordinal` is **not** derived from the requested type or any user-supplied name — it's
+a call-sequence counter, scoped to what this ADR calls a **manual-resolve invocation
+frame**:
+
+- `CompositionContext` pushes exactly one manual-resolve invocation frame
+  immediately before calling a registration or configuration-rule factory, and pops
+  it in a `finally` immediately after that factory call returns *or throws* — the
+  frame's lifetime is scoped to that one factory invocation, full stop, not to any
+  broader notion of "the current node."
+- The frame holds a single mutable counter, starting at `0`. Every descriptor-less
+  `context.Resolve<T>()` call made **during that same factory invocation** — however
+  many, for whatever types — reads the counter for its `ManualResolve.Ordinal` and
+  increments it: two sibling calls inside one factory body share and advance the one
+  counter (first call gets `0`, second gets `1`, and so on).
+- If that factory's own `Resolve<T>()` call resolves a type whose construction
+  itself invokes *another* registration/rule factory (a nested factory invocation,
+  not merely a nested generated-plan dispatch), `CompositionContext` pushes a
+  **new**, independent frame with its own counter starting at `0` for that inner
+  invocation — never the outer frame's counter continued. This is what keeps a
+  nested factory's `ManualResolve(0)` from colliding with the outer factory's own
+  `ManualResolve(0)`: they're disambiguated the same way any other nested
+  `Resolve<T>()` call already is, by being children of different path nodes, not by
+  the counter itself being aware of nesting.
+- Because the frame is popped in `finally`, a factory that throws never leaves its
+  counter (or any other invocation-frame state) reachable by a later, unrelated
+  request — there is nothing to "leak" across requests, structurally, since the
+  frame object itself stops being referenced from anywhere once its owning call
+  returns or throws, the same guarantee the active-construction-frame stack
+  ([ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md))
+  already relies on for the identical push-before/pop-in-`finally` shape.
+
+**Why ordinal, not requested type, as `ManualResolve`'s identity.** This is the same
+reasoning [ADR-0012](0012-composition-path-identity-and-deterministic-random-forking.md)
+Amendment 1 already applied to `ConstructorParameter`/`RequiredMember`: a factory
+that calls `context.Resolve<IClock>()` then `context.Resolve<IRandomService>()`
+makes two structurally distinct draws. If `ManualResolve` had no identity beyond
+"this is a manual resolve," both calls would derive an identical fork key from the
+same parent state — the exact silent-collision bug class that amendment and the
+original Fnv1a fix ([PLAN-0002](../plans/0002-milestone-2-core-composition-engine.md)
+Phase 1 notes) already closed for sibling constructor parameters. Call-sequence
+ordinal avoids it the same way constructor-parameter ordinal does, without needing
+the requested type (which ADR-0012's Decision Outcome already bans from hashing) as
+an input.
+
+**Verified against ADR-0012's reproducibility contract, concretely:**
+
+- **Sibling manual resolves receive distinct paths.** Given
+  `Register<Foo>(context => new Foo(context.Resolve<IClock>(), context.Resolve<IRandomService>()))`,
+  the first call's path is `...→Foo→ManualResolve(0)`, the second is
+  `...→Foo→ManualResolve(1)` — distinct fork keys regardless of `IClock`/
+  `IRandomService` never sharing a requested type, by the same tag+ordinal mechanism
+  every other segment kind uses.
+- **Nested factories preserve deterministic paths.** If `IClock`'s own resolution
+  (whether built-in, registered, or generated-plan-backed) itself nests further
+  requests, those requests append their own segments as children of
+  `...→ManualResolve(0)`, exactly as any other nested `Resolve<T>()` call already
+  appends children of its caller's node — `ManualResolve` participates in the same
+  parent-chain forking as every other kind; no special-casing exists or is needed.
+- **Recursion detection still works.** The active-construction-frame stack
+  ([ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md)) is
+  pushed only around generated-plan dispatch (stage 8) — a descriptor-less
+  `Resolve<T>()` call funnels into the exact same private pipeline-execution method
+  every other resolve path already uses
+  ([PLAN-0002](../plans/0002-milestone-2-core-composition-engine.md)'s Execution
+  Flow), so a factory that (directly or transitively) resolves its own declared type
+  again is caught by the existing frame-stack check, unmodified. This ADR adds no
+  new recursion-detection logic.
+- **Reproducible across repeated compositions with the same seed.** `Ordinal`
+  depends only on call sequence within one deterministic factory/rule invocation —
+  given the same configuration (same registrations/rules, same call graph), two
+  independent `Create<T>()` calls with the same seed invoke every factory the same
+  number of times, in the same order, producing identical `ManualResolve` ordinal
+  sequences and therefore identical fork keys and output. This assumes factories/
+  rules are side-effect-free with respect to how many times they call
+  `Resolve<T>()` — the same assumption generated code's own determinism already
+  rests on.
 
 ### Positive Consequences
 
@@ -237,10 +321,9 @@ not specified here, per the design review's direction that this belongs alongsid
   across profiles/direct calls, or compose profiles more granularly. Accepted per the
   user's explicit direction; a deliberate `Replace`/`TryRegister` verb is a candidate
   for a future ADR if this friction turns out to be real once M3 ships.
-- The `ManualResolve` per-node ordinal counter (ADR-0012 Amendment 3) is a small but
-  genuine addition to `CompositionContext`'s internal per-request state — not free,
-  though bounded (one `int` per active node, same lifetime as the frame already
-  tracks).
+- The `ManualResolve` invocation-frame counter is a small but genuine addition to
+  `CompositionContext`'s internal per-request state — not free, though bounded (one
+  `int` per active manual-resolve invocation, popped when that invocation returns).
 - The single-`IServiceProvider` restriction means a consumer wanting a fallback
   chain across multiple containers has no supported way to express it in M3 —
   accepted as an explicit non-goal rather than a gap, since no concrete use case

@@ -76,6 +76,50 @@ public sealed class ComposerConfigurationTests
     }
 
     [Fact]
+    public void Create_WithNoExplicitSeed_GeneratesAFreshSeedPerCall()
+    {
+        PlanCache<RandomProbe>.Instance = new RandomCapturingPlan();
+
+        try
+        {
+            var composer = Composer.Create();
+
+            var first = composer.Create<RandomProbe>();
+            var second = composer.Create<RandomProbe>();
+
+            first.Should().NotBe(second);
+        }
+        finally
+        {
+            PlanCache<RandomProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void Create_CalledConcurrently_ProducesTheSameCorrectOutput_WhenSeedIsExplicit()
+    {
+        PlanCache<RandomProbe>.Instance = new RandomCapturingPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.WithSeed(4219));
+            var expected = Composer.CreateRootForTesting<RandomProbe>(new CompositionSeed(unchecked((ulong)4219)));
+            var results = new RandomProbe[50];
+
+            Parallel.For(0, results.Length, i => results[i] = composer.Create<RandomProbe>());
+
+            // Every concurrent call landing on the exact same, independently-verified-correct value is
+            // strong evidence against shared mutable state bleeding between concurrent root operations -
+            // a leak would show up as at least one divergent result, not just an exception.
+            results.Should().AllSatisfy(result => result.Should().Be(expected));
+        }
+        finally
+        {
+            PlanCache<RandomProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
     public void WithSeed_CalledTwice_ThrowsWithOneDuplicateConfigurationOptionErrorNamingBothSources()
     {
         var act = () => Composer.Create(builder => builder.WithSeed(1).WithSeed(2));

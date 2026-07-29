@@ -113,9 +113,10 @@ there are two distinct shapes:
       public Nullability Nullability { get; }
   }
   ```
-  `DeclaringType` ([ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-  third amendment, Milestone 3, not yet implemented) is the type whose
-  constructor/required-member declares this parameter/member —
+  `DeclaringType` ([ADR-0020](adr/0020-composition-configuration-rules.md),
+  Milestone 3, not yet implemented — an additive extension to this
+  `Accepted` descriptor shape, not a change to ADR-0010's own text) is the
+  type whose constructor/required-member declares this parameter/member —
   generator-emitted alongside `Ordinal`/`Name`, meaningful only for
   `ConstructorParameter`/`RequiredMember` requests. It exists so a
   configuration rule can match by declaring type + member name directly
@@ -517,7 +518,9 @@ factory runs, popped in `finally` after it returns or throws); every descriptor-
 `Resolve<T>()` call made during that invocation shares and advances that frame's
 counter (`PathSegment.ManualResolve`, a call-sequence ordinal, never the requested
 type), while a nested factory invocation gets its own independent frame — defined in
-[ADR-0012's Amendment 3](adr/0012-composition-path-identity-and-deterministic-random-forking.md#amendment-3-2026-07-29-manualresolve-segments-for-factoryrule-authored-resolution).
+[ADR-0019](adr/0019-registrations-and-service-provider-injection.md), verified
+against [ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
+existing reproducibility contract without editing that ADR's `Accepted` text.
 
 Service injection — this milestone's headline new capability — is a fallback *inside*
 stage 3, not a new pipeline stage or a new public extensibility surface:
@@ -547,8 +550,8 @@ not yet implemented). Two structurally different mechanisms share one public
   a user never implements `ICompositionProvider` directly. A member rule's matching
   identity is `(declaring type, member name)`, matched directly against the
   incoming request's `DeclaringType`/`Name` (Composition Requests, above, and
-  [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-  third amendment) — never inferred from path state — with the rule's own key
+  [ADR-0020](adr/0020-composition-configuration-rules.md)) — never inferred from
+  path state — with the rule's own key
   captured from the member-access expression at the point `.Member(...)` is called;
   a type rule matches any request for exactly that type (no assignability matching
   in Milestone 3). Member rules take precedence over type rules for the same

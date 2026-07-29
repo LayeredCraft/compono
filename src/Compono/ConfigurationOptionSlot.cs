@@ -16,6 +16,7 @@ internal sealed class ConfigurationOptionSlot<TValue>
 {
     private readonly string _optionName;
     private readonly List<ConfigurationSource> _sources = [];
+    private TValue? _value;
 
     /// <summary>Creates an empty slot for the option named <paramref name="optionName"/>.</summary>
     /// <param name="optionName">The builder verb's name, e.g. <c>"WithSeed"</c> - used only in diagnostics.</param>
@@ -25,14 +26,24 @@ internal sealed class ConfigurationOptionSlot<TValue>
     }
 
     /// <summary>
-    /// This option's most recently set value, or <see langword="default"/> if it was never set.
+    /// Whether this option was ever set - <see cref="Value"/> alone can't answer this, since
+    /// <typeparamref name="TValue"/> is unconstrained: <c>TValue?</c> on an unconstrained type
+    /// parameter erases to plain <typeparamref name="TValue"/> (not <c>Nullable&lt;TValue&gt;</c>)
+    /// for a value-type instantiation, so a never-set value-typed slot and one explicitly set to
+    /// <see langword="default"/> would otherwise be indistinguishable.
     /// </summary>
-    internal TValue? Value { get; private set; }
+    internal bool HasValue => _sources.Count > 0;
+
+    /// <summary>
+    /// This option's most recently set value - only meaningful when <see cref="HasValue"/> is
+    /// <see langword="true"/>.
+    /// </summary>
+    internal TValue? Value => _value;
 
     /// <summary>Records a call that set this option to <paramref name="value"/>, from <paramref name="source"/>.</summary>
     internal void Set(TValue value, ConfigurationSource source)
     {
-        Value = value;
+        _value = value;
         _sources.Add(source);
     }
 

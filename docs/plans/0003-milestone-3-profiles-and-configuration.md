@@ -11,12 +11,11 @@ build-time configuration validation, scalar-configuration fail-fast, structured
 registrations, duplicate-registration conflicts, native `IServiceProvider`
 fallback), [ADR-0020](../adr/0020-composition-configuration-rules.md) (type/member
 value rules as internal stage-4 providers, collection-size as queried
-configuration policy). Also implements
-[ADR-0010](../adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-Amendment 3 (`CompositionRequestDescriptor.DeclaringType`) and
-[ADR-0012](../adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
-Amendment 3 (`PathSegment.ManualResolve`), two small extensions the four M3 ADRs
-share.
+configuration policy). `CompositionRequestDescriptor.DeclaringType` (ADR-0020) and
+`PathSegment.ManualResolve` (ADR-0019) are additive extensions to the `Accepted`
+ADR-0010/ADR-0012 contracts, defined in the new ADRs that need them rather than by
+editing those two ADRs' own text — see the review note in this plan's Notes section
+for why.
 
 ## Goal
 
@@ -56,9 +55,11 @@ concrete shape:
   during Phase 1, not prescribed by this plan — see that phase's notes.
 - `ICompositionContext.Resolve<T>()` (descriptor-less overload) and
   `PathSegment.ManualResolve`, scoped to a per-invocation frame (not a per-node
-  counter) — ADR-0012 Amendment 3.
+  counter) — ADR-0019, verified against ADR-0012's existing reproducibility
+  contract without editing ADR-0012 itself.
 - `CompositionRequestDescriptor.DeclaringType` (and the matching field on the
-  internal `CompositionRequest`) — ADR-0010 Amendment 3 — plus the
+  internal `CompositionRequest`) — ADR-0020, an additive extension to ADR-0010's
+  `Accepted` descriptor shape without editing ADR-0010 itself — plus the
   `Compono.Generators` template/emitter change and snapshot regeneration needed to
   populate it.
 - `UseServiceProvider(IServiceProvider)` and stage 3's registration-then-container
@@ -174,7 +175,7 @@ var customer = composer.Create<Customer>();
 7. **`Customer`'s `Status` member resolves via the compiled rule.** The generated
    plan's `context.Resolve<CustomerStatus>(descriptor)` call for the `Status`
    parameter passes a descriptor whose `DeclaringType` is `typeof(Customer)` and
-   `Name` is `"Status"` (ADR-0010 Amendment 3 — generator-emitted, not inferred).
+   `Name` is `"Status"` (ADR-0020 — generator-emitted, not inferred).
    The context expands it into a `CompositionRequest` carrying the same
    `DeclaringType`. Stage 4's compiled rule for `(typeof(Customer), "Status")`
    matches directly against that request field — no path-parent lookup involved —
@@ -190,7 +191,7 @@ var customer = composer.Create<Customer>();
    giving each `Resolve<T>()` made inside it a `ManualResolve(0)`, `ManualResolve(1)`,
    ... segment from that frame's counter, popped in `finally` when the factory
    returns or throws — per
-   [ADR-0012 Amendment 3](../adr/0012-composition-path-identity-and-deterministic-random-forking.md#amendment-3-2026-07-29-manualresolve-segments-for-factoryrule-authored-resolution).
+   [ADR-0019](../adr/0019-registrations-and-service-provider-injection.md).
 9. **Reuse.** A second `composer.Create<Customer>()` call (same `Composer`
    instance) repeats steps 6–8 against the exact same frozen
    `CompositionConfiguration` — nothing about step 6–8 mutates any state steps 1–5
@@ -285,7 +286,7 @@ exist to source anything).
       factory is invoked through the existing `ICompositionContext` the same way any
       other resolution consumer already is
 - [ ] `ICompositionContext.Resolve<T>()` (descriptor-less overload) and
-      `PathSegment.ManualResolve(int Ordinal)` (ADR-0012 Amendment 3) — implemented
+      `PathSegment.ManualResolve(int Ordinal)` (ADR-0019) — implemented
       as a manual-resolve invocation frame pushed immediately before a registration/
       rule factory is invoked and popped in `finally` immediately after it returns
       or throws; the frame holds one counter, shared and incremented by every
@@ -363,7 +364,7 @@ exist to source anything).
 
 ### Phase 3 — Configuration rules: type/member value rules and collection size
 
-- [ ] `CompositionRequestDescriptor.DeclaringType` (ADR-0010 Amendment 3) and the
+- [ ] `CompositionRequestDescriptor.DeclaringType` (ADR-0020) and the
       matching field on the internal `CompositionRequest` — the generator-emitted
       value for `ConstructorParameter`/`RequiredMember` requests; unused for other
       request kinds
@@ -571,7 +572,7 @@ Coverage is itemized per phase above; cross-cutting concerns:
 - The parameterless `Composer.Create()` now delegates to
   `Create(static _ => { })` rather than being a second, independent construction
   path — one implementation, not two, for "no explicit configuration."
-- All 81 `Compono.Tests` pass (both `net10.0`/`net11.0`), including 6 new tests in
+- All 83 `Compono.Tests` pass (both `net10.0`/`net11.0`), including 8 new tests in
   `ComposerConfigurationTests`. `Compono.Generators`/`Compono.Generators.Tests`
   untouched and unaffected (confirmed via a clean build) — Phase 0 doesn't touch
   generator-facing code, so no manual `dotnet pack` verification was needed for
@@ -579,3 +580,54 @@ Coverage is itemized per phase above; cross-cutting concerns:
 - `docs/architecture.md`'s Immutable Configuration Model section updated in the
   same change to describe `WithSeed`/the builder split as shipped, everything else
   still pending.
+
+### PR review correction (2026-07-29): real bug found while adding the promised concurrency/default-seed tests
+
+PR #16 review (Codex) correctly flagged that this phase's original tests didn't
+cover what its own checklist item promised (concurrent `Create<T>()` calls, and an
+empty-configure composer's default-seed-per-call behavior). Adding real coverage
+for both surfaced an actual, independent defect: **every `Composer.Create()` call
+with no explicit `WithSeed(...)` was silently using seed `0` for every root
+operation, instead of generating a fresh seed per call.**
+
+Root cause: `ConfigurationOptionSlot<TValue>.Value` was declared `TValue?` on an
+*unconstrained* generic type parameter. `T?` on an unconstrained `T` is a
+compile-time-only nullable annotation, not `Nullable<T>` — for a value-type
+instantiation (`TValue = CompositionSeed`), it erases to plain `TValue`, so an
+unset slot's `Value` was `default(CompositionSeed)` (`Value = 0`), not `null`.
+`CompositionBuilder.Build()`'s `Seed = _seed.Value` therefore always produced a
+non-null `CompositionSeed(0)`, and `Composer.Create<T>()`'s
+`_configuration.Seed ?? CompositionSeed.Generate()` never reached the `Generate()`
+fallback at all.
+
+Fixed by giving `ConfigurationOptionSlot<TValue>` an explicit `HasValue` (backed by
+`_sources.Count > 0`, already tracked for conflict detection) instead of relying on
+`Value`'s nullability to distinguish "never set" from "set to `default`" — the only
+correct way to do this for an unconstrained generic. `CompositionBuilder.Build()`
+now reads `_seed.HasValue ? _seed.Value : null`. This is exactly the kind of defect
+`testing.md`'s "add tests as you build" principle exists to catch before merge —
+found here specifically because the review pushed the promised coverage from
+"claimed" to "real."
+
+### PR review correction (2026-07-29): ADR-0010/ADR-0012 amendments reverted
+
+PR #16 review (Codex) correctly flagged that this PR's original ADR-0010/ADR-0012
+edits — appending `## Amendment 3` sections adding `DeclaringType`/`ManualResolve`
+to those two `Accepted` ADRs — violated `AGENTS.md`'s non-negotiable ADR
+immutability rule. ADR-0012's own prior amendments (which this PR's first draft
+took as precedent) were made *during Milestone 2's own implementation*, before
+PLAN-0002 reached `Done` — the same design cycle as the ADR itself. This PR's edits
+reached back into `Done`-milestone ADRs from a *later*, separate design cycle
+(Milestone 3), which is a materially different, genuinely rule-violating situation,
+not the same precedent.
+
+Fixed by reverting both ADRs to their pre-PR content entirely and moving the
+`DeclaringType` field definition into ADR-0020 (which needed it and already
+discussed it at length, previously via a cross-reference instead of an inline
+definition) and the full `ManualResolve` definition/verification into ADR-0019
+(previously a cross-reference to ADR-0012's now-removed amendment) — both as those
+new ADRs' own Decision Outcome content, additive to ADR-0010/ADR-0012's `Accepted`
+text without editing it. Every cross-reference to the removed amendments across
+`docs/architecture.md` and this plan was corrected to point at ADR-0019/ADR-0020
+directly. No source code was affected — `DeclaringType`/`ManualResolve` are Phase
+1/3 scope, not yet implemented, so this was a pure documentation/ADR-structure fix.

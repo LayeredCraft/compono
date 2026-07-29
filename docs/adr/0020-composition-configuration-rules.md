@@ -238,11 +238,60 @@ member name — `(typeof(Customer), "Email")`, not merely `("Email")` or
 flagged: two unrelated types each having a `string Email` member no longer share a
 key, because the declaring type is part of it.
 
-**Declaring-type identity is read from `CompositionRequest.DeclaringType`
-(`CompositionRequestDescriptor.DeclaringType` at the generated-code boundary), per
-[ADR-0010's Amendment 3](0010-composition-request-pipeline-and-diagnostics-tracing.md) —
-not inferred from the parent `CompositionPathNode.RequestedType` in the path chain,
-this ADR's own first-draft approach.** Path-parent inference happened to be correct
+**Declaring-type identity is read from a new `DeclaringType` field this ADR adds to
+`CompositionRequestDescriptor`/`CompositionRequest`** — not inferred from the parent
+`CompositionPathNode.RequestedType` in the path chain, this ADR's own first-draft
+approach:
+
+```csharp
+public readonly struct CompositionRequestDescriptor
+{
+    public CompositionRequestKind Kind { get; }
+    public int Ordinal { get; }
+    public string Name { get; }
+    public Type DeclaringType { get; }   // new
+    public Nullability Nullability { get; }
+
+    public CompositionRequestDescriptor(
+        CompositionRequestKind kind, int ordinal, string name, Type declaringType, Nullability nullability)
+    {
+        Kind = kind;
+        Ordinal = ordinal;
+        Name = name;
+        DeclaringType = declaringType;
+        Nullability = nullability;
+    }
+}
+```
+
+`DeclaringType` is the type whose constructor/required-member declares this
+parameter/member — for `Customer(string firstName, ...)`, every constructor
+parameter's descriptor carries `DeclaringType = typeof(Customer)`, generator-emitted
+exactly like `Ordinal`/`Name` already are (no new generator capability needed — the
+declaring type is already in scope at descriptor-emission time, since it's the type
+the whole plan is being generated for, or an ancestor type for an inherited required
+member per [ADR-0012](0012-composition-path-identity-and-deterministic-random-forking.md)
+Amendment 2's base-to-derived ordinal algorithm — `DeclaringType` is the type that
+*declares* the member, which for an inherited required member is the base type, not
+the composed leaf type). `CompositionContext` carries `DeclaringType` forward
+unchanged onto the internal `CompositionRequest` it expands the descriptor into, so
+this ADR's compiled rule matching reads it directly off the request rather than
+inferring it from path state. `CompositionRequestKind.ConstructorParameter`/
+`RequiredMember` are the only kinds that populate it meaningfully — it's unused (and
+unread) for a request with no member identity to speak of (a collection element/
+dictionary key/value, or a `ManualResolve` invocation, per
+[ADR-0019](0019-registrations-and-service-provider-injection.md)). This is purely
+additive to `CompositionRequestDescriptor`'s existing shape (ADR-0010's `Accepted`
+Decision Outcome, unedited by this ADR — see that ADR's own text for the fields this
+extends) — every existing field is unchanged, and `DeclaringType` is never an input
+to random-fork hashing (ADR-0012's existing ban on type identity feeding hashing is
+unaffected; `DeclaringType` is used only for rule *matching*, evaluated at stage 4,
+before any hashing for that request happens). `Compono.Generators`' descriptor-
+emission templates and every existing generated-plan snapshot need updating to emit
+the new argument — a mechanical, `global::`-qualified `typeof(...)` reference
+alongside the existing `Kind`/`Ordinal`/`Name`/`Nullability` arguments.
+
+Path-parent inference happened to be correct
 for straightforward cases but is indirection a rule shouldn't need: it silently
 assumes "the type that requested this member" and "the type whose path node is the
 immediate parent" always coincide, which is true today but is exactly the kind of
