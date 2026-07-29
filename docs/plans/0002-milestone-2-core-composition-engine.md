@@ -872,6 +872,35 @@ ADR-0014. The task list below reflects the corrected shape.
   narrative entries above, left as written since they're an accurate
   record of what was true *at that point in time*, not a live
   cross-reference.
+- A ninth round of PR #11 review found one more real gap, worse than
+  described: a `dynamic` collection element or key type
+  (`composer.Create<HashSet<dynamic>>()`,
+  `Dictionary<dynamic, int>`) doesn't just make the generated plan emit
+  an illegal `typeof(dynamic)` (`CS1962`) — the generated plan class
+  can't even **implement** `ICompositionPlan<HashSet<dynamic>>` at all
+  (`CS1966`, "cannot implement a dynamic interface"), confirmed
+  directly, so no template-body fix could have addressed this; the
+  element/key type has to be rejected at classification time, before a
+  collection plan is ever attempted. `dynamic` is a materially different
+  case from round 4's pointer-element-array fix: a pointer can *only*
+  ever appear as a rank-1 array element (never as a `List<T>`/
+  `HashSet<T>`/`Dictionary<TKey, TValue>` type argument — the C#
+  compiler already rejects `List<int*>` before Compono's code runs), but
+  `dynamic` is legal as a type argument for **all five** shapes. Fixed
+  in `CollectionWellKnownTypes.TryClassify`: refactored into a
+  `FindShape` helper returning the shape candidate, plus one shared
+  rejection check (`ElementType`/`KeyType.TypeKind` is
+  `Pointer`/`FunctionPointer`/`Dynamic`) applied uniformly across all
+  five shapes, rather than the array-only special case round 4 added.
+  Rejected candidates fall through to the ordinary composable-type walk
+  exactly like round 4's pointer-array fix — for `HashSet<dynamic>`/
+  `Dictionary<dynamic, int>` specifically, that walk reaches `CMP0001`
+  (ambiguous construction, since both types have multiple accessible
+  constructors), not `CMP0006` — still a real Compono diagnostic
+  instead of a compiler error inside generated code, which is what
+  actually matters here. Added regression coverage:
+  `CollectionPlanVerifyTests.DynamicHashSetElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`,
+  `DynamicDictionaryKey_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

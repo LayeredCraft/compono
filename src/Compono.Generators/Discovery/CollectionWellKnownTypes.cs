@@ -48,57 +48,54 @@ internal sealed class CollectionWellKnownTypes
 
     internal bool TryClassify(ITypeSymbol type, out CollectionShapeInfo shape)
     {
+        var candidate = FindShape(type);
+
         // A pointer/function-pointer element type is legal C# for a rank-1 array
         // (`int*[]`/`delegate*<int, int>[]`) even though it's never legal as a generic type
         // argument - unlike List<T>/HashSet<T>/Dictionary<TKey, TValue>, whose element type can
         // never be a pointer in the first place (the C# compiler already rejects `List<int*>` before
-        // this code ever runs). Left unclassified here, this falls through to
-        // ComposedTypeAnalyzer's ordinary "not a named type" diagnostic (CMP0006) instead of being
-        // treated as a collection root/member and reaching a generated collection plan that would
-        // try (and fail) to emit `context.Resolve<int*>()` - pointer types can't be generic type
-        // arguments, so that would be a compiler error in generated code, not a Compono diagnostic.
-        if (type is IArrayTypeSymbol { Rank: 1, ElementType: IPointerTypeSymbol or IFunctionPointerTypeSymbol })
+        // this code ever runs). `dynamic`, unlike a pointer, genuinely *is* legal as a type argument
+        // for all five shapes (`HashSet<dynamic>`, `Dictionary<dynamic, int>`) - but a generated
+        // collection plan can't implement `ICompositionPlan<HashSet<dynamic>>` (CS1966, "cannot
+        // implement a dynamic interface") regardless of anything else the plan's body does, so this
+        // has to be rejected here too, for every shape, not fixed by changing what the plan's body
+        // emits. Either case is left unclassified, falling through to ComposedTypeAnalyzer's ordinary
+        // "not a named type"/unsupported-shape diagnostic (CMP0006) instead of reaching a generated
+        // collection plan that can't compile.
+        if (candidate is not { } shapeInfo ||
+            shapeInfo.ElementType.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic ||
+            shapeInfo.KeyType?.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic)
         {
             shape = default;
             return false;
         }
 
+        shape = shapeInfo;
+        return true;
+    }
+
+    private CollectionShapeInfo? FindShape(ITypeSymbol type)
+    {
         if (type is IArrayTypeSymbol { Rank: 1 } array)
-        {
-            shape = new CollectionShapeInfo(CollectionShape.Array, array.ElementType, KeyType: null);
-            return true;
-        }
+            return new CollectionShapeInfo(CollectionShape.Array, array.ElementType, KeyType: null);
 
-        if (type is INamedTypeSymbol { IsGenericType: true } named)
-        {
-            var definition = named.ConstructedFrom;
+        if (type is not INamedTypeSymbol { IsGenericType: true } named)
+            return null;
 
-            if (SymbolEqualityComparer.Default.Equals(definition, _listOfT))
-            {
-                shape = new CollectionShapeInfo(CollectionShape.List, named.TypeArguments[0], KeyType: null);
-                return true;
-            }
+        var definition = named.ConstructedFrom;
 
-            if (SymbolEqualityComparer.Default.Equals(definition, _readOnlyListOfT))
-            {
-                shape = new CollectionShapeInfo(CollectionShape.ReadOnlyList, named.TypeArguments[0], KeyType: null);
-                return true;
-            }
+        if (SymbolEqualityComparer.Default.Equals(definition, _listOfT))
+            return new CollectionShapeInfo(CollectionShape.List, named.TypeArguments[0], KeyType: null);
 
-            if (SymbolEqualityComparer.Default.Equals(definition, _hashSetOfT))
-            {
-                shape = new CollectionShapeInfo(CollectionShape.HashSet, named.TypeArguments[0], KeyType: null);
-                return true;
-            }
+        if (SymbolEqualityComparer.Default.Equals(definition, _readOnlyListOfT))
+            return new CollectionShapeInfo(CollectionShape.ReadOnlyList, named.TypeArguments[0], KeyType: null);
 
-            if (SymbolEqualityComparer.Default.Equals(definition, _dictionaryOfTKeyTValue))
-            {
-                shape = new CollectionShapeInfo(CollectionShape.Dictionary, named.TypeArguments[1], named.TypeArguments[0]);
-                return true;
-            }
-        }
+        if (SymbolEqualityComparer.Default.Equals(definition, _hashSetOfT))
+            return new CollectionShapeInfo(CollectionShape.HashSet, named.TypeArguments[0], KeyType: null);
 
-        shape = default;
-        return false;
+        if (SymbolEqualityComparer.Default.Equals(definition, _dictionaryOfTKeyTValue))
+            return new CollectionShapeInfo(CollectionShape.Dictionary, named.TypeArguments[1], named.TypeArguments[0]);
+
+        return null;
     }
 }

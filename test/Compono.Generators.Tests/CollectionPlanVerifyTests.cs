@@ -3,6 +3,52 @@ namespace Compono.Generators.Tests;
 public sealed class CollectionPlanVerifyTests
 {
     [Fact]
+    public Task DynamicHashSetElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // dynamic is legal as a HashSet<T> type argument, but a generated collection
+                            // plan can't implement ICompositionPlan<HashSet<dynamic>> at all (CS1966,
+                            // "cannot implement a dynamic interface") - CollectionWellKnownTypes must
+                            // reject dynamic element/key types entirely, not just fix what the plan body
+                            // emits, or this breaks the generated file with a compiler error instead of a
+                            // Compono diagnostic. Regression coverage for the PR #11 review finding,
+                            // confirmed directly before fixing (the pre-fix failure was CS1966/CS1962 in
+                            // generated code, not a Compono diagnostic at all).
+                            var value = composer.Create<System.Collections.Generic.HashSet<dynamic>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task DynamicDictionaryKey_ReportsDiagnostic_NotACompilerErrorInGeneratedCode() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            var value = composer.Create<System.Collections.Generic.Dictionary<dynamic, int>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task PrivateElementTypeInCollectionRoot_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions
