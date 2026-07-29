@@ -1118,7 +1118,7 @@ ADR-0014. The task list below reflects the corrected shape.
   `DynamicArrayConstructorParameter_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
   proving the array case still correctly reports `CMP0006`.
 
-### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Done)
+### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Done, PR #12 merged)
 
 - [x] `CompositionScope` (type-keyed, one per root composition operation)
 - [x] Wire `IsShared` requests through the scope-check pipeline stage
@@ -1183,6 +1183,23 @@ ADR-0014. The task list below reflects the corrected shape.
   active-construction-frame stack directly — the frame stack only needed
   to answer "is this type already under construction," not carry its own
   display representation.
+- A PR #12 review round (Codex) found one real gap: a shared value's
+  *first* population (from a provider, a collection plan, or a generated
+  plan) skipped `ValidateAuthoritativeValue` entirely — a null-for-
+  non-nullable or type-mismatched value got cached into `_scope`
+  unvalidated, so the initial request threw `InvalidCastException`/
+  `NullReferenceException` instead of the documented
+  `CompositionException`, and a later shared read of the same type hit
+  the already-poisoned cache. Fixed by routing both shared-store paths
+  (`StoreSharedAndReturn`, and `ResolveViaGeneratedPlan`'s shared branch)
+  through the same validate-then-cache sequence stages 2/3 already use,
+  scoped to `IsShared` requests only (an ordinary, non-shared provider's
+  output is still validated only by its own contract, not the context —
+  widening validation to every provider result wasn't part of this
+  finding). Added regression coverage in `CompositionScopeTests`: the
+  null case, the type-mismatch case, the same through a generated plan,
+  and confirming an invalid first value doesn't poison the scope for a
+  subsequent shared request.
 
 ### Phase 4 — `CreateMany<T>()` and diagnostics polish (Not Started)
 
