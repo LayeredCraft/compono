@@ -278,15 +278,41 @@ an input.
   `...→ManualResolve(0)`, exactly as any other nested `Resolve<T>()` call already
   appends children of its caller's node — `ManualResolve` participates in the same
   parent-chain forking as every other kind; no special-casing exists or is needed.
-- **Recursion detection still works.** The active-construction-frame stack
-  ([ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md)) is
-  pushed only around generated-plan dispatch (stage 8) — a descriptor-less
-  `Resolve<T>()` call funnels into the exact same private pipeline-execution method
-  every other resolve path already uses
-  ([PLAN-0002](../plans/0002-milestone-2-core-composition-engine.md)'s Execution
-  Flow), so a factory that (directly or transitively) resolves its own declared type
-  again is caught by the existing frame-stack check, unmodified. This ADR adds no
-  new recursion-detection logic.
+- **Recursion detection required a genuine correction — the original claim here was
+  wrong.** An earlier draft of this ADR asserted that a factory resolving its own
+  declared type again "is caught by the existing frame-stack check, unmodified."
+  That's false: `Register<IClock>(context => context.Resolve<IClock>())`'s nested
+  `Resolve<IClock>()` call re-enters the pipeline at stage 3, which matches the
+  `IClock` registration **unconditionally, before stage 8 is ever reached** — it
+  re-invokes the *same* factory, which calls `Resolve<IClock>()` again, forever.
+  [ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md)'s
+  active-construction-frame stack is checked only immediately before generated-plan
+  dispatch (stage 8); a cycle confined entirely to stage 3 (exact registrations) or
+  stage 4 (configuration rules) never reaches stage 8 at all, so that check never
+  runs and this recurses until `StackOverflowException`. The identical gap applies
+  to a configuration-rule factory (`.For<Customer>().Member(x => x.Y).Use(context =>
+  context.Resolve<Customer>()...)`) resolving its own declaring type.
+
+  **Fix: registration and rule factory invocation get their own construction-cycle
+  guard**, reusing the same active-construction-frame stack ADR-0011 already
+  defined — extending *when* it's consulted, not redefining what it is or editing
+  ADR-0011's own `Accepted` text (which correctly scoped it to stage 8 for the
+  capabilities that existed in Milestone 2; registration/rule factories are a new
+  capability this ADR introduces, with a new moment that needs the same guarantee).
+  `CompositionContext` pushes the requested type onto the active-construction-frame
+  stack immediately before invoking a stage-3 registration factory or a stage-4
+  compiled rule's factory, and pops it in a `finally` immediately after — the exact
+  push-before/pop-in-`finally` shape the stack already uses for stage 8. If that
+  type is already active on the stack (whether from an enclosing generated-plan
+  dispatch, an enclosing registration/rule factory, or any combination), the nested
+  call is a genuine cycle: it fails with the same kind of diagnosable
+  `CompositionException` stage 8's cycle detection already produces (naming the
+  chain), never a `StackOverflowException`. A registration/rule factory that
+  resolves some *other* type — one whose own construction eventually reaches stage
+  8 for a *different* type than the one currently being resolved by an *outer*
+  registration/rule factory — is unaffected; the guard only fires when a type
+  already active on the stack is requested again, exactly like stage 8's existing
+  check.
 - **Reproducible across repeated compositions with the same seed.** `Ordinal`
   depends only on call sequence within one deterministic factory/rule invocation —
   given the same configuration (same registrations/rules, same call graph), two
@@ -324,6 +350,13 @@ an input.
 - The `ManualResolve` invocation-frame counter is a small but genuine addition to
   `CompositionContext`'s internal per-request state — not free, though bounded (one
   `int` per active manual-resolve invocation, popped when that invocation returns).
+- Extending the active-construction-frame stack's consultation points to
+  registration/rule factory invocation (not just stage 8) is genuine new logic this
+  ADR adds, corrected from an earlier draft that incorrectly assumed the existing
+  stage-8-only check already covered it — a real gap, not a documentation-only
+  fix, and one that needs its own regression test (a self-referencing registration
+  and a self-referencing rule, each failing with a diagnosable exception instead of
+  a `StackOverflowException`).
 - The single-`IServiceProvider` restriction means a consumer wanting a fallback
   chain across multiple containers has no supported way to express it in M3 —
   accepted as an explicit non-goal rather than a gap, since no concrete use case
@@ -403,6 +436,10 @@ an input.
 - [ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md) — the
   `ICompositionContext`/`CompositionRequestDescriptor`/`CompositionRequestKind`
   contract this ADR additively extends
+- [ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md) — the
+  active-construction-frame stack this ADR extends the consultation points of
+  (registration/rule factory invocation, alongside stage 8), without editing that
+  ADR's own `Accepted` text
 - [ADR-0012](0012-composition-path-identity-and-deterministic-random-forking.md) — the
   structural-forking reproducibility contract `ManualResolve`'s ordinal counter
   exists to preserve

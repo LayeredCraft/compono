@@ -561,11 +561,12 @@ not yet implemented). Two structurally different mechanisms share one public
 - **Collection-size configuration** (`builder.WithCollectionSize(n)`,
   `.For<T>().Member(x => x.Y).WithCollectionSize(n)`) is **not** a stage-4 rule —
   it's immutable policy on `CompositionConfiguration`, queried directly by stage 7's
-  collection dispatch. A single new `ICompositionContext.ResolveCollectionSize(in
-  CompositionRequestDescriptor)` method (not a root/member pair — a root-level
-  collection plan reads the configuration's global default directly from internal
-  runtime code, with no public API call needed, since it never crosses the
-  generated-code boundary) replaces
+  collection dispatch. A single, **parameterless** `ICompositionContext.ResolveCollectionSize()`
+  method (not a descriptor-taking overload — a generated collection plan's
+  `Compose(ICompositionContext)` has no descriptor to pass; the context already
+  knows the current member's declaring type/name internally, from the segment it
+  already pushed onto its own path before dispatching to the collection plan) —
+  used identically by root-level and member-scoped collection plans — replaces
   [ADR-0013](adr/0013-collection-generation-semantics.md)'s previously-hardcoded
   default of `3`. This parameterizes ADR-0013's constant without reopening its
   retry/uniqueness/ordering semantics.

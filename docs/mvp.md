@@ -157,8 +157,11 @@ build-time configuration validation), [ADR-0018](adr/0018-composition-profiles.m
 registrations, duplicate-registration conflicts, native `IServiceProvider` fallback
 in stage 3), [ADR-0020](adr/0020-composition-configuration-rules.md) (type/member
 value rules as internal stage-4 providers, collection-size as queried
-configuration policy). [ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
-Amendment 3 adds the `ManualResolve` path-segment kind these rely on. Public
+configuration policy). [ADR-0019](adr/0019-registrations-and-service-provider-injection.md)
+adds the `ManualResolve` path-segment kind (an additive extension to
+[ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
+`Accepted` path-identity contract, not an edit to it) and a construction-cycle
+guard around registration/rule factory invocation. Public
 provider extensibility (how NSubstitute/Bogus/custom pattern-matching logic
 eventually plug into stages 5/6) is deliberately **deferred to Milestone 5** — see
 that milestone's section below.

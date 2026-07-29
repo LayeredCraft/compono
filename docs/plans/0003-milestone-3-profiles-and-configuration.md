@@ -73,11 +73,14 @@ concrete shape:
   choice — see Phase 3.
 - `WithCollectionSize(n)` (global) and `.For<T>().Member(x => x.Y).WithCollectionSize(n)`
   (member-scoped), `CollectionSizePolicy` on `CompositionConfiguration`, and the new
-  `ICompositionContext.ResolveCollectionSize(in CompositionRequestDescriptor)` — the
-  one public overload; a root-level collection plan reaches the same underlying
-  precedence lookup directly from internal runtime code (one shared internal
-  implementation, two call sites), with no public API involved for the root case —
-  ADR-0020. Requires updating `Compono.Generators`' collection-plan template
+  `ICompositionContext.ResolveCollectionSize()` — **parameterless**, not a
+  descriptor-taking overload (a generated collection plan's `Compose(ICompositionContext)`
+  has no descriptor to pass; the context already knows the current member's
+  declaring type/name internally, from the segment it already pushed onto its own
+  path before dispatching to the collection plan — the same "no parameter needed,
+  the context already knows" shape `ResolveRoot<T>()` uses) — one method, used
+  identically by root-level and member-scoped collection plans alike — ADR-0020.
+  Requires updating `Compono.Generators`' collection-plan template
   (`CollectionPlan.scriban`) to call the new query instead of emitting the literal
   `3` ADR-0013 hardcoded.
 - `WithSeed(int)` — the public seed-configuration entry point Milestone 2 deferred.
@@ -294,6 +297,19 @@ exist to source anything).
       factory that itself triggers a nested factory invocation gets a **new**,
       independent frame for that nested call, never the outer counter continued.
       `CompositionRequestKind.ManualResolve` extends the existing enum
+- [ ] **Construction-cycle guard around registration/rule factory invocation**
+      (ADR-0019 correction) — a genuine gap found during PR review, not just a
+      docs fix: stage 3/4 registrations and rules are checked *before* stage 8, so
+      a self-referencing registration/rule (`Register<IClock>(context =>
+      context.Resolve<IClock>())`) never reaches the existing active-construction-
+      frame check at all and recurses to `StackOverflowException`. Fix: push the
+      requested type onto the same active-construction-frame stack
+      ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md))
+      immediately before invoking a registration or rule factory, pop in `finally`;
+      a type already active on the stack (from an enclosing generated-plan
+      dispatch or an enclosing factory invocation) fails with a diagnosable
+      `CompositionException` naming the chain, the same shape stage 8's existing
+      cycle failure already produces — never a raw stack overflow
 - [ ] `Build()` validation: scan the accumulated registration list for duplicate
       exact-registration types; on any duplicate, add a `DuplicateRegistration`
       error (affected type, contributing `Sources`) to the aggregated list; on no
@@ -328,7 +344,12 @@ exist to source anything).
       structured exception, no scope/dispose call ever made — verify via a
       test-double `IServiceProvider` that fails the test if `Dispose`/scope-related
       members are ever touched); `UseServiceProvider` called twice throws with one
-      `DuplicateConfigurationOption` error
+      `DuplicateConfigurationOption` error; a self-referencing registration
+      (`Register<IClock>(context => context.Resolve<IClock>())`) and a
+      self-referencing configuration rule each fail with a diagnosable
+      `CompositionException` naming the cycle, not a `StackOverflowException` —
+      the construction-cycle guard's own regression test, with a timeout/bounded
+      assertion so a regression here fails the test suite rather than hanging it
 
 ### Phase 2 — Profiles
 
@@ -401,15 +422,20 @@ exist to source anything).
       keyed-conflict validation as a member value rule) — both accumulated into
       `CollectionSizePolicy` on `CompositionConfiguration`, not compiled into any
       stage-4 rule
-- [ ] `ICompositionContext.ResolveCollectionSize(in CompositionRequestDescriptor
-      descriptor)` — the **only** new *public* context method for collection size
-      (no descriptor-less root overload). The three-level precedence lookup
-      (member-scoped override → global default → ADR-0013's built-in `3`) is
-      implemented **once**, as an internal method taking an optional member key; the
-      public overload extracts the key from its descriptor and calls it, and the
-      internal root-dispatch path calls the same internal method directly with no
-      key — one lookup implementation shared by both call sites, not two. A plain
-      configuration read either way — no randomness, no path segment pushed
+- [ ] `ICompositionContext.ResolveCollectionSize()` — **parameterless**, the
+      **only** new public context method for collection size. Corrected after
+      review: a generated collection plan's `Compose(ICompositionContext)` has no
+      descriptor to pass (that's fully consumed before `CollectionPlanCache<T>`
+      dispatch ever runs), so the earlier descriptor-taking design was
+      unimplementable as scoped. The context reads the current member's declaring
+      type/name from its own already-pushed path segment internally — the same
+      "context already knows, no parameter needed" shape `ResolveRoot<T>()` uses.
+      Root-level and member-scoped collection plans call the exact same method; a
+      root request simply has no parent segment to match a member override
+      against, and falls through to the global default/built-in `3` the same way.
+      The three-level precedence lookup (member-scoped override → global default →
+      ADR-0013's built-in `3`) is a plain configuration read — no randomness, no
+      *new* path segment pushed (it reads the one already there)
 - [ ] `Compono.Generators`: `CollectionPlan.scriban` (and its emitter model) updated
       to call `context.ResolveCollectionSize(...)` instead of emitting the literal
       `3`; existing `.verified.cs` collection-plan snapshots regenerated

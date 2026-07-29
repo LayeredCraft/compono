@@ -112,62 +112,82 @@ contract at all. `CompositionConfiguration` holds a `CollectionSizePolicy` — a
 default (`WithCollectionSize(n)`, falling back to ADR-0013's existing default of `3`
 if never set) plus a member-scoped override table
 (`(declaring type, member name) → size`, same identity shape as a member rule's
-matching key, established below). `ICompositionContext` gains exactly **one** new
-public member — not a root/member pair — since a root-level collection request
-(`Composer.Create<List<int>>()`) never crosses the generated-code boundary through
-`ICompositionContext` at all: `ResolveRoot<T>()`
-([ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md) Amendment)
-is hand-written runtime code living inside `CompositionContext` itself, so a
-root-level collection plan's size lookup can read `CompositionConfiguration`'s
-`CollectionSizePolicy` global default directly, with no public API call at all — a
-second, symmetry-only overload would be public surface with no real caller.
-Generated (non-root) collection plans, which *do* cross the assembly boundary, get
-the one overload that matters to them:
+matching key, established below).
+
+**Corrected after review: `ResolveCollectionSize()` takes no parameters at all —
+not a descriptor, not a root/member overload pair.** An earlier draft of this ADR
+had a generated collection plan pass its own `CompositionRequestDescriptor` into
+`ResolveCollectionSize(in CompositionRequestDescriptor descriptor)`, but that's not
+possible: `ICompositionPlan<T>.Compose(ICompositionContext context)` (the interface
+every generated plan, collection or otherwise, implements) receives only the
+context — it has no descriptor to pass, because `CompositionContext.Resolve<TValue>`
+already consumed and expanded the descriptor *before* ever dispatching into
+`CollectionPlanCache<TValue>.Instance.Compose(this)`. Threading a descriptor through
+`Compose` would mean changing `ICompositionPlan<T>`'s signature for every generated
+plan in the codebase, not just collection ones — out of proportion to what this ADR
+actually needs.
+
+The fix needs no interface change at all, because **the context already has
+everything it needs internally by the time it reaches stage 7's collection
+dispatch.** `CompositionContext.ResolveCore` pushes the current request's segment
+onto `_path` at the very top of the method, before any pipeline stage runs
+(`docs/architecture.md`'s Composition Requests section) — so by the time collection
+dispatch is reached, `_path`'s current node already carries the parent's
+`RequestedType` and the current segment's member name, exactly the `(declaring
+type, member name)` pair a member-scoped override is keyed by. This is the same
+"the context already knows, no parameter needed" shape `ResolveRoot<T>()`
+([ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)
+Amendment) already uses for the analogous "no descriptor at the root" case — a
+collection plan simply doesn't need to hand the context back data the context
+itself already has:
 
 ```csharp
 public interface ICompositionContext
 {
     // ...Resolve<T> overloads unchanged...
-    int ResolveCollectionSize(in CompositionRequestDescriptor descriptor);
+    int ResolveCollectionSize();
 }
 ```
 
-Precedence is member-scoped override, then global default, then ADR-0013's built-in
-`3` — a plain, three-level data lookup with no randomness or hashing involved (it
-never advances `IRandomSource`, never pushes a path segment — it's a configuration
-read, not a resolved value). This is a **parameterization** of ADR-0013's
-previously-fixed constant, not a change to that ADR's retry/uniqueness/ordering
-semantics, which remain exactly as decided — noted here explicitly since
-ADR-0013/ADR-0014 are `Accepted` and this ADR doesn't reopen either.
-
-**One internal lookup implementation, not two.** Having exactly one public overload
-(above) doesn't by itself guarantee there's only one implementation of the
-three-level precedence rule — the root-dispatch code path inside
-`CompositionContext` still needs to apply it. Rather than duplicating that logic
-inline at the root call site, `CompositionContext` implements the precedence lookup
-**once**, as a private/internal method taking an *optional* member key (`(Type
-declaringType, string memberName)?`):
+One method, one call site shape, used identically by a root-level collection plan
+and a member-scoped one — there is no second overload and no "which one do I call"
+question for generated code to get right. Internally:
 
 ```csharp
-private int ResolveCollectionSizeCore((Type DeclaringType, string MemberName)? memberKey)
+private int ResolveCollectionSizeCore()
 {
-    if (memberKey is { } key && _configuration.CollectionSizePolicy.MemberOverrides.TryGetValue(key, out var overrideSize))
+    if (_path is { Segment: { } segment, ParentRequestedType: { } declaringType }
+        && _configuration.CollectionSizePolicy.MemberOverrides.TryGetValue((declaringType, segment.Name), out var overrideSize))
+    {
         return overrideSize;
+    }
 
     return _configuration.CollectionSizePolicy.GlobalDefault ?? CollectionDefaults.Size; // ADR-0013's 3
 }
 ```
 
-The public `ResolveCollectionSize(in CompositionRequestDescriptor descriptor)`
-overload extracts `(descriptor.DeclaringType, descriptor.Name)` and calls this
-core method; the internal root-dispatch path calls the same core method directly
-with `memberKey: null` (a root request has no declaring type/member to look up an
-override for — it can only ever fall through to the global default or the built-in
-`3`). This is the "single internal implementation" the design review asked to
-confirm: the *public API surface* is one method (root dispatch never gets a second
-public overload, per the reasoning above), and the *lookup logic* is also one
-method — the two call sites differ only in how they obtain the optional member key,
-not in how precedence is resolved once they have it.
+A root-level collection request has no parent node/segment at all (`_path`'s
+current node *is* the root), so the member-override branch never matches and
+resolution falls straight through to the global default or ADR-0013's built-in
+`3` — the same outcome the earlier, more complicated "optional member key passed
+by the caller" design produced, just derived from state the context already
+tracks instead of state a caller would have had to reconstruct and hand back.
+Precedence is unchanged: member-scoped override, then global default, then
+ADR-0013's built-in `3` — a plain, three-level data lookup with no randomness or
+hashing involved (it never advances `IRandomSource`, never pushes a *new* path
+segment of its own — it reads the segment already pushed for the current request,
+it doesn't push another). This is a **parameterization** of ADR-0013's
+previously-fixed constant, not a change to that ADR's retry/uniqueness/ordering
+semantics, which remain exactly as decided — noted here explicitly since
+ADR-0013/ADR-0014 are `Accepted` and this ADR doesn't reopen either.
+
+Exact field names above (`_path.Segment`/`ParentRequestedType`) describe the shape
+`CompositionPath`/`CompositionPathNode` needs to expose internally for this lookup,
+not a requirement that those exact members already exist unchanged from ADR-0012 —
+implementation may thread this through however is cleanest against `CompositionPath`'s
+real current shape, as long as the member-override key is read from state the
+context already possesses at collection-dispatch time, never from a
+caller-supplied parameter.
 
 The public builder surface stays unified even though the internal mechanism now
 differs from value rules:
