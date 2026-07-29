@@ -1619,6 +1619,40 @@ public sealed class CompositionPlanVerifyTests
             expectedDiagnosticId: "CMP0001",
             TestContext.Current.CancellationToken);
 
+    [Fact]
+    public Task CreateManyOnlyInvocation_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer(string firstName, string lastName)
+                    {
+                        FirstName = firstName;
+                        LastName = lastName;
+                    }
+
+                    public string FirstName { get; }
+                    public string LastName { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // No Create<Customer>() call site anywhere in this source, and no
+                        // [Composable] attribute - CreateMany<T>() has to be its own discovery
+                        // trigger (PR #13 review), not merely piggyback on Create<T>() already
+                        // having been called for the same type elsewhere.
+                        var customers = composer.CreateMany<TestNamespace.Customer>(3);
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
     // No automated regression test for RequiredMemberCollector.IsAssignableFromGeneratedCode: the
     // shape it defends against (a required member with no accessible setter, or a required
     // readonly field) is one the C# compiler itself refuses to let *any* C#-authored type declare

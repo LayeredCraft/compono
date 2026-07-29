@@ -1517,6 +1517,35 @@ ADR-0014. The task list below reflects the corrected shape.
   benchmark number (re-measured to confirm - `docs/performance.md`'s
   tables are unchanged within normal noise, since both are trace-fidelity/
   formatting fixes, not allocation or timing changes).
+- A fourth PR #13 review round found the most severe gap of the whole
+  review cycle (P1): **`CreateMany<T>()` was never wired into the source
+  generator's discovery, so the single most-advertised `CreateMany<T>`
+  usage threw `CompositionException` at runtime.** A consumer calling
+  only `composer.CreateMany<Customer>(3)` - never `Create<Customer>()`,
+  no `[Composable]` attribute - got no generated plan for `Customer` at
+  all: `CreateInvocationDiscovery.IsCandidate`/`Transform`
+  (`src/Compono.Generators/Discovery/CreateInvocationDiscovery.cs`) still
+  hardcoded the method name `"Create"` only. Notably, this was **not** a
+  design gap - [ADR-0004](../adr/0004-composition-plan-discovery-and-dispatch.md)
+  already specified "call-site driven (find `Create<T>()`/`CreateMany<T>()`
+  invocations..." and `docs/architecture.md`'s Discovery and Dispatch
+  section already said the same - the generator's implementation simply
+  never caught up once Phase 4 shipped the real `CreateMany<T>()` method,
+  since `CreateInvocationDiscovery` predates it (Milestone 1). Fixed by
+  widening both the syntax-level `IsCandidate` pattern and the
+  symbol-level `Transform` check to accept `"Create"` or `"CreateMany"` -
+  a two-line change once located, per the ADR's already-correct design.
+  Verified three ways, matching the bar for source-generator-facing
+  changes (`tasks/implement.md` step 7): (1) a new generator snapshot
+  test, `CompositionPlanVerifyTests.CreateManyOnlyInvocation_GeneratesCompositionPlan`,
+  compiling source with a `CreateMany<Customer>(3)` call site and no
+  `Create<Customer>()`/`[Composable]` anywhere, confirming a real plan
+  gets generated; (2) reverted the fix and confirmed that test fails,
+  restored and confirmed it passes; (3) `dotnet pack`'d `Compono` into a
+  clean local feed and ran a genuinely separate throwaway console
+  project calling only `composer.CreateMany<Customer>(3)`, confirming
+  real end-to-end output (three distinct composed `Customer`s) through
+  the actual published package, not just the in-memory test harness.
 
 ## Critical Files
 
@@ -1631,6 +1660,15 @@ ADR-0014. The task list below reflects the corrected shape.
   derived-to-base), per ADR-0012's amendment 2 — **Done (Phase 0,
   unscoped fix — see Phase 0 Notes; confirmed against ADR-0012 amendment
   2's canonical algorithm in Phase 1, no further changes needed)**
+- `src/Compono.Generators/Discovery/CreateInvocationDiscovery.cs` —
+  modified: `IsCandidate`/`Transform` recognize `CreateMany<T>()` call
+  sites, not just `Create<T>()` — closes a real gap against
+  [ADR-0004](../adr/0004-composition-plan-discovery-and-dispatch.md)'s
+  already-correct design, discovered once `CreateMany<T>()` shipped as a
+  real method — **Done (Phase 4, PR #13 review round 4)**.
+  `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs`'s
+  `CreateManyOnlyInvocation_GeneratesCompositionPlan` (+ its snapshot) —
+  new — **Done (Phase 4, PR #13 review round 4)**
 - `test/Compono.Tests/CompositionContextTests.cs`,
   `test/Compono.Tests/ComposerTests.cs` — new — **Done (Phase 0)**
 - `test/Compono.Tests/RandomSourceTests.cs`,
