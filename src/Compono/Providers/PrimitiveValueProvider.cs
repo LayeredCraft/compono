@@ -5,7 +5,9 @@ namespace Compono.Providers;
 
 /// <summary>
 /// Stage 7 built-in provider for <c>docs/mvp.md</c>'s primitive/simple built-in type list -
-/// <see langword="string"/>, <see langword="bool"/>, the integral and floating-point types,
+/// <see langword="string"/>, <see langword="bool"/>, <see langword="char"/>, every integral type
+/// <c>Compono.Generators</c>' <c>LeafTypeClassifier</c> already classifies as provider-resolved
+/// (including <see langword="nint"/>/<see langword="nuint"/>), the floating-point types,
 /// <see langword="decimal"/>, <see cref="Guid"/>, <see cref="DateTime"/>,
 /// <see cref="DateTimeOffset"/>, <see cref="DateOnly"/>, <see cref="TimeOnly"/>, and
 /// <see cref="TimeSpan"/>.
@@ -20,6 +22,7 @@ internal sealed class PrimitiveValueProvider : ICompositionProvider
         {
             [typeof(string)] = NextString,
             [typeof(bool)] = random => (random.NextUInt64() & 1) == 0,
+            [typeof(char)] = NextChar,
             [typeof(sbyte)] = random => unchecked((sbyte)random.NextUInt64()),
             [typeof(byte)] = random => unchecked((byte)random.NextUInt64()),
             [typeof(short)] = random => unchecked((short)random.NextUInt64()),
@@ -28,6 +31,8 @@ internal sealed class PrimitiveValueProvider : ICompositionProvider
             [typeof(uint)] = random => unchecked((uint)random.NextUInt64()),
             [typeof(long)] = random => unchecked((long)random.NextUInt64()),
             [typeof(ulong)] = random => random.NextUInt64(),
+            [typeof(nint)] = random => unchecked((nint)random.NextUInt64()),
+            [typeof(nuint)] = random => unchecked((nuint)random.NextUInt64()),
             [typeof(float)] = NextSingle,
             [typeof(double)] = NextDouble,
             [typeof(decimal)] = NextDecimal,
@@ -76,6 +81,10 @@ internal sealed class PrimitiveValueProvider : ICompositionProvider
 
         return new string(chars);
     }
+
+    // Printable ASCII (32..126) only - the full char range includes surrogate halves and
+    // non-printable control characters, neither of which is a useful "random char" for test data.
+    private static object NextChar(IRandomSource random) => (char)(32 + (random.NextUInt64() % 95));
 
     private static object NextSingle(IRandomSource random) => (float)(random.NextUInt64() >> 40) / (1 << 24);
 

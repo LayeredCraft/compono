@@ -800,6 +800,40 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task DateOnlyAndTimeOnlyParameters_LeftAsResolveCallsNotRecursedInto() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Reservation
+                {
+                    public Reservation(System.DateOnly checkIn, System.TimeOnly checkInTime)
+                    {
+                        CheckIn = checkIn;
+                        CheckInTime = checkInTime;
+                    }
+
+                    public System.DateOnly CheckIn { get; }
+                    public System.TimeOnly CheckInTime { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // DateOnly/TimeOnly are recognized BCL value types (LeafTypeClassifier) -
+                        // left as bare context.Resolve<T>() calls, never run through constructor
+                        // selection (which would otherwise be ambiguous and wrongly fail this
+                        // compile - regression coverage for the PR #11 review finding).
+                        var reservation = composer.Create<TestNamespace.Reservation>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task NestedTypeFailsConstructorSelection_ReportsDiagnosticAtOriginalCallSite() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions

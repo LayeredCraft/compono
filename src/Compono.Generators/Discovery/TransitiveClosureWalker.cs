@@ -132,7 +132,8 @@ internal static class TransitiveClosureWalker
             shape.ElementType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             shape.ElementType.NullableAnnotation == NullableAnnotation.Annotated,
             shape.KeyType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            shape.KeyType?.NullableAnnotation == NullableAnnotation.Annotated);
+            shape.KeyType?.NullableAnnotation == NullableAnnotation.Annotated,
+            EquatableArray<DiagnosticInfo>.Empty);
 
     private static (DiscoveredTypeInfo Info, IMethodSymbol? Constructor, IReadOnlyList<(ITypeSymbol Type, string Name)> RequiredMemberTypes) Analyze(
         INamedTypeSymbol type, Compilation compilation, LocationInfo? location, string? path)

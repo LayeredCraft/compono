@@ -141,6 +141,45 @@ public sealed class CollectionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task SameClosedListReachedWithDifferentElementNullability_ReportsConflictDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class NotNullableHolder
+                    {
+                        public NotNullableHolder(System.Collections.Generic.List<string> items) { Items = items; }
+                        public System.Collections.Generic.List<string> Items { get; }
+                    }
+
+                    public sealed class NullableHolder
+                    {
+                        public NullableHolder(System.Collections.Generic.List<string?> items) { Items = items; }
+                        public System.Collections.Generic.List<string?> Items { get; }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // Both List<string> and List<string?> reach the identical closed
+                            // collection type (element nullability is erased from the emitted type
+                            // name), but disagree on ElementIsNullable - no single collection plan is
+                            // correct for both, so this must be reported (CMP0011) rather than
+                            // silently picking whichever discovery happened to come first.
+                            var notNullable = composer.Create<TestNamespace.NotNullableHolder>();
+                            var nullable = composer.Create<TestNamespace.NullableHolder>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0011",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task NestedListOfList_GeneratesCollectionPlansForBothShapes() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

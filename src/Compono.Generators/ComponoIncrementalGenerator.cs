@@ -68,18 +68,42 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 // The same closed collection type can legitimately be reached from more than one
                 // discovery path (or more than one member site) - collapse to one emitted plan per
                 // distinct closed collection type. Two discoveries of the *same* closed type that
-                // disagree on element/key nullability is a narrower ambiguity than DiscoveredTypeInfo's
-                // CMP0010 conflict check handles for composable types - not resolved here; the first
-                // discovery wins, matching this generator's existing "first duplicate wins" behavior
-                // before conflict-detection existed for ordinary types.
+                // disagree on element/key nullability (e.g. a List<string> member and a List<string?>
+                // member both reaching List<string>) have no value that's correct for both - reported
+                // as CMP0011 instead of silently picking whichever discovery happened to come first,
+                // mirroring DiscoveredTypeInfo's CMP0010 conflict check for ordinary composable types.
                 return callSites.Concat(composables).Concat(assemblyComposables)
                     .GroupBy(static collection => collection.FullyQualifiedCollectionTypeName)
-                    .Select(static group => group.First());
+                    .Select(static group =>
+                    {
+                        var distinct = group.Distinct().ToArray();
+
+                        if (distinct.Length == 1)
+                            return distinct[0];
+
+                        return new DiscoveredCollectionInfo(
+                            distinct[0].Shape,
+                            group.Key,
+                            distinct[0].ElementFullyQualifiedTypeName,
+                            distinct[0].ElementIsNullable,
+                            distinct[0].KeyFullyQualifiedTypeName,
+                            distinct[0].KeyIsNullable,
+                            new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingCollectionMetadata, null, group.Key) }
+                                .ToEquatableArray());
+                    });
             })
             .WithTrackingName(TrackingNames.DiscoveredCollectionsDistinct);
 
         context.RegisterSourceOutput(discoveredCollections, static (productionContext, collection) =>
-            CollectionPlanEmitter.Generate(productionContext, collection));
+        {
+            foreach (var diagnostic in collection.Diagnostics)
+                diagnostic.Report(productionContext);
+
+            if (collection.Diagnostics.Count > 0)
+                return;
+
+            CollectionPlanEmitter.Generate(productionContext, collection);
+        });
 
         // All discovery paths produce equivalent plan-generation requests - merge before deduping
         // so a type discovered via both a call site and [Composable] still gets exactly one plan.

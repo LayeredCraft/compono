@@ -612,13 +612,28 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   the `ICompositionProvider` interface applies identically here.
 - The same-closed-collection-type-discovered-twice-with-different-
   nullability case (the collection-shape analogue of `CMP0010`'s
-  conflicting-composition-metadata check for ordinary types) is **not**
-  given its own conflict diagnostic — `ComponoIncrementalGenerator`
-  dedupes collections by `FullyQualifiedCollectionTypeName` alone,
-  first-discovered-wins, same as this generator's own pre-`CMP0010`
-  behavior for ordinary types. Accepted as a known, narrow gap rather
-  than solved here (see the code comment at the dedupe site) — revisit if
-  it ever causes a real silently-wrong nullability bug in practice.
+  conflicting-composition-metadata check for ordinary types) was initially
+  shipped as first-discovered-wins with no diagnostic, flagged during PR
+  #11 review, and fixed in the same PR: `DiscoveredCollectionInfo` gained
+  a `Diagnostics` field, and `ComponoIncrementalGenerator`'s collection
+  dedupe now detects a genuine disagreement within a `FullyQualifiedCollectionTypeName`
+  group and reports **CMP0011** (mirroring `CMP0010`'s synthetic-conflict-entry
+  shape exactly) instead of picking one discovery arbitrarily — see
+  `CollectionPlanVerifyTests.SameClosedListReachedWithDifferentElementNullability_ReportsConflictDiagnostic`.
+- Two more PR #11 review findings, both fixed in the same PR: (1)
+  `LeafTypeClassifier` never gained `DateOnly`/`TimeOnly` — those two
+  types are new in Phase 2's built-in type list, but the generator's
+  provider-resolved classification (Milestone 1 code) wasn't updated
+  alongside `PrimitiveValueProvider`, so a composed type with a
+  `DateOnly`/`TimeOnly` member failed constructor selection instead of
+  reaching the new provider. Fixed by adding both to `WellKnownTypeData`/
+  `LeafTypeClassifier.IsRecognizedBclValueType`. (2)
+  `LeafTypeClassifier.IsBuiltInSimpleType` already classified
+  `char`/`nint`/`nuint` as provider-resolved (Milestone 1), but
+  `PrimitiveValueProvider`'s factory table never covered them, so a
+  generated plan referencing any of the three compiled fine and then
+  always failed at runtime with `CompositionException`. Fixed by adding
+  factories for all three.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

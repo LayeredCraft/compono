@@ -12,6 +12,8 @@ internal static class WellKnownTypeData
         System_DateTimeOffset,
         System_Guid,
         System_TimeSpan,
+        System_DateOnly,
+        System_TimeOnly,
     }
 
     public static readonly string[] WellKnownTypeNames =
@@ -22,5 +24,7 @@ internal static class WellKnownTypeData
         "System.DateTimeOffset",
         "System.Guid",
         "System.TimeSpan",
+        "System.DateOnly",
+        "System.TimeOnly",
     ];
 }

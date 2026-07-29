@@ -35,5 +35,7 @@ internal static class LeafTypeClassifier
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_DateTime) ||
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_DateTimeOffset) ||
         wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_Guid) ||
-        wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_TimeSpan);
+        wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_TimeSpan) ||
+        wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_DateOnly) ||
+        wellKnownTypes.IsType(type, WellKnownTypeData.WellKnownType.System_TimeOnly);
 }

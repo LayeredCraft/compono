@@ -87,6 +87,38 @@ public sealed class PrimitiveValueProviderTests
     }
 
     [Fact]
+    public void ComposeChar_IsPrintableAscii()
+    {
+        var seed = new CompositionSeed(10);
+
+        var result = Composer.CreateRootForTesting<char>(seed);
+
+        ((int)result).Should().BeInRange(32, 126);
+    }
+
+    [Fact]
+    public void ComposeNInt_IsDeterministic_ForSameSeed()
+    {
+        var seed = new CompositionSeed(11);
+
+        var first = Composer.CreateRootForTesting<nint>(seed);
+        var second = Composer.CreateRootForTesting<nint>(seed);
+
+        first.Should().Be(second);
+    }
+
+    [Fact]
+    public void ComposeNUInt_IsDeterministic_ForSameSeed()
+    {
+        var seed = new CompositionSeed(12);
+
+        var first = Composer.CreateRootForTesting<nuint>(seed);
+        var second = Composer.CreateRootForTesting<nuint>(seed);
+
+        first.Should().Be(second);
+    }
+
+    [Fact]
     public void ComposeUnregisteredType_Throws()
     {
         var seed = new CompositionSeed(9);
