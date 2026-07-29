@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (10,36)-(10,120),
+      Message: 'System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<dynamic>>' has 8 accessible constructors and no way to disambiguate them - Compono requires exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0001,
+        Title: Ambiguous construction path,
+        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them - Compono requires exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

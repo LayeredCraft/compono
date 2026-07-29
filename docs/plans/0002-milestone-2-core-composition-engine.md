@@ -937,6 +937,32 @@ ADR-0014. The task list below reflects the corrected shape.
   `CollectionPlanCache<T>`'s own XML doc comment (which also had a stale
   "ADR-0010's third amendment" reference from before the round-8
   ADR-0014 extraction, fixed in the same pass).
+- An eleventh round of PR #11 review found one more real gap in round
+  9's `dynamic`-rejection fix: `CollectionWellKnownTypes.TryClassify`
+  only checked the *immediate* element/key type's `TypeKind`, so
+  `List<dynamic[]>` slipped through - `dynamic[]`'s own `TypeKind` is
+  `Array`, not `Dynamic`, even though its element is `dynamic`.
+  Confirmed directly before fixing: this reached the emitter and failed
+  with `CS1966` (`cannot implement a dynamic interface`) on the
+  **outer** `ICompositionPlan<List<dynamic[]>>` interface itself, not
+  just on a `Resolve<dynamic[]>()` call inside the plan body -
+  `dynamic` nested anywhere in an interface's constructed generic
+  arguments triggers `CS1966`, not just at the top level. Fixed by
+  replacing the shallow `TypeKind` check with a recursive
+  `ContainsUnsupportedTypeKind` helper that looks through both array
+  element types and generic type arguments for
+  `Dynamic`/`Pointer`/`FunctionPointer` at any depth (a pointer array
+  nested one level down, e.g. `List<int*[]>`, is equally legal C# and
+  has the same problem class as the array case, so the fix covers both
+  in one pass rather than patching `dynamic` alone). Rejected
+  candidates fall through to the same `CMP0001` path round 9's direct
+  `HashSet<dynamic>`/`Dictionary<dynamic, int>` fix already established.
+  Added regression coverage:
+  `CollectionPlanVerifyTests.DynamicArrayNestedInsideListElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
+  (the array-recursion case that reproduces the actual finding) and
+  `DynamicNestedInsideDictionaryValueTypeArgument_ReportsDiagnostic_NotACompilerErrorInGeneratedCode`
+  (the generic-type-argument-recursion case, `Dictionary<int,
+  List<dynamic>>`, proving the fix isn't array-specific).
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

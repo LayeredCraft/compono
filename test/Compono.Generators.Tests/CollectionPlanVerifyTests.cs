@@ -49,6 +49,59 @@ public sealed class CollectionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task DynamicArrayNestedInsideListElement_ReportsDiagnostic_NotACompilerErrorInGeneratedCode() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // dynamic[]'s own TypeKind is Array, not Dynamic - a shallow check on just the
+                            // immediate element type (dynamic[]) missed that its element (dynamic) is the
+                            // unsupported type, and CS1966 ("cannot implement a dynamic interface") fires
+                            // for dynamic anywhere inside the interface's constructed generic arguments, not
+                            // just at the top level - so this failed on the OUTER
+                            // ICompositionPlan<List<dynamic[]>> interface itself, confirmed directly before
+                            // fixing. CollectionWellKnownTypes.TryClassify must recurse through array element
+                            // types (and generic type arguments) looking for dynamic/pointer/function-pointer,
+                            // not just check the immediate element/key TypeKind. Regression coverage for the
+                            // PR #11 review finding.
+                            var value = composer.Create<System.Collections.Generic.List<dynamic[]>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task DynamicNestedInsideDictionaryValueTypeArgument_ReportsDiagnostic_NotACompilerErrorInGeneratedCode() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            var composer = Compono.Composer.Create();
+                            // The same nested-dynamic gap as List<dynamic[]>, but one level deeper and
+                            // through a generic type argument (List<T>) rather than an array: the immediate
+                            // element type of the outer Dictionary is List<dynamic>, whose own TypeKind is
+                            // not Dynamic, so a check that only recursed through arrays (not generic type
+                            // arguments too) would still miss this.
+                            var value = composer.Create<System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<dynamic>>>();
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0001",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task PrivateElementTypeInCollectionRoot_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions

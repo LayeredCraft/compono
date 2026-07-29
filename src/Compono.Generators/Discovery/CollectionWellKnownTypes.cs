@@ -56,15 +56,24 @@ internal sealed class CollectionWellKnownTypes
         // never be a pointer in the first place (the C# compiler already rejects `List<int*>` before
         // this code ever runs). `dynamic`, unlike a pointer, genuinely *is* legal as a type argument
         // for all five shapes (`HashSet<dynamic>`, `Dictionary<dynamic, int>`) - but a generated
-        // collection plan can't implement `ICompositionPlan<HashSet<dynamic>>` (CS1966, "cannot
+        // collection plan can't implement `ICompositionPlan<HashSet<dynamic>>` at all (CS1966, "cannot
         // implement a dynamic interface") regardless of anything else the plan's body does, so this
         // has to be rejected here too, for every shape, not fixed by changing what the plan's body
-        // emits. Either case is left unclassified, falling through to ComposedTypeAnalyzer's ordinary
-        // "not a named type"/unsupported-shape diagnostic (CMP0006) instead of reaching a generated
-        // collection plan that can't compile.
+        // emits.
+        //
+        // Both checks have to look past the immediate element/key type, not just at it: CS1966 fires
+        // for `dynamic` anywhere inside the interface's constructed generic arguments, and a pointer
+        // array is equally legal nested one level down (`List<int*[]>`) as it is as the element type
+        // itself. `List<dynamic[]>` reproduces this directly - its immediate element type is
+        // `dynamic[]`, whose own TypeKind is `Array`, not `Dynamic`, so a shallow check here accepted
+        // it and only failed once the emitter tried to implement `ICompositionPlan<List<dynamic[]>>`
+        // (confirmed directly before fixing: CS1966 on the outer interface itself, not just on a
+        // `Resolve<dynamic[]>()` call in the plan body). Either case is left unclassified, falling
+        // through to ComposedTypeAnalyzer's ordinary "not a named type"/unsupported-shape diagnostic
+        // (CMP0006) instead of reaching a generated collection plan that can't compile.
         if (candidate is not { } shapeInfo ||
-            shapeInfo.ElementType.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic ||
-            shapeInfo.KeyType?.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic)
+            ContainsUnsupportedTypeKind(shapeInfo.ElementType) ||
+            (shapeInfo.KeyType is { } keyType && ContainsUnsupportedTypeKind(keyType)))
         {
             shape = default;
             return false;
@@ -72,6 +81,20 @@ internal sealed class CollectionWellKnownTypes
 
         shape = shapeInfo;
         return true;
+    }
+
+    private static bool ContainsUnsupportedTypeKind(ITypeSymbol type)
+    {
+        if (type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic)
+            return true;
+
+        if (type is IArrayTypeSymbol array)
+            return ContainsUnsupportedTypeKind(array.ElementType);
+
+        if (type is INamedTypeSymbol { IsGenericType: true } named)
+            return named.TypeArguments.Any(ContainsUnsupportedTypeKind);
+
+        return false;
     }
 
     private CollectionShapeInfo? FindShape(ITypeSymbol type)
