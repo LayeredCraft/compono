@@ -157,7 +157,7 @@ not every stage is the same *kind* of thing:
 | 4 | Profile rules | Ordered `ICompositionProvider` collection — empty until Milestone 3 |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus) |
 | 6 | Test-double providers | Ordered `ICompositionProvider` collection — empty until Milestone 5 (NSubstitute) |
-| 7 | Built-in value providers | **Hybrid** (ADR-0010's third amendment): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
+| 7 | Built-in value providers | **Hybrid** (ADR-0014): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
 | 9 | Diagnostic failure | Context-owned terminal stage |
 
@@ -659,7 +659,7 @@ Owns:
   `Compono.Generators`~~ — resolved by
   [ADR-0003](adr/0003-generator-package-distribution.md).
 - **Cross-assembly plan-cache collision** — `PlanCache<T>` (ADR-0004) and
-  `CollectionPlanCache<T>` (ADR-0010's third amendment) both register via
+  `CollectionPlanCache<T>` (ADR-0014) both register via
   an unconditional `Instance = new ...Plan()` in a generated module
   initializer; if two different consuming assemblies loaded into the same
   process both discover a generated plan for the exact same closed type

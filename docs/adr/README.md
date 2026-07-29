@@ -75,3 +75,4 @@ the mechanics: numbering, status, and the index.
 | [0011](0011-composition-scope-shared-values-and-recursion-detection.md) | Composition Scope, Shared Values, and Recursion Detection | Accepted |
 | [0012](0012-composition-path-identity-and-deterministic-random-forking.md) | Composition Path Identity, Deterministic Random Forking, and CreateMany Seed Derivation | Accepted |
 | [0013](0013-collection-generation-semantics.md) | Collection Generation Semantics | Accepted |
+| [0014](0014-generator-emitted-collection-plans.md) | Generator-Emitted Collection Plans Replace the Reflection-Based Dispatch Bridge | Accepted |

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
@@ -70,6 +71,61 @@ internal static partial class GeneratorTestHelpers
             string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
 
         return VerifyDriver(driver);
+    }
+
+    /// <summary>
+    /// Compiles <paramref name="options"/>' source plus the real generated output into an in-memory
+    /// assembly, loads it, and invokes <paramref name="methodName"/> on the static type named
+    /// <paramref name="typeName"/> - a real end-to-end execution of a dispatched generated plan
+    /// (module initializer registration, template output, and the runtime pipeline all together),
+    /// not just a compile-correctness check. PR #11 review caught that no test exercised this: every
+    /// existing test either snapshots/compiles generated source without running it (<see cref="Verify"/>),
+    /// or exercises the runtime pipeline against a hand-written test double
+    /// (<c>UniqueValueResolverTests</c>, <c>CollectionPlanCacheDispatchTests</c> in
+    /// <c>Compono.Tests</c>), never a real generated collection plan actually dispatched through
+    /// <c>CollectionPlanCache&lt;T&gt;</c>.
+    /// </summary>
+    /// <returns>
+    /// <paramref name="methodName"/>'s return value - the caller casts to whatever a `public static`
+    /// entry-point method in the compiled source returns. A thrown exception (e.g. the
+    /// <see cref="CompositionException"/> a retry-exhaustion failure produces) surfaces wrapped in a
+    /// <see cref="TargetInvocationException"/>, per ordinary reflection-invoke semantics - unwrap via
+    /// <c>.InnerException</c>.
+    /// </returns>
+    internal static object? CompileAndExecute(
+        CodeGenerationOptions options, string typeName, string methodName, CancellationToken cancellationToken = default)
+    {
+        var (driver, originalCompilation) = GenerateFromSource(options, cancellationToken);
+        var result = driver.GetRunResult();
+
+        result.Diagnostics.Should().BeEmpty(
+            "code should be generated without errors, but found:\n" +
+            string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+
+        var parseOptions = originalCompilation.SyntaxTrees.First().Options;
+        var reparsedTrees = result.GeneratedTrees
+            .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)parseOptions, tree.FilePath))
+            .ToArray();
+
+        var outputCompilation = originalCompilation.AddSyntaxTrees(reparsedTrees);
+
+        using var peStream = new MemoryStream();
+        var emitResult = outputCompilation.Emit(peStream, cancellationToken: cancellationToken);
+
+        emitResult.Success.Should().BeTrue(
+            "generated code should compile and emit without errors, but found:\n" +
+            string.Join("\n---\n", emitResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+                .Select(d => $"  - {d.Id}: {d.GetMessage()}")));
+
+        peStream.Position = 0;
+        var assembly = Assembly.Load(peStream.ToArray());
+
+        var type = assembly.GetType(typeName)
+            ?? throw new InvalidOperationException($"Type '{typeName}' not found in the compiled assembly.");
+        var method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException($"Public static method '{methodName}' not found on '{typeName}'.");
+
+        return method.Invoke(null, null);
     }
 
     // GeneratedCodeAttribute's version argument embeds the generator assembly's own build commit

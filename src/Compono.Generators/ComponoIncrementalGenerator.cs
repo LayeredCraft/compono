@@ -47,7 +47,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .WithTrackingName(TrackingNames.AssemblyComposablesNotNull);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
-        // collection shape reached within it (Collections, ADR-0010's third amendment) - flatten both
+        // collection shape reached within it (Collections, ADR-0014) - flatten both
         // before the rest of the pipeline dedupes/emits per type/collection.
         var callSiteTypes = callSiteResults.SelectMany(static (result, _) => result.Types)
             .WithTrackingName(TrackingNames.CreateInvocationsTypes);

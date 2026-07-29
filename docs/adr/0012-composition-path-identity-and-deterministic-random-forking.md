@@ -392,17 +392,15 @@ it from three separate places.
 
 ## Amendment 3 (2026-07-28): pointer to ADR-0010 — collection segments now flow through the descriptor
 
-[ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-Amendment 3 corrects this ADR's Decision Outcome statement that
-"`CollectionElement`/`DictionaryKey`/`DictionaryValue` segments are never
-generator-supplied" — the reflection-based collection-dispatch bridge that
-premise depended on was retracted before implementation, and collections
+[ADR-0014](0014-generator-emitted-collection-plans.md) corrects this
+ADR's Decision Outcome statement that "`CollectionElement`/`DictionaryKey`/
+`DictionaryValue` segments are never generator-supplied" — collections
 are now built by generator-emitted plans that construct these segments via
 `CompositionRequestDescriptor`/`CompositionRequestKind`, the same
 mechanism `ConstructorParameter`/`RequiredMember` already use. `PathSegment`
 itself, its `Ordinal`/`Index`-based identity, and the fork-key hashing this
-ADR specifies are all unchanged — see ADR-0010's Amendment 3 for the full
-current shape; this ADR's own Decision Outcome text is left as originally
+ADR specifies are all unchanged — see ADR-0014 for the full current
+shape; this ADR's own Decision Outcome text is left as originally
 written, per the "an accepted ADR is a historical record" rule.
 
 ## Links

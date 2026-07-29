@@ -21,7 +21,7 @@ namespace Compono.Generators.Discovery;
 /// (<see cref="CollectionWellKnownTypes"/>) is never walked as an ordinary composable type - no
 /// constructor selection is attempted against, say, <c>List&lt;Address&gt;</c> itself. Instead it's
 /// recorded as a <see cref="DiscoveredCollectionInfo"/> needing its own generated collection plan
-/// (ADR-0010's third amendment), and its element type (and key type, for <c>Dictionary</c>) feeds
+/// (ADR-0014), and its element type (and key type, for <c>Dictionary</c>) feeds
 /// back into this same eligibility walk - so a composable element type still gets its own plan, a
 /// provider-resolved element type stays a bare <c>Resolve&lt;TElement&gt;()</c> call, and a nested
 /// collection element type (<c>List&lt;List&lt;Address&gt;&gt;</c>) recurses through this same
@@ -31,7 +31,7 @@ namespace Compono.Generators.Discovery;
 /// The root type itself goes through this exact same classification before anything else - a
 /// provider-resolved root (<c>Composer.Create&lt;int&gt;()</c>, <c>Composer.Create&lt;Guid&gt;()</c>)
 /// needs no generated plan at all (stage 7's built-in providers satisfy it directly at runtime,
-/// per ADR-0010's third amendment), and a collection-shaped root
+/// per ADR-0014), and a collection-shaped root
 /// (<c>Composer.Create&lt;List&lt;Address&gt;&gt;()</c>) is recorded as a
 /// <see cref="DiscoveredCollectionInfo"/> exactly like a collection reached as a nested member,
 /// not walked as an ordinary composable type. Only a genuinely composable root reaches constructor

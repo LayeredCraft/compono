@@ -16,7 +16,7 @@ namespace Compono.Providers;
 /// primitive underlying type, never the enum type itself, so no dynamic array-of-enum-type
 /// construction is ever needed) - this provider uses only those two instead. PR #11 review caught the
 /// original <c>Enum.GetValues(Type)</c> use as a real violation of ADR-0001's no-reflection-by-default
-/// rule, the same rule ADR-0010's third amendment already retracted a reflection-based collection
+/// rule, the same rule ADR-0014 already retracted a reflection-based collection
 /// bridge over.
 /// </remarks>
 internal sealed class EnumValueProvider : ICompositionProvider

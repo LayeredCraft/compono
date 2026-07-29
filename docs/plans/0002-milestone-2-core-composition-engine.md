@@ -10,11 +10,15 @@ semantics, diagnostics tracing),
 [ADR-0012](../adr/0012-composition-path-identity-and-deterministic-random-forking.md)
 (path identity, deterministic random forking, `CreateMany` seed
 derivation), [ADR-0013](../adr/0013-collection-generation-semantics.md)
-(collection generation semantics)
+(collection generation semantics),
+[ADR-0014](../adr/0014-generator-emitted-collection-plans.md)
+(reflection-free collection dispatch via generator-emitted plans)
 
-These four ADRs supersede the plan's original ADR-0007/0008/0009 basis
+These five ADRs supersede the plan's original ADR-0007/0008/0009 basis
 after a deep design review of this plan's first draft — see each ADR's
-Links section for the supersession chain.
+Links section for the supersession chain. ADR-0014 was added mid-Phase-2
+(PR #11 review) to hold the collection-dispatch redesign originally
+recorded as ADR-0010's Amendment 3.
 
 ## Goal
 
@@ -487,7 +491,7 @@ violated [ADR-0001](../adr/0001-source-generation-first.md)'s
 no-reflection-by-default rule, caught before any code was written against
 it. Collections are now built by `Compono.Generators`-emitted, strongly
 typed collection plans (no runtime reflection anywhere in this phase), per
-ADR-0010's Amendment 3. The task list below reflects the corrected shape.
+ADR-0014. The task list below reflects the corrected shape.
 
 - [x] Primitive/simple-type providers (`string`, `bool`, integral types,
       floating-point types, `decimal`, `Guid`, `DateTime`,
@@ -826,6 +830,48 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   failures-preserved-before-conflict-detection branch to the
   collections merge in `ComponoIncrementalGenerator`. Added regression
   coverage: `CollectionPlanVerifyTests.SameInaccessibleCollectionFromTwoCallSites_ReportsCMP0012NotCMP0011`.
+- An eighth round of PR #11 review found one real gap (fixed) and one
+  legitimate process concern (also fixed, as a documentation
+  reorganization): (1) **no test compiled, loaded, and actually
+  executed a real generated collection plan** — every existing test
+  either snapshotted/compiled generated source without running it
+  (`CollectionPlanVerifyTests` et al.), or exercised the runtime
+  pipeline against a hand-written test double
+  (`UniqueValueResolverTests`, `CollectionPlanCacheDispatchTests` in
+  `Compono.Tests`), so module-initializer registration, template
+  output, and real fork-path integration regressions could all go
+  undetected. This was already an explicitly-acknowledged open item in
+  this plan (Phase 2's task list), not a newly-discovered gap, but
+  review correctly pressed for it to actually close in this PR rather
+  than stay deferred. Closed by adding
+  `GeneratorTestHelpers.CompileAndExecute` (compiles source + real
+  generated output to an in-memory assembly, loads it, and invokes a
+  method via reflection) and a new
+  `GeneratedCollectionPlanExecutionTests`: a `HashSet<bool>`
+  retry-exhaustion test (bool's 2-value cardinality makes this
+  deterministically fail regardless of randomness, exercising
+  `UniqueValueResolver`'s exhaustion path through a real dispatched
+  `HashSet<T>` plan) and a `List<Guid>` test asserting 3 genuinely
+  distinct elements through a real dispatched `List<T>` plan. Both
+  passed on the first run. (2) **ADR-0010's Amendment 3 (the
+  collection-dispatch-bridge retraction) should have been its own ADR**,
+  not appended in place to an already-`Accepted` ADR whose *other*
+  decisions had already shipped in merged PRs (#9, #10) — the
+  pre-implementation "amend in place" pattern ADR-0010's own Amendments
+  1/2 used was correct for those (nothing in the whole ADR had been
+  built yet), but no longer fit once real code existed against parts of
+  the ADR, even though the specific sub-decision being corrected (the
+  reflection bridge) had itself never been implemented either. Fixed by
+  extracting the full redesign into
+  [ADR-0014](../adr/0014-generator-emitted-collection-plans.md),
+  reducing ADR-0010's Amendment 3 to a short pointer, and updating every
+  cross-reference (ADR-0012, ADR-0013, `docs/architecture.md`, this
+  plan's `Implements:` line, and the handful of source-comment
+  references) that pointed at "ADR-0010's [third] amendment" to point at
+  ADR-0014 instead — except this plan's own historical round-3/round-4
+  narrative entries above, left as written since they're an accurate
+  record of what was true *at that point in time*, not a live
+  cross-reference.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

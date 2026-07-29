@@ -286,13 +286,13 @@ once it has already claimed the request.
 
 ## Amendment 2 (2026-07-28): pointer to ADR-0010 — generated collection plans, not a reflection-based provider, build collections
 
-[ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
-Amendment 3 replaces this ADR's Amendment 1 point 3 (the reflection-based
-collection-dispatch bridge) and corrects the Decision Outcome's "these
-segments are constructed directly by the collection provider itself
-(never via `CompositionRequestDescriptor`...)" language: collections are
-now built by `Compono.Generators`-emitted `ICompositionPlan<TCollection>`
-plans, dispatched via a new `CollectionPlanCache<T>` read directly inside
+[ADR-0014](0014-generator-emitted-collection-plans.md) replaces this
+ADR's Amendment 1 point 3 (the reflection-based collection-dispatch
+bridge) and corrects the Decision Outcome's "these segments are
+constructed directly by the collection provider itself (never via
+`CompositionRequestDescriptor`...)" language: collections are now built
+by `Compono.Generators`-emitted `ICompositionPlan<TCollection>` plans,
+dispatched via a new `CollectionPlanCache<T>` read directly inside
 `CompositionContext.ResolveCore<TValue>` at stage 7 — not by a runtime
 `ICompositionProvider` reflecting into generic construction. This ADR's
 substantive decisions are otherwise unchanged and still govern: default
@@ -300,9 +300,9 @@ size 3, per-element path addressing, bounded-retry duplicate-key/element
 handling (now performed by generated code calling the public
 `UniqueValueResolver.TryResolve<TValue>` helper), unconstructable-shape
 `NotHandled` fallthrough, and no ordering guarantee for `HashSet<T>`/
-`Dictionary<TKey, TValue>`. See ADR-0010's Amendment 3 for the full
-current mechanism; this ADR's own Decision Outcome text is left as
-originally written, per the "an accepted ADR is a historical record" rule.
+`Dictionary<TKey, TValue>`. See ADR-0014 for the full current mechanism;
+this ADR's own Decision Outcome text is left as originally written, per
+the "an accepted ADR is a historical record" rule.
 
 ## Links
 

@@ -93,7 +93,7 @@ internal sealed class CompositionContext : ICompositionContext
                 new PathSegment.RequiredMember(descriptor.Ordinal, descriptor.Name),
             // CollectionElement/DictionaryKey/DictionaryValue carry no Name - a generated collection
             // plan's Ordinal is the segment's Index; CompositionPath's display-string derivation
-            // never reads Name for these three kinds either, per ADR-0010's third amendment.
+            // never reads Name for these three kinds either, per ADR-0014.
             CompositionRequestKind.CollectionElement => new PathSegment.CollectionElement(descriptor.Ordinal),
             CompositionRequestKind.DictionaryKey => new PathSegment.DictionaryKey(descriptor.Ordinal),
             CompositionRequestKind.DictionaryValue => new PathSegment.DictionaryValue(descriptor.Ordinal),
