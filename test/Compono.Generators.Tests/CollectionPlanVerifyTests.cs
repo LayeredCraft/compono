@@ -24,6 +24,35 @@ public sealed class CollectionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task ArrayRootType_GeneratesCollectionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Address
+                {
+                    public Address(string street) { Street = street; }
+                    public string Street { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // A rank-1 array root must reach collection discovery the same as any other
+                        // collection root, not the INamedTypeSymbol check (arrays are never
+                        // INamedTypeSymbol). Regression coverage for the PR #11 review finding: before
+                        // the fix, this failed to compile with CMP0006 (array roots were rejected
+                        // before collection classification ever ran).
+                        var addresses = composer.Create<Address[]>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ArrayConstructorParameter_GeneratesCollectionPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

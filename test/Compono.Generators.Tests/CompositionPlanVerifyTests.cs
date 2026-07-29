@@ -440,7 +440,7 @@ public sealed class CompositionPlanVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task ArrayTypeArgument_ReportsDiagnostic() =>
+    public Task MultiDimensionalArrayTypeArgument_ReportsDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions
             {
@@ -457,10 +457,12 @@ public sealed class CompositionPlanVerifyTests
                         public static void Run()
                         {
                             var composer = Compono.Composer.Create();
-                            // Array types have no constructors for ConstructorSelector to select -
-                            // discovery must diagnose this itself instead of silently generating
-                            // nothing and failing only at runtime.
-                            var customers = composer.Create<Customer[]>();
+                            // A rank-1 array root (Customer[]) is a supported collection shape (see
+                            // ArrayRootType_GeneratesCollectionPlan) - only rank>1 arrays remain
+                            // genuinely unsupported (CollectionWellKnownTypes only classifies
+                            // IArrayTypeSymbol { Rank: 1 }), and still need diagnosing here instead of
+                            // silently generating nothing and failing only at runtime.
+                            var customers = composer.Create<Customer[,]>();
                         }
                     }
                     """,

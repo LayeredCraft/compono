@@ -29,10 +29,20 @@ internal static class ComposedTypeAnalyzer
         if (ContainsTypeParameter(requestedType))
             return TypeArgumentFailure(DiagnosticDescriptors.OpenGenericTypeArgument, requestedType, location);
 
-        // Anything that isn't an INamedTypeSymbol - an array (`Customer[]`), a pointer, a function
-        // pointer - has no constructors for ConstructorSelector to select from, and `new T(...)`
+        // A rank-1 array root (`composer.Create<Customer[]>()`) is one of ADR-0013's five supported
+        // collection shapes - it must reach TransitiveClosureWalker's root collection-classification
+        // (same as any other collection root) before the INamedTypeSymbol check below, which would
+        // otherwise reject it (IArrayTypeSymbol is never an INamedTypeSymbol) with CMP0006 even
+        // though arrays are a genuinely supported root shape. PR #11 review caught this - the
+        // previous root-type fix only covered List<T>/HashSet<T>/Dictionary<TKey, TValue> roots
+        // (all INamedTypeSymbol), missing arrays entirely.
+        if (CollectionWellKnownTypes.GetOrCreate(compilation).TryClassify(requestedType, out _))
+            return TransitiveClosureWalker.Walk(requestedType, compilation, location);
+
+        // Anything that isn't an INamedTypeSymbol - a pointer, a function pointer, an unsupported
+        // array rank - has no constructors for ConstructorSelector to select from, and `new T(...)`
         // isn't even the right syntax to construct one. Report it instead of silently doing
-        // nothing: without this, `composer.Create<Customer[]>()` compiles clean, generates no plan
+        // nothing: without this, `composer.Create<Customer[,]>()` compiles clean, generates no plan
         // and no diagnostic, and only fails at runtime via Composer's generic
         // "no plan registered" message - which gives no hint that this type shape was never
         // supported in the first place.

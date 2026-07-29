@@ -157,7 +157,7 @@ not every stage is the same *kind* of thing:
 | 4 | Profile rules | Ordered `ICompositionProvider` collection — empty until Milestone 3 |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus) |
 | 6 | Test-double providers | Ordered `ICompositionProvider` collection — empty until Milestone 5 (NSubstitute) |
-| 7 | Built-in value providers | Ordered `ICompositionProvider` collection, populated internally by `Compono` itself |
+| 7 | Built-in value providers | **Hybrid** (ADR-0010's third amendment): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
 | 9 | Diagnostic failure | Context-owned terminal stage |
 
@@ -166,7 +166,11 @@ Milestone 2 (and of those, only 7 has anything registered in it — 4/5/6
 are wired but empty until their owning milestone). Provider order
 *within* an extensible stage is registration order; no richer ordering
 rule exists yet because no stage has more than one competing provider to
-order.
+order. Stage 7's `CollectionPlanCache<T>` dispatch is tried only after
+its ordered provider collection has already declined, so a registration,
+profile rule, semantic provider, or test-double provider (stages 1–6)
+still gets first refusal over a collection request — collections stay
+ordinary pipeline requests, per ADR-0013.
 
 ## Providers
 

@@ -657,6 +657,28 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
   solely for the root check. (2) `EnumValueProvider` called
   `Enum.GetValues(type)` — an allocating call — on every resolution;
   cached per enum type via a `ConcurrentDictionary<Type, Array>` instead.
+- A third round of PR #11 review caught the same root-classification gap
+  had one more hole: **array roots** (`Composer.Create<Address[]>()`)
+  still failed to compile (`CMP0006`) — `ComposedTypeAnalyzer.Analyze`'s
+  own `requestedType is not INamedTypeSymbol` check runs *before*
+  `TransitiveClosureWalker.Walk` is ever called, rejecting an array root
+  regardless of `EnqueueRoot`'s fix, since `IArrayTypeSymbol` is never an
+  `INamedTypeSymbol`. Fixed by checking collection classification in
+  `ComposedTypeAnalyzer.Analyze` itself, before the named-type check, and
+  widening `TransitiveClosureWalker.Walk`/`EnqueueRoot`/`EnqueueMember`'s
+  `parentType` parameter from `INamedTypeSymbol` to `ITypeSymbol`
+  (defensively narrowed back at the one place — the composable-type
+  fallback — that actually needs an `INamedTypeSymbol` to enqueue).
+  `CompositionPlanVerifyTests.ArrayTypeArgument_ReportsDiagnostic` was
+  renamed to `MultiDimensionalArrayTypeArgument_ReportsDiagnostic` and
+  changed to a rank-2 array (`Customer[,]`, still genuinely unsupported —
+  `CollectionWellKnownTypes` only classifies rank-1 arrays) since its
+  original rank-1 array premise is now correct, supported behavior. Also
+  fixed in the same round: `docs/architecture.md`'s stage-7 table row
+  still described that stage as solely an ordered `ICompositionProvider`
+  collection, silently stale against ADR-0010's third amendment (the
+  `CollectionPlanCache<T>` hybrid dispatch) — updated to describe the
+  actual current shape.
 
 ### Phase 3 — Scope, shared values, exact registrations, and recursion detection (Not Started)
 

@@ -43,7 +43,7 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class TransitiveClosureWalker
 {
-    public static TransitiveClosureResult Walk(INamedTypeSymbol rootType, Compilation compilation, LocationInfo? location)
+    public static TransitiveClosureResult Walk(ITypeSymbol rootType, Compilation compilation, LocationInfo? location)
     {
         var wellKnownTypes = WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
         var collectionTypes = CollectionWellKnownTypes.GetOrCreate(compilation);
@@ -96,7 +96,7 @@ internal static class TransitiveClosureWalker
     // diagnostic path from - the root's own type name stands in for both when recursing into a
     // collection root's element/key type(s).
     private static void EnqueueRoot(
-        INamedTypeSymbol rootType,
+        ITypeSymbol rootType,
         WellKnownTypes.WellKnownTypes wellKnownTypes,
         CollectionWellKnownTypes collectionTypes,
         HashSet<INamedTypeSymbol> visitedTypes,
@@ -128,14 +128,21 @@ internal static class TransitiveClosureWalker
         if (LeafTypeClassifier.IsRuntimeProviderResolved(rootType, wellKnownTypes))
             return;
 
-        visitedTypes.Add(rootType);
-        queue.Enqueue((rootType, null));
+        // Guaranteed INamedTypeSymbol at this point: ComposedTypeAnalyzer only reaches Walk with a
+        // non-collection root after its own INamedTypeSymbol check already passed (CMP0006 rejects
+        // anything else, e.g. an unsupported array rank, before Walk is ever called) - the pattern
+        // match here is a defensive narrowing, not a case this method expects to actually decline.
+        if (rootType is not INamedTypeSymbol namedRoot)
+            return;
+
+        visitedTypes.Add(namedRoot);
+        queue.Enqueue((namedRoot, null));
     }
 
     private static void EnqueueMember(
         ITypeSymbol memberType,
         string memberName,
-        INamedTypeSymbol parentType,
+        ITypeSymbol parentType,
         string? parentPath,
         WellKnownTypes.WellKnownTypes wellKnownTypes,
         CollectionWellKnownTypes collectionTypes,
