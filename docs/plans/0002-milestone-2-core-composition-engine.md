@@ -686,11 +686,33 @@ ADR-0010's Amendment 3. The task list below reflects the corrected shape.
       third that fails produces a diagnostic trace containing only the
       failing parameter's attempts (and its ancestors' own attempts) —
       not the two already-succeeded siblings'
-- [ ] Benchmark (extending `Compono.Benchmarks` from Milestone 1): confirm
+- [ ] Benchmark (extending `Compono.Benchmarks` from Milestone 1, widened
+      mid-plan per PR #11 review — see this section's note below): confirm
       the trace buffer is actually allocation-free on the success path;
       if it measurably harms the hot path, fall back to shallow
       diagnostics by default with full tracing behind an explicit
-      diagnostic-mode opt-in (ADR-0010's stated fallback)
+      diagnostic-mode opt-in (ADR-0010's stated fallback). Milestone 1's
+      `ArchitectureBenchmarks`/`EcosystemBenchmarks` only cover generated
+      *construction* dispatch versus reflection — nothing in
+      `Compono.Benchmarks` yet exercises the resolution pipeline itself
+      (provider dispatch, random forking, collection generation), and
+      Phase 4 is the first point a representative end-to-end graph
+      (nested composable type + every Phase 2 built-in + a collection)
+      actually exists to benchmark. Add that end-to-end coverage here
+      rather than deferring it further:
+      - `Create<T>()` and `CreateMany<T>(count)` throughput for a
+        representative graph (the Execution Flow section's
+        `Customer`/`Address` shape, extended with a collection member),
+        alongside the existing reflection/generated-construction baseline
+        — establishes Compono's actual per-call cost, not just its
+        construction-dispatch cost
+      - Allocations for that same graph, success path only — the trace
+        buffer's allocation-free claim (above) is one contributor to this
+        number, not the whole story once collections/providers are in the
+        mix
+      - `CreateMany<T>(count)` scaling behavior across a couple of `count`
+        values, to catch anything unexpectedly super-linear (fork-key
+        derivation, scope allocation) before it ships
 - [ ] Exit-criteria pass: representative object graph (nested composable
       type + built-ins + a collection) composes deterministically end to
       end via `Create<T>()` and `CreateMany<T>()`, matching the Execution
@@ -838,7 +860,12 @@ Per `references/testing.md`'s established pattern in
 - `CreateMany` semantics, argument/return contract, and seed-stability
   tests (via `Composer.CreateRootForTesting`/`CreateManyForTesting`), a
   diagnostics-trace-retention test (active failing branch only, not
-  completed siblings), and a trace-buffer allocation benchmark (Phase 4).
+  completed siblings), and a benchmark suite (Phase 4) covering both the
+  trace buffer's allocation-free claim and end-to-end `Create<T>()`/
+  `CreateMany<T>()` throughput/allocations/scaling for a representative
+  graph — the first point in this plan a graph exists that's
+  representative enough to be worth benchmarking end to end, not just at
+  the construction-dispatch layer Milestone 1's benchmarks already cover.
 - An end-to-end `Create<T>()`/`CreateMany<T>()` test against the
   `Customer`/`Address` shape from the Execution Flow section (Phase 4),
   matching the Milestone 1 plan's "representative record or class" bar.
