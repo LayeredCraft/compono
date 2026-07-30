@@ -135,7 +135,9 @@ public abstract record CompositionConfigurationError
 
         /// <summary>Creates a <see cref="ProfileCycle"/> error.</summary>
         /// <param name="chain">The full cycle, in application order, with the repeated profile type at both ends.</param>
-        /// <exception cref="ArgumentException"><paramref name="chain"/> has fewer than two entries.</exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="chain"/> has fewer than two entries, or its first and last entries differ.
+        /// </exception>
         public ProfileCycle(IReadOnlyList<Type> chain)
         {
             ArgumentNullException.ThrowIfNull(chain);
@@ -145,6 +147,13 @@ public abstract record CompositionConfigurationError
             {
                 throw new ArgumentException(
                     "A profile-cycle error requires a chain of at least two entries.",
+                    nameof(chain));
+            }
+
+            if (snapshot[0] != snapshot[^1])
+            {
+                throw new ArgumentException(
+                    "A profile-cycle error requires the chain's first and last entries to be the same profile type.",
                     nameof(chain));
             }
 

@@ -78,4 +78,12 @@ public sealed class CompositionConfigurationErrorTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void ProfileCycle_WithDifferentFirstAndLastEntries_Throws()
+    {
+        var act = () => new CompositionConfigurationError.ProfileCycle([typeof(int), typeof(string)]);
+
+        act.Should().Throw<ArgumentException>();
+    }
 }
