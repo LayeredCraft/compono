@@ -411,13 +411,15 @@ internal sealed class CompositionContext : ICompositionContext
         {
             return factory(this);
         }
-        catch (CompositionException)
+        catch (CompositionException ex) when (ex.Diagnostic is not null)
         {
             // Already a fully-diagnosed CompositionException from a nested Resolve<T>() call made
-            // inside this factory - that failure's own Diagnostic (built from its own, more specific
-            // path/trace) is strictly more useful than anything this outer catch could construct.
-            // Re-wrapping it here would discard that detail behind a generic "the factory threw"
-            // message, so it's left to propagate exactly as-is.
+            // inside this factory - only BuildException sets Diagnostic, so its presence is what
+            // distinguishes this case from a factory throwing `new CompositionException("...")`
+            // directly (Diagnostic null, falls to the catch below instead). That failure's own
+            // Diagnostic (built from its own, more specific path/trace) is strictly more useful than
+            // anything this outer catch could construct. Re-wrapping it here would discard that detail
+            // behind a generic "the factory threw" message, so it's left to propagate exactly as-is.
             throw;
         }
         catch (Exception ex)

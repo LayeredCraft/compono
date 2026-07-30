@@ -95,6 +95,26 @@ public sealed class CompositionManualResolveTests
     }
 
     [Fact]
+    public void InvokeFactory_WrapsACompositionExceptionThrownDirectlyByTheFactoryItself()
+    {
+        // Only a CompositionException built by BuildException (from a nested Resolve<T>() call) has a
+        // non-null Diagnostic. A factory that constructs and throws `new CompositionException("...")`
+        // directly - never having called Resolve<T>() at all - produces one with a null Diagnostic, and
+        // must be treated the same as any other factory-thrown exception: wrapped into an authoritative
+        // stage-3 Failure with this call's own path/seed/trace, and the original preserved as
+        // InnerException, not left to escape as-is with none of that context.
+        var original = new CompositionException("factory-authored failure, no nested Resolve<T>() involved");
+        var composer = Composer.Create(builder => builder.Register<Failing>(_ => throw original));
+
+        var act = () => composer.Create<Failing>();
+
+        var exception = act.Should().Throw<CompositionException>().Which;
+        exception.Should().NotBeSameAs(original);
+        exception.InnerException.Should().BeSameAs(original);
+        exception.Diagnostic.Should().NotBeNull();
+    }
+
+    [Fact]
     public void Resolve_WithNoActiveFactoryInvocation_Throws()
     {
         var context = new CompositionContext();
