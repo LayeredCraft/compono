@@ -148,6 +148,17 @@ acceptable" are still deliberately not modeled — they get added once a
 later milestone (xUnit inline values, Bogus hints, NSubstitute
 eligibility) has an actual consumer for them, not speculatively now.
 
+[ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
+(`Accepted`, not yet implemented — see
+[PLAN-0004](plans/0004-milestone-4-xunit-integration.md)) adds a sixth
+`CompositionRequestKind`, `TestParameter` (and a matching `PathSegment.TestParameter`),
+for a value a test-framework integration is composing directly for one of
+the *test method's own* parameters — as distinct from a constructor
+parameter or required member a *generated plan* is filling in. It reuses
+`DeclaringType` for the type whose method declares the parameter (a test
+class, for `Compono.Xunit`), extending that field's existing contract to a
+third kind of declaring construct rather than adding a new field.
+
 Generated plans avoid requiring runtime reflection merely to construct
 this metadata — the descriptor is a plain, compiler-emittable value, and
 path/type expansion happens entirely inside the context.
@@ -175,7 +186,7 @@ not every stage is the same *kind* of thing:
 | # | Stage | Kind |
 |---|---|---|
 | 1 | Explicit values | Context-owned deterministic check (no consumer until a later milestone's inline-value API exists) |
-| 2 | Shared or scoped values | Context-owned deterministic check against the scope |
+| 2 | Shared or scoped values | Context-owned deterministic check against the scope. Milestone 2/3: gated by the *current* request's own `IsShared` flag on both the read and write side. [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md) (`Accepted`, not yet implemented) changes the **read** side to an unconditional scope check (any request, `IsShared` or not, sees an already-shared value for its type) while leaving the **write** side unchanged (only an `IsShared` request ever populates scope) — required for a Milestone 4 `[Shared]` test parameter's value to reach an *ordinary*, unmarked nested constructor parameter of the same type. |
 | 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (implemented, Milestone 3 Phase 1): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 Phase 1 shipped its real public shape (`builder.Register<T>(...)`, `builder.UseServiceProvider(...)`). |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection, per [ADR-0020](adr/0020-composition-configuration-rules.md) (implemented, Milestone 3 Phase 3). Renamed from "profile rules" (`PipelineStage.ConfigurationRule`): populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile's `Configure` — a profile is a reusable application mechanism over this stage, not its owner ([ADR-0018](adr/0018-composition-profiles.md)). Collection-size configuration does **not** populate this stage — see Configuration Rules, below. |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus). How an integration package populates this stage with open-ended, pattern-matching logic is deliberately undesigned until Milestone 5 gives it a real consumer — see Open Architectural Decisions, below. |
@@ -411,6 +422,15 @@ Milestone 4 `[Shared]`-attribute use case needs it. A broader "test case"
 or "user-created scope" lifetime is deferred until Milestone 4 has a
 concrete consumer to design against, rather than building the general
 menu of possible lifetimes below speculatively:
+
+Milestone 4 is that concrete consumer:
+[ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
+(`Accepted`, not yet implemented) adds `Composer.CreateRow(Type)` and a
+public `CompositionRow`, one per theory row, whose `CompositionScope` is
+exactly this same per-root-operation scope — still type-keyed only, still
+one instance per root operation, no new lifetime concept. What changes is
+*when a request consults it* — see the Resolution Pipeline table's stage-2
+row above.
 
 - Request
 - Composition graph (Milestone 2's chosen lifetime)
@@ -729,6 +749,12 @@ Potentially owns:
 Whether this ships separately or is bundled as an analyzer dependency of `Compono` remains open.
 
 ### Compono.Xunit
+
+Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
+(the `CompositionRow` entry point this package builds on, owned by core
+`Compono`), [ADR-0022](adr/0022-compono-xunit-package-design.md) (this
+package itself). `Accepted`, not yet implemented — see
+[PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
 
 Owns:
 

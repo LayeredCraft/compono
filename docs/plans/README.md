@@ -46,3 +46,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0001](0001-milestone-1-source-generation-foundation.md) | Milestone 1: Source-Generation Foundation | Done |
 | [0002](0002-milestone-2-core-composition-engine.md) | Milestone 2: Core Composition Engine | Done |
 | [0003](0003-milestone-3-profiles-and-configuration.md) | Milestone 3: Profiles and Configuration | Done |
+| [0004](0004-milestone-4-xunit-integration.md) | Milestone 4: xUnit v3 Integration | Not Started |
