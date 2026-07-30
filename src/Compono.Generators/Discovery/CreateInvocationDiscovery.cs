@@ -7,8 +7,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Compono.Generators.Discovery;
 
 /// <summary>
-/// Finds <c>Composer.Create&lt;T&gt;()</c>/<c>Composer.CreateMany&lt;T&gt;()</c> call sites and
-/// resolves each into a <see cref="DiscoveredTypeInfo"/>, per
+/// Finds <c>Composer.Create&lt;T&gt;()</c>/<c>Composer.CreateMany&lt;T&gt;()</c> and
+/// <c>CompositionRow.Resolve&lt;T&gt;()</c>/<c>Resolve&lt;T&gt;(descriptor)</c>/
+/// <c>ResolveShared&lt;T&gt;(descriptor)</c> call sites and resolves each into a
+/// <see cref="DiscoveredTypeInfo"/>, per
 /// <c>docs/adr/0004-composition-plan-discovery-and-dispatch.md</c>'s call-site discovery mechanism.
 /// </summary>
 /// <remarks>
@@ -20,6 +22,19 @@ namespace Compono.Generators.Discovery;
 /// (PR #13 review, Milestone 2 Phase 4) meant the single most-advertised <c>CreateMany&lt;T&gt;</c>
 /// usage threw a <c>CompositionException</c> at runtime unless the same type happened to be
 /// independently discovered elsewhere.
+/// <c>CompositionRow.Resolve&lt;T&gt;()</c>/<c>Resolve&lt;T&gt;(descriptor)</c>/
+/// <c>ResolveShared&lt;T&gt;(descriptor)</c> (ADR-0021) share this same path for the identical
+/// reason: a consumer whose only root for some type is a <c>CompositionRow</c> call - the shape a
+/// hand-written row-composing test (or a future test-framework integration calling through cached
+/// reflection-built delegates, never a source-level call site of its own) actually takes - needs the
+/// same generated-plan discovery <c>Composer.Create&lt;T&gt;()</c> gets, or that type never gets a
+/// plan at all (PR #22 review). Both <c>Resolve&lt;T&gt;</c> overloads (with and without a
+/// descriptor) are matched - the semantic check below tells them apart from the unrelated,
+/// descriptor-less <c>ICompositionContext.Resolve&lt;TValue&gt;()</c> manual-resolve seam only by
+/// containing type, which is exactly what routes a genuine <c>CompositionRow</c> call here while
+/// still rejecting any other type's same-named method. <c>ShareExplicit</c> is excluded because it
+/// stores an already-known value - there is nothing to compose, so no plan is ever needed for its
+/// type argument.
 /// </remarks>
 internal static class CreateInvocationDiscovery
 {
@@ -30,10 +45,13 @@ internal static class CreateInvocationDiscovery
             // MemberBindingExpressionSyntax covers null-conditional `composer?.Create<T>()` - a
             // separate syntax shape (nested inside a ConditionalAccessExpressionSyntax) that the
             // Roslyn syntax walker visits as its own node, so both have to be matched here or the
-            // conditional-access form is silently missed by discovery. "Create" or "CreateMany" - see
-            // this type's remarks for why both share one discovery path.
-            Expression: MemberAccessExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany", TypeArgumentList.Arguments.Count: 1 } }
-                     or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany", TypeArgumentList.Arguments.Count: 1 } },
+            // conditional-access form is silently missed by discovery. "Create"/"CreateMany" or
+            // "Resolve"/"ResolveShared" - see this type's remarks for why all four share one
+            // discovery path; the semantic check in Transform is what actually tells a
+            // Composer.Create<T>() call apart from a CompositionRow.Resolve<T>() one (and rejects
+            // any other type's same-named method entirely).
+            Expression: MemberAccessExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany" or "Resolve" or "ResolveShared", TypeArgumentList.Arguments.Count: 1 } }
+                     or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany" or "Resolve" or "ResolveShared", TypeArgumentList.Arguments.Count: 1 } },
         };
 
     public static TransitiveClosureResult? Transform(GeneratorSyntaxContext context, CancellationToken cancellationToken)
@@ -45,7 +63,12 @@ internal static class CreateInvocationDiscovery
 
         var wellKnownTypes = WellKnownTypes.WellKnownTypes.GetOrCreate(context.SemanticModel.Compilation);
 
-        if (method.Name is not ("Create" or "CreateMany") || !wellKnownTypes.IsType(method.ContainingType, WellKnownTypeData.WellKnownType.Compono_Composer))
+        var isComposerCreate = method.Name is "Create" or "CreateMany"
+            && wellKnownTypes.IsType(method.ContainingType, WellKnownTypeData.WellKnownType.Compono_Composer);
+        var isRowResolve = method.Name is "Resolve" or "ResolveShared"
+            && wellKnownTypes.IsType(method.ContainingType, WellKnownTypeData.WellKnownType.Compono_CompositionRow);
+
+        if (!isComposerCreate && !isRowResolve)
             return null;
 
         if (method.TypeArguments.Length != 1)

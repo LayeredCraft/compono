@@ -135,6 +135,18 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       round-tripping exactly through `CompositionRow.Seed`; an unseeded
       row's `CompositionRow.Seed` always non-negative and printing
       identically to a failing row's `CompositionDiagnostic.Seed` text.
+- [x] `CreateInvocationDiscovery` extended to match
+      `CompositionRow.Resolve<T>()`/`Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`
+      call sites, alongside its existing `Composer.Create<T>()`/`CreateMany<T>()`
+      matching (PR #22 review; ADR-0022 Amendment 2026-07-30, fix #1) —
+      without this, a type reached only through a direct `CompositionRow`
+      call never got a generated plan. Verified with an isolated
+      `Compono.Generators.Tests` snapshot test per call shape (no
+      `[Composable]`, no `Create<T>()`/`CreateMany<T>()` anywhere in the
+      same source) and a real `dotnet pack` + local-feed +
+      throwaway-consumer manual check proving the packaged analyzer
+      (never `ProjectReference`) discovers and composes such a type
+      correctly.
 
 ### Phase 1: `Compono.Xunit` package skeleton and attributes (ADR-0022)
 
@@ -182,6 +194,27 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `MakeGenericMethod` construction happens exactly once per parameter
       across many repeated `GetData` calls on one attribute instance, not
       once per row.
+- [ ] **New generator discovery component for `[Compose]`-attributed test
+      methods** (ADR-0022 Amendment 2026-07-30, fix #2; PR #22 review) —
+      a separate `Compono.Generators.Discovery` component, not folded
+      into `CreateInvocationDiscovery`, using
+      `ForAttributeWithMetadataName` (the same mechanism
+      `ComposableAttributeDiscovery` uses for `[Composable]`) to find
+      methods attributed `[Compose]`/`[Compose<TProfile>]` and generate a
+      plan for each eligible parameter type in that method's signature.
+      Required because `Compono.Xunit`'s binding (this phase's own
+      `MakeGenericMethod`-based invoker caching, above) never emits a
+      textual `row.Resolve<T>(...)` call site in the consumer's own
+      source for the now-fixed `CreateInvocationDiscovery` extension
+      (Phase 0) to find — a type reached only as a `[Compose]` method's
+      parameter needs its own discovery path, not an extension of the
+      call-site one. "Eligible" mirrors Phase 2's own supported-shape
+      table (excludes generic methods, `ref`/`out`/`in`/`params`
+      parameters). Every eligible parameter gets a plan unconditionally,
+      even one that's always inline-supplied in practice — see the ADR
+      amendment for why statically predicting inline-vs-composed per
+      call site isn't worth the duplication of Phase 2's own runtime
+      inline-binding calculation.
 
 ### Phase 2: Binding algorithm, `[Shared]`, diagnostics (ADR-0022)
 
@@ -313,6 +346,14 @@ the cache built once in Phase 1; everything after is per-row):
       catching packaging mistakes (missing dependency, wrong
       `PrivateAssets`, the generator analyzer not flowing transitively)
       that a `ProjectReference` build can't surface.
+- [ ] **The sample project must include one theory whose parameter type
+      is discovered *only* from a `[Compose]`-attributed method** — no
+      `[Composable]`, no `Create<T>()`/`CreateMany<T>()`, no direct
+      `CompositionRow` call site anywhere else in the sample — proving
+      Phase 1's new discovery component (ADR-0022 Amendment 2026-07-30,
+      fix #2) actually generates a plan through the real packaged
+      pipeline, not just in an isolated `Compono.Generators.Tests`
+      snapshot test.
 - [ ] A `Compono.Xunit.Tests` test that runs the sample project through a
       real xUnit v3 runner (`dotnet test` or the in-process console
       runner) and asserts on its result — the milestone's required
@@ -389,35 +430,35 @@ exercised indirectly through `Compono.Xunit.Tests`.
   its assertions flipped (with an explanatory comment) rather than left
   failing or deleted — this is the one behavior change Phase 0 makes to
   already-shipped Milestone 2/3 code, and its test needed to move with it.
-- Full suite green: `Compono.Tests` 378/378 (189 × 2 TFMs, up from
-  177 × 2 before this phase — 12 new `CompositionRowTests`), `Compono.Generators.Tests`
-  154/154 unaffected (Phase 0 touches no generator code).
+- Full suite green: `Compono.Tests` 388/388 (194 × 2 TFMs), `Compono.Generators.Tests`
+  160/160 (154 unaffected + 3 new `CreateInvocationDiscovery`-extension
+  snapshot tests × 2 TFMs) — Phase 0 originally touched no generator
+  code, but a later PR #22 review round added the `CompositionRow`
+  discovery fix below, which does.
+- **`CreateInvocationDiscovery` extended for `CompositionRow` call sites**
+  (PR #22 review, second round; ADR-0022 Amendment 2026-07-30, fix #1) —
+  see the Phase 0 task list above for what changed and how it was
+  verified (isolated generator snapshot tests plus a real `dotnet pack` +
+  local-feed + throwaway-consumer manual check). This is Phase 0's one
+  piece of generator-touching work; everything else in this phase is
+  `Compono` core only.
 
 ## Open Items
 
 Tracked but deliberately not fixed yet - valid points raised in review,
 out of scope for the PR that surfaced them:
 
-- **No generator discovery path exists for types reached only through
-  `CompositionRow.Resolve`/`ResolveShared`** (Codex, PR #22). Today,
-  `CreateInvocationDiscovery` finds a plan-worthy type only by matching a
-  literal `composer.Create<T>()`/`CreateMany<T>()` call site in the
-  consumer's own source (`docs/adr/0004-composition-plan-discovery-and-dispatch.md`).
-  Phase 1's own design for `Compono.Xunit`'s per-parameter binding
-  (`MethodInfo.MakeGenericMethod(parameter.ParameterType)` +
-  `Delegate.CreateDelegate`, built once from runtime `ParameterInfo`
-  reflection - see Phase 1's cached-invoker-delegates task above) means
-  there is no textual `row.Resolve<Foo>(...)` call site in a consumer's
-  source for that same syntax-matching mechanism to ever find - this
-  isn't a missing case to add to `CreateInvocationDiscovery`, it's a
-  fundamentally different discovery problem (most likely: teach the
-  generator to recognize `[Compose]`-attributed test methods directly and
-  discover plans from their parameter lists, sidestepping
-  `CompositionRow.Resolve` call sites entirely). `CompositionRowTests`
-  masks this today by hand-assigning `PlanCache<T>.Instance` directly,
-  the same masking shape `testing.md`'s "verifying a new public entry
-  point" rule was written to name and prevent (the `CreateMany<T>()`
-  precedent it cites). This needs its own design dive and likely an ADR
-  amendment or a new ADR before Phase 1/2 implementation starts - not a
-  drive-by fix - since it changes how the generator discovers types at
-  all, not just this one entry point.
+- **No generator discovery path exists yet for a type reached only as a
+  `[Compose]`-attributed test method's own parameter** (Codex, PR #22,
+  second round). Distinct from - and not fixed by - the
+  `CompositionRow` call-site discovery fix above: `Compono.Xunit`'s
+  planned binding (`MethodInfo.MakeGenericMethod`-based, Phase 1) never
+  emits a textual `row.Resolve<T>(...)` call site in the consumer's own
+  source for that fix to match against, so a parameter-only type still
+  gets no plan. See [ADR-0022's Amendment (2026-07-30)](../adr/0022-compono-xunit-package-design.md)
+  for the full analysis and the resolution (a separate `[Compose]`-attributed-method
+  discovery component, not folded into `CreateInvocationDiscovery`) -
+  tracked as Phase 1's new discovery-component task and Phase 3's
+  packaged-sample requirement above, both added to this plan alongside
+  the amendment. Not implemented by this note - closing it out is
+  planning/design work to finish before Phase 1 implementation starts.

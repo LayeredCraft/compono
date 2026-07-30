@@ -8,6 +8,7 @@ internal static class WellKnownTypeData
     {
         Compono_ComposableAttribute,
         Compono_Composer,
+        Compono_CompositionRow,
         System_DateTime,
         System_DateTimeOffset,
         System_Guid,
@@ -20,6 +21,7 @@ internal static class WellKnownTypeData
     [
         "Compono.ComposableAttribute",
         "Compono.Composer",
+        "Compono.CompositionRow",
         "System.DateTime",
         "System.DateTimeOffset",
         "System.Guid",
