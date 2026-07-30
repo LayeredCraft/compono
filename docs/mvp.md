@@ -346,7 +346,8 @@ A composed customer can receive realistic, deterministic values without the core
 - ~~Runtime reflection policy~~ — default direction resolved by
   [ADR-0001](adr/0001-source-generation-first.md); the exact opt-in
   mechanism for a future compatibility mode is still open.
-- Exact public root type name
+- ~~Exact public root type name~~ — `Composer`, settled by Milestone 3 Phase 0's
+  shipped `Composer.Create()`/`Composer.Create(Action<CompositionBuilder>)`.
 - Attribute names
 - ~~Shared-value matching rules~~ — type-based only for Milestone 2,
   resolved by [ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md);

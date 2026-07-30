@@ -55,7 +55,9 @@ internal sealed class ConfigurationOptionSlot<TValue>
     {
         if (_sources.Count > 1)
         {
-            conflict = new CompositionConfigurationError.DuplicateConfigurationOption(_optionName, [.. _sources]);
+            // DuplicateConfigurationOption's own constructor snapshots Sources defensively - passing
+            // _sources directly here doesn't hand the caller a reference to this slot's live list.
+            conflict = new CompositionConfigurationError.DuplicateConfigurationOption(_optionName, _sources);
             return true;
         }
 

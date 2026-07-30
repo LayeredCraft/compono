@@ -29,15 +29,18 @@ var customer = composer.Create<Customer>();
 var customers = composer.CreateMany<Customer>(3);
 ```
 
-A likely alternative is a builder:
+Configuration uses the same root type via a builder callback (shipped, Milestone 3
+Phase 0 — [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)):
 
 ```csharp
-var composer = Compono.Create(builder => builder
+var composer = Composer.Create(builder => builder
     .WithSeed(4219)
     .WithCollectionSize(3));
 ```
 
-The exact root type name remains open.
+`Composer` is the settled root type name — `Composer.Create()` (no configuration) and
+`Composer.Create(builder => ...)` (explicit configuration) are the same method,
+the latter with an empty callback for the former.
 
 ## Configuration
 

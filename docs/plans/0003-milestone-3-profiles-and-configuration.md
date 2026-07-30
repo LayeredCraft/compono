@@ -555,9 +555,12 @@ Modified:
 
 ## Test Plan
 
-Per `references/testing.md`'s established pattern (xUnit v3, AutoFixture,
-NSubstitute, AwesomeAssertions in `test/Compono.Tests`; Verify-based snapshot tests
-in `test/Compono.Generators.Tests` for the Phase 3 generator template changes).
+Per `references/testing.md`'s established pattern — xUnit v3, handwritten/explicit
+test data (**not** AutoFixture, which `testing.md` explicitly excludes from this
+repo's own test suite: Compono is itself an AutoFixture replacement, and dogfooding
+AutoFixture here would contradict the product), NSubstitute, and AwesomeAssertions
+in `test/Compono.Tests`; Verify-based snapshot tests in `test/Compono.Generators.Tests`
+for the Phase 3 generator template changes.
 Coverage is itemized per phase above; cross-cutting concerns:
 
 - Every `CompositionConfigurationException` path (duplicate registration, duplicate

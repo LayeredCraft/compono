@@ -29,8 +29,30 @@ public abstract record CompositionConfigurationError
     /// why a contradictory scalar configuration (e.g. two different seeds) has no coherent effective
     /// value to fall back to.
     /// </remarks>
-    /// <param name="OptionName">The builder verb's name, e.g. <c>"WithSeed"</c>.</param>
-    /// <param name="Sources">Every call that set this option, in call order - always at least two.</param>
-    public sealed record DuplicateConfigurationOption(string OptionName, IReadOnlyList<ConfigurationSource> Sources)
-        : CompositionConfigurationError;
+    public sealed record DuplicateConfigurationOption : CompositionConfigurationError
+    {
+        /// <summary>The builder verb's name, e.g. <c>"WithSeed"</c>.</summary>
+        public string OptionName { get; }
+
+        /// <summary>
+        /// Every call that set this option, in call order - always at least two. An immutable
+        /// snapshot taken at construction, never the caller-supplied list itself - the same
+        /// mutation-after-construction concern <see cref="CompositionConfigurationException.Errors"/>
+        /// guards against, one level deeper.
+        /// </summary>
+        public IReadOnlyList<ConfigurationSource> Sources { get; }
+
+        /// <summary>Creates a <see cref="DuplicateConfigurationOption"/> error.</summary>
+        /// <param name="optionName">The builder verb's name, e.g. <c>"WithSeed"</c>.</param>
+        /// <param name="sources">
+        /// Every call that set this option, in call order. Copied into an immutable snapshot -
+        /// mutating a list passed here after this constructor returns has no effect on
+        /// <see cref="Sources"/>.
+        /// </param>
+        public DuplicateConfigurationOption(string optionName, IReadOnlyList<ConfigurationSource> sources)
+        {
+            OptionName = optionName;
+            Sources = [.. sources];
+        }
+    }
 }
