@@ -913,3 +913,42 @@ and rewrapped by the outer `InvokeFactory` call. One existing test
 updated to assert the new, correct behavior — a factory-thrown exception now
 surfaces as `CompositionException` with `InnerException` set, not the raw
 exception type it asserted before this fix.
+
+### Known limitation (2026-07-30): the generator doesn't recognize a registered/service-provider-satisfied root
+
+PR #17 review (Codex) correctly flagged that `Register<T>`/`UseServiceProvider`
+only unblock `Composer.Create<T>()` for a real, analyzer-enabled consumer if
+`Compono.Generators` also agrees `T` is a valid root. Today it doesn't:
+`TransitiveClosureWalker.EnqueueRoot` sends every non-built-in root through
+`ConstructorSelector` unconditionally, which still emits CMP0001/2/3 for an
+interface, abstract class, delegate, or constructor-rejected concrete type —
+regardless of whether that same `Composer.Create(builder => ...)` call also
+registers it or supplies a fallback `IServiceProvider`. A real consumer with
+the analyzer enabled cannot currently register their way past a
+generator-time diagnostic for such a root.
+
+**Deferred, not fixed in this PR** — closing it correctly means teaching
+`Compono.Generators` to recognize `Register<T>()`/`UseServiceProvider(...)`
+syntax within the same `Composer.Create(...)` call and skip diagnostic
+emission for those roots specifically. That's a real design question (exactly
+which syntactic shapes count, whether a profile-added registration is
+compile-time-visible at all, whether this needs its own ADR amendment) and
+touches `Compono.Generators` — a different project than this phase's stated
+scope (core-side registrations/service-provider injection). Tracked here as a
+known gap for a future phase/issue to close, not attempted as a same-PR
+scope-creep fix. `Compono.Tests` (core-only) doesn't exercise the packaged
+generator, so this gap isn't caught by this phase's own test suite — a real
+generator/consumer integration test is part of whatever future work closes it.
+
+### PR review correction (2026-07-30): stale shipped-configuration documentation
+
+PR #17 review (Codex) correctly flagged that `docs/public-api.md`'s
+Programmatic Composition section still said Milestone 3 was at Phase 0 with
+`WithSeed` as the only shipped configuration verb, and `docs/architecture.md`'s
+`ICompositionContext` snippet omitted the descriptor-less `Resolve<T>()`
+overload added in Phase 1 — both left stale by the Phase 1 doc update above,
+which updated `docs/architecture.md`'s prose sections but missed these two
+spots. Fixed by updating `public-api.md`'s Programmatic Composition section to
+list `Register<T>`/`UseServiceProvider` as shipped alongside `WithSeed`, and
+adding the descriptor-less `Resolve<T>()` overload to `architecture.md`'s
+`ICompositionContext` snippet.

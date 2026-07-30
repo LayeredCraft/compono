@@ -55,6 +55,13 @@ Conceptually:
 public interface ICompositionContext
 {
     T Resolve<T>(in CompositionRequestDescriptor descriptor);
+
+    // Descriptor-less overload (shipped, Milestone 3 Phase 1) - the manual-resolve
+    // entry point a registration/configuration-rule factory calls to compose its
+    // own nested dependencies, distinct from the descriptor-based overload above
+    // generated code uses. See ADR-0019's Registrations and Service Injection
+    // section below.
+    T Resolve<T>();
 }
 ```
 
