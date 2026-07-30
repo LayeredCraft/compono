@@ -217,7 +217,7 @@ public sealed class CompositionBuilder
         foreach (var (key, sources) in _memberCollectionSizeSources)
         {
             if (sources.Count > 1)
-                errors.Add(new CompositionConfigurationError.DuplicateRule(key.DeclaringType, key.MemberName, sources));
+                errors.Add(new CompositionConfigurationError.DuplicateCollectionSizeOverride(key.DeclaringType, key.MemberName, sources));
         }
 
         if (errors.Count > 0)

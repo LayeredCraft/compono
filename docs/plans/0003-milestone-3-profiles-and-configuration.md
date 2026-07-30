@@ -1219,3 +1219,37 @@ its own type" isolation rule `testing.md` already states for a new public entry
 point, applied here to a shared static test seam instead. Confirmed stable across
 five consecutive `net10.0` runs after the fix (previously reproduced on the first
 or second run almost every time).
+
+### PR review correction (2026-07-30): a duplicate collection-size override was misreported as a duplicate rule
+
+PR #19's second Codex review round (against commit `85108dd`) correctly flagged
+that `CompositionBuilder.Build()`'s duplicate-member-collection-size-override check
+reused `CompositionConfigurationError.DuplicateRule` — the same case a duplicate
+member *value* rule (`.Member(...).Use(...)`) produces — so a duplicate
+`.Member(...).WithCollectionSize(...)` call rendered as "A member rule for
+'Customer.PastOrders' was configured more than once," even though no value rule was
+ever configured. `DuplicateRule` carries no discriminator between the two, so a
+consumer catching `CompositionConfigurationException` had no reliable way to tell
+which kind of duplicate they actually had, beyond re-deriving it from the message
+string this type's own contract says never to parse.
+
+Fixed by adding a new case, `CompositionConfigurationError.DuplicateCollectionSizeOverride`
+(`DeclaringType`, non-nullable `MemberName`, `Sources`) — matching the discriminated-
+union discipline this codebase already uses (`PathSegment`/`CompositionResult`: one
+case per real kind, not a flag bolted onto an existing one), and consistent with
+ADR-0020's own framing that a collection-size override is never compiled into a
+stage-4 rule, so reporting it as "a rule" was a category error, not just an
+imprecise word choice. `DuplicateRule` itself is now scoped exclusively to type/
+member *value* rules — its doc comment and constructor parameter docs were both
+corrected to drop the collection-size mention they previously (incorrectly) carried.
+`CompositionBuilder.Build()`'s one call site for the member-collection-size conflict
+now constructs the new case instead. Four regression tests added: two on
+`CompositionConfigurationErrorTests` mirroring `DuplicateRule`'s own coverage
+(mutation immunity, fewer-than-two-sources throws), one on
+`CompositionConfigurationExceptionTests` asserting the rendered message says
+"collection size," not "rule," and one true end-to-end test on
+`ComposerCollectionSizeTests` calling `.WithCollectionSize(...)` twice for the same
+member through the real `Composer.Create(...)` path and asserting the thrown
+exception's structured error is the new case, not `DuplicateRule`. All 494
+`Compono.Tests`/`Compono.Generators.Tests` (up from 482) pass on both `net10.0`/
+`net11.0`, confirmed stable across three consecutive full-solution runs.

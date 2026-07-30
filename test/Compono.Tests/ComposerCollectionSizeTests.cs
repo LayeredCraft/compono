@@ -39,6 +39,21 @@ public sealed class ComposerCollectionSizeTests
     }
 
     [Fact]
+    public void MemberScopedWithCollectionSize_CalledTwiceForTheSameMember_ThrowsWithOneDuplicateCollectionSizeOverrideErrorNamingBothSources()
+    {
+        var act = () => Composer.Create(builder => builder
+            .For<Wrapper>().Member(x => x.ItemsA).WithCollectionSize(3)
+            .For<Wrapper>().Member(x => x.ItemsA).WithCollectionSize(9));
+
+        var exception = act.Should().Throw<CompositionConfigurationException>().Which;
+        exception.Errors.Should().ContainSingle();
+        var error = exception.Errors[0].Should().BeOfType<CompositionConfigurationError.DuplicateCollectionSizeOverride>().Which;
+        error.DeclaringType.Should().Be(typeof(Wrapper));
+        error.MemberName.Should().Be("ItemsA");
+        error.Sources.Should().HaveCount(2);
+    }
+
+    [Fact]
     public void NoConfiguration_FallsBackToTheBuiltInSizeOfThree()
     {
         CollectionPlanCache<List<long>>.Instance = new SizeProbeListPlan();

@@ -134,4 +134,36 @@ public sealed class CompositionConfigurationErrorTests
         error.RuleType.Should().Be(typeof(int));
         error.MemberName.Should().Be("Value");
     }
+
+    [Fact]
+    public void DuplicateCollectionSizeOverride_Sources_IsUnaffectedByMutatingTheOriginalListAfterConstruction()
+    {
+        var original = new List<ConfigurationSource> { ConfigurationSource.Direct, ConfigurationSource.Direct };
+        var error = new CompositionConfigurationError.DuplicateCollectionSizeOverride(typeof(int), "Value", original);
+
+        original.Add(ConfigurationSource.Direct);
+
+        error.Sources.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void DuplicateCollectionSizeOverride_WithFewerThanTwoSources_Throws(int sourceCount)
+    {
+        var sources = Enumerable.Repeat(ConfigurationSource.Direct, sourceCount).ToArray();
+
+        var act = () => new CompositionConfigurationError.DuplicateCollectionSizeOverride(typeof(int), "Value", sources);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void DuplicateCollectionSizeOverride_NamesTheDeclaringTypeAndMember()
+    {
+        var error = new CompositionConfigurationError.DuplicateCollectionSizeOverride(typeof(int), "Value", [ConfigurationSource.Direct, ConfigurationSource.Direct]);
+
+        error.DeclaringType.Should().Be(typeof(int));
+        error.MemberName.Should().Be("Value");
+    }
 }

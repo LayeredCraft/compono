@@ -85,6 +85,9 @@ public sealed class CompositionConfigurationException : Exception
         CompositionConfigurationError.DuplicateRule duplicate =>
             $"A member rule for '{CompositionPath.FriendlyTypeName(duplicate.RuleType)}.{duplicate.MemberName}' was " +
             $"configured more than once ({DescribeSources(duplicate.Sources)}).",
+        CompositionConfigurationError.DuplicateCollectionSizeOverride duplicate =>
+            $"The collection size for '{CompositionPath.FriendlyTypeName(duplicate.DeclaringType)}.{duplicate.MemberName}' " +
+            $"was configured more than once ({DescribeSources(duplicate.Sources)}).",
         _ => throw new ArgumentOutOfRangeException(nameof(error), error, "Unrecognized composition configuration error."),
     };
 
