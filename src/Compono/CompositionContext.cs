@@ -196,11 +196,22 @@ internal sealed class CompositionContext : ICompositionContext
     /// </summary>
     /// <exception cref="CompositionException">
     /// <paramref name="value"/> is <see langword="null"/> for a non-nullable request, or its runtime
-    /// type isn't assignable to <typeparamref name="TValue"/>.
+    /// type isn't assignable to <typeparamref name="TValue"/>; or a shared value for
+    /// <typeparamref name="TValue"/> has already been established in this row.
     /// </exception>
     internal void ShareExplicitTestParameter<TValue>(in CompositionRequestDescriptor descriptor, TValue value)
     {
         var requestedType = typeof(TValue);
+
+        // Belt-and-suspenders per ADR-0022 - see the matching check in ResolveCore's stage-2 read.
+        if (_scope.TryGet(requestedType, out _))
+        {
+            throw BuildException(
+                requestedType,
+                $"A shared value for '{CompositionPath.FriendlyTypeName(requestedType)}' has already been " +
+                "established in this row - only one shared value per type is allowed.");
+        }
+
         var result = ValidateAuthoritativeValue(value, requestedType, descriptor.Nullability, "explicit value");
 
         if (result is CompositionResult.Failure failure)
@@ -307,6 +318,19 @@ internal sealed class CompositionContext : ICompositionContext
             // so Provider is null.
             if (_scope.TryGet(requestedType, out var sharedValue))
             {
+                // Belt-and-suspenders per ADR-0022: Compono.Xunit's own signature validation is meant
+                // to catch a duplicate [Shared] type before a row is even created, but a caller that
+                // reaches this pipeline directly (or bypasses that validation) must still be refused
+                // here rather than silently reusing or overwriting the first value.
+                if (isShared)
+                {
+                    _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, CompositionAttemptOutcome.Failure);
+                    throw BuildException(
+                        requestedType,
+                        $"A shared value for '{CompositionPath.FriendlyTypeName(requestedType)}' has already been " +
+                        "established in this row - only one shared value per type is allowed.");
+                }
+
                 var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
                 _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, OutcomeOf(result));
                 var value = Authoritative<TValue>(result);
@@ -330,6 +354,8 @@ internal sealed class CompositionContext : ICompositionContext
                 var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration, provider: null);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
+                if (isShared && result is CompositionResult.Success registrationSuccess)
+                    _scope.Set(requestedType, registrationSuccess.Value);
                 var value = Authoritative<TValue>(result);
                 _trace.Rewind(checkpoint);
                 return value;
@@ -361,6 +387,8 @@ internal sealed class CompositionContext : ICompositionContext
                 {
                     var result = ValidateAuthoritativeValue(serviceValue, request, "configured IServiceProvider");
                     _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
+                    if (isShared && result is CompositionResult.Success serviceSuccess)
+                        _scope.Set(requestedType, serviceSuccess.Value);
                     var value = Authoritative<TValue>(result);
                     _trace.Rewind(checkpoint);
                     return value;

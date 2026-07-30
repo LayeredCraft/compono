@@ -3,7 +3,8 @@ namespace Compono;
 /// <summary>
 /// The compact, compile-time-constructible value a generated <see cref="ICompositionPlan{T}"/>
 /// passes to <see cref="ICompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/> for one constructor parameter or
-/// required member.
+/// required member - or, for a test-framework integration composing a <see cref="CompositionRow"/>,
+/// one of a test method's own parameters (<see cref="CompositionRequestKind.TestParameter"/>).
 /// </summary>
 /// <remarks>
 /// A plain <see langword="struct"/>, not a <c>record struct</c> - equality, <c>Deconstruct</c>, and
@@ -19,16 +20,21 @@ public readonly struct CompositionRequestDescriptor
     /// <summary>
     /// Creates a <see cref="CompositionRequestDescriptor"/>.
     /// </summary>
-    /// <param name="kind">Whether this is a constructor parameter or a required member.</param>
+    /// <param name="kind">
+    /// Whether this is a constructor parameter, a required member, or (for a
+    /// <see cref="CompositionRow"/>) a test method's own parameter.
+    /// </param>
     /// <param name="ordinal">
     /// The stable identity this request forks random state and builds path identity from - a
-    /// constructor parameter's position in the selected constructor, or a required member's
-    /// generator-assigned declaration-order index. Never <see cref="Name"/>.
+    /// constructor parameter's position in the selected constructor, a required member's
+    /// generator-assigned declaration-order index, or a test method parameter's position. Never
+    /// <see cref="Name"/>.
     /// </param>
     /// <param name="name">The parameter or member name, for diagnostic display only.</param>
     /// <param name="declaringType">
-    /// The type whose constructor/required member declares this parameter/member - <see langword="null"/>
-    /// for a request with no member identity of its own (a collection element, dictionary key/value, or
+    /// The type whose constructor/required member declares this parameter/member, or the test class
+    /// for a <see cref="CompositionRequestKind.TestParameter"/> request - <see langword="null"/> for a
+    /// request with no member identity of its own (a collection element, dictionary key/value, or
     /// manual resolve). See <c>docs/adr/0020-composition-configuration-rules.md</c>.
     /// </param>
     /// <param name="nullability">Whether the requesting parameter or member is nullable-annotated.</param>
@@ -41,7 +47,10 @@ public readonly struct CompositionRequestDescriptor
         Nullability = nullability;
     }
 
-    /// <summary>Whether this is a constructor parameter or a required member.</summary>
+    /// <summary>
+    /// Whether this is a constructor parameter, a required member, or (for a
+    /// <see cref="CompositionRow"/>) a test method's own parameter.
+    /// </summary>
     public CompositionRequestKind Kind { get; }
 
     /// <summary>
@@ -54,8 +63,9 @@ public readonly struct CompositionRequestDescriptor
     public string Name { get; }
 
     /// <summary>
-    /// The type whose constructor/required member declares this parameter/member - <see langword="null"/>
-    /// for a request with no member identity of its own (a collection element, dictionary key/value, or
+    /// The type whose constructor/required member declares this parameter/member, or the test class
+    /// for a <see cref="CompositionRequestKind.TestParameter"/> request - <see langword="null"/> for a
+    /// request with no member identity of its own (a collection element, dictionary key/value, or
     /// manual resolve). Never fed into random-fork hashing - used only for configuration-rule matching
     /// (stage 4) and collection-size override lookup (stage 7). See
     /// <c>docs/adr/0020-composition-configuration-rules.md</c>.

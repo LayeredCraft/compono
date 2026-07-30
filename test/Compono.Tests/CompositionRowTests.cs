@@ -42,6 +42,96 @@ public sealed class CompositionRowTests
     }
 
     [Fact]
+    public void ResolveShared_StoresTheValue_WhenSatisfiedByAnExactRegistration()
+    {
+        var registered = new RegisteredMarker("from-registration");
+        var composer = Composer.Create(builder => builder.Register<RegisteredMarker>(() => registered));
+        var row = composer.CreateRow(typeof(CompositionRowTests));
+        var sharedDescriptor = TestParameterDescriptor(ordinal: 0, "repository");
+        var laterDescriptor = TestParameterDescriptor(ordinal: 1, "another");
+
+        var shared = row.ResolveShared<RegisteredMarker>(sharedDescriptor);
+        var later = row.Resolve<RegisteredMarker>(laterDescriptor);
+
+        later.Should().BeSameAs(shared);
+    }
+
+    [Fact]
+    public void ResolveShared_StoresTheValue_WhenSatisfiedByTheConfiguredServiceProvider()
+    {
+        var fromProvider = new ServiceProviderMarker("from-provider");
+        var composer = Composer.Create(builder => builder.UseServiceProvider(new FakeServiceProvider(fromProvider)));
+        var row = composer.CreateRow(typeof(CompositionRowTests));
+        var sharedDescriptor = TestParameterDescriptor(ordinal: 0, "repository");
+        var laterDescriptor = TestParameterDescriptor(ordinal: 1, "another");
+
+        var shared = row.ResolveShared<ServiceProviderMarker>(sharedDescriptor);
+        var later = row.Resolve<ServiceProviderMarker>(laterDescriptor);
+
+        later.Should().BeSameAs(shared);
+    }
+
+    [Fact]
+    public void ResolveShared_Throws_WhenASharedValueForTheSameTypeAlreadyExists()
+    {
+        PlanCache<ComposedMarker>.Instance = new FixedPlan(new ComposedMarker("first"));
+
+        try
+        {
+            var composer = Composer.Create();
+            var row = composer.CreateRow(typeof(CompositionRowTests));
+            var first = TestParameterDescriptor(ordinal: 0, "first");
+            var second = TestParameterDescriptor(ordinal: 1, "second");
+            row.ResolveShared<ComposedMarker>(first);
+
+            var act = () => row.ResolveShared<ComposedMarker>(second);
+
+            act.Should().Throw<CompositionException>().WithMessage("*already been established*");
+        }
+        finally
+        {
+            PlanCache<ComposedMarker>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void ShareExplicit_Throws_WhenASharedValueForTheSameTypeAlreadyExists()
+    {
+        var composer = Composer.Create();
+        var row = composer.CreateRow(typeof(CompositionRowTests));
+        var first = TestParameterDescriptor(ordinal: 0, "repository");
+        var second = TestParameterDescriptor(ordinal: 1, "another");
+        row.ShareExplicit(first, new UnresolvableMarker("first"));
+
+        var act = () => row.ShareExplicit(second, new UnresolvableMarker("second"));
+
+        act.Should().Throw<CompositionException>().WithMessage("*already been established*");
+    }
+
+    [Fact]
+    public void ShareExplicit_Throws_WhenAScopeValueWasAlreadyEstablishedByResolveShared()
+    {
+        PlanCache<ComposedMarker>.Instance = new FixedPlan(new ComposedMarker("first"));
+
+        try
+        {
+            var composer = Composer.Create();
+            var row = composer.CreateRow(typeof(CompositionRowTests));
+            var first = TestParameterDescriptor(ordinal: 0, "first");
+            var second = TestParameterDescriptor(ordinal: 1, "second");
+            row.ResolveShared<ComposedMarker>(first);
+
+            var act = () => row.ShareExplicit(second, new ComposedMarker("second"));
+
+            act.Should().Throw<CompositionException>().WithMessage("*already been established*");
+        }
+        finally
+        {
+            PlanCache<ComposedMarker>.Instance = null;
+        }
+    }
+
+    [Fact]
     public void ShareExplicit_Throws_WhenValueIsNullForANonNullableRequest()
     {
         var composer = Composer.Create();
@@ -160,5 +250,17 @@ public sealed class CompositionRowTests
     private sealed class FixedPlan(ComposedMarker value) : ICompositionPlan<ComposedMarker>
     {
         public ComposedMarker Compose(ICompositionContext context) => value;
+    }
+
+    // Distinct types for the exact-registration/IServiceProvider shared-storage tests, so a
+    // registration or configured provider set up in one test can't accidentally satisfy an
+    // unrelated test's own request for the same type.
+    private sealed record RegisteredMarker(string Value);
+
+    private sealed record ServiceProviderMarker(string Value);
+
+    private sealed class FakeServiceProvider(ServiceProviderMarker value) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == typeof(ServiceProviderMarker) ? value : null;
     }
 }

@@ -3,15 +3,19 @@ namespace Compono.Tests;
 public sealed class CompositionScopeTests
 {
     [Fact]
-    public void ResolveSharedForTesting_ReusesTheSameValue_ForASecondSharedRequestOfTheSameType()
+    public void ResolveSharedForTesting_Throws_WhenASecondSharedRequestOfTheSameTypeIsMade()
     {
+        // ADR-0022: CompositionRow refuses a second same-type share defensively - this seam drives
+        // isShared:true through the same ResolveCore path CompositionRow.ResolveShared does, so it
+        // gets the same guard. Superseded "reuse the existing value" behavior this test asserted
+        // before Milestone 4's duplicate-share requirement landed.
         var provider = new CountingProvider();
         var context = new CompositionContext([], [], [], [provider]);
 
-        var first = context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
-        var second = context.ResolveSharedForTesting<Widget>(ordinal: 1, name: "b");
+        context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
+        var act = () => context.ResolveSharedForTesting<Widget>(ordinal: 1, name: "b");
 
-        second.Should().BeSameAs(first);
+        act.Should().Throw<CompositionException>().WithMessage("*already been established*");
         provider.CallCount.Should().Be(1);
     }
 

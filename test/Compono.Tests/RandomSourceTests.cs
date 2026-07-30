@@ -39,6 +39,8 @@ public sealed class RandomSourceTests
             parent.Fork(new PathSegment.CollectionElement(0)).NextUInt64(),
             parent.Fork(new PathSegment.DictionaryKey(0)).NextUInt64(),
             parent.Fork(new PathSegment.DictionaryValue(0)).NextUInt64(),
+            parent.Fork(new PathSegment.ManualResolve(0)).NextUInt64(),
+            parent.Fork(new PathSegment.TestParameter(0, "x")).NextUInt64(),
         };
 
         outputs.Should().OnlyHaveUniqueItems();
