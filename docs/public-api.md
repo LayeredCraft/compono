@@ -128,6 +128,15 @@ itself is a build-time cycle diagnostic, not a stack overflow.
 
 ## xUnit v3 Experience
 
+Resolved by [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)/
+[ADR-0022](adr/0022-compono-xunit-package-design.md) (`Accepted`, not yet
+implemented — see [PLAN-0004](plans/0004-milestone-4-xunit-integration.md)).
+`[Compose]`/`[Compose<TProfile>]` implement `Xunit.v3.DataAttribute`
+directly; composition happens once per theory row, at execution time (not
+discovery time — composed values, especially a future substitute or any
+other non-serializable reference type, aren't safely enumerable before a
+test actually runs).
+
 A composed theory should be concise:
 
 ```csharp
@@ -147,7 +156,10 @@ public async Task Saves_order(
 }
 ```
 
-Profile selection:
+Profile selection (method-level only for Milestone 4 — a profile that
+itself needs to combine several others already can, via its own
+`Configure` calling `AddProfile` again, per the existing Profiles section
+above):
 
 ```csharp
 [Theory]
@@ -157,11 +169,13 @@ public void Creates_customer(Customer customer)
 }
 ```
 
-Inline values should override generated values:
+Inline values take precedence over composed ones — supplied directly on
+`[Compose(...)]`'s own constructor, strictly positional from the first
+parameter, rather than a separate attribute:
 
 ```csharp
 [Theory]
-[InlineComposeData("alice@example.com")]
+[Compose("alice@example.com")]
 public void Accepts_email(
     string email,
     Customer customer)
@@ -169,7 +183,11 @@ public void Accepts_email(
 }
 ```
 
-The final attribute names are not settled.
+`email` is not composed; `customer` is. Combining `[Compose]` with an
+ordinary `[InlineData]`/`[MemberData]` attribute on the same method is not
+supported — xUnit treats each data attribute as an independent row
+source rather than merging their values, so inline values belong on
+`[Compose(...)]` itself.
 
 ## Shared Values
 
@@ -189,12 +207,22 @@ The repository injected into `OrderService` must be the same instance as the par
 
 The word `Shared` is currently preferred over `Frozen` because it describes lifetime semantics more directly.
 
-Questions still to resolve:
+Resolved by ADR-0022:
 
-- Is sharing type-based only?
-- Can sharing be keyed by name or qualifier?
-- Does parameter order matter?
-- Can a shared value be declared without exposing it as a test parameter?
+- Sharing is type-based only, matching Milestone 2's own scope semantics —
+  no name/qualifier-based sharing yet, no concrete consumer for it.
+- Declaration order does not gate which parameters are eligible to be
+  `[Shared]` — every `[Shared]` parameter composes (or, if inline-supplied,
+  is stored) before every non-shared parameter, regardless of where it
+  sits in the parameter list. Order *does* matter among `[Shared]`
+  parameters themselves: one may depend on an earlier-declared `[Shared]`
+  sibling, never a later one.
+- Two `[Shared]` parameters of the same type is a clear, pre-composition
+  failure naming both parameters, not a silent last-wins.
+- A shared value cannot be declared without exposing it as a test
+  parameter in Milestone 4 — every shared value is visible in the
+  method's own signature; a hidden/injected-only shared value isn't
+  designed here.
 
 ## Registrations
 
@@ -345,9 +373,12 @@ public void Reproduces_failure(Order order)
 }
 ```
 
-The exact attribute capability depends on xUnit v3 extensibility.
+Confirmed viable against xUnit v3's real extensibility surface (ADR-0022).
 
-A failed test should surface the seed in its diagnostic output.
+A composition failure's message ends with `Seed: {value}`, matching
+`docs/architecture.md`'s existing Diagnostics example — a successful row
+does not surface its seed anywhere by default, to keep passing-test output
+unchanged.
 
 ## Diagnostics API
 

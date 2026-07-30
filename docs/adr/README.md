@@ -82,3 +82,5 @@ the mechanics: numbering, status, and the index.
 | [0018](0018-composition-profiles.md) | Composition Profiles | Accepted |
 | [0019](0019-registrations-and-service-provider-injection.md) | Registrations and Service Provider Injection | Accepted |
 | [0020](0020-composition-configuration-rules.md) | Composition Configuration Rules | Accepted |
+| [0021](0021-row-composition-entry-point-for-test-framework-integrations.md) | Row Composition Entry Point for Test-Framework Integrations | Accepted |
+| [0022](0022-compono-xunit-package-design.md) | Compono.Xunit Package Design | Accepted |

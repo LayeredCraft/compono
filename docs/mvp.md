@@ -193,6 +193,14 @@ A project can define one reusable profile and use it for both programmatic and t
 
 ## Milestone 4: xUnit v3 Integration
 
+Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
+(core `CompositionRow`/`CompositionRequestKind.TestParameter` entry point, the
+stage-2 shared-value read-gate change), [ADR-0022](adr/0022-compono-xunit-package-design.md)
+(`Compono.Xunit` package: `[Compose]`/`[Compose<TProfile>]`/`[Shared]`
+attributes, inline/composed binding, profile selection, seed policy,
+diagnostics, package dependencies). Both `Accepted`; not yet implemented —
+tracked by [PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
+
 ### Scope
 
 - xUnit v3 data attribute
@@ -348,10 +356,14 @@ A composed customer can receive realistic, deterministic values without the core
   mechanism for a future compatibility mode is still open.
 - ~~Exact public root type name~~ — `Composer`, settled by Milestone 3 Phase 0's
   shipped `Composer.Create()`/`Composer.Create(Action<CompositionBuilder>)`.
-- Attribute names
+- ~~Attribute names~~ — resolved by
+  [ADR-0022](adr/0022-compono-xunit-package-design.md): `[Compose]`,
+  `[Compose<TProfile>]`, `[Shared]`.
 - ~~Shared-value matching rules~~ — type-based only for Milestone 2,
   resolved by [ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md);
-  name/qualifier-based sharing remains open for Milestone 4.
+  confirmed type-based only for Milestone 4's `[Shared]` too, by
+  [ADR-0022](adr/0022-compono-xunit-package-design.md) — name/qualifier-based
+  sharing remains deferred past Milestone 4, with no consumer yet.
 - ~~Sync or async provider APIs~~ — resolved by
   [ADR-0010](adr/0010-composition-request-pipeline-and-diagnostics-tracing.md).
 - ~~Constructor selection algorithm~~ — resolved by
