@@ -1379,3 +1379,59 @@ independent gaps:
 
 All 504 `Compono.Tests`/`Compono.Generators.Tests` (up from 498) pass on both
 `net10.0`/`net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): a sixth-round checklist audit found the flagged gap plus a second, unflagged instance of the same pattern
+
+PR #19's sixth Codex review round (a review body, not an inline thread, against
+commit `a12732f`) flagged that this plan's own checklist claims a
+`CollectionElement`/`DictionaryKey`/`DictionaryValue` request's null `DeclaringType`
+was "confirmed not to match any configured member rule," but no test anywhere in
+the new configuration-rule/collection-size test files actually resolved one of
+those three request kinds in the presence of a configured member rule - only the
+generator snapshots proved `DeclaringType` is emitted as `null` for those kinds,
+never the runtime consequence.
+
+Given two consecutive rounds had now caught this exact class of gap (a checklist
+line claiming test coverage the actual suite didn't have), a full audit of every
+distinct claim in Phase 3's "Unit tests" checklist line was done against the real
+test files rather than fixing only the flagged item. That audit found one more,
+previously unflagged instance of the identical pattern: the checklist's own text
+says the `Node.Child` self-referencing-termination case was "composed through its
+real generated plan," but the actual regression test
+(`Compono.Tests/ComposerConfigurationRuleTests.RuleThatLegitimatelyTerminatesASelfReferencingGraph_Succeeds`)
+registers a hand-written `RecursingNodePlan` directly into `PlanCache<Node>.Instance`
+- never the real source generator. Every other distinct claim in that checklist
+line was cross-checked against the real test files and found accurate.
+
+Both gaps fixed:
+
+1. **`CollectionElement`/`DictionaryKey`/`DictionaryValue` non-match**: two tests
+   added to `Compono.Tests/ComposerConfigurationRuleTests.cs`
+   (`MemberRule_DoesNotMatch_ACollectionElementRequest_WhoseDeclaringTypeIsAlwaysNull`,
+   `MemberRule_DoesNotMatch_ADictionaryKeyOrValueRequest_WhoseDeclaringTypeIsAlwaysNull`),
+   each configuring a real member rule (`.For<Customer>().Member(x => x.Email).Use("from-rule")`)
+   then resolving the relevant request kind through a hand-faked
+   `CollectionPlanCache<T>` plan (matching this file's own existing fast-unit-test
+   convention - this claim never claimed "real generated plan," only "confirmed not
+   to match," so a fake plan is the right-weight test here, unlike gap 2) and
+   asserting the rule's value never appears in the result.
+2. **`Node.Child` real-generator coverage**: a new test added to
+   `Compono.Generators.Tests/ConfigurationRuleExecutionTests.cs`
+   (`RuleThatLegitimatelyTerminatesASelfReferencingGraph_Succeeds_ThroughARealGeneratedPlan`),
+   compiling a real, self-referencing `Node` class and a real
+   `.For<Node>().Member(x => x.Child).Use(...)` rule through the actual generator via
+   `GeneratorTestHelpers.CompileAndExecute`. Writing this test surfaced a real,
+   useful discovery in the test fixture itself (not a product bug): the first draft
+   used a lowercase constructor parameter (`child`) against a `PascalCase` property
+   (`Child`) - exactly the casing-mismatch limitation ADR-0020 already documents for
+   hand-written classes (the generator emits the parameter's own name, never
+   correlated to the property), which made the rule silently never match in real
+   generated code and let the pre-existing recursion guard fire instead of the
+   rule's terminating value. Fixed by renaming the constructor parameter to match
+   the property's exact casing (`public Node(Node? Child) => _child = Child;`),
+   not by changing any product code - the guard and the rule matching were both
+   already correct; the test fixture was the one violating ADR-0020's own
+   documented naming requirement.
+
+All 510 `Compono.Tests`/`Compono.Generators.Tests` (up from 504) pass on both
+`net10.0`/`net11.0`, confirmed stable across three consecutive full-solution runs.

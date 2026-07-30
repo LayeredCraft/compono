@@ -214,6 +214,51 @@ public sealed class ComposerConfigurationRuleTests
         }
     }
 
+    [Fact]
+    public void MemberRule_DoesNotMatch_ACollectionElementRequest_WhoseDeclaringTypeIsAlwaysNull()
+    {
+        // Codex review: the plan's own checklist claimed a CollectionElement/DictionaryKey/
+        // DictionaryValue request's null DeclaringType was "confirmed not to match any configured
+        // member rule" - but no test actually resolved one of these request kinds in the presence of a
+        // configured member rule targeting the same value type. The generator snapshots prove
+        // DeclaringType is emitted as null for these kinds; this proves the runtime consequence: a
+        // member rule for a string-typed member never wins a collection element's string request.
+        CollectionPlanCache<List<string>>.Instance = new StringElementPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.For<Customer>().Member(x => x.Email).Use("from-rule"));
+
+            var result = composer.Create<List<string>>();
+
+            result.Should().NotContain("from-rule");
+        }
+        finally
+        {
+            CollectionPlanCache<List<string>>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void MemberRule_DoesNotMatch_ADictionaryKeyOrValueRequest_WhoseDeclaringTypeIsAlwaysNull()
+    {
+        CollectionPlanCache<Dictionary<string, string>>.Instance = new StringDictionaryPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.For<Customer>().Member(x => x.Email).Use("from-rule"));
+
+            var result = composer.Create<Dictionary<string, string>>();
+
+            result.Keys.Should().NotContain("from-rule");
+            result.Values.Should().NotContain("from-rule");
+        }
+        finally
+        {
+            CollectionPlanCache<Dictionary<string, string>>.Instance = null;
+        }
+    }
+
     private static CompositionRequestDescriptor Descriptor(CompositionRequestKind kind, int ordinal, string name, Type declaringType) =>
         new(kind, ordinal, name, declaringType, Nullability.NotNullable);
 
@@ -275,6 +320,27 @@ public sealed class ComposerConfigurationRuleTests
     {
         public Conflicted Compose(ICompositionContext context) =>
             new(context.Resolve<string>(Descriptor(CompositionRequestKind.ConstructorParameter, 0, "Value", typeof(Conflicted))));
+    }
+
+    // Matches the shape a real generated List<string> collection plan produces - a CollectionElement
+    // descriptor, which (per ADR-0020) always carries a null DeclaringType, regardless of any
+    // configured member rule for the same element type.
+    private sealed class StringElementPlan : ICompositionPlan<List<string>>
+    {
+        public List<string> Compose(ICompositionContext context) =>
+            [context.Resolve<string>(new CompositionRequestDescriptor(CompositionRequestKind.CollectionElement, 0, "", declaringType: null, Nullability.NotNullable))];
+    }
+
+    // Matches the shape a real generated Dictionary<string, string> collection plan produces -
+    // DictionaryKey/DictionaryValue descriptors, both always carrying a null DeclaringType.
+    private sealed class StringDictionaryPlan : ICompositionPlan<Dictionary<string, string>>
+    {
+        public Dictionary<string, string> Compose(ICompositionContext context)
+        {
+            var key = context.Resolve<string>(new CompositionRequestDescriptor(CompositionRequestKind.DictionaryKey, 0, "", declaringType: null, Nullability.NotNullable));
+            var value = context.Resolve<string>(new CompositionRequestDescriptor(CompositionRequestKind.DictionaryValue, 0, "", declaringType: null, Nullability.NotNullable));
+            return new Dictionary<string, string> { [key] = value };
+        }
     }
 
     // Simulates the shape a real generated Node plan would produce for a self-referencing type: the

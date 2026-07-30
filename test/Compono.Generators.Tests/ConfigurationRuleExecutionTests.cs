@@ -11,7 +11,9 @@ namespace Compono.Generators.Tests;
 /// <c>context.ResolveCollectionSize()</c> call site, not just the hand-faked
 /// <c>CollectionPlanCache&lt;T&gt;</c> entries the fast unit tests use (Codex review - the plan's own
 /// checklist claimed this was verified end-to-end through a real generated collection plan, which
-/// wasn't true until this file added it).
+/// wasn't true until this file added it), and that a rule terminating a self-referencing graph works
+/// against a real generator-emitted plan, not just the hand-faked <c>PlanCache&lt;T&gt;</c> entry
+/// <c>Compono.Tests</c>' own regression test for that scenario uses.
 /// </summary>
 public sealed class ConfigurationRuleExecutionTests
 {
@@ -110,5 +112,51 @@ public sealed class ConfigurationRuleExecutionTests
 
         itemsA.Should().HaveCount(9);
         itemsB.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void RuleThatLegitimatelyTerminatesASelfReferencingGraph_Succeeds_ThroughARealGeneratedPlan()
+    {
+        // The plan's own checklist claimed this scenario was "composed through its real generated
+        // plan," but the actual regression test (Compono.Tests/ComposerConfigurationRuleTests) used a
+        // hand-written PlanCache<Node> fake, never the real source generator - the same class of gap
+        // Codex's prior round caught for WithCollectionSize. This proves the guard actually works
+        // against a real generator-emitted, self-referencing Node plan, not a hand-modeled stand-in.
+        var act = () => GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public sealed class Node
+                    {
+                        private readonly Node? _child;
+
+                        // The constructor parameter's own name must match the property's name exactly
+                        // (case-sensitive) - ADR-0020's documented member-rule matching limitation for
+                        // hand-written classes, not an issue for positional records. "child" vs "Child"
+                        // would silently never match here.
+                        public Node(Node? Child) => _child = Child;
+
+                        public Node? Child => _child;
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static object Run()
+                        {
+                            var composer = Compono.Composer.Create(builder => builder
+                                .For<Node>().Member(x => x.Child).Use(_ => new Node(null)));
+
+                            return composer.Create<Node>();
+                        }
+                    }
+                    """,
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        act.Should().NotThrow();
     }
 }
