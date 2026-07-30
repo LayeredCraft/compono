@@ -55,10 +55,15 @@ public sealed class CompositionConfigurationException : Exception
         IReadOnlyList<CompositionConfigurationError> errors)
     {
         ArgumentNullException.ThrowIfNull(errors);
-        if (errors.Count == 0)
+
+        // Snapshot before validating, not after - errors.Count alone could disagree with what
+        // actually gets enumerated into the snapshot for a custom/concurrently-mutated
+        // IReadOnlyList<T> implementation, letting an empty snapshot (and an empty Message) sneak
+        // past a check performed against the original list.
+        var snapshot = ImmutableSnapshot.Of(errors);
+        if (snapshot.Count == 0)
             throw new ArgumentException("At least one error is required.", nameof(errors));
 
-        var snapshot = ImmutableSnapshot.Of(errors);
         return (BuildMessage(snapshot), snapshot);
     }
 

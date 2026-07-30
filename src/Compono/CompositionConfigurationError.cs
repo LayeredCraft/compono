@@ -54,7 +54,13 @@ public abstract record CompositionConfigurationError
         public DuplicateConfigurationOption(string optionName, IReadOnlyList<ConfigurationSource> sources)
         {
             ArgumentNullException.ThrowIfNull(sources);
-            if (sources.Count < 2)
+
+            // Snapshot before validating, not after - sources.Count alone could disagree with what
+            // actually gets enumerated into the snapshot for a custom/concurrently-mutated
+            // IReadOnlyList<T> implementation, letting an under-count sneak past a check performed
+            // against the original list.
+            var snapshot = ImmutableSnapshot.Of(sources);
+            if (snapshot.Count < 2)
             {
                 throw new ArgumentException(
                     "A duplicate-configuration-option error requires at least two contributing sources.",
@@ -62,7 +68,7 @@ public abstract record CompositionConfigurationError
             }
 
             OptionName = optionName;
-            Sources = ImmutableSnapshot.Of(sources);
+            Sources = snapshot;
         }
     }
 }

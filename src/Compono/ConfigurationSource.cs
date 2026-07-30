@@ -37,12 +37,24 @@ public abstract record ConfigurationSource
 
         /// <summary>Creates a <see cref="ProfileChain"/> source.</summary>
         /// <param name="profiles">
-        /// The applied profile types, outermost first. Copied into an immutable snapshot - mutating
-        /// a list passed here after this constructor returns has no effect on <see cref="Profiles"/>.
+        /// The applied profile types, outermost first - always at least one; this source represents
+        /// "made inside a profile," so an empty chain has no coherent meaning. Copied into an
+        /// immutable snapshot - mutating a list passed here after this constructor returns has no
+        /// effect on <see cref="Profiles"/>.
         /// </param>
+        /// <exception cref="ArgumentException"><paramref name="profiles"/> is empty.</exception>
         public ProfileChain(IReadOnlyList<Type> profiles)
         {
-            Profiles = ImmutableSnapshot.Of(profiles);
+            ArgumentNullException.ThrowIfNull(profiles);
+
+            // Snapshot before validating, not after - see CompositionConfigurationError's identical
+            // pattern for why (a custom/concurrently-mutated IReadOnlyList<T> could otherwise let an
+            // empty snapshot past a check performed against the original list).
+            var snapshot = ImmutableSnapshot.Of(profiles);
+            if (snapshot.Count == 0)
+                throw new ArgumentException("A profile chain requires at least one profile.", nameof(profiles));
+
+            Profiles = snapshot;
         }
     }
 

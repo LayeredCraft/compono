@@ -20,4 +20,12 @@ public sealed class ConfigurationSourceTests
 
         (source.Profiles is Type[]).Should().BeFalse();
     }
+
+    [Fact]
+    public void ProfileChain_WithEmptyProfiles_Throws()
+    {
+        var act = () => new ConfigurationSource.ProfileChain([]);
+
+        act.Should().Throw<ArgumentException>();
+    }
 }
