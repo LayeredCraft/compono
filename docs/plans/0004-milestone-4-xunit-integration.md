@@ -392,3 +392,32 @@ exercised indirectly through `Compono.Xunit.Tests`.
 - Full suite green: `Compono.Tests` 378/378 (189 × 2 TFMs, up from
   177 × 2 before this phase — 12 new `CompositionRowTests`), `Compono.Generators.Tests`
   154/154 unaffected (Phase 0 touches no generator code).
+
+## Open Items
+
+Tracked but deliberately not fixed yet - valid points raised in review,
+out of scope for the PR that surfaced them:
+
+- **No generator discovery path exists for types reached only through
+  `CompositionRow.Resolve`/`ResolveShared`** (Codex, PR #22). Today,
+  `CreateInvocationDiscovery` finds a plan-worthy type only by matching a
+  literal `composer.Create<T>()`/`CreateMany<T>()` call site in the
+  consumer's own source (`docs/adr/0004-composition-plan-discovery-and-dispatch.md`).
+  Phase 1's own design for `Compono.Xunit`'s per-parameter binding
+  (`MethodInfo.MakeGenericMethod(parameter.ParameterType)` +
+  `Delegate.CreateDelegate`, built once from runtime `ParameterInfo`
+  reflection - see Phase 1's cached-invoker-delegates task above) means
+  there is no textual `row.Resolve<Foo>(...)` call site in a consumer's
+  source for that same syntax-matching mechanism to ever find - this
+  isn't a missing case to add to `CreateInvocationDiscovery`, it's a
+  fundamentally different discovery problem (most likely: teach the
+  generator to recognize `[Compose]`-attributed test methods directly and
+  discover plans from their parameter lists, sidestepping
+  `CompositionRow.Resolve` call sites entirely). `CompositionRowTests`
+  masks this today by hand-assigning `PlanCache<T>.Instance` directly,
+  the same masking shape `testing.md`'s "verifying a new public entry
+  point" rule was written to name and prevent (the `CreateMany<T>()`
+  precedent it cites). This needs its own design dive and likely an ADR
+  amendment or a new ADR before Phase 1/2 implementation starts - not a
+  drive-by fix - since it changes how the generator discovers types at
+  all, not just this one entry point.

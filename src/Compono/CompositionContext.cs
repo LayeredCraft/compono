@@ -217,7 +217,7 @@ internal sealed class CompositionContext : ICompositionContext
         if (result is CompositionResult.Failure failure)
             throw BuildException(requestedType, failure.Message);
 
-        _scope.Set(requestedType, ((CompositionResult.Success)result).Value);
+        StoreSharedValue(requestedType, isShared: true, result);
     }
 
     // Shared by Resolve<TValue>(descriptor) and ResolveDescriptorAsShared<TValue> - the only
@@ -354,8 +354,7 @@ internal sealed class CompositionContext : ICompositionContext
                 var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration, provider: null);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
-                if (isShared && result is CompositionResult.Success registrationSuccess)
-                    _scope.Set(requestedType, registrationSuccess.Value);
+                StoreSharedValue(requestedType, isShared, result);
                 var value = Authoritative<TValue>(result);
                 _trace.Rewind(checkpoint);
                 return value;
@@ -387,8 +386,7 @@ internal sealed class CompositionContext : ICompositionContext
                 {
                     var result = ValidateAuthoritativeValue(serviceValue, request, "configured IServiceProvider");
                     _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
-                    if (isShared && result is CompositionResult.Success serviceSuccess)
-                        _scope.Set(requestedType, serviceSuccess.Value);
+                    StoreSharedValue(requestedType, isShared, result);
                     var value = Authoritative<TValue>(result);
                     _trace.Rewind(checkpoint);
                     return value;
@@ -709,10 +707,21 @@ internal sealed class CompositionContext : ICompositionContext
 
         var result = ValidateAuthoritativeValue(value, request, "shared value");
         _trace.Record(stage, provider, OutcomeOf(result));
-        if (result is CompositionResult.Success success)
-            _scope.Set(request.RequestedType, success.Value);
+        StoreSharedValue(request.RequestedType, isShared: true, result);
 
         return Authoritative<TValue>(result);
+    }
+
+    // The single write side of "shared" storage - every call site that can produce an authoritative
+    // shared-request result (stage 2's belt-and-suspenders duplicate check aside, which never reaches
+    // here) routes through this one method rather than calling _scope.Set directly, so a future stage
+    // can't repeat the exact gap PR #22 review caught: two stage-3 branches that validated a shared
+    // result correctly but forgot to store it, because the storage was inlined at each call site
+    // instead of centralized.
+    private void StoreSharedValue(Type requestedType, bool isShared, CompositionResult result)
+    {
+        if (isShared && result is CompositionResult.Success success)
+            _scope.Set(requestedType, success.Value);
     }
 
     // Stages 2/3's authoritative validation, per ADR-0011's second amendment: a null value for a
