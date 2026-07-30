@@ -41,38 +41,38 @@ public sealed class ComposerCollectionSizeTests
     [Fact]
     public void NoConfiguration_FallsBackToTheBuiltInSizeOfThree()
     {
-        CollectionPlanCache<List<int>>.Instance = new SizeProbeListPlan();
+        CollectionPlanCache<List<long>>.Instance = new SizeProbeListPlan();
 
         try
         {
             var composer = Composer.Create();
 
-            var result = composer.Create<List<int>>();
+            var result = composer.Create<List<long>>();
 
             result.Should().HaveCount(3);
         }
         finally
         {
-            CollectionPlanCache<List<int>>.Instance = null;
+            CollectionPlanCache<List<long>>.Instance = null;
         }
     }
 
     [Fact]
     public void GlobalDefault_ChangesTheCollectionSize_ForARootLevelCollection()
     {
-        CollectionPlanCache<List<int>>.Instance = new SizeProbeListPlan();
+        CollectionPlanCache<List<long>>.Instance = new SizeProbeListPlan();
 
         try
         {
             var composer = Composer.Create(builder => builder.WithCollectionSize(7));
 
-            var result = composer.Create<List<int>>();
+            var result = composer.Create<List<long>>();
 
             result.Should().HaveCount(7);
         }
         finally
         {
-            CollectionPlanCache<List<int>>.Instance = null;
+            CollectionPlanCache<List<long>>.Instance = null;
         }
     }
 
@@ -80,7 +80,7 @@ public sealed class ComposerCollectionSizeTests
     public void MemberScopedOverride_OverridesTheGlobalDefault_ForThatMemberOnly()
     {
         PlanCache<Wrapper>.Instance = new WrapperPlan();
-        CollectionPlanCache<List<int>>.Instance = new SizeProbeListPlan();
+        CollectionPlanCache<List<long>>.Instance = new SizeProbeListPlan();
 
         try
         {
@@ -96,31 +96,31 @@ public sealed class ComposerCollectionSizeTests
         finally
         {
             PlanCache<Wrapper>.Instance = null;
-            CollectionPlanCache<List<int>>.Instance = null;
+            CollectionPlanCache<List<long>>.Instance = null;
         }
     }
 
     private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
         new(CompositionRequestKind.ConstructorParameter, ordinal, name, typeof(Wrapper), Nullability.NotNullable);
 
-    private sealed record Wrapper(List<int> ItemsA, List<int> ItemsB);
+    private sealed record Wrapper(List<long> ItemsA, List<long> ItemsB);
 
     private sealed class WrapperPlan : ICompositionPlan<Wrapper>
     {
         public Wrapper Compose(ICompositionContext context) =>
             new(
-                context.Resolve<List<int>>(Descriptor(0, "ItemsA")),
-                context.Resolve<List<int>>(Descriptor(1, "ItemsB")));
+                context.Resolve<List<long>>(Descriptor(0, "ItemsA")),
+                context.Resolve<List<long>>(Descriptor(1, "ItemsB")));
     }
 
     // Simulates the shape a real generated collection plan produces - reads context.ResolveCollectionSize()
     // instead of a hardcoded literal, per ADR-0020.
-    private sealed class SizeProbeListPlan : ICompositionPlan<List<int>>
+    private sealed class SizeProbeListPlan : ICompositionPlan<List<long>>
     {
-        public List<int> Compose(ICompositionContext context)
+        public List<long> Compose(ICompositionContext context)
         {
             var size = context.ResolveCollectionSize();
-            var result = new List<int>(size);
+            var result = new List<long>(size);
             for (var i = 0; i < size; i++)
                 result.Add(i);
             return result;

@@ -26,8 +26,9 @@ internal sealed class MemberRuleProvider : ICompositionProvider
         if (request.DeclaringType != _declaringType || MemberNameOf(request) != _memberName)
             return CompositionResult.NotHandled.Instance;
 
-        // Same reentrance-guarded invocation path as TypeRuleProvider - see its remarks.
-        var value = ((CompositionContext)context).InvokeFactory(_factory, request.RequestedType, PipelineStage.ConfigurationRule);
+        // Same reentrance-guarded invocation path as TypeRuleProvider - see its remarks, including why
+        // GetType() (not null) is passed as the provider identity (PR #19 review).
+        var value = ((CompositionContext)context).InvokeFactory(_factory, request.RequestedType, PipelineStage.ConfigurationRule, GetType());
         return new CompositionResult.Success(value);
     }
 

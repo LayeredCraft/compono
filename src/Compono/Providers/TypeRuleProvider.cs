@@ -26,7 +26,11 @@ internal sealed class TypeRuleProvider : ICompositionProvider
         // manual-resolve invocation frame and factory-reentrance guard stage 3's exact registrations
         // already share, per docs/adr/0019-registrations-and-service-provider-injection.md. context is
         // always the concrete CompositionContext that dispatched this provider via TryProviders.
-        var value = ((CompositionContext)context).InvokeFactory(_factory, request.RequestedType, PipelineStage.ConfigurationRule);
+        // Passing GetType() (not null) is what lets a Failure trace entry for this factory - a thrown
+        // exception, or the reentrance guard - be attributed to TypeRuleProvider specifically, matching
+        // the provider identity TryProviders' own Pending/NotHandled entries for this same candidate
+        // already carry (PR #19 review).
+        var value = ((CompositionContext)context).InvokeFactory(_factory, request.RequestedType, PipelineStage.ConfigurationRule, GetType());
         return new CompositionResult.Success(value);
     }
 }

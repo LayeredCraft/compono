@@ -257,7 +257,7 @@ internal sealed class CompositionContext : ICompositionContext
             if (_registrations.TryGet(requestedType, out var factory))
             {
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Pending);
-                var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration);
+                var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration, provider: null);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
                 var value = Authoritative<TValue>(result);
@@ -457,11 +457,16 @@ internal sealed class CompositionContext : ICompositionContext
     // name this exact case ("an exact registration (stage 3) whose factory throws") explicitly, so an
     // ordinary factory-thrown exception must surface as a structured CompositionException (path, seed,
     // trace, original preserved as InnerException), not escape raw with none of that context.
-    internal object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType, PipelineStage stage)
+    // `provider` is recorded on both Failure paths below - null for stage 3 (an exact registration has
+    // no ICompositionProvider identity of its own), the concrete TypeRuleProvider/MemberRuleProvider
+    // type for a stage-4 rule factory, matching the identity TryProviders' own Pending/NotHandled
+    // entries for that same candidate already carry (PR #19 review: a rule factory's Failure entry was
+    // otherwise the only trace entry for that attempt not tagged with the provider that produced it).
+    internal object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType, PipelineStage stage, Type? provider)
     {
         if (IsFactoryActive(factory))
         {
-            _trace.Record(stage, provider: null, CompositionAttemptOutcome.Failure);
+            _trace.Record(stage, provider, CompositionAttemptOutcome.Failure);
             throw BuildException(requestedType, BuildFactoryReentranceMessage(requestedType));
         }
 
@@ -489,7 +494,7 @@ internal sealed class CompositionContext : ICompositionContext
         }
         catch (Exception ex)
         {
-            _trace.Record(stage, provider: null, CompositionAttemptOutcome.Failure);
+            _trace.Record(stage, provider, CompositionAttemptOutcome.Failure);
             throw BuildException(
                 requestedType,
                 $"The registration or configuration-rule factory for '{CompositionPath.FriendlyTypeName(requestedType)}' threw: {ex.Message}",

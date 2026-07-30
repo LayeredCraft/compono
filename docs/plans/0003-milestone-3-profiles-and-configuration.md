@@ -1181,3 +1181,41 @@ replacing it with `IsFactoryActive`, a plain indexed loop over
 semantics (reference identity, never the delegate's own `Equals`), zero
 allocation. No behavior change, so no new test beyond the existing
 reentrance-guard coverage.
+
+### PR review correction (2026-07-30): a rule factory's own Failure trace entry lost its provider identity
+
+PR #19 review (Codex) correctly flagged that `InvokeFactory`'s two Failure-recording
+sites hardcoded `provider: null`, which was correct while stage 3 (exact
+registrations, which have no `ICompositionProvider` identity of their own) was its
+only caller — but became a real gap once `TypeRuleProvider`/`MemberRuleProvider`
+started calling it too: a rule factory that throws, or that trips the
+factory-reentrance guard, produced a `ConfigurationRule` `Failure` trace entry with
+no provider identity, even though `TryProviders`' own `Pending`/`NotHandled` entries
+for that exact same candidate already carry its concrete type
+(`ProviderAttempt.Provider`). The result looked like a context-owned failure rather
+than a specific rule's, and was strictly less informative than the `Pending` entry
+sitting right next to it in the same trace.
+
+Fixed by threading a `Type? provider` parameter through `InvokeFactory` (now four
+parameters — still within `coding-standards.md`'s limit): stage 3's own call site in
+`CompositionContext.ResolveCore` passes `provider: null` (unchanged), while
+`TypeRuleProvider`/`MemberRuleProvider` now pass their own `GetType()`. One
+regression test added
+(`ComposerConfigurationRuleTests.SelfReferencingTypeRule_DiagnosticTrace_AttributesTheFailureToTypeRuleProvider`),
+asserting the diagnostic's `Trace` contains a `ConfigurationRule`/`Failure` entry
+tagged `typeof(TypeRuleProvider)` for a self-referencing type-rule factory tripping
+the reentrance guard.
+
+**A pre-existing, unrelated flaky test surfaced while re-running the full suite for
+this fix**: `ComposerCollectionSizeTests` (added earlier in this same phase) and the
+already-existing `CollectionPlanCacheDispatchTests` both drove
+`CollectionPlanCache<List<int>>.Instance` — a static, type-keyed slot — and xUnit
+runs different test classes in parallel by default, so the two classes raced on the
+same slot whenever both happened to be mid-test at once (reproduced non-deterministically,
+roughly one run in three). Fixed by changing `ComposerCollectionSizeTests`'
+probe element type from `List<int>` to `List<long>`, giving it its own,
+non-colliding `CollectionPlanCache<T>` slot — the same "give each entry point/test
+its own type" isolation rule `testing.md` already states for a new public entry
+point, applied here to a shared static test seam instead. Confirmed stable across
+five consecutive `net10.0` runs after the fix (previously reproduced on the first
+or second run almost every time).

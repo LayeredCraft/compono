@@ -149,6 +149,27 @@ public sealed class ComposerConfigurationRuleTests
     }
 
     [Fact]
+    public async Task SelfReferencingTypeRule_DiagnosticTrace_AttributesTheFailureToTypeRuleProvider()
+    {
+        // PR #19 review (Codex): InvokeFactory's two Failure-recording sites used to hardcode
+        // `provider: null`, so a rule factory's own reentrance/thrown-exception failure looked
+        // context-owned (no provider identity) even though TryProviders' Pending entry for the same
+        // attempt already tagged the real candidate type - an inconsistent, less useful trace.
+        var composer = Composer.Create(builder => builder.For<Recursive>().Use(ctx => ctx.Resolve<Recursive>()));
+
+        var task = Task.Run(() => composer.Create<Recursive>());
+        var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)) == task;
+        completed.Should().BeTrue("a factory-reentrance regression would hang instead of throwing");
+
+        var rethrow = async () => await task;
+        var exception = await rethrow.Should().ThrowAsync<CompositionException>();
+        exception.Which.Diagnostic!.Trace.Should().Contain(attempt =>
+            attempt.Stage == PipelineStage.ConfigurationRule
+            && attempt.Outcome == CompositionAttemptOutcome.Failure
+            && attempt.Provider == typeof(Compono.Providers.TypeRuleProvider));
+    }
+
+    [Fact]
     public void RuleThatLegitimatelyTerminatesASelfReferencingGraph_Succeeds()
     {
         PlanCache<Node>.Instance = new RecursingNodePlan();
