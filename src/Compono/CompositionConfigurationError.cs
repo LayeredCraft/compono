@@ -50,8 +50,17 @@ public abstract record CompositionConfigurationError
         /// mutating a list passed here after this constructor returns has no effect on
         /// <see cref="Sources"/>.
         /// </param>
+        /// <exception cref="ArgumentException"><paramref name="sources"/> has fewer than two entries.</exception>
         public DuplicateConfigurationOption(string optionName, IReadOnlyList<ConfigurationSource> sources)
         {
+            ArgumentNullException.ThrowIfNull(sources);
+            if (sources.Count < 2)
+            {
+                throw new ArgumentException(
+                    "A duplicate-configuration-option error requires at least two contributing sources.",
+                    nameof(sources));
+            }
+
             OptionName = optionName;
             Sources = ImmutableSnapshot.Of(sources);
         }

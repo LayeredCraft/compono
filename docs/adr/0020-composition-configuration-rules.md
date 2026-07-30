@@ -216,6 +216,25 @@ builder.For<Customer>()
     .WithCollectionSize(5);                                  // member-scoped override
 ```
 
+**Negative sizes are rejected immediately, at the call site — added per design
+review, not deferred to `Build()`.** Without this, a negative
+`WithCollectionSize(n)` would flow unchecked into `CollectionSizePolicy`, and only
+fail later, deep inside a generated collection plan's `new List<T>(size)`/array
+allocation, as a generic `ArgumentOutOfRangeException`/`OverflowException` with no
+connection back to the configuration call that caused it — directly contradicting
+this milestone's own fail-fast-at-`Composer.Create(...)` principle, which every
+other configuration mistake (duplicate registrations, duplicate rules, duplicate
+scalars) already honors. Both `WithCollectionSize(int size)` (global) and
+`.Member(x => x.Y).WithCollectionSize(int size)` (member-scoped) validate
+`size >= 0` via `ArgumentOutOfRangeException.ThrowIfNegative(size)`, matching the
+same immediate-argument-validation pattern `Composer.CreateMany<T>(int count)`
+already established for an identical shape of mistake (`docs/adr/0017-...`'s
+Amendment doesn't apply here — this is ordinary argument validation, not a
+cross-entry configuration *conflict*, so it isn't part of `Build()`'s aggregated
+`CompositionConfigurationError` list; it's a plain `ArgumentOutOfRangeException`,
+thrown synchronously from the builder call itself, the same as a negative
+`CreateMany` count).
+
 ### Value rules — Option 1, compiled into internal Compono-authored providers
 
 Unchanged from this ADR's first draft: no public provider contract needed, stage 4's
@@ -275,10 +294,10 @@ member name — `(typeof(Customer), "Email")`, not merely `("Email")` or
 flagged: two unrelated types each having a `string Email` member no longer share a
 key, because the declaring type is part of it.
 
-**Declaring-type identity is read from a new `DeclaringType` field this ADR adds to
-`CompositionRequestDescriptor`/`CompositionRequest`** — not inferred from the parent
-`CompositionPathNode.RequestedType` in the path chain, this ADR's own first-draft
-approach:
+**Declaring-type identity is read from a new, nullable `DeclaringType` field this
+ADR adds to `CompositionRequestDescriptor`/`CompositionRequest`** — not inferred
+from the parent `CompositionPathNode.RequestedType` in the path chain, this ADR's
+own first-draft approach:
 
 ```csharp
 public readonly struct CompositionRequestDescriptor
@@ -286,11 +305,11 @@ public readonly struct CompositionRequestDescriptor
     public CompositionRequestKind Kind { get; }
     public int Ordinal { get; }
     public string Name { get; }
-    public Type DeclaringType { get; }   // new
+    public Type? DeclaringType { get; }   // new - nullable, see below
     public Nullability Nullability { get; }
 
     public CompositionRequestDescriptor(
-        CompositionRequestKind kind, int ordinal, string name, Type declaringType, Nullability nullability)
+        CompositionRequestKind kind, int ordinal, string name, Type? declaringType, Nullability nullability)
     {
         Kind = kind;
         Ordinal = ordinal;
@@ -300,6 +319,21 @@ public readonly struct CompositionRequestDescriptor
     }
 }
 ```
+
+**`Type?`, not `Type` — corrected per design review.** An earlier draft of this
+field was non-nullable, which leaves no contract-valid value for the three
+descriptor kinds this same ADR already says have no declaring type at all
+(`CollectionElement`, `DictionaryKey`, `DictionaryValue` — see the unused-for
+sentence below, unchanged in substance, just now correctly typed). A non-nullable
+`Type` would have forced `Compono.Generators` to either invent an undocumented
+sentinel (`typeof(void)`, say) for those three kinds, or emit a nullable-warning-
+suppressed `null!` into generated code — both exactly the kind of "magic" this
+repo's principles reject. `Type?` represents "no declaring type" as the thing it
+actually is: absence, not a placeholder value standing in for absence. Matching
+(both value-rule matching, above, and the collection-size lookup, below) already
+only ever proceeds inside a not-null pattern match (`DeclaringType: { } declaringType`),
+so this correction changes the field's declared type without changing any matching
+logic already described in this ADR.
 
 `DeclaringType` is the type whose constructor/required-member declares this
 parameter/member — for `Customer(string firstName, ...)`, every constructor
@@ -314,10 +348,11 @@ the composed leaf type). `CompositionContext` carries `DeclaringType` forward
 unchanged onto the internal `CompositionRequest` it expands the descriptor into, so
 this ADR's compiled rule matching reads it directly off the request rather than
 inferring it from path state. `CompositionRequestKind.ConstructorParameter`/
-`RequiredMember` are the only kinds that populate it meaningfully — it's unused (and
-unread) for a request with no member identity to speak of (a collection element/
-dictionary key/value, or a `ManualResolve` invocation, per
-[ADR-0019](0019-registrations-and-service-provider-injection.md)). This is purely
+`RequiredMember` are the only kinds that populate it with a real value —
+`DeclaringType` is `null` for a request with no member identity to speak of (a
+collection element/dictionary key/value, or a `ManualResolve` invocation, per
+[ADR-0019](0019-registrations-and-service-provider-injection.md)), never a
+sentinel standing in for that absence. This is purely
 additive to `CompositionRequestDescriptor`'s existing shape (ADR-0010's `Accepted`
 Decision Outcome, unedited by this ADR — see that ADR's own text for the fields this
 extends) — every existing field is unchanged, and `DeclaringType` is never an input

@@ -7,11 +7,11 @@ public sealed class CompositionConfigurationExceptionTests
     {
         var original = new List<CompositionConfigurationError>
         {
-            new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct]),
+            new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct, ConfigurationSource.Direct]),
         };
         var exception = new CompositionConfigurationException(original);
 
-        original.Add(new CompositionConfigurationError.DuplicateConfigurationOption("WithCollectionSize", [ConfigurationSource.Direct]));
+        original.Add(new CompositionConfigurationError.DuplicateConfigurationOption("WithCollectionSize", [ConfigurationSource.Direct, ConfigurationSource.Direct]));
 
         exception.Errors.Should().ContainSingle();
     }
@@ -21,7 +21,7 @@ public sealed class CompositionConfigurationExceptionTests
     {
         var exception = new CompositionConfigurationException(
         [
-            new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct]),
+            new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct, ConfigurationSource.Direct]),
         ]);
 
         (exception.Errors is CompositionConfigurationError[]).Should().BeFalse();
@@ -30,7 +30,7 @@ public sealed class CompositionConfigurationExceptionTests
     [Fact]
     public void Message_And_Errors_AreDerivedFromTheSameSnapshot()
     {
-        var duplicate = new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct]);
+        var duplicate = new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct, ConfigurationSource.Direct]);
         var exception = new CompositionConfigurationException([duplicate]);
 
         exception.Message.Should().Contain("WithSeed");

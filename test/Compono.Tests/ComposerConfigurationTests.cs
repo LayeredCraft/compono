@@ -120,6 +120,50 @@ public sealed class ComposerConfigurationTests
     }
 
     [Fact]
+    public void CreateMany_WithExplicitSeed_MatchesCreateManyForTesting_WithTheSameSeed()
+    {
+        PlanCache<RandomProbe>.Instance = new RandomCapturingPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.WithSeed(4219));
+
+            var viaBuilder = composer.CreateMany<RandomProbe>(3);
+            var viaTestSeam = Composer.CreateManyForTesting<RandomProbe>(3, new CompositionSeed(unchecked((ulong)4219)));
+
+            // A dedicated CreateMany-through-configuration assertion, not just Create<T>() - per
+            // testing.md's own recorded lesson, pairing only Create<T>() with the configured-seed
+            // path would leave CreateMany<T>()'s own wiring to _configuration.Seed unverified, the
+            // exact shape of gap that already hid a real CreateMany<T>() discovery bug once before.
+            viaBuilder.Should().BeEquivalentTo(viaTestSeam);
+        }
+        finally
+        {
+            PlanCache<RandomProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void CreateMany_CalledTwiceOnTheSameComposer_ProducesIdenticalOutput_WhenSeedIsExplicit()
+    {
+        PlanCache<RandomProbe>.Instance = new RandomCapturingPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.WithSeed(4219));
+
+            var first = composer.CreateMany<RandomProbe>(3);
+            var second = composer.CreateMany<RandomProbe>(3);
+
+            first.Should().BeEquivalentTo(second);
+        }
+        finally
+        {
+            PlanCache<RandomProbe>.Instance = null;
+        }
+    }
+
+    [Fact]
     public void WithSeed_CalledTwice_ThrowsWithOneDuplicateConfigurationOptionErrorNamingBothSources()
     {
         var act = () => Composer.Create(builder => builder.WithSeed(1).WithSeed(2));

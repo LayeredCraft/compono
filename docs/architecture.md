@@ -103,13 +103,13 @@ there are two distinct shapes:
                                           // CollectionElement | DictionaryKey | DictionaryValue
           int ordinal,                    // stable identity - see Deterministic Randomness, below
           string name,                    // diagnostic display only, never identity
-          Type declaringType,             // Milestone 3 - see Configuration Rules, below
+          Type? declaringType,             // Milestone 3 - see Configuration Rules, below
           Nullability nullability);
 
       public CompositionRequestKind Kind { get; }
       public int Ordinal { get; }
       public string Name { get; }
-      public Type DeclaringType { get; }
+      public Type? DeclaringType { get; }
       public Nullability Nullability { get; }
   }
   ```
@@ -118,7 +118,10 @@ there are two distinct shapes:
   `Accepted` descriptor shape, not a change to ADR-0010's own text) is the
   type whose constructor/required-member declares this parameter/member —
   generator-emitted alongside `Ordinal`/`Name`, meaningful only for
-  `ConstructorParameter`/`RequiredMember` requests. It exists so a
+  `ConstructorParameter`/`RequiredMember` requests. **Nullable**, not a
+  sentinel value: `null` for any other request kind (a collection element/
+  dictionary key/value, or a `ManualResolve` invocation), which have no
+  declaring type to report at all. It exists so a
   configuration rule can match by declaring type + member name directly
   off the request, rather than inferring the declaring type from path
   state — see Configuration Rules, below.

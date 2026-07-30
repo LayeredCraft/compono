@@ -402,10 +402,14 @@ exist to source anything).
 
 ### Phase 3 — Configuration rules: type/member value rules and collection size
 
-- [ ] `CompositionRequestDescriptor.DeclaringType` (ADR-0020) and the
-      matching field on the internal `CompositionRequest` — the generator-emitted
-      value for `ConstructorParameter`/`RequiredMember` requests; unused for other
-      request kinds
+- [ ] `CompositionRequestDescriptor.DeclaringType` — **`Type?`, nullable, not
+      `Type`** (ADR-0020, corrected during review: a non-nullable field leaves no
+      contract-valid value for `CollectionElement`/`DictionaryKey`/`DictionaryValue`
+      requests, which have no declaring type at all — forcing an undocumented
+      sentinel otherwise) — and the matching field on the internal
+      `CompositionRequest`. The generator-emitted, non-null value for
+      `ConstructorParameter`/`RequiredMember` requests; `null` (never a sentinel)
+      for every other request kind
 - [ ] `Compono.Generators`: descriptor-emission template/emitter updated to include
       `DeclaringType` (a mechanical, `global::`-qualified `typeof(...)` argument
       alongside the existing `Kind`/`Ordinal`/`Name`/`Nullability` arguments);
@@ -438,7 +442,13 @@ exist to source anything).
       reusing the same expression-parsing path as a member value rule, and the same
       keyed-conflict validation as a member value rule) — both accumulated into
       `CollectionSizePolicy` on `CompositionConfiguration`, not compiled into any
-      stage-4 rule
+      stage-4 rule. **Both reject a negative size immediately** via
+      `ArgumentOutOfRangeException.ThrowIfNegative(size)`, added during review —
+      not deferred into the aggregated `CompositionConfigurationError` list (this
+      is ordinary argument validation, not a cross-entry conflict), matching
+      `Composer.CreateMany<T>(int count)`'s existing immediate-validation pattern
+      for the identical shape of mistake — not left to fail later, confusingly,
+      inside a generated collection plan's array/list allocation
 - [ ] `ICompositionContext.ResolveCollectionSize()` — **parameterless**, the
       **only** new public context method for collection size. Corrected twice
       during review: (1) a generated collection plan's `Compose(ICompositionContext)`
@@ -473,6 +483,12 @@ exist to source anything).
       collection length end-to-end through a real generated collection plan;
       member-scoped `WithCollectionSize` overrides the global default for that
       member only, confirmed against a sibling member that keeps the global default;
+      a negative `WithCollectionSize(int)` (both global and member-scoped) throws
+      `ArgumentOutOfRangeException` immediately at the call site, not at `Build()`
+      and not inside a generated collection plan; a `CollectionElement`/
+      `DictionaryKey`/`DictionaryValue` request's `DeclaringType` is `null`,
+      confirmed not to match any configured member rule (proving the nullable
+      field, not a sentinel, correctly represents absence);
       **a member rule matches a positional-record constructor parameter correctly**
       (`Customer(string FirstName, ...)` — the primary documented usage shape,
       exercised through a real generated plan, not a hand-written test double) —
