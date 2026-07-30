@@ -31,4 +31,12 @@ internal abstract record PathSegment
 
     /// <summary>A dictionary entry's value, at the given entry position.</summary>
     internal sealed record DictionaryValue(int Index) : PathSegment;
+
+    /// <summary>
+    /// One descriptor-less <see cref="ICompositionContext.Resolve{TValue}()"/> call made inside a
+    /// registration or configuration-rule factory, identified by its call sequence within that one
+    /// factory invocation - never by requested type. See
+    /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
+    /// </summary>
+    internal sealed record ManualResolve(int Ordinal) : PathSegment;
 }

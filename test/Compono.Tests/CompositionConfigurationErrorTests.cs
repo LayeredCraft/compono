@@ -32,4 +32,27 @@ public sealed class CompositionConfigurationErrorTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void DuplicateRegistration_Sources_IsUnaffectedByMutatingTheOriginalListAfterConstruction()
+    {
+        var original = new List<ConfigurationSource> { ConfigurationSource.Direct, ConfigurationSource.Direct };
+        var error = new CompositionConfigurationError.DuplicateRegistration(typeof(int), original);
+
+        original.Add(ConfigurationSource.Direct);
+
+        error.Sources.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void DuplicateRegistration_WithFewerThanTwoSources_Throws(int sourceCount)
+    {
+        var sources = Enumerable.Repeat(ConfigurationSource.Direct, sourceCount).ToArray();
+
+        var act = () => new CompositionConfigurationError.DuplicateRegistration(typeof(int), sources);
+
+        act.Should().Throw<ArgumentException>();
+    }
 }

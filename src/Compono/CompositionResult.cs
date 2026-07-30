@@ -28,7 +28,7 @@ internal abstract record CompositionResult
     /// <summary>The provider composed a value.</summary>
     /// <param name="Value">
     /// The composed value, boxed if its runtime type is a value type -
-    /// <see cref="ICompositionContext.Resolve{TValue}"/> unboxes/casts back to the generic caller's
+    /// <see cref="ICompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/> unboxes/casts back to the generic caller's
     /// requested type.
     /// </param>
     internal sealed record Success(object? Value) : CompositionResult;

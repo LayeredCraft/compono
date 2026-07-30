@@ -19,13 +19,23 @@ internal sealed class CompositionContext : ICompositionContext
 {
     private readonly CompositionSeed _seed;
     private readonly CompositionRegistrations _registrations;
+    private readonly IServiceProvider? _serviceProvider;
     private readonly CompositionScope _scope = new();
     private readonly List<Type> _activeFrames = [];
+    private readonly List<Func<ICompositionContext, object?>> _activeFactories = [];
+    private readonly List<ManualResolveFrame> _manualResolveFrames = [];
     private readonly CompositionTraceBuffer _trace = new();
     private readonly IReadOnlyList<ICompositionProvider> _profileProviders;
     private readonly IReadOnlyList<ICompositionProvider> _semanticProviders;
     private readonly IReadOnlyList<ICompositionProvider> _testDoubleProviders;
     private readonly IReadOnlyList<ICompositionProvider> _builtInProviders;
+
+    // A cheap, otherwise-empty identity token BuildException stamps onto every CompositionException it
+    // creates - InvokeFactory compares a caught exception's own token against this one to tell "my own
+    // nested Resolve<T>() call diagnosed this" from "a different CompositionContext (or none at all)
+    // diagnosed this," without holding a live reference to this whole context (and everything it
+    // reaches - registrations, scope, service provider, trace buffer) from inside the exception itself.
+    private readonly object _identity = new();
 
     private CompositionPath? _path;
     private IRandomSource? _random;
@@ -56,7 +66,18 @@ internal sealed class CompositionContext : ICompositionContext
     /// <c>builder.Register(...)</c> surface exists until Milestone 3.
     /// </summary>
     internal CompositionContext(CompositionSeed seed, CompositionRegistrations registrations)
-        : this(seed, registrations, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default)
+        : this(seed, registrations, serviceProvider: null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, the given
+    /// explicit stage-3 registrations and configured <c>IServiceProvider</c>, and the given explicit
+    /// root seed - the shape <see cref="Composer.Create{T}"/>/<see cref="Composer.CreateMany{T}"/> use
+    /// once a <see cref="CompositionBuilder"/> has been configured.
+    /// </summary>
+    internal CompositionContext(CompositionSeed seed, CompositionRegistrations registrations, IServiceProvider? serviceProvider)
+        : this(seed, registrations, serviceProvider, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default)
     {
     }
 
@@ -71,13 +92,14 @@ internal sealed class CompositionContext : ICompositionContext
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         IReadOnlyList<ICompositionProvider> builtInProviders)
-        : this(CompositionSeed.Generate(), CompositionRegistrations.Empty, profileProviders, semanticProviders, testDoubleProviders, builtInProviders)
+        : this(CompositionSeed.Generate(), CompositionRegistrations.Empty, serviceProvider: null, profileProviders, semanticProviders, testDoubleProviders, builtInProviders)
     {
     }
 
     private CompositionContext(
         CompositionSeed seed,
         CompositionRegistrations registrations,
+        IServiceProvider? serviceProvider,
         IReadOnlyList<ICompositionProvider> profileProviders,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
@@ -85,6 +107,7 @@ internal sealed class CompositionContext : ICompositionContext
     {
         _seed = seed;
         _registrations = registrations;
+        _serviceProvider = serviceProvider;
         _profileProviders = profileProviders;
         _semanticProviders = semanticProviders;
         _testDoubleProviders = testDoubleProviders;
@@ -120,10 +143,25 @@ internal sealed class CompositionContext : ICompositionContext
         return ResolveCore<TValue>(descriptor.Nullability, segment, isShared: false);
     }
 
+    /// <inheritdoc />
+    public TValue Resolve<TValue>()
+    {
+        if (_manualResolveFrames.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(ICompositionContext)}.{nameof(Resolve)}<{typeof(TValue).Name}>() with no descriptor can only " +
+                "be called from inside a registration or configuration-rule factory.");
+        }
+
+        var frame = _manualResolveFrames[^1];
+        var segment = new PathSegment.ManualResolve(frame.NextOrdinal++);
+        return ResolveCore<TValue>(Nullability.NotNullable, segment, isShared: false);
+    }
+
     /// <summary>
     /// Resolves the root value of this composition operation - the entry point
     /// <see cref="Composer.Create{T}"/> uses, distinct from the descriptor-based
-    /// <see cref="Resolve{TValue}"/> generated code uses. Both funnel into the same pipeline
+    /// <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> generated code uses. Both funnel into the same pipeline
     /// execution, so the root type is resolved identically to any nested type.
     /// </summary>
     internal TValue ResolveRoot<TValue>() => ResolveCore<TValue>(Nullability.NotNullable, segment: null, isShared: false);
@@ -181,14 +219,55 @@ internal sealed class CompositionContext : ICompositionContext
                 _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, CompositionAttemptOutcome.NotHandled);
             }
 
-            // Stage 3: exact registrations (mechanism only - no public builder.Register(...) yet).
-            if (_registrations.TryGet(requestedType, out var registeredValue))
+            // Stage 3, sub-step (a): exact registrations. A registration factory is invoked through
+            // InvokeFactory, which owns the manual-resolve invocation frame and the factory-reentrance
+            // guard - never called directly. Recorded Pending *before* InvokeFactory runs - same
+            // reasoning as the collection-plan/generated-plan Pending markers below: if the factory
+            // calls context.Resolve<T>() and that nested request fails, the nested BuildException
+            // snapshots the trace before control returns here, so without this marker the resulting
+            // diagnostic would omit that this ExactRegistration dispatch was genuinely in flight when
+            // the failure happened.
+            if (_registrations.TryGet(requestedType, out var factory))
             {
+                _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Pending);
+                var registeredValue = InvokeFactory(factory, requestedType);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
                 var value = Authoritative<TValue>(result);
                 _trace.Rewind(checkpoint);
                 return value;
+            }
+
+            // Stage 3, sub-step (b): the configured IServiceProvider fallback, tried only on an exact-
+            // registration miss - never the other way around. Per
+            // docs/adr/0019-registrations-and-service-provider-injection.md: null means "unresolved"
+            // and falls through to stage 4 (not authoritative, unlike an ordinary registration's null),
+            // a thrown exception is authoritative and never downgraded to NotHandled, and a non-null
+            // wrongly-typed result is a structured CompositionException rather than an unchecked cast.
+            if (_serviceProvider is not null)
+            {
+                object? serviceValue;
+                try
+                {
+                    serviceValue = _serviceProvider.GetService(requestedType);
+                }
+                catch (Exception ex)
+                {
+                    _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
+                    throw BuildException(
+                        requestedType,
+                        $"The configured IServiceProvider threw while resolving '{CompositionPath.FriendlyTypeName(requestedType)}': {ex.Message}",
+                        ex);
+                }
+
+                if (serviceValue is not null)
+                {
+                    var result = ValidateAuthoritativeValue(serviceValue, request, "configured IServiceProvider");
+                    _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
+                    var value = Authoritative<TValue>(result);
+                    _trace.Rewind(checkpoint);
+                    return value;
+                }
             }
 
             _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.NotHandled);
@@ -311,6 +390,95 @@ internal sealed class CompositionContext : ICompositionContext
         }
     }
 
+    // Invokes a registration or configuration-rule factory - the single point every stage-3/stage-4
+    // factory call goes through. Owns three mechanisms, all per docs/adr/0019-registrations-and-
+    // service-provider-injection.md and docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md:
+    // (1) a manual-resolve invocation frame, pushed immediately before the call and popped in finally,
+    // giving every descriptor-less Resolve<T>() call made during this one invocation a shared, call-
+    // sequence-ordinal-keyed ManualResolve path segment; (2) a factory-reentrance guard, keyed by the
+    // exact delegate instance about to be invoked (never by requested type - that would reject the
+    // legitimate Node.Child-style cycle-terminating pattern) - a self-referencing factory that calls
+    // back into resolving a request routing to itself is caught here, as a diagnosable
+    // CompositionException, instead of recursing to a StackOverflowException; (3) converting a
+    // factory's own thrown exception into an authoritative Failure - ADR-0010's Failure semantics
+    // name this exact case ("an exact registration (stage 3) whose factory throws") explicitly, so an
+    // ordinary factory-thrown exception must surface as a structured CompositionException (path, seed,
+    // trace, original preserved as InnerException), not escape raw with none of that context.
+    private object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType)
+    {
+        if (IsFactoryActive(factory))
+        {
+            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
+            throw BuildException(requestedType, BuildFactoryReentranceMessage(requestedType));
+        }
+
+        _activeFactories.Add(factory);
+        _manualResolveFrames.Add(new ManualResolveFrame());
+        try
+        {
+            return factory(this);
+        }
+        catch (CompositionException ex) when (ReferenceEquals(ex.DiagnosingContextIdentity, _identity))
+        {
+            // Already a fully-diagnosed CompositionException from a nested Resolve<T>() call made
+            // inside this factory, on this exact CompositionContext instance - DiagnosingContextIdentity
+            // (set only by this context's own BuildException, to this context's own _identity token) is
+            // what distinguishes this case from a factory throwing a CompositionException it built
+            // itself (DiagnosingContextIdentity null), or one it captured/rethrew from an entirely
+            // different CompositionContext - a separate Composer.Create call the factory happened to
+            // invoke (DiagnosingContextIdentity non-null, but a different token - falls to the catch
+            // below either way, since only *this* context's own diagnosis is safe to trust as already
+            // carrying this operation's ancestor path). That failure's own Diagnostic (built from its
+            // own, more specific path/trace) is strictly more useful than anything this outer catch
+            // could construct. Re-wrapping it here would discard that detail behind a generic "the
+            // factory threw" message, so it's left to propagate exactly as-is.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
+            throw BuildException(
+                requestedType,
+                $"The registration or configuration-rule factory for '{CompositionPath.FriendlyTypeName(requestedType)}' threw: {ex.Message}",
+                ex);
+        }
+        finally
+        {
+            _manualResolveFrames.RemoveAt(_manualResolveFrames.Count - 1);
+            _activeFactories.RemoveAt(_activeFactories.Count - 1);
+        }
+    }
+
+    // A plain indexed loop instead of List<T>.Exists(predicate) - the lambda equivalent captures
+    // `factory` into a new closure/delegate allocated on every single registration-factory invocation,
+    // on the composition hot path every composed test runs through (ADR-0007's allocation-conscious
+    // hot-path goal). Reference identity only - never the delegate's own Equals (target + method),
+    // which would treat two unrelated registrations that happen to share a captured-state shape as
+    // "the same" factory, exactly the false-positive collision ADR-0019's design rules out.
+    private bool IsFactoryActive(Func<ICompositionContext, object?> factory)
+    {
+        for (var i = 0; i < _activeFactories.Count; i++)
+        {
+            if (ReferenceEquals(_activeFactories[i], factory))
+                return true;
+        }
+
+        return false;
+    }
+
+    private string BuildFactoryReentranceMessage(Type requestedType) =>
+        $"Recursive registration or configuration-rule factory detected while composing " +
+        $"'{CompositionPath.FriendlyTypeName(requestedType)}': '{_path!.ToDisplayString()}' would invoke the same " +
+        "factory again, which is already in progress. Use a different registration/rule, or terminate the " +
+        "recursion inside the factory itself (e.g. by returning a value that doesn't call Resolve<T>() for this type).";
+
+    // One mutable counter per active manual-resolve invocation frame - shared and incremented by
+    // every descriptor-less Resolve<T>() call made during that one factory invocation, per ADR-0019.
+    private sealed class ManualResolveFrame
+    {
+        internal int NextOrdinal;
+    }
+
     private string BuildCycleMessage(Type requestedType) =>
         $"Recursive composition detected while composing '{requestedType}': '{_path!.ToDisplayString()}' " +
         $"would construct '{requestedType}' again, which is already under construction. Use a registration " +
@@ -427,7 +595,16 @@ internal sealed class CompositionContext : ICompositionContext
     // sibling has already rewound itself out, per CompositionTraceBuffer's remarks) into a durable
     // CompositionDiagnostic. _path is always non-null here: this is only ever called from inside
     // ResolveCore's try block, after _path has been pushed for the current node.
-    private CompositionException BuildException(Type failedType, string message) => new(new CompositionDiagnostic
+    private CompositionException BuildException(Type failedType, string message) =>
+        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), _identity);
+
+    // The IServiceProvider fallback's throwing-container case is the only stage that needs to preserve
+    // an original exception as InnerException (never `throw ex;`) - every other authoritative-stage
+    // failure has no prior exception to preserve.
+    private CompositionException BuildException(Type failedType, string message, Exception innerException) =>
+        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), innerException, _identity);
+
+    private CompositionDiagnostic BuildDiagnostic(Type failedType, string message) => new()
     {
         RootType = _path!.RootType,
         FailedType = failedType,
@@ -435,7 +612,7 @@ internal sealed class CompositionContext : ICompositionContext
         Trace = _trace.Slice(0),
         Seed = _seed.Value,
         Message = message,
-    });
+    };
 
     // A provider-composed value is boxed for a value type TValue (CompositionResult.Success
     // carries object?) - this is the single unbox/cast point back to the generic caller's type.

@@ -281,7 +281,7 @@ Direct registrations only — no profile involvement in this phase's own tests (
 `Direct`; profile-sourced conflicts are Phase 2's tests, once profiles actually
 exist to source anything).
 
-- [ ] `Register<T>(Func<ICompositionContext, T> factory)` and
+- [x] `Register<T>(Func<ICompositionContext, T> factory)` and
       `Register<T>(Func<T> factory)` on `CompositionBuilder`, accumulating into an
       internal exact-registration lookup. Outcome requirements only — the concrete
       internal representation (a dictionary, a small array scanned linearly, or
@@ -290,7 +290,7 @@ exist to source anything).
       in registration or lookup, no per-resolution compilation/codegen step, and a
       factory is invoked through the existing `ICompositionContext` the same way any
       other resolution consumer already is
-- [ ] `ICompositionContext.Resolve<T>()` (descriptor-less overload) and
+- [x] `ICompositionContext.Resolve<T>()` (descriptor-less overload) and
       `PathSegment.ManualResolve(int Ordinal)` (ADR-0019) — implemented
       as a manual-resolve invocation frame pushed immediately before a registration/
       rule factory is invoked and popped in `finally` immediately after it returns
@@ -299,7 +299,7 @@ exist to source anything).
       factory that itself triggers a nested factory invocation gets a **new**,
       independent frame for that nested call, never the outer counter continued.
       `CompositionRequestKind.ManualResolve` extends the existing enum
-- [ ] **Factory-reentrance guard around registration/rule factory invocation**
+- [x] **Factory-reentrance guard around registration/rule factory invocation**
       (ADR-0019 correction, revised twice during review) — a genuine gap, not a
       docs fix: stage 3/4 registrations and rules are checked *before* stage 8, so
       a self-referencing registration/rule (`Register<IClock>(context =>
@@ -327,24 +327,24 @@ exist to source anything).
       API until Phase 3, so a test exercising `.Member(...).Use(...)` can't compile
       if this phase ships as its own PR before Phase 3 lands, per this plan's own
       phase-independence requirement
-- [ ] `Build()` validation: scan the accumulated registration list for duplicate
+- [x] `Build()` validation: scan the accumulated registration list for duplicate
       exact-registration types; on any duplicate, add a `DuplicateRegistration`
       error (affected type, contributing `Sources`) to the aggregated list; on no
       duplicates, compile the final immutable lookup onto `CompositionConfiguration`
-- [ ] Stage 3 dispatch: `CompositionContext.ResolveCore<T>` checks the compiled
+- [x] Stage 3 dispatch: `CompositionContext.ResolveCore<T>` checks the compiled
       exact-registration lookup (unchanged from Milestone 2's internal-only
       behavior, now populated for real)
-- [ ] `UseServiceProvider(IServiceProvider provider)` on `CompositionBuilder` — a
+- [x] `UseServiceProvider(IServiceProvider provider)` on `CompositionBuilder` — a
       scalar verb, following Phase 0's general scalar-fail-fast validation path (a
       second call anywhere in the same configuration is a `DuplicateConfigurationOption` error),
       not a bespoke `IServiceProvider`-specific conflict check
-- [ ] Stage 3's `IServiceProvider` fallback sub-step: on an exact-registration miss,
+- [x] Stage 3's `IServiceProvider` fallback sub-step: on an exact-registration miss,
       if configured, call `provider.GetService(typeof(T))`; `null` falls through to
       stage 4; a thrown exception surfaces as `CompositionException` with the
       original as `InnerException` (never `throw ex;`); a non-null,
       non-`T`-assignable result throws a structured `CompositionException` naming
       both types; `Compono` never creates, resolves, or disposes a scope
-- [ ] Unit tests (direct registrations/configuration only — no profiles): a
+- [x] Unit tests (direct registrations/configuration only — no profiles): a
       registration factory resolves and is invoked exactly once per request;
       `Func<T>`/`Func<ICompositionContext, T>` overloads both work; two *direct*
       registrations for the same type throw `CompositionConfigurationException`
@@ -576,11 +576,21 @@ subfolder; the file list below is corrected to match:
 - `src/Compono/ConfigurationSource.cs` — done, Phase 0 (public, not internal — see
   this phase's Notes)
 - `src/Compono/CompositionConfigurationException.cs` — done, Phase 0
-- `src/Compono/CompositionConfigurationError.cs` — done, Phase 0 (only
-  `DuplicateConfigurationOption` so far)
+- `src/Compono/CompositionConfigurationError.cs` — done, Phase 0
+  (`DuplicateConfigurationOption`) + Phase 1 (`DuplicateRegistration`)
 - `src/Compono/ConfigurationOptionSlot.cs` — done, Phase 0 (not originally listed;
   the shared scalar-fail-fast mechanism the Amendment called for)
 - `src/Compono/ICompositionProfile.cs` — Phase 2
+
+New, not originally listed (existing Milestone 2 internal-only type, given a real
+public entry point in Phase 1):
+
+- `src/Compono/CompositionRegistrations.cs` — pre-existing (Milestone 2, internal
+  test seam), reshaped in Phase 1 from a plain `Type → object?` value map to a
+  `Type → Func<ICompositionContext, object?>` factory map, so every registration
+  (whether from `Register<T>(Func<ICompositionContext, T>)` or the `Register<T>(Func<T>)`
+  convenience overload) is invoked identically through `ICompositionContext` — see
+  this phase's Notes
 - `src/Compono/CollectionSizePolicy.cs` — Phase 3
 - One or more files under `src/Compono/` for the `.For<T>()` rule builder(s) —
   final split decided during Phase 3
@@ -591,18 +601,37 @@ Modified:
 
 - `src/Compono/Composer.cs` — done, Phase 0: `Create(Action<CompositionBuilder>)`,
   seed-policy wiring for `Create<T>()`/`CreateMany<T>()`; `CreateRootForTesting`/
-  `CreateManyForTesting` untouched (still bypass configuration entirely)
+  `CreateManyForTesting` untouched (still bypass configuration entirely). Done,
+  Phase 1: `Create<T>()`/`CreateMany<T>()` also wired to
+  `_configuration.Registrations`/`_configuration.ServiceProvider` — a real gap
+  found while implementing this phase, not originally itemized: `CreateMany<T>()`'s
+  private `ComposeMany` helper previously bypassed configuration entirely (routed
+  every item through `CreateRootForTesting`, ignoring registrations/service
+  provider), which `testing.md`'s own recorded `CreateMany<T>()` discovery lesson
+  exists to catch. Fixed by threading `CompositionRegistrations`/`IServiceProvider?`
+  through `ComposeMany` and constructing each item's `CompositionContext` with them,
+  same as `Create<T>()` already does
 - `src/Compono/CompositionSeed.cs` — done, Phase 0: doc comment only, now
   referencing `CompositionBuilder.WithSeed`
-- `src/Compono/CompositionContext.cs` — Phase 1 (descriptor-less `Resolve<T>()`,
-  stage 3's `IServiceProvider` fallback sub-step), Phase 3
-  (`ResolveCollectionSize`, and the `PipelineStage.ConfigurationRule` rename's one
-  call site)
-- `src/Compono/ICompositionContext.cs` — Phase 1/3 (new members)
+- `src/Compono/CompositionContext.cs` — done, Phase 1 (descriptor-less
+  `Resolve<T>()`, the manual-resolve invocation frame stack, the factory-reentrance
+  guard, stage 3's registration-factory invocation and `IServiceProvider` fallback
+  sub-step; a new `CompositionContext(CompositionSeed, CompositionRegistrations,
+  IServiceProvider?)` constructor), Phase 3 (`ResolveCollectionSize`, and the
+  `PipelineStage.ConfigurationRule` rename's one call site)
+- `src/Compono/ICompositionContext.cs` — done, Phase 1 (descriptor-less
+  `Resolve<T>()`), Phase 3 (new members)
+- `src/Compono/CompositionException.cs` — done, Phase 1: a second constructor
+  overload preserving an `InnerException`, for the `IServiceProvider` fallback's
+  throwing-container case (ADR-0019's "never `throw ex;`" requirement)
 - `src/Compono/CompositionRequestDescriptor.cs` — Phase 3 (`DeclaringType` field)
 - `src/Compono/CompositionRequest.cs` — Phase 3 (`DeclaringType` field)
-- `src/Compono/CompositionRequestKind.cs` — Phase 1 (`ManualResolve` case)
-- `src/Compono/PathSegment.cs` — Phase 1 (`ManualResolve` case)
+- `src/Compono/CompositionRequestKind.cs` — done, Phase 1 (`ManualResolve` case)
+- `src/Compono/PathSegment.cs` — done, Phase 1 (`ManualResolve` case); also
+  `CompositionPath.cs` (display-string cases) and `RandomSource.cs` (fork-hash
+  tag/case) needed the matching additions to stay exhaustive — not itemized by
+  name in this plan originally, but the same kind of mechanical addition every
+  prior `PathSegment` case already required
 - `src/Compono/PipelineStage.cs` — Phase 3, `ProfileRule` → `ConfigurationRule`
   rename (found during review, not originally scoped)
 - `test/Compono.Tests/CompositionDiagnosticsTests.cs` — Phase 3, updated for the
@@ -612,8 +641,11 @@ Modified:
 - `src/Compono.Generators/Templates/CollectionPlan.scriban` (and its emitter
   model) — Phase 3, `ResolveCollectionSize` call site replacing the literal `3`
 - `docs/architecture.md` — done, Phase 0: Immutable Configuration Model section
-  updated to describe the builder/configuration split and `WithSeed` as shipped,
-  the rest of Milestone 3's configuration verbs still marked not yet implemented;
+  updated to describe the builder/configuration split and `WithSeed` as shipped.
+  Done, Phase 1: Registrations and Service Injection section, the pipeline-stage-3
+  table row, and the Immutable Configuration Model section's scalar-verb list
+  updated to describe `Register<T>`/`UseServiceProvider` as shipped; `AddProfile`,
+  `.For<T>()`, and `WithCollectionSize` remain marked not yet implemented;
   `docs/mvp.md`/`docs/public-api.md` unchanged (already accurate as intended-shape
   docs). Phase 4 does the final reconciliation pass once every phase ships
 
@@ -687,6 +719,66 @@ Coverage is itemized per phase above; cross-cutting concerns:
   same change to describe `WithSeed`/the builder split as shipped, everything else
   still pending.
 
+### Phase 1 (Done)
+
+- **`CompositionRegistrations` reshaped from a value map to a factory map.** The
+  Milestone 2 internal test seam stored `Type → object?` (a raw already-built
+  value); real registrations need a `Type → Func<ICompositionContext, object?>`
+  factory so a factory can call `context.Resolve<T>()` to compose nested
+  dependencies. Reshaped rather than adding a second, parallel lookup — one
+  representation, one invocation path, `Register<T>(Func<T>)`'s no-dependency
+  overload stored as a trivial `_ => value` wrapper. The one existing test
+  exercising the old shape (`CompositionRegistrationTests`) was updated to match,
+  not left on a stale API.
+- **`Composer.CreateMany<T>()` was silently bypassing configuration entirely** —
+  a real gap found while wiring `Create<T>()`/`CreateMany<T>()` to the new
+  `Registrations`/`ServiceProvider` fields, not itemized by this plan originally.
+  `ComposeMany`'s per-item loop called `CreateRootForTesting<T>`, the internal
+  test seam that always uses `CompositionRegistrations.Empty`/no service provider
+  — so a composer configured with `Register<T>(...)`/`UseServiceProvider(...)`
+  would have honored them from `Create<T>()` but silently ignored them from
+  `CreateMany<T>()`. This is exactly the shape of gap `testing.md`'s own recorded
+  `CreateMany<T>()` discovery lesson (PLAN-0002) warns about: a new/changed entry
+  point riding along on a sibling entry point's already-working path instead of
+  being independently wired. Fixed by threading `CompositionRegistrations`/
+  `IServiceProvider?` through `ComposeMany`, so each item's `CompositionContext`
+  is constructed identically to `Create<T>()`'s.
+- **Ambiguous `cref` cleanup, not itemized by this plan originally.** Adding the
+  descriptor-less `Resolve<TValue>()` overload, per
+  `docs/adr/0019-registrations-and-service-provider-injection.md`, extends
+  `ICompositionContext.Resolve<TValue>(in CompositionRequestDescriptor)` with a
+  second, descriptor-less `Resolve<TValue>()` overload — a genuine risk for a
+  cref pointing at just `Resolve{TValue}` (ambiguous between the two overloads,
+  `CS0419`). Every pre-existing `<see cref="...Resolve{TValue}"/>` reference across
+  the codebase (`CompositionContext.cs`, `CompositionException.cs`,
+  `CompositionPath.cs`, `CompositionRequestDescriptor.cs`, `CompositionResult.cs`,
+  `ICompositionContext.cs`, `Nullability.cs`) was disambiguated to name the
+  specific overload it meant, at the same time the new overload was added — not
+  left to accumulate as build warnings.
+- **Reentrance-guard identity uses `ReferenceEquals` over a plain `List<Func<...>>`,
+  not a `HashSet` with the default comparer.** A delegate's default `Equals`
+  compares target + method, not reference identity — a `HashSet<Func<...>>` with
+  no explicit comparer would treat two different registrations/rules that happen
+  to share the same captured-state shape as "the same" factory, exactly the false-
+  positive collision ADR-0019's corrected design rules out. Mirrors the existing
+  `_activeFrames` (`List<Type>`) push/pop-by-index pattern already used for
+  ADR-0011's stage-8 recursion stack, just keyed by delegate reference instead of
+  `Type`.
+- All 118 `Compono.Tests` (up from 83 after Phase 0) pass on both `net10.0`/
+  `net11.0`, including 2 new test files (`ComposerRegistrationTests`,
+  `CompositionManualResolveTests`) plus small additions to
+  `CompositionConfigurationErrorTests`/`CompositionConfigurationExceptionTests`
+  for `DuplicateRegistration`. `Compono.Generators`/`Compono.Generators.Tests`
+  (146 tests) untouched and unaffected (confirmed via a clean build) — Phase 1
+  doesn't touch generator-facing code, so no manual `dotnet pack` verification was
+  needed for this phase specifically (Phase 4 still does one for the whole
+  milestone).
+- `docs/architecture.md` updated in the same change: the pipeline-stage-3 table
+  row, the Immutable Configuration Model section's scalar-verb list, and the
+  Registrations and Service Injection section's header note all now describe
+  `Register<T>`/`UseServiceProvider` as shipped (Phase 1); `AddProfile`, the
+  `.For<T>()` rule DSL, and `WithCollectionSize` remain marked not yet implemented.
+
 ### PR review correction (2026-07-29): real bug found while adding the promised concurrency/default-seed tests
 
 PR #16 review (Codex) correctly flagged that this phase's original tests didn't
@@ -737,3 +829,197 @@ text without editing it. Every cross-reference to the removed amendments across
 `docs/architecture.md` and this plan was corrected to point at ADR-0019/ADR-0020
 directly. No source code was affected — `DeclaringType`/`ManualResolve` are Phase
 1/3 scope, not yet implemented, so this was a pure documentation/ADR-structure fix.
+
+### PR review correction (2026-07-29): `CompositionRegistrations` wasn't defensively copying its factory map
+
+PR #17 review (Codex) correctly flagged that `CompositionBuilder.Build()` handed
+its own live, mutable `_registrationFactories` dictionary straight into
+`CompositionRegistrations`'s constructor, which stored it only as an
+`IReadOnlyDictionary<...>`-typed view — not a copy. A consumer capturing the
+`CompositionBuilder` out of the configuration callback (e.g. assigning it to an
+outer-scope variable) could keep calling `Register<T>` after
+`Composer.Create(...)` had already returned, silently mutating the "frozen"
+composer's registrations after the fact and racing with concurrent
+`Create<T>()`/`CreateMany<T>()` calls — a real violation of
+[ADR-0017](../adr/0017-immutable-composer-configuration-and-builder-model.md)'s
+frozen-configuration guarantee, and the one place this phase's new collection
+handoff missed the `ImmutableSnapshot`-style defensive-copy pattern already used
+elsewhere in this codebase (`CompositionConfigurationException.Errors`,
+`ConfigurationSource.ProfileChain.Profiles`,
+`CompositionConfigurationError.DuplicateRegistration.Sources`).
+
+Fixed by having `CompositionRegistrations`'s constructor defensively copy its
+input into a `ReadOnlyDictionary<Type, Func<ICompositionContext, object?>>`
+wrapping a freshly-copied `Dictionary` it never exposes — mirroring
+`ReadOnlyCollection<T>`'s guarantee for `ImmutableSnapshot`, just for a
+dictionary instead of a list. Fixed at the constructor rather than at
+`CompositionBuilder.Build()`'s call site specifically, so every current and
+future caller of `CompositionRegistrations` gets the guarantee automatically,
+not just this one. Two regression tests added:
+`CompositionRegistrationTests.Constructor_DefensivelyCopiesTheFactoryMap_...`
+(mutating the original dictionary after construction has no effect on
+`TryGet`) and
+`ComposerRegistrationTests.Register_CalledOnACapturedBuilder_AfterCreateReturns_...`
+(the real-world scenario: a captured builder's post-`Create` `Register<T>` call
+never becomes observable on the already-created `Composer`).
+
+### PR review correction (2026-07-30): a registration factory's own exceptions weren't authoritative failures, and stage 3 was missing its Pending trace marker
+
+PR #17's second Codex review round (against commit `7a0c205`) correctly flagged
+two related gaps in `InvokeFactory`/stage 3's dispatch, both now fixed together
+since the fixes touch the same code:
+
+1. **A registration factory that threw directly escaped raw**, with no
+   `CompositionException`, no `Diagnostic` (path/seed/trace), and the original
+   exception not preserved as `InnerException`. This directly contradicts
+   [ADR-0010](../adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+   already-`Accepted` Failure semantics, which name this exact case explicitly:
+   *"`Failure` is reserved for context-owned authoritative stages: an exact
+   registration (stage 3) whose factory throws, or generated-plan dispatch..."*
+   Fixed by wrapping the `factory(this)` call in `InvokeFactory` with a
+   `catch (Exception ex)` that records `Failure` and throws a structured
+   `CompositionException` with `ex` preserved as `InnerException` — mirroring
+   the `IServiceProvider` fallback sub-step's existing catch shape exactly.
+   A `catch (CompositionException) { throw; }` guards against double-wrapping:
+   a nested `context.Resolve<T>()` call made *inside* the factory already
+   produces a fully-diagnosed `CompositionException` (via the nested
+   `ResolveCore` call's own `BuildException`), whose own, more specific
+   diagnostic is strictly better than anything the outer catch could construct
+   — re-wrapping it would discard that detail behind a generic "the factory
+   threw" message.
+2. **Stage 3's registration dispatch never recorded a `Pending` trace entry
+   before invoking the factory** — unlike collection-plan dispatch and
+   generated-plan dispatch (`ResolveViaGeneratedPlan`), both of which record
+   `Pending` immediately before calling into code that might recurse and fail,
+   specifically so a failing descendant's diagnostic still shows the ancestor
+   was genuinely in flight. Without it, a registration factory's nested
+   `context.Resolve<T>()` failure produced a diagnostic that omitted the
+   `ExactRegistration` ancestor entirely (the nested `BuildException` snapshots
+   the trace before control ever returns to stage 3's own recording line).
+   Fixed by recording `Pending` for `PipelineStage.ExactRegistration`
+   immediately before calling `InvokeFactory`, matching the existing
+   two-entries-per-node shape those other two dispatch sites already use.
+
+Three regression tests added: `CompositionRegistrationTests` gained one proving
+a directly-thrown factory exception surfaces as `CompositionException` with the
+original preserved as `InnerException`, and one proving the resulting
+diagnostic's `Trace` contains a `Pending`/`ExactRegistration` entry when a
+nested `Resolve<T>()` call inside the factory fails.
+`CompositionManualResolveTests` gained one proving a nested `Resolve<T>()`
+failure's own `CompositionException` propagates unmodified (no
+double-wrapping, no "threw" text in the message) rather than being re-caught
+and rewrapped by the outer `InvokeFactory` call. One existing test
+(`InvokeFactory_PopsTheFactoryReentranceStack_WhenTheFactoryThrows_...`) was
+updated to assert the new, correct behavior — a factory-thrown exception now
+surfaces as `CompositionException` with `InnerException` set, not the raw
+exception type it asserted before this fix.
+
+### Known limitation (2026-07-30): the generator doesn't recognize a registered/service-provider-satisfied root
+
+PR #17 review (Codex) correctly flagged that `Register<T>`/`UseServiceProvider`
+only unblock `Composer.Create<T>()` for a real, analyzer-enabled consumer if
+`Compono.Generators` also agrees `T` is a valid root. Today it doesn't:
+`TransitiveClosureWalker.EnqueueRoot` sends every non-built-in root through
+`ConstructorSelector` unconditionally, which still emits CMP0001/2/3 for an
+interface, abstract class, delegate, or constructor-rejected concrete type —
+regardless of whether that same `Composer.Create(builder => ...)` call also
+registers it or supplies a fallback `IServiceProvider`. A real consumer with
+the analyzer enabled cannot currently register their way past a
+generator-time diagnostic for such a root.
+
+**Deferred, not fixed in this PR** — closing it correctly means teaching
+`Compono.Generators` to recognize `Register<T>()`/`UseServiceProvider(...)`
+syntax within the same `Composer.Create(...)` call and skip diagnostic
+emission for those roots specifically. That's a real design question (exactly
+which syntactic shapes count, whether a profile-added registration is
+compile-time-visible at all, whether this needs its own ADR amendment) and
+touches `Compono.Generators` — a different project than this phase's stated
+scope (core-side registrations/service-provider injection). Tracked here as a
+known gap for a future phase/issue to close, not attempted as a same-PR
+scope-creep fix. `Compono.Tests` (core-only) doesn't exercise the packaged
+generator, so this gap isn't caught by this phase's own test suite — a real
+generator/consumer integration test is part of whatever future work closes it.
+
+### PR review correction (2026-07-30): stale shipped-configuration documentation
+
+PR #17 review (Codex) correctly flagged that `docs/public-api.md`'s
+Programmatic Composition section still said Milestone 3 was at Phase 0 with
+`WithSeed` as the only shipped configuration verb, and `docs/architecture.md`'s
+`ICompositionContext` snippet omitted the descriptor-less `Resolve<T>()`
+overload added in Phase 1 — both left stale by the Phase 1 doc update above,
+which updated `docs/architecture.md`'s prose sections but missed these two
+spots. Fixed by updating `public-api.md`'s Programmatic Composition section to
+list `Register<T>`/`UseServiceProvider` as shipped alongside `WithSeed`, and
+adding the descriptor-less `Resolve<T>()` overload to `architecture.md`'s
+`ICompositionContext` snippet.
+
+### PR review correction (2026-07-30): a pipeline-diagnosed exception was retaining its whole CompositionContext
+
+PR #17's fourth Codex review round (against commit `199cbf6`) correctly
+flagged that the previous round's fix — comparing `CompositionException` to
+its originating `CompositionContext` by reference — stored the actual context
+instance on the exception to make that comparison. A `CompositionContext`
+reaches its configured `IServiceProvider`, every registration factory's
+captured closures, `CompositionScope`'s already-composed shared values, and
+the trace buffer — none of which the origin check needs, but all of which a
+consumer or test runner retaining a thrown `CompositionException` (common:
+assertion history, retry logging) would keep alive for as long as the
+exception itself is kept.
+
+Fixed by replacing the stored `CompositionContext` reference with a cheap,
+otherwise-empty `object` identity token (`CompositionContext._identity`,
+allocated once per instance) — `CompositionException.DiagnosingContextIdentity`
+now holds that token instead of the context, and `InvokeFactory`'s catch guard
+compares tokens (`ReferenceEquals(ex.DiagnosingContextIdentity, _identity)`)
+instead of contexts. Observable behavior is unchanged (same-context
+pass-through vs. foreign-context wrap-and-throw), already covered by the
+existing `CompositionManualResolveTests` cases from the prior two rounds.
+Added a new regression test instead of a GC/`WeakReference`-based one — CLR
+retention timing is inherently unreliable to assert deterministically in a
+Debug-configuration test run — asserting structurally that no field on
+`CompositionException`, including compiler-generated auto-property backing
+fields, is typed as or assignable from `CompositionContext`.
+
+### Known limitation (2026-07-30): a stale, manually-recaptured `CompositionException` can pass through a sibling factory unwrapped
+
+PR #17's fifth Codex review round (against commit `f46fac9`) correctly
+identified a narrower version of the same-context-vs-different-context
+question `96f9e21`/`f46fac9` already closed: `InvokeFactory`'s pass-through
+guard keys on `DiagnosingContextIdentity`, which is one token per
+`CompositionContext` — i.e. one token for the *entire* root composition
+operation, not one per invocation. If a registration factory catches a
+failed `ctx.Resolve<T>()`'s `CompositionException`, retains it (e.g. in a
+field or captured variable) instead of letting it propagate, and a
+*different*, unrelated sibling registration factory later throws that same
+retained instance, the guard still matches (same context, same token) and
+lets it escape unwrapped — with the earlier failure's stale path/trace, not
+the sibling factory's own.
+
+**Deferred, not fixed in this PR.** Two reasons: first, triggering this
+requires the factory's own code to catch a `CompositionException` and
+manually rethrow a captured, no-longer-current instance later — itself a
+violation of `coding-standards.md`'s own "always bare `throw;`, never
+`throw ex;`" rule applied to a stored exception, i.e. the triggering pattern
+is already caller-side misuse, not an ordinary usage this library needs to
+make safe. Second, a correct fix needs per-invocation-frame identity (was
+this exception diagnosed underneath *this specific* `factory(this)` call
+that's currently unwinding, not merely somewhere in the same operation) —
+real added complexity in a piece of dispatch logic that's already been
+narrowed five review rounds running (`09e4eb3`, `78cb824`, `0d1792b`,
+`96f9e21`, `f46fac9`). Tracked here as a known gap for a future
+pass to close if a real (non-misuse-triggered) case ever surfaces, rather
+than adding another layer of identity-tracking machinery speculatively.
+
+### Performance correction (2026-07-30): a closure allocated per registration-factory invocation
+
+PR #17's fifth Codex review round also flagged that `InvokeFactory`'s
+reentrance check, `_activeFactories.Exists(active => ReferenceEquals(active,
+factory))`, allocates a new closure/predicate delegate capturing `factory` on
+every single registration/configuration-rule factory invocation — real
+allocation on the composition hot path every composed test runs through,
+contradicting ADR-0007's allocation-conscious hot-path goal. Fixed by
+replacing it with `IsFactoryActive`, a plain indexed loop over
+`_activeFactories` comparing by `ReferenceEquals` directly — identical
+semantics (reference identity, never the delegate's own `Equals`), zero
+allocation. No behavior change, so no new test beyond the existing
+reentrance-guard coverage.

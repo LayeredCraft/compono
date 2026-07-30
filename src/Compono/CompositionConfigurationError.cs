@@ -71,4 +71,44 @@ public abstract record CompositionConfigurationError
             Sources = snapshot;
         }
     }
+
+    /// <summary>
+    /// The same exact type was registered (via <c>Register&lt;T&gt;</c>) more than once across a
+    /// single <see cref="Composer.Create(Action{CompositionBuilder})"/> callback - directly, or from a
+    /// profile, per <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>'s deliberately
+    /// strict throw-on-duplicate decision.
+    /// </summary>
+    public sealed record DuplicateRegistration : CompositionConfigurationError
+    {
+        /// <summary>The type registered more than once.</summary>
+        public Type RegisteredType { get; }
+
+        /// <summary>
+        /// Every call that registered this type, in call order - always at least two. A genuinely
+        /// immutable snapshot (<see cref="ImmutableSnapshot"/>), same guarantee as
+        /// <see cref="DuplicateConfigurationOption.Sources"/>.
+        /// </summary>
+        public IReadOnlyList<ConfigurationSource> Sources { get; }
+
+        /// <summary>Creates a <see cref="DuplicateRegistration"/> error.</summary>
+        /// <param name="registeredType">The type registered more than once.</param>
+        /// <param name="sources">Every call that registered this type, in call order.</param>
+        /// <exception cref="ArgumentException"><paramref name="sources"/> has fewer than two entries.</exception>
+        public DuplicateRegistration(Type registeredType, IReadOnlyList<ConfigurationSource> sources)
+        {
+            ArgumentNullException.ThrowIfNull(registeredType);
+            ArgumentNullException.ThrowIfNull(sources);
+
+            var snapshot = ImmutableSnapshot.Of(sources);
+            if (snapshot.Count < 2)
+            {
+                throw new ArgumentException(
+                    "A duplicate-registration error requires at least two contributing sources.",
+                    nameof(sources));
+            }
+
+            RegisteredType = registeredType;
+            Sources = snapshot;
+        }
+    }
 }

@@ -2,7 +2,7 @@ namespace Compono;
 
 /// <summary>
 /// The compact, compile-time-constructible value a generated <see cref="ICompositionPlan{T}"/>
-/// passes to <see cref="ICompositionContext.Resolve{TValue}"/> for one constructor parameter or
+/// passes to <see cref="ICompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/> for one constructor parameter or
 /// required member.
 /// </summary>
 /// <remarks>

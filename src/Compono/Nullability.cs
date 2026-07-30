@@ -1,7 +1,7 @@
 namespace Compono;
 
 /// <summary>
-/// Whether a value requested from <see cref="ICompositionContext.Resolve{TValue}"/> came from a
+/// Whether a value requested from <see cref="ICompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/> came from a
 /// nullable-annotated parameter or required member (a <c>string?</c>, not a <c>string</c>).
 /// </summary>
 /// <remarks>

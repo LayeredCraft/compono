@@ -59,7 +59,8 @@ public sealed class Composer
     /// </exception>
     public T Create<T>()
     {
-        var context = new CompositionContext(_configuration.Seed ?? CompositionSeed.Generate());
+        var context = new CompositionContext(
+            _configuration.Seed ?? CompositionSeed.Generate(), _configuration.Registrations, _configuration.ServiceProvider);
         return context.ResolveRoot<T>();
     }
 
@@ -84,7 +85,8 @@ public sealed class Composer
     /// No explicit value, shared value, registration, provider, or generated plan could satisfy
     /// <typeparamref name="T"/> for one of the requested instances.
     /// </exception>
-    public IReadOnlyList<T> CreateMany<T>(int count) => ComposeMany<T>(count, _configuration.Seed ?? CompositionSeed.Generate());
+    public IReadOnlyList<T> CreateMany<T>(int count) => ComposeMany<T>(
+        count, _configuration.Seed ?? CompositionSeed.Generate(), _configuration.Registrations, _configuration.ServiceProvider);
 
     /// <summary>
     /// Composes an instance of <typeparamref name="T"/> from an explicit root seed - the internal
@@ -104,12 +106,13 @@ public sealed class Composer
     /// seed-derivation contract, bypassing configuration entirely.
     /// </summary>
     internal static IReadOnlyList<T> CreateManyForTesting<T>(int count, CompositionSeed seed) =>
-        ComposeMany<T>(count, seed);
+        ComposeMany<T>(count, seed, CompositionRegistrations.Empty, serviceProvider: null);
 
-    // Shared by the public CreateMany<T>(count) (this composer's configured/generated batch seed) and
-    // CreateManyForTesting<T>(count, seed) (an explicit one) - both fork the same
-    // "CreateMany" -> per-item-index chain from whatever batch seed they're given.
-    private static IReadOnlyList<T> ComposeMany<T>(int count, CompositionSeed seed)
+    // Shared by the public CreateMany<T>(count) (this composer's configured/generated batch seed and
+    // configuration) and CreateManyForTesting<T>(count, seed) (an explicit seed, empty configuration) -
+    // both fork the same "CreateMany" -> per-item-index chain from whatever batch seed they're given.
+    private static IReadOnlyList<T> ComposeMany<T>(
+        int count, CompositionSeed seed, CompositionRegistrations registrations, IServiceProvider? serviceProvider)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         if (count == 0)
@@ -121,7 +124,8 @@ public sealed class Composer
         for (var i = 0; i < count; i++)
         {
             var itemSeed = batchSeed.Fork(i.ToString(CultureInfo.InvariantCulture));
-            results.Add(CreateRootForTesting<T>(itemSeed));
+            var context = new CompositionContext(itemSeed, registrations, serviceProvider);
+            results.Add(context.ResolveRoot<T>());
         }
 
         return results;

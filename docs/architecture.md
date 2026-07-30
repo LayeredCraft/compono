@@ -55,6 +55,13 @@ Conceptually:
 public interface ICompositionContext
 {
     T Resolve<T>(in CompositionRequestDescriptor descriptor);
+
+    // Descriptor-less overload (shipped, Milestone 3 Phase 1) - the manual-resolve
+    // entry point a registration/configuration-rule factory calls to compose its
+    // own nested dependencies, distinct from the descriptor-based overload above
+    // generated code uses. See ADR-0019's Registrations and Service Injection
+    // section below.
+    T Resolve<T>();
 }
 ```
 
@@ -169,7 +176,7 @@ not every stage is the same *kind* of thing:
 |---|---|---|
 | 1 | Explicit values | Context-owned deterministic check (no consumer until a later milestone's inline-value API exists) |
 | 2 | Shared or scoped values | Context-owned deterministic check against the scope |
-| 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (Milestone 3, not yet implemented): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 is the design for its real public shape. |
+| 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (implemented, Milestone 3 Phase 1): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 Phase 1 shipped its real public shape (`builder.Register<T>(...)`, `builder.UseServiceProvider(...)`). |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection — empty until Milestone 3, per [ADR-0020](adr/0020-composition-configuration-rules.md) (not yet implemented). Renamed from "profile rules": populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile's `Configure` — a profile is a reusable application mechanism over this stage, not its owner ([ADR-0018](adr/0018-composition-profiles.md)). Collection-size configuration does **not** populate this stage — see Configuration Rules, below. |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection — empty until Milestone 6 (Bogus). How an integration package populates this stage with open-ended, pattern-matching logic is deliberately undesigned until Milestone 5 gives it a real consumer — see Open Architectural Decisions, below. |
 | 6 | Test-double providers | Ordered `ICompositionProvider` collection — empty until Milestone 5 (NSubstitute), same deferred-extensibility note as stage 5. |
@@ -434,19 +441,19 @@ list of repeated types.
 ## Immutable Configuration Model
 
 Resolved by [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md).
-**The builder/configuration split and `WithSeed` are implemented (Milestone 3
-Phase 0, [PLAN-0003](plans/0003-milestone-3-profiles-and-configuration.md)); every
-other configuration verb below (`Register`, `AddProfile`, `UseServiceProvider`, the
-`.For<T>()` rule DSL, `WithCollectionSize`) is still Milestone 3 scope, not yet
+**The builder/configuration split, `WithSeed`, `Register<T>`, and `UseServiceProvider`
+are implemented (Milestone 3 Phases 0-1,
+[PLAN-0003](plans/0003-milestone-3-profiles-and-configuration.md)); `AddProfile`, the
+`.For<T>()` rule DSL, and `WithCollectionSize` are still Milestone 3 scope, not yet
 implemented, per that plan's later phases.** `CompositionBuilder` is a mutable
 accumulator that exists only for the duration of the `Composer.Create(builder =>
 ...)` callback; when the callback returns, its accumulated state is validated and
 frozen into an internal `CompositionConfiguration` — a `Composer` holds exactly one,
 reused across every `Create<T>()`/`CreateMany<T>()` call it ever serves, with no
-mutable state on that hot path at all. Every scalar configuration verb — `WithSeed`
-(implemented), `WithCollectionSize`'s global default, `UseServiceProvider` (both
-still pending) — may be set at most once per configuration, the same fail-fast rule
-keyed configuration (registrations, rules) will follow once implemented: a second
+mutable state on that hot path at all. Every scalar configuration verb — `WithSeed`,
+`UseServiceProvider` (both implemented), `WithCollectionSize`'s global default (still
+pending) — may be set at most once per configuration, the same fail-fast rule keyed
+configuration (registrations, implemented; rules, still pending) follows: a second
 call is a build-time conflict, never last-wins, so a scalar's effective value never
 depends on `AddProfile` call order.
 
@@ -455,9 +462,9 @@ the same mechanism: a profile cycle ([ADR-0018](adr/0018-composition-profiles.md
 not yet implemented — Milestone 3 Phase 2) is detected **eagerly**, during
 `AddProfile` itself, and throws immediately with exactly one error naming the cycle
 — configuration stops right there, nothing further is aggregated. Every other
-conflict (duplicate registrations, duplicate rules, duplicate scalars — a duplicate
-`WithSeed` call is real today; the rest arrive with their own phases) is detected by
-`Build()`'s single validation pass, which runs
+conflict (duplicate registrations, duplicate scalars implemented; duplicate rules
+still arriving with Phase 3) is detected by `Build()`'s single validation pass, which
+runs
 only after the whole `configure(builder)` callback has already returned
 successfully, and aggregates every conflict found across the complete accumulated
 state into one `CompositionConfigurationException` — distinct from the per-value
@@ -506,7 +513,7 @@ actually came from.
 ## Registrations and Service Injection
 
 Resolved by [ADR-0019](adr/0019-registrations-and-service-provider-injection.md)
-(Milestone 3, not yet implemented). `builder.Register<T>(Func<ICompositionContext, T>
+(implemented, Milestone 3 Phase 1). `builder.Register<T>(Func<ICompositionContext, T>
 factory)` (plus a `Register<T>(Func<T> factory)` convenience overload) populates
 pipeline stage 3's exact-registration table. A duplicate registration for the same
 type — from any combination of direct calls and profiles — is a build-time

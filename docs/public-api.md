@@ -31,14 +31,23 @@ var customers = composer.CreateMany<Customer>(3);
 
 Configuration uses the same root type via a builder callback (shipped, Milestone 3
 Phase 0 — [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)).
-`WithSeed` is the only configuration verb shipped so far; `WithCollectionSize` below
-is still Phase 3 (not yet implemented — see the Configuration section, which
-describes the full target shape):
+`WithSeed`, `Register<T>`, and `UseServiceProvider` are shipped so far (Phase 0/1
+— [ADR-0019](adr/0019-registrations-and-service-provider-injection.md));
+`WithCollectionSize`, `AddProfile`, and the `.For<T>()` rule DSL below are still
+Phase 2/3 (not yet implemented — see the Configuration section, which describes
+the full target shape):
 
 ```csharp
 var composer = Composer.Create(builder => builder
-    .WithSeed(4219));
+    .WithSeed(4219)
+    .Register<IClock>(_ => new FakeClock())
+    .UseServiceProvider(app.Services));
 ```
+
+A registration factory can call `ICompositionContext.Resolve<T>()` (no
+descriptor) to compose its own nested dependencies manually, distinct from the
+descriptor-based overload generated code uses — see
+[ADR-0019](adr/0019-registrations-and-service-provider-injection.md).
 
 `Composer` is the settled root type name — `Composer.Create()` (no configuration) and
 `Composer.Create(builder => ...)` (explicit configuration) are the same method,

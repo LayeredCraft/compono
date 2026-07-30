@@ -64,5 +64,7 @@ public sealed class UniqueValueResolverTests
     {
         public TValue Resolve<TValue>(in CompositionRequestDescriptor descriptor) =>
             (TValue)(object)valueForOrdinal(descriptor.Ordinal);
+
+        public TValue Resolve<TValue>() => throw new NotSupportedException("Not exercised by these tests.");
     }
 }
