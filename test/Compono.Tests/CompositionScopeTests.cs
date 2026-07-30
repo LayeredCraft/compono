@@ -16,8 +16,14 @@ public sealed class CompositionScopeTests
     }
 
     [Fact]
-    public void Resolve_NeverReadsFromScope_EvenWhenTheSameTypeWasAlreadyShared()
+    public void Resolve_ReadsFromScope_WhenTheSameTypeWasAlreadyShared()
     {
+        // ADR-0021: stage 2's read side became unconditional (any request checks scope for a match,
+        // not just one the caller marked IsShared) so an ordinary, unmarked nested request - e.g. a
+        // composed system-under-test's own constructor parameter - transparently reuses a value a
+        // Milestone 4 [Shared] test parameter already established. Only the write side stays
+        // restricted to IsShared requests (ResolveSharedForTesting above); this is the read-side
+        // change's own coverage, replacing the old "an ordinary request never reads scope" behavior.
         var provider = new CountingProvider();
         var context = new CompositionContext([], [], [], [provider]);
         var descriptor = new CompositionRequestDescriptor(
@@ -26,8 +32,8 @@ public sealed class CompositionScopeTests
         var shared = context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
         var notShared = context.Resolve<Widget>(descriptor);
 
-        notShared.Should().NotBeSameAs(shared);
-        provider.CallCount.Should().Be(2);
+        notShared.Should().BeSameAs(shared);
+        provider.CallCount.Should().Be(1);
     }
 
     [Fact]

@@ -39,4 +39,13 @@ internal abstract record PathSegment
     /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
     /// </summary>
     internal sealed record ManualResolve(int Ordinal) : PathSegment;
+
+    /// <summary>
+    /// One of a test method's own parameters, identified by its position in the method's parameter
+    /// list - a <see cref="CompositionRow"/>'s sibling top-level requests, as opposed to a
+    /// constructor parameter or required member a generated plan is filling in. The seventh
+    /// <see cref="PathSegment"/> kind. See
+    /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
+    /// </summary>
+    internal sealed record TestParameter(int Ordinal, string Name) : PathSegment;
 }

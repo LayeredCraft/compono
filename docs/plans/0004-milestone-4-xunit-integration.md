@@ -1,6 +1,6 @@
 # [PLAN-0004] Milestone 4: xUnit v3 Integration
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
 (core `CompositionRow`/`CompositionRequestKind.TestParameter`/stage-2 read-gate
@@ -66,14 +66,14 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 0: Core engine extension point (ADR-0021)
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `CompositionRequestKind.TestParameter` new enum member.
-- [ ] `PathSegment.TestParameter(int Ordinal, string Name)` new record;
+- [x] `CompositionRequestKind.TestParameter` new enum member.
+- [x] `PathSegment.TestParameter(int Ordinal, string Name)` new record;
       `CompositionPath.SegmentDisplayString()`/`NodeLabel()` gain a
       matching case (rendered like `ConstructorParameter`: `.{Name}` /
       `{typeName} {Name}`).
-- [ ] `RandomSource` gains a seventh fork tag, `TestParameterTag = 6`
+- [x] `RandomSource` gains a seventh fork tag, `TestParameterTag = 6`
       (the next unused zero-based tag after the six already in use — `0`–`4`
       for the five original structured segments, `5` for
       `ManualResolveTag`), and a `Fork` switch arm; determinism test
@@ -82,14 +82,14 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `DictionaryKey`/`DictionaryValue`/`ManualResolve`/`TestParameter`)
       fork distinctly at ordinal 0 from the same parent state (extends
       ADR-0012 Amendment 2's existing six-kind coverage).
-- [ ] `CompositionContext`: new constructor overload accepting `Type
+- [x] `CompositionContext`: new constructor overload accepting `Type
       rootType`, pre-establishing `_path`/`_random` instead of leaving
       them for the first `Resolve` call to claim as root.
-- [ ] `CompositionContext.ResolveCore`: remove the `if (request.IsShared)`
+- [x] `CompositionContext.ResolveCore`: remove the `if (request.IsShared)`
       gate around the stage-2 scope *read*; the write side
       (`StoreSharedAndReturn`, `ResolveViaGeneratedPlan`'s shared branch)
       is unchanged.
-- [ ] New internal `CompositionContext` members backing
+- [x] New internal `CompositionContext` members backing
       `CompositionRow.ResolveShared`/`ShareExplicit`: `ResolveShared` is
       pipeline dispatch + scope-store; `ShareExplicit` skips dispatch
       (the value is already known) but runs the **exact same**
@@ -98,13 +98,13 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       runtime-type-not-assignable) before storing — implement both
       through one shared validate-then-store helper so the two paths
       can't drift apart, rather than duplicating the check.
-- [ ] Public `CompositionRow : ICompositionContext` sealed class:
+- [x] Public `CompositionRow : ICompositionContext` sealed class:
       `int Seed` (matching `WithSeed(int)`/`ComposeAttribute.Seed` — not
       the internal `CompositionSeed`'s `ulong`), `ResolveShared<TValue>(descriptor)`,
       `ShareExplicit<TValue>(descriptor, value)`, plus the inherited
       `Resolve<TValue>(descriptor)`/`Resolve<TValue>()`/`ResolveCollectionSize()`
       forwarded to the wrapped context.
-- [ ] New `internal CompositionSeed.GenerateRowSeed()`, distinct from the
+- [x] New `internal CompositionSeed.GenerateRowSeed()`, distinct from the
       existing `Generate()`: draws from `int`'s **non-negative** range
       (`Random.Shared.Next(0, int.MaxValue)`) rather than the full 64-bit
       range `Create<T>()`/`CreateMany<T>()` use, so an unseeded row's
@@ -113,11 +113,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (`int`) or via `CompositionDiagnostic.Seed` (`ulong`, unaffected by
       this ADR) — see ADR-0021's Seed type consistency note for why
       non-negative specifically.
-- [ ] `Composer.CreateRow(Type declaringType)`: `_configuration.Seed ??
+- [x] `Composer.CreateRow(Type declaringType)`: `_configuration.Seed ??
       CompositionSeed.GenerateRowSeed()`, then constructs the
       pre-rooted `CompositionContext`, then `CompositionRow` with
       `unchecked((int)seed.Value)`.
-- [ ] `Compono.Tests` coverage for this API in isolation, **before any
+- [x] `Compono.Tests` coverage for this API in isolation, **before any
       `Compono.Xunit` code exists** — `Composer.CreateRow`/`CompositionRow`
       are a real new public entry point (`testing.md`'s "verifying a new
       public entry point" rule) and must not end up exercised only
@@ -342,5 +342,30 @@ exercised indirectly through `Compono.Xunit.Tests`.
 
 ## Notes
 
-_(Filled in as Phase 0 begins — implementation may surface plumbing
-details this plan's ADRs deliberately left at decision-level.)_
+**Phase 0 (Done):**
+
+- `Resolve<TValue>(in CompositionRequestDescriptor)` was refactored to
+  share a new private `BuildSegment` helper with the new internal
+  `ResolveDescriptorAsShared<TValue>` — not called out explicitly in the
+  plan's task wording, but the natural way to avoid duplicating the
+  six-kind `PathSegment` switch across the ordinary and shared
+  descriptor-based entry points.
+- `ShareExplicit<TValue>`'s "runtime type not assignable" validation
+  branch (shared with `ResolveShared`'s pipeline-produced-value check) is
+  compile-time unreachable through `CompositionRow`'s own strongly-typed
+  public API — `value` is statically typed as `TValue`, so the compiler
+  already guarantees assignability. The shared validation helper still
+  exists (and is still exercised via the pipeline-facing callers,
+  `ComposerRegistrationTests` etc.), but `CompositionRowTests` only covers
+  the null-value branch for `ShareExplicit` specifically, with a comment
+  explaining why the type-mismatch branch isn't independently retested
+  there.
+- One pre-existing test, `CompositionScopeTests.Resolve_NeverReadsFromScope_EvenWhenTheSameTypeWasAlreadyShared`,
+  encoded the exact Milestone 2 behavior ADR-0021 deliberately reverses.
+  Renamed to `Resolve_ReadsFromScope_WhenTheSameTypeWasAlreadyShared` and
+  its assertions flipped (with an explanatory comment) rather than left
+  failing or deleted — this is the one behavior change Phase 0 makes to
+  already-shipped Milestone 2/3 code, and its test needed to move with it.
+- Full suite green: `Compono.Tests` 378/378 (189 × 2 TFMs, up from
+  177 × 2 before this phase — 12 new `CompositionRowTests`), `Compono.Generators.Tests`
+  154/154 unaffected (Phase 0 touches no generator code).

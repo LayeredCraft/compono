@@ -7,13 +7,18 @@ namespace Compono;
 /// (<c>docs/architecture.md</c>), path tracking, and dispatch into generated plans.
 /// </summary>
 /// <remarks>
-/// One instance per root operation (one <see cref="Composer.Create{T}"/> call, or one item of a
-/// <see cref="Composer.CreateMany{T}"/> call) - never reused across multiple root calls, per
-/// <c>docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md</c>. Stage 1
-/// (explicit values) has no mechanism yet - it stays Milestone 3 scope (the public builder). Stages
-/// 2/3 (shared/scoped values, exact registrations) and the active-construction-frame recursion check
-/// are implemented as of Milestone 2 Phase 3. Stage 8 (generated-plan dispatch via
-/// <see cref="PlanCache{T}"/>) is unchanged from Milestone 1.
+/// One instance per root operation (one <see cref="Composer.Create{T}"/> call, one item of a
+/// <see cref="Composer.CreateMany{T}"/> call, or one <see cref="Composer.CreateRow"/> row) - never
+/// reused across multiple root operations, per
+/// <c>docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md</c>. Stage 1 (explicit
+/// values) has no pipeline mechanism - a test-framework integration's inline theory values are
+/// handled entirely above this pipeline, per
+/// <c>docs/adr/0022-compono-xunit-package-design.md</c>. Stages 2/3 (shared/scoped values, exact
+/// registrations) and the active-construction-frame recursion check are implemented as of Milestone 2
+/// Phase 3; stage 2's read side became unconditional (any request, not just one explicitly marked
+/// shared, checks scope for a match) per
+/// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>. Stage 8
+/// (generated-plan dispatch via <see cref="PlanCache{T}"/>) is unchanged from Milestone 1.
 /// </remarks>
 internal sealed class CompositionContext : ICompositionContext
 {
@@ -101,6 +106,28 @@ internal sealed class CompositionContext : ICompositionContext
     }
 
     /// <summary>
+    /// Creates a <see cref="CompositionContext"/> with its path pre-rooted at <paramref name="rootType"/>
+    /// instead of leaving it for the first <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>
+    /// call to claim as root - the shape <see cref="Composer.CreateRow"/> uses so several sibling
+    /// top-level requests (e.g. one theory row's own method parameters) each fork independently, as
+    /// children of the same pre-established root, rather than each being treated as its own root and
+    /// colliding on an identical seed-derived random stream. See
+    /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
+    /// </summary>
+    internal CompositionContext(
+        CompositionSeed seed,
+        CompositionRegistrations registrations,
+        IServiceProvider? serviceProvider,
+        IReadOnlyList<ICompositionProvider> configurationRuleProviders,
+        CollectionSizePolicy collectionSizePolicy,
+        Type rootType)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders, collectionSizePolicy)
+    {
+        _path = CompositionPath.Root(rootType);
+        _random = RandomSource.FromSeed(seed);
+    }
+
+    /// <summary>
     /// Creates a <see cref="CompositionContext"/> with explicit providers per extensible pipeline
     /// stage and a freshly generated root seed - the seam <c>Compono.Tests</c> uses to inject fake
     /// providers and assert pipeline ordering, since no public configuration surface exists until
@@ -144,25 +171,63 @@ internal sealed class CompositionContext : ICompositionContext
         _random ?? throw new InvalidOperationException("No composition operation is currently in progress.");
 
     /// <inheritdoc />
-    public TValue Resolve<TValue>(in CompositionRequestDescriptor descriptor)
-    {
-        PathSegment segment = descriptor.Kind switch
-        {
-            CompositionRequestKind.ConstructorParameter =>
-                new PathSegment.ConstructorParameter(descriptor.Ordinal, descriptor.Name),
-            CompositionRequestKind.RequiredMember =>
-                new PathSegment.RequiredMember(descriptor.Ordinal, descriptor.Name),
-            // CollectionElement/DictionaryKey/DictionaryValue carry no Name - a generated collection
-            // plan's Ordinal is the segment's Index; CompositionPath's display-string derivation
-            // never reads Name for these three kinds either, per ADR-0014.
-            CompositionRequestKind.CollectionElement => new PathSegment.CollectionElement(descriptor.Ordinal),
-            CompositionRequestKind.DictionaryKey => new PathSegment.DictionaryKey(descriptor.Ordinal),
-            CompositionRequestKind.DictionaryValue => new PathSegment.DictionaryValue(descriptor.Ordinal),
-            _ => throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Kind, "Unrecognized composition request kind."),
-        };
+    public TValue Resolve<TValue>(in CompositionRequestDescriptor descriptor) =>
+        ResolveCore<TValue>(descriptor.Nullability, descriptor.DeclaringType, BuildSegment(descriptor), isShared: false);
 
-        return ResolveCore<TValue>(descriptor.Nullability, descriptor.DeclaringType, segment, isShared: false);
+    /// <summary>
+    /// Resolves <typeparamref name="TValue"/> for a <see cref="CompositionRequestKind.TestParameter"/>
+    /// descriptor as a shared request (stage 2's write side) - the internal member backing
+    /// <see cref="CompositionRow.ResolveShared{TValue}(in CompositionRequestDescriptor)"/>. Composes
+    /// through the same pipeline <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> uses,
+    /// but additionally stores the successful result into this context's scope so a later request for
+    /// the same type - including one made by a nested generated plan - reuses it. See
+    /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
+    /// </summary>
+    internal TValue ResolveDescriptorAsShared<TValue>(in CompositionRequestDescriptor descriptor) =>
+        ResolveCore<TValue>(descriptor.Nullability, descriptor.DeclaringType, BuildSegment(descriptor), isShared: true);
+
+    /// <summary>
+    /// Stores <paramref name="value"/> - already known, not composed - as this context's shared value
+    /// for <typeparamref name="TValue"/>, after the exact same authoritative validation a successful
+    /// <see cref="ResolveDescriptorAsShared{TValue}(in CompositionRequestDescriptor)"/> pipeline result
+    /// gets. No pipeline dispatch, no path/random-fork bookkeeping - there is nothing left to compose.
+    /// The internal member backing
+    /// <see cref="CompositionRow.ShareExplicit{TValue}(in CompositionRequestDescriptor, TValue)"/>.
+    /// </summary>
+    /// <exception cref="CompositionException">
+    /// <paramref name="value"/> is <see langword="null"/> for a non-nullable request, or its runtime
+    /// type isn't assignable to <typeparamref name="TValue"/>.
+    /// </exception>
+    internal void ShareExplicitTestParameter<TValue>(in CompositionRequestDescriptor descriptor, TValue value)
+    {
+        var requestedType = typeof(TValue);
+        var result = ValidateAuthoritativeValue(value, requestedType, descriptor.Nullability, "explicit value");
+
+        if (result is CompositionResult.Failure failure)
+            throw BuildException(requestedType, failure.Message);
+
+        _scope.Set(requestedType, ((CompositionResult.Success)result).Value);
     }
+
+    // Shared by Resolve<TValue>(descriptor) and ResolveDescriptorAsShared<TValue> - the only
+    // difference between an ordinary and a shared descriptor-based request is the isShared flag each
+    // passes to ResolveCore, never how the descriptor's own Kind maps to a PathSegment.
+    private static PathSegment BuildSegment(in CompositionRequestDescriptor descriptor) => descriptor.Kind switch
+    {
+        CompositionRequestKind.ConstructorParameter =>
+            new PathSegment.ConstructorParameter(descriptor.Ordinal, descriptor.Name),
+        CompositionRequestKind.RequiredMember =>
+            new PathSegment.RequiredMember(descriptor.Ordinal, descriptor.Name),
+        // CollectionElement/DictionaryKey/DictionaryValue carry no Name - a generated collection
+        // plan's Ordinal is the segment's Index; CompositionPath's display-string derivation
+        // never reads Name for these three kinds either, per ADR-0014.
+        CompositionRequestKind.CollectionElement => new PathSegment.CollectionElement(descriptor.Ordinal),
+        CompositionRequestKind.DictionaryKey => new PathSegment.DictionaryKey(descriptor.Ordinal),
+        CompositionRequestKind.DictionaryValue => new PathSegment.DictionaryValue(descriptor.Ordinal),
+        CompositionRequestKind.TestParameter =>
+            new PathSegment.TestParameter(descriptor.Ordinal, descriptor.Name),
+        _ => throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Kind, "Unrecognized composition request kind."),
+    };
 
     /// <inheritdoc />
     public TValue Resolve<TValue>()
@@ -226,25 +291,30 @@ internal sealed class CompositionContext : ICompositionContext
                 IsShared = isShared,
             };
 
-            // Stage 1 (explicit values) has no mechanism until Milestone 3's public builder - every
-            // request falls through it; nothing to trace.
+            // Stage 1 (explicit values) has no pipeline mechanism - Milestone 4's inline theory values
+            // are handled entirely by Compono.Xunit, one layer above this pipeline (a value already
+            // known needs no dispatch, tracing, or randomness at all), per
+            // docs/adr/0022-compono-xunit-package-design.md. Every request falls through this stage;
+            // nothing to trace.
 
-            // Stage 2: shared/scoped values - only a request the caller marked IsShared reads from
-            // scope; an ordinary request never does, even if the same type was already shared
-            // elsewhere in this operation. Not an ICompositionProvider, so Provider is null.
-            if (request.IsShared)
+            // Stage 2: shared/scoped values - every request checks scope for a match, regardless of
+            // its own IsShared flag (ADR-0021: this is what lets an ordinary, unmarked nested request -
+            // e.g. a SUT's own constructor parameter - transparently reuse a value a [Shared] test
+            // parameter already established). Only the *write* side (StoreSharedAndReturn,
+            // ResolveViaGeneratedPlan's shared branch, both below) stays restricted to IsShared
+            // requests - this read-side change is provably a no-op for every pre-Milestone-4 caller,
+            // since nothing ever populated scope on any of those paths. Not an ICompositionProvider,
+            // so Provider is null.
+            if (_scope.TryGet(requestedType, out var sharedValue))
             {
-                if (_scope.TryGet(requestedType, out var sharedValue))
-                {
-                    var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
-                    _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, OutcomeOf(result));
-                    var value = Authoritative<TValue>(result);
-                    _trace.Rewind(checkpoint);
-                    return value;
-                }
-
-                _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, CompositionAttemptOutcome.NotHandled);
+                var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
+                _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, OutcomeOf(result));
+                var value = Authoritative<TValue>(result);
+                _trace.Rewind(checkpoint);
+                return value;
             }
+
+            _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, CompositionAttemptOutcome.NotHandled);
 
             // Stage 3, sub-step (a): exact registrations. A registration factory is invoked through
             // InvokeFactory, which owns the manual-resolve invocation frame and the factory-reentrance
@@ -620,20 +690,27 @@ internal sealed class CompositionContext : ICompositionContext
     // Stages 2/3's authoritative validation, per ADR-0011's second amendment: a null value for a
     // non-nullable request, or a value whose runtime type isn't assignable to RequestedType, is a
     // Failure at that stage - never silently passed through as NotHandled.
-    private static CompositionResult ValidateAuthoritativeValue(object? value, in CompositionRequest request, string source)
+    private static CompositionResult ValidateAuthoritativeValue(object? value, in CompositionRequest request, string source) =>
+        ValidateAuthoritativeValue(value, request.RequestedType, request.Nullability, source);
+
+    // The (Type, Nullability) shape the check above actually needs - factored out so
+    // ShareExplicitTestParameter (ADR-0021) can apply the exact same authoritative validation to an
+    // already-known value with no CompositionRequest to build (no pipeline dispatch happens for it at
+    // all, so there's no in-flight request to source Type/Nullability from).
+    private static CompositionResult ValidateAuthoritativeValue(object? value, Type requestedType, Nullability nullability, string source)
     {
         if (value is null)
         {
-            return request.Nullability == Nullability.Nullable
+            return nullability == Nullability.Nullable
                 ? new CompositionResult.Success(null)
                 : new CompositionResult.Failure(
-                    $"The {source} for '{request.RequestedType}' is null, but '{request.RequestedType}' is not nullable.");
+                    $"The {source} for '{requestedType}' is null, but '{requestedType}' is not nullable.");
         }
 
-        return request.RequestedType.IsInstanceOfType(value)
+        return requestedType.IsInstanceOfType(value)
             ? new CompositionResult.Success(value)
             : new CompositionResult.Failure(
-                $"The {source} for '{request.RequestedType}' produced a value of type '{value.GetType()}', " +
+                $"The {source} for '{requestedType}' produced a value of type '{value.GetType()}', " +
                 "which is not assignable to the requested type.");
     }
 
@@ -656,8 +733,10 @@ internal sealed class CompositionContext : ICompositionContext
 
     // Materializes this operation's whole surviving trace (checkpoint 0 - every already-succeeded
     // sibling has already rewound itself out, per CompositionTraceBuffer's remarks) into a durable
-    // CompositionDiagnostic. _path is always non-null here: this is only ever called from inside
-    // ResolveCore's try block, after _path has been pushed for the current node.
+    // CompositionDiagnostic. _path is always non-null here: either this runs from inside ResolveCore's
+    // try block (after _path has been pushed for the current node), or - ShareExplicitTestParameter's
+    // validation failure path only - from a CompositionRow whose CreateRow constructor already
+    // pre-established _path as its root (ADR-0021), so it's never null there either.
     private CompositionException BuildException(Type failedType, string message) =>
         CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), _identity);
 
