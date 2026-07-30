@@ -862,3 +862,54 @@ not just this one. Two regression tests added:
 `ComposerRegistrationTests.Register_CalledOnACapturedBuilder_AfterCreateReturns_...`
 (the real-world scenario: a captured builder's post-`Create` `Register<T>` call
 never becomes observable on the already-created `Composer`).
+
+### PR review correction (2026-07-30): a registration factory's own exceptions weren't authoritative failures, and stage 3 was missing its Pending trace marker
+
+PR #17's second Codex review round (against commit `7a0c205`) correctly flagged
+two related gaps in `InvokeFactory`/stage 3's dispatch, both now fixed together
+since the fixes touch the same code:
+
+1. **A registration factory that threw directly escaped raw**, with no
+   `CompositionException`, no `Diagnostic` (path/seed/trace), and the original
+   exception not preserved as `InnerException`. This directly contradicts
+   [ADR-0010](../adr/0010-composition-request-pipeline-and-diagnostics-tracing.md)'s
+   already-`Accepted` Failure semantics, which name this exact case explicitly:
+   *"`Failure` is reserved for context-owned authoritative stages: an exact
+   registration (stage 3) whose factory throws, or generated-plan dispatch..."*
+   Fixed by wrapping the `factory(this)` call in `InvokeFactory` with a
+   `catch (Exception ex)` that records `Failure` and throws a structured
+   `CompositionException` with `ex` preserved as `InnerException` — mirroring
+   the `IServiceProvider` fallback sub-step's existing catch shape exactly.
+   A `catch (CompositionException) { throw; }` guards against double-wrapping:
+   a nested `context.Resolve<T>()` call made *inside* the factory already
+   produces a fully-diagnosed `CompositionException` (via the nested
+   `ResolveCore` call's own `BuildException`), whose own, more specific
+   diagnostic is strictly better than anything the outer catch could construct
+   — re-wrapping it would discard that detail behind a generic "the factory
+   threw" message.
+2. **Stage 3's registration dispatch never recorded a `Pending` trace entry
+   before invoking the factory** — unlike collection-plan dispatch and
+   generated-plan dispatch (`ResolveViaGeneratedPlan`), both of which record
+   `Pending` immediately before calling into code that might recurse and fail,
+   specifically so a failing descendant's diagnostic still shows the ancestor
+   was genuinely in flight. Without it, a registration factory's nested
+   `context.Resolve<T>()` failure produced a diagnostic that omitted the
+   `ExactRegistration` ancestor entirely (the nested `BuildException` snapshots
+   the trace before control ever returns to stage 3's own recording line).
+   Fixed by recording `Pending` for `PipelineStage.ExactRegistration`
+   immediately before calling `InvokeFactory`, matching the existing
+   two-entries-per-node shape those other two dispatch sites already use.
+
+Three regression tests added: `CompositionRegistrationTests` gained one proving
+a directly-thrown factory exception surfaces as `CompositionException` with the
+original preserved as `InnerException`, and one proving the resulting
+diagnostic's `Trace` contains a `Pending`/`ExactRegistration` entry when a
+nested `Resolve<T>()` call inside the factory fails.
+`CompositionManualResolveTests` gained one proving a nested `Resolve<T>()`
+failure's own `CompositionException` propagates unmodified (no
+double-wrapping, no "threw" text in the message) rather than being re-caught
+and rewrapped by the outer `InvokeFactory` call. One existing test
+(`InvokeFactory_PopsTheFactoryReentranceStack_WhenTheFactoryThrows_...`) was
+updated to assert the new, correct behavior — a factory-thrown exception now
+surfaces as `CompositionException` with `InnerException` set, not the raw
+exception type it asserted before this fix.

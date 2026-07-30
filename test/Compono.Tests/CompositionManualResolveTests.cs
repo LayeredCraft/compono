@@ -55,21 +55,43 @@ public sealed class CompositionManualResolveTests
     public void InvokeFactory_PopsTheFactoryReentranceStack_WhenTheFactoryThrows_SoASubsequentCallInvokesItAgain()
     {
         var attempts = 0;
+        var original = new InvalidOperationException("boom");
         var composer = Composer.Create(builder => builder.Register<Failing>(_ =>
         {
             attempts++;
-            throw new InvalidOperationException("boom");
+            throw original;
         }));
 
+        // A factory-thrown exception is an authoritative stage-3 Failure per ADR-0010 - it surfaces
+        // as a structured CompositionException with the original preserved as InnerException, not
+        // raw, per the "throw a structured CompositionException" contract every other authoritative
+        // stage in this codebase already follows.
         var first = () => composer.Create<Failing>();
-        first.Should().Throw<InvalidOperationException>().WithMessage("boom");
+        first.Should().Throw<CompositionException>().Which.InnerException.Should().BeSameAs(original);
 
         // If the factory-reentrance guard's finally hadn't popped this factory off its stack, this
         // second, independent Create<T>() call would see the factory as "already active" and throw
-        // the reentrance CompositionException instead of genuinely invoking it again.
+        // the reentrance CompositionException (naming a recursion cycle) instead of genuinely
+        // invoking it again and wrapping the same original exception a second time.
         var second = () => composer.Create<Failing>();
-        second.Should().Throw<InvalidOperationException>().WithMessage("boom");
+        second.Should().Throw<CompositionException>().Which.InnerException.Should().BeSameAs(original);
         attempts.Should().Be(2);
+    }
+
+    [Fact]
+    public void InvokeFactory_DoesNotRewrapACompositionExceptionAlreadyThrownByANestedResolveCall()
+    {
+        // A factory whose nested context.Resolve<T>() call fails already produces a fully-diagnosed
+        // CompositionException (its own path/trace/seed) from that nested ResolveCore call - InvokeFactory
+        // must let it propagate as-is, not catch and re-wrap it behind a generic "the factory threw"
+        // message that would discard the more specific inner diagnostic.
+        var composer = Composer.Create(builder => builder.Register<Wrapper>(ctx => new Wrapper(ctx.Resolve<Unresolvable>())));
+
+        var act = () => composer.Create<Wrapper>();
+
+        act.Should().Throw<CompositionException>()
+            .WithMessage("*No registration*")
+            .Where(e => !e.Message.Contains("threw"));
     }
 
     [Fact]
@@ -89,4 +111,8 @@ public sealed class CompositionManualResolveTests
     private sealed record Outer(ulong First, Inner Inner, ulong Third);
 
     private sealed record Failing;
+
+    private sealed record Wrapper(Unresolvable Value);
+
+    private sealed record Unresolvable;
 }

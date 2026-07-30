@@ -214,9 +214,15 @@ internal sealed class CompositionContext : ICompositionContext
 
             // Stage 3, sub-step (a): exact registrations. A registration factory is invoked through
             // InvokeFactory, which owns the manual-resolve invocation frame and the factory-reentrance
-            // guard - never called directly.
+            // guard - never called directly. Recorded Pending *before* InvokeFactory runs - same
+            // reasoning as the collection-plan/generated-plan Pending markers below: if the factory
+            // calls context.Resolve<T>() and that nested request fails, the nested BuildException
+            // snapshots the trace before control returns here, so without this marker the resulting
+            // diagnostic would omit that this ExactRegistration dispatch was genuinely in flight when
+            // the failure happened.
             if (_registrations.TryGet(requestedType, out var factory))
             {
+                _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Pending);
                 var registeredValue = InvokeFactory(factory, requestedType);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
@@ -378,14 +384,19 @@ internal sealed class CompositionContext : ICompositionContext
     }
 
     // Invokes a registration or configuration-rule factory - the single point every stage-3/stage-4
-    // factory call goes through. Owns two mechanisms, both per docs/adr/0019-registrations-and-
-    // service-provider-injection.md: (1) a manual-resolve invocation frame, pushed immediately before
-    // the call and popped in finally, giving every descriptor-less Resolve<T>() call made during this
-    // one invocation a shared, call-sequence-ordinal-keyed ManualResolve path segment; (2) a factory-
-    // reentrance guard, keyed by the exact delegate instance about to be invoked (never by requested
-    // type - that would reject the legitimate Node.Child-style cycle-terminating pattern) - a self-
-    // referencing factory that calls back into resolving a request routing to itself is caught here,
-    // as a diagnosable CompositionException, instead of recursing to a StackOverflowException.
+    // factory call goes through. Owns three mechanisms, all per docs/adr/0019-registrations-and-
+    // service-provider-injection.md and docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md:
+    // (1) a manual-resolve invocation frame, pushed immediately before the call and popped in finally,
+    // giving every descriptor-less Resolve<T>() call made during this one invocation a shared, call-
+    // sequence-ordinal-keyed ManualResolve path segment; (2) a factory-reentrance guard, keyed by the
+    // exact delegate instance about to be invoked (never by requested type - that would reject the
+    // legitimate Node.Child-style cycle-terminating pattern) - a self-referencing factory that calls
+    // back into resolving a request routing to itself is caught here, as a diagnosable
+    // CompositionException, instead of recursing to a StackOverflowException; (3) converting a
+    // factory's own thrown exception into an authoritative Failure - ADR-0010's Failure semantics
+    // name this exact case ("an exact registration (stage 3) whose factory throws") explicitly, so an
+    // ordinary factory-thrown exception must surface as a structured CompositionException (path, seed,
+    // trace, original preserved as InnerException), not escape raw with none of that context.
     private object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType)
     {
         if (_activeFactories.Exists(active => ReferenceEquals(active, factory)))
@@ -399,6 +410,23 @@ internal sealed class CompositionContext : ICompositionContext
         try
         {
             return factory(this);
+        }
+        catch (CompositionException)
+        {
+            // Already a fully-diagnosed CompositionException from a nested Resolve<T>() call made
+            // inside this factory - that failure's own Diagnostic (built from its own, more specific
+            // path/trace) is strictly more useful than anything this outer catch could construct.
+            // Re-wrapping it here would discard that detail behind a generic "the factory threw"
+            // message, so it's left to propagate exactly as-is.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
+            throw BuildException(
+                requestedType,
+                $"The registration or configuration-rule factory for '{CompositionPath.FriendlyTypeName(requestedType)}' threw: {ex.Message}",
+                ex);
         }
         finally
         {
