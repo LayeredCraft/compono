@@ -126,6 +126,8 @@ namespace Compono.Xunit;
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public class ComposeAttribute : Xunit.v3.DataAttribute
 {
+    private int? _seed;
+
     public ComposeAttribute(params object?[] inlineValues);
 
     /// Explicit root seed for this row - same underlying contract as
@@ -133,8 +135,26 @@ public class ComposeAttribute : Xunit.v3.DataAttribute
     /// values (a negative Seed fails with a clear pre-composition
     /// exception) so a seed reported in a failure message is always
     /// pasteable back here unchanged. Unset: a fresh, non-negative seed
-    /// is generated on every GetData call.
-    public int? Seed { get; init; }
+    /// is generated on every GetData call. A plain int, not int? -
+    /// attribute named arguments cannot target a Nullable<T> property
+    /// (CS0655), so this mirrors Xunit.v3.DataAttribute's own
+    /// Timeout/TimeoutAsNullable pair exactly (confirmed against the real
+    /// xunit.v3.core assembly): a public, attribute-legal int property,
+    /// backed by the private _seed field above, which the internal
+    /// SeedAsNullable property exposes for the binding algorithm to
+    /// actually read.
+    public int Seed
+    {
+        get => _seed ?? default;
+        set => _seed = value;
+    }
+
+    /// The value actually assigned to Seed, or null if it was never set -
+    /// distinguishes "configured to 0" from "never configured," which the
+    /// public Seed property alone cannot (its getter falls back to
+    /// default(int), i.e. 0, when unset). The binding algorithm reads this,
+    /// never Seed directly.
+    internal int? SeedAsNullable => _seed;
 
     public override ValueTask<IReadOnlyCollection<ITheoryDataRow>> GetData(
         MethodInfo testMethod, DisposalTracker disposalTracker);
@@ -205,7 +225,7 @@ public void Reproduces_failure(Order order) { }
    first, and checking cached validation second, is what lets every
    `Compono.Xunit`-authored failure (signature or binding) report the
    row's real seed, not a value invented before one existed.
-3. **If `Seed` was configured and is negative, throw now**, using
+3. **If `SeedAsNullable` has a value and it's negative, throw now**, using
    `row.Seed` (which just echoes the rejected value back — it was
    supplied explicitly, so there's nothing to discover) — a plain-message
    `CompositionException` stating `Compono.Xunit` accepts only
@@ -250,9 +270,21 @@ public void Reproduces_failure(Order order) { }
      check is purely nullability-based, never a runtime-type check
      (`null` has no runtime type to inspect at all).
    - **`inlineValues[i]` is non-`null`**: valid only if its runtime type
-     (`inlineValues[i]!.GetType()`) is assignable to parameter `i`'s
-     declared type; otherwise a pre-composition `CompositionException`
-     naming the parameter and both types.
+     (`inlineValues[i]!.GetType()`) is assignable to `Nullable.GetUnderlyingType(parameterType)
+     ?? parameterType` — **never the raw declared type directly**. A
+     non-null `Nullable<T>` boxes as a boxed `T`, not a boxed
+     `Nullable<T>` (a CLR nullable-boxing rule, not a Compono
+     convention), so `[Compose(42)]` targeting an `int?` parameter boxes
+     to `System.Int32`; checking assignability against the declared
+     `int?` directly would reject it (`typeof(int?).IsAssignableFrom(typeof(int))`
+     is `false`) despite nullable parameters being fully supported
+     (Async and Unsupported Shapes, below). Unwrapping to the underlying
+     type first — a no-op for a non-nullable parameter, since
+     `Nullable.GetUnderlyingType` returns `null` and the `??` falls back
+     to `parameterType` unchanged — is what makes the check correct for
+     both. Otherwise (still not assignable after unwrapping) a
+     pre-composition `CompositionException` naming the parameter and both
+     types.
    Inline values may not target a *later* parameter while an earlier one
    is composed — this is a deliberate limitation (see Non-goals), not a
    distinct failure mode to diagnose.
@@ -272,7 +304,10 @@ public void Reproduces_failure(Order order) { }
 7. **Compose every remaining (non-inline, non-shared) parameter**, in
    declaration order, via its cached `Resolve` invoker.
 8. **Assemble the final `object?[]` in method declaration order** (not
-   binding-processing order) and return it as the row's `TheoryDataRow`.
+   binding-processing order) and return it as the row's `TheoryDataRow`,
+   with `Traits["Compono.Seed"] = [row.Seed.ToString()]` set unconditionally
+   — see Seed Policy and Reporting below for why every row carries this,
+   pass or fail.
 
 Optional parameters (a C# default value) are composed exactly like
 required ones whenever not inline-supplied — `Compono.Xunit` always
@@ -411,9 +446,10 @@ applied exactly once, when the method's cached `Composer` is first built
 
 ### Seed policy and reporting (design question 9)
 
-`ComposeAttribute.Seed` (an `int?`, matching `CompositionBuilder.WithSeed(int)`'s
-existing public type) feeds `builder.WithSeed(Seed.Value)` when set. When
-unset, `Composer.CreateRow(...)`'s `_configuration.Seed ??
+`ComposeAttribute.SeedAsNullable` (backing the attribute-legal `int Seed`
+property — see Attribute Surface above for why it isn't `int?` directly)
+feeds `builder.WithSeed(SeedAsNullable.Value)` when it has a value. When
+it doesn't, `Composer.CreateRow(...)`'s `_configuration.Seed ??
 CompositionSeed.GenerateRowSeed()` fallback ([ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md))
 applies unchanged — every `GetData` call without an explicit seed
 generates a fresh one, drawn from `int`'s range specifically (unlike an
@@ -466,16 +502,35 @@ distinction:
   `row.Seed`, the `int`), so every failure category — pipeline or
   `Compono.Xunit`-owned — reports a seed the user can paste directly into
   `[Compose(Seed = ...)]` to reproduce it, with no exceptions.
-- **Assertion/test failure after successful composition**: entirely
-  xUnit's own concern once `GetData` has returned a valid row —
-  `Compono.Xunit` has nothing further to do with it.
+- **Assertion/test failure after successful composition**: xUnit's own
+  concern once `GetData` has returned a valid row — `Compono.Xunit`
+  never re-enters the picture to report or interpret the assertion
+  failure itself. But this is the single most common real-world failure
+  shape (composed data happened to trigger a bug the assertion catches),
+  and `docs/mvp.md`'s Milestone 4 exit criterion ("failure output
+  includes a seed") isn't scoped to composition failures only — a design
+  that drops the seed the moment composition succeeds leaves exactly this
+  case unreproducible, which an earlier revision of this ADR got wrong.
+  **Every row carries its seed as an `ITheoryDataRow` trait**
+  (`"Compono.Seed"` → `row.Seed.ToString()`), set unconditionally in
+  `GetData`, regardless of whether the test that row feeds will pass or
+  fail — `Compono.Xunit` cannot know the outcome at `GetData` time, so
+  the trait can't be applied only-on-failure. This is what makes the
+  seed discoverable for *any* failure, composition or assertion, without
+  reopening "avoid noisy default output" for the passing case: a trait is
+  metadata a runner surfaces when inspecting a specific test's details or
+  filtering by trait, not something injected into the default pass/fail
+  console summary line the way a `TestDisplayName` change would be for
+  *every* row, including ones that never fail at all.
 
-**Successful rows do not surface the seed anywhere by default** (not in
-`TestDisplayName`, not in any output) — this is the "avoid noisy default
-output" instruction taken literally: nothing about a passing test's
-console/IDE output changes because it happened to be composed. A future,
-explicit verbosity opt-in is a deferred, non-goal capability, not part of
-this milestone.
+**A successful row's default console/IDE output is otherwise unchanged**
+— no seed text is added to `TestDisplayName` or printed anywhere for a
+passing test; the trait above is the only artifact, and it's inert until
+someone actually inspects or filters on it. This is the "avoid noisy
+default output" instruction honored for the common (passing) case, while
+still satisfying the exit criterion for every failure case, not just
+composition ones. A richer, always-visible verbosity opt-in (e.g. the
+seed inline in the test name) remains a deferred, non-goal capability.
 
 ### Diagnostics and exceptions (design question 10)
 
@@ -610,9 +665,13 @@ freshly-constructed attribute instance simply repopulates its own
   `GetData(MethodInfo, DisposalTracker)` directly against attribute
   instances constructed over hand-built sample methods, covering the
   binding algorithm (inline-only, composed-only, mixed, too-many-inline,
-  non-null type-mismatch), inline `null` handling specifically (a `null`
-  inline value accepted for a nullable reference-typed parameter and for
-  a nullable value-typed (`Nullable<T>`) parameter; rejected with a clear
+  non-null type-mismatch), a non-null inline value **accepted** for a
+  `Nullable<T>` parameter specifically (e.g. `[Compose(42)]` for an `int?`
+  parameter) — the case a naive declared-type assignability check gets
+  wrong via CLR nullable boxing, proving the `Nullable.GetUnderlyingType`
+  unwrap actually fixes it — inline `null` handling (a `null` inline
+  value accepted for a nullable reference-typed parameter and for a
+  nullable value-typed (`Nullable<T>`) parameter; rejected with a clear
   pre-composition exception for a non-nullable reference-typed parameter
   and for a non-nullable value-typed parameter — all four combinations,
   covering both an ordinary and an inline-`[Shared]` target parameter, per
@@ -632,10 +691,13 @@ freshly-constructed attribute instance simply repopulates its own
   pasteable-seed promise itself, not just its presence — a
   deliberately-failing composition's message containing exactly
   `row.Seed`'s `int` value for both an auto-generated seed and an
-  explicit non-negative one, plus a concurrency-stress test (`Parallel.For`
-  calling `GetData` many times on one shared, cached attribute instance,
-  asserting no exceptions or data races from `Lazy<Composer>`
-  publication).
+  explicit non-negative one, the `"Compono.Seed"` trait present on every
+  returned `ITheoryDataRow` with a value matching `row.Seed` exactly —
+  for both a passing-shaped and a failing-shaped row, proving it's
+  unconditional rather than only attached on the failure path — and a
+  concurrency-stress test (`Parallel.For` calling `GetData` many times on
+  one shared, cached attribute instance, asserting no exceptions or data
+  races from `Lazy<Composer>` publication).
 - **`test/Compono.Xunit.SampleTests`**: a genuinely separate, ordinary
   xUnit v3 project (`ProjectReference` to `Compono.Xunit` during
   development; also consumed from a local package feed after `dotnet
@@ -667,6 +729,12 @@ freshly-constructed attribute instance simply repopulates its own
   v2 — the discovery/execution split, the exact `GetData` signature, and
   `NullabilityInfoContext`'s applicability were all confirmed by
   reflecting the actual 3.2.2 package before this ADR was written.
+- Every row's seed is reproducible, not just a composition-failing one —
+  the `"Compono.Seed"` trait closes the gap a first pass at this ADR
+  left open (an assertion failure after successful composition had no
+  way to recover which seed produced the data that triggered it),
+  satisfying `docs/mvp.md`'s Milestone 4 exit criterion for every failure
+  shape rather than only the composition-failure one.
 
 ### Negative Consequences
 
@@ -703,9 +771,12 @@ freshly-constructed attribute instance simply repopulates its own
   Milestone 4; type-based only, per [ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md).
 - **`CancellationToken` composition support** — no built-in provider;
   ordinary "unsupported type" failure unless inline/shared/registered.
-- **Exposing the seed on a successful row's display name/output** —
-  deliberately not built, to avoid noisy default output; a future
-  verbosity opt-in is not designed here.
+- **Exposing the seed inline in a successful row's `TestDisplayName` or
+  console output** — deliberately not built, to avoid noisy default
+  output for the passing case; the `"Compono.Seed"` trait (Seed Policy
+  and Reporting) already makes the seed discoverable for every row,
+  including a later assertion failure, without needing this. A future,
+  always-visible verbosity opt-in beyond the trait is not designed here.
 - **Combining `[Compose]` with ordinary `[InlineData]`/`[MemberData]`** —
   not supported; each xUnit data attribute is an independent row source.
 - **Stacking multiple `[Compose...]` attributes on one method** —

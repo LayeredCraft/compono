@@ -144,9 +144,13 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `PackageReference` to `Compono` + `xunit.v3.extensibility.core`).
 - [ ] `SharedAttribute` (parameter-targeted marker).
 - [ ] `ComposeAttribute` (`Xunit.v3.DataAttribute`): constructor
-      (`params object?[] inlineValues`), `Seed` property,
-      `SupportsDiscoveryEnumeration() => false`, `GetData` stub wired to
-      Phase 2's binding algorithm.
+      (`params object?[] inlineValues`), a plain attribute-legal
+      `int Seed { get; set; }` backed by a private `int? _seed` field
+      with an internal `SeedAsNullable` property the binding algorithm
+      actually reads (mirroring `Xunit.v3.DataAttribute`'s own
+      `Timeout`/`TimeoutAsNullable` pair — `int?` itself cannot be an
+      attribute named-argument target, CS0655), `SupportsDiscoveryEnumeration() => false`,
+      `GetData` stub wired to Phase 2's binding algorithm.
 - [ ] `ComposeAttribute<TProfile> : ComposeAttribute where TProfile :
       ICompositionProfile, new()`.
 - [ ] `Lazy<Composer>` + immutable binding-plan caching, keyed to the
@@ -197,8 +201,8 @@ the cache built once in Phase 1; everything after is per-row):
       every failure this package reports must include the row's real
       seed, so the row has to exist first even for a signature that's
       about to be rejected.
-- [ ] **If `Seed` was configured and is negative, throw now**, using
-      `row.Seed` (echoing the rejected value back). This is what makes
+- [ ] **If `SeedAsNullable` has a value and it's negative, throw now**,
+      using `row.Seed` (echoing the rejected value back). This is what makes
       every row `Compono.Xunit` creates have a non-negative seed
       unconditionally — `CompositionBuilder.WithSeed(int)` itself has no
       such restriction and happily accepts a negative value when the
@@ -225,9 +229,13 @@ the cache built once in Phase 1; everything after is per-row):
         naming the parameter. Nullability-based only — never a
         `GetType()` call on a `null`.
       - `inlineValues[i]` non-`null` → valid only if
-        `inlineValues[i]!.GetType()` is assignable to parameter `i`'s
-        declared type; otherwise a pre-composition `CompositionException`
-        naming the parameter and both types.
+        `inlineValues[i]!.GetType()` is assignable to
+        `Nullable.GetUnderlyingType(parameterType) ?? parameterType` —
+        **not** the raw declared type directly (a non-null `Nullable<T>`
+        boxes as a boxed `T`, so `[Compose(42)]` for an `int?` parameter
+        would be wrongly rejected against the raw `int?` type); otherwise
+        a pre-composition `CompositionException` naming the parameter and
+        both types.
       Both categories use the appended `Seed:` line (`row.Seed`).
 - [ ] `[Shared]`-first, declaration-order composition (composed via each
       parameter's cached `resolveSharedInvoker`, inline via
@@ -239,7 +247,13 @@ the cache built once in Phase 1; everything after is per-row):
       **in method declaration order** — binding/composition order (shared
       first, then the rest) and output order are intentionally different;
       the array passed to `TheoryDataRow` must match the method's own
-      parameter order.
+      parameter order. Set `Traits["Compono.Seed"] = [row.Seed.ToString()]`
+      unconditionally, on every row regardless of whether it will pass or
+      fail — the milestone's "failure output includes a seed" exit
+      criterion isn't scoped to composition failures only, and
+      `Compono.Xunit` can't know at `GetData` time whether the theory
+      body will later throw its own assertion failure, so the trait can't
+      be applied only-on-failure.
 
 ### Phase 3: Test suites and verification (ADR-0022's Testing Strategy)
 
@@ -259,6 +273,15 @@ the cache built once in Phase 1; everything after is per-row):
       value-typed parameter — each combination covered for both an
       ordinary parameter and an inline-`[Shared]` parameter, asserting
       rejection happens before `ShareExplicit`'s invoker is ever reached.
+- [ ] A **non-null** inline value targeting a `Nullable<T>` parameter is
+      **accepted** (e.g. `[Compose(42)]` for an `int?` parameter) — the
+      regression test for the boxed-`T`-vs-boxed-`Nullable<T>` bug the
+      `Nullable.GetUnderlyingType` unwrap fixes; without the unwrap this
+      case fails even though nullable parameters are fully supported.
+- [ ] Every returned `ITheoryDataRow` carries a `"Compono.Seed"` trait
+      matching `row.Seed` exactly, for both a passing-shaped row and a
+      deliberately-failing one — proving the trait is unconditional, not
+      only attached when composition is about to fail.
 - [ ] Cached invoker delegates: `MakeGenericMethod` construction runs
       exactly once per parameter across many repeated `GetData` calls on
       one attribute instance (not once per row); a value-typed and a
