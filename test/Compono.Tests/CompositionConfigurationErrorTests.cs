@@ -12,4 +12,12 @@ public sealed class CompositionConfigurationErrorTests
 
         error.Sources.Should().ContainSingle();
     }
+
+    [Fact]
+    public void DuplicateConfigurationOption_Sources_IsNotAConcreteArray_SoACallerCannotCastBackAndMutateIt()
+    {
+        var error = new CompositionConfigurationError.DuplicateConfigurationOption("WithSeed", [ConfigurationSource.Direct]);
+
+        (error.Sources is ConfigurationSource[]).Should().BeFalse();
+    }
 }

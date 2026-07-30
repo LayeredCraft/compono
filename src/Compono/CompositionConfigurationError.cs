@@ -35,10 +35,11 @@ public abstract record CompositionConfigurationError
         public string OptionName { get; }
 
         /// <summary>
-        /// Every call that set this option, in call order - always at least two. An immutable
-        /// snapshot taken at construction, never the caller-supplied list itself - the same
-        /// mutation-after-construction concern <see cref="CompositionConfigurationException.Errors"/>
-        /// guards against, one level deeper.
+        /// Every call that set this option, in call order - always at least two. A genuinely
+        /// immutable snapshot (<see cref="ImmutableSnapshot"/>) taken at construction, never the
+        /// caller-supplied list itself and never a plain array a caller could cast back to and
+        /// mutate - the same mutation-after-construction concern
+        /// <see cref="CompositionConfigurationException.Errors"/> guards against, one level deeper.
         /// </summary>
         public IReadOnlyList<ConfigurationSource> Sources { get; }
 
@@ -52,7 +53,7 @@ public abstract record CompositionConfigurationError
         public DuplicateConfigurationOption(string optionName, IReadOnlyList<ConfigurationSource> sources)
         {
             OptionName = optionName;
-            Sources = [.. sources];
+            Sources = ImmutableSnapshot.Of(sources);
         }
     }
 }

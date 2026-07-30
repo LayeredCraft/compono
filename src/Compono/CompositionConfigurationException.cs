@@ -13,9 +13,11 @@ namespace Compono;
 public sealed class CompositionConfigurationException : Exception
 {
     /// <summary>
-    /// Every conflict found - always at least one. An immutable snapshot taken at construction, never
-    /// the caller-supplied list itself - it can never drift from the already-rendered
-    /// <see cref="Exception.Message"/>.
+    /// Every conflict found - always at least one. A genuinely immutable snapshot
+    /// (<see cref="ImmutableSnapshot"/>) taken at construction, never the caller-supplied list itself
+    /// and never a plain array a caller could cast back to and mutate - it can never drift from the
+    /// already-rendered <see cref="Exception.Message"/>, which is derived from this exact same
+    /// snapshot.
     /// </summary>
     public IReadOnlyList<CompositionConfigurationError> Errors { get; }
 
@@ -31,24 +33,33 @@ public sealed class CompositionConfigurationException : Exception
     /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="errors"/> is empty.</exception>
     public CompositionConfigurationException(IReadOnlyList<CompositionConfigurationError> errors)
-        : base(BuildMessage(RequireErrors(errors)))
+        : this(Prepare(errors))
     {
-        // Snapshotted, not the caller-supplied list itself - Message above is rendered once, from
-        // this same base-initializer call; if Errors instead aliased a caller-retained mutable list
-        // (Build()'s own accumulator is a plain List<T> under the IReadOnlyList<T> parameter type),
-        // a later mutation would make Errors and the already-rendered Message silently disagree.
-        // errors has already passed RequireErrors' validation by the time this line runs - the base
-        // initializer above would have thrown first otherwise - so no need to validate it again here.
-        Errors = [.. errors];
     }
 
-    private static IReadOnlyList<CompositionConfigurationError> RequireErrors(IReadOnlyList<CompositionConfigurationError> errors)
+    // A constructor's base-initializer and body can't share a local variable directly, but Message
+    // and Errors both need to be derived from the exact same snapshot - enumerating errors twice
+    // (once to build the message, once to snapshot Errors) would let a mutable or lazily-computed
+    // custom IReadOnlyList<T> implementation observe different contents between those two passes.
+    // Preparing both values once, together, in a static helper - then threading them through this
+    // private tuple-taking constructor - is what guarantees a single enumeration and a single,
+    // genuinely immutable (ImmutableSnapshot, not just an array under an IReadOnlyList<T> a caller
+    // could cast back to and mutate) source of truth for both.
+    private CompositionConfigurationException((string Message, IReadOnlyList<CompositionConfigurationError> Errors) prepared)
+        : base(prepared.Message)
+    {
+        Errors = prepared.Errors;
+    }
+
+    private static (string Message, IReadOnlyList<CompositionConfigurationError> Errors) Prepare(
+        IReadOnlyList<CompositionConfigurationError> errors)
     {
         ArgumentNullException.ThrowIfNull(errors);
         if (errors.Count == 0)
             throw new ArgumentException("At least one error is required.", nameof(errors));
 
-        return errors;
+        var snapshot = ImmutableSnapshot.Of(errors);
+        return (BuildMessage(snapshot), snapshot);
     }
 
     private static string BuildMessage(IReadOnlyList<CompositionConfigurationError> errors) =>

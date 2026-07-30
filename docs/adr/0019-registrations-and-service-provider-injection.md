@@ -293,26 +293,48 @@ an input.
   to a configuration-rule factory (`.For<Customer>().Member(x => x.Y).Use(context =>
   context.Resolve<Customer>()...)`) resolving its own declaring type.
 
-  **Fix: registration and rule factory invocation get their own construction-cycle
-  guard**, reusing the same active-construction-frame stack ADR-0011 already
-  defined — extending *when* it's consulted, not redefining what it is or editing
-  ADR-0011's own `Accepted` text (which correctly scoped it to stage 8 for the
-  capabilities that existed in Milestone 2; registration/rule factories are a new
-  capability this ADR introduces, with a new moment that needs the same guarantee).
-  `CompositionContext` pushes the requested type onto the active-construction-frame
-  stack immediately before invoking a stage-3 registration factory or a stage-4
-  compiled rule's factory, and pops it in a `finally` immediately after — the exact
-  push-before/pop-in-`finally` shape the stack already uses for stage 8. If that
-  type is already active on the stack (whether from an enclosing generated-plan
-  dispatch, an enclosing registration/rule factory, or any combination), the nested
-  call is a genuine cycle: it fails with the same kind of diagnosable
-  `CompositionException` stage 8's cycle detection already produces (naming the
-  chain), never a `StackOverflowException`. A registration/rule factory that
-  resolves some *other* type — one whose own construction eventually reaches stage
-  8 for a *different* type than the one currently being resolved by an *outer*
-  registration/rule factory — is unaffected; the guard only fires when a type
-  already active on the stack is requested again, exactly like stage 8's existing
-  check.
+  **Fix, corrected once more after a second review pass: track re-entrance into
+  the same factory, not "is this type already under construction anywhere."**
+  A first attempt at this fix reused ADR-0011's type-keyed active-construction-frame
+  stack directly — pushing the requested type before invoking any registration/rule
+  factory targeting it, checked against the *same* stack stage 8 already pushes
+  onto. That's wrong, and rejects a legitimate, already-documented pattern: per
+  `docs/architecture.md`'s Recursion Detection section, a self-referencing type
+  terminated by a registration or shared value is explicitly supposed to *never*
+  touch the recursion mechanism at all. Consider a self-referencing `Node` with a
+  `Node? Child` property, composed via its generated plan (which pushes `Node` onto
+  the stage-8 frame stack), where a member rule terminates the graph:
+  `.For<Node>().Member(x => x.Child).Use(_ => new Node(null))`. Sharing one
+  type-keyed stack between stage 8 and factory invocation means invoking *this*
+  rule's factory — which doesn't recurse at all, it just returns a leaf value
+  directly — would see `Node` already active (the *outer* generated plan's own
+  frame) and reject it as a false cycle, before the factory ever runs. Type-keyed
+  tracking conflates "some type is under construction somewhere in the ancestor
+  chain" (ordinary graph shape, not a cycle — `docs/architecture.md`'s own
+  distinction) with "this specific factory is calling back into itself" (the actual
+  cycle this ADR needs to catch).
+
+  The corrected guard tracks **factory re-entrance by identity, in a stack separate
+  from ADR-0011's type-keyed one**, never shared with stage 8: `CompositionContext`
+  pushes the specific `Func<...>` delegate instance about to be invoked (the exact
+  registration's factory, or the exact compiled rule's factory — each registration/
+  rule captures exactly one such delegate once, at configuration time, reused for
+  every resolution that reaches it) onto this new stack immediately before invoking
+  it, and pops it in a `finally` immediately after — same push-before/pop-in-`finally`
+  shape as every other frame mechanism in this codebase, just keyed by delegate
+  identity instead of `Type`. If that *exact* delegate is already active on this
+  stack, invoking it again is a genuine self-recursive cycle (the delegate calling
+  back into resolving a request that routes to itself, directly or transitively) —
+  it fails with the same kind of diagnosable `CompositionException` stage 8's cycle
+  detection already produces, never a `StackOverflowException`. Two *different*
+  registrations/rules that happen to both target the same type (or a rule and an
+  enclosing generated plan for the same type, as in the `Node.Child` example above)
+  are different delegate instances — no collision, exactly the outcome
+  `docs/architecture.md` already documents as correct. `Register<IClock>(context =>
+  context.Resolve<IClock>())` is still caught correctly: the nested
+  `Resolve<IClock>()` call routes to stage 3, finds the same registration, and
+  would invoke the *same* delegate instance again — already active on the
+  factory-reentrance stack, correctly rejected.
 - **Reproducible across repeated compositions with the same seed.** `Ordinal`
   depends only on call sequence within one deterministic factory/rule invocation —
   given the same configuration (same registrations/rules, same call graph), two
@@ -350,13 +372,17 @@ an input.
 - The `ManualResolve` invocation-frame counter is a small but genuine addition to
   `CompositionContext`'s internal per-request state — not free, though bounded (one
   `int` per active manual-resolve invocation, popped when that invocation returns).
-- Extending the active-construction-frame stack's consultation points to
-  registration/rule factory invocation (not just stage 8) is genuine new logic this
-  ADR adds, corrected from an earlier draft that incorrectly assumed the existing
-  stage-8-only check already covered it — a real gap, not a documentation-only
-  fix, and one that needs its own regression test (a self-referencing registration
-  and a self-referencing rule, each failing with a diagnosable exception instead of
-  a `StackOverflowException`).
+- A separate, factory-identity-keyed re-entrance stack (not shared with ADR-0011's
+  type-keyed one) is genuine new logic and new per-context state this ADR adds —
+  corrected twice: first from an earlier draft that incorrectly assumed the
+  existing stage-8-only check already covered this case at all, then from a second
+  draft that shared ADR-0011's type-keyed stack directly and would have rejected
+  legitimate cycle-terminating rules as false positives. Needs its own regression
+  tests: a self-referencing registration/rule failing with a diagnosable exception
+  instead of a `StackOverflowException`, **and** a rule that legitimately
+  terminates a self-referencing generated-plan graph (the `Node.Child` case above)
+  succeeding rather than being incorrectly rejected — both matter, not just the
+  failure case.
 - The single-`IServiceProvider` restriction means a consumer wanting a fallback
   chain across multiple containers has no supported way to express it in M3 —
   accepted as an explicit non-goal rather than a gap, since no concrete use case
@@ -437,9 +463,11 @@ an input.
   `ICompositionContext`/`CompositionRequestDescriptor`/`CompositionRequestKind`
   contract this ADR additively extends
 - [ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md) — the
-  active-construction-frame stack this ADR extends the consultation points of
-  (registration/rule factory invocation, alongside stage 8), without editing that
-  ADR's own `Accepted` text
+  type-keyed active-construction-frame stack (stage 8 only) this ADR's own,
+  separate factory-identity-keyed re-entrance guard is deliberately *not* merged
+  with, and the "self-referencing type terminated by a registration/rule never
+  touches recursion detection" architectural rule this ADR's corrected design now
+  actually preserves rather than accidentally violating
 - [ADR-0012](0012-composition-path-identity-and-deterministic-random-forking.md) — the
   structural-forking reproducibility contract `ManualResolve`'s ordinal counter
   exists to preserve

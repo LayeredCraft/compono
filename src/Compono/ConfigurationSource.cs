@@ -25,8 +25,26 @@ public abstract record ConfigurationSource
     /// A builder call made from inside a profile's <c>Configure</c>, or nested inside another
     /// profile's <c>Configure</c>.
     /// </summary>
-    /// <param name="Profiles">The applied profile types, outermost first.</param>
-    public sealed record ProfileChain(IReadOnlyList<Type> Profiles) : ConfigurationSource;
+    public sealed record ProfileChain : ConfigurationSource
+    {
+        /// <summary>
+        /// The applied profile types, outermost first. A genuinely immutable snapshot
+        /// (<see cref="ImmutableSnapshot"/>) taken at construction, never the caller-supplied list
+        /// itself - the same mutation-after-construction concern
+        /// <see cref="CompositionConfigurationException.Errors"/> guards against.
+        /// </summary>
+        public IReadOnlyList<Type> Profiles { get; }
+
+        /// <summary>Creates a <see cref="ProfileChain"/> source.</summary>
+        /// <param name="profiles">
+        /// The applied profile types, outermost first. Copied into an immutable snapshot - mutating
+        /// a list passed here after this constructor returns has no effect on <see cref="Profiles"/>.
+        /// </param>
+        public ProfileChain(IReadOnlyList<Type> profiles)
+        {
+            Profiles = ImmutableSnapshot.Of(profiles);
+        }
+    }
 
     private sealed record DirectSource : ConfigurationSource;
 }

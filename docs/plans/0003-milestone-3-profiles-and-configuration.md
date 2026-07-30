@@ -299,19 +299,28 @@ exist to source anything).
       factory that itself triggers a nested factory invocation gets a **new**,
       independent frame for that nested call, never the outer counter continued.
       `CompositionRequestKind.ManualResolve` extends the existing enum
-- [ ] **Construction-cycle guard around registration/rule factory invocation**
-      (ADR-0019 correction) — a genuine gap found during PR review, not just a
+- [ ] **Factory-reentrance guard around registration/rule factory invocation**
+      (ADR-0019 correction, revised twice during review) — a genuine gap, not a
       docs fix: stage 3/4 registrations and rules are checked *before* stage 8, so
       a self-referencing registration/rule (`Register<IClock>(context =>
       context.Resolve<IClock>())`) never reaches the existing active-construction-
-      frame check at all and recurses to `StackOverflowException`. Fix: push the
-      requested type onto the same active-construction-frame stack
-      ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md))
-      immediately before invoking a registration or rule factory, pop in `finally`;
-      a type already active on the stack (from an enclosing generated-plan
-      dispatch or an enclosing factory invocation) fails with a diagnosable
-      `CompositionException` naming the chain, the same shape stage 8's existing
-      cycle failure already produces — never a raw stack overflow
+      frame check at all and recurses to `StackOverflowException`. **Do not** push
+      the requested *type* onto ADR-0011's existing type-keyed active-construction-
+      frame stack (a first-draft fix that would reject a legitimate cycle-
+      terminating rule as a false positive — e.g. a self-referencing `Node`'s
+      generated plan active on that stack, with a `.Member(x => x.Child).Use(_ =>
+      new Node(null))` rule correctly terminating the graph without recursing at
+      all). Instead: a **separate stack, keyed by factory delegate identity**, not
+      type — push the specific `Func<...>` instance about to be invoked (the exact
+      registration's or compiled rule's factory) immediately before invoking it,
+      pop in `finally`; if that *same delegate instance* is already active, it's a
+      genuine self-recursive cycle (the factory calling back into resolving a
+      request that routes to itself) and fails with a diagnosable
+      `CompositionException` naming the chain — never a raw stack overflow. Two
+      different registrations/rules targeting the same type, or a rule and an
+      unrelated enclosing generated plan for the same type, never collide, since
+      they're different delegate instances — this is what keeps the
+      `Node.Child`-style terminator working correctly
 - [ ] `Build()` validation: scan the accumulated registration list for duplicate
       exact-registration types; on any duplicate, add a `DuplicateRegistration`
       error (affected type, contributing `Sources`) to the aggregated list; on no
@@ -350,8 +359,14 @@ exist to source anything).
       (`Register<IClock>(context => context.Resolve<IClock>())`) and a
       self-referencing configuration rule each fail with a diagnosable
       `CompositionException` naming the cycle, not a `StackOverflowException` —
-      the construction-cycle guard's own regression test, with a timeout/bounded
-      assertion so a regression here fails the test suite rather than hanging it
+      the factory-reentrance guard's own regression test, with a timeout/bounded
+      assertion so a regression here fails the test suite rather than hanging it;
+      **and, equally important, a rule that legitimately terminates a self-
+      referencing generated-plan graph succeeds rather than being rejected** (a
+      self-referencing `Node` composed through its real generated plan, with a
+      `.Member(x => x.Child).Use(_ => new Node(null))` rule terminating it) — this
+      is the regression test proving the guard doesn't share ADR-0011's type-keyed
+      stack and doesn't reject the false-positive case review caught
 
 ### Phase 2 — Profiles
 
