@@ -320,7 +320,13 @@ exist to source anything).
       different registrations/rules targeting the same type, or a rule and an
       unrelated enclosing generated plan for the same type, never collide, since
       they're different delegate instances — this is what keeps the
-      `Node.Child`-style terminator working correctly
+      `Node.Child`-style terminator working correctly. The guard *mechanism* is
+      built once, here, since registrations already need it; **its rule-specific
+      regression coverage (a self-referencing rule, and the `Node.Child` legitimate-
+      termination case) is Phase 3's task, not this one** — rules don't exist as an
+      API until Phase 3, so a test exercising `.Member(...).Use(...)` can't compile
+      if this phase ships as its own PR before Phase 3 lands, per this plan's own
+      phase-independence requirement
 - [ ] `Build()` validation: scan the accumulated registration list for duplicate
       exact-registration types; on any duplicate, add a `DuplicateRegistration`
       error (affected type, contributing `Sources`) to the aggregated list; on no
@@ -356,17 +362,15 @@ exist to source anything).
       test-double `IServiceProvider` that fails the test if `Dispose`/scope-related
       members are ever touched); `UseServiceProvider` called twice throws with one
       `DuplicateConfigurationOption` error; a self-referencing registration
-      (`Register<IClock>(context => context.Resolve<IClock>())`) and a
-      self-referencing configuration rule each fail with a diagnosable
-      `CompositionException` naming the cycle, not a `StackOverflowException` —
-      the factory-reentrance guard's own regression test, with a timeout/bounded
-      assertion so a regression here fails the test suite rather than hanging it;
-      **and, equally important, a rule that legitimately terminates a self-
-      referencing generated-plan graph succeeds rather than being rejected** (a
-      self-referencing `Node` composed through its real generated plan, with a
-      `.Member(x => x.Child).Use(_ => new Node(null))` rule terminating it) — this
-      is the regression test proving the guard doesn't share ADR-0011's type-keyed
-      stack and doesn't reject the false-positive case review caught
+      (`Register<IClock>(context => context.Resolve<IClock>())`) fails with a
+      diagnosable `CompositionException` naming the cycle, not a
+      `StackOverflowException` — the factory-reentrance guard's own regression
+      test for the registration case, with a timeout/bounded assertion so a
+      regression here fails the test suite rather than hanging it. (The
+      equivalent rule-based tests — a self-referencing configuration rule, and the
+      `Node.Child` legitimate-termination case proving the guard doesn't share
+      ADR-0011's type-keyed stack — are Phase 3's task, once `.Member(...).Use(...)`
+      exists; see that phase's checklist)
 
 ### Phase 2 — Profiles
 
@@ -495,7 +499,18 @@ exist to source anything).
       this is the coverage that actually proves the documented "records always
       match, hand-written classes with divergent parameter/property naming are a
       known limitation" claim (ADR-0020) rather than leaving it asserted but
-      unverified
+      unverified; **the factory-reentrance guard's rule-specific coverage,
+      deferred here from Phase 1** since `.Member(...).Use(...)` didn't exist yet
+      when the guard itself was built: a self-referencing configuration rule
+      (`.For<IClock>().Use(context => context.Resolve<IClock>())`) fails with a
+      diagnosable `CompositionException`, not a `StackOverflowException`; and,
+      equally important, a rule that legitimately *terminates* a self-referencing
+      generated-plan graph succeeds rather than being incorrectly rejected — a
+      self-referencing `Node` composed through its real generated plan, with a
+      `.Member(x => x.Child).Use(_ => new Node(null))` rule terminating it — this
+      second case is the regression test proving the guard doesn't share
+      ADR-0011's type-keyed active-construction-frame stack and doesn't reject the
+      false-positive case review caught against Phase 1's first-draft design
 - [ ] `Compono.Generators.Tests`: at least one regenerated snapshot confirming
       `DeclaringType` in an emitted descriptor construction, and at least one
       regenerated collection-plan snapshot confirming the `ResolveCollectionSize`
