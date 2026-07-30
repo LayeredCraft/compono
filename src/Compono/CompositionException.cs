@@ -21,6 +21,15 @@ public sealed class CompositionException : Exception
     /// </summary>
     public CompositionDiagnostic? Diagnostic { get; }
 
+    // Distinguishes "this exception was thrown by CompositionContext itself, from a nested
+    // Resolve<T>() call whose own trace/path/seed are already fully baked into Diagnostic" from "a
+    // registration/rule factory constructed this via the public CompositionDiagnostic
+    // constructor below and threw it directly." Diagnostic alone can't make that distinction - the
+    // public (CompositionDiagnostic) constructor sets it too - so InvokeFactory's catch guard
+    // (docs/adr/0010) needs this instead: only a pipeline-diagnosed instance already carries this
+    // context's own ancestor path, not a factory-authored one.
+    internal bool IsPipelineDiagnosed { get; private init; }
+
     /// <summary>
     /// Creates a <see cref="CompositionException"/> with no structured <see cref="Diagnostic"/>.
     /// </summary>
@@ -76,4 +85,13 @@ public sealed class CompositionException : Exception
         ArgumentNullException.ThrowIfNull(innerException);
         return innerException;
     }
+
+    // The only construction path that sets IsPipelineDiagnosed - used exclusively by
+    // CompositionContext.BuildException, never by a factory/rule that constructs a
+    // CompositionException itself.
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic) =>
+        new(diagnostic) { IsPipelineDiagnosed = true };
+
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException) =>
+        new(diagnostic, innerException) { IsPipelineDiagnosed = true };
 }

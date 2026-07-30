@@ -411,15 +411,17 @@ internal sealed class CompositionContext : ICompositionContext
         {
             return factory(this);
         }
-        catch (CompositionException ex) when (ex.Diagnostic is not null)
+        catch (CompositionException ex) when (ex.IsPipelineDiagnosed)
         {
             // Already a fully-diagnosed CompositionException from a nested Resolve<T>() call made
-            // inside this factory - only BuildException sets Diagnostic, so its presence is what
-            // distinguishes this case from a factory throwing `new CompositionException("...")`
-            // directly (Diagnostic null, falls to the catch below instead). That failure's own
-            // Diagnostic (built from its own, more specific path/trace) is strictly more useful than
-            // anything this outer catch could construct. Re-wrapping it here would discard that detail
-            // behind a generic "the factory threw" message, so it's left to propagate exactly as-is.
+            // inside this factory - IsPipelineDiagnosed (set only by BuildException) is what
+            // distinguishes this case from a factory throwing a CompositionException it built itself,
+            // via either public constructor (Diagnostic null, or non-null via the public
+            // (CompositionDiagnostic) constructor - either falls to the catch below instead). That
+            // failure's own Diagnostic (built from its own, more specific path/trace) is strictly more
+            // useful than anything this outer catch could construct. Re-wrapping it here would discard
+            // that detail behind a generic "the factory threw" message, so it's left to propagate
+            // exactly as-is.
             throw;
         }
         catch (Exception ex)
@@ -566,13 +568,14 @@ internal sealed class CompositionContext : ICompositionContext
     // sibling has already rewound itself out, per CompositionTraceBuffer's remarks) into a durable
     // CompositionDiagnostic. _path is always non-null here: this is only ever called from inside
     // ResolveCore's try block, after _path has been pushed for the current node.
-    private CompositionException BuildException(Type failedType, string message) => new(BuildDiagnostic(failedType, message));
+    private CompositionException BuildException(Type failedType, string message) =>
+        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message));
 
     // The IServiceProvider fallback's throwing-container case is the only stage that needs to preserve
     // an original exception as InnerException (never `throw ex;`) - every other authoritative-stage
     // failure has no prior exception to preserve.
     private CompositionException BuildException(Type failedType, string message, Exception innerException) =>
-        new(BuildDiagnostic(failedType, message), innerException);
+        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), innerException);
 
     private CompositionDiagnostic BuildDiagnostic(Type failedType, string message) => new()
     {

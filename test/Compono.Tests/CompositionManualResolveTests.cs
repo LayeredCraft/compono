@@ -115,6 +115,36 @@ public sealed class CompositionManualResolveTests
     }
 
     [Fact]
+    public void InvokeFactory_WrapsACompositionExceptionConstructedWithADiagnosticAndThrownDirectlyByTheFactoryItself()
+    {
+        // A factory can also reach the public CompositionException(CompositionDiagnostic) constructor
+        // directly and throw the result without ever calling Resolve<T>() - that instance has a
+        // non-null Diagnostic too, so Diagnostic presence alone can't be what distinguishes a
+        // factory-authored throw from a nested Resolve<T>() failure (PR #17 review). It must still be
+        // treated as an ordinary factory-thrown exception: wrapped into an authoritative stage-3
+        // Failure with this call's own path/seed/trace, original preserved as InnerException.
+        var foreignDiagnostic = new CompositionDiagnostic
+        {
+            RootType = typeof(Failing),
+            FailedType = typeof(Failing),
+            Path = "unrelated-path",
+            Trace = [],
+            Seed = 0,
+            Message = "factory-authored failure, built from a diagnostic that was never produced by this context",
+        };
+        var original = new CompositionException(foreignDiagnostic);
+        var composer = Composer.Create(builder => builder.Register<Failing>(_ => throw original));
+
+        var act = () => composer.Create<Failing>();
+
+        var exception = act.Should().Throw<CompositionException>().Which;
+        exception.Should().NotBeSameAs(original);
+        exception.InnerException.Should().BeSameAs(original);
+        exception.Diagnostic.Should().NotBeNull();
+        exception.Diagnostic!.Should().NotBeSameAs(foreignDiagnostic);
+    }
+
+    [Fact]
     public void Resolve_WithNoActiveFactoryInvocation_Throws()
     {
         var context = new CompositionContext();
