@@ -1509,3 +1509,59 @@ All 510 `Compono.Tests`/`Compono.Generators.Tests` (up from 504) pass on both
   (unchanged — Phase 4 added no generator-facing code). Counted across both
   `net10.0`/`net11.0` runs, matching this plan's existing per-phase counting
   convention: 512 total (up from 510), all passing on both target frameworks.
+
+### PR #20 review (2026-07-30): two fixed, two deliberately deferred
+
+PR #20's first Codex review round flagged two real gaps in
+`ComposerEndToEndConfigurationTests`, both fixed (commit `913dc96`):
+
+1. **Shared `CollectionPlanCache<List<string>>` slot** — the new test reused the
+   exact closed generic `ComposerConfigurationRuleTests` already drives, a genuine
+   race under xUnit's default cross-class parallel execution (not a hypothetical —
+   this is the identical class of bug Phase 3's own Notes above already hit once
+   with `List<int>`). Fixed by giving the new test its own test-private `OrderTag`
+   element type, restoring the one-distinct-type-per-file convention every other
+   file in this project follows.
+2. **No direct registration in the combined graph** — the only exact registration
+   came from `ClockProfile`'s `Configure`; nothing exercised a top-level
+   `builder.Register<T>(...)` call coexisting with a profile-sourced one. Checked:
+   this combination (direct + profile, *different* types, no conflict) didn't exist
+   anywhere else in the suite either — `ComposerProfileTests` only pairs `Register`
+   with `AddProfile` in its *conflict* tests (same type, asserting a throw). A real,
+   previously-unverified gap against this plan's own Phase 4 checklist line. Fixed
+   by adding a directly-registered `IOrderNumberGenerator` dependency alongside the
+   profile-sourced `IClock` one.
+
+A second Codex review round (against `913dc96`) raised two more requests, both
+reviewed and **deliberately not implemented**, decided with the PR author:
+
+3. *"Exercise a type rule in the combined graph"* — the test only uses
+   `.For<Order>().Member(...).Use(...)`, never the distinct `.For<T>().Use(...)`
+   type-rule path. Checked: type-rule dispatch, and type-vs-member precedence
+   specifically, are already fully covered in isolation with real generated plans
+   (`ComposerConfigurationRuleTests.cs:20-21`, `:65`, `:125-126`). Stage 4 dispatches
+   type/member rules identically regardless of what stages 1-3/5-9 are doing —
+   there's no coupling a "combined" test would catch that the isolated tests
+   wouldn't. Deferred as low-incremental-value re-verification, not a real gap.
+4. *"Make the configured seed observable"* — `WithSeed(4219)` is set but nothing in
+   the graph's assertions actually depends on the random source. Checked: `WithSeed`
+   already has dedicated determinism-parity tests
+   (`ComposerConfigurationTests.cs`, Phase 0). Registrations/profiles/rules/
+   collection-size are structurally independent of seed derivation on
+   `CompositionConfiguration` — no plausible failure mode where they'd silently
+   break `WithSeed` specifically. Same reasoning as (3): already proven in
+   isolation, not this test's job.
+
+Both (3)/(4) fail the bar (1)/(2) cleared: a combination genuinely untested
+*anywhere*, including in isolation. (3)/(4) ask this one integration test to
+re-prove mechanics its own doc comment already disclaims re-testing ("not a
+re-test of any individual phase's own conflict/diagnostic logic — each phase's own
+test file already covers that in isolation"). Taking every such request as this
+PR's scope grows would make the checklist-completeness review pattern that caught
+(1)/(2) — and every real gap PR #19's six review rounds caught before it — open-
+ended rather than self-limiting once each phase's own isolated coverage already
+exists. Recorded here rather than silently dropped, per this repo's own
+deferred-feedback convention (`respond-to-pr-feedback.md`): if a future change
+does couple stage 4 rule dispatch to another stage's state, or introduces a
+seed-dependent code path in `CompositionConfiguration`'s other fields, that's the
+trigger to revisit — not a scheduled follow-up on its own.
