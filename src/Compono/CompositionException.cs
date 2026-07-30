@@ -21,14 +21,17 @@ public sealed class CompositionException : Exception
     /// </summary>
     public CompositionDiagnostic? Diagnostic { get; }
 
-    // Distinguishes "this exception was thrown by CompositionContext itself, from a nested
-    // Resolve<T>() call whose own trace/path/seed are already fully baked into Diagnostic" from "a
-    // registration/rule factory constructed this via the public CompositionDiagnostic
-    // constructor below and threw it directly." Diagnostic alone can't make that distinction - the
-    // public (CompositionDiagnostic) constructor sets it too - so InvokeFactory's catch guard
-    // (docs/adr/0010) needs this instead: only a pipeline-diagnosed instance already carries this
-    // context's own ancestor path, not a factory-authored one.
-    internal bool IsPipelineDiagnosed { get; private init; }
+    // Identifies the specific CompositionContext instance whose own BuildException produced this
+    // exception - not just "some context produced this," which a bare bool can't distinguish (PR #17
+    // review). A registration factory can capture and invoke an entirely different Composer (its own
+    // CompositionContext, a separate root operation) and let that composer's own pipeline-diagnosed
+    // exception escape, or rethrow one it captured earlier - a plain "is this pipeline-diagnosed"
+    // flag would mistake that foreign exception for the current context's own nested Resolve<T>()
+    // failure. InvokeFactory's catch guard (docs/adr/0010) must therefore compare this against `this`,
+    // not just check for non-null - only an exception this exact context instance diagnosed is safe
+    // to let propagate unwrapped; a foreign one still needs wrapping into this context's own
+    // authoritative stage-3 failure (path/seed/trace), per ADR-0019.
+    internal CompositionContext? DiagnosingContext { get; private init; }
 
     /// <summary>
     /// Creates a <see cref="CompositionException"/> with no structured <see cref="Diagnostic"/>.
@@ -86,12 +89,12 @@ public sealed class CompositionException : Exception
         return innerException;
     }
 
-    // The only construction path that sets IsPipelineDiagnosed - used exclusively by
-    // CompositionContext.BuildException, never by a factory/rule that constructs a
-    // CompositionException itself.
-    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic) =>
-        new(diagnostic) { IsPipelineDiagnosed = true };
+    // The only construction path that sets DiagnosingContext - used exclusively by
+    // CompositionContext.BuildException (passing its own `this`), never by a factory/rule that
+    // constructs a CompositionException itself.
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, CompositionContext diagnosingContext) =>
+        new(diagnostic) { DiagnosingContext = diagnosingContext };
 
-    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException) =>
-        new(diagnostic, innerException) { IsPipelineDiagnosed = true };
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException, CompositionContext diagnosingContext) =>
+        new(diagnostic, innerException) { DiagnosingContext = diagnosingContext };
 }

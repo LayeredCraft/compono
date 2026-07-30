@@ -100,9 +100,10 @@ public sealed class CompositionManualResolveTests
         // Deeper than InvokeFactory_DoesNotRewrapACompositionExceptionAlreadyThrownByANestedResolveCall:
         // there, the nested Resolve<T>() failure came from stage 9's terminal "no registration" throw.
         // Here it comes from a second, independent InvokeFactory frame (Inner is itself a registration
-        // whose factory throws) - proving IsPipelineDiagnosed survives being rethrown through an
-        // arbitrary number of ancestor InvokeFactory frames, not just a single level, without any of
-        // them re-wrapping it behind their own generic "the factory threw" message.
+        // whose factory throws) - proving DiagnosingContext survives being rethrown through an
+        // arbitrary number of ancestor InvokeFactory frames on the same context, not just a single
+        // level, without any of them re-wrapping it behind their own generic "the factory threw"
+        // message.
         var composer = Composer.Create(builder => builder
             .Register<FailingInner>(_ => throw new InvalidOperationException("inner factory blew up"))
             .Register<OuterWrapper>(ctx => new OuterWrapper(ctx.Resolve<FailingInner>())));
@@ -113,6 +114,39 @@ public sealed class CompositionManualResolveTests
             .WithMessage("*threw*inner factory blew up*").Which;
         exception.InnerException.Should().BeOfType<InvalidOperationException>()
             .Which.Message.Should().Be("inner factory blew up");
+    }
+
+    [Fact]
+    public void InvokeFactory_WrapsAPipelineDiagnosedExceptionThrownByADifferentComposer()
+    {
+        // A factory can capture and invoke an entirely different Composer - its own, separate
+        // CompositionContext/root operation - and let that composer's own fully-diagnosed
+        // CompositionException escape (PR #17 review). That foreign exception is just as
+        // "pipeline-diagnosed" as one from this context's own nested Resolve<T>() call - the
+        // distinction InvokeFactory must make is *which* context diagnosed it, not merely whether
+        // some context did. Letting it through unwrapped would hand the caller a foreign root type,
+        // path, seed, and trace instead of this registration's own authoritative stage-3 failure.
+        var foreignComposer = Composer.Create();
+        CompositionException? foreignException = null;
+        try
+        {
+            foreignComposer.Create<Unresolvable>();
+        }
+        catch (CompositionException ex)
+        {
+            foreignException = ex;
+        }
+
+        foreignException.Should().NotBeNull();
+        var composer = Composer.Create(builder => builder.Register<Failing>(_ => throw foreignException!));
+
+        var act = () => composer.Create<Failing>();
+
+        var exception = act.Should().Throw<CompositionException>().Which;
+        exception.Should().NotBeSameAs(foreignException);
+        exception.InnerException.Should().BeSameAs(foreignException);
+        exception.Diagnostic.Should().NotBeNull();
+        exception.Diagnostic.Should().NotBeSameAs(foreignException!.Diagnostic);
     }
 
     [Fact]

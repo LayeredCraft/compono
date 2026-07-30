@@ -411,13 +411,16 @@ internal sealed class CompositionContext : ICompositionContext
         {
             return factory(this);
         }
-        catch (CompositionException ex) when (ex.IsPipelineDiagnosed)
+        catch (CompositionException ex) when (ReferenceEquals(ex.DiagnosingContext, this))
         {
             // Already a fully-diagnosed CompositionException from a nested Resolve<T>() call made
-            // inside this factory - IsPipelineDiagnosed (set only by BuildException) is what
-            // distinguishes this case from a factory throwing a CompositionException it built itself,
-            // via either public constructor (Diagnostic null, or non-null via the public
-            // (CompositionDiagnostic) constructor - either falls to the catch below instead). That
+            // inside this factory, on this exact CompositionContext instance - DiagnosingContext (set
+            // only by this context's own BuildException) is what distinguishes this case from a
+            // factory throwing a CompositionException it built itself (DiagnosingContext null), or one
+            // it captured/rethrew from an entirely different CompositionContext - a separate
+            // Composer.Create call the factory happened to invoke (DiagnosingContext non-null, but a
+            // different instance - falls to the catch below either way, since only *this* context's
+            // own diagnosis is safe to trust as already carrying this operation's ancestor path). That
             // failure's own Diagnostic (built from its own, more specific path/trace) is strictly more
             // useful than anything this outer catch could construct. Re-wrapping it here would discard
             // that detail behind a generic "the factory threw" message, so it's left to propagate
@@ -569,13 +572,13 @@ internal sealed class CompositionContext : ICompositionContext
     // CompositionDiagnostic. _path is always non-null here: this is only ever called from inside
     // ResolveCore's try block, after _path has been pushed for the current node.
     private CompositionException BuildException(Type failedType, string message) =>
-        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message));
+        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), this);
 
     // The IServiceProvider fallback's throwing-container case is the only stage that needs to preserve
     // an original exception as InnerException (never `throw ex;`) - every other authoritative-stage
     // failure has no prior exception to preserve.
     private CompositionException BuildException(Type failedType, string message, Exception innerException) =>
-        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), innerException);
+        CompositionException.CreatePipelineDiagnosed(BuildDiagnostic(failedType, message), innerException, this);
 
     private CompositionDiagnostic BuildDiagnostic(Type failedType, string message) => new()
     {
