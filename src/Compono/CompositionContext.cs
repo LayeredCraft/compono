@@ -367,7 +367,7 @@ internal sealed class CompositionContext : ICompositionContext
 
             throw BuildException(
                 requestedType,
-                $"No registration, profile rule, semantic provider, test-double provider, built-in provider, or generated plan could satisfy '{CompositionPath.FriendlyTypeName(requestedType)}'.");
+                $"No registration, configuration rule, semantic provider, test-double provider, built-in provider, or generated plan could satisfy '{CompositionPath.FriendlyTypeName(requestedType)}'.");
         }
         finally
         {

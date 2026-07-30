@@ -84,6 +84,21 @@ public sealed class CompositionContextTests
             .WithMessage("*UnresolvableType*");
     }
 
+    [Fact]
+    public void ResolveRoot_TerminalFailureMessage_NamesConfigurationRule_NotTheStaleProfileRuleTerm()
+    {
+        // Codex review: the stage-9 terminal message still said "profile rule" after PipelineStage's
+        // ProfileRule -> ConfigurationRule rename - a stale, misleading term for anyone whose direct
+        // .For<T>() rule wasn't what actually failed to satisfy the request.
+        var context = new CompositionContext();
+
+        var act = () => context.ResolveRoot<UnresolvableType>();
+
+        act.Should().Throw<CompositionException>()
+            .WithMessage("*configuration rule*")
+            .Which.Message.Should().NotContain("profile rule");
+    }
+
     private sealed record PlanCacheProbe(string Value);
 
     private sealed class UnresolvableType

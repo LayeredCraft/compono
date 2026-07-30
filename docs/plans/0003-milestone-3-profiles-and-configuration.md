@@ -1333,3 +1333,49 @@ behavioral assertion (element count), not just "doesn't throw," since this gap's
 failure mode is silent wrong data, not a crash. All 498
 `Compono.Tests`/`Compono.Generators.Tests` (up from 496) pass on both `net10.0`/
 `net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): two more findings from Codex's fifth review round, a stale diagnostic string and a checklist claim that outran its own test coverage
+
+PR #19's fifth Codex review round (against commit `4351ebf`) flagged two unrelated,
+independent gaps:
+
+1. **The stage-9 terminal failure message still said "profile rule."**
+   `CompositionContext.ResolveCore`'s final `BuildException` call - reached only
+   when every stage declines - lists every stage by name in its message; that list
+   was never updated when `PipelineStage.ProfileRule` was renamed to
+   `ConfigurationRule` earlier in this same plan (Phase 3's own checklist item).
+   Anyone whose direct `.For<T>()` rule (not reached via any profile at all) failed
+   to satisfy a request would have seen an obsolete, misleading term in the one
+   message meant to tell them what was tried. Fixed by updating the string to say
+   "configuration rule." One regression test added
+   (`CompositionContextTests.ResolveRoot_TerminalFailureMessage_NamesConfigurationRule_NotTheStaleProfileRuleTerm`),
+   asserting both that the new term appears and that the stale one doesn't - the
+   kind of two-sided assertion that would have caught this rename gap immediately
+   had it existed before the rename.
+2. **This plan's own Phase 3 checklist claimed something its test suite didn't
+   actually do.** The checklist item for `WithCollectionSize` says global and
+   member-scoped overrides were verified "end-to-end through a real generated
+   collection plan" - but `Compono.Tests/ComposerCollectionSizeTests` only ever
+   exercised a hand-written `SizeProbeListPlan` registered directly into
+   `CollectionPlanCache<T>.Instance`, the same fast-unit-test seam every other
+   `Compono.Tests` collection test uses, never the real source generator. Only the
+   member-rule positional-record test (`ConfigurationRuleExecutionTests`, added
+   for a prior review round) actually exercised `Compono.Generators.Tests`' real
+   `GeneratorTestHelpers.CompileAndExecute` path. This checklist claim was simply
+   inaccurate at the point it was checked off, not a design gap - the fake-plan
+   tests correctly proved `ResolveCollectionSizeCore`'s own logic, but never
+   confirmed the generator actually emits `context.ResolveCollectionSize()` in real
+   generated code (as opposed to, say, silently still emitting the pre-Phase-3
+   literal `3`). Fixed by adding two real tests to
+   `Compono.Generators.Tests/ConfigurationRuleExecutionTests.cs`:
+   `GlobalWithCollectionSize_ChangesTheCollectionLength_ThroughARealGeneratedCollectionPlan`
+   (a root-level `List<int>` composed with a global `WithCollectionSize(7)`,
+   asserting a real 7-element list) and
+   `MemberScopedWithCollectionSize_OverridesTheGlobalDefault_ForThatMemberOnly_ThroughARealGeneratedPlan`
+   (a two-member record, member-scoped override on one member only, asserting the
+   overridden member and its sibling end up with different, correct counts) - both
+   compiled and executed as real, separate assemblies via `CompileAndExecute`, not
+   hand-faked plans.
+
+All 504 `Compono.Tests`/`Compono.Generators.Tests` (up from 498) pass on both
+`net10.0`/`net11.0`, confirmed stable across three consecutive full-solution runs.
