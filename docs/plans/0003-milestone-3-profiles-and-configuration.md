@@ -979,3 +979,47 @@ retention timing is inherently unreliable to assert deterministically in a
 Debug-configuration test run — asserting structurally that no field on
 `CompositionException`, including compiler-generated auto-property backing
 fields, is typed as or assignable from `CompositionContext`.
+
+### Known limitation (2026-07-30): a stale, manually-recaptured `CompositionException` can pass through a sibling factory unwrapped
+
+PR #17's fifth Codex review round (against commit `f46fac9`) correctly
+identified a narrower version of the same-context-vs-different-context
+question `96f9e21`/`f46fac9` already closed: `InvokeFactory`'s pass-through
+guard keys on `DiagnosingContextIdentity`, which is one token per
+`CompositionContext` — i.e. one token for the *entire* root composition
+operation, not one per invocation. If a registration factory catches a
+failed `ctx.Resolve<T>()`'s `CompositionException`, retains it (e.g. in a
+field or captured variable) instead of letting it propagate, and a
+*different*, unrelated sibling registration factory later throws that same
+retained instance, the guard still matches (same context, same token) and
+lets it escape unwrapped — with the earlier failure's stale path/trace, not
+the sibling factory's own.
+
+**Deferred, not fixed in this PR.** Two reasons: first, triggering this
+requires the factory's own code to catch a `CompositionException` and
+manually rethrow a captured, no-longer-current instance later — itself a
+violation of `coding-standards.md`'s own "always bare `throw;`, never
+`throw ex;`" rule applied to a stored exception, i.e. the triggering pattern
+is already caller-side misuse, not an ordinary usage this library needs to
+make safe. Second, a correct fix needs per-invocation-frame identity (was
+this exception diagnosed underneath *this specific* `factory(this)` call
+that's currently unwinding, not merely somewhere in the same operation) —
+real added complexity in a piece of dispatch logic that's already been
+narrowed five review rounds running (`09e4eb3`, `78cb824`, `0d1792b`,
+`96f9e21`, `f46fac9`). Tracked here as a known gap for a future
+pass to close if a real (non-misuse-triggered) case ever surfaces, rather
+than adding another layer of identity-tracking machinery speculatively.
+
+### Performance correction (2026-07-30): a closure allocated per registration-factory invocation
+
+PR #17's fifth Codex review round also flagged that `InvokeFactory`'s
+reentrance check, `_activeFactories.Exists(active => ReferenceEquals(active,
+factory))`, allocates a new closure/predicate delegate capturing `factory` on
+every single registration/configuration-rule factory invocation — real
+allocation on the composition hot path every composed test runs through,
+contradicting ADR-0007's allocation-conscious hot-path goal. Fixed by
+replacing it with `IsFactoryActive`, a plain indexed loop over
+`_activeFactories` comparing by `ReferenceEquals` directly — identical
+semantics (reference identity, never the delegate's own `Equals`), zero
+allocation. No behavior change, so no new test beyond the existing
+reentrance-guard coverage.

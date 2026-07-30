@@ -406,7 +406,7 @@ internal sealed class CompositionContext : ICompositionContext
     // trace, original preserved as InnerException), not escape raw with none of that context.
     private object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType)
     {
-        if (_activeFactories.Exists(active => ReferenceEquals(active, factory)))
+        if (IsFactoryActive(factory))
         {
             _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
             throw BuildException(requestedType, BuildFactoryReentranceMessage(requestedType));
@@ -447,6 +447,23 @@ internal sealed class CompositionContext : ICompositionContext
             _manualResolveFrames.RemoveAt(_manualResolveFrames.Count - 1);
             _activeFactories.RemoveAt(_activeFactories.Count - 1);
         }
+    }
+
+    // A plain indexed loop instead of List<T>.Exists(predicate) - the lambda equivalent captures
+    // `factory` into a new closure/delegate allocated on every single registration-factory invocation,
+    // on the composition hot path every composed test runs through (ADR-0007's allocation-conscious
+    // hot-path goal). Reference identity only - never the delegate's own Equals (target + method),
+    // which would treat two unrelated registrations that happen to share a captured-state shape as
+    // "the same" factory, exactly the false-positive collision ADR-0019's design rules out.
+    private bool IsFactoryActive(Func<ICompositionContext, object?> factory)
+    {
+        for (var i = 0; i < _activeFactories.Count; i++)
+        {
+            if (ReferenceEquals(_activeFactories[i], factory))
+                return true;
+        }
+
+        return false;
     }
 
     private string BuildFactoryReentranceMessage(Type requestedType) =>
