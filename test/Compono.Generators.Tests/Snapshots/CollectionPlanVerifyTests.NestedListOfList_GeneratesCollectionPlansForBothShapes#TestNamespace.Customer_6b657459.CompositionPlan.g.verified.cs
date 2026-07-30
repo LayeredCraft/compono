@@ -9,7 +9,7 @@ namespace TestNamespace
     {
         public global::TestNamespace.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Customer(
-                context.Resolve<global::System.Collections.Generic.List<global::System.Collections.Generic.List<int>>>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "groups", global::Compono.Nullability.NotNullable))
+                context.Resolve<global::System.Collections.Generic.List<global::System.Collections.Generic.List<int>>>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "groups", typeof(global::TestNamespace.Customer), global::Compono.Nullability.NotNullable))
             );
     }
 

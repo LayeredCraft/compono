@@ -21,7 +21,7 @@ public sealed class CompositionScopeTests
         var provider = new CountingProvider();
         var context = new CompositionContext([], [], [], [provider]);
         var descriptor = new CompositionRequestDescriptor(
-            CompositionRequestKind.ConstructorParameter, ordinal: 1, "b", Nullability.NotNullable);
+            CompositionRequestKind.ConstructorParameter, ordinal: 1, "b", declaringType: null, Nullability.NotNullable);
 
         var shared = context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
         var notShared = context.Resolve<Widget>(descriptor);

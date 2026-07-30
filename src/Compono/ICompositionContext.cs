@@ -40,4 +40,15 @@ public interface ICompositionContext
     /// request.
     /// </exception>
     TValue Resolve<TValue>();
+
+    /// <summary>
+    /// Resolves the collection size a generated collection plan should build - the size a
+    /// member-scoped <c>WithCollectionSize</c> override configures for the collection member
+    /// currently being resolved, falling back to the global default, then the built-in size of
+    /// <c>3</c>. Parameterless: the context already knows the current request's declaring type/member
+    /// name (the same identity <c>.For&lt;T&gt;().Member(...)</c> rule matching uses), since a
+    /// collection plan's <see cref="ICompositionPlan{T}.Compose"/> has no descriptor to pass. See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    int ResolveCollectionSize();
 }

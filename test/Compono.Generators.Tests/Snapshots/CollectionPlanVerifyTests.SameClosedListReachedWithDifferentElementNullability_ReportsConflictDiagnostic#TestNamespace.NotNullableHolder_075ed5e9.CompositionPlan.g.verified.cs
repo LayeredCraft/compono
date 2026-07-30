@@ -9,7 +9,7 @@ namespace TestNamespace
     {
         public global::TestNamespace.NotNullableHolder Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.NotNullableHolder(
-                context.Resolve<global::System.Collections.Generic.List<string>>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "items", global::Compono.Nullability.NotNullable))
+                context.Resolve<global::System.Collections.Generic.List<string>>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "items", typeof(global::TestNamespace.NotNullableHolder), global::Compono.Nullability.NotNullable))
             );
     }
 

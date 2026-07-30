@@ -7,7 +7,7 @@ public sealed class CompositionContextTests
     {
         var provider = new StubProvider(handles: true, value: "composed");
         var context = new CompositionContext(
-            profileProviders: [],
+            configurationRuleProviders: [],
             semanticProviders: [],
             testDoubleProviders: [],
             builtInProviders: [provider]);
@@ -22,12 +22,12 @@ public sealed class CompositionContextTests
     {
         var provider = new StubProvider(handles: true, value: "composed");
         var context = new CompositionContext(
-            profileProviders: [],
+            configurationRuleProviders: [],
             semanticProviders: [],
             testDoubleProviders: [],
             builtInProviders: [provider]);
         var descriptor = new CompositionRequestDescriptor(
-            CompositionRequestKind.ConstructorParameter, ordinal: 0, name: "value", Nullability.NotNullable);
+            CompositionRequestKind.ConstructorParameter, ordinal: 0, name: "value", declaringType: null, Nullability.NotNullable);
 
         var result = context.Resolve<string>(descriptor);
 
@@ -44,7 +44,7 @@ public sealed class CompositionContextTests
         var builtInProvider = new RecordingProvider(callOrder, "builtIn", handles: true);
 
         var context = new CompositionContext(
-            profileProviders: [profileProvider],
+            configurationRuleProviders: [profileProvider],
             semanticProviders: [semanticProvider],
             testDoubleProviders: [testDoubleProvider],
             builtInProviders: [builtInProvider]);
@@ -82,6 +82,21 @@ public sealed class CompositionContextTests
 
         act.Should().Throw<CompositionException>()
             .WithMessage("*UnresolvableType*");
+    }
+
+    [Fact]
+    public void ResolveRoot_TerminalFailureMessage_NamesConfigurationRule_NotTheStaleProfileRuleTerm()
+    {
+        // Codex review: the stage-9 terminal message still said "profile rule" after PipelineStage's
+        // ProfileRule -> ConfigurationRule rename - a stale, misleading term for anyone whose direct
+        // .For<T>() rule wasn't what actually failed to satisfy the request.
+        var context = new CompositionContext();
+
+        var act = () => context.ResolveRoot<UnresolvableType>();
+
+        act.Should().Throw<CompositionException>()
+            .WithMessage("*configuration rule*")
+            .Which.Message.Should().NotContain("profile rule");
     }
 
     private sealed record PlanCacheProbe(string Value);

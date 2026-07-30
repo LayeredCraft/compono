@@ -168,4 +168,104 @@ public abstract record CompositionConfigurationError
             Chain = snapshot;
         }
     }
+
+    /// <summary>
+    /// The same configuration <em>value</em> rule was set more than once across a single
+    /// <see cref="Composer.Create(Action{CompositionBuilder})"/> callback - a type rule for the same
+    /// type twice, or a member rule for the same (declaring type, member name) pair twice. A member
+    /// rule and a type rule that could both match the same request are never a conflict with each
+    /// other, even though both may apply - they're different specificity, not the same key. A
+    /// duplicate member-scoped <c>WithCollectionSize</c> override is a distinct case
+    /// (<see cref="DuplicateCollectionSizeOverride"/>), not this one - a size override never compiles
+    /// into a stage-4 rule, so reporting it as "a rule" would be misleading (PR #19 review). See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    public sealed record DuplicateRule : CompositionConfigurationError
+    {
+        /// <summary>A type rule's own type, or a member rule's declaring type.</summary>
+        public Type RuleType { get; }
+
+        /// <summary>The member name, for a member rule - <see langword="null"/> for a type rule.</summary>
+        public string? MemberName { get; }
+
+        /// <summary>
+        /// Every call that set this rule, in call order - always at least two. A genuinely immutable
+        /// snapshot (<see cref="ImmutableSnapshot"/>), same guarantee as
+        /// <see cref="DuplicateRegistration.Sources"/>.
+        /// </summary>
+        public IReadOnlyList<ConfigurationSource> Sources { get; }
+
+        /// <summary>Creates a <see cref="DuplicateRule"/> error.</summary>
+        /// <param name="ruleType">A type rule's own type, or a member rule's declaring type.</param>
+        /// <param name="memberName">The member name, or <see langword="null"/> for a type rule.</param>
+        /// <param name="sources">Every call that set this rule, in call order.</param>
+        /// <exception cref="ArgumentException"><paramref name="sources"/> has fewer than two entries.</exception>
+        public DuplicateRule(Type ruleType, string? memberName, IReadOnlyList<ConfigurationSource> sources)
+        {
+            ArgumentNullException.ThrowIfNull(ruleType);
+            ArgumentNullException.ThrowIfNull(sources);
+
+            var snapshot = ImmutableSnapshot.Of(sources);
+            if (snapshot.Count < 2)
+            {
+                throw new ArgumentException(
+                    "A duplicate-rule error requires at least two contributing sources.",
+                    nameof(sources));
+            }
+
+            RuleType = ruleType;
+            MemberName = memberName;
+            Sources = snapshot;
+        }
+    }
+
+    /// <summary>
+    /// The same member-scoped <c>.For&lt;T&gt;().Member(x => x.Y).WithCollectionSize(...)</c> override
+    /// was set more than once across a single <see cref="Composer.Create(Action{CompositionBuilder})"/>
+    /// callback, for the same (declaring type, member name) pair. Reuses the identical keyed-conflict
+    /// detection mechanism as <see cref="DuplicateRule"/> (same key shape, same "first wins, conflict
+    /// wins later" accumulation) but is never compiled into a stage-4 provider the way a member value
+    /// rule is - a distinct case so the rendered message correctly names a duplicate size configuration
+    /// rather than reporting it as "a member rule" (PR #19 review). See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    public sealed record DuplicateCollectionSizeOverride : CompositionConfigurationError
+    {
+        /// <summary>The member's declaring type.</summary>
+        public Type DeclaringType { get; }
+
+        /// <summary>The member name.</summary>
+        public string MemberName { get; }
+
+        /// <summary>
+        /// Every call that set this override, in call order - always at least two. A genuinely
+        /// immutable snapshot (<see cref="ImmutableSnapshot"/>), same guarantee as
+        /// <see cref="DuplicateRegistration.Sources"/>.
+        /// </summary>
+        public IReadOnlyList<ConfigurationSource> Sources { get; }
+
+        /// <summary>Creates a <see cref="DuplicateCollectionSizeOverride"/> error.</summary>
+        /// <param name="declaringType">The member's declaring type.</param>
+        /// <param name="memberName">The member name.</param>
+        /// <param name="sources">Every call that set this override, in call order.</param>
+        /// <exception cref="ArgumentException"><paramref name="sources"/> has fewer than two entries.</exception>
+        public DuplicateCollectionSizeOverride(Type declaringType, string memberName, IReadOnlyList<ConfigurationSource> sources)
+        {
+            ArgumentNullException.ThrowIfNull(declaringType);
+            ArgumentNullException.ThrowIfNull(memberName);
+            ArgumentNullException.ThrowIfNull(sources);
+
+            var snapshot = ImmutableSnapshot.Of(sources);
+            if (snapshot.Count < 2)
+            {
+                throw new ArgumentException(
+                    "A duplicate-collection-size-override error requires at least two contributing sources.",
+                    nameof(sources));
+            }
+
+            DeclaringType = declaringType;
+            MemberName = memberName;
+            Sources = snapshot;
+        }
+    }
 }

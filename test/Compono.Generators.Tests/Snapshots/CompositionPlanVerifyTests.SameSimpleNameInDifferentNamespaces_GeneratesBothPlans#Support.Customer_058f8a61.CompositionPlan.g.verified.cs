@@ -9,7 +9,7 @@ namespace Support
     {
         public global::Support.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::Support.Customer(
-                context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "name", global::Compono.Nullability.NotNullable))
+                context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "name", typeof(global::Support.Customer), global::Compono.Nullability.NotNullable))
             );
     }
 

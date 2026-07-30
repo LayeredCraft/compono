@@ -34,7 +34,7 @@ public sealed class CompositionRecursionTests
         public Node Compose(ICompositionContext context)
         {
             var descriptor = new CompositionRequestDescriptor(
-                CompositionRequestKind.CollectionElement, ordinal: 0, name: "", Nullability.NotNullable);
+                CompositionRequestKind.CollectionElement, ordinal: 0, name: "", declaringType: null, Nullability.NotNullable);
             var child = context.Resolve<Node>(descriptor);
 
             return new Node([child]);

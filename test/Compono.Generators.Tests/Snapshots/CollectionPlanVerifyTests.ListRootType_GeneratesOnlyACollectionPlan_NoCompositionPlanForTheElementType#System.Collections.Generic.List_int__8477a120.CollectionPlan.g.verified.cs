@@ -7,9 +7,10 @@ file sealed class CollectionCompositionPlan : global::Compono.ICompositionPlan<g
 {
     public global::System.Collections.Generic.List<int> Compose(global::Compono.ICompositionContext context)
     {
-        var result = new global::System.Collections.Generic.List<int>(3);
-        for (var i = 0; i < 3; i++)
-            result.Add(context.Resolve<int>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.CollectionElement, i, "", global::Compono.Nullability.NotNullable)));
+        var size = context.ResolveCollectionSize();
+        var result = new global::System.Collections.Generic.List<int>(size);
+        for (var i = 0; i < size; i++)
+            result.Add(context.Resolve<int>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.CollectionElement, i, "", null, global::Compono.Nullability.NotNullable)));
         return result;
     }
 }

@@ -66,5 +66,7 @@ public sealed class UniqueValueResolverTests
             (TValue)(object)valueForOrdinal(descriptor.Ordinal);
 
         public TValue Resolve<TValue>() => throw new NotSupportedException("Not exercised by these tests.");
+
+        public int ResolveCollectionSize() => throw new NotSupportedException("Not exercised by these tests.");
     }
 }

@@ -22,6 +22,15 @@ internal readonly record struct CompositionRequest
     /// <summary>Whether the requesting parameter or member is nullable-annotated.</summary>
     public required Nullability Nullability { get; init; }
 
+    /// <summary>
+    /// The type whose constructor/required member declares this request - <see langword="null"/> for a
+    /// request with no member identity of its own (a collection element, dictionary key/value, or
+    /// manual resolve, and the root request itself). Copied forward unchanged from the originating
+    /// <see cref="CompositionRequestDescriptor.DeclaringType"/>; never fed into random-fork hashing. See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    public required Type? DeclaringType { get; init; }
+
     /// <summary>The path from the root of this composition operation to this request.</summary>
     public required CompositionPath Path { get; init; }
 

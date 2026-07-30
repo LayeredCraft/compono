@@ -31,4 +31,17 @@ internal sealed class CompositionConfiguration
     /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
     /// </summary>
     internal required IServiceProvider? ServiceProvider { get; init; }
+
+    /// <summary>
+    /// This composer's compiled pipeline stage-4 configuration-rule providers (type and member value
+    /// rules), member rules ordered ahead of type rules - empty if no <c>.For&lt;T&gt;()</c> call was
+    /// made. See <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    internal required IReadOnlyList<ICompositionProvider> Rules { get; init; }
+
+    /// <summary>
+    /// This composer's collection-size configuration - <see cref="Compono.CollectionSizePolicy.Empty"/>
+    /// if neither <c>WithCollectionSize</c> nor a member-scoped override was ever called.
+    /// </summary>
+    internal required CollectionSizePolicy CollectionSizePolicy { get; init; }
 }

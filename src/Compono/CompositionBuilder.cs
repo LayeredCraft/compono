@@ -1,3 +1,5 @@
+using Compono.Providers;
+
 namespace Compono;
 
 /// <summary>
@@ -15,8 +17,15 @@ public sealed class CompositionBuilder
 {
     private readonly ConfigurationOptionSlot<CompositionSeed> _seed = new("WithSeed");
     private readonly ConfigurationOptionSlot<IServiceProvider> _serviceProvider = new("UseServiceProvider");
+    private readonly ConfigurationOptionSlot<int> _globalCollectionSize = new("WithCollectionSize");
     private readonly Dictionary<Type, List<ConfigurationSource>> _registrationSources = new();
     private readonly Dictionary<Type, Func<ICompositionContext, object?>> _registrationFactories = new();
+    private readonly Dictionary<Type, List<ConfigurationSource>> _typeRuleSources = new();
+    private readonly Dictionary<Type, Func<ICompositionContext, object?>> _typeRuleFactories = new();
+    private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberRuleSources = new();
+    private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, Func<ICompositionContext, object?> Factory)> _memberRuleFactories = new();
+    private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberCollectionSizeSources = new();
+    private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, int Size)> _memberCollectionSizes = new();
     private readonly Stack<Type> _applyingProfiles = new();
 
     internal CompositionBuilder()
@@ -141,6 +150,35 @@ public sealed class CompositionBuilder
         return this;
     }
 
+    /// <summary>
+    /// Starts a type or member configuration rule for <typeparamref name="T"/> - calling <c>.Use(...)</c>
+    /// directly registers a type rule (matches any stage-4 request for exactly <typeparamref name="T"/>,
+    /// regardless of which member/position requested it); calling <c>.Member(x => x.Y)</c> first
+    /// registers a member rule instead (matches only requests for that exact declaring type/member
+    /// pair). See <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    /// <typeparam name="T">The type to configure a rule for.</typeparam>
+    public CompositionTypeRuleBuilder<T> For<T>() => new(this);
+
+    /// <summary>
+    /// Sets this composer's global default collection size - the size a generated collection plan
+    /// builds when no member-scoped <c>.For&lt;T&gt;().Member(x => x.Y).WithCollectionSize(...)</c>
+    /// override applies. Falls back to the built-in size of <c>3</c> if never called. See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// Calling this more than once is a build-time conflict, following the same scalar-fail-fast rule
+    /// as <see cref="WithSeed"/>.
+    /// </remarks>
+    /// <param name="size">The default collection size.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="size"/> is negative.</exception>
+    public CompositionBuilder WithCollectionSize(int size)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(size);
+        _globalCollectionSize.Set(size, CurrentSource());
+        return this;
+    }
+
     // Validates every accumulated setting and freezes it into an immutable CompositionConfiguration -
     // called exactly once, by Composer.Create, immediately after the configuration callback returns.
     // Collects every conflict in one pass rather than throwing at the first one found, so a single
@@ -155,14 +193,44 @@ public sealed class CompositionBuilder
         if (_serviceProvider.TryGetConflict(out var serviceProviderConflict))
             errors.Add(serviceProviderConflict);
 
+        if (_globalCollectionSize.TryGetConflict(out var collectionSizeConflict))
+            errors.Add(collectionSizeConflict);
+
         foreach (var (type, sources) in _registrationSources)
         {
             if (sources.Count > 1)
                 errors.Add(new CompositionConfigurationError.DuplicateRegistration(type, sources));
         }
 
+        foreach (var (type, sources) in _typeRuleSources)
+        {
+            if (sources.Count > 1)
+                errors.Add(new CompositionConfigurationError.DuplicateRule(type, memberName: null, sources));
+        }
+
+        foreach (var (key, sources) in _memberRuleSources)
+        {
+            if (sources.Count > 1)
+                errors.Add(new CompositionConfigurationError.DuplicateRule(key.DeclaringType, key.MemberName, sources));
+        }
+
+        foreach (var (key, sources) in _memberCollectionSizeSources)
+        {
+            if (sources.Count > 1)
+                errors.Add(new CompositionConfigurationError.DuplicateCollectionSizeOverride(key.DeclaringType, key.MemberName, sources));
+        }
+
         if (errors.Count > 0)
             throw new CompositionConfigurationException(errors);
+
+        // Member rules ahead of type rules, unconditionally - dispatch order is a property of each
+        // rule's own specificity, never of which builder call happened to run first (ADR-0020's
+        // "specificity-based, not call-order-based" precedence).
+        IReadOnlyList<ICompositionProvider> rules =
+        [
+            .. _memberRuleFactories.Select(entry => (ICompositionProvider)new MemberRuleProvider(entry.Key.DeclaringType, entry.Key.MemberName, entry.Value.MemberType, entry.Value.Factory)),
+            .. _typeRuleFactories.Select(entry => (ICompositionProvider)new TypeRuleProvider(entry.Key, entry.Value)),
+        ];
 
         return new CompositionConfiguration
         {
@@ -171,6 +239,10 @@ public sealed class CompositionBuilder
                 ? CompositionRegistrations.Empty
                 : new CompositionRegistrations(_registrationFactories),
             ServiceProvider = _serviceProvider.HasValue ? _serviceProvider.Value : null,
+            Rules = rules,
+            CollectionSizePolicy = _memberCollectionSizes.Count == 0 && !_globalCollectionSize.HasValue
+                ? CollectionSizePolicy.Empty
+                : new CollectionSizePolicy(_globalCollectionSize.HasValue ? _globalCollectionSize.Value : null, _memberCollectionSizes),
         };
     }
 
@@ -184,6 +256,60 @@ public sealed class CompositionBuilder
             sources = [];
             _registrationSources[type] = sources;
             _registrationFactories[type] = factory;
+        }
+
+        sources.Add(CurrentSource());
+    }
+
+    // Called by CompositionTypeRuleBuilder<T>.Use(...) with no preceding .Member(...) call - the first
+    // call for a given type wins as the factory actually used, same "first wins, conflict wins later"
+    // shape as AddRegistration.
+    internal void AddTypeRule(Type type, Func<ICompositionContext, object?> factory)
+    {
+        if (!_typeRuleSources.TryGetValue(type, out var sources))
+        {
+            sources = [];
+            _typeRuleSources[type] = sources;
+            _typeRuleFactories[type] = factory;
+        }
+
+        sources.Add(CurrentSource());
+    }
+
+    // Called by CompositionMemberRuleBuilder<TParent, TMember>.Use(...), after .Member(...) already
+    // parsed the target (declaring type, member name) pair immediately. memberType is TMember, captured
+    // at the .Member<TMember>(...) call site - carried through to the compiled MemberRuleProvider so it
+    // can require the requested type to match the member's own type, not just its (declaring type,
+    // name) key (Codex review: a hand-written class can legally have a property and a constructor
+    // parameter that share a case-sensitive name but not a type, and the two are otherwise
+    // indistinguishable by key alone).
+    internal void AddMemberRule((Type DeclaringType, string MemberName) key, Type memberType, Func<ICompositionContext, object?> factory)
+    {
+        if (!_memberRuleSources.TryGetValue(key, out var sources))
+        {
+            sources = [];
+            _memberRuleSources[key] = sources;
+            _memberRuleFactories[key] = (memberType, factory);
+        }
+
+        sources.Add(CurrentSource());
+    }
+
+    // Called by CompositionMemberRuleBuilder<TParent, TMember>.WithCollectionSize(...) - a member-scoped
+    // collection-size override, keyed identically to a member value rule (same (declaring type, member
+    // name) identity), but never compiled into a stage-4 provider - it's read directly by
+    // ResolveCollectionSizeCore instead, per ADR-0020. memberType (TMember, captured at the
+    // .Member<TMember>(...) call site) is carried alongside the size so ResolveCollectionSizeCore can
+    // require the currently-resolving request's own type to match before applying the override - the
+    // same requested-type guard MemberRuleProvider uses (Codex review: a differently-typed member
+    // sharing the same (declaring type, name) pair would otherwise wrongly inherit this override).
+    internal void AddMemberCollectionSize((Type DeclaringType, string MemberName) key, Type memberType, int size)
+    {
+        if (!_memberCollectionSizeSources.TryGetValue(key, out var sources))
+        {
+            sources = [];
+            _memberCollectionSizeSources[key] = sources;
+            _memberCollectionSizes[key] = (memberType, size);
         }
 
         sources.Add(CurrentSource());

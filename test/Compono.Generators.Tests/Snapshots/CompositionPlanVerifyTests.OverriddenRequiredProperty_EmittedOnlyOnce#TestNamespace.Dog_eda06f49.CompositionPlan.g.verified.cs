@@ -11,7 +11,7 @@ namespace TestNamespace
             new global::TestNamespace.Dog(
             )
             {
-                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Name", global::Compono.Nullability.NotNullable))
+                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Name", typeof(global::TestNamespace.Dog), global::Compono.Nullability.NotNullable))
             };
     }
 

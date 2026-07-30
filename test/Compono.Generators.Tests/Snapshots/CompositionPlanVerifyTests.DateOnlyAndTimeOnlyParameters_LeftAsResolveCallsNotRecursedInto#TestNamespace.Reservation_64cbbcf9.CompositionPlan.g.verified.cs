@@ -9,8 +9,8 @@ namespace TestNamespace
     {
         public global::TestNamespace.Reservation Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Reservation(
-                context.Resolve<global::System.DateOnly>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "checkIn", global::Compono.Nullability.NotNullable)),
-                context.Resolve<global::System.TimeOnly>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 1, "checkInTime", global::Compono.Nullability.NotNullable))
+                context.Resolve<global::System.DateOnly>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "checkIn", typeof(global::TestNamespace.Reservation), global::Compono.Nullability.NotNullable)),
+                context.Resolve<global::System.TimeOnly>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 1, "checkInTime", typeof(global::TestNamespace.Reservation), global::Compono.Nullability.NotNullable))
             );
     }
 

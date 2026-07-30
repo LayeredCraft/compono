@@ -79,6 +79,15 @@ public sealed class CompositionConfigurationException : Exception
             $"({DescribeSources(duplicate.Sources)}).",
         CompositionConfigurationError.ProfileCycle cycle =>
             $"Profile cycle detected: {string.Join(" -> ", cycle.Chain.Select(type => type.Name))}.",
+        CompositionConfigurationError.DuplicateRule { MemberName: null } duplicate =>
+            $"A type rule for '{CompositionPath.FriendlyTypeName(duplicate.RuleType)}' was configured more than once " +
+            $"({DescribeSources(duplicate.Sources)}).",
+        CompositionConfigurationError.DuplicateRule duplicate =>
+            $"A member rule for '{CompositionPath.FriendlyTypeName(duplicate.RuleType)}.{duplicate.MemberName}' was " +
+            $"configured more than once ({DescribeSources(duplicate.Sources)}).",
+        CompositionConfigurationError.DuplicateCollectionSizeOverride duplicate =>
+            $"The collection size for '{CompositionPath.FriendlyTypeName(duplicate.DeclaringType)}.{duplicate.MemberName}' " +
+            $"was configured more than once ({DescribeSources(duplicate.Sources)}).",
         _ => throw new ArgumentOutOfRangeException(nameof(error), error, "Unrecognized composition configuration error."),
     };
 

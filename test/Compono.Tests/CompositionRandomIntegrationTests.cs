@@ -99,7 +99,7 @@ public sealed class CompositionRandomIntegrationTests
     }
 
     private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
-        new(CompositionRequestKind.ConstructorParameter, ordinal, name, Nullability.NotNullable);
+        new(CompositionRequestKind.ConstructorParameter, ordinal, name, declaringType: null, Nullability.NotNullable);
 
     private sealed record RandomProbeValue(ulong Value);
 

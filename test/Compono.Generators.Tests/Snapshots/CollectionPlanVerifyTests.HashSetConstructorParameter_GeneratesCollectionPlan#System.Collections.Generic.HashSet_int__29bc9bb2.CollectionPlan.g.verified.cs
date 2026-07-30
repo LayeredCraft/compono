@@ -7,11 +7,12 @@ file sealed class CollectionCompositionPlan : global::Compono.ICompositionPlan<g
 {
     public global::System.Collections.Generic.HashSet<int> Compose(global::Compono.ICompositionContext context)
     {
-        var result = new global::System.Collections.Generic.HashSet<int>(3);
-        for (var i = 0; i < 3; i++)
+        var size = context.ResolveCollectionSize();
+        var result = new global::System.Collections.Generic.HashSet<int>(size);
+        for (var i = 0; i < size; i++)
         {
             if (!global::Compono.UniqueValueResolver.TryResolve<int>(context, global::Compono.CompositionRequestKind.CollectionElement, i, global::Compono.Nullability.NotNullable, result, out _))
-                throw new global::Compono.CompositionException($"Could not generate 3 unique values of type '{typeof(int)}' for 'global::System.Collections.Generic.HashSet<int>' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per element - the element type's value space is likely too small for the requested collection size.");
+                throw new global::Compono.CompositionException($"Could not generate {size} unique values of type '{typeof(int)}' for 'global::System.Collections.Generic.HashSet<int>' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per element - the element type's value space is likely too small for the requested collection size.");
         }
         return result;
     }

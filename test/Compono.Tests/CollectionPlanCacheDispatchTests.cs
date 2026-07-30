@@ -30,7 +30,7 @@ public sealed class CollectionPlanCacheDispatchTests
         try
         {
             var context = new CompositionContext(
-                profileProviders: [],
+                configurationRuleProviders: [],
                 semanticProviders: [],
                 testDoubleProviders: [],
                 builtInProviders: [provider]);

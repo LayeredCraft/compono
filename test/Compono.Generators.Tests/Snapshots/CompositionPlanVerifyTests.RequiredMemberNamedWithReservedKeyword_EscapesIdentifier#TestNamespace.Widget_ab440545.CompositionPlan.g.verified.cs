@@ -11,7 +11,7 @@ namespace TestNamespace
             new global::TestNamespace.Widget(
             )
             {
-                @class = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "class", global::Compono.Nullability.NotNullable))
+                @class = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "class", typeof(global::TestNamespace.Widget), global::Compono.Nullability.NotNullable))
             };
     }
 

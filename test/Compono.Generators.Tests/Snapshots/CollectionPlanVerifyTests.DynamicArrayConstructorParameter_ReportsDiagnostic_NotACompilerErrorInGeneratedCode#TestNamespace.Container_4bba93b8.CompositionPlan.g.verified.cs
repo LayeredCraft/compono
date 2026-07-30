@@ -9,7 +9,7 @@ namespace TestNamespace
     {
         public global::TestNamespace.Container Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Container(
-                context.Resolve<dynamic[]>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "items", global::Compono.Nullability.NotNullable))
+                context.Resolve<dynamic[]>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "items", typeof(global::TestNamespace.Container), global::Compono.Nullability.NotNullable))
             );
     }
 

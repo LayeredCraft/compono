@@ -406,7 +406,7 @@ exist to source anything).
 
 ### Phase 3 — Configuration rules: type/member value rules and collection size
 
-- [ ] `CompositionRequestDescriptor.DeclaringType` — **`Type?`, nullable, not
+- [x] `CompositionRequestDescriptor.DeclaringType` — **`Type?`, nullable, not
       `Type`** (ADR-0020, corrected during review: a non-nullable field leaves no
       contract-valid value for `CollectionElement`/`DictionaryKey`/`DictionaryValue`
       requests, which have no declaring type at all — forcing an undocumented
@@ -414,12 +414,12 @@ exist to source anything).
       `CompositionRequest`. The generator-emitted, non-null value for
       `ConstructorParameter`/`RequiredMember` requests; `null` (never a sentinel)
       for every other request kind
-- [ ] `Compono.Generators`: descriptor-emission template/emitter updated to include
+- [x] `Compono.Generators`: descriptor-emission template/emitter updated to include
       `DeclaringType` (a mechanical, `global::`-qualified `typeof(...)` argument
       alongside the existing `Kind`/`Ordinal`/`Name`/`Nullability` arguments);
       existing `.verified.cs` snapshots regenerated (content reviewed, same class of
       change as PLAN-0002 Phase 0's Scriban-template regression fix)
-- [ ] `builder.For<T>()` — the type/member rule entry point on `CompositionBuilder`.
+- [x] `builder.For<T>()` — the type/member rule entry point on `CompositionBuilder`.
       Calling `.Use(...)` directly registers a type rule; calling
       `.Member(x => x.Y)` first, then `.Use(...)`, registers a member rule instead.
       Whether this is one class with two builder-returning code paths, or two
@@ -427,7 +427,7 @@ exist to source anything).
       from `.Member(...)`), is an implementation choice — the plan requires the
       public call shape and the `.Member(...)` expression being parsed immediately
       (not deferred to `Build()`), not a specific class split
-- [ ] Internal compiled stage-4 rule matching: for a member rule, matches when an
+- [x] Internal compiled stage-4 rule matching: for a member rule, matches when an
       incoming request's `DeclaringType` and member name equal the rule's captured
       values (never inferred from path state); for a type rule, matches by
       `RequestedType` alone. Whether this is one internal provider type or several
@@ -435,12 +435,12 @@ exist to source anything).
       precedence over type rules for the same effective request (specificity-based,
       enforced by compiled dispatch order, not call order), not a specific class
       split
-- [ ] `Build()` validation: a duplicate exact-key conflict (same `(declaring type,
+- [x] `Build()` validation: a duplicate exact-key conflict (same `(declaring type,
       member name)` pair twice, or the same type-rule type twice) adds a
       `DuplicateRule` error to the aggregated list, same shape as Phase 1's
       registration conflicts; a member rule and a type rule that could both match
       the same request are explicitly **not** a conflict
-- [ ] `WithCollectionSize(int)` — a scalar verb (global default), following the same
+- [x] `WithCollectionSize(int)` — a scalar verb (global default), following the same
       `DuplicateConfigurationOption` validation path as `WithSeed`/`UseServiceProvider`; and
       `.For<T>().Member(x => x.Y).WithCollectionSize(int)` (member-scoped,
       reusing the same expression-parsing path as a member value rule, and the same
@@ -453,7 +453,7 @@ exist to source anything).
       `Composer.CreateMany<T>(int count)`'s existing immediate-validation pattern
       for the identical shape of mistake — not left to fail later, confusingly,
       inside a generated collection plan's array/list allocation
-- [ ] `ICompositionContext.ResolveCollectionSize()` — **parameterless**, the
+- [x] `ICompositionContext.ResolveCollectionSize()` — **parameterless**, the
       **only** new public context method for collection size. Corrected twice
       during review: (1) a generated collection plan's `Compose(ICompositionContext)`
       has no descriptor to pass (that's fully consumed before `CollectionPlanCache<T>`
@@ -471,10 +471,10 @@ exist to source anything).
       (member-scoped override → global default → ADR-0013's built-in `3`) is a
       plain configuration read — no randomness, no
       *new* path segment pushed (it reads the one already there)
-- [ ] `Compono.Generators`: `CollectionPlan.scriban` (and its emitter model) updated
+- [x] `Compono.Generators`: `CollectionPlan.scriban` (and its emitter model) updated
       to call `context.ResolveCollectionSize(...)` instead of emitting the literal
       `3`; existing `.verified.cs` collection-plan snapshots regenerated
-- [ ] Unit tests: a member value rule wins over a type rule for the same effective
+- [x] Unit tests: a member value rule wins over a type rule for the same effective
       request; two member rules for different declaring types with the same member
       name and value type don't collide (the exact bug flagged during design
       review) — asserted via `DeclaringType`-based matching specifically, not path
@@ -511,7 +511,7 @@ exist to source anything).
       second case is the regression test proving the guard doesn't share
       ADR-0011's type-keyed active-construction-frame stack and doesn't reject the
       false-positive case review caught against Phase 1's first-draft design
-- [ ] **Rename `PipelineStage.ProfileRule` to `PipelineStage.ConfigurationRule`**
+- [x] **Rename `PipelineStage.ProfileRule` to `PipelineStage.ConfigurationRule`**
       (found during review, never previously scheduled) — this design review
       renamed the concept everywhere in the docs/ADRs ("profile rules" →
       "configuration rules," since profiles are a reusable application mechanism
@@ -524,7 +524,7 @@ exist to source anything).
       breaking rename pre-1.0/pre-NuGet-publish, per this repo's own stated
       compatibility posture, but real work this phase needs to actually do, not
       assume already covered by the docs-only rename
-- [ ] `Compono.Generators.Tests`: at least one regenerated snapshot confirming
+- [x] `Compono.Generators.Tests`: at least one regenerated snapshot confirming
       `DeclaringType` in an emitted descriptor construction, and at least one
       regenerated collection-plan snapshot confirming the `ResolveCollectionSize`
       call site replacing the literal `3`
@@ -818,6 +818,105 @@ Coverage is itemized per phase above; cross-cutting concerns:
   describe `AddProfile`/`ICompositionProfile` as shipped (Phase 2); the `.For<T>()`
   rule DSL and `WithCollectionSize` remain marked not yet implemented.
 
+### Phase 3 (Done)
+
+- **`InvokeFactory` generalized to take a `PipelineStage` parameter** — a real gap
+  found while wiring rule dispatch through it: it previously hardcoded
+  `PipelineStage.ExactRegistration` in its two trace-recording sites, which was
+  correct while stage 3 (registrations) was its only caller, but would have
+  mis-attributed a configuration-rule factory's reentrance/thrown-exception trace
+  entries to `ExactRegistration` instead of `ConfigurationRule` once rules became a
+  second caller. Fixed by threading the calling stage through explicitly (stage 3's
+  own call site passes `PipelineStage.ExactRegistration`, `TypeRuleProvider`/
+  `MemberRuleProvider` pass `PipelineStage.ConfigurationRule`) rather than
+  special-casing rules inside `InvokeFactory` itself. `InvokeFactory` was widened
+  from `private` to `internal` so `Compono.Providers.TypeRuleProvider`/
+  `MemberRuleProvider` (same assembly) can call it directly - the same reentrance
+  guard and manual-resolve invocation frame stage 3's registrations already share,
+  per ADR-0019/ADR-0020.
+- **Value rules compile into `TypeRuleProvider`/`MemberRuleProvider`
+  (`src/Compono/Providers/`)**, populated into `CompositionConfiguration.Rules` -
+  the same field `CompositionContext` threads into what was `_profileProviders`
+  (now `_configurationRuleProviders`, matching the `PipelineStage.ConfigurationRule`
+  rename). `Build()` places every member-rule provider ahead of every type-rule
+  provider unconditionally (`ICompositionProvider` list order), matching ADR-0020's
+  specificity-based (not call-order-based) precedence - achieved by concatenating
+  the two compiled sequences in that fixed order, not by a runtime specificity
+  comparison.
+- **`CompositionConfigurationError.DuplicateRule`** covers three distinct
+  conflicts with one shape (`RuleType`, nullable `MemberName`, `Sources`): a
+  duplicate type rule (`MemberName: null`), a duplicate member rule, and a
+  duplicate member-scoped `WithCollectionSize` override - the last of these reuses
+  the identical `(declaring type, member name)`-keyed conflict-detection
+  mechanism as member value rules (a `Dictionary<(Type, string), List<ConfigurationSource>>`
+  scanned by `Build()`), per this plan's own "same keyed-conflict validation as a
+  member value rule" phrasing, even though a collection-size override never
+  compiles into a stage-4 provider. `CompositionConfigurationException.DescribeError`
+  needed a new `switch` arm for this case (found while writing the duplicate-rule
+  regression tests - the exhaustive switch throws `ArgumentOutOfRangeException`
+  for any unhandled case, which surfaced immediately as a test failure rather than
+  silently producing a wrong message).
+- **`ResolveCollectionSizeCore` reads a `_currentDeclaringType` field**, pushed/
+  popped in `ResolveCore` alongside `_path`/`_random` (same push-before/pop-in-
+  `finally` shape), rather than threading a `CompositionRequest` parameter through
+  private state some other way - an implementation choice this ADR's own text
+  explicitly left open. The member name half of the lookup key is read from
+  `_path!.Segment` (`PathSegment.ConstructorParameter.Name`/`RequiredMember.Name`),
+  the same field `MemberRuleProvider` reads for its own matching - one shared
+  helper (`MemberNameOfCurrentRequest`/`MemberNameOf`) exists in each type
+  independently since the two live in different files with no natural shared base,
+  not because the logic is meant to diverge.
+- **`CompositionTypeRuleBuilder<T>.Member(...)`'s expression parser rejects a
+  nested member access** (`x => x.Email.Length`), not just a non-member expression
+  - found while writing the malformed-expression regression test: an initial
+  `Body is MemberExpression { Member: PropertyInfo or FieldInfo }` pattern alone
+  still matches `x.Email.Length` (its outer `MemberExpression`'s `Member` is
+  `string.Length`, a real `PropertyInfo`), silently capturing `DeclaringType =
+  typeof(string)`/`MemberName = "Length"` instead of throwing. Fixed by also
+  requiring `Expression: ParameterExpression` on the outer `MemberExpression` -
+  only a direct `x.Y` access has the lambda's own parameter as its immediate
+  target.
+- **`Compono.Generators`**: `RequiredMemberInfo` gained a `DeclaringTypeFullyQualifiedName`
+  field, populated from `member.ContainingType` in `RequiredMemberCollector` - for
+  an inherited required member this is the base type (the same symbol
+  `RequiredMemberCollector`'s existing base-to-derived ordinal walk already
+  resolves to), never the composed leaf type. `ConstructorParameterInfo` needed no
+  matching field - every constructor parameter's declaring type is simply the
+  composed type itself, so `CompositionPlanEmitter` reads `type.FullyQualifiedName`
+  directly for that case. All 62 existing `Compono.Generators.Tests` `.verified.cs`
+  snapshots (`CompositionPlanVerifyTests`/`CollectionPlanVerifyTests`) were
+  regenerated in the same change - reviewed for the expected mechanical diff only
+  (`typeof(...)` added as the descriptor's fourth argument; collection-plan
+  snapshots additionally replace the literal `3` with a `size` local read from
+  `context.ResolveCollectionSize()`), confirmed correct for the inherited-member
+  case specifically (`RequiredMembersOnBaseAndDerivedType_...`'s snapshot shows
+  `typeof(global::TestNamespace.Animal)` for the base-declared members and
+  `typeof(global::TestNamespace.Dog)` only for `Dog`'s own).
+- **One test - proving a member rule matches a positional record's constructor
+  parameter - runs through a real generator-emitted plan**
+  (`Compono.Generators.Tests/ConfigurationRuleExecutionTests.cs`, via
+  `GeneratorTestHelpers.CompileAndExecute`), not a hand-written test double, per
+  this plan's own explicit call-out: every other Phase 3 test (`Compono.Tests`)
+  fakes its `ICompositionPlan<T>`/`PlanCache<T>` entry with a hand-constructed
+  `CompositionRequestDescriptor`, which proves the matching logic but not that the
+  generator actually emits `DeclaringType` correctly for real source - only this
+  one test proves both together.
+- All 166 `Compono.Tests` (up from 144 after Phase 2) and 74
+  `Compono.Generators.Tests` (up from 73) pass on both `net10.0`/`net11.0`,
+  including two new test files in `Compono.Tests`
+  (`ComposerConfigurationRuleTests`, `ComposerCollectionSizeTests`) plus small
+  additions to `CompositionConfigurationErrorTests`/`CompositionConfigurationExceptionTests`
+  for `DuplicateRule`, and one new `Compono.Generators.Tests` file
+  (`ConfigurationRuleExecutionTests`). No `dotnet pack` verification performed for
+  this phase specifically - Phase 4 still does one for the whole milestone, per
+  this plan's own Test Plan section.
+- `docs/architecture.md`/`docs/public-api.md` updated in the same change: both
+  now describe `.For<T>()`, `WithCollectionSize`, and `DeclaringType` as shipped
+  (Phase 3) rather than pending: the Immutable Configuration Model, Configuration
+  Rules, and Composition Requests sections in `architecture.md`, the pipeline
+  stage-4 table row (renamed `ConfigurationRule`), and the Programmatic
+  Composition section's shipped-verb list in `public-api.md`.
+
 ### PR review correction (2026-07-30): a cycle below a non-cyclic outer profile leaked the outer profile into `Chain`
 
 PR #18 review (Codex) correctly flagged that `ApplyProfile`'s cycle-chain
@@ -1082,3 +1181,257 @@ replacing it with `IsFactoryActive`, a plain indexed loop over
 semantics (reference identity, never the delegate's own `Equals`), zero
 allocation. No behavior change, so no new test beyond the existing
 reentrance-guard coverage.
+
+### PR review correction (2026-07-30): a rule factory's own Failure trace entry lost its provider identity
+
+PR #19 review (Codex) correctly flagged that `InvokeFactory`'s two Failure-recording
+sites hardcoded `provider: null`, which was correct while stage 3 (exact
+registrations, which have no `ICompositionProvider` identity of their own) was its
+only caller — but became a real gap once `TypeRuleProvider`/`MemberRuleProvider`
+started calling it too: a rule factory that throws, or that trips the
+factory-reentrance guard, produced a `ConfigurationRule` `Failure` trace entry with
+no provider identity, even though `TryProviders`' own `Pending`/`NotHandled` entries
+for that exact same candidate already carry its concrete type
+(`ProviderAttempt.Provider`). The result looked like a context-owned failure rather
+than a specific rule's, and was strictly less informative than the `Pending` entry
+sitting right next to it in the same trace.
+
+Fixed by threading a `Type? provider` parameter through `InvokeFactory` (now four
+parameters — still within `coding-standards.md`'s limit): stage 3's own call site in
+`CompositionContext.ResolveCore` passes `provider: null` (unchanged), while
+`TypeRuleProvider`/`MemberRuleProvider` now pass their own `GetType()`. One
+regression test added
+(`ComposerConfigurationRuleTests.SelfReferencingTypeRule_DiagnosticTrace_AttributesTheFailureToTypeRuleProvider`),
+asserting the diagnostic's `Trace` contains a `ConfigurationRule`/`Failure` entry
+tagged `typeof(TypeRuleProvider)` for a self-referencing type-rule factory tripping
+the reentrance guard.
+
+**A pre-existing, unrelated flaky test surfaced while re-running the full suite for
+this fix**: `ComposerCollectionSizeTests` (added earlier in this same phase) and the
+already-existing `CollectionPlanCacheDispatchTests` both drove
+`CollectionPlanCache<List<int>>.Instance` — a static, type-keyed slot — and xUnit
+runs different test classes in parallel by default, so the two classes raced on the
+same slot whenever both happened to be mid-test at once (reproduced non-deterministically,
+roughly one run in three). Fixed by changing `ComposerCollectionSizeTests`'
+probe element type from `List<int>` to `List<long>`, giving it its own,
+non-colliding `CollectionPlanCache<T>` slot — the same "give each entry point/test
+its own type" isolation rule `testing.md` already states for a new public entry
+point, applied here to a shared static test seam instead. Confirmed stable across
+five consecutive `net10.0` runs after the fix (previously reproduced on the first
+or second run almost every time).
+
+### PR review correction (2026-07-30): a duplicate collection-size override was misreported as a duplicate rule
+
+PR #19's second Codex review round (against commit `85108dd`) correctly flagged
+that `CompositionBuilder.Build()`'s duplicate-member-collection-size-override check
+reused `CompositionConfigurationError.DuplicateRule` — the same case a duplicate
+member *value* rule (`.Member(...).Use(...)`) produces — so a duplicate
+`.Member(...).WithCollectionSize(...)` call rendered as "A member rule for
+'Customer.PastOrders' was configured more than once," even though no value rule was
+ever configured. `DuplicateRule` carries no discriminator between the two, so a
+consumer catching `CompositionConfigurationException` had no reliable way to tell
+which kind of duplicate they actually had, beyond re-deriving it from the message
+string this type's own contract says never to parse.
+
+Fixed by adding a new case, `CompositionConfigurationError.DuplicateCollectionSizeOverride`
+(`DeclaringType`, non-nullable `MemberName`, `Sources`) — matching the discriminated-
+union discipline this codebase already uses (`PathSegment`/`CompositionResult`: one
+case per real kind, not a flag bolted onto an existing one), and consistent with
+ADR-0020's own framing that a collection-size override is never compiled into a
+stage-4 rule, so reporting it as "a rule" was a category error, not just an
+imprecise word choice. `DuplicateRule` itself is now scoped exclusively to type/
+member *value* rules — its doc comment and constructor parameter docs were both
+corrected to drop the collection-size mention they previously (incorrectly) carried.
+`CompositionBuilder.Build()`'s one call site for the member-collection-size conflict
+now constructs the new case instead. Four regression tests added: two on
+`CompositionConfigurationErrorTests` mirroring `DuplicateRule`'s own coverage
+(mutation immunity, fewer-than-two-sources throws), one on
+`CompositionConfigurationExceptionTests` asserting the rendered message says
+"collection size," not "rule," and one true end-to-end test on
+`ComposerCollectionSizeTests` calling `.WithCollectionSize(...)` twice for the same
+member through the real `Composer.Create(...)` path and asserting the thrown
+exception's structured error is the new case, not `DuplicateRule`. All 494
+`Compono.Tests`/`Compono.Generators.Tests` (up from 482) pass on both `net10.0`/
+`net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): a member rule could match a differently-typed member sharing the same name
+
+PR #19's third Codex review round (against commit `c980307`) correctly flagged that
+`MemberRuleProvider` matched purely on `(DeclaringType, member name)`, which isn't
+actually a unique key: a hand-written class can legally declare a property and a
+constructor parameter that share the exact same case-sensitive name but not a type
+(e.g. `object Value { get; }` alongside `C(string Value)` - two entirely separate
+CLR symbols, not an override or a naming convention). `.Member(x => x.Value)`
+captures the *property* (`TMember = object`), but the generator's descriptor for the
+constructor parameter carries `RequestedType = string` with the identical
+`DeclaringType`/name - `MemberRuleProvider` couldn't tell the two apart, wrongly
+claimed the parameter's request too, and handed back an `object`-typed value that
+`CastResult<TValue>` then failed to cast to `string` with a raw, undiagnosed
+`InvalidCastException` - not the structured `CompositionException` every other
+failure in this pipeline produces, and a direct violation of `AGENTS.md`'s "a useful
+compile-time diagnostic is better than a clever runtime fallback" principle.
+
+Fixed by capturing the member's actual CLR type (`typeof(TMember)`, available where
+`.Member<TMember>(...)` is parsed) and requiring **exact** equality with
+`request.RequestedType` in `MemberRuleProvider.TryCompose`, alongside the existing
+`DeclaringType`/name check - exact matching, not assignability, mirroring
+`TypeRuleProvider`'s own already-established "exact type only" rule from ADR-0020,
+so the fix introduces no new matching philosophy. A mismatched request now cleanly
+declines (`NotHandled`) instead of wrongly claiming the request - exactly the
+graceful-decline behavior `ICompositionProvider`'s own contract already calls for,
+letting a later stage (here, a built-in provider) satisfy it instead.
+
+Threaded through as data, not a new mechanism: `CompositionBuilder._memberRuleFactories`
+changed from `Dictionary<(Type, string), Func<...>>` to
+`Dictionary<(Type, string), (Type MemberType, Func<...> Factory)>`, and
+`AddMemberRule` gained a `Type memberType` parameter that
+`CompositionMemberRuleBuilder<TParent, TMember>`'s two `Use(...)` overloads now
+supply as `typeof(TMember)`. Duplicate-rule conflict detection needed no change -
+still correctly keyed by `(DeclaringType, MemberName)` alone, since two `.Member(x
+=> x.Y)` calls for the same real property always agree on `TMember`. Member-scoped
+`WithCollectionSize` needed no equivalent fix - it returns a plain `int`, never a
+cast value, so this specific risk doesn't apply there.
+
+One regression test added
+(`ComposerConfigurationRuleTests.MemberRule_DoesNotMatch_WhenARequestForADifferentlyTypedMemberSharesTheSameName`),
+reproducing the exact reported shape (a `Conflicted` class with a `string`
+constructor parameter and an `object` property both named `Value`) through the real
+`Composer.Create(...)` path and asserting composition succeeds (falls through to a
+built-in provider for the mismatched parameter) rather than throwing. All 496
+`Compono.Tests`/`Compono.Generators.Tests` (up from 494) pass on both `net10.0`/
+`net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): a member-scoped collection-size override had the same name-collision gap as the value-rule fix
+
+PR #19's fourth Codex review round (against commit `f1ea4ad`) correctly flagged
+that the requested-type fix just applied to `MemberRuleProvider` had a sibling gap:
+`CollectionSizePolicy.TryGetMemberOverride` still matched purely on `(DeclaringType,
+MemberName)`. A class with, say, an `object Value` property and an unrelated
+`List<long> Value` constructor parameter - the same colliding shape the value-rule
+fix addressed - would have `.Member(x => x.Value).WithCollectionSize(9)` (binding to
+the property) silently apply its override to the unrelated `List<long>` parameter's
+collection size too. Unlike the value-rule bug this doesn't crash (both sides are
+plain `int`-shaped data), but it silently produces a wrongly-sized collection
+instead of the size the caller actually asked for on the member they actually meant.
+
+Fixed the same way, on principle (AGENTS.md: follow the existing convention for a
+given concern rather than inventing a second one) as well as mechanism: capture
+`typeof(TMember)` where `.Member<TMember>(...).WithCollectionSize(...)` is called,
+store it alongside the size in `CollectionSizePolicy`'s per-member table (now
+`(Type MemberType, int Size)` instead of a bare `int`), and require it to equal the
+currently-resolving request's own requested type before applying the override.
+That requested type needed no new field - `CompositionContext` already tracks the
+current node's `_path`, and `CompositionPath.RequestedType` already holds exactly
+this value; `ResolveCollectionSizeCore` now reads `_path!.RequestedType` and passes
+it into `TryGetMemberOverride`. `CompositionBuilder.AddMemberCollectionSize` gained
+a `Type memberType` parameter, threaded from `CompositionMemberRuleBuilder<TParent,
+TMember>.WithCollectionSize`'s already-known `TMember`. One regression test added
+(`ComposerCollectionSizeTests.MemberScopedOverride_DoesNotApply_WhenARequestForADifferentlyTypedMemberSharesTheSameName`),
+asserting the mismatched `List<long>` parameter falls through to the global default
+size rather than silently inheriting the unrelated property's override - a
+behavioral assertion (element count), not just "doesn't throw," since this gap's
+failure mode is silent wrong data, not a crash. All 498
+`Compono.Tests`/`Compono.Generators.Tests` (up from 496) pass on both `net10.0`/
+`net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): two more findings from Codex's fifth review round, a stale diagnostic string and a checklist claim that outran its own test coverage
+
+PR #19's fifth Codex review round (against commit `4351ebf`) flagged two unrelated,
+independent gaps:
+
+1. **The stage-9 terminal failure message still said "profile rule."**
+   `CompositionContext.ResolveCore`'s final `BuildException` call - reached only
+   when every stage declines - lists every stage by name in its message; that list
+   was never updated when `PipelineStage.ProfileRule` was renamed to
+   `ConfigurationRule` earlier in this same plan (Phase 3's own checklist item).
+   Anyone whose direct `.For<T>()` rule (not reached via any profile at all) failed
+   to satisfy a request would have seen an obsolete, misleading term in the one
+   message meant to tell them what was tried. Fixed by updating the string to say
+   "configuration rule." One regression test added
+   (`CompositionContextTests.ResolveRoot_TerminalFailureMessage_NamesConfigurationRule_NotTheStaleProfileRuleTerm`),
+   asserting both that the new term appears and that the stale one doesn't - the
+   kind of two-sided assertion that would have caught this rename gap immediately
+   had it existed before the rename.
+2. **This plan's own Phase 3 checklist claimed something its test suite didn't
+   actually do.** The checklist item for `WithCollectionSize` says global and
+   member-scoped overrides were verified "end-to-end through a real generated
+   collection plan" - but `Compono.Tests/ComposerCollectionSizeTests` only ever
+   exercised a hand-written `SizeProbeListPlan` registered directly into
+   `CollectionPlanCache<T>.Instance`, the same fast-unit-test seam every other
+   `Compono.Tests` collection test uses, never the real source generator. Only the
+   member-rule positional-record test (`ConfigurationRuleExecutionTests`, added
+   for a prior review round) actually exercised `Compono.Generators.Tests`' real
+   `GeneratorTestHelpers.CompileAndExecute` path. This checklist claim was simply
+   inaccurate at the point it was checked off, not a design gap - the fake-plan
+   tests correctly proved `ResolveCollectionSizeCore`'s own logic, but never
+   confirmed the generator actually emits `context.ResolveCollectionSize()` in real
+   generated code (as opposed to, say, silently still emitting the pre-Phase-3
+   literal `3`). Fixed by adding two real tests to
+   `Compono.Generators.Tests/ConfigurationRuleExecutionTests.cs`:
+   `GlobalWithCollectionSize_ChangesTheCollectionLength_ThroughARealGeneratedCollectionPlan`
+   (a root-level `List<int>` composed with a global `WithCollectionSize(7)`,
+   asserting a real 7-element list) and
+   `MemberScopedWithCollectionSize_OverridesTheGlobalDefault_ForThatMemberOnly_ThroughARealGeneratedPlan`
+   (a two-member record, member-scoped override on one member only, asserting the
+   overridden member and its sibling end up with different, correct counts) - both
+   compiled and executed as real, separate assemblies via `CompileAndExecute`, not
+   hand-faked plans.
+
+All 504 `Compono.Tests`/`Compono.Generators.Tests` (up from 498) pass on both
+`net10.0`/`net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): a sixth-round checklist audit found the flagged gap plus a second, unflagged instance of the same pattern
+
+PR #19's sixth Codex review round (a review body, not an inline thread, against
+commit `a12732f`) flagged that this plan's own checklist claims a
+`CollectionElement`/`DictionaryKey`/`DictionaryValue` request's null `DeclaringType`
+was "confirmed not to match any configured member rule," but no test anywhere in
+the new configuration-rule/collection-size test files actually resolved one of
+those three request kinds in the presence of a configured member rule - only the
+generator snapshots proved `DeclaringType` is emitted as `null` for those kinds,
+never the runtime consequence.
+
+Given two consecutive rounds had now caught this exact class of gap (a checklist
+line claiming test coverage the actual suite didn't have), a full audit of every
+distinct claim in Phase 3's "Unit tests" checklist line was done against the real
+test files rather than fixing only the flagged item. That audit found one more,
+previously unflagged instance of the identical pattern: the checklist's own text
+says the `Node.Child` self-referencing-termination case was "composed through its
+real generated plan," but the actual regression test
+(`Compono.Tests/ComposerConfigurationRuleTests.RuleThatLegitimatelyTerminatesASelfReferencingGraph_Succeeds`)
+registers a hand-written `RecursingNodePlan` directly into `PlanCache<Node>.Instance`
+- never the real source generator. Every other distinct claim in that checklist
+line was cross-checked against the real test files and found accurate.
+
+Both gaps fixed:
+
+1. **`CollectionElement`/`DictionaryKey`/`DictionaryValue` non-match**: two tests
+   added to `Compono.Tests/ComposerConfigurationRuleTests.cs`
+   (`MemberRule_DoesNotMatch_ACollectionElementRequest_WhoseDeclaringTypeIsAlwaysNull`,
+   `MemberRule_DoesNotMatch_ADictionaryKeyOrValueRequest_WhoseDeclaringTypeIsAlwaysNull`),
+   each configuring a real member rule (`.For<Customer>().Member(x => x.Email).Use("from-rule")`)
+   then resolving the relevant request kind through a hand-faked
+   `CollectionPlanCache<T>` plan (matching this file's own existing fast-unit-test
+   convention - this claim never claimed "real generated plan," only "confirmed not
+   to match," so a fake plan is the right-weight test here, unlike gap 2) and
+   asserting the rule's value never appears in the result.
+2. **`Node.Child` real-generator coverage**: a new test added to
+   `Compono.Generators.Tests/ConfigurationRuleExecutionTests.cs`
+   (`RuleThatLegitimatelyTerminatesASelfReferencingGraph_Succeeds_ThroughARealGeneratedPlan`),
+   compiling a real, self-referencing `Node` class and a real
+   `.For<Node>().Member(x => x.Child).Use(...)` rule through the actual generator via
+   `GeneratorTestHelpers.CompileAndExecute`. Writing this test surfaced a real,
+   useful discovery in the test fixture itself (not a product bug): the first draft
+   used a lowercase constructor parameter (`child`) against a `PascalCase` property
+   (`Child`) - exactly the casing-mismatch limitation ADR-0020 already documents for
+   hand-written classes (the generator emits the parameter's own name, never
+   correlated to the property), which made the rule silently never match in real
+   generated code and let the pre-existing recursion guard fire instead of the
+   rule's terminating value. Fixed by renaming the constructor parameter to match
+   the property's exact casing (`public Node(Node? Child) => _child = Child;`),
+   not by changing any product code - the guard and the rule matching were both
+   already correct; the test fixture was the one violating ADR-0020's own
+   documented naming requirement.
+
+All 510 `Compono.Tests`/`Compono.Generators.Tests` (up from 504) pass on both
+`net10.0`/`net11.0`, confirmed stable across three consecutive full-solution runs.
