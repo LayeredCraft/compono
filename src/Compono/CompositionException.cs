@@ -21,17 +21,17 @@ public sealed class CompositionException : Exception
     /// </summary>
     public CompositionDiagnostic? Diagnostic { get; }
 
-    // Identifies the specific CompositionContext instance whose own BuildException produced this
-    // exception - not just "some context produced this," which a bare bool can't distinguish (PR #17
-    // review). A registration factory can capture and invoke an entirely different Composer (its own
-    // CompositionContext, a separate root operation) and let that composer's own pipeline-diagnosed
-    // exception escape, or rethrow one it captured earlier - a plain "is this pipeline-diagnosed"
-    // flag would mistake that foreign exception for the current context's own nested Resolve<T>()
-    // failure. InvokeFactory's catch guard (docs/adr/0010) must therefore compare this against `this`,
-    // not just check for non-null - only an exception this exact context instance diagnosed is safe
-    // to let propagate unwrapped; a foreign one still needs wrapping into this context's own
-    // authoritative stage-3 failure (path/seed/trace), per ADR-0019.
-    internal CompositionContext? DiagnosingContext { get; private init; }
+    // Identifies which CompositionContext instance's own BuildException produced this exception - an
+    // opaque identity token (CompositionContext.Identity), not the context itself (PR #17 review):
+    // storing the actual CompositionContext would keep its whole object graph alive for as long as a
+    // consumer or test runner retains this exception - its configured IServiceProvider, registration
+    // factory closures, scope-held shared values, and trace buffer, none of which this comparison
+    // needs. A bare bool couldn't distinguish "some context produced this" from "this context's active
+    // nested resolution produced it" either (a registration factory can capture and invoke an entirely
+    // different Composer and let that composer's own pipeline-diagnosed exception escape, or rethrow
+    // one it captured earlier) - InvokeFactory's catch guard (docs/adr/0010) needs identity, just not
+    // by holding the whole context to get it.
+    internal object? DiagnosingContextIdentity { get; private init; }
 
     /// <summary>
     /// Creates a <see cref="CompositionException"/> with no structured <see cref="Diagnostic"/>.
@@ -89,12 +89,12 @@ public sealed class CompositionException : Exception
         return innerException;
     }
 
-    // The only construction path that sets DiagnosingContext - used exclusively by
-    // CompositionContext.BuildException (passing its own `this`), never by a factory/rule that
+    // The only construction path that sets DiagnosingContextIdentity - used exclusively by
+    // CompositionContext.BuildException (passing its own Identity token), never by a factory/rule that
     // constructs a CompositionException itself.
-    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, CompositionContext diagnosingContext) =>
-        new(diagnostic) { DiagnosingContext = diagnosingContext };
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, object diagnosingContextIdentity) =>
+        new(diagnostic) { DiagnosingContextIdentity = diagnosingContextIdentity };
 
-    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException, CompositionContext diagnosingContext) =>
-        new(diagnostic, innerException) { DiagnosingContext = diagnosingContext };
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException, object diagnosingContextIdentity) =>
+        new(diagnostic, innerException) { DiagnosingContextIdentity = diagnosingContextIdentity };
 }

@@ -100,7 +100,7 @@ public sealed class CompositionManualResolveTests
         // Deeper than InvokeFactory_DoesNotRewrapACompositionExceptionAlreadyThrownByANestedResolveCall:
         // there, the nested Resolve<T>() failure came from stage 9's terminal "no registration" throw.
         // Here it comes from a second, independent InvokeFactory frame (Inner is itself a registration
-        // whose factory throws) - proving DiagnosingContext survives being rethrown through an
+        // whose factory throws) - proving DiagnosingContextIdentity survives being rethrown through an
         // arbitrary number of ancestor InvokeFactory frames on the same context, not just a single
         // level, without any of them re-wrapping it behind their own generic "the factory threw"
         // message.

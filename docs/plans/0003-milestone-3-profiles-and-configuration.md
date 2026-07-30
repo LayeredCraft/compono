@@ -952,3 +952,30 @@ spots. Fixed by updating `public-api.md`'s Programmatic Composition section to
 list `Register<T>`/`UseServiceProvider` as shipped alongside `WithSeed`, and
 adding the descriptor-less `Resolve<T>()` overload to `architecture.md`'s
 `ICompositionContext` snippet.
+
+### PR review correction (2026-07-30): a pipeline-diagnosed exception was retaining its whole CompositionContext
+
+PR #17's fourth Codex review round (against commit `199cbf6`) correctly
+flagged that the previous round's fix — comparing `CompositionException` to
+its originating `CompositionContext` by reference — stored the actual context
+instance on the exception to make that comparison. A `CompositionContext`
+reaches its configured `IServiceProvider`, every registration factory's
+captured closures, `CompositionScope`'s already-composed shared values, and
+the trace buffer — none of which the origin check needs, but all of which a
+consumer or test runner retaining a thrown `CompositionException` (common:
+assertion history, retry logging) would keep alive for as long as the
+exception itself is kept.
+
+Fixed by replacing the stored `CompositionContext` reference with a cheap,
+otherwise-empty `object` identity token (`CompositionContext._identity`,
+allocated once per instance) — `CompositionException.DiagnosingContextIdentity`
+now holds that token instead of the context, and `InvokeFactory`'s catch guard
+compares tokens (`ReferenceEquals(ex.DiagnosingContextIdentity, _identity)`)
+instead of contexts. Observable behavior is unchanged (same-context
+pass-through vs. foreign-context wrap-and-throw), already covered by the
+existing `CompositionManualResolveTests` cases from the prior two rounds.
+Added a new regression test instead of a GC/`WeakReference`-based one — CLR
+retention timing is inherently unreliable to assert deterministically in a
+Debug-configuration test run — asserting structurally that no field on
+`CompositionException`, including compiler-generated auto-property backing
+fields, is typed as or assignable from `CompositionContext`.
