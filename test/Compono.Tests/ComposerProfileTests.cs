@@ -109,6 +109,22 @@ public sealed class ComposerProfileTests
     }
 
     [Fact]
+    public void AddProfile_CycleBelowANonCyclicOuterProfile_ChainExcludesTheOuterProfile()
+    {
+        // A codex-review regression: the chain used to be sliced from the bottom of the whole
+        // _applyingProfiles stack, so a non-cyclic outer profile wrapping a real cycle
+        // (RootProfile -> ProfileA -> ProfileB -> ProfileA) leaked into Chain even though it isn't
+        // part of the cycle - violating ProfileCycle.Chain's own "repeated type at both ends"
+        // contract. The chain must start at ProfileA's first occurrence, not at RootProfile.
+        var act = () => Composer.Create(builder => builder.AddProfile<RootProfile>());
+
+        var exception = act.Should().Throw<CompositionConfigurationException>().Which;
+        exception.Errors.Should().ContainSingle();
+        var error = exception.Errors[0].Should().BeOfType<CompositionConfigurationError.ProfileCycle>().Which;
+        error.Chain.Should().Equal(typeof(ProfileA), typeof(ProfileB), typeof(ProfileA));
+    }
+
+    [Fact]
     public void AddProfile_ThreeLevelNestedConflict_NamesTheFullChain_NotJustTheInnermost()
     {
         var act = () => Composer.Create(builder => builder
@@ -159,6 +175,11 @@ public sealed class ComposerProfileTests
     private sealed class SelfReferencingProfile : ICompositionProfile
     {
         public void Configure(CompositionBuilder builder) => builder.AddProfile<SelfReferencingProfile>();
+    }
+
+    private sealed class RootProfile : ICompositionProfile
+    {
+        public void Configure(CompositionBuilder builder) => builder.AddProfile<ProfileA>();
     }
 
     private sealed class ProfileA : ICompositionProfile

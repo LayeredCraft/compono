@@ -818,6 +818,26 @@ Coverage is itemized per phase above; cross-cutting concerns:
   describe `AddProfile`/`ICompositionProfile` as shipped (Phase 2); the `.For<T>()`
   rule DSL and `WithCollectionSize` remain marked not yet implemented.
 
+### PR review correction (2026-07-30): a cycle below a non-cyclic outer profile leaked the outer profile into `Chain`
+
+PR #18 review (Codex) correctly flagged that `ApplyProfile`'s cycle-chain
+construction sliced from the bottom of the *entire* `_applyingProfiles` stack,
+not from the cyclic profile's own first occurrence. For a cycle nested under a
+non-cyclic outer profile (`RootProfile -> ProfileA -> ProfileB -> ProfileA`),
+this built `[RootProfile, ProfileA, ProfileB, ProfileA]` — `RootProfile` at the
+front, `ProfileA` (the actual repeated type) at the back, violating
+`ProfileCycle.Chain`'s own documented "repeated type at both ends" contract and
+handing a consumer a prefix that was never part of the cycle.
+
+Fixed by finding `profileType`'s first index in the outermost-first stack and
+slicing from there before appending the closing type, so `Chain` now correctly
+starts and ends at the same, actually-repeated profile regardless of how many
+non-cyclic outer profiles wrap it. One regression test added
+(`AddProfile_CycleBelowANonCyclicOuterProfile_ChainExcludesTheOuterProfile`) —
+the existing cycle tests all happened to start the cycle at the bottom of the
+stack, which is exactly why this shape of bug survived the original PR's own
+test suite.
+
 ### PR review correction (2026-07-29): real bug found while adding the promised concurrency/default-seed tests
 
 PR #16 review (Codex) correctly flagged that this phase's original tests didn't

@@ -201,8 +201,14 @@ public sealed class CompositionBuilder
         if (_applyingProfiles.Contains(profileType))
         {
             // _applyingProfiles enumerates top-of-stack first; Reverse() restores application
-            // (outermost-first) order before appending the type that closes the cycle.
-            List<Type> chain = [.. _applyingProfiles.Reverse(), profileType];
+            // (outermost-first) order. Slicing from profileType's first occurrence - rather than
+            // from the bottom of the whole stack - matters when a non-cyclic outer profile wraps the
+            // cycle (RootProfile -> ProfileA -> ProfileB -> ProfileA): without the slice, RootProfile
+            // would land in Chain even though it's not part of the cycle, breaking ProfileCycle.Chain's
+            // documented "repeated type at both ends" contract.
+            var outermostFirst = _applyingProfiles.Reverse().ToList();
+            var cycleStart = outermostFirst.IndexOf(profileType);
+            List<Type> chain = [.. outermostFirst.Skip(cycleStart), profileType];
             throw new CompositionConfigurationException([new CompositionConfigurationError.ProfileCycle(chain)]);
         }
 
