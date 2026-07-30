@@ -86,4 +86,12 @@ public sealed class CompositionConfigurationErrorTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void ProfileCycle_WithANullChainEntry_Throws()
+    {
+        var act = () => new CompositionConfigurationError.ProfileCycle([null!, null!]);
+
+        act.Should().Throw<ArgumentException>();
+    }
 }
