@@ -74,6 +74,9 @@ public sealed class CompositionConfigurationException : Exception
     {
         CompositionConfigurationError.DuplicateConfigurationOption duplicate =>
             $"'{duplicate.OptionName}' was configured more than once ({DescribeSources(duplicate.Sources)}).",
+        CompositionConfigurationError.DuplicateRegistration duplicate =>
+            $"'{CompositionPath.FriendlyTypeName(duplicate.RegisteredType)}' was registered more than once " +
+            $"({DescribeSources(duplicate.Sources)}).",
         _ => throw new ArgumentOutOfRangeException(nameof(error), error, "Unrecognized composition configuration error."),
     };
 

@@ -14,6 +14,9 @@ namespace Compono;
 public sealed class CompositionBuilder
 {
     private readonly ConfigurationOptionSlot<CompositionSeed> _seed = new("WithSeed");
+    private readonly ConfigurationOptionSlot<IServiceProvider> _serviceProvider = new("UseServiceProvider");
+    private readonly Dictionary<Type, List<ConfigurationSource>> _registrationSources = new();
+    private readonly Dictionary<Type, Func<ICompositionContext, object?>> _registrationFactories = new();
 
     internal CompositionBuilder()
     {
@@ -41,6 +44,62 @@ public sealed class CompositionBuilder
         return this;
     }
 
+    /// <summary>
+    /// Registers an exact-type factory for <typeparamref name="T"/> - pipeline stage 3
+    /// (<c>docs/architecture.md</c>) resolves <typeparamref name="T"/> by invoking
+    /// <paramref name="factory"/>, called through <see cref="ICompositionContext"/> exactly like
+    /// generated code's own resolution, so <paramref name="factory"/> can call
+    /// <see cref="ICompositionContext.Resolve{TValue}()"/> to compose nested dependencies.
+    /// </summary>
+    /// <remarks>
+    /// Registering the same <typeparamref name="T"/> more than once (directly, or once directly and
+    /// once from a profile, or from two different profiles) is a build-time conflict, not last-write-
+    /// wins - see <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>'s deliberately
+    /// strict throw-on-duplicate decision.
+    /// </remarks>
+    /// <typeparam name="T">The exact type to register a factory for.</typeparam>
+    /// <param name="factory">Produces the registered value, given the resolving context.</param>
+    public CompositionBuilder Register<T>(Func<ICompositionContext, T> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        AddRegistration(typeof(T), context => factory(context));
+        return this;
+    }
+
+    /// <summary>
+    /// Registers an exact-type factory for <typeparamref name="T"/> with no dependency on the
+    /// resolving context - the convenience overload for <see cref="Register{T}(Func{ICompositionContext, T})"/>'s
+    /// common no-dependency case (e.g. <c>Register&lt;IClock&gt;(() =&gt; new FakeClock())</c>).
+    /// </summary>
+    /// <typeparam name="T">The exact type to register a factory for.</typeparam>
+    /// <param name="factory">Produces the registered value.</param>
+    public CompositionBuilder Register<T>(Func<T> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        AddRegistration(typeof(T), _ => factory());
+        return this;
+    }
+
+    /// <summary>
+    /// Configures a native <see cref="IServiceProvider"/> as stage 3's fallback for a type with no
+    /// exact <see cref="Register{T}(Func{ICompositionContext, T})"/> entry - tried only after every
+    /// exact registration misses, before falling through to stage 4. See
+    /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c> for the full ordering and
+    /// null/exception/wrong-type semantics.
+    /// </summary>
+    /// <remarks>
+    /// Compono never creates, resolves, or disposes a scope from <paramref name="provider"/> - it
+    /// calls <c>GetService(Type)</c> directly and nothing else. Calling this more than once is a
+    /// build-time conflict, following the same scalar-fail-fast rule as <see cref="WithSeed"/>.
+    /// </remarks>
+    /// <param name="provider">The externally-owned container to fall back to.</param>
+    public CompositionBuilder UseServiceProvider(IServiceProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _serviceProvider.Set(provider, ConfigurationSource.Direct);
+        return this;
+    }
+
     // Validates every accumulated setting and freezes it into an immutable CompositionConfiguration -
     // called exactly once, by Composer.Create, immediately after the configuration callback returns.
     // Collects every conflict in one pass rather than throwing at the first one found, so a single
@@ -52,12 +111,40 @@ public sealed class CompositionBuilder
         if (_seed.TryGetConflict(out var seedConflict))
             errors.Add(seedConflict);
 
+        if (_serviceProvider.TryGetConflict(out var serviceProviderConflict))
+            errors.Add(serviceProviderConflict);
+
+        foreach (var (type, sources) in _registrationSources)
+        {
+            if (sources.Count > 1)
+                errors.Add(new CompositionConfigurationError.DuplicateRegistration(type, sources));
+        }
+
         if (errors.Count > 0)
             throw new CompositionConfigurationException(errors);
 
         return new CompositionConfiguration
         {
             Seed = _seed.HasValue ? _seed.Value : null,
+            Registrations = _registrationFactories.Count == 0
+                ? CompositionRegistrations.Empty
+                : new CompositionRegistrations(_registrationFactories),
+            ServiceProvider = _serviceProvider.HasValue ? _serviceProvider.Value : null,
         };
+    }
+
+    // Shared by both Register<T> overloads - the first call for a given type wins as the factory
+    // actually used (only meaningful when Build() finds no conflict; a conflicting type never reaches
+    // CompositionConfiguration at all).
+    private void AddRegistration(Type type, Func<ICompositionContext, object?> factory)
+    {
+        if (!_registrationSources.TryGetValue(type, out var sources))
+        {
+            sources = [];
+            _registrationSources[type] = sources;
+            _registrationFactories[type] = factory;
+        }
+
+        sources.Add(ConfigurationSource.Direct);
     }
 }

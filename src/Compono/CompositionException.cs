@@ -6,7 +6,7 @@ namespace Compono;
 /// </summary>
 /// <remarks>
 /// This is the thrown-exception boundary <c>docs/public-api.md</c>'s examples catch -
-/// <see cref="ICompositionContext.Resolve{TValue}"/> must return a plain <c>TValue</c>, so a
+/// <see cref="ICompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/> must return a plain <c>TValue</c>, so a
 /// terminal non-success pipeline outcome has no return-value channel to report through and
 /// converts to this exception instead, per
 /// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>. The pipeline's own
@@ -43,6 +43,24 @@ public sealed class CompositionException : Exception
         Diagnostic = diagnostic;
     }
 
+    /// <summary>
+    /// Creates a <see cref="CompositionException"/> from a structured <see cref="CompositionDiagnostic"/>,
+    /// preserving <paramref name="innerException"/> - the shape a configured <c>IServiceProvider</c>
+    /// throwing during stage 3's fallback sub-step uses, per
+    /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c> ("never <c>throw ex;</c>,
+    /// the original exception is always preserved").
+    /// </summary>
+    /// <param name="diagnostic">The structured detail behind this failure.</param>
+    /// <param name="innerException">The exception that caused this failure.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="diagnostic"/> or <paramref name="innerException"/> is <see langword="null"/>.
+    /// </exception>
+    public CompositionException(CompositionDiagnostic diagnostic, Exception innerException)
+        : base(RequireDiagnostic(diagnostic).Message, RequireInnerException(innerException))
+    {
+        Diagnostic = diagnostic;
+    }
+
     // The base(...) initializer runs before this constructor's own body, so a guard clause in the
     // body would already be too late - diagnostic.Message is dereferenced in the initializer itself.
     // Routing the null check through this helper is what lets a null argument surface as
@@ -51,5 +69,11 @@ public sealed class CompositionException : Exception
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
         return diagnostic;
+    }
+
+    private static Exception RequireInnerException(Exception innerException)
+    {
+        ArgumentNullException.ThrowIfNull(innerException);
+        return innerException;
     }
 }

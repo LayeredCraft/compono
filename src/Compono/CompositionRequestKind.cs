@@ -23,4 +23,11 @@ public enum CompositionRequestKind
 
     /// <summary>The request is for a <c>Dictionary&lt;TKey, TValue&gt;</c> entry's value at a given position.</summary>
     DictionaryValue,
+
+    /// <summary>
+    /// The request is one descriptor-less <see cref="ICompositionContext.Resolve{TValue}()"/> call
+    /// made inside a registration or configuration-rule factory - never emitted by generated code,
+    /// per <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
+    /// </summary>
+    ManualResolve,
 }

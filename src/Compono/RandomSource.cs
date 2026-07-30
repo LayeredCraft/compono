@@ -20,6 +20,7 @@ internal sealed class RandomSource : IRandomSource
     private const byte CollectionElementTag = 2;
     private const byte DictionaryKeyTag = 3;
     private const byte DictionaryValueTag = 4;
+    private const byte ManualResolveTag = 5;
 
     private readonly ulong _forkState;
     private ulong _valueState;
@@ -43,6 +44,7 @@ internal sealed class RandomSource : IRandomSource
             PathSegment.CollectionElement e => (CollectionElementTag, e.Index),
             PathSegment.DictionaryKey k => (DictionaryKeyTag, k.Index),
             PathSegment.DictionaryValue v => (DictionaryValueTag, v.Index),
+            PathSegment.ManualResolve r => (ManualResolveTag, r.Ordinal),
             _ => throw new ArgumentOutOfRangeException(nameof(segment), segment, "Unrecognized path segment kind."),
         };
 

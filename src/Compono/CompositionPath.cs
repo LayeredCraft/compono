@@ -8,7 +8,7 @@ namespace Compono;
 /// </summary>
 /// <remarks>
 /// An immutable, persistent linked list - <see cref="Push"/> allocates one new node pointing at the
-/// current instance as its parent, mirroring <see cref="CompositionContext.Resolve{TValue}"/>'s own
+/// current instance as its parent, mirroring <see cref="CompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/>'s own
 /// recursive call structure, so push/pop composes with the call stack instead of needing separate
 /// bookkeeping. Kept distinct from the active-construction-frame stack
 /// (<c>docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md</c>) - this records
@@ -70,6 +70,7 @@ internal sealed class CompositionPath
         PathSegment.CollectionElement e => $"[{e.Index}]",
         PathSegment.DictionaryKey k => $".Key[{k.Index}]",
         PathSegment.DictionaryValue v => $".Value[{v.Index}]",
+        PathSegment.ManualResolve r => $".Resolve[{r.Ordinal}]",
         null => string.Empty,
         _ => throw new ArgumentOutOfRangeException(nameof(Segment), Segment, "Unrecognized path segment kind."),
     };
@@ -109,6 +110,7 @@ internal sealed class CompositionPath
             PathSegment.CollectionElement e => $"{typeName}[{e.Index}]",
             PathSegment.DictionaryKey k => $"{typeName} Key[{k.Index}]",
             PathSegment.DictionaryValue v => $"{typeName} Value[{v.Index}]",
+            PathSegment.ManualResolve r => $"{typeName} Resolve[{r.Ordinal}]",
             null => typeName,
             _ => throw new ArgumentOutOfRangeException(nameof(Segment), Segment, "Unrecognized path segment kind."),
         };

@@ -38,6 +38,15 @@ public sealed class CompositionConfigurationExceptionTests
     }
 
     [Fact]
+    public void Message_ForDuplicateRegistration_NamesTheRegisteredType()
+    {
+        var duplicate = new CompositionConfigurationError.DuplicateRegistration(typeof(int), [ConfigurationSource.Direct, ConfigurationSource.Direct]);
+        var exception = new CompositionConfigurationException([duplicate]);
+
+        exception.Message.Should().Contain("Int32");
+    }
+
+    [Fact]
     public void Constructor_WithNullErrors_Throws()
     {
         var act = () => new CompositionConfigurationException(errors: null!);

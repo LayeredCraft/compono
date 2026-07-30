@@ -5,10 +5,10 @@ namespace Compono;
 /// instance.
 /// </summary>
 /// <remarks>
-/// <see cref="Resolve{TValue}"/> is the only public member - everything the implementation owns
+/// <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> and <see cref="Resolve{TValue}()"/> are the only public members - everything the implementation owns
 /// (seed, scope, path, active construction frames, the provider pipeline) is deliberately not
 /// exposed here. Generated code never touches any of that state directly; it only ever calls
-/// <see cref="Resolve{TValue}"/> per member. See
+/// <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> per member. See
 /// <c>docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md</c>.
 /// </remarks>
 public interface ICompositionContext
@@ -24,4 +24,20 @@ public interface ICompositionContext
     /// request.
     /// </exception>
     TValue Resolve<TValue>(in CompositionRequestDescriptor descriptor);
+
+    /// <summary>
+    /// Resolves a value of type <typeparamref name="TValue"/> from inside a registration or
+    /// configuration-rule factory - the hand-written counterpart to
+    /// <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>, which only generated code
+    /// calls. Only valid while such a factory is actively being invoked.
+    /// </summary>
+    /// <typeparam name="TValue">The requested value's type.</typeparam>
+    /// <exception cref="InvalidOperationException">
+    /// No registration or configuration-rule factory is currently being invoked.
+    /// </exception>
+    /// <exception cref="CompositionException">
+    /// No explicit value, shared value, registration, provider, or generated plan could satisfy the
+    /// request.
+    /// </exception>
+    TValue Resolve<TValue>();
 }

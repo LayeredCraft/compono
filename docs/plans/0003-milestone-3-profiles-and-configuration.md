@@ -281,7 +281,7 @@ Direct registrations only — no profile involvement in this phase's own tests (
 `Direct`; profile-sourced conflicts are Phase 2's tests, once profiles actually
 exist to source anything).
 
-- [ ] `Register<T>(Func<ICompositionContext, T> factory)` and
+- [x] `Register<T>(Func<ICompositionContext, T> factory)` and
       `Register<T>(Func<T> factory)` on `CompositionBuilder`, accumulating into an
       internal exact-registration lookup. Outcome requirements only — the concrete
       internal representation (a dictionary, a small array scanned linearly, or
@@ -290,7 +290,7 @@ exist to source anything).
       in registration or lookup, no per-resolution compilation/codegen step, and a
       factory is invoked through the existing `ICompositionContext` the same way any
       other resolution consumer already is
-- [ ] `ICompositionContext.Resolve<T>()` (descriptor-less overload) and
+- [x] `ICompositionContext.Resolve<T>()` (descriptor-less overload) and
       `PathSegment.ManualResolve(int Ordinal)` (ADR-0019) — implemented
       as a manual-resolve invocation frame pushed immediately before a registration/
       rule factory is invoked and popped in `finally` immediately after it returns
@@ -299,7 +299,7 @@ exist to source anything).
       factory that itself triggers a nested factory invocation gets a **new**,
       independent frame for that nested call, never the outer counter continued.
       `CompositionRequestKind.ManualResolve` extends the existing enum
-- [ ] **Factory-reentrance guard around registration/rule factory invocation**
+- [x] **Factory-reentrance guard around registration/rule factory invocation**
       (ADR-0019 correction, revised twice during review) — a genuine gap, not a
       docs fix: stage 3/4 registrations and rules are checked *before* stage 8, so
       a self-referencing registration/rule (`Register<IClock>(context =>
@@ -327,24 +327,24 @@ exist to source anything).
       API until Phase 3, so a test exercising `.Member(...).Use(...)` can't compile
       if this phase ships as its own PR before Phase 3 lands, per this plan's own
       phase-independence requirement
-- [ ] `Build()` validation: scan the accumulated registration list for duplicate
+- [x] `Build()` validation: scan the accumulated registration list for duplicate
       exact-registration types; on any duplicate, add a `DuplicateRegistration`
       error (affected type, contributing `Sources`) to the aggregated list; on no
       duplicates, compile the final immutable lookup onto `CompositionConfiguration`
-- [ ] Stage 3 dispatch: `CompositionContext.ResolveCore<T>` checks the compiled
+- [x] Stage 3 dispatch: `CompositionContext.ResolveCore<T>` checks the compiled
       exact-registration lookup (unchanged from Milestone 2's internal-only
       behavior, now populated for real)
-- [ ] `UseServiceProvider(IServiceProvider provider)` on `CompositionBuilder` — a
+- [x] `UseServiceProvider(IServiceProvider provider)` on `CompositionBuilder` — a
       scalar verb, following Phase 0's general scalar-fail-fast validation path (a
       second call anywhere in the same configuration is a `DuplicateConfigurationOption` error),
       not a bespoke `IServiceProvider`-specific conflict check
-- [ ] Stage 3's `IServiceProvider` fallback sub-step: on an exact-registration miss,
+- [x] Stage 3's `IServiceProvider` fallback sub-step: on an exact-registration miss,
       if configured, call `provider.GetService(typeof(T))`; `null` falls through to
       stage 4; a thrown exception surfaces as `CompositionException` with the
       original as `InnerException` (never `throw ex;`); a non-null,
       non-`T`-assignable result throws a structured `CompositionException` naming
       both types; `Compono` never creates, resolves, or disposes a scope
-- [ ] Unit tests (direct registrations/configuration only — no profiles): a
+- [x] Unit tests (direct registrations/configuration only — no profiles): a
       registration factory resolves and is invoked exactly once per request;
       `Func<T>`/`Func<ICompositionContext, T>` overloads both work; two *direct*
       registrations for the same type throw `CompositionConfigurationException`
@@ -576,11 +576,21 @@ subfolder; the file list below is corrected to match:
 - `src/Compono/ConfigurationSource.cs` — done, Phase 0 (public, not internal — see
   this phase's Notes)
 - `src/Compono/CompositionConfigurationException.cs` — done, Phase 0
-- `src/Compono/CompositionConfigurationError.cs` — done, Phase 0 (only
-  `DuplicateConfigurationOption` so far)
+- `src/Compono/CompositionConfigurationError.cs` — done, Phase 0
+  (`DuplicateConfigurationOption`) + Phase 1 (`DuplicateRegistration`)
 - `src/Compono/ConfigurationOptionSlot.cs` — done, Phase 0 (not originally listed;
   the shared scalar-fail-fast mechanism the Amendment called for)
 - `src/Compono/ICompositionProfile.cs` — Phase 2
+
+New, not originally listed (existing Milestone 2 internal-only type, given a real
+public entry point in Phase 1):
+
+- `src/Compono/CompositionRegistrations.cs` — pre-existing (Milestone 2, internal
+  test seam), reshaped in Phase 1 from a plain `Type → object?` value map to a
+  `Type → Func<ICompositionContext, object?>` factory map, so every registration
+  (whether from `Register<T>(Func<ICompositionContext, T>)` or the `Register<T>(Func<T>)`
+  convenience overload) is invoked identically through `ICompositionContext` — see
+  this phase's Notes
 - `src/Compono/CollectionSizePolicy.cs` — Phase 3
 - One or more files under `src/Compono/` for the `.For<T>()` rule builder(s) —
   final split decided during Phase 3
@@ -591,18 +601,37 @@ Modified:
 
 - `src/Compono/Composer.cs` — done, Phase 0: `Create(Action<CompositionBuilder>)`,
   seed-policy wiring for `Create<T>()`/`CreateMany<T>()`; `CreateRootForTesting`/
-  `CreateManyForTesting` untouched (still bypass configuration entirely)
+  `CreateManyForTesting` untouched (still bypass configuration entirely). Done,
+  Phase 1: `Create<T>()`/`CreateMany<T>()` also wired to
+  `_configuration.Registrations`/`_configuration.ServiceProvider` — a real gap
+  found while implementing this phase, not originally itemized: `CreateMany<T>()`'s
+  private `ComposeMany` helper previously bypassed configuration entirely (routed
+  every item through `CreateRootForTesting`, ignoring registrations/service
+  provider), which `testing.md`'s own recorded `CreateMany<T>()` discovery lesson
+  exists to catch. Fixed by threading `CompositionRegistrations`/`IServiceProvider?`
+  through `ComposeMany` and constructing each item's `CompositionContext` with them,
+  same as `Create<T>()` already does
 - `src/Compono/CompositionSeed.cs` — done, Phase 0: doc comment only, now
   referencing `CompositionBuilder.WithSeed`
-- `src/Compono/CompositionContext.cs` — Phase 1 (descriptor-less `Resolve<T>()`,
-  stage 3's `IServiceProvider` fallback sub-step), Phase 3
-  (`ResolveCollectionSize`, and the `PipelineStage.ConfigurationRule` rename's one
-  call site)
-- `src/Compono/ICompositionContext.cs` — Phase 1/3 (new members)
+- `src/Compono/CompositionContext.cs` — done, Phase 1 (descriptor-less
+  `Resolve<T>()`, the manual-resolve invocation frame stack, the factory-reentrance
+  guard, stage 3's registration-factory invocation and `IServiceProvider` fallback
+  sub-step; a new `CompositionContext(CompositionSeed, CompositionRegistrations,
+  IServiceProvider?)` constructor), Phase 3 (`ResolveCollectionSize`, and the
+  `PipelineStage.ConfigurationRule` rename's one call site)
+- `src/Compono/ICompositionContext.cs` — done, Phase 1 (descriptor-less
+  `Resolve<T>()`), Phase 3 (new members)
+- `src/Compono/CompositionException.cs` — done, Phase 1: a second constructor
+  overload preserving an `InnerException`, for the `IServiceProvider` fallback's
+  throwing-container case (ADR-0019's "never `throw ex;`" requirement)
 - `src/Compono/CompositionRequestDescriptor.cs` — Phase 3 (`DeclaringType` field)
 - `src/Compono/CompositionRequest.cs` — Phase 3 (`DeclaringType` field)
-- `src/Compono/CompositionRequestKind.cs` — Phase 1 (`ManualResolve` case)
-- `src/Compono/PathSegment.cs` — Phase 1 (`ManualResolve` case)
+- `src/Compono/CompositionRequestKind.cs` — done, Phase 1 (`ManualResolve` case)
+- `src/Compono/PathSegment.cs` — done, Phase 1 (`ManualResolve` case); also
+  `CompositionPath.cs` (display-string cases) and `RandomSource.cs` (fork-hash
+  tag/case) needed the matching additions to stay exhaustive — not itemized by
+  name in this plan originally, but the same kind of mechanical addition every
+  prior `PathSegment` case already required
 - `src/Compono/PipelineStage.cs` — Phase 3, `ProfileRule` → `ConfigurationRule`
   rename (found during review, not originally scoped)
 - `test/Compono.Tests/CompositionDiagnosticsTests.cs` — Phase 3, updated for the
@@ -612,8 +641,11 @@ Modified:
 - `src/Compono.Generators/Templates/CollectionPlan.scriban` (and its emitter
   model) — Phase 3, `ResolveCollectionSize` call site replacing the literal `3`
 - `docs/architecture.md` — done, Phase 0: Immutable Configuration Model section
-  updated to describe the builder/configuration split and `WithSeed` as shipped,
-  the rest of Milestone 3's configuration verbs still marked not yet implemented;
+  updated to describe the builder/configuration split and `WithSeed` as shipped.
+  Done, Phase 1: Registrations and Service Injection section, the pipeline-stage-3
+  table row, and the Immutable Configuration Model section's scalar-verb list
+  updated to describe `Register<T>`/`UseServiceProvider` as shipped; `AddProfile`,
+  `.For<T>()`, and `WithCollectionSize` remain marked not yet implemented;
   `docs/mvp.md`/`docs/public-api.md` unchanged (already accurate as intended-shape
   docs). Phase 4 does the final reconciliation pass once every phase ships
 
@@ -686,6 +718,66 @@ Coverage is itemized per phase above; cross-cutting concerns:
 - `docs/architecture.md`'s Immutable Configuration Model section updated in the
   same change to describe `WithSeed`/the builder split as shipped, everything else
   still pending.
+
+### Phase 1 (Done)
+
+- **`CompositionRegistrations` reshaped from a value map to a factory map.** The
+  Milestone 2 internal test seam stored `Type → object?` (a raw already-built
+  value); real registrations need a `Type → Func<ICompositionContext, object?>`
+  factory so a factory can call `context.Resolve<T>()` to compose nested
+  dependencies. Reshaped rather than adding a second, parallel lookup — one
+  representation, one invocation path, `Register<T>(Func<T>)`'s no-dependency
+  overload stored as a trivial `_ => value` wrapper. The one existing test
+  exercising the old shape (`CompositionRegistrationTests`) was updated to match,
+  not left on a stale API.
+- **`Composer.CreateMany<T>()` was silently bypassing configuration entirely** —
+  a real gap found while wiring `Create<T>()`/`CreateMany<T>()` to the new
+  `Registrations`/`ServiceProvider` fields, not itemized by this plan originally.
+  `ComposeMany`'s per-item loop called `CreateRootForTesting<T>`, the internal
+  test seam that always uses `CompositionRegistrations.Empty`/no service provider
+  — so a composer configured with `Register<T>(...)`/`UseServiceProvider(...)`
+  would have honored them from `Create<T>()` but silently ignored them from
+  `CreateMany<T>()`. This is exactly the shape of gap `testing.md`'s own recorded
+  `CreateMany<T>()` discovery lesson (PLAN-0002) warns about: a new/changed entry
+  point riding along on a sibling entry point's already-working path instead of
+  being independently wired. Fixed by threading `CompositionRegistrations`/
+  `IServiceProvider?` through `ComposeMany`, so each item's `CompositionContext`
+  is constructed identically to `Create<T>()`'s.
+- **Ambiguous `cref` cleanup, not itemized by this plan originally.** Adding the
+  descriptor-less `Resolve<TValue>()` overload, per
+  `docs/adr/0019-registrations-and-service-provider-injection.md`, extends
+  `ICompositionContext.Resolve<TValue>(in CompositionRequestDescriptor)` with a
+  second, descriptor-less `Resolve<TValue>()` overload — a genuine risk for a
+  cref pointing at just `Resolve{TValue}` (ambiguous between the two overloads,
+  `CS0419`). Every pre-existing `<see cref="...Resolve{TValue}"/>` reference across
+  the codebase (`CompositionContext.cs`, `CompositionException.cs`,
+  `CompositionPath.cs`, `CompositionRequestDescriptor.cs`, `CompositionResult.cs`,
+  `ICompositionContext.cs`, `Nullability.cs`) was disambiguated to name the
+  specific overload it meant, at the same time the new overload was added — not
+  left to accumulate as build warnings.
+- **Reentrance-guard identity uses `ReferenceEquals` over a plain `List<Func<...>>`,
+  not a `HashSet` with the default comparer.** A delegate's default `Equals`
+  compares target + method, not reference identity — a `HashSet<Func<...>>` with
+  no explicit comparer would treat two different registrations/rules that happen
+  to share the same captured-state shape as "the same" factory, exactly the false-
+  positive collision ADR-0019's corrected design rules out. Mirrors the existing
+  `_activeFrames` (`List<Type>`) push/pop-by-index pattern already used for
+  ADR-0011's stage-8 recursion stack, just keyed by delegate reference instead of
+  `Type`.
+- All 118 `Compono.Tests` (up from 83 after Phase 0) pass on both `net10.0`/
+  `net11.0`, including 2 new test files (`ComposerRegistrationTests`,
+  `CompositionManualResolveTests`) plus small additions to
+  `CompositionConfigurationErrorTests`/`CompositionConfigurationExceptionTests`
+  for `DuplicateRegistration`. `Compono.Generators`/`Compono.Generators.Tests`
+  (146 tests) untouched and unaffected (confirmed via a clean build) — Phase 1
+  doesn't touch generator-facing code, so no manual `dotnet pack` verification was
+  needed for this phase specifically (Phase 4 still does one for the whole
+  milestone).
+- `docs/architecture.md` updated in the same change: the pipeline-stage-3 table
+  row, the Immutable Configuration Model section's scalar-verb list, and the
+  Registrations and Service Injection section's header note all now describe
+  `Register<T>`/`UseServiceProvider` as shipped (Phase 1); `AddProfile`, the
+  `.For<T>()` rule DSL, and `WithCollectionSize` remain marked not yet implemented.
 
 ### PR review correction (2026-07-29): real bug found while adding the promised concurrency/default-seed tests
 

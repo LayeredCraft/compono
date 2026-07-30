@@ -49,7 +49,8 @@ public sealed class CompositionRegistrationTests
 
     private static CompositionContext ContextWithRegistration(Type type, object? value)
     {
-        var registrations = new CompositionRegistrations(new Dictionary<Type, object?> { [type] = value });
+        var registrations = new CompositionRegistrations(
+            new Dictionary<Type, Func<ICompositionContext, object?>> { [type] = _ => value });
         return new CompositionContext(CompositionSeed.Generate(), registrations);
     }
 

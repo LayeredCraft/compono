@@ -18,4 +18,17 @@ internal sealed class CompositionConfiguration
     /// root composition operation then generates its own, per <see cref="CompositionSeed.Generate"/>.
     /// </summary>
     internal required CompositionSeed? Seed { get; init; }
+
+    /// <summary>
+    /// This composer's exact-registration lookup - <see cref="CompositionRegistrations.Empty"/> if no
+    /// <c>Register&lt;T&gt;</c> call was made.
+    /// </summary>
+    internal required CompositionRegistrations Registrations { get; init; }
+
+    /// <summary>
+    /// This composer's configured <see cref="IServiceProvider"/> fallback, or <see langword="null"/>
+    /// if <c>UseServiceProvider</c> was never called - see
+    /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
+    /// </summary>
+    internal required IServiceProvider? ServiceProvider { get; init; }
 }
