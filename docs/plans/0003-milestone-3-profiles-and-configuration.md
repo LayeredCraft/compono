@@ -374,11 +374,11 @@ exist to source anything).
 
 ### Phase 2 — Profiles
 
-- [ ] `ICompositionProfile` (`public interface`) — `void Configure(CompositionBuilder
+- [x] `ICompositionProfile` (`public interface`) — `void Configure(CompositionBuilder
       builder)`
-- [ ] `AddProfile<TProfile>()` (`where TProfile : ICompositionProfile, new()`) and
+- [x] `AddProfile<TProfile>()` (`where TProfile : ICompositionProfile, new()`) and
       `AddProfile(ICompositionProfile profile)` on `CompositionBuilder`
-- [ ] Cycle-detection stack (`internal`, `Stack<Type>` keyed by
+- [x] Cycle-detection stack (`internal`, `Stack<Type>` keyed by
       `profile.GetType()`, pushed before `Configure` runs, popped in `finally`);
       `AddProfile` for a type already on the stack throws
       `CompositionConfigurationException` **immediately, from within `AddProfile`
@@ -388,10 +388,10 @@ exist to source anything).
       validation (ADR-0017's Amendment, point 3) — implementation should not route
       cycle detection through the same aggregation buffer `Build()`'s conflict scan
       uses
-- [ ] `ConfigurationSource` population: every registration/rule accumulated while
+- [x] `ConfigurationSource` population: every registration/rule accumulated while
       the cycle-detection stack is non-empty is tagged with the current stack's
       contents (outermost to innermost profile) instead of `Direct`
-- [ ] Unit tests: `AddProfile<T>()`/`AddProfile(instance)` both apply `Configure`
+- [x] Unit tests: `AddProfile<T>()`/`AddProfile(instance)` both apply `Configure`
       synchronously and in call order; **direct + profile** and **profile +
       profile** duplicate-registration conflicts (moved here from Phase 1, now that
       profiles exist to source them) produce a `CompositionConfigurationException`
@@ -778,6 +778,45 @@ Coverage is itemized per phase above; cross-cutting concerns:
   Registrations and Service Injection section's header note all now describe
   `Register<T>`/`UseServiceProvider` as shipped (Phase 1); `AddProfile`, the
   `.For<T>()` rule DSL, and `WithCollectionSize` remain marked not yet implemented.
+
+### Phase 2 (Done)
+
+- **Cycle/provenance stack keyed by `Stack<Type>`, mirroring Phase 0/1's existing
+  patterns.** `CompositionBuilder._applyingProfiles` is pushed with
+  `profile.GetType()` immediately before `Configure` runs and popped in `finally`
+  — the same push-on-entry/pop-in-`finally` shape ADR-0011's active-construction-
+  frame stack and Phase 1's factory-reentrance guard already use. `AddProfile<T>()`
+  and `AddProfile(instance)` both funnel through one private `ApplyProfile` helper,
+  so cycle detection and `Configure` invocation have exactly one code path
+  regardless of which overload a caller used.
+- **`CurrentSource()` replaces the hardcoded `ConfigurationSource.Direct`** that
+  every scalar verb (`WithSeed`, `UseServiceProvider`) and `AddRegistration` used
+  in Phases 0/1 — now reads `_applyingProfiles` and returns `Direct` when empty or
+  a `ProfileChain` (outermost-first, via `Stack<Type>.Reverse()`) otherwise. This
+  is why Phase 0/1's own entries didn't need touching again: every accumulation
+  call site already routed through a single `Set`/`AddRegistration` call, so
+  swapping the hardcoded source for `CurrentSource()` at each of those three call
+  sites was sufficient — no separate "is a profile applying" branch needed
+  elsewhere.
+- **`CompositionConfigurationError.ProfileCycle`** carries the full cycle
+  (`IReadOnlyList<Type> Chain`, at least two entries, the repeated type at both
+  ends — e.g. `[ProfileA, ProfileB, ProfileA]`) and is thrown immediately from
+  `ApplyProfile` as its own single-error `CompositionConfigurationException`, never
+  routed through `Build()`'s aggregated validation pass — a distinct failure path,
+  per ADR-0018.
+- All 141 `Compono.Tests` (up from 118 after Phase 1) pass on both `net10.0`/
+  `net11.0`, including one new test file (`ComposerProfileTests`) plus small
+  additions to `CompositionConfigurationErrorTests`/`CompositionConfigurationExceptionTests`
+  for `ProfileCycle`. `Compono.Generators`/`Compono.Generators.Tests` (146 tests)
+  untouched and unaffected (confirmed via a clean full-solution build/test) — Phase
+  2 doesn't touch generator-facing code, so no manual `dotnet pack` verification
+  was needed for this phase specifically (Phase 4 still does one for the whole
+  milestone).
+- `docs/architecture.md`/`docs/public-api.md` updated in the same change: the
+  Immutable Configuration Model and Profiles sections in `architecture.md`, and the
+  Programmatic Composition section's shipped-verb list in `public-api.md`, now
+  describe `AddProfile`/`ICompositionProfile` as shipped (Phase 2); the `.For<T>()`
+  rule DSL and `WithCollectionSize` remain marked not yet implemented.
 
 ### PR review correction (2026-07-29): real bug found while adding the promised concurrency/default-seed tests
 

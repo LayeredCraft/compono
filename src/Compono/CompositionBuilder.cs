@@ -17,6 +17,7 @@ public sealed class CompositionBuilder
     private readonly ConfigurationOptionSlot<IServiceProvider> _serviceProvider = new("UseServiceProvider");
     private readonly Dictionary<Type, List<ConfigurationSource>> _registrationSources = new();
     private readonly Dictionary<Type, Func<ICompositionContext, object?>> _registrationFactories = new();
+    private readonly Stack<Type> _applyingProfiles = new();
 
     internal CompositionBuilder()
     {
@@ -40,7 +41,7 @@ public sealed class CompositionBuilder
     /// <param name="seed">The explicit root seed.</param>
     public CompositionBuilder WithSeed(int seed)
     {
-        _seed.Set(new CompositionSeed(unchecked((ulong)seed)), ConfigurationSource.Direct);
+        _seed.Set(new CompositionSeed(unchecked((ulong)seed)), CurrentSource());
         return this;
     }
 
@@ -96,7 +97,47 @@ public sealed class CompositionBuilder
     public CompositionBuilder UseServiceProvider(IServiceProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
-        _serviceProvider.Set(provider, ConfigurationSource.Direct);
+        _serviceProvider.Set(provider, CurrentSource());
+        return this;
+    }
+
+    /// <summary>
+    /// Applies <typeparamref name="TProfile"/>'s <see cref="ICompositionProfile.Configure"/> to this
+    /// builder immediately, synchronously - constructed via an ordinary, reflection-free <c>new()</c>.
+    /// </summary>
+    /// <remarks>
+    /// A profile applied while another profile of the exact same declared type is already applying
+    /// (directly or nested several levels deep) is a cycle - see
+    /// <c>docs/adr/0018-composition-profiles.md</c>.
+    /// </remarks>
+    /// <typeparam name="TProfile">The profile type to construct and apply.</typeparam>
+    /// <exception cref="CompositionConfigurationException">
+    /// Applying <typeparamref name="TProfile"/> would create a cycle - thrown immediately, containing
+    /// exactly one <see cref="CompositionConfigurationError.ProfileCycle"/> error naming the full chain.
+    /// </exception>
+    public CompositionBuilder AddProfile<TProfile>()
+        where TProfile : ICompositionProfile, new()
+    {
+        ApplyProfile(new TProfile());
+        return this;
+    }
+
+    /// <summary>
+    /// Applies <paramref name="profile"/>'s <see cref="ICompositionProfile.Configure"/> to this builder
+    /// immediately, synchronously - the instance-based counterpart to
+    /// <see cref="AddProfile{TProfile}()"/>, for a profile that needs constructor arguments or is
+    /// already an instance.
+    /// </summary>
+    /// <param name="profile">The profile instance to apply.</param>
+    /// <exception cref="CompositionConfigurationException">
+    /// Applying <paramref name="profile"/> would create a cycle (by its declared CLR type) - thrown
+    /// immediately, containing exactly one <see cref="CompositionConfigurationError.ProfileCycle"/>
+    /// error naming the full chain.
+    /// </exception>
+    public CompositionBuilder AddProfile(ICompositionProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ApplyProfile(profile);
         return this;
     }
 
@@ -145,6 +186,42 @@ public sealed class CompositionBuilder
             _registrationFactories[type] = factory;
         }
 
-        sources.Add(ConfigurationSource.Direct);
+        sources.Add(CurrentSource());
     }
+
+    // Applies one profile's Configure to this builder. Cycle identity is the profile's declared CLR
+    // type (profile.GetType()) - deliberately conservative: two different instances of the same profile
+    // type nested inside each other are still treated as a cycle, mirroring the engine's own
+    // type-keyed active-construction-frame stack (ADR-0011). A cycle throws immediately, from here, not
+    // from Build() - a distinct failure path from Build()'s aggregated conflict scan.
+    private void ApplyProfile(ICompositionProfile profile)
+    {
+        var profileType = profile.GetType();
+
+        if (_applyingProfiles.Contains(profileType))
+        {
+            // _applyingProfiles enumerates top-of-stack first; Reverse() restores application
+            // (outermost-first) order before appending the type that closes the cycle.
+            List<Type> chain = [.. _applyingProfiles.Reverse(), profileType];
+            throw new CompositionConfigurationException([new CompositionConfigurationError.ProfileCycle(chain)]);
+        }
+
+        _applyingProfiles.Push(profileType);
+        try
+        {
+            profile.Configure(this);
+        }
+        finally
+        {
+            _applyingProfiles.Pop();
+        }
+    }
+
+    // "Direct" outside any profile; otherwise the currently-applying profile chain, outermost first -
+    // used to tag every registration/scalar-option entry accumulated while a profile's Configure is
+    // running, per ADR-0018's provenance decision.
+    private ConfigurationSource CurrentSource() =>
+        _applyingProfiles.Count == 0
+            ? ConfigurationSource.Direct
+            : new ConfigurationSource.ProfileChain([.. _applyingProfiles.Reverse()]);
 }

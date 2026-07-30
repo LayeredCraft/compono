@@ -111,4 +111,44 @@ public abstract record CompositionConfigurationError
             Sources = snapshot;
         }
     }
+
+    /// <summary>
+    /// A profile, directly or transitively (via <c>AddProfile</c> called from inside another profile's
+    /// <c>Configure</c>), applied itself again while it was already applying - detected and thrown
+    /// immediately from <c>AddProfile</c>, never aggregated into a <see cref="CompositionConfigurationException"/>
+    /// alongside any other conflict.
+    /// </summary>
+    /// <remarks>
+    /// Identity for cycle purposes is a profile's declared CLR type (<c>profile.GetType()</c>),
+    /// regardless of whether it reached the builder via <c>AddProfile&lt;T&gt;()</c> or
+    /// <c>AddProfile(instance)</c> - see <c>docs/adr/0018-composition-profiles.md</c>.
+    /// </remarks>
+    public sealed record ProfileCycle : CompositionConfigurationError
+    {
+        /// <summary>
+        /// The full cycle, in application order, with the repeated profile type at both ends (e.g.
+        /// <c>[ProfileA, ProfileB, ProfileA]</c>) - always at least two entries. A genuinely immutable
+        /// snapshot (<see cref="ImmutableSnapshot"/>), same guarantee as
+        /// <see cref="DuplicateRegistration.Sources"/>.
+        /// </summary>
+        public IReadOnlyList<Type> Chain { get; }
+
+        /// <summary>Creates a <see cref="ProfileCycle"/> error.</summary>
+        /// <param name="chain">The full cycle, in application order, with the repeated profile type at both ends.</param>
+        /// <exception cref="ArgumentException"><paramref name="chain"/> has fewer than two entries.</exception>
+        public ProfileCycle(IReadOnlyList<Type> chain)
+        {
+            ArgumentNullException.ThrowIfNull(chain);
+
+            var snapshot = ImmutableSnapshot.Of(chain);
+            if (snapshot.Count < 2)
+            {
+                throw new ArgumentException(
+                    "A profile-cycle error requires a chain of at least two entries.",
+                    nameof(chain));
+            }
+
+            Chain = snapshot;
+        }
+    }
 }

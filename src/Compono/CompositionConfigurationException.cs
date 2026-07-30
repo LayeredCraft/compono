@@ -77,6 +77,8 @@ public sealed class CompositionConfigurationException : Exception
         CompositionConfigurationError.DuplicateRegistration duplicate =>
             $"'{CompositionPath.FriendlyTypeName(duplicate.RegisteredType)}' was registered more than once " +
             $"({DescribeSources(duplicate.Sources)}).",
+        CompositionConfigurationError.ProfileCycle cycle =>
+            $"Profile cycle detected: {string.Join(" -> ", cycle.Chain.Select(type => type.Name))}.",
         _ => throw new ArgumentOutOfRangeException(nameof(error), error, "Unrecognized composition configuration error."),
     };
 
