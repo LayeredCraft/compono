@@ -168,4 +168,55 @@ public abstract record CompositionConfigurationError
             Chain = snapshot;
         }
     }
+
+    /// <summary>
+    /// The same configuration-rule key was set more than once across a single
+    /// <see cref="Composer.Create(Action{CompositionBuilder})"/> callback - a type rule for the same
+    /// type twice, a member rule for the same (declaring type, member name) pair twice, or a
+    /// member-scoped <c>WithCollectionSize</c> override for the same pair twice. A member rule and a
+    /// type rule that could both match the same request are never a conflict with each other, even
+    /// though both may apply - they're different specificity, not the same key. See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    public sealed record DuplicateRule : CompositionConfigurationError
+    {
+        /// <summary>A type rule's own type, or a member rule's/collection-size override's declaring type.</summary>
+        public Type RuleType { get; }
+
+        /// <summary>
+        /// The member name, for a member rule or member-scoped collection-size override -
+        /// <see langword="null"/> for a type rule.
+        /// </summary>
+        public string? MemberName { get; }
+
+        /// <summary>
+        /// Every call that set this rule/override, in call order - always at least two. A genuinely
+        /// immutable snapshot (<see cref="ImmutableSnapshot"/>), same guarantee as
+        /// <see cref="DuplicateRegistration.Sources"/>.
+        /// </summary>
+        public IReadOnlyList<ConfigurationSource> Sources { get; }
+
+        /// <summary>Creates a <see cref="DuplicateRule"/> error.</summary>
+        /// <param name="ruleType">A type rule's own type, or a member rule's/collection-size override's declaring type.</param>
+        /// <param name="memberName">The member name, or <see langword="null"/> for a type rule.</param>
+        /// <param name="sources">Every call that set this rule/override, in call order.</param>
+        /// <exception cref="ArgumentException"><paramref name="sources"/> has fewer than two entries.</exception>
+        public DuplicateRule(Type ruleType, string? memberName, IReadOnlyList<ConfigurationSource> sources)
+        {
+            ArgumentNullException.ThrowIfNull(ruleType);
+            ArgumentNullException.ThrowIfNull(sources);
+
+            var snapshot = ImmutableSnapshot.Of(sources);
+            if (snapshot.Count < 2)
+            {
+                throw new ArgumentException(
+                    "A duplicate-rule error requires at least two contributing sources.",
+                    nameof(sources));
+            }
+
+            RuleType = ruleType;
+            MemberName = memberName;
+            Sources = snapshot;
+        }
+    }
 }

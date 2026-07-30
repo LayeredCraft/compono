@@ -26,12 +26,18 @@ public readonly struct CompositionRequestDescriptor
     /// generator-assigned declaration-order index. Never <see cref="Name"/>.
     /// </param>
     /// <param name="name">The parameter or member name, for diagnostic display only.</param>
+    /// <param name="declaringType">
+    /// The type whose constructor/required member declares this parameter/member - <see langword="null"/>
+    /// for a request with no member identity of its own (a collection element, dictionary key/value, or
+    /// manual resolve). See <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </param>
     /// <param name="nullability">Whether the requesting parameter or member is nullable-annotated.</param>
-    public CompositionRequestDescriptor(CompositionRequestKind kind, int ordinal, string name, Nullability nullability)
+    public CompositionRequestDescriptor(CompositionRequestKind kind, int ordinal, string name, Type? declaringType, Nullability nullability)
     {
         Kind = kind;
         Ordinal = ordinal;
         Name = name;
+        DeclaringType = declaringType;
         Nullability = nullability;
     }
 
@@ -46,6 +52,15 @@ public readonly struct CompositionRequestDescriptor
 
     /// <summary>The parameter or member name, for diagnostic display only.</summary>
     public string Name { get; }
+
+    /// <summary>
+    /// The type whose constructor/required member declares this parameter/member - <see langword="null"/>
+    /// for a request with no member identity of its own (a collection element, dictionary key/value, or
+    /// manual resolve). Never fed into random-fork hashing - used only for configuration-rule matching
+    /// (stage 4) and collection-size override lookup (stage 7). See
+    /// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+    /// </summary>
+    public Type? DeclaringType { get; }
 
     /// <summary>Whether the requesting parameter or member is nullable-annotated.</summary>
     public Nullability Nullability { get; }

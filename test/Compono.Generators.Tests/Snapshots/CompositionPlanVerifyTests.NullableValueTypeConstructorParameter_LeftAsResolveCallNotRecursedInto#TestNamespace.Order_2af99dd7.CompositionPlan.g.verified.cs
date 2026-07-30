@@ -9,8 +9,8 @@ namespace TestNamespace
     {
         public global::TestNamespace.Order Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Order(
-                context.Resolve<int?>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "quantity", global::Compono.Nullability.Nullable)),
-                context.Resolve<global::TestNamespace.Priority?>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 1, "priority", global::Compono.Nullability.Nullable))
+                context.Resolve<int?>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "quantity", typeof(global::TestNamespace.Order), global::Compono.Nullability.Nullable)),
+                context.Resolve<global::TestNamespace.Priority?>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 1, "priority", typeof(global::TestNamespace.Order), global::Compono.Nullability.Nullable))
             );
     }
 

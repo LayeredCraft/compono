@@ -67,7 +67,7 @@ public sealed class CompositionEndToEndTests
     }
 
     private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
-        new(CompositionRequestKind.ConstructorParameter, ordinal, name, Nullability.NotNullable);
+        new(CompositionRequestKind.ConstructorParameter, ordinal, name, declaringType: null, Nullability.NotNullable);
 
     private sealed record Address(string Street, string City);
 

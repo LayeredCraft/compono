@@ -11,9 +11,9 @@ namespace TestNamespace
             new global::TestNamespace.Dog(
             )
             {
-                Species = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Species", global::Compono.Nullability.NotNullable)),
-                LegCount = context.Resolve<int>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 1, "LegCount", global::Compono.Nullability.NotNullable)),
-                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 2, "Name", global::Compono.Nullability.NotNullable))
+                Species = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Species", typeof(global::TestNamespace.Animal), global::Compono.Nullability.NotNullable)),
+                LegCount = context.Resolve<int>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 1, "LegCount", typeof(global::TestNamespace.Animal), global::Compono.Nullability.NotNullable)),
+                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 2, "Name", typeof(global::TestNamespace.Dog), global::Compono.Nullability.NotNullable))
             };
     }
 

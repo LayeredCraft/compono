@@ -9,10 +9,10 @@ namespace TestNamespace
     {
         public global::TestNamespace.Customer Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Customer(
-                context.Resolve<int>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "id", global::Compono.Nullability.NotNullable))
+                context.Resolve<int>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "id", typeof(global::TestNamespace.Customer), global::Compono.Nullability.NotNullable))
             )
             {
-                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Name", global::Compono.Nullability.NotNullable))
+                Name = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.RequiredMember, 0, "Name", typeof(global::TestNamespace.Customer), global::Compono.Nullability.NotNullable))
             };
     }
 

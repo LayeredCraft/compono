@@ -6,33 +6,34 @@ file sealed class CollectionCompositionPlan : global::Compono.ICompositionPlan<{
 {
     public {{ collection_type }} Compose(global::Compono.ICompositionContext context)
     {
+        var size = context.ResolveCollectionSize();
 {{~ if shape == "Array" ~}}
-        var result = new {{ element_type }}[3];
-        for (var i = 0; i < 3; i++)
-            result[i] = context.Resolve<{{ element_type }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.CollectionElement, i, "", {{ element_nullability }}));
+        var result = new {{ element_type }}[size];
+        for (var i = 0; i < size; i++)
+            result[i] = context.Resolve<{{ element_type }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.CollectionElement, i, "", null, {{ element_nullability }}));
         return result;
 {{~ else if (shape == "List") || (shape == "ReadOnlyList") ~}}
-        var result = new global::System.Collections.Generic.List<{{ element_type }}>(3);
-        for (var i = 0; i < 3; i++)
-            result.Add(context.Resolve<{{ element_type }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.CollectionElement, i, "", {{ element_nullability }})));
+        var result = new global::System.Collections.Generic.List<{{ element_type }}>(size);
+        for (var i = 0; i < size; i++)
+            result.Add(context.Resolve<{{ element_type }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.CollectionElement, i, "", null, {{ element_nullability }})));
         return result;
 {{~ else if shape == "HashSet" ~}}
-        var result = new global::System.Collections.Generic.HashSet<{{ element_type }}>(3);
-        for (var i = 0; i < 3; i++)
+        var result = new global::System.Collections.Generic.HashSet<{{ element_type }}>(size);
+        for (var i = 0; i < size; i++)
         {
             if (!global::Compono.UniqueValueResolver.TryResolve<{{ element_type }}>(context, global::Compono.CompositionRequestKind.CollectionElement, i, {{ element_nullability }}, result, out _))
-                throw new global::Compono.CompositionException($"Could not generate 3 unique values of type '{typeof({{ element_type }})}' for '{{ collection_type }}' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per element - the element type's value space is likely too small for the requested collection size.");
+                throw new global::Compono.CompositionException($"Could not generate {size} unique values of type '{typeof({{ element_type }})}' for '{{ collection_type }}' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per element - the element type's value space is likely too small for the requested collection size.");
         }
         return result;
 {{~ else if shape == "Dictionary" ~}}
-        var result = new global::System.Collections.Generic.Dictionary<{{ key_type }}, {{ element_type }}>(3);
-        var usedKeys = new global::System.Collections.Generic.HashSet<{{ key_type }}>(3);
-        for (var i = 0; i < 3; i++)
+        var result = new global::System.Collections.Generic.Dictionary<{{ key_type }}, {{ element_type }}>(size);
+        var usedKeys = new global::System.Collections.Generic.HashSet<{{ key_type }}>(size);
+        for (var i = 0; i < size; i++)
         {
             if (!global::Compono.UniqueValueResolver.TryResolve<{{ key_type }}>(context, global::Compono.CompositionRequestKind.DictionaryKey, i, {{ key_nullability }}, usedKeys, out var key))
-                throw new global::Compono.CompositionException($"Could not generate 3 unique keys of type '{typeof({{ key_type }})}' for '{{ collection_type }}' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per key - the key type's value space is likely too small for the requested collection size.");
+                throw new global::Compono.CompositionException($"Could not generate {size} unique keys of type '{typeof({{ key_type }})}' for '{{ collection_type }}' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per key - the key type's value space is likely too small for the requested collection size.");
 
-            var value = context.Resolve<{{ element_type }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.DictionaryValue, i, "", {{ element_nullability }}));
+            var value = context.Resolve<{{ element_type }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.DictionaryValue, i, "", null, {{ element_nullability }}));
             result.Add(key, value);
         }
         return result;

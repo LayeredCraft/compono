@@ -7,14 +7,15 @@ file sealed class CollectionCompositionPlan : global::Compono.ICompositionPlan<g
 {
     public global::System.Collections.Generic.Dictionary<global::System.Guid, string> Compose(global::Compono.ICompositionContext context)
     {
-        var result = new global::System.Collections.Generic.Dictionary<global::System.Guid, string>(3);
-        var usedKeys = new global::System.Collections.Generic.HashSet<global::System.Guid>(3);
-        for (var i = 0; i < 3; i++)
+        var size = context.ResolveCollectionSize();
+        var result = new global::System.Collections.Generic.Dictionary<global::System.Guid, string>(size);
+        var usedKeys = new global::System.Collections.Generic.HashSet<global::System.Guid>(size);
+        for (var i = 0; i < size; i++)
         {
             if (!global::Compono.UniqueValueResolver.TryResolve<global::System.Guid>(context, global::Compono.CompositionRequestKind.DictionaryKey, i, global::Compono.Nullability.NotNullable, usedKeys, out var key))
-                throw new global::Compono.CompositionException($"Could not generate 3 unique keys of type '{typeof(global::System.Guid)}' for 'global::System.Collections.Generic.Dictionary<global::System.Guid, string>' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per key - the key type's value space is likely too small for the requested collection size.");
+                throw new global::Compono.CompositionException($"Could not generate {size} unique keys of type '{typeof(global::System.Guid)}' for 'global::System.Collections.Generic.Dictionary<global::System.Guid, string>' after {(global::Compono.UniqueValueResolver.MaxAttempts)} attempts per key - the key type's value space is likely too small for the requested collection size.");
 
-            var value = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.DictionaryValue, i, "", global::Compono.Nullability.NotNullable));
+            var value = context.Resolve<string>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.DictionaryValue, i, "", null, global::Compono.Nullability.NotNullable));
             result.Add(key, value);
         }
         return result;

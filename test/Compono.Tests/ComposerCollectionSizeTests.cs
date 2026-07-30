@@ -1,0 +1,129 @@
+namespace Compono.Tests;
+
+/// <summary>
+/// Exercises Milestone 3 Phase 3's collection-size configuration surface -
+/// <see cref="CompositionBuilder.WithCollectionSize(int)"/> (global), the member-scoped
+/// <c>.For&lt;T&gt;().Member(x => x.Y).WithCollectionSize(int)</c> override, and
+/// <see cref="ICompositionContext.ResolveCollectionSize"/> - through the real
+/// <see cref="Composer.Create(Action{CompositionBuilder})"/> path. See
+/// <c>docs/adr/0020-composition-configuration-rules.md</c>.
+/// </summary>
+public sealed class ComposerCollectionSizeTests
+{
+    [Fact]
+    public void WithCollectionSize_CalledTwice_ThrowsWithOneDuplicateConfigurationOptionErrorNamingBothSources()
+    {
+        var act = () => Composer.Create(builder => builder.WithCollectionSize(2).WithCollectionSize(5));
+
+        var exception = act.Should().Throw<CompositionConfigurationException>().Which;
+        exception.Errors.Should().ContainSingle();
+        var error = exception.Errors[0].Should().BeOfType<CompositionConfigurationError.DuplicateConfigurationOption>().Which;
+        error.OptionName.Should().Be("WithCollectionSize");
+        error.Sources.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void WithCollectionSize_Negative_ThrowsArgumentOutOfRangeException_ImmediatelyAtTheCallSite()
+    {
+        var act = () => new CompositionBuilder().WithCollectionSize(-1);
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void MemberScopedWithCollectionSize_Negative_ThrowsArgumentOutOfRangeException_ImmediatelyAtTheCallSite()
+    {
+        var act = () => new CompositionBuilder().For<Wrapper>().Member(x => x.ItemsA).WithCollectionSize(-1);
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void NoConfiguration_FallsBackToTheBuiltInSizeOfThree()
+    {
+        CollectionPlanCache<List<int>>.Instance = new SizeProbeListPlan();
+
+        try
+        {
+            var composer = Composer.Create();
+
+            var result = composer.Create<List<int>>();
+
+            result.Should().HaveCount(3);
+        }
+        finally
+        {
+            CollectionPlanCache<List<int>>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void GlobalDefault_ChangesTheCollectionSize_ForARootLevelCollection()
+    {
+        CollectionPlanCache<List<int>>.Instance = new SizeProbeListPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.WithCollectionSize(7));
+
+            var result = composer.Create<List<int>>();
+
+            result.Should().HaveCount(7);
+        }
+        finally
+        {
+            CollectionPlanCache<List<int>>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void MemberScopedOverride_OverridesTheGlobalDefault_ForThatMemberOnly()
+    {
+        PlanCache<Wrapper>.Instance = new WrapperPlan();
+        CollectionPlanCache<List<int>>.Instance = new SizeProbeListPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder
+                .WithCollectionSize(3)
+                .For<Wrapper>().Member(x => x.ItemsA).WithCollectionSize(9));
+
+            var wrapper = composer.Create<Wrapper>();
+
+            wrapper.ItemsA.Should().HaveCount(9);
+            wrapper.ItemsB.Should().HaveCount(3);
+        }
+        finally
+        {
+            PlanCache<Wrapper>.Instance = null;
+            CollectionPlanCache<List<int>>.Instance = null;
+        }
+    }
+
+    private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
+        new(CompositionRequestKind.ConstructorParameter, ordinal, name, typeof(Wrapper), Nullability.NotNullable);
+
+    private sealed record Wrapper(List<int> ItemsA, List<int> ItemsB);
+
+    private sealed class WrapperPlan : ICompositionPlan<Wrapper>
+    {
+        public Wrapper Compose(ICompositionContext context) =>
+            new(
+                context.Resolve<List<int>>(Descriptor(0, "ItemsA")),
+                context.Resolve<List<int>>(Descriptor(1, "ItemsB")));
+    }
+
+    // Simulates the shape a real generated collection plan produces - reads context.ResolveCollectionSize()
+    // instead of a hardcoded literal, per ADR-0020.
+    private sealed class SizeProbeListPlan : ICompositionPlan<List<int>>
+    {
+        public List<int> Compose(ICompositionContext context)
+        {
+            var size = context.ResolveCollectionSize();
+            var result = new List<int>(size);
+            for (var i = 0; i < size; i++)
+                result.Add(i);
+            return result;
+        }
+    }
+}

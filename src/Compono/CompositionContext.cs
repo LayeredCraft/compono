@@ -25,10 +25,11 @@ internal sealed class CompositionContext : ICompositionContext
     private readonly List<Func<ICompositionContext, object?>> _activeFactories = [];
     private readonly List<ManualResolveFrame> _manualResolveFrames = [];
     private readonly CompositionTraceBuffer _trace = new();
-    private readonly IReadOnlyList<ICompositionProvider> _profileProviders;
+    private readonly IReadOnlyList<ICompositionProvider> _configurationRuleProviders;
     private readonly IReadOnlyList<ICompositionProvider> _semanticProviders;
     private readonly IReadOnlyList<ICompositionProvider> _testDoubleProviders;
     private readonly IReadOnlyList<ICompositionProvider> _builtInProviders;
+    private readonly CollectionSizePolicy _collectionSizePolicy;
 
     // A cheap, otherwise-empty identity token BuildException stamps onto every CompositionException it
     // creates - InvokeFactory compares a caught exception's own token against this one to tell "my own
@@ -39,6 +40,7 @@ internal sealed class CompositionContext : ICompositionContext
 
     private CompositionPath? _path;
     private IRandomSource? _random;
+    private Type? _currentDeclaringType;
 
     /// <summary>
     /// Creates a <see cref="CompositionContext"/> with no providers registered in any stage and a
@@ -72,12 +74,29 @@ internal sealed class CompositionContext : ICompositionContext
 
     /// <summary>
     /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, the given
-    /// explicit stage-3 registrations and configured <c>IServiceProvider</c>, and the given explicit
-    /// root seed - the shape <see cref="Composer.Create{T}"/>/<see cref="Composer.CreateMany{T}"/> use
-    /// once a <see cref="CompositionBuilder"/> has been configured.
+    /// explicit stage-3 registrations and configured <c>IServiceProvider</c>, no configuration rules,
+    /// the built-in collection-size policy, and the given explicit root seed - the seam
+    /// <c>Compono.Tests</c> uses to exercise stage 3 directly.
     /// </summary>
     internal CompositionContext(CompositionSeed seed, CompositionRegistrations registrations, IServiceProvider? serviceProvider)
-        : this(seed, registrations, serviceProvider, profileProviders: [], semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders: [], CollectionSizePolicy.Empty)
+    {
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, the given
+    /// explicit stage-3 registrations and configured <c>IServiceProvider</c>, the given compiled
+    /// stage-4 configuration-rule providers and collection-size policy, and the given explicit root
+    /// seed - the shape <see cref="Composer.Create{T}"/>/<see cref="Composer.CreateMany{T}"/> use once
+    /// a <see cref="CompositionBuilder"/> has been configured.
+    /// </summary>
+    internal CompositionContext(
+        CompositionSeed seed,
+        CompositionRegistrations registrations,
+        IServiceProvider? serviceProvider,
+        IReadOnlyList<ICompositionProvider> configurationRuleProviders,
+        CollectionSizePolicy collectionSizePolicy)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default, collectionSizePolicy)
     {
     }
 
@@ -85,14 +104,14 @@ internal sealed class CompositionContext : ICompositionContext
     /// Creates a <see cref="CompositionContext"/> with explicit providers per extensible pipeline
     /// stage and a freshly generated root seed - the seam <c>Compono.Tests</c> uses to inject fake
     /// providers and assert pipeline ordering, since no public configuration surface exists until
-    /// Milestone 3/5/6.
+    /// Milestone 5/6.
     /// </summary>
     internal CompositionContext(
-        IReadOnlyList<ICompositionProvider> profileProviders,
+        IReadOnlyList<ICompositionProvider> configurationRuleProviders,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         IReadOnlyList<ICompositionProvider> builtInProviders)
-        : this(CompositionSeed.Generate(), CompositionRegistrations.Empty, serviceProvider: null, profileProviders, semanticProviders, testDoubleProviders, builtInProviders)
+        : this(CompositionSeed.Generate(), CompositionRegistrations.Empty, serviceProvider: null, configurationRuleProviders, semanticProviders, testDoubleProviders, builtInProviders, CollectionSizePolicy.Empty)
     {
     }
 
@@ -100,18 +119,20 @@ internal sealed class CompositionContext : ICompositionContext
         CompositionSeed seed,
         CompositionRegistrations registrations,
         IServiceProvider? serviceProvider,
-        IReadOnlyList<ICompositionProvider> profileProviders,
+        IReadOnlyList<ICompositionProvider> configurationRuleProviders,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
-        IReadOnlyList<ICompositionProvider> builtInProviders)
+        IReadOnlyList<ICompositionProvider> builtInProviders,
+        CollectionSizePolicy collectionSizePolicy)
     {
         _seed = seed;
         _registrations = registrations;
         _serviceProvider = serviceProvider;
-        _profileProviders = profileProviders;
+        _configurationRuleProviders = configurationRuleProviders;
         _semanticProviders = semanticProviders;
         _testDoubleProviders = testDoubleProviders;
         _builtInProviders = builtInProviders;
+        _collectionSizePolicy = collectionSizePolicy;
     }
 
     /// <summary>
@@ -140,7 +161,7 @@ internal sealed class CompositionContext : ICompositionContext
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Kind, "Unrecognized composition request kind."),
         };
 
-        return ResolveCore<TValue>(descriptor.Nullability, segment, isShared: false);
+        return ResolveCore<TValue>(descriptor.Nullability, descriptor.DeclaringType, segment, isShared: false);
     }
 
     /// <inheritdoc />
@@ -155,8 +176,11 @@ internal sealed class CompositionContext : ICompositionContext
 
         var frame = _manualResolveFrames[^1];
         var segment = new PathSegment.ManualResolve(frame.NextOrdinal++);
-        return ResolveCore<TValue>(Nullability.NotNullable, segment, isShared: false);
+        return ResolveCore<TValue>(Nullability.NotNullable, declaringType: null, segment, isShared: false);
     }
+
+    /// <inheritdoc />
+    public int ResolveCollectionSize() => ResolveCollectionSizeCore();
 
     /// <summary>
     /// Resolves the root value of this composition operation - the entry point
@@ -164,7 +188,7 @@ internal sealed class CompositionContext : ICompositionContext
     /// <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> generated code uses. Both funnel into the same pipeline
     /// execution, so the root type is resolved identically to any nested type.
     /// </summary>
-    internal TValue ResolveRoot<TValue>() => ResolveCore<TValue>(Nullability.NotNullable, segment: null, isShared: false);
+    internal TValue ResolveRoot<TValue>() => ResolveCore<TValue>(Nullability.NotNullable, declaringType: null, segment: null, isShared: false);
 
     /// <summary>
     /// Resolves <typeparamref name="TValue"/> as a shared request (stage 2) - the internal test seam
@@ -173,12 +197,13 @@ internal sealed class CompositionContext : ICompositionContext
     /// and diagnostic display, matching an ordinary constructor-parameter request.
     /// </summary>
     internal TValue ResolveSharedForTesting<TValue>(int ordinal, string name) =>
-        ResolveCore<TValue>(Nullability.NotNullable, new PathSegment.ConstructorParameter(ordinal, name), isShared: true);
+        ResolveCore<TValue>(Nullability.NotNullable, declaringType: null, new PathSegment.ConstructorParameter(ordinal, name), isShared: true);
 
-    private TValue ResolveCore<TValue>(Nullability nullability, PathSegment? segment, bool isShared)
+    private TValue ResolveCore<TValue>(Nullability nullability, Type? declaringType, PathSegment? segment, bool isShared)
     {
         var requestedType = typeof(TValue);
         var previousRandom = _random;
+        var previousDeclaringType = _currentDeclaringType;
         var isRoot = _path is null;
         var checkpoint = _trace.Checkpoint;
 
@@ -188,6 +213,7 @@ internal sealed class CompositionContext : ICompositionContext
         // existing null-check above: there is no ancestor random source to fork from either.
         _path = isRoot ? CompositionPath.Root(requestedType) : _path!.Push(requestedType, segment);
         _random = isRoot ? RandomSource.FromSeed(_seed) : previousRandom!.Fork(segment!);
+        _currentDeclaringType = declaringType;
 
         try
         {
@@ -195,6 +221,7 @@ internal sealed class CompositionContext : ICompositionContext
             {
                 RequestedType = requestedType,
                 Nullability = nullability,
+                DeclaringType = declaringType,
                 Path = _path,
                 IsShared = isShared,
             };
@@ -230,7 +257,7 @@ internal sealed class CompositionContext : ICompositionContext
             if (_registrations.TryGet(requestedType, out var factory))
             {
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Pending);
-                var registeredValue = InvokeFactory(factory, requestedType);
+                var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
                 var value = Authoritative<TValue>(result);
@@ -280,9 +307,9 @@ internal sealed class CompositionContext : ICompositionContext
             // tagged with that same provider type - never by this method returning first and the
             // caller recording second, which is exactly the ordering bug (PR #13 review, prior
             // rounds) that let a validation failure throw before anything got recorded at all.
-            if (TryProviders(_profileProviders, PipelineStage.ProfileRule, request, out var profileValue, out var profileProvider))
+            if (TryProviders(_configurationRuleProviders, PipelineStage.ConfigurationRule, request, out var configurationRuleValue, out var configurationRuleProvider))
             {
-                var value = StoreSharedAndReturn<TValue>(profileValue, request, PipelineStage.ProfileRule, profileProvider);
+                var value = StoreSharedAndReturn<TValue>(configurationRuleValue, request, PipelineStage.ConfigurationRule, configurationRuleProvider);
                 _trace.Rewind(checkpoint);
                 return value;
             }
@@ -346,8 +373,34 @@ internal sealed class CompositionContext : ICompositionContext
         {
             _path = _path.Pop();
             _random = previousRandom;
+            _currentDeclaringType = previousDeclaringType;
         }
     }
+
+    // ADR-0020: reads the exact same (DeclaringType, member-name) identity a compiled MemberRuleProvider
+    // matches on, for the request currently being resolved (the collection member itself - collection
+    // dispatch resolves this exact request, not some child of it). A root-level collection request has
+    // no DeclaringType at all, so the member-override branch never matches and this falls straight
+    // through to the global default/built-in size - the correct outcome for a root. Never advances
+    // IRandomSource, never pushes a path segment of its own - a plain, three-level data lookup.
+    private int ResolveCollectionSizeCore()
+    {
+        if (_currentDeclaringType is { } declaringType
+            && MemberNameOfCurrentRequest() is { } memberName
+            && _collectionSizePolicy.TryGetMemberOverride((declaringType, memberName), out var overrideSize))
+        {
+            return overrideSize;
+        }
+
+        return _collectionSizePolicy.GlobalDefault ?? CollectionDefaults.Size;
+    }
+
+    private string? MemberNameOfCurrentRequest() => _path?.Segment switch
+    {
+        PathSegment.ConstructorParameter p => p.Name,
+        PathSegment.RequiredMember m => m.Name,
+        _ => null,
+    };
 
     // Stage 8: generated-plan dispatch - the only place recursion is checked, per
     // docs/adr/0011-composition-scope-shared-values-and-recursion-detection.md. Stages 1-7 above
@@ -404,11 +457,11 @@ internal sealed class CompositionContext : ICompositionContext
     // name this exact case ("an exact registration (stage 3) whose factory throws") explicitly, so an
     // ordinary factory-thrown exception must surface as a structured CompositionException (path, seed,
     // trace, original preserved as InnerException), not escape raw with none of that context.
-    private object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType)
+    internal object? InvokeFactory(Func<ICompositionContext, object?> factory, Type requestedType, PipelineStage stage)
     {
         if (IsFactoryActive(factory))
         {
-            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
+            _trace.Record(stage, provider: null, CompositionAttemptOutcome.Failure);
             throw BuildException(requestedType, BuildFactoryReentranceMessage(requestedType));
         }
 
@@ -436,7 +489,7 @@ internal sealed class CompositionContext : ICompositionContext
         }
         catch (Exception ex)
         {
-            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Failure);
+            _trace.Record(stage, provider: null, CompositionAttemptOutcome.Failure);
             throw BuildException(
                 requestedType,
                 $"The registration or configuration-rule factory for '{CompositionPath.FriendlyTypeName(requestedType)}' threw: {ex.Message}",

@@ -123,7 +123,7 @@ public sealed class CompositionDiagnosticsTests
     {
         var provider = new NullProvider();
         var context = new CompositionContext(
-            profileProviders: [provider],
+            configurationRuleProviders: [provider],
             semanticProviders: [],
             testDoubleProviders: [],
             builtInProviders: []);
@@ -133,7 +133,7 @@ public sealed class CompositionDiagnosticsTests
         var trace = act.Should().Throw<CompositionException>().Which.Diagnostic!.Trace;
 
         // Same class of bug as the collection case above, at a different site: the profile-provider
-        // branch used to record "ProfileRule: Success" before StoreSharedAndReturn's authoritative
+        // branch used to record "ConfigurationRule: Success" before StoreSharedAndReturn's authoritative
         // null/type validation ran - a provider that hands back an invalid value for a shared
         // request would have left a false "Success" in the trace even though StoreSharedAndReturn
         // goes on to throw. The same fix applies to the semantic/test-double/built-in provider
@@ -148,7 +148,7 @@ public sealed class CompositionDiagnosticsTests
         // StoreSharedAndReturn records the real outcome (Success or Failure) itself, before
         // Authoritative can throw, tagged with the provider that produced it.
         trace.Should().Contain(attempt =>
-            attempt.Stage == PipelineStage.ProfileRule
+            attempt.Stage == PipelineStage.ConfigurationRule
             && attempt.Provider == typeof(NullProvider)
             && attempt.Outcome == CompositionAttemptOutcome.Failure);
     }
@@ -158,7 +158,7 @@ public sealed class CompositionDiagnosticsTests
     {
         var provider = new NestedResolvingProvider();
         var context = new CompositionContext(
-            profileProviders: [provider],
+            configurationRuleProviders: [provider],
             semanticProviders: [],
             testDoubleProviders: [],
             builtInProviders: []);
@@ -175,7 +175,7 @@ public sealed class CompositionDiagnosticsTests
         // above, at a third dispatch site. Now a Pending marker is recorded immediately before
         // TryCompose runs, so a nested failure still surfaces this provider's own in-flight attempt.
         trace.Should().Contain(attempt =>
-            attempt.Stage == PipelineStage.ProfileRule
+            attempt.Stage == PipelineStage.ConfigurationRule
             && attempt.Provider == typeof(NestedResolvingProvider)
             && attempt.Outcome == CompositionAttemptOutcome.Pending);
     }
@@ -254,7 +254,7 @@ public sealed class CompositionDiagnosticsTests
     }
 
     private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
-        new(CompositionRequestKind.ConstructorParameter, ordinal, name, Nullability.NotNullable);
+        new(CompositionRequestKind.ConstructorParameter, ordinal, name, declaringType: null, Nullability.NotNullable);
 
     private sealed record Outer(Inner Value);
 
@@ -307,7 +307,7 @@ public sealed class CompositionDiagnosticsTests
     private sealed class FailingListPlan : ICompositionPlan<List<Missing>>
     {
         public List<Missing> Compose(ICompositionContext context) =>
-            [context.Resolve<Missing>(new CompositionRequestDescriptor(CompositionRequestKind.CollectionElement, 0, "", Nullability.NotNullable))];
+            [context.Resolve<Missing>(new CompositionRequestDescriptor(CompositionRequestKind.CollectionElement, 0, "", declaringType: null, Nullability.NotNullable))];
     }
 
     private sealed class NullProvider : ICompositionProvider

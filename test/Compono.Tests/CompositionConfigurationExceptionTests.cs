@@ -56,6 +56,24 @@ public sealed class CompositionConfigurationExceptionTests
     }
 
     [Fact]
+    public void Message_ForDuplicateTypeRule_NamesTheType()
+    {
+        var duplicate = new CompositionConfigurationError.DuplicateRule(typeof(int), memberName: null, [ConfigurationSource.Direct, ConfigurationSource.Direct]);
+        var exception = new CompositionConfigurationException([duplicate]);
+
+        exception.Message.Should().Contain("Int32");
+    }
+
+    [Fact]
+    public void Message_ForDuplicateMemberRule_NamesTheDeclaringTypeAndMember()
+    {
+        var duplicate = new CompositionConfigurationError.DuplicateRule(typeof(int), "Value", [ConfigurationSource.Direct, ConfigurationSource.Direct]);
+        var exception = new CompositionConfigurationException([duplicate]);
+
+        exception.Message.Should().Contain("Int32").And.Contain("Value");
+    }
+
+    [Fact]
     public void Constructor_WithNullErrors_Throws()
     {
         var act = () => new CompositionConfigurationException(errors: null!);

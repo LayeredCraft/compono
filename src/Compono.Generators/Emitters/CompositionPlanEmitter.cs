@@ -43,6 +43,9 @@ internal static class CompositionPlanEmitter
                 p.FullyQualifiedTypeName,
                 p.IsNullable,
                 NameLiteral = SymbolDisplay.FormatLiteral(p.Name, quote: true),
+                // Every constructor parameter belongs to the composed type's own selected constructor -
+                // the declaring type is always the type this whole plan is being generated for.
+                DeclaringType = type.FullyQualifiedName,
             }).ToArray(),
             RequiredMembers = type.RequiredMembers.Select(m => new
             {
@@ -50,6 +53,7 @@ internal static class CompositionPlanEmitter
                 m.FullyQualifiedTypeName,
                 m.IsNullable,
                 DisplayNameLiteral = SymbolDisplay.FormatLiteral(m.DisplayName, quote: true),
+                DeclaringType = m.DeclaringTypeFullyQualifiedName,
             }).ToArray(),
             GeneratorVersion,
         };

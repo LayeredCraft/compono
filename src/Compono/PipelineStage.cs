@@ -17,8 +17,8 @@ public enum PipelineStage
     /// <summary>Stage 3: exact registrations.</summary>
     ExactRegistration,
 
-    /// <summary>Stage 4: profile rules.</summary>
-    ProfileRule,
+    /// <summary>Stage 4: configuration rules (type/member value rules, per ADR-0020).</summary>
+    ConfigurationRule,
 
     /// <summary>Stage 5: semantic value providers.</summary>
     SemanticProvider,

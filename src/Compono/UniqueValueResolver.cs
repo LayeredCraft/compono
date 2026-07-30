@@ -49,7 +49,7 @@ public static class UniqueValueResolver
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
             var candidate = context.Resolve<TValue>(
-                new CompositionRequestDescriptor(kind, RetryIndex(position, attempt), "", nullability));
+                new CompositionRequestDescriptor(kind, RetryIndex(position, attempt), "", declaringType: null, nullability));
 
             if (alreadyResolved.Add(candidate))
             {

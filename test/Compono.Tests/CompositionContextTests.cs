@@ -7,7 +7,7 @@ public sealed class CompositionContextTests
     {
         var provider = new StubProvider(handles: true, value: "composed");
         var context = new CompositionContext(
-            profileProviders: [],
+            configurationRuleProviders: [],
             semanticProviders: [],
             testDoubleProviders: [],
             builtInProviders: [provider]);
@@ -22,12 +22,12 @@ public sealed class CompositionContextTests
     {
         var provider = new StubProvider(handles: true, value: "composed");
         var context = new CompositionContext(
-            profileProviders: [],
+            configurationRuleProviders: [],
             semanticProviders: [],
             testDoubleProviders: [],
             builtInProviders: [provider]);
         var descriptor = new CompositionRequestDescriptor(
-            CompositionRequestKind.ConstructorParameter, ordinal: 0, name: "value", Nullability.NotNullable);
+            CompositionRequestKind.ConstructorParameter, ordinal: 0, name: "value", declaringType: null, Nullability.NotNullable);
 
         var result = context.Resolve<string>(descriptor);
 
@@ -44,7 +44,7 @@ public sealed class CompositionContextTests
         var builtInProvider = new RecordingProvider(callOrder, "builtIn", handles: true);
 
         var context = new CompositionContext(
-            profileProviders: [profileProvider],
+            configurationRuleProviders: [profileProvider],
             semanticProviders: [semanticProvider],
             testDoubleProviders: [testDoubleProvider],
             builtInProviders: [builtInProvider]);

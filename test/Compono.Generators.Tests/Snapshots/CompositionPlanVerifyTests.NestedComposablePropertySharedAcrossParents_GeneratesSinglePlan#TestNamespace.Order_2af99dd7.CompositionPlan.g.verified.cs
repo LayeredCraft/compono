@@ -9,7 +9,7 @@ namespace TestNamespace
     {
         public global::TestNamespace.Order Compose(global::Compono.ICompositionContext context) =>
             new global::TestNamespace.Order(
-                context.Resolve<global::TestNamespace.Address>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "shipToAddress", global::Compono.Nullability.NotNullable))
+                context.Resolve<global::TestNamespace.Address>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.ConstructorParameter, 0, "shipToAddress", typeof(global::TestNamespace.Order), global::Compono.Nullability.NotNullable))
             );
     }
 
