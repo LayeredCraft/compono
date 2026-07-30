@@ -31,17 +31,18 @@ var customers = composer.CreateMany<Customer>(3);
 
 Configuration uses the same root type via a builder callback (shipped, Milestone 3
 Phase 0 — [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)).
-`WithSeed`, `Register<T>`, and `UseServiceProvider` are shipped so far (Phase 0/1
-— [ADR-0019](adr/0019-registrations-and-service-provider-injection.md));
-`WithCollectionSize`, `AddProfile`, and the `.For<T>()` rule DSL below are still
-Phase 2/3 (not yet implemented — see the Configuration section, which describes
-the full target shape):
+`WithSeed`, `Register<T>`, `UseServiceProvider`, and `AddProfile` are shipped so far
+(Phase 0/1/2 — [ADR-0019](adr/0019-registrations-and-service-provider-injection.md),
+[ADR-0018](adr/0018-composition-profiles.md)); `WithCollectionSize` and the
+`.For<T>()` rule DSL below are still Phase 3 (not yet implemented — see the
+Configuration section, which describes the full target shape):
 
 ```csharp
 var composer = Composer.Create(builder => builder
     .WithSeed(4219)
     .Register<IClock>(_ => new FakeClock())
-    .UseServiceProvider(app.Services));
+    .UseServiceProvider(app.Services)
+    .AddProfile<CustomerProfile>());
 ```
 
 A registration factory can call `ICompositionContext.Resolve<T>()` (no

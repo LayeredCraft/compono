@@ -55,4 +55,43 @@ public sealed class CompositionConfigurationErrorTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void ProfileCycle_Chain_IsUnaffectedByMutatingTheOriginalListAfterConstruction()
+    {
+        var original = new List<Type> { typeof(int), typeof(int) };
+        var error = new CompositionConfigurationError.ProfileCycle(original);
+
+        original.Add(typeof(int));
+
+        error.Chain.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ProfileCycle_WithFewerThanTwoChainEntries_Throws(int chainCount)
+    {
+        var chain = Enumerable.Repeat(typeof(int), chainCount).ToArray();
+
+        var act = () => new CompositionConfigurationError.ProfileCycle(chain);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void ProfileCycle_WithDifferentFirstAndLastEntries_Throws()
+    {
+        var act = () => new CompositionConfigurationError.ProfileCycle([typeof(int), typeof(string)]);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void ProfileCycle_WithANullChainEntry_Throws()
+    {
+        var act = () => new CompositionConfigurationError.ProfileCycle([null!, null!]);
+
+        act.Should().Throw<ArgumentException>();
+    }
 }

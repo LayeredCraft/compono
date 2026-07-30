@@ -441,11 +441,11 @@ list of repeated types.
 ## Immutable Configuration Model
 
 Resolved by [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md).
-**The builder/configuration split, `WithSeed`, `Register<T>`, and `UseServiceProvider`
-are implemented (Milestone 3 Phases 0-1,
-[PLAN-0003](plans/0003-milestone-3-profiles-and-configuration.md)); `AddProfile`, the
-`.For<T>()` rule DSL, and `WithCollectionSize` are still Milestone 3 scope, not yet
-implemented, per that plan's later phases.** `CompositionBuilder` is a mutable
+**The builder/configuration split, `WithSeed`, `Register<T>`, `UseServiceProvider`,
+and `AddProfile` are implemented (Milestone 3 Phases 0-2,
+[PLAN-0003](plans/0003-milestone-3-profiles-and-configuration.md)); the `.For<T>()`
+rule DSL and `WithCollectionSize` are still Milestone 3 scope, not yet implemented,
+per that plan's later phases.** `CompositionBuilder` is a mutable
 accumulator that exists only for the duration of the `Composer.Create(builder =>
 ...)` callback; when the callback returns, its accumulated state is validated and
 frozen into an internal `CompositionConfiguration` — a `Composer` holds exactly one,
@@ -453,13 +453,13 @@ reused across every `Create<T>()`/`CreateMany<T>()` call it ever serves, with no
 mutable state on that hot path at all. Every scalar configuration verb — `WithSeed`,
 `UseServiceProvider` (both implemented), `WithCollectionSize`'s global default (still
 pending) — may be set at most once per configuration, the same fail-fast rule keyed
-configuration (registrations, implemented; rules, still pending) follows: a second
-call is a build-time conflict, never last-wins, so a scalar's effective value never
-depends on `AddProfile` call order.
+configuration (registrations and profile provenance, implemented; rules, still
+pending) follows: a second call is a build-time conflict, never last-wins, so a
+scalar's effective value never depends on `AddProfile` call order.
 
 Two distinct failure moments both surface from `Composer.Create(...)`, but aren't
 the same mechanism: a profile cycle ([ADR-0018](adr/0018-composition-profiles.md),
-not yet implemented — Milestone 3 Phase 2) is detected **eagerly**, during
+implemented, Milestone 3 Phase 2) is detected **eagerly**, during
 `AddProfile` itself, and throws immediately with exactly one error naming the cycle
 — configuration stops right there, nothing further is aggregated. Every other
 conflict (duplicate registrations, duplicate scalars implemented; duplicate rules
@@ -476,8 +476,8 @@ than parsing message text.
 
 ## Profiles
 
-Resolved by [ADR-0018](adr/0018-composition-profiles.md) (Milestone 3, not yet
-implemented). A profile is `ICompositionProfile` — one method,
+Resolved by [ADR-0018](adr/0018-composition-profiles.md) (implemented, Milestone 3
+Phase 2). A profile is `ICompositionProfile` — one method,
 `void Configure(CompositionBuilder builder)` — not an abstract base class: profiles
 define behavior, not shared implementation, matching the repo's composition-over-
 inheritance preference and AutoFixture's `ICustomization` prior art.
