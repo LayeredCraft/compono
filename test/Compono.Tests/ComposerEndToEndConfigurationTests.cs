@@ -15,7 +15,14 @@ public sealed class ComposerEndToEndConfigurationTests
     public void Create_ComposesAnOrder_UsingEveryConfigurationFeatureTogether()
     {
         PlanCache<Order>.Instance = new OrderPlan();
-        CollectionPlanCache<List<string>>.Instance = new StringListPlan();
+        // OrderTag is private to this file specifically so this closed generic
+        // (CollectionPlanCache<List<OrderTag>>) can't collide with any other test's static
+        // Instance field under xUnit's default cross-class parallel execution - every other test
+        // file in this project follows the same one-distinct-type-per-file convention (see
+        // CollectionPlanCacheDispatchTests/ComposerCollectionSizeTests/ComposerConfigurationRuleTests).
+        // A shared BCL type like List<string> here previously collided with
+        // ComposerConfigurationRuleTests' own CollectionPlanCache<List<string>> usage.
+        CollectionPlanCache<List<OrderTag>>.Instance = new OrderTagListPlan();
 
         try
         {
@@ -25,6 +32,7 @@ public sealed class ComposerEndToEndConfigurationTests
                 .WithSeed(4219)
                 .WithCollectionSize(2)
                 .UseServiceProvider(loggingServiceProvider)
+                .Register<IOrderNumberGenerator>(() => new SequentialOrderNumberGenerator())
                 .AddProfile<ClockProfile>()
                 .For<Order>().Member(x => x.Status).Use("Confirmed")
                 .For<Order>().Member(x => x.Tags).WithCollectionSize(5));
@@ -33,7 +41,12 @@ public sealed class ComposerEndToEndConfigurationTests
 
             // Stage 4 configuration rule (member value rule) wins for Status.
             order.Status.Should().Be("Confirmed");
-            // Stage 3 exact registration, sourced from a profile's Configure, satisfies Clock.
+            // Stage 3 exact registration, called directly on the builder (not via a profile),
+            // satisfies NumberGenerator.
+            order.NumberGenerator.Should().BeOfType<SequentialOrderNumberGenerator>();
+            // Stage 3 exact registration, sourced from a profile's Configure, satisfies Clock -
+            // proving a direct registration and a profile-sourced registration coexist correctly
+            // in the same configuration.
             order.Clock.Should().BeOfType<FakeClock>();
             // Stage 3's IServiceProvider fallback sub-step satisfies Logger (no registration exists).
             order.Logger.Should().BeOfType<ConsoleLogger>();
@@ -47,6 +60,7 @@ public sealed class ComposerEndToEndConfigurationTests
             var second = composer.Create<Order>();
 
             second.Status.Should().Be("Confirmed");
+            second.NumberGenerator.Should().BeOfType<SequentialOrderNumberGenerator>();
             second.Clock.Should().BeOfType<FakeClock>();
             second.Logger.Should().BeOfType<ConsoleLogger>();
             second.Tags.Should().HaveCount(5);
@@ -55,14 +69,22 @@ public sealed class ComposerEndToEndConfigurationTests
         finally
         {
             PlanCache<Order>.Instance = null;
-            CollectionPlanCache<List<string>>.Instance = null;
+            CollectionPlanCache<List<OrderTag>>.Instance = null;
         }
     }
 
     private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
         new(CompositionRequestKind.ConstructorParameter, ordinal, name, typeof(Order), Nullability.NotNullable);
 
-    private sealed record Order(string Status, IClock Clock, ILogger Logger, List<string> Tags, List<string> Notes);
+    private sealed record Order(
+        string Status,
+        IClock Clock,
+        ILogger Logger,
+        IOrderNumberGenerator NumberGenerator,
+        List<OrderTag> Tags,
+        List<OrderTag> Notes);
+
+    private sealed record OrderTag(string Value);
 
     private interface IClock;
 
@@ -71,6 +93,10 @@ public sealed class ComposerEndToEndConfigurationTests
     private interface ILogger;
 
     private sealed class ConsoleLogger : ILogger;
+
+    private interface IOrderNumberGenerator;
+
+    private sealed class SequentialOrderNumberGenerator : IOrderNumberGenerator;
 
     private sealed class ClockProfile : ICompositionProfile
     {
@@ -83,21 +109,22 @@ public sealed class ComposerEndToEndConfigurationTests
             context.Resolve<string>(Descriptor(0, "Status")),
             context.Resolve<IClock>(Descriptor(1, "Clock")),
             context.Resolve<ILogger>(Descriptor(2, "Logger")),
-            context.Resolve<List<string>>(Descriptor(3, "Tags")),
-            context.Resolve<List<string>>(Descriptor(4, "Notes")));
+            context.Resolve<IOrderNumberGenerator>(Descriptor(3, "NumberGenerator")),
+            context.Resolve<List<OrderTag>>(Descriptor(4, "Tags")),
+            context.Resolve<List<OrderTag>>(Descriptor(5, "Notes")));
     }
 
     // Matches the shape a real generated collection plan produces - reads context.ResolveCollectionSize()
     // instead of a hardcoded literal, per ADR-0020. Shared by both Tags and Notes: which member is
     // currently resolving is read from the context's own in-flight request, not from this plan.
-    private sealed class StringListPlan : ICompositionPlan<List<string>>
+    private sealed class OrderTagListPlan : ICompositionPlan<List<OrderTag>>
     {
-        public List<string> Compose(ICompositionContext context)
+        public List<OrderTag> Compose(ICompositionContext context)
         {
             var size = context.ResolveCollectionSize();
-            var result = new List<string>(size);
+            var result = new List<OrderTag>(size);
             for (var i = 0; i < size; i++)
-                result.Add($"item-{i}");
+                result.Add(new OrderTag($"item-{i}"));
             return result;
         }
     }
