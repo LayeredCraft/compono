@@ -1,6 +1,6 @@
 # [PLAN-0003] Milestone 3: Profiles and Configuration
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0017](../adr/0017-immutable-composer-configuration-and-builder-model.md)
 (immutable `Composer`/`CompositionBuilder`/`CompositionConfiguration` split,
@@ -536,18 +536,25 @@ shape, and every feature's own unit/generator-level tests already exist and pass
 (Phases 0–3 each test their own diagnostics and integration behavior directly —
 none of that is deferred here). This phase is deliberately narrow:
 
-- [ ] One combined end-to-end test exercising every prior phase's feature together
+- [x] One combined end-to-end test exercising every prior phase's feature together
       in one graph (registrations + `IServiceProvider` + profiles + type/member
       rules + collection size), matching this plan's Execution Flow section —
       an integration-level confirmation that the phases compose correctly, not a
       re-test of any individual phase's own conflict/diagnostic logic
-- [ ] Real manual verification (per `tasks/implement.md` step 7 and PLAN-0002 Phase
-      2's lesson about skipping this): `dotnet pack` `Compono` into a local feed,
-      reference it from a genuinely separate throwaway console project, exercise a
-      representative `Composer.Create(builder => ...)` combining registrations, a
-      profile, a member rule, and collection-size configuration, confirm real
-      generated-plan dispatch and the compiled stage-4 rules actually apply
-- [ ] **Review Milestone 2's internal test seams** (`Composer.CreateRootForTesting<T>`/
+- [x] Real manual verification (per `tasks/implement.md` step 7 and PLAN-0002 Phase
+      2's lesson about skipping this): exercised against the real, already-published
+      `Compono 0.1.0-alpha.19` NuGet package (not a fresh local `dotnet pack`, since
+      Phase 4 added no new `src/Compono` production code — every Milestone 3 feature
+      shipped in alpha.19 already) from the existing `LayeredCraft`-external
+      dogfooding project (`ncipollina/lightsaber-skill`, `chore/dogfood-compono`
+      branch, bumped from alpha.8), via a new
+      `ComponoMilestone3VerificationTests.cs` combining a profile-sourced
+      registration, an `IServiceProvider` fallback, a member configuration rule, and
+      global/member-scoped collection-size overrides through a real generated plan —
+      confirmed passing. See this phase's Notes for the full detail and for a stale
+      Milestone-1-era assertion in that same project's pre-existing verification
+      test, fixed in the same commit
+- [x] **Review Milestone 2's internal test seams** (`Composer.CreateRootForTesting<T>`/
       `CreateManyForTesting<T>`) now that the real public configuration path exists:
       for each, determine whether it's still pulling weight — prefer testing
       through `Composer.Create(builder => ...)` wherever the public API can express
@@ -555,7 +562,7 @@ none of that is deferred here). This phase is deliberately narrow:
       API genuinely cannot reach (e.g. a raw-seed test that predates and is
       orthogonal to configuration entirely); remove or narrow it otherwise, with the
       reasoning recorded in this plan's Notes section once decided
-- [ ] `docs/mvp.md`/`docs/architecture.md`/`docs/public-api.md` updated to describe
+- [x] `docs/mvp.md`/`docs/architecture.md`/`docs/public-api.md` updated to describe
       Milestone 3's shipped behavior as current state (not "not yet implemented"),
       per `tasks/implement.md`'s doc-update step
 
@@ -1435,3 +1442,70 @@ Both gaps fixed:
 
 All 510 `Compono.Tests`/`Compono.Generators.Tests` (up from 504) pass on both
 `net10.0`/`net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### Phase 4 (Done)
+
+- **Combined end-to-end test.** `Compono.Tests/ComposerEndToEndConfigurationTests.cs`
+  (new file) composes a hand-plan-backed `Order` graph through
+  `Composer.Create(builder => ...)` combining `WithSeed`, `WithCollectionSize` (global
+  and member-scoped), `UseServiceProvider`, `AddProfile<ClockProfile>()` (a
+  profile-sourced `Register<IClock>`), and `.For<Order>().Member(x =>
+  x.Status).Use(...)` in one graph, asserting every feature's effect together and
+  that a second `Create<Order>()` call reuses the frozen configuration correctly —
+  matching this plan's Execution Flow section. Uses the same hand-written
+  `ICompositionPlan<T>`/`CollectionPlanCache<T>` fake convention every other
+  `Compono.Tests` file uses (per `testing.md`, `Compono.Tests` never references the
+  real generator).
+- **Test-seam review: `CreateRootForTesting`/`CreateManyForTesting` retained
+  unchanged.** Audited every current call site (`ComposerConfigurationTests`,
+  `ComposerCreateManyTests`, `CompositionEndToEndTests`,
+  `CompositionRandomIntegrationTests`, and the `Providers/*Tests` files) — every one
+  exercises pure seed/randomness determinism or built-in provider behavior that
+  predates and is orthogonal to configuration entirely (Milestone 2 scope), plus one
+  deliberate parity test (`ComposerConfigurationTests`, Phase 0) that specifically
+  needs both the public path and the raw seam side by side to prove they agree. None
+  of the current usage overlaps with what a `Register`/`AddProfile`/`.For<T>()`/
+  `WithCollectionSize` test needs to prove, so nothing qualified for removal or
+  narrowing under this plan's own "retain only where the public API genuinely can't
+  reach it" bar. No source or test changes made for this task; this note is the
+  recorded reasoning it called for.
+- **Manual verification used the real published package, not a fresh local
+  `dotnet pack`.** Phase 4 itself adds no new `src/Compono`/`src/Compono.Generators`
+  production code (only tests, this plan, and doc reconciliation) — every Milestone 3
+  feature this phase needed to verify already shipped in the already-published
+  `Compono 0.1.0-alpha.19` NuGet package, so re-packing locally would have verified
+  nothing a fresh pack didn't already cover identically. Verified instead against the
+  existing external dogfooding project this repo already uses for this exact purpose
+  (`ncipollina/lightsaber-skill`, Milestone 1 Phase 5 precedent), on its
+  already-prepared `chore/dogfood-compono` branch: bumped `Directory.Packages.props`'
+  `Compono` version from `0.1.0-alpha.8` to `0.1.0-alpha.19`, added
+  `test/Lightsaber.Skill.Tests/Compono/ComponoMilestone3VerificationTests.cs`
+  combining a profile-sourced `Register<Crystal>`, an `IServiceProvider` fallback for
+  an unregistered `Logger`, a `.For<Lightsaber>().Member(x =>
+  x.Color).Use("Violet")` member rule, and both a global and a member-scoped
+  `WithCollectionSize` override, composed through `Lightsaber`'s real
+  source-generated plan (not a hand-written fake, unlike `Compono.Tests`) — all
+  assertions passed. Restoring alpha.19 and building also surfaced that the
+  project's pre-existing `ComponoVerificationTests.Create_NestedType_...` test had
+  gone stale: it asserted the Milestone-1-era placeholder behavior
+  (`NotSupportedException("*Milestone 2*")`) for resolving a nested constructor
+  argument, which Milestone 2's real provider pipeline (shipped since alpha.8) no
+  longer produces — the nested `Crystal` now composes successfully. Fixed in the same
+  commit (asserts the nested value composes, instead of asserting the old
+  placeholder throw). Both changes committed to `chore/dogfood-compono` (not pushed,
+  per that repo's own owner's direction) — this repo's own git history is
+  unaffected, since `lightsaber-skill` is a separate repository.
+- No `docs/mvp.md`/`docs/architecture.md`/`docs/public-api.md` changes were needed
+  for this phase's own reconciliation pass — every phase from Phase 0 through Phase 3
+  already updated its own relevant doc section in the same change it shipped in (see
+  each phase's own Notes above), so by Phase 4 no doc described Milestone 3 behavior
+  as "not yet implemented" or otherwise stale. Audited `grep`-style across all three
+  docs to confirm before treating this task as done, rather than assuming the prior
+  phases' discipline held.
+- `Compono.Tests` now has 179 tests (up from 166 recorded at Phase 3's own close-out
+  — the difference is the several small regression tests PR #19's later review
+  rounds added after that note was written, plus this phase's one new
+  `ComposerEndToEndConfigurationTests` file/test), `Compono.Generators.Tests` has 77
+  (unchanged — Phase 4 added no generator-facing code). Counted across both
+  `net10.0`/`net11.0` runs, matching this plan's existing per-phase counting
+  convention: 512 total (up from 510), all passing on both target frameworks.
