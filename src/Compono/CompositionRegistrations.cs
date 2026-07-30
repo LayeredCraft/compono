@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Compono;
@@ -23,9 +24,22 @@ internal sealed class CompositionRegistrations
     private readonly IReadOnlyDictionary<Type, Func<ICompositionContext, object?>> _factories;
 
     /// <summary>Creates a <see cref="CompositionRegistrations"/> store from an explicit type-keyed factory map.</summary>
+    /// <remarks>
+    /// Defensively copies <paramref name="factories"/> into a genuinely immutable snapshot - a
+    /// <see cref="ReadOnlyDictionary{TKey,TValue}"/> wrapping a freshly-copied <see cref="Dictionary{TKey,TValue}"/>
+    /// this type never exposes, mirroring <see cref="ImmutableSnapshot"/>'s guarantee for
+    /// <see cref="IReadOnlyList{T}"/> collections elsewhere in this codebase. Required because
+    /// <c>CompositionBuilder.Build()</c> passes its own live, mutable accumulator dictionary here - a
+    /// consumer that captures the <c>CompositionBuilder</c> out of the configuration callback (e.g.
+    /// assigning it to an outer-scope field) could otherwise keep mutating it via
+    /// <c>Register&lt;T&gt;</c> after <c>Composer.Create(...)</c> has already returned, silently
+    /// violating <c>docs/adr/0017-immutable-composer-configuration-and-builder-model.md</c>'s frozen-
+    /// configuration guarantee and racing with concurrent resolution.
+    /// </remarks>
     internal CompositionRegistrations(IReadOnlyDictionary<Type, Func<ICompositionContext, object?>> factories)
     {
-        _factories = factories;
+        _factories = new ReadOnlyDictionary<Type, Func<ICompositionContext, object?>>(
+            new Dictionary<Type, Func<ICompositionContext, object?>>(factories));
     }
 
     /// <summary>Attempts to read the registered factory for <paramref name="type"/>.</summary>

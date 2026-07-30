@@ -47,6 +47,31 @@ public sealed class ComposerRegistrationTests
     }
 
     [Fact]
+    public void Register_CalledOnACapturedBuilder_AfterCreateReturns_DoesNotAffectTheAlreadyCreatedComposer()
+    {
+        // A codex-review regression: CompositionBuilder.Build() used to hand its own live,
+        // mutable registration dictionary straight to CompositionRegistrations, so a consumer
+        // capturing the builder out of the configure callback (as done here) could keep mutating it
+        // after Composer.Create(...) already returned - silently violating ADR-0017's frozen-
+        // configuration guarantee. CompositionRegistrations now defensively copies at construction.
+        CompositionBuilder? captured = null;
+        var composer = Composer.Create(builder =>
+        {
+            captured = builder;
+            builder.Register<Widget>(() => new Widget("from-registration"));
+        });
+
+        captured!.Register<Recursive>(() => new Recursive());
+
+        // If the leaked mutation were observable, this would resolve via the registration added
+        // after Create(...) already returned instead of falling all the way through to the
+        // terminal "nothing could satisfy this" failure.
+        var act = () => composer.Create<Recursive>();
+
+        act.Should().Throw<CompositionException>().WithMessage("*No registration*");
+    }
+
+    [Fact]
     public void Register_SameTypeTwiceDirectly_ThrowsWithOneDuplicateRegistrationErrorNamingBothSources()
     {
         var act = () => Composer.Create(builder => builder

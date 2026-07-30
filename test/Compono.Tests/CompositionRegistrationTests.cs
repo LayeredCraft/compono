@@ -47,6 +47,21 @@ public sealed class CompositionRegistrationTests
         act.Should().Throw<CompositionException>().WithMessage("*registration*");
     }
 
+    [Fact]
+    public void Constructor_DefensivelyCopiesTheFactoryMap_SoMutatingTheOriginalDictionaryAfterConstructionHasNoEffect()
+    {
+        var registered = new Widget("from-registration");
+        var original = new Dictionary<Type, Func<ICompositionContext, object?>> { [typeof(Widget)] = _ => registered };
+        var registrations = new CompositionRegistrations(original);
+
+        // Simulates a consumer that captured the CompositionBuilder out of the configuration callback
+        // and kept calling Register<T> after Composer.Create(...) already returned - the codex-review
+        // regression this test guards against.
+        original[typeof(Node)] = _ => new Node([]);
+
+        registrations.TryGet(typeof(Node), out _).Should().BeFalse();
+    }
+
     private static CompositionContext ContextWithRegistration(Type type, object? value)
     {
         var registrations = new CompositionRegistrations(

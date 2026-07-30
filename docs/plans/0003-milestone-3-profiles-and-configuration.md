@@ -829,3 +829,36 @@ text without editing it. Every cross-reference to the removed amendments across
 `docs/architecture.md` and this plan was corrected to point at ADR-0019/ADR-0020
 directly. No source code was affected — `DeclaringType`/`ManualResolve` are Phase
 1/3 scope, not yet implemented, so this was a pure documentation/ADR-structure fix.
+
+### PR review correction (2026-07-29): `CompositionRegistrations` wasn't defensively copying its factory map
+
+PR #17 review (Codex) correctly flagged that `CompositionBuilder.Build()` handed
+its own live, mutable `_registrationFactories` dictionary straight into
+`CompositionRegistrations`'s constructor, which stored it only as an
+`IReadOnlyDictionary<...>`-typed view — not a copy. A consumer capturing the
+`CompositionBuilder` out of the configuration callback (e.g. assigning it to an
+outer-scope variable) could keep calling `Register<T>` after
+`Composer.Create(...)` had already returned, silently mutating the "frozen"
+composer's registrations after the fact and racing with concurrent
+`Create<T>()`/`CreateMany<T>()` calls — a real violation of
+[ADR-0017](../adr/0017-immutable-composer-configuration-and-builder-model.md)'s
+frozen-configuration guarantee, and the one place this phase's new collection
+handoff missed the `ImmutableSnapshot`-style defensive-copy pattern already used
+elsewhere in this codebase (`CompositionConfigurationException.Errors`,
+`ConfigurationSource.ProfileChain.Profiles`,
+`CompositionConfigurationError.DuplicateRegistration.Sources`).
+
+Fixed by having `CompositionRegistrations`'s constructor defensively copy its
+input into a `ReadOnlyDictionary<Type, Func<ICompositionContext, object?>>`
+wrapping a freshly-copied `Dictionary` it never exposes — mirroring
+`ReadOnlyCollection<T>`'s guarantee for `ImmutableSnapshot`, just for a
+dictionary instead of a list. Fixed at the constructor rather than at
+`CompositionBuilder.Build()`'s call site specifically, so every current and
+future caller of `CompositionRegistrations` gets the guarantee automatically,
+not just this one. Two regression tests added:
+`CompositionRegistrationTests.Constructor_DefensivelyCopiesTheFactoryMap_...`
+(mutating the original dictionary after construction has no effect on
+`TryGet`) and
+`ComposerRegistrationTests.Register_CalledOnACapturedBuilder_AfterCreateReturns_...`
+(the real-world scenario: a captured builder's post-`Create` `Register<T>` call
+never becomes observable on the already-created `Composer`).
