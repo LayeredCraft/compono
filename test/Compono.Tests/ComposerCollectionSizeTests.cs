@@ -115,10 +115,60 @@ public sealed class ComposerCollectionSizeTests
         }
     }
 
+    [Fact]
+    public void MemberScopedOverride_DoesNotApply_WhenARequestForADifferentlyTypedMemberSharesTheSameName()
+    {
+        // Codex review: Conflicted legally has a property (`Value`, type object) and an unrelated
+        // constructor parameter (`Value`, type List<long>) sharing the exact same case-sensitive name -
+        // .Member(x => x.Value) captures the property (TMember = object), but the generated request for
+        // the constructor parameter has RequestedType = List<long>. Before this fix,
+        // CollectionSizePolicy matched on (DeclaringType, MemberName) alone and would have applied the
+        // property's override to the unrelated collection parameter too.
+        PlanCache<Conflicted>.Instance = new ConflictedPlan();
+        CollectionPlanCache<List<long>>.Instance = new SizeProbeListPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder
+                .WithCollectionSize(3)
+                .For<Conflicted>().Member(x => x.Value).WithCollectionSize(9));
+
+            var result = composer.Create<Conflicted>();
+
+            // The override targets the unrelated `object Value` property - the real List<long> "Value"
+            // constructor parameter must fall through to the global default (3), never inherit the
+            // property's override (9).
+            result.CtorValue.Should().HaveCount(3);
+        }
+        finally
+        {
+            PlanCache<Conflicted>.Instance = null;
+            CollectionPlanCache<List<long>>.Instance = null;
+        }
+    }
+
     private static CompositionRequestDescriptor Descriptor(int ordinal, string name) =>
         new(CompositionRequestKind.ConstructorParameter, ordinal, name, typeof(Wrapper), Nullability.NotNullable);
 
     private sealed record Wrapper(List<long> ItemsA, List<long> ItemsB);
+
+    // A legal, if unusual, shape: a constructor parameter and a property sharing the exact same
+    // case-sensitive name ("Value") but not a type - two entirely separate CLR symbols.
+    private sealed class Conflicted
+    {
+        public Conflicted(List<long> Value) => CtorValue = Value;
+
+        public List<long> CtorValue { get; }
+
+        public object Value { get; init; } = new();
+    }
+
+    private sealed class ConflictedPlan : ICompositionPlan<Conflicted>
+    {
+        public Conflicted Compose(ICompositionContext context) =>
+            new(context.Resolve<List<long>>(new CompositionRequestDescriptor(
+                CompositionRequestKind.ConstructorParameter, 0, "Value", typeof(Conflicted), Nullability.NotNullable)));
+    }
 
     private sealed class WrapperPlan : ICompositionPlan<Wrapper>
     {

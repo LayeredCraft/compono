@@ -383,11 +383,16 @@ internal sealed class CompositionContext : ICompositionContext
     // no DeclaringType at all, so the member-override branch never matches and this falls straight
     // through to the global default/built-in size - the correct outcome for a root. Never advances
     // IRandomSource, never pushes a path segment of its own - a plain, three-level data lookup.
+    // _path!.RequestedType is the current node's own requested type (the collection type itself, e.g.
+    // List<int>) - passed to TryGetMemberOverride so a differently-typed member sharing the same
+    // (declaring type, name) pair as the one an override actually targets can't wrongly inherit it
+    // (Codex review, the same collision class MemberRuleProvider's own requested-type check guards
+    // against).
     private int ResolveCollectionSizeCore()
     {
         if (_currentDeclaringType is { } declaringType
             && MemberNameOfCurrentRequest() is { } memberName
-            && _collectionSizePolicy.TryGetMemberOverride((declaringType, memberName), out var overrideSize))
+            && _collectionSizePolicy.TryGetMemberOverride((declaringType, memberName), _path!.RequestedType, out var overrideSize))
         {
             return overrideSize;
         }

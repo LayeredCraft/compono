@@ -52,7 +52,7 @@ public sealed class CompositionMemberRuleBuilder<TParent, TMember>
     public CompositionBuilder WithCollectionSize(int size)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(size);
-        _builder.AddMemberCollectionSize(_key, size);
+        _builder.AddMemberCollectionSize(_key, typeof(TMember), size);
         return _builder;
     }
 }

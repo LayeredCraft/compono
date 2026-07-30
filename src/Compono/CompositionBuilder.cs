@@ -25,7 +25,7 @@ public sealed class CompositionBuilder
     private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberRuleSources = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, Func<ICompositionContext, object?> Factory)> _memberRuleFactories = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberCollectionSizeSources = new();
-    private readonly Dictionary<(Type DeclaringType, string MemberName), int> _memberCollectionSizes = new();
+    private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, int Size)> _memberCollectionSizes = new();
     private readonly Stack<Type> _applyingProfiles = new();
 
     internal CompositionBuilder()
@@ -298,14 +298,18 @@ public sealed class CompositionBuilder
     // Called by CompositionMemberRuleBuilder<TParent, TMember>.WithCollectionSize(...) - a member-scoped
     // collection-size override, keyed identically to a member value rule (same (declaring type, member
     // name) identity), but never compiled into a stage-4 provider - it's read directly by
-    // ResolveCollectionSizeCore instead, per ADR-0020.
-    internal void AddMemberCollectionSize((Type DeclaringType, string MemberName) key, int size)
+    // ResolveCollectionSizeCore instead, per ADR-0020. memberType (TMember, captured at the
+    // .Member<TMember>(...) call site) is carried alongside the size so ResolveCollectionSizeCore can
+    // require the currently-resolving request's own type to match before applying the override - the
+    // same requested-type guard MemberRuleProvider uses (Codex review: a differently-typed member
+    // sharing the same (declaring type, name) pair would otherwise wrongly inherit this override).
+    internal void AddMemberCollectionSize((Type DeclaringType, string MemberName) key, Type memberType, int size)
     {
         if (!_memberCollectionSizeSources.TryGetValue(key, out var sources))
         {
             sources = [];
             _memberCollectionSizeSources[key] = sources;
-            _memberCollectionSizes[key] = size;
+            _memberCollectionSizes[key] = (memberType, size);
         }
 
         sources.Add(CurrentSource());

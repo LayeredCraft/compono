@@ -1300,3 +1300,36 @@ constructor parameter and an `object` property both named `Value`) through the r
 built-in provider for the mismatched parameter) rather than throwing. All 496
 `Compono.Tests`/`Compono.Generators.Tests` (up from 494) pass on both `net10.0`/
 `net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): a member-scoped collection-size override had the same name-collision gap as the value-rule fix
+
+PR #19's fourth Codex review round (against commit `f1ea4ad`) correctly flagged
+that the requested-type fix just applied to `MemberRuleProvider` had a sibling gap:
+`CollectionSizePolicy.TryGetMemberOverride` still matched purely on `(DeclaringType,
+MemberName)`. A class with, say, an `object Value` property and an unrelated
+`List<long> Value` constructor parameter - the same colliding shape the value-rule
+fix addressed - would have `.Member(x => x.Value).WithCollectionSize(9)` (binding to
+the property) silently apply its override to the unrelated `List<long>` parameter's
+collection size too. Unlike the value-rule bug this doesn't crash (both sides are
+plain `int`-shaped data), but it silently produces a wrongly-sized collection
+instead of the size the caller actually asked for on the member they actually meant.
+
+Fixed the same way, on principle (AGENTS.md: follow the existing convention for a
+given concern rather than inventing a second one) as well as mechanism: capture
+`typeof(TMember)` where `.Member<TMember>(...).WithCollectionSize(...)` is called,
+store it alongside the size in `CollectionSizePolicy`'s per-member table (now
+`(Type MemberType, int Size)` instead of a bare `int`), and require it to equal the
+currently-resolving request's own requested type before applying the override.
+That requested type needed no new field - `CompositionContext` already tracks the
+current node's `_path`, and `CompositionPath.RequestedType` already holds exactly
+this value; `ResolveCollectionSizeCore` now reads `_path!.RequestedType` and passes
+it into `TryGetMemberOverride`. `CompositionBuilder.AddMemberCollectionSize` gained
+a `Type memberType` parameter, threaded from `CompositionMemberRuleBuilder<TParent,
+TMember>.WithCollectionSize`'s already-known `TMember`. One regression test added
+(`ComposerCollectionSizeTests.MemberScopedOverride_DoesNotApply_WhenARequestForADifferentlyTypedMemberSharesTheSameName`),
+asserting the mismatched `List<long>` parameter falls through to the global default
+size rather than silently inheriting the unrelated property's override - a
+behavioral assertion (element count), not just "doesn't throw," since this gap's
+failure mode is silent wrong data, not a crash. All 498
+`Compono.Tests`/`Compono.Generators.Tests` (up from 496) pass on both `net10.0`/
+`net11.0`, confirmed stable across three consecutive full-solution runs.
