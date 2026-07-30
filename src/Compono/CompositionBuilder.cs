@@ -23,7 +23,7 @@ public sealed class CompositionBuilder
     private readonly Dictionary<Type, List<ConfigurationSource>> _typeRuleSources = new();
     private readonly Dictionary<Type, Func<ICompositionContext, object?>> _typeRuleFactories = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberRuleSources = new();
-    private readonly Dictionary<(Type DeclaringType, string MemberName), Func<ICompositionContext, object?>> _memberRuleFactories = new();
+    private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, Func<ICompositionContext, object?> Factory)> _memberRuleFactories = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberCollectionSizeSources = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), int> _memberCollectionSizes = new();
     private readonly Stack<Type> _applyingProfiles = new();
@@ -228,7 +228,7 @@ public sealed class CompositionBuilder
         // "specificity-based, not call-order-based" precedence).
         IReadOnlyList<ICompositionProvider> rules =
         [
-            .. _memberRuleFactories.Select(entry => (ICompositionProvider)new MemberRuleProvider(entry.Key.DeclaringType, entry.Key.MemberName, entry.Value)),
+            .. _memberRuleFactories.Select(entry => (ICompositionProvider)new MemberRuleProvider(entry.Key.DeclaringType, entry.Key.MemberName, entry.Value.MemberType, entry.Value.Factory)),
             .. _typeRuleFactories.Select(entry => (ICompositionProvider)new TypeRuleProvider(entry.Key, entry.Value)),
         ];
 
@@ -277,14 +277,19 @@ public sealed class CompositionBuilder
     }
 
     // Called by CompositionMemberRuleBuilder<TParent, TMember>.Use(...), after .Member(...) already
-    // parsed the target (declaring type, member name) pair immediately.
-    internal void AddMemberRule((Type DeclaringType, string MemberName) key, Func<ICompositionContext, object?> factory)
+    // parsed the target (declaring type, member name) pair immediately. memberType is TMember, captured
+    // at the .Member<TMember>(...) call site - carried through to the compiled MemberRuleProvider so it
+    // can require the requested type to match the member's own type, not just its (declaring type,
+    // name) key (Codex review: a hand-written class can legally have a property and a constructor
+    // parameter that share a case-sensitive name but not a type, and the two are otherwise
+    // indistinguishable by key alone).
+    internal void AddMemberRule((Type DeclaringType, string MemberName) key, Type memberType, Func<ICompositionContext, object?> factory)
     {
         if (!_memberRuleSources.TryGetValue(key, out var sources))
         {
             sources = [];
             _memberRuleSources[key] = sources;
-            _memberRuleFactories[key] = factory;
+            _memberRuleFactories[key] = (memberType, factory);
         }
 
         sources.Add(CurrentSource());

@@ -27,7 +27,7 @@ public sealed class CompositionMemberRuleBuilder<TParent, TMember>
     /// <param name="value">The value this rule always produces.</param>
     public CompositionBuilder Use(TMember value)
     {
-        _builder.AddMemberRule(_key, _ => value);
+        _builder.AddMemberRule(_key, typeof(TMember), _ => value);
         return _builder;
     }
 
@@ -38,7 +38,7 @@ public sealed class CompositionMemberRuleBuilder<TParent, TMember>
     public CompositionBuilder Use(Func<ICompositionContext, TMember> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
-        _builder.AddMemberRule(_key, context => factory(context));
+        _builder.AddMemberRule(_key, typeof(TMember), context => factory(context));
         return _builder;
     }
 

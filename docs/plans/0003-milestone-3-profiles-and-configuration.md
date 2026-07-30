@@ -1253,3 +1253,50 @@ member through the real `Composer.Create(...)` path and asserting the thrown
 exception's structured error is the new case, not `DuplicateRule`. All 494
 `Compono.Tests`/`Compono.Generators.Tests` (up from 482) pass on both `net10.0`/
 `net11.0`, confirmed stable across three consecutive full-solution runs.
+
+### PR review correction (2026-07-30): a member rule could match a differently-typed member sharing the same name
+
+PR #19's third Codex review round (against commit `c980307`) correctly flagged that
+`MemberRuleProvider` matched purely on `(DeclaringType, member name)`, which isn't
+actually a unique key: a hand-written class can legally declare a property and a
+constructor parameter that share the exact same case-sensitive name but not a type
+(e.g. `object Value { get; }` alongside `C(string Value)` - two entirely separate
+CLR symbols, not an override or a naming convention). `.Member(x => x.Value)`
+captures the *property* (`TMember = object`), but the generator's descriptor for the
+constructor parameter carries `RequestedType = string` with the identical
+`DeclaringType`/name - `MemberRuleProvider` couldn't tell the two apart, wrongly
+claimed the parameter's request too, and handed back an `object`-typed value that
+`CastResult<TValue>` then failed to cast to `string` with a raw, undiagnosed
+`InvalidCastException` - not the structured `CompositionException` every other
+failure in this pipeline produces, and a direct violation of `AGENTS.md`'s "a useful
+compile-time diagnostic is better than a clever runtime fallback" principle.
+
+Fixed by capturing the member's actual CLR type (`typeof(TMember)`, available where
+`.Member<TMember>(...)` is parsed) and requiring **exact** equality with
+`request.RequestedType` in `MemberRuleProvider.TryCompose`, alongside the existing
+`DeclaringType`/name check - exact matching, not assignability, mirroring
+`TypeRuleProvider`'s own already-established "exact type only" rule from ADR-0020,
+so the fix introduces no new matching philosophy. A mismatched request now cleanly
+declines (`NotHandled`) instead of wrongly claiming the request - exactly the
+graceful-decline behavior `ICompositionProvider`'s own contract already calls for,
+letting a later stage (here, a built-in provider) satisfy it instead.
+
+Threaded through as data, not a new mechanism: `CompositionBuilder._memberRuleFactories`
+changed from `Dictionary<(Type, string), Func<...>>` to
+`Dictionary<(Type, string), (Type MemberType, Func<...> Factory)>`, and
+`AddMemberRule` gained a `Type memberType` parameter that
+`CompositionMemberRuleBuilder<TParent, TMember>`'s two `Use(...)` overloads now
+supply as `typeof(TMember)`. Duplicate-rule conflict detection needed no change -
+still correctly keyed by `(DeclaringType, MemberName)` alone, since two `.Member(x
+=> x.Y)` calls for the same real property always agree on `TMember`. Member-scoped
+`WithCollectionSize` needed no equivalent fix - it returns a plain `int`, never a
+cast value, so this specific risk doesn't apply there.
+
+One regression test added
+(`ComposerConfigurationRuleTests.MemberRule_DoesNotMatch_WhenARequestForADifferentlyTypedMemberSharesTheSameName`),
+reproducing the exact reported shape (a `Conflicted` class with a `string`
+constructor parameter and an `object` property both named `Value`) through the real
+`Composer.Create(...)` path and asserting composition succeeds (falls through to a
+built-in provider for the mismatched parameter) rather than throwing. All 496
+`Compono.Tests`/`Compono.Generators.Tests` (up from 494) pass on both `net10.0`/
+`net11.0`, confirmed stable across three consecutive full-solution runs.

@@ -188,6 +188,32 @@ public sealed class ComposerConfigurationRuleTests
         }
     }
 
+    [Fact]
+    public void MemberRule_DoesNotMatch_WhenARequestForADifferentlyTypedMemberSharesTheSameName()
+    {
+        // Codex review: Conflicted legally has a property (`Value`, type object) and an unrelated
+        // constructor parameter (`Value`, type string) sharing the exact same case-sensitive name -
+        // .Member(x => x.Value) captures the property (TMember = object), but the generated request
+        // for the constructor parameter has RequestedType = string. Before this fix, MemberRuleProvider
+        // matched on (DeclaringType, Name) alone and would have handed the object-typed rule value back
+        // for the string-typed parameter, crashing with a raw, undiagnosed InvalidCastException instead
+        // of cleanly declining and letting a later stage (here, the built-in string provider) satisfy it.
+        PlanCache<Conflicted>.Instance = new ConflictedPlan();
+
+        try
+        {
+            var composer = Composer.Create(builder => builder.For<Conflicted>().Member(x => x.Value).Use(new object()));
+
+            var act = () => composer.Create<Conflicted>();
+
+            act.Should().NotThrow();
+        }
+        finally
+        {
+            PlanCache<Conflicted>.Instance = null;
+        }
+    }
+
     private static CompositionRequestDescriptor Descriptor(CompositionRequestKind kind, int ordinal, string name, Type declaringType) =>
         new(kind, ordinal, name, declaringType, Nullability.NotNullable);
 
@@ -204,6 +230,18 @@ public sealed class ComposerConfigurationRuleTests
         public Node(Node? child) => Child = child;
 
         public Node? Child { get; }
+    }
+
+    // A legal, if unusual, shape: a constructor parameter and a property sharing the exact same
+    // case-sensitive name ("Value") but not a type - two entirely separate CLR symbols the generator
+    // and the builder each see independently.
+    private sealed class Conflicted
+    {
+        public Conflicted(string Value) => CtorValue = Value;
+
+        public string CtorValue { get; }
+
+        public object Value { get; init; } = new();
     }
 
     private interface IClock;
@@ -228,6 +266,15 @@ public sealed class ComposerConfigurationRuleTests
     {
         public Holder Compose(ICompositionContext context) =>
             new(context.Resolve<SystemClock>(Descriptor(CompositionRequestKind.ConstructorParameter, 0, "Clock", typeof(Holder))));
+    }
+
+    // The "Value" constructor parameter's request carries RequestedType = string, DeclaringType =
+    // typeof(Conflicted) - the exact same DeclaringType/Name pair the object-typed property's
+    // MemberRuleProvider is keyed on, but a different requested type.
+    private sealed class ConflictedPlan : ICompositionPlan<Conflicted>
+    {
+        public Conflicted Compose(ICompositionContext context) =>
+            new(context.Resolve<string>(Descriptor(CompositionRequestKind.ConstructorParameter, 0, "Value", typeof(Conflicted))));
     }
 
     // Simulates the shape a real generated Node plan would produce for a self-referencing type: the
