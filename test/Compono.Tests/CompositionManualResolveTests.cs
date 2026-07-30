@@ -95,6 +95,27 @@ public sealed class CompositionManualResolveTests
     }
 
     [Fact]
+    public void InvokeFactory_DoesNotRewrapACompositionExceptionAlreadyThrownByANestedFactoryInvocation()
+    {
+        // Deeper than InvokeFactory_DoesNotRewrapACompositionExceptionAlreadyThrownByANestedResolveCall:
+        // there, the nested Resolve<T>() failure came from stage 9's terminal "no registration" throw.
+        // Here it comes from a second, independent InvokeFactory frame (Inner is itself a registration
+        // whose factory throws) - proving IsPipelineDiagnosed survives being rethrown through an
+        // arbitrary number of ancestor InvokeFactory frames, not just a single level, without any of
+        // them re-wrapping it behind their own generic "the factory threw" message.
+        var composer = Composer.Create(builder => builder
+            .Register<FailingInner>(_ => throw new InvalidOperationException("inner factory blew up"))
+            .Register<OuterWrapper>(ctx => new OuterWrapper(ctx.Resolve<FailingInner>())));
+
+        var act = () => composer.Create<OuterWrapper>();
+
+        var exception = act.Should().Throw<CompositionException>()
+            .WithMessage("*threw*inner factory blew up*").Which;
+        exception.InnerException.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be("inner factory blew up");
+    }
+
+    [Fact]
     public void InvokeFactory_WrapsACompositionExceptionThrownDirectlyByTheFactoryItself()
     {
         // Only a CompositionException built by BuildException (from a nested Resolve<T>() call) has a
@@ -153,6 +174,10 @@ public sealed class CompositionManualResolveTests
 
         act.Should().Throw<InvalidOperationException>();
     }
+
+    private sealed record FailingInner;
+
+    private sealed record OuterWrapper(FailingInner Value);
 
     private sealed record Pair(ulong First, ulong Second);
 
