@@ -149,15 +149,43 @@ This list may be reduced if implementation complexity threatens the milestone.
 
 ## Milestone 3: Profiles and Configuration
 
+Design: [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)
+(immutable `Composer`/`CompositionBuilder`/`CompositionConfiguration` split,
+build-time configuration validation), [ADR-0018](adr/0018-composition-profiles.md)
+(`ICompositionProfile`, profile application order, recursion/provenance),
+[ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (exact
+registrations, duplicate-registration conflicts, native `IServiceProvider` fallback
+in stage 3), [ADR-0020](adr/0020-composition-configuration-rules.md) (type/member
+value rules as internal stage-4 providers, collection-size as queried
+configuration policy). [ADR-0019](adr/0019-registrations-and-service-provider-injection.md)
+adds the `ManualResolve` path-segment kind (an additive extension to
+[ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
+`Accepted` path-identity contract, not an edit to it) and a construction-cycle
+guard around registration/rule factory invocation. Public
+provider extensibility (how NSubstitute/Bogus/custom pattern-matching logic
+eventually plug into stages 5/6) is deliberately **deferred to Milestone 5** — see
+that milestone's section below.
+Tracked by [PLAN-0003](plans/0003-milestone-3-profiles-and-configuration.md).
+
 ### Scope
 
-- Immutable composer configuration
-- Reusable profiles
-- Integration extension registration
-- Collection-size configuration
-- Exact type registrations
-- Type/member rule prototype
-- Configuration conflict diagnostics
+- Immutable composer configuration (`Composer.Create(builder => ...)`, frozen
+  `CompositionConfiguration`)
+- Reusable profiles (`ICompositionProfile`, `AddProfile<T>()`/`AddProfile(instance)`,
+  eager in-order application, cycle detection)
+- Integration extension registration (ordinary C# extension methods on
+  `CompositionBuilder` — no new core mechanism required)
+- Collection-size configuration (global default + member-scoped override, queried by
+  stage 7, not a stage-4 rule)
+- Exact type registrations (`Register<T>(Func<ICompositionContext, T>)`/
+  `Register<T>(Func<T>)`, duplicate registration is a build-time conflict)
+- Native `IServiceProvider` fallback (`UseServiceProvider(IServiceProvider)`,
+  folded into stage 3 after exact registrations)
+- Type/member rule prototype (`.For<T>().Use(...)`, `.For<T>().Member(...).Use(...)`,
+  exact-type matching, member rule beats type rule)
+- Configuration conflict diagnostics (build-time `CompositionConfigurationException`
+  for duplicate registrations/rules and profile cycles, naming every conflicting
+  source)
 
 ### Exit Criteria
 
@@ -197,6 +225,15 @@ public void Creates_service(
 - Failure output includes a seed
 
 ## Milestone 5: NSubstitute Integration
+
+Owns the public provider-extensibility design deferred by Milestone 3's design
+review (`docs/adr/0018-composition-profiles.md`'s Context, and the M3 design
+review's first fork): how an integration package contributes open-ended,
+pattern-matching logic (e.g. "any interface type") into pipeline stages 5/6, as
+opposed to the closed-set, per-type/per-member rules Milestone 3 already covers via
+internal Compono-authored stage-4 providers
+(`docs/adr/0020-composition-configuration-rules.md`). Deliberately not designed in
+Milestone 3, since it had no real consumer there.
 
 ### Scope
 
@@ -309,7 +346,8 @@ A composed customer can receive realistic, deterministic values without the core
 - ~~Runtime reflection policy~~ — default direction resolved by
   [ADR-0001](adr/0001-source-generation-first.md); the exact opt-in
   mechanism for a future compatibility mode is still open.
-- Exact public root type name
+- ~~Exact public root type name~~ — `Composer`, settled by Milestone 3 Phase 0's
+  shipped `Composer.Create()`/`Composer.Create(Action<CompositionBuilder>)`.
 - Attribute names
 - ~~Shared-value matching rules~~ — type-based only for Milestone 2,
   resolved by [ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md);

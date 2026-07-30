@@ -29,15 +29,20 @@ var customer = composer.Create<Customer>();
 var customers = composer.CreateMany<Customer>(3);
 ```
 
-A likely alternative is a builder:
+Configuration uses the same root type via a builder callback (shipped, Milestone 3
+Phase 0 — [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)).
+`WithSeed` is the only configuration verb shipped so far; `WithCollectionSize` below
+is still Phase 3 (not yet implemented — see the Configuration section, which
+describes the full target shape):
 
 ```csharp
-var composer = Compono.Create(builder => builder
-    .WithSeed(4219)
-    .WithCollectionSize(3));
+var composer = Composer.Create(builder => builder
+    .WithSeed(4219));
 ```
 
-The exact root type name remains open.
+`Composer` is the settled root type name — `Composer.Create()` (no configuration) and
+`Composer.Create(builder => ...)` (explicit configuration) are the same method,
+the latter with an empty callback for the former.
 
 ## Configuration
 
@@ -61,15 +66,29 @@ var composer = Composer.Create(builder => builder
 
 The core package must not know those methods exist.
 
-## Profiles
-
-Profiles should make project-wide conventions reusable:
+Service injection uses the BCL's own `System.IServiceProvider` — no core dependency
+on `Microsoft.Extensions.DependencyInjection` or any container package:
 
 ```csharp
-public sealed class ApplicationTestProfile : CompositionProfile
+var composer = Composer.Create(builder => builder
+    .UseServiceProvider(app.Services));
+```
+
+An exact `Register<T>(...)` always wins over the configured `IServiceProvider`; a
+container miss (`null`) falls through to profile/type/member rules. See
+[ADR-0019](adr/0019-registrations-and-service-provider-injection.md) for full
+fallback semantics.
+
+## Profiles
+
+Profiles should make project-wide conventions reusable. A profile implements
+`ICompositionProfile` — an interface, not a base class, per
+[ADR-0018](adr/0018-composition-profiles.md):
+
+```csharp
+public sealed class ApplicationTestProfile : ICompositionProfile
 {
-    protected override void Configure(
-        CompositionBuilder builder)
+    public void Configure(CompositionBuilder builder)
     {
         builder
             .UseNSubstitute()
@@ -91,7 +110,11 @@ builder
     .AddProfile<InfrastructureProfile>();
 ```
 
-Conflicting rules should produce deterministic precedence or a configuration diagnostic.
+Profiles apply eagerly, in call order — that order *is* the precedence rule. A
+conflicting registration or rule (from any combination of direct calls and
+profiles) is a build-time `CompositionConfigurationException` naming every
+conflicting source, not a silent override; a profile that (transitively) adds
+itself is a build-time cycle diagnostic, not a stack overflow.
 
 ## xUnit v3 Experience
 
@@ -165,19 +188,21 @@ Questions still to resolve:
 
 ## Registrations
 
-Exact registrations:
+Exact registrations, resolved by
+[ADR-0019](adr/0019-registrations-and-service-provider-injection.md) — a factory
+receives the same public `ICompositionContext` generated code uses, via a new
+descriptor-less `Resolve<T>()` overload, plus a no-dependency convenience form:
 
 ```csharp
 builder.Register<IClock>(
     _ => new FakeClock());
+
+builder.Register<IClock>(
+    () => new FakeClock());
 ```
 
-Type registrations:
-
-```csharp
-builder.Register(typeof(IClock), context =>
-    new FakeClock());
-```
+Registering the same type twice — direct call, profile, or any combination — is a
+build-time `CompositionConfigurationException`, not a last-wins override.
 
 Open generic registrations may be added later:
 
@@ -191,12 +216,21 @@ Open generic registration is not required for the MVP.
 
 ## Type and Member Rules
 
-Explicit domain configuration should be possible without creating custom providers:
+Explicit domain configuration should be possible without creating custom providers.
+Resolved by [ADR-0020](adr/0020-composition-configuration-rules.md): a **member**
+rule scopes to one member of one declaring type; a **type** rule (no `.Member(...)`
+call) matches any request for exactly that type, and yields to a member rule when
+both could apply to the same request.
 
 ```csharp
+// Member rule
 builder.For<Customer>()
     .Member(x => x.Status)
     .Use(CustomerStatus.Active);
+
+// Type rule
+builder.For<IClock>()
+    .Use(_ => new SystemClock());
 ```
 
 Generated semantic data:
@@ -207,7 +241,19 @@ builder.For<Customer>()
     .Use(context => context.Semantic.Email());
 ```
 
-The precise fluent API should be designed after representative examples are collected.
+Collection size is configured the same way but is **not** a type/member rule
+internally — it's queried configuration policy stage 7's collection machinery
+reads directly, not a value a provider produces (ADR-0020):
+
+```csharp
+builder.WithCollectionSize(3);                     // global default
+builder.For<Customer>()
+    .Member(x => x.PastOrders)
+    .WithCollectionSize(5);                          // member-scoped override
+```
+
+Type/member matching is exact (no assignability) for the MVP; two rules claiming the
+identical key is a build-time conflict, the same as a duplicate registration.
 
 ## Bogus Integration
 
@@ -317,12 +363,14 @@ This is a post-MVP possibility.
 Preferred concepts:
 
 - Composer: long-lived immutable configuration and public entry point
+- CompositionBuilder: mutable configuration accumulator, live only during
+  `Composer.Create(builder => ...)`
 - Composition: the process of satisfying a request
 - CompositionContext: active runtime state
 - CompositionRequest: one requested value
 - CompositionPlan: generated construction logic
 - CompositionScope: shared-instance lifetime
-- CompositionProfile: reusable configuration
+- ICompositionProfile: reusable configuration, applied by name
 - CompositionProvider: extension point
 - Shared: reuse within a scope
 

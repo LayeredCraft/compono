@@ -78,3 +78,7 @@ the mechanics: numbering, status, and the index.
 | [0014](0014-generator-emitted-collection-plans.md) | Generator-Emitted Collection Plans Replace the Reflection-Based Dispatch Bridge | Accepted |
 | [0015](0015-provider-identity-deferred-in-provider-attempt.md) | Provider Identity Deferred in `ProviderAttempt` | Superseded by ADR-0016 |
 | [0016](0016-provider-identity-restored-in-provider-attempt.md) | Provider Identity Restored in `ProviderAttempt` | Accepted |
+| [0017](0017-immutable-composer-configuration-and-builder-model.md) | Immutable Composer Configuration and Builder Model | Accepted |
+| [0018](0018-composition-profiles.md) | Composition Profiles | Accepted |
+| [0019](0019-registrations-and-service-provider-injection.md) | Registrations and Service Provider Injection | Accepted |
+| [0020](0020-composition-configuration-rules.md) | Composition Configuration Rules | Accepted |
