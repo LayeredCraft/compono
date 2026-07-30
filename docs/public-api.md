@@ -30,12 +30,14 @@ var customers = composer.CreateMany<Customer>(3);
 ```
 
 Configuration uses the same root type via a builder callback (shipped, Milestone 3
-Phase 0 — [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)):
+Phase 0 — [ADR-0017](adr/0017-immutable-composer-configuration-and-builder-model.md)).
+`WithSeed` is the only configuration verb shipped so far; `WithCollectionSize` below
+is still Phase 3 (not yet implemented — see the Configuration section, which
+describes the full target shape):
 
 ```csharp
 var composer = Composer.Create(builder => builder
-    .WithSeed(4219)
-    .WithCollectionSize(3));
+    .WithSeed(4219));
 ```
 
 `Composer` is the settled root type name — `Composer.Create()` (no configuration) and

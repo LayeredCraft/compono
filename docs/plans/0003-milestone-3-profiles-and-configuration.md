@@ -511,6 +511,19 @@ exist to source anything).
       second case is the regression test proving the guard doesn't share
       ADR-0011's type-keyed active-construction-frame stack and doesn't reject the
       false-positive case review caught against Phase 1's first-draft design
+- [ ] **Rename `PipelineStage.ProfileRule` to `PipelineStage.ConfigurationRule`**
+      (found during review, never previously scheduled) — this design review
+      renamed the concept everywhere in the docs/ADRs ("profile rules" →
+      "configuration rules," since profiles are a reusable application mechanism
+      over stage 4, not its owner), but the shipped Milestone 2 public enum member
+      itself was never scheduled for the matching rename. A public API rename
+      (`src/Compono/PipelineStage.cs`), plus its one call site
+      (`src/Compono/CompositionContext.cs`, where stage 4 attempts are recorded)
+      and the existing diagnostic test that references it
+      (`test/Compono.Tests/CompositionDiagnosticsTests.cs`) — acceptable as a
+      breaking rename pre-1.0/pre-NuGet-publish, per this repo's own stated
+      compatibility posture, but real work this phase needs to actually do, not
+      assume already covered by the docs-only rename
 - [ ] `Compono.Generators.Tests`: at least one regenerated snapshot confirming
       `DeclaringType` in an emitted descriptor construction, and at least one
       regenerated collection-plan snapshot confirming the `ResolveCollectionSize`
@@ -582,13 +595,18 @@ Modified:
 - `src/Compono/CompositionSeed.cs` — done, Phase 0: doc comment only, now
   referencing `CompositionBuilder.WithSeed`
 - `src/Compono/CompositionContext.cs` — Phase 1 (descriptor-less `Resolve<T>()`,
-  stage 3's `IServiceProvider` fallback sub-step) and Phase 3
-  (`ResolveCollectionSize`)
+  stage 3's `IServiceProvider` fallback sub-step), Phase 3
+  (`ResolveCollectionSize`, and the `PipelineStage.ConfigurationRule` rename's one
+  call site)
 - `src/Compono/ICompositionContext.cs` — Phase 1/3 (new members)
 - `src/Compono/CompositionRequestDescriptor.cs` — Phase 3 (`DeclaringType` field)
 - `src/Compono/CompositionRequest.cs` — Phase 3 (`DeclaringType` field)
 - `src/Compono/CompositionRequestKind.cs` — Phase 1 (`ManualResolve` case)
 - `src/Compono/PathSegment.cs` — Phase 1 (`ManualResolve` case)
+- `src/Compono/PipelineStage.cs` — Phase 3, `ProfileRule` → `ConfigurationRule`
+  rename (found during review, not originally scoped)
+- `test/Compono.Tests/CompositionDiagnosticsTests.cs` — Phase 3, updated for the
+  `PipelineStage.ConfigurationRule` rename
 - `src/Compono.Generators/Templates/CompositionPlan.scriban` (and its emitter
   model) — Phase 3, `DeclaringType` argument in emitted descriptor construction
 - `src/Compono.Generators/Templates/CollectionPlan.scriban` (and its emitter
