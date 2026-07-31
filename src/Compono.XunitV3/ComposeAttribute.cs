@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Reflection;
-using Compono.Xunit.Binding;
+using Compono.XunitV3.Binding;
 using Xunit;
 using Xunit.Sdk;
 using Xunit.v3;
 
-namespace Compono.Xunit;
+namespace Compono.XunitV3;
 
 /// <summary>
 /// Composes an xUnit v3 theory row's parameters through Compono - the default (no explicit profile)
@@ -153,12 +153,12 @@ public class ComposeAttribute : DataAttribute
         // of SeedAsNullable, which stays null whenever this attribute's own Seed property is unset).
         // row.Seed reflects whichever source actually configured the row's seed - this attribute's
         // property, a profile, or the auto-generated fallback - so checking it here is what makes
-        // every row Compono.Xunit creates have a non-negative seed unconditionally, not just one
+        // every row Compono.XunitV3 creates have a non-negative seed unconditionally, not just one
         // configured through this attribute's own property.
         if (row.Seed < 0)
         {
             throw new CompositionException(AppendSeed(
-                $"Compono.Xunit requires a non-negative seed, but the configured seed was {row.Seed}.",
+                $"Compono.XunitV3 requires a non-negative seed, but the configured seed was {row.Seed}.",
                 row.Seed));
         }
 
@@ -268,13 +268,13 @@ public class ComposeAttribute : DataAttribute
     {
     }
 
-    // Internal test seam - lets Compono.Xunit.Tests assert the same BindingPlan instance (and the
+    // Internal test seam - lets Compono.XunitV3.Tests assert the same BindingPlan instance (and the
     // same per-parameter invoker delegates on it) is returned across repeated calls with the same
     // testMethod, proving MakeGenericMethod ran exactly once per parameter, not once per GetData call.
     internal BindingPlan EnsureBindingPlan(MethodInfo testMethod) =>
         LazyInitializer.EnsureInitialized(ref _bindingPlan, ref _bindingPlanLock, () => BindingPlan.Build(testMethod))!;
 
-    // Internal test seam - lets Compono.Xunit.Tests assert the same Composer instance is reused
+    // Internal test seam - lets Compono.XunitV3.Tests assert the same Composer instance is reused
     // across repeated GetData calls on one attribute instance.
     internal Composer GetComposer() => _composer.Value;
 
@@ -286,9 +286,9 @@ public class ComposeAttribute : DataAttribute
             builder.WithSeed(seed);
     });
 
-    // The "\n\nSeed: {value}" convention every Compono.Xunit-authored pre-composition failure uses,
+    // The "\n\nSeed: {value}" convention every Compono.XunitV3-authored pre-composition failure uses,
     // matching the same trailing text a propagated pipeline CompositionDiagnostic already renders
     // (ADR-0022's Seed Policy and Reporting) - so every failure category ends the same way, whether
-    // Compono.Xunit constructed the message or the pipeline did.
+    // Compono.XunitV3 constructed the message or the pipeline did.
     private static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
 }

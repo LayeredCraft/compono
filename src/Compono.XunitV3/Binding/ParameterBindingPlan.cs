@@ -1,4 +1,4 @@
-namespace Compono.Xunit.Binding;
+namespace Compono.XunitV3.Binding;
 
 /// <summary>
 /// One test method parameter's cached binding metadata - computed once per attribute instance's

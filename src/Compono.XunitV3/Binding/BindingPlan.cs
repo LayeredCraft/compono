@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Compono.Xunit.Binding;
+namespace Compono.XunitV3.Binding;
 
 /// <summary>
 /// One test method's cached binding plan - the reflected, immutable metadata Phase 2's per-row
@@ -103,15 +103,15 @@ internal sealed class BindingPlan
             return $"More than one [Compose]/[Compose<TProfile>] attribute on '{methodDisplayName}' - only one Compose-family attribute per test method is allowed.";
 
         if (testMethod.IsGenericMethodDefinition)
-            return $"Compono.Xunit does not support generic test methods ('{methodDisplayName}').";
+            return $"Compono.XunitV3 does not support generic test methods ('{methodDisplayName}').";
 
         foreach (var parameter in parameters)
         {
             if (parameter.ParameterType.IsByRef)
-                return $"Compono.Xunit does not support ref/out/in parameters (parameter '{parameter.Name}' on '{methodDisplayName}').";
+                return $"Compono.XunitV3 does not support ref/out/in parameters (parameter '{parameter.Name}' on '{methodDisplayName}').";
 
             if (parameter.GetCustomAttribute<ParamArrayAttribute>() is not null)
-                return $"Compono.Xunit does not support params parameters (parameter '{parameter.Name}' on '{methodDisplayName}').";
+                return $"Compono.XunitV3 does not support params parameters (parameter '{parameter.Name}' on '{methodDisplayName}').";
         }
 
         var duplicateSharedType = parameters

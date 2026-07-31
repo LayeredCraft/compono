@@ -1,8 +1,8 @@
-using Compono.Xunit.Binding;
-using Compono.Xunit.Tests.Fixtures;
+using Compono.XunitV3.Binding;
+using Compono.XunitV3.Tests.Fixtures;
 using Xunit.Sdk;
 
-namespace Compono.Xunit.Tests;
+namespace Compono.XunitV3.Tests;
 
 public sealed class ComposeAttributeCachingTests
 {

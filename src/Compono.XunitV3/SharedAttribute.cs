@@ -1,4 +1,4 @@
-namespace Compono.Xunit;
+namespace Compono.XunitV3;
 
 /// <summary>
 /// Marks a <c>[Compose]</c>-attributed test method parameter as shared: its composed (or

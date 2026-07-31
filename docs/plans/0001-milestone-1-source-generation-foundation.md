@@ -41,7 +41,7 @@ Explicitly deferred (later milestones per `docs/mvp.md`):
   hatch for genuinely multi-constructor types is in scope for *this*
   milestone (see Phase 4 below) but is its own slice, not required for
   the single-constructor happy path other phases depend on.
-- `Compono.Xunit`/`Compono.NSubstitute`/`Compono.Bogus` — separate
+- `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus` — separate
   milestones (4, 5, 6).
 
 ## Phases

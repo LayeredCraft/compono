@@ -5,17 +5,17 @@ using Microsoft.CodeAnalysis;
 namespace Compono.Generators.Discovery;
 
 /// <summary>
-/// Finds methods attributed <c>[Compose]</c>/<c>[Compose&lt;TProfile&gt;]</c> (<c>Compono.Xunit</c>)
+/// Finds methods attributed <c>[Compose]</c>/<c>[Compose&lt;TProfile&gt;]</c> (<c>Compono.XunitV3</c>)
 /// and generates a plan for each eligible parameter type in that method's signature, per ADR-0022's
 /// Amendment (2026-07-30), fix #2.
 /// </summary>
 /// <remarks>
 /// A separate discovery component, deliberately not folded into <see cref="CreateInvocationDiscovery"/>
-/// - <c>Compono.Xunit</c>'s binding (its own <c>MethodInfo.MakeGenericMethod</c>-based invoker
+/// - <c>Compono.XunitV3</c>'s binding (its own <c>MethodInfo.MakeGenericMethod</c>-based invoker
 /// caching) never emits a textual <c>row.Resolve&lt;T&gt;(...)</c> call site in the consumer's own
 /// source for that mechanism to match against, so a type reached only as a <c>[Compose]</c> method's
 /// own parameter needs its own discovery path here instead. "Eligible" mirrors
-/// <c>Compono.Xunit</c>'s own binding algorithm's supported-shape table: a generic test method is
+/// <c>Compono.XunitV3</c>'s own binding algorithm's supported-shape table: a generic test method is
 /// excluded entirely (its parameter types can close over the method's own type parameter, the same
 /// shape <see cref="ComposedTypeAnalyzer"/>'s open-generic check already rejects for any other
 /// discovery path); a <c>ref</c>/<c>out</c>/<c>in</c>/<c>params</c> parameter is excluded individually
@@ -26,7 +26,7 @@ namespace Compono.Generators.Discovery;
 /// </remarks>
 internal static class ComposeMethodDiscovery
 {
-    public const string AttributeMetadataName = "Compono.Xunit.ComposeAttribute";
+    public const string AttributeMetadataName = "Compono.XunitV3.ComposeAttribute";
 
     /// <summary>
     /// The metadata name of the closed-over-nothing generic form, <c>[Compose&lt;TProfile&gt;]</c> -
@@ -34,12 +34,12 @@ internal static class ComposeMethodDiscovery
     /// an attribute usage only against its own <see cref="AttributeData.AttributeClass"/>'s exact
     /// fully-qualified metadata name, not against a base type's - so
     /// <c>[Compose&lt;TProfile&gt;]</c>, whose attribute class metadata name is
-    /// <c>Compono.Xunit.ComposeAttribute`1</c> (the CLR arity-suffixed name of the generic type, not
+    /// <c>Compono.XunitV3.ComposeAttribute`1</c> (the CLR arity-suffixed name of the generic type, not
     /// its non-generic base <see cref="AttributeMetadataName"/>), is invisible to a provider
     /// registered against <see cref="AttributeMetadataName"/> alone and needs this second,
     /// independently-registered metadata name.
     /// </summary>
-    public const string GenericAttributeMetadataName = "Compono.Xunit.ComposeAttribute`1";
+    public const string GenericAttributeMetadataName = "Compono.XunitV3.ComposeAttribute`1";
 
     public static TransitiveClosureResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {

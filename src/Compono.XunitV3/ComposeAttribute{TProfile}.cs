@@ -1,4 +1,4 @@
-namespace Compono.Xunit;
+namespace Compono.XunitV3;
 
 /// <summary>
 /// Composes an xUnit v3 theory row's parameters through Compono, with <typeparamref name="TProfile"/>

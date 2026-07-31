@@ -63,7 +63,7 @@ don't post opportunistically while still reading.
    diff`/`git log` against the base branch — this is **local mode**; there
    is no PR number or head SHA to fetch, and step 6 below branches on that.
 2. **Identify what changed** — which package (`Compono` core, or an
-   integration package like `Compono.Xunit`/`Compono.NSubstitute`/
+   integration package like `Compono.XunitV3`/`Compono.NSubstitute`/
    `Compono.Bogus` once they exist) and what kind of change (new feature,
    bug fix, refactor, docs-only). This decides which conditional
    references from above actually apply.
