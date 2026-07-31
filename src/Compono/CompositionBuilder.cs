@@ -275,9 +275,9 @@ public sealed class CompositionBuilder
         // per docs/adr/0024-public-provider-extensibility-model.md. Registration order is preserved;
         // no reordering/deduplication happens here.
         IReadOnlyList<ICompositionProvider> semanticProviders =
-            [.. _semanticProviders.Select(provider => (ICompositionProvider)new PublicProviderAdapter(provider))];
+            [.. _semanticProviders.Select(provider => (ICompositionProvider)new PublicProviderAdapter(provider, PipelineStage.SemanticProvider))];
         IReadOnlyList<ICompositionProvider> testDoubleProviders =
-            [.. _testDoubleProviders.Select(provider => (ICompositionProvider)new PublicProviderAdapter(provider))];
+            [.. _testDoubleProviders.Select(provider => (ICompositionProvider)new PublicProviderAdapter(provider, PipelineStage.TestDoubleProvider))];
 
         return new CompositionConfiguration
         {

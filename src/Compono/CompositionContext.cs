@@ -28,6 +28,7 @@ internal sealed class CompositionContext : ICompositionContext
     private readonly CompositionScope _scope = new();
     private readonly List<Type> _activeFrames = [];
     private readonly List<Func<ICompositionContext, object?>> _activeFactories = [];
+    private readonly List<(ICompositionValueProvider Provider, Type RequestedType)> _activeProviderRequests = [];
     private readonly List<ManualResolveFrame> _manualResolveFrames = [];
     private readonly CompositionTraceBuffer _trace = new();
     private readonly IReadOnlyList<ICompositionProvider> _configurationRuleProviders;
@@ -634,6 +635,69 @@ internal sealed class CompositionContext : ICompositionContext
         $"'{CompositionPath.FriendlyTypeName(requestedType)}': '{_path!.ToDisplayString()}' would invoke the same " +
         "factory again, which is already in progress. Use a different registration/rule, or terminate the " +
         "recursion inside the factory itself (e.g. by returning a value that doesn't call Resolve<T>() for this type).";
+
+    // Invokes a public ICompositionValueProvider's TryProvide - the single point every stage-5/6
+    // public-provider dispatch (PublicProviderAdapter) goes through, mirroring InvokeFactory's manual-
+    // resolve-frame push for stage-3/4 factories (per docs/adr/0019-registrations-and-service-provider-injection.md)
+    // so a provider can call context.Resolve<T>() (the descriptor-less overload) to compose a nested
+    // value, exactly as ICompositionValueProvider's own contract promises. Unlike InvokeFactory, this
+    // method never catches or wraps an exception TryProvide throws - ADR-0024's Provider Failure
+    // Semantics commit to a public provider's own thrown exception propagating uncaught, exactly like
+    // any other ordinary stage-4/7 provider's TryCompose already does; reentrance below produces the
+    // engine's own diagnosed CompositionException, which is a distinct concern from wrapping a
+    // provider's unrelated thrown exception.
+    //
+    // Reentrance is keyed on (provider instance, requested type), not provider identity alone -
+    // unlike TypeRuleProvider/MemberRuleProvider, where one instance is compiled 1:1 for exactly one
+    // type (so "the same factory delegate re-entered" and "the same type re-entered" are equivalent by
+    // construction), one ICompositionValueProvider instance can legitimately handle many different
+    // types (e.g. "any interface"), including composing a different type as one of its own nested
+    // dependencies - keying on the provider alone would wrongly block that legitimate case. Only the
+    // exact same provider asked to resolve the exact same type it's already resolving is a real cycle
+    // (PR #28 review, Codex: recursing through the public descriptor overload previously ran until
+    // StackOverflowException instead of producing this diagnostic).
+    internal CompositionProviderResult InvokeProvider(ICompositionValueProvider provider, in CompositionProviderRequest request, PipelineStage stage, Type providerType)
+    {
+        var requestedType = request.RequestedType;
+
+        if (IsProviderRequestActive(provider, requestedType))
+        {
+            _trace.Record(stage, providerType, CompositionAttemptOutcome.Failure);
+            throw BuildException(requestedType, BuildProviderReentranceMessage(requestedType));
+        }
+
+        _activeProviderRequests.Add((provider, requestedType));
+        _manualResolveFrames.Add(new ManualResolveFrame());
+        try
+        {
+            return provider.TryProvide(in request, this);
+        }
+        finally
+        {
+            _manualResolveFrames.RemoveAt(_manualResolveFrames.Count - 1);
+            _activeProviderRequests.RemoveAt(_activeProviderRequests.Count - 1);
+        }
+    }
+
+    // A plain indexed loop, same reasoning as IsFactoryActive above - avoids a per-call closure/
+    // allocation on the composition hot path. Reference identity for the provider, ordinary type
+    // equality for the requested type.
+    private bool IsProviderRequestActive(ICompositionValueProvider provider, Type requestedType)
+    {
+        for (var i = 0; i < _activeProviderRequests.Count; i++)
+        {
+            if (ReferenceEquals(_activeProviderRequests[i].Provider, provider) && _activeProviderRequests[i].RequestedType == requestedType)
+                return true;
+        }
+
+        return false;
+    }
+
+    private string BuildProviderReentranceMessage(Type requestedType) =>
+        $"Recursive provider request detected while composing " +
+        $"'{CompositionPath.FriendlyTypeName(requestedType)}': '{_path!.ToDisplayString()}' would ask the same " +
+        "provider to compose the same type again, which is already in progress. Use a registration or a shared " +
+        "value to terminate the recursion, or have the provider avoid resolving its own requested type recursively.";
 
     // One mutable counter per active manual-resolve invocation frame - shared and incremented by
     // every descriptor-less Resolve<T>() call made during that one factory invocation, per ADR-0019.

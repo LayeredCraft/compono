@@ -103,7 +103,7 @@ public sealed class CompositionValueProviderTests
         var context = new CompositionContext(
             configurationRuleProviders: [],
             semanticProviders: [],
-            testDoubleProviders: [new Compono.Providers.PublicProviderAdapter(provider)],
+            testDoubleProviders: [new Compono.Providers.PublicProviderAdapter(provider, PipelineStage.TestDoubleProvider)],
             builtInProviders: []);
 
         var first = context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
@@ -126,7 +126,41 @@ public sealed class CompositionValueProviderTests
         act.Should().Throw<InvalidOperationException>().WithMessage("boom");
     }
 
+    [Fact]
+    public void Provider_CanComposeANestedValue_ViaTheDescriptorLessResolveOverload()
+    {
+        // Regression for PR #28 review (Codex, finding 1): a provider calling context.Resolve<T>()
+        // (no descriptor) used to throw InvalidOperationException unconditionally, because
+        // PublicProviderAdapter never pushed the manual-resolve frame that overload requires -
+        // ICompositionValueProvider's own contract explicitly promises this works. NestedResolvingProvider
+        // also proves the (provider, requested type) reentrance key doesn't over-block: the same
+        // provider instance handles both Gadget and, while still "active" for Gadget, its nested
+        // Widget request too - a different type, so it isn't treated as a false cycle.
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(new NestedResolvingProvider()));
+
+        var result = composer.Create<Gadget>();
+
+        result.Inner.Value.Should().Be("from-nested-resolve");
+    }
+
+    [Fact]
+    public void Provider_RecursivelyResolvingItsOwnRequestedType_ThrowsADiagnosedException_NotStackOverflow()
+    {
+        // Regression for PR #28 review (Codex, finding 2): a provider that resolves its own requested
+        // type again (via the descriptor-based overload, which needs no manual-resolve frame) used to
+        // recurse until StackOverflowException instead of producing this diagnostic.
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(new SelfRecursingProvider()));
+
+        var act = () => composer.Create<Loop>();
+
+        act.Should().Throw<CompositionException>().WithMessage("*Recursive provider request*Loop*");
+    }
+
     private sealed record Widget(string? Value = null);
+
+    private sealed record Gadget(Widget Inner);
+
+    private sealed record Loop;
 
     private sealed class StubProvider(bool handles, string? value) : ICompositionValueProvider
     {
@@ -147,5 +181,41 @@ public sealed class CompositionValueProviderTests
     {
         public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
             throw new InvalidOperationException("boom");
+    }
+
+    // Handles two different types through one instance - Gadget composes by nested-resolving Widget
+    // (the descriptor-less overload), which this same provider also handles.
+    private sealed class NestedResolvingProvider : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
+        {
+            if (request.RequestedType == typeof(Gadget))
+            {
+                var inner = context.Resolve<Widget>();
+                return CompositionProviderResult.Handled(new Gadget(inner));
+            }
+
+            if (request.RequestedType == typeof(Widget))
+                return CompositionProviderResult.Handled(new Widget("from-nested-resolve"));
+
+            return CompositionProviderResult.NotHandled;
+        }
+    }
+
+    private sealed class SelfRecursingProvider : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
+        {
+            if (request.RequestedType != typeof(Loop))
+                return CompositionProviderResult.NotHandled;
+
+            var descriptor = new CompositionRequestDescriptor(
+                CompositionRequestKind.ConstructorParameter, ordinal: 0, name: "inner", declaringType: null, Nullability.NotNullable);
+
+            // Never reached without throwing first - context.Resolve<Loop>(descriptor) re-enters this
+            // same provider for the same type, which InvokeProvider's reentrance guard must catch.
+            context.Resolve<Loop>(descriptor);
+            return CompositionProviderResult.Handled(new Loop());
+        }
     }
 }

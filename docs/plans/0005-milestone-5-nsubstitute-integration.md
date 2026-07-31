@@ -336,6 +336,25 @@ alpha must:
   + 8 new), `Compono.Generators.Tests` 166/166 (unaffected),
   `Compono.XunitV3.Tests` 94/94 (unaffected) — `dotnet build`/`dotnet test`
   against the whole solution, not just the new test file.
+- **PR #28 review (Codex, two P1 findings) caught a real gap in this
+  phase's first pass, fixed before merge — see ADR-0024 Amendment 1 for
+  the full account.** A provider calling the descriptor-less
+  `context.Resolve<T>()` threw unconditionally (no manual-resolve frame
+  was ever pushed for public-provider dispatch), and a provider recursing
+  on its own requested type had no cycle protection at all and ran until
+  `StackOverflowException`. Fixed with a new internal
+  `CompositionContext.InvokeProvider` method — structurally parallel to
+  `InvokeFactory` but reentrance-keyed on `(provider instance, requested
+  type)` rather than delegate identity, and deliberately **not** reusing
+  `InvokeFactory`'s exception-wrapping catch block, to keep ADR-0024's
+  Provider Failure Semantics decision (uncaught propagation) intact.
+  `PublicProviderAdapter` now carries its own `PipelineStage` (set at
+  construction in `CompositionBuilder.Build()`) so `InvokeProvider`'s
+  reentrance-failure trace entry is recorded against the right stage.
+  Two new regression tests added; the pre-existing
+  `ThrownException_FromAPublicProvider_PropagatesUncaught` test continues
+  to pass unchanged. Full suite re-verified green after the fix: 672/672
+  across the whole solution (`Compono.Tests` 412/412 = 206 × 2 TFMs).
 
 [ADR-0024](../adr/0024-public-provider-extensibility-model.md)/
 [ADR-0025](../adr/0025-compono-nsubstitute-package-design.md) reached

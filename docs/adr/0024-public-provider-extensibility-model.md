@@ -618,6 +618,66 @@ software, and this contract is no exception to that:
   multiple registered providers without any provider needing visibility beyond its
   own match/no-match decision.
 
+## Amendment 1 (2026-07-31): Nested resolution and self-recursion, fixed before any external consumer existed
+
+PR #28 review (Codex, two P1 findings against Phase 0's implementation of this
+ADR, both against the same root cause) caught a real gap this ADR's own Decision
+Outcome text glossed over: `ICompositionValueProvider.TryProvide`'s XML doc — and
+this ADR's own "Interaction with existing stages and mechanisms" section — state
+that a provider "may call `context.Resolve<T>()` to compose part of its value from
+a nested request, exactly as an internal provider already may." That's true for an
+internal `TypeRuleProvider`/`MemberRuleProvider`, but was **not** true for a public
+provider as originally implemented, for a reason this ADR didn't anticipate:
+
+1. **The descriptor-less `context.Resolve<T>()` overload threw unconditionally.**
+   That overload requires an active manual-resolve frame
+   ([ADR-0019](0019-registrations-and-service-provider-injection.md)), pushed only
+   by `CompositionContext.InvokeFactory` — which `PublicProviderAdapter.TryCompose`
+   never called; it invoked the wrapped provider's `TryProvide` directly. A
+   provider following this ADR's own documented contract hit
+   `InvalidOperationException` every time.
+2. **A provider recursing on its own requested type (via the descriptor-*based*
+   overload, which needs no frame) had no cycle protection at all and ran until
+   `StackOverflowException`.** An internal `TypeRuleProvider`/`MemberRuleProvider`
+   avoids this because `InvokeFactory`'s reentrance guard is keyed on **factory
+   delegate identity** — safe only because each of those provider instances is
+   compiled 1:1 for exactly one type, so "same delegate re-entered" and "same type
+   re-entered" are equivalent by construction. A public `ICompositionValueProvider`
+   instance has no such 1:1 guarantee (one instance can legitimately handle many
+   types, e.g. "any interface"), so that same keying would either miss real cycles
+   or — worse — wrongly block a provider composing an unrelated type as one of its
+   own legitimate nested dependencies.
+
+**Fix:** a new internal `CompositionContext.InvokeProvider` method, structurally
+parallel to `InvokeFactory` but distinct from it in two ways: reentrance is keyed
+on **`(provider instance, requested type)`**, not delegate identity alone; and it
+never catches or wraps an exception `TryProvide` throws — `InvokeFactory`'s
+blanket `catch (Exception ex)` block is deliberately not reused, since this ADR's
+own Provider Failure Semantics section commits to a public provider's thrown
+exception propagating uncaught, and reusing `InvokeFactory` wholesale would have
+silently reversed that decision (a rejected alternative, considered explicitly
+during the fix rather than applied by default — the reentrance-guard's own
+diagnosed `CompositionException` is a different concern from wrapping the
+provider's *own* thrown exception, and stays intact under this fix). Every
+architectural guarantee this ADR's Decision Outcome commits to (named interface,
+decoupled request/result contract, stage placement/order, diagnostics identity,
+immutable/reusable registration, `NotHandled`/`Handled` semantics) is unchanged by
+this fix — `PublicProviderAdapter`'s exact internal shape was already documented
+as illustrative, not committed, per this ADR's own framing note under Decision
+Outcome.
+
+Fixed entirely within Milestone 5 Phase 0, before `Compono.NSubstitute` (the
+ADR's first real external consumer) exists — no external code has ever observed
+the broken behavior. Regression coverage:
+`Provider_CanComposeANestedValue_ViaTheDescriptorLessResolveOverload` (finding 1,
+plus proves the `(provider, type)` key doesn't over-block a legitimate nested
+different-type request through the same instance) and
+`Provider_RecursivelyResolvingItsOwnRequestedType_ThrowsADiagnosedException_NotStackOverflow`
+(finding 2), both in `CompositionValueProviderTests.cs`; the pre-existing
+`ThrownException_FromAPublicProvider_PropagatesUncaught` test continues to pass
+unchanged, confirming the fix didn't reverse the Provider Failure Semantics
+decision.
+
 ## Links
 
 - [docs/mvp.md](../mvp.md) — Milestone 5 scope, and Milestone 3's explicit

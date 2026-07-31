@@ -28,7 +28,11 @@ public interface ICompositionValueProvider
     /// <param name="context">
     /// The active composition context - a provider may call <c>context.Resolve&lt;T&gt;()</c> to
     /// compose part of its value from a nested request, exactly as an internal provider already may
-    /// (<c>docs/architecture.md</c>'s Providers section).
+    /// (<c>docs/architecture.md</c>'s Providers section). Asking this same provider to resolve the
+    /// exact same requested type again (a genuine cycle, not an ordinary nested request for a
+    /// different type) is detected and reported as a diagnosed <see cref="CompositionException"/>
+    /// rather than recursing indefinitely - see <c>docs/adr/0024-public-provider-extensibility-model.md</c>'s
+    /// Amendment 1.
     /// </param>
     CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context);
 }
