@@ -120,10 +120,14 @@ public class ComposeAttribute : DataAttribute
     /// parameter, more than one Compose-family attribute, or more than one <c>[Shared]</c> parameter
     /// of the same type); too many inline values were supplied; a supplied inline value is
     /// <see langword="null"/> for a non-nullable parameter or has a type not assignable to its
-    /// parameter; or composition itself fails for a parameter - the pipeline's own
-    /// <see cref="CompositionException"/> propagates, with its <see cref="Exception.Message"/>
-    /// rewritten to also carry the row's seed (<see cref="CompositionException.Diagnostic"/> and
-    /// <see cref="Exception.InnerException"/> are otherwise unchanged from what the pipeline threw).
+    /// parameter; or composition itself fails for a parameter - a new <see cref="CompositionException"/>
+    /// propagates whose <see cref="Exception.Message"/> is the pipeline's original message with the
+    /// row's seed appended and whose <see cref="CompositionException.Diagnostic"/> is copied through
+    /// from that original unchanged (<see langword="null"/> if the original had none). This new
+    /// exception's own <see cref="Exception.InnerException"/> is the pipeline's original
+    /// <see cref="CompositionException"/> itself, not that original's <see cref="Exception.InnerException"/>
+    /// - so a provider failure's chain is wrapper → original composition exception → the provider's
+    /// own thrown exception, one level deeper than the original throw.
     /// </exception>
     /// <remarks>
     /// <paramref name="disposalTracker"/> is deliberately never used to register a composed value.
