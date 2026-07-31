@@ -252,7 +252,8 @@ internal sealed class CompositionContext : ICompositionContext
         {
             throw new InvalidOperationException(
                 $"{nameof(ICompositionContext)}.{nameof(Resolve)}<{typeof(TValue).Name}>() with no descriptor can only " +
-                "be called from inside a registration or configuration-rule factory.");
+                "be called from inside a registration or configuration-rule factory, or a public " +
+                $"{nameof(ICompositionValueProvider)}.{nameof(ICompositionValueProvider.TryProvide)} invocation.");
         }
 
         var frame = _manualResolveFrames[^1];

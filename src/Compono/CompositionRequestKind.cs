@@ -26,8 +26,10 @@ public enum CompositionRequestKind
 
     /// <summary>
     /// The request is one descriptor-less <see cref="ICompositionContext.Resolve{TValue}()"/> call
-    /// made inside a registration or configuration-rule factory - never emitted by generated code,
-    /// per <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
+    /// made inside a registration or configuration-rule factory, or a public
+    /// <see cref="ICompositionValueProvider.TryProvide"/> invocation - never emitted by generated
+    /// code, per <c>docs/adr/0019-registrations-and-service-provider-injection.md</c> and
+    /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
     /// </summary>
     ManualResolve,
 

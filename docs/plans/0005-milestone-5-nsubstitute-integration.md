@@ -201,24 +201,34 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 **Status:** Not Started
 
-- [ ] `docs/mvp.md` Milestone 5 section: link ADR-0024/ADR-0025/PLAN-0005,
-      mark exit criteria met, add delegate substitution to the scope list
-      (ADR-0025's Negative Consequences flags this doc update explicitly).
-- [ ] `docs/architecture.md`: Resolution Pipeline stage 5/6 rows updated
-      from "empty until Milestone 5/6" to describe what's actually
-      populated; Providers section gains the public/internal provider
-      split; Package Boundaries gains `Compono.NSubstitute`'s real Owns
-      list; the "Public provider extensibility" Open Architectural
-      Decisions entry resolved with a link to ADR-0024, matching how
-      previously-resolved entries in that list are struck through.
-- [ ] `docs/public-api.md`: NSubstitute Integration section updated to the
-      real, implemented shape (still matches the existing sketch closely);
-      new Provider Extensibility section documenting
-      `ICompositionValueProvider`/`AddSemanticProvider`/
-      `AddTestDoubleProvider` for a reader building a custom provider
-      directly, not only through `Compono.NSubstitute`; Naming Vocabulary
-      gains `ICompositionValueProvider`.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows (already added
+- [x] `docs/architecture.md`: Resolution Pipeline stage 5/6 rows, the
+      stages-4/5/6/7 summary paragraph, and the "Public provider
+      extensibility" Open Architectural Decisions entry all updated to
+      stop claiming the core mechanism is "not yet implemented"/stages
+      5/6 are unconditionally "empty" — done early, in response to PR #28
+      review (Codex, P2): the design-phase wording became stale the
+      moment Phase 0 merged. Still accurately says `Compono.NSubstitute`
+      itself doesn't exist yet.
+- [ ] `docs/architecture.md`: Providers section still needs the
+      public/internal provider split write-up (`ICompositionValueProvider`
+      alongside the existing internal `ICompositionProvider` sketch); a
+      Package Boundaries entry for `Compono.NSubstitute`'s real `Owns`
+      list — both deferred to this phase since they're additive
+      documentation, not corrections of a false claim.
+- [x] `docs/mvp.md` Milestone 5 section: links ADR-0024/ADR-0025/PLAN-0005,
+      states ADR-0024's core mechanism is implemented (PLAN-0005 Phase 0)
+      versus `Compono.NSubstitute` itself not yet — done early, same PR
+      #28 review round. Delegate substitution already in the scope list
+      from the design-phase draft.
+- [ ] `docs/mvp.md`: mark this milestone's exit criteria met once
+      `Compono.NSubstitute` actually ships (Phase 1/2) — still open.
+- [x] `docs/public-api.md`: Provider Extensibility section now says
+      "Implemented" rather than "design target" — done early, same PR #28
+      review round. NSubstitute Integration section correctly still says
+      "not yet implemented."
+- [x] `docs/public-api.md`: Naming Vocabulary gains `ICompositionValueProvider`
+      — already added during the design phase.
+- [x] `docs/adr/README.md`/`docs/plans/README.md` index rows (already added
       alongside the ADRs/this plan, during the design phase).
 
 ## Critical Files
@@ -355,6 +365,22 @@ alpha must:
   `ThrownException_FromAPublicProvider_PropagatesUncaught` test continues
   to pass unchanged. Full suite re-verified green after the fix: 672/672
   across the whole solution (`Compono.Tests` 412/412 = 206 × 2 TFMs).
+- **A second PR #28 review round (Codex, two P2 findings) caught doc/API
+  wording that went stale the moment the fixes above merged.** (1)
+  `docs/architecture.md`/`mvp.md`/`public-api.md` still described the
+  provider extension point as "design only"/stages 5/6 as unconditionally
+  "empty" — no longer true for the core mechanism, only for
+  `Compono.NSubstitute` itself; pulled forward from this plan's own Phase
+  3 task list rather than left contradicting the code until that phase
+  lands (see Phase 3's task list above for exactly what was pulled
+  forward versus what's still open there). (2)
+  `ICompositionContext.Resolve<TValue>()`'s public XML doc and its
+  `InvalidOperationException` message still described a factory-only
+  contract, not mentioning that a provider's `TryProvide` (via the
+  `InvokeProvider` fix above) is now also a valid caller — updated both,
+  plus the same "factory-only" framing on `PathSegment.ManualResolve`/
+  `CompositionRequestKind.ManualResolve`'s XML docs for consistency. Full
+  suite re-verified green: 672/672.
 
 [ADR-0024](../adr/0024-public-provider-extensibility-model.md)/
 [ADR-0025](../adr/0025-compono-nsubstitute-package-design.md) reached

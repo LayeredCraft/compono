@@ -391,9 +391,9 @@ Correlation syntax is a design goal, not an MVP commitment.
 
 ## Provider Extensibility
 
-Design target, resolved (not yet implemented) by
-[ADR-0024](adr/0024-public-provider-extensibility-model.md) — a Milestone 5 design
-deliverable, see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md).
+Implemented, per [ADR-0024](adr/0024-public-provider-extensibility-model.md) —
+PLAN-0005 Phase 0, a Milestone 5 deliverable (see
+[PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for phase status).
 An integration package (or a consumer's own code) contributes open-ended,
 pattern-matching composition logic to pipeline stage 5 (semantic value providers)
 or stage 6 (test-double providers) — the cases a closed-set `.For<T>()` rule can't

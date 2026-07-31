@@ -267,9 +267,13 @@ public provider contract — `ICompositionValueProvider`, registration into stag
 5/6, diagnostics identity — reusable by Milestone 6 without a redesign),
 [ADR-0025](adr/0025-compono-nsubstitute-package-design.md) (`Compono.NSubstitute`
 package: substitutable-shape rules including delegate types, `NSubstituteOptions`,
-diagnostics). **Resolved by these two ADRs, not yet implemented** — see
+diagnostics). **ADR-0024's core engine extension point is implemented
+(PLAN-0005 Phase 0)** — `builder.AddSemanticProvider(...)`/
+`builder.AddTestDoubleProvider(...)` are real, tested public API today.
+**`Compono.NSubstitute` itself (ADR-0025) is not yet implemented** — see
 [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for the
-phase-by-phase implementation tracker.
+phase-by-phase tracker; this milestone's own exit criteria aren't met until
+that package ships.
 
 ### Scope
 
