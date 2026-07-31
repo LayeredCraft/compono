@@ -579,6 +579,39 @@ exercised indirectly through `Compono.Xunit.Tests`.
   .SeedAsNullable`, which Phase 2's planned negative-seed guard reads
   exclusively. Phase 2's implementation must decide how the two interact
   before that guard can be considered complete.
+- **`ComposeMethodDiscovery` reports CMP0003 for an interface/abstract/
+  delegate-typed `[Compose]`-attributed parameter unconditionally, even
+  when the author intends it to be satisfied entirely by
+  `TProfile.Configure`'s own `Register<T>(...)` or an always-supplied
+  inline value (PR #23 review) — genuinely blocking: the project fails
+  to compile for that otherwise-valid usage.** Deliberately *not* fixed
+  as a drive-by change here, because it isn't a gap unique to
+  `Compono.Xunit` — `ComposeMethodDiscovery.TransformMethod` reaches
+  every eligible parameter through the exact same
+  `ComposedTypeAnalyzer.Analyze` root-request path
+  `Composer.Create<T>()` and `[Composable]` already use, and that
+  path's "an abstract/delegate root always reaches constructor selection
+  and gets CMP0003, even when a registration might satisfy it at
+  runtime" behavior is deliberate, cross-cutting, and specifically
+  regression-tested (`LeafTypeClassifier.IsRuntimeProviderResolved` is
+  documented as *narrower than* `IsProviderResolved` for exactly this
+  reason; `CompositionPlanVerifyTests.AbstractRootType_
+  StillReportsDiagnostic_AfterRootProviderCheck` exists specifically to
+  keep a registered-but-abstract `Create<T>()` root reaching CMP0003
+  rather than silently compiling into a call that can only fail at
+  runtime with a useless message - the PR #11 regression this guards
+  against). Loosening that check for `[Compose]`-attributed parameters
+  alone - e.g. reusing `LeafTypeClassifier.IsProviderResolved`'s lenient,
+  member-style leaf treatment for a parameter root instead of the
+  stricter `IsRuntimeProviderResolved` - would resolve this specific
+  complaint, but it's a change to a foundational, deliberately-tested
+  diagnostic philosophy spanning every discovery path, not a one-line
+  fix scoped to this package; it needs its own design dive
+  (`design-decisions.md`) weighing the same false-positive-vs-silent-
+  failure tradeoff `Create<T>()`'s root already settled, not a decision
+  made inline while triaging PR feedback. Tracked here for that dive
+  before Phase 2 (which needs to decide inline/registered-parameter
+  semantics anyway) or a dedicated follow-up.
 
 The one item Phase 0 left open (no generator discovery path for a
 `[Compose]`-attributed method's own parameter) was closed by Phase 1's
