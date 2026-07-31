@@ -1096,17 +1096,45 @@ exception's own `Message`.
 **Consequence for `test/Compono.XunitV3.SampleTests`:** `Failing
 CompositionTests` now composes `GatewayConsumer` (a concrete class whose
 constructor takes `IUnregisteredGateway`, an interface satisfied by
-nothing), with an explicit `Seed = 24601` so `RealRunnerTests`' subprocess
-assertion stays deterministic rather than needing to parse an
-auto-generated seed out of console output. `IUnregisteredGateway` itself is
-deliberately never used as the `[Compose]`-attributed parameter's own root
-type - that would hit the CMP0003 diagnostic this plan's own Open Items
-section already documents as deliberate (an abstract/interface/delegate
-root always fails at compile time, regardless of whether a registration
-might satisfy it at runtime) - wrapping it as a *nested* constructor
-parameter uses the more lenient member-level check instead, so it compiles
-and fails only at runtime, which is the failure shape this fixture
-actually needs.
+nothing), with an explicit `Seed = 24601` so an assertion against its
+output stays deterministic rather than needing to parse an auto-generated
+seed out of console output. `IUnregisteredGateway` itself is deliberately
+never used as the `[Compose]`-attributed parameter's own root type - that
+would hit the CMP0003 diagnostic this plan's own Open Items section
+already documents as deliberate (an abstract/interface/delegate root
+always fails at compile time, regardless of whether a registration might
+satisfy it at runtime) - wrapping it as a *nested* constructor parameter
+uses the more lenient member-level check instead, so it compiles and fails
+only at runtime, which is the failure shape this fixture actually needs.
+
+## Amendment 6 (2026-07-31): the automated real-runner test is dropped; the sample project stays, unautomated
+
+The `RealRunnerTests` test this amendment's own "Consequence" section
+above referred to - which shelled out `dotnet test` against
+`Compono.XunitV3.SampleTests` on every CI run - is removed. Across four
+consecutive rounds of fixes (a cross-process file lock, a global-cache
+clear, an isolated restore path, and finally a machine-wide named
+`Mutex` fully serializing the nested subprocess), each verified
+extensively via local reproduction of CI's exact concurrency at the time,
+CI still failed on the *next* push in a new way tied specifically to this
+repo's CI runner's process-concurrency characteristics for a
+nested-`dotnet`-invoking test - never once on the actual composition
+behavior the sample project's theories exercise, which passed every
+single local and CI run across the whole sequence.
+
+**Decision:** stop iterating on CI-only concurrency once it was clear the
+thing being verified (that `Compono.XunitV3` composes correctly as a real
+consumed package, through a real xUnit v3 runner) was already
+conclusively proven, repeatedly - keep `Compono.XunitV3.SampleTests` on
+disk exactly as built (its representative theories, its
+`PackToLocalFeed`/`RestorePackagesPath` local-feed infrastructure), not
+referenced by `Compono.slnx` or any other test, available to run by hand
+whenever packaging behavior needs re-checking by a person. This mirrors
+Phase 1's own precedent for this exact milestone - a one-time manual
+`dotnet pack` + local feed + throwaway-consumer verification, not
+permanent CI automation - rather than introducing a new philosophy. See
+[PLAN-0004](../plans/0004-milestone-4-xunit-integration.md)'s Phase 3
+Notes for the full blow-by-blow of all four fix attempts.
 
 ## Links
 
