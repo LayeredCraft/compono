@@ -942,6 +942,35 @@ change to Amendment 2026-07-30's fix #2 (the still-deferred
 `[Compose]`-attributed-parameter discovery) — that work is unaffected by
 this correction.
 
+## Amendment 3 (2026-07-31): a profile-configured seed pins every row, clarifying "fresh seed" scope
+
+PR #24 review (Codex, on PLAN-0004 Phase 2) caught that Seed Policy and
+Reporting's "every `GetData` call without an explicit seed generates a
+fresh one" statement, above, is ambiguous about what "explicit" covers.
+Phase 1's cached `Lazy<Composer>` construction applies a profile
+(`builder.AddProfile<TProfile>()`, running `Configure` immediately) before
+`ComposeAttribute.Seed` is ever read; if that `Configure` itself calls
+`builder.WithSeed(...)`, the resulting `Composer`'s configured seed is
+cached for the lifetime of that attribute instance, so every subsequent
+`GetData` call — and therefore every row `Composer.CreateRow` produces —
+reuses that exact seed, never a freshly generated one, even though
+`ComposeAttribute.Seed` itself was never set.
+
+This is the intended, correct behavior, not a bug to fix: a profile that
+calls `WithSeed(...)` is deliberately pinning composition for reproducible
+profile-level testing, the same contract `CompositionBuilder.WithSeed`
+already has everywhere else in Compono (a configured seed applies to every
+operation built from that composer, not just the next one) — silently
+discarding a profile author's own explicit seed choice just because it
+arrived through `Configure` rather than through `ComposeAttribute.Seed`
+directly would be the more surprising behavior of the two, and would
+contradict [ADR-0018](0018-composition-profiles.md)'s existing profile
+model with no compensating benefit. The fix is to the wording above, not
+the code: "without an explicit seed" means neither `ComposeAttribute.Seed`
+**nor** a profile's own `Configure` configured one — when either source
+configures a seed, that composer's rows are pinned to it, by design; the
+fresh-seed-per-call guarantee applies only when neither source does.
+
 ## Links
 
 - [ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md) —

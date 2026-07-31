@@ -612,6 +612,19 @@ exercised indirectly through `Compono.Xunit.Tests`.
   are never registered - a `[Compose(...)]` attribute's constructor
   arguments must be compile-time constants, so an inline value can never
   be an `IDisposable` instance in the first place.
+- **A profile-configured seed pinning every row is intended behavior, not
+  a bug** (PR #24 review) — clarified in ADR-0022's new Amendment 3, not
+  fixed in code: Seed Policy and Reporting's "every `GetData` call without
+  an explicit seed generates a fresh one" was ambiguous about whether a
+  profile's own `Configure` calling `builder.WithSeed(...)` counts as
+  "explicit." It does - a profile that pins a seed is deliberately
+  choosing reproducible composition, the same contract
+  `CompositionBuilder.WithSeed` already has everywhere else in Compono,
+  and silently discarding that choice because it arrived through a
+  profile rather than through `ComposeAttribute.Seed` directly would be
+  the more surprising behavior of the two. No code change - the
+  `row.Seed < 0` check two items above already covers this source
+  correctly; only the ADR's wording needed the carve-out made explicit.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
   touched no generator code), `Compono.Xunit.Tests` 50/50 (25 × 2 TFMs -
