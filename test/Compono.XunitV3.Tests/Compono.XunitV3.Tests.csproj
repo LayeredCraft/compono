@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
-    <RootNamespace>Compono.Xunit.Tests</RootNamespace>
+    <RootNamespace>Compono.XunitV3.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Compono.Xunit\Compono.Xunit.csproj" />
+    <ProjectReference Include="..\..\src\Compono.XunitV3\Compono.XunitV3.csproj" />
   </ItemGroup>
 
 </Project>

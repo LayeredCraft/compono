@@ -1,6 +1,6 @@
-using Compono.Xunit.Binding;
+using Compono.XunitV3.Binding;
 
-namespace Compono.Xunit.Tests;
+namespace Compono.XunitV3.Tests;
 
 public sealed class RowInvokersTests
 {

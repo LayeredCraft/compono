@@ -303,7 +303,7 @@ internal sealed class CompositionContext : ICompositionContext
             };
 
             // Stage 1 (explicit values) has no pipeline mechanism - Milestone 4's inline theory values
-            // are handled entirely by Compono.Xunit, one layer above this pipeline (a value already
+            // are handled entirely by Compono.XunitV3, one layer above this pipeline (a value already
             // known needs no dispatch, tracing, or randomness at all), per
             // docs/adr/0022-compono-xunit-package-design.md. Every request falls through this stage;
             // nothing to trace.
@@ -318,7 +318,7 @@ internal sealed class CompositionContext : ICompositionContext
             // so Provider is null.
             if (_scope.TryGet(requestedType, out var sharedValue))
             {
-                // Belt-and-suspenders per ADR-0022: Compono.Xunit's own signature validation is meant
+                // Belt-and-suspenders per ADR-0022: Compono.XunitV3's own signature validation is meant
                 // to catch a duplicate [Shared] type before a row is even created, but a caller that
                 // reaches this pipeline directly (or bypasses that validation) must still be refused
                 // here rather than silently reusing or overwriting the first value.

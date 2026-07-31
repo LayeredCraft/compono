@@ -37,7 +37,7 @@ Compono determines **how** those requirements are satisfied.
   Package                 Description
   ----------------------- --------------------------------------------------------
   `Compono`               Core composition engine with built-in source generator
-  `Compono.Xunit`         xUnit v3 integration
+  `Compono.XunitV3`        xUnit v3 integration
   `Compono.NSubstitute`   Automatic NSubstitute composition
   `Compono.Bogus`         Semantic fake data integration
 

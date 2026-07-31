@@ -2,12 +2,12 @@
   <Folder Name="/src/">
     <Project Path="src/Compono/Compono.csproj" />
     <Project Path="src/Compono.Generators/Compono.Generators.csproj" />
-    <Project Path="src/Compono.Xunit/Compono.Xunit.csproj" />
+    <Project Path="src/Compono.XunitV3/Compono.XunitV3.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
     <Project Path="test/Compono.Generators.Tests/Compono.Generators.Tests.csproj" />
-    <Project Path="test/Compono.Xunit.Tests/Compono.Xunit.Tests.csproj" />
+    <Project Path="test/Compono.XunitV3.Tests/Compono.XunitV3.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj" />

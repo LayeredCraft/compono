@@ -158,7 +158,7 @@ is composing directly for one of
 the *test method's own* parameters — as distinct from a constructor
 parameter or required member a *generated plan* is filling in. It reuses
 `DeclaringType` for the type whose method declares the parameter (a test
-class, for `Compono.Xunit`), extending that field's existing contract to a
+class, for `Compono.XunitV3`), extending that field's existing contract to a
 third kind of declaring construct rather than adding a new field.
 
 Generated plans avoid requiring runtime reflection merely to construct
@@ -750,13 +750,16 @@ Potentially owns:
 
 Whether this ships separately or is bundled as an analyzer dependency of `Compono` remains open.
 
-### Compono.Xunit
+### Compono.XunitV3
 
 Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
 (the `CompositionRow` entry point this package builds on, owned by core
 `Compono`), [ADR-0022](adr/0022-compono-xunit-package-design.md) (this
-package itself). `Accepted`, not yet implemented — see
-[PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
+package itself), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
+(the `Compono.Xunit` → `Compono.XunitV3` rename). Phases 0-2 (the
+`CompositionRow` entry point, the attribute skeleton, and the binding
+algorithm) are implemented - see [PLAN-0004](plans/0004-milestone-4-xunit-integration.md)
+for exactly how far along it is.
 
 Owns:
 
@@ -808,7 +811,7 @@ Owns:
                            |
         +------------------+------------------+
         |                  |                  |
-   Compono.Xunit    Compono.NSubstitute   Compono.Bogus
+   Compono.XunitV3    Compono.NSubstitute   Compono.Bogus
         |                  |                  |
    xunit.v3           NSubstitute            Bogus
 ```

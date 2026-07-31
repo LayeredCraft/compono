@@ -46,7 +46,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Select(static (result, _) => result!)
             .WithTrackingName(TrackingNames.AssemblyComposablesNotNull);
 
-        // [Compose] on a test method (Compono.Xunit, Milestone 4 Phase 1) - a type reached only as
+        // [Compose] on a test method (Compono.XunitV3, Milestone 4 Phase 1) - a type reached only as
         // one of these methods' own parameters has no textual call site for CreateInvocationDiscovery
         // to match, so it needs this dedicated discovery path. Matches on the non-generic
         // ComposeAttribute metadata name only - ForAttributeWithMetadataName matches an attribute

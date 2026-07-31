@@ -63,7 +63,7 @@ Rules for design work:
    different behavior, the question to ask first is whether it's actually
    a new provider or profile rule instead.
 3. The core `Compono` package must never reference or know about an
-   integration package (`Compono.Xunit`, `Compono.NSubstitute`,
+   integration package (`Compono.XunitV3`, `Compono.NSubstitute`,
    `Compono.Bogus`, or any future one) — `docs/public-api.md` states this
    explicitly ("The core package must not know those methods exist").
    Integrations register themselves into the core's extension points

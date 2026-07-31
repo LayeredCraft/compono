@@ -22,7 +22,7 @@ description: >
   "design this feature", "let's build/implement this", "review this PR",
   "review my changes", "address that feedback", "handle the review
   comments", "what's next on the roadmap", or any request to add a
-  feature to `Compono` / `Compono.Xunit` / `Compono.NSubstitute` /
+  feature to `Compono` / `Compono.XunitV3` / `Compono.NSubstitute` /
   `Compono.Bogus` / `Compono.Generators`.
 ---
 
@@ -39,12 +39,15 @@ pipeline yet — Milestone 2 territory) and `src/Compono.Generators` (the
 incremental source generator, Milestone 1 — see
 `docs/plans/0001-milestone-1-source-generation-foundation.md` for exactly
 how far along it is; it's a phased plan, not all-or-nothing). `docs/mvp.md`
-describes the intended full package set — `Compono.Xunit`,
-`Compono.NSubstitute`, `Compono.Bogus` don't exist as projects yet; treat
-any reference to them below as forward-looking, not current fact.
-`test/Compono.Tests` and `test/Compono.Generators.Tests` are real,
-established test projects — `references/testing.md` now describes a
-pattern actually in use, not just an intended one.
+describes the intended full package set — `Compono.XunitV3V3` is real as of
+Milestone 4 (see `docs/plans/0004-milestone-4-xunit-integration.md` for
+its own phase status; ADR-0023 records the `Compono.XunitV3` → `Compono.XunitV3V3`
+rename); `Compono.NSubstitute`/`Compono.Bogus` don't exist as projects
+yet — treat any reference to those two below as forward-looking, not
+current fact. `test/Compono.Tests`, `test/Compono.Generators.Tests`, and
+`test/Compono.XunitV3V3.Tests` are real, established test projects —
+`references/testing.md` now describes a pattern actually in use, not just
+an intended one.
 
 ## How to use this skill
 

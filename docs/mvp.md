@@ -28,7 +28,7 @@ The MVP succeeds when:
 ```text
 Compono
 Compono.Generators
-Compono.Xunit
+Compono.XunitV3
 Compono.NSubstitute
 Compono.Bogus
 ```
@@ -196,10 +196,13 @@ A project can define one reusable profile and use it for both programmatic and t
 Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
 (core `CompositionRow`/`CompositionRequestKind.TestParameter` entry point, the
 stage-2 shared-value read-gate change), [ADR-0022](adr/0022-compono-xunit-package-design.md)
-(`Compono.Xunit` package: `[Compose]`/`[Compose<TProfile>]`/`[Shared]`
+(`Compono.XunitV3` package: `[Compose]`/`[Compose<TProfile>]`/`[Shared]`
 attributes, inline/composed binding, profile selection, seed policy,
-diagnostics, package dependencies). Both `Accepted`; not yet implemented —
-tracked by [PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
+diagnostics, package dependencies), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
+(the `Compono.Xunit` → `Compono.XunitV3` rename). Phases 0-2 (core entry
+point, attribute skeleton, binding algorithm) are implemented; Phases 3-4
+(test suites/verification, docs/cleanup) remain — tracked by
+[PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
 
 ### Scope
 

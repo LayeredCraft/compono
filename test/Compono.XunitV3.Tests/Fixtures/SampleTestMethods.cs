@@ -1,4 +1,4 @@
-namespace Compono.Xunit.Tests.Fixtures;
+namespace Compono.XunitV3.Tests.Fixtures;
 
 // Hand-written test-method shapes for BindingPlan.Build/ComposeAttribute caching tests - never
 // actually run as xUnit theories themselves, just reflected over via typeof(...).GetMethod(...).

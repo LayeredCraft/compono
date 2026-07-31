@@ -4,9 +4,13 @@
 
 **Implements:** [ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
 (core `CompositionRow`/`CompositionRequestKind.TestParameter`/stage-2 read-gate
-change), [ADR-0022](../adr/0022-compono-xunit-package-design.md) (`Compono.Xunit`
+change), [ADR-0022](../adr/0022-compono-xunit-package-design.md) (`Compono.XunitV3`
 package: attribute API, binding algorithm, profile selection, seed policy,
-diagnostics, packaging, testing strategy)
+diagnostics, packaging, testing strategy), [ADR-0023](../adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
+(the package was originally named `Compono.Xunit` through Phases 0-2;
+renamed to `Compono.XunitV3` immediately after Phase 2 merged, before any
+external consumer existed — every reference in this plan uses the current
+name throughout, including in notes describing already-completed phases)
 
 ## Goal
 
@@ -43,12 +47,12 @@ Per ADR-0021/ADR-0022's Decision Outcomes:
   the seventh) with a matching seventh `RandomSource` fork tag — and the
   `CompositionContext` stage-2 read-gate change (scope lookup always
   attempted; write side unchanged).
-- New `Compono.Xunit` package: `ComposeAttribute`/`ComposeAttribute<TProfile>`
+- New `Compono.XunitV3` package: `ComposeAttribute`/`ComposeAttribute<TProfile>`
   (`Xunit.v3.DataAttribute`), `SharedAttribute`, the inline/composed
   binding algorithm, `[Shared]` validation and ordering, profile
   selection, seed policy, diagnostics.
-- Two new test projects: `test/Compono.Xunit.Tests` (direct `GetData`
-  calls, no real runner) and `test/Compono.Xunit.SampleTests` (a real
+- Two new test projects: `test/Compono.XunitV3.Tests` (direct `GetData`
+  calls, no real runner) and `test/Compono.XunitV3.SampleTests` (a real
   xUnit v3 project executed by a real runner).
 - Doc updates: `docs/mvp.md`, `docs/architecture.md`, `docs/public-api.md`.
 
@@ -118,7 +122,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       pre-rooted `CompositionContext`, then `CompositionRow` with
       `unchecked((int)seed.Value)`.
 - [x] `Compono.Tests` coverage for this API in isolation, **before any
-      `Compono.Xunit` code exists** — `Composer.CreateRow`/`CompositionRow`
+      `Compono.XunitV3` code exists** — `Composer.CreateRow`/`CompositionRow`
       are a real new public entry point (`testing.md`'s "verifying a new
       public entry point" rule) and must not end up exercised only
       indirectly through xUnit integration tests written later. Cover:
@@ -162,11 +166,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       isolated generator test for this call shape now asserts *no* plan
       gets generated, not that one does.
 
-### Phase 1: `Compono.Xunit` package skeleton and attributes (ADR-0022)
+### Phase 1: `Compono.XunitV3` package skeleton and attributes (ADR-0022)
 
 **Status:** Done
 
-- [x] New `src/Compono.Xunit/Compono.Xunit.csproj` (net10.0;net11.0,
+- [x] New `src/Compono.XunitV3/Compono.XunitV3.csproj` (net10.0;net11.0,
       `PackageReference` to `Compono` + `xunit.v3.extensibility.core`).
 - [x] `SharedAttribute` (parameter-targeted marker).
 - [x] `ComposeAttribute` (`Xunit.v3.DataAttribute`): constructor
@@ -192,7 +196,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 - [x] **Cached per-parameter invoker delegates**, built in the same pass
       as the binding plan above — `CompositionRow.Resolve<T>`/
       `ResolveShared<T>`/`ShareExplicit<T>` are generic, but
-      `Compono.Xunit` only knows each parameter's type as a runtime
+      `Compono.XunitV3` only knows each parameter's type as a runtime
       `ParameterInfo.ParameterType`. For each parameter, once: close a
       private generic helper (`InvokeResolve<T>`/`InvokeResolveShared<T>`/
       `InvokeShareExplicit<T>`, each declared to *return* `object?`/`void`
@@ -216,7 +220,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `ComposableAttributeDiscovery` uses for `[Composable]`) to find
       methods attributed `[Compose]`/`[Compose<TProfile>]` and generate a
       plan for each eligible parameter type in that method's signature.
-      Required because `Compono.Xunit`'s binding (this phase's own
+      Required because `Compono.XunitV3`'s binding (this phase's own
       `MakeGenericMethod`-based invoker caching, above) never emits a
       textual `row.Resolve<T>(...)` call site in the consumer's own
       source for the now-fixed `CreateInvocationDiscovery` extension
@@ -250,7 +254,7 @@ the cache built once in Phase 1; everything after is per-row):
       about to be rejected.
 - [x] **If the row's effective seed (`row.Seed`) is negative, throw now**,
       echoing the rejected value back. This is what makes every row
-      `Compono.Xunit` creates have a non-negative seed unconditionally —
+      `Compono.XunitV3` creates have a non-negative seed unconditionally —
       `CompositionBuilder.WithSeed(int)` itself has no such restriction and
       happily accepts a negative value when the cached `Composer` is built
       (Phase 1), so this check is the only place that actually enforces
@@ -306,7 +310,7 @@ the cache built once in Phase 1; everything after is per-row):
       unconditionally, on every row regardless of whether it will pass or
       fail — the milestone's "failure output includes a seed" exit
       criterion isn't scoped to composition failures only, and
-      `Compono.Xunit` can't know at `GetData` time whether the theory
+      `Compono.XunitV3` can't know at `GetData` time whether the theory
       body will later throw its own assertion failure, so the trait can't
       be applied only-on-failure.
 
@@ -314,7 +318,7 @@ the cache built once in Phase 1; everything after is per-row):
 
 **Status:** Not Started
 
-- [ ] `test/Compono.Xunit.Tests`: binding-algorithm unit tests
+- [ ] `test/Compono.XunitV3.Tests`: binding-algorithm unit tests
       (inline-only/composed-only/mixed/too-many/non-null-type-mismatch),
       `[Shared]` detection (duplicate types, before/after ordering),
       profile caching/reuse assertion, unsupported-signature detection,
@@ -352,19 +356,19 @@ the cache built once in Phase 1; everything after is per-row):
       exactly the `int` value from `row.Seed` — not merely `"Seed:"` —
       for both an auto-generated seed and an explicit non-negative one,
       proving the pasteable-seed promise rather than just its presence.
-- [ ] An API-surface/approval test (`Compono.Xunit.Tests`, e.g. `Verify`
+- [ ] An API-surface/approval test (`Compono.XunitV3.Tests`, e.g. `Verify`
       over `typeof(ComposeAttribute).Assembly`'s public types) locking
-      the public shape of `Compono.Xunit` — `ComposeAttribute`,
+      the public shape of `Compono.XunitV3` — `ComposeAttribute`,
       `ComposeAttribute<TProfile>`, `SharedAttribute` and nothing else —
       cheap insurance against accidental API drift, matching this
       milestone's own "keep public APIs minimal" constraint.
-- [ ] `test/Compono.Xunit.SampleTests`: real xUnit v3 project with
+- [ ] `test/Compono.XunitV3.SampleTests`: real xUnit v3 project with
       representative theories (inline-only, composed-only, mixed,
       `[Shared]`-before-SUT, deliberately-failing composition, `async
-      Task` theory). References `Compono.Xunit` via `PackageReference`
+      Task` theory). References `Compono.XunitV3` via `PackageReference`
       against a **local feed populated by `dotnet pack`**, not a
       `ProjectReference` — the point of this project is to consume
-      `Compono.Xunit` exactly the way an external consumer would,
+      `Compono.XunitV3` exactly the way an external consumer would,
       catching packaging mistakes (missing dependency, wrong
       `PrivateAssets`, the generator analyzer not flowing transitively)
       that a `ProjectReference` build can't surface.
@@ -376,7 +380,7 @@ the cache built once in Phase 1; everything after is per-row):
       fix #2) actually generates a plan through the real packaged
       pipeline, not just in an isolated `Compono.Generators.Tests`
       snapshot test.
-- [ ] A `Compono.Xunit.Tests` test that runs the sample project through a
+- [ ] A `Compono.XunitV3.Tests` test that runs the sample project through a
       real xUnit v3 runner (`dotnet test` or the in-process console
       runner) and asserts on its result — the milestone's required
       "proves behavior through the real xUnit v3 discovery and execution
@@ -392,7 +396,7 @@ the cache built once in Phase 1; everything after is per-row):
       (read gate removed, write gate unchanged) and the `CompositionScope`/Recursion
       Detection sections' now-outdated "only a request the caller marked
       IsShared reads from scope" framing; add `CompositionRow`/`TestParameter`
-      to Composition Requests and Package Boundaries (`Compono.Xunit`).
+      to Composition Requests and Package Boundaries (`Compono.XunitV3`).
 - [ ] `docs/public-api.md`: replace the `[InlineComposeData(...)]` sketch
       with the unified `[Compose(...)]` shape; resolve the "Questions
       still to resolve" under Shared Values per ADR-0022; fill in the
@@ -408,11 +412,11 @@ the cache built once in Phase 1; everything after is per-row):
   `RandomSource.cs`, `CompositionPath.cs`, `CompositionContext.cs`,
   `Composer.cs` — Phase 0.
 - `src/Compono/CompositionRow.cs` (new) — Phase 0.
-- `src/Compono.Xunit/` (new project) — `ComposeAttribute.cs`,
+- `src/Compono.XunitV3/` (new project) — `ComposeAttribute.cs`,
   `ComposeAttribute{TProfile}.cs`, `SharedAttribute.cs`, and the binding
   algorithm's implementation file(s) — Phases 1–2.
-- `test/Compono.Xunit.Tests/` (new project) — Phase 3.
-- `test/Compono.Xunit.SampleTests/` (new project) — Phase 3.
+- `test/Compono.XunitV3.Tests/` (new project) — Phase 3.
+- `test/Compono.XunitV3.SampleTests/` (new project) — Phase 3.
 - `docs/mvp.md`, `docs/architecture.md`, `docs/public-api.md` — Phase 4.
 
 ## Test Plan
@@ -424,7 +428,7 @@ see ADR-0022's Testing Strategy section for the full breakdown, and this
 plan's Phase 3 for the concrete task list. Per `testing.md`'s "verifying a
 new public entry point" rule, `Composer.CreateRow`/`CompositionRow` need
 their own isolated-type coverage in `Compono.Tests` (Phase 0), not only
-exercised indirectly through `Compono.Xunit.Tests`.
+exercised indirectly through `Compono.XunitV3.Tests`.
 
 ## Notes
 
@@ -495,23 +499,23 @@ exercised indirectly through `Compono.Xunit.Tests`.
   every other discovery path). A method's other, ordinary parameters
   still get discovered even if one parameter is unsupported, since
   that's a distinct per-parameter runtime rejection
-  `Compono.Xunit`'s own binding algorithm (Phase 2) makes independently.
+  `Compono.XunitV3`'s own binding algorithm (Phase 2) makes independently.
   Verified with two isolated `Compono.Generators.Tests` snapshot tests -
   a type reached only via a `[Compose]`-attributed method's own
   parameter gets a plan; a `[Compose]`-attributed *generic* method's
   parameter gets none - using a same-metadata-name stand-in
-  `Compono.Xunit.ComposeAttribute` declared directly in the test source
+  `Compono.XunitV3.ComposeAttribute` declared directly in the test source
   (this generator test project doesn't reference the real
-  `Compono.Xunit` assembly, and `ForAttributeWithMetadataName` matches
+  `Compono.XunitV3` assembly, and `ForAttributeWithMetadataName` matches
   by fully qualified name alone). The full packaged-consumer proof
-  (`dotnet pack` + local feed + a real `Compono.Xunit.SampleTests`
+  (`dotnet pack` + local feed + a real `Compono.XunitV3.SampleTests`
   theory reached only this way) is Phase 3's own requirement, per the
   Amendment below - PR #23 review asked for this ahead of Phase 3
   specifically for the generic-metadata-name discovery path added in the
   fix below, so it was done as an ad hoc manual check (not the permanent
   `SampleTests` project, which is still Phase 3's job): `dotnet pack`'d
-  `Compono` and `Compono.Xunit` into a local feed (after clearing the
-  local package cache for both IDs) and referenced `Compono.Xunit` from a
+  `Compono` and `Compono.XunitV3` into a local feed (after clearing the
+  local package cache for both IDs) and referenced `Compono.XunitV3` from a
   genuinely separate throwaway console project via `PackageReference`
   alone - no `ProjectReference`, no shared `InternalsVisibleTo`. A
   `Statement` type reachable only through a `[Compose<TestProfile>]`-
@@ -520,7 +524,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
   `PlanCache<Statement>.Instance` was non-null at runtime, proving the
   generic-metadata-name discovery path (`ComposeMethodDiscovery
   .GenericAttributeMetadataName`) reaches a real consumer transitively
-  through the packaged `Compono.Xunit` → `Compono` dependency, not just
+  through the packaged `Compono.XunitV3` → `Compono` dependency, not just
   the generator test project's same-metadata-name stand-in attributes.
 - **`[Compose(null)]` fix (PR #23 review)**: a single `null` argument to
   `params object?[] inlineValues` binds in the C# compiler's non-expanded
@@ -549,7 +553,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
 - Full suite green (as of PR #23's review-response commits): `Compono.Tests`
   388/388 (unchanged - Phase 1 touched no core code), `Compono.Generators.Tests`
   166/166 (160 unaffected + 2 `ComposeMethodDiscovery` snapshot tests + 1
-  generic-metadata-name snapshot test, × 2 TFMs), `Compono.Xunit.Tests`
+  generic-metadata-name snapshot test, × 2 TFMs), `Compono.XunitV3.Tests`
   46/46 (23 × 2 TFMs) covering
   `ComposeAttribute`/`ComposeAttribute<TProfile>` caching (`Composer`
   reuse, profile application, seed round-tripping, binding-plan and
@@ -614,7 +618,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
      `IDisposable`/`IAsyncDisposable` before touching the set, and
      allocating it lazily.
   4. **Fix 1's entire premise turned out to be unsafe**: `CompositionRow
-     .Resolve`/`ResolveShared` give `Compono.Xunit` no visibility into
+     .Resolve`/`ResolveShared` give `Compono.XunitV3` no visibility into
      which pipeline stage produced a value, so a value Compono itself
      freshly constructed is indistinguishable from one returned by a
      registration or a configured `IServiceProvider` - the latter
@@ -626,7 +630,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
      correctness violation strictly worse than the original leak fix 1
      addressed. **Reverted entirely** rather than patched with a
      heuristic - no code in `Compono`'s public surface exists for
-     `Compono.Xunit` to safely distinguish the two cases, and inventing
+     `Compono.XunitV3` to safely distinguish the two cases, and inventing
      one inline (without a real design dive) was rejected as exactly the
      kind of one-off decision this repo's process exists to avoid.
      `ComposeAttributeDisposalTests` now asserts the opposite of what it
@@ -679,7 +683,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
   test; nullable four-combination coverage, the `Compono.Seed`-value
   proof against a real failing composition, the concurrency-stress test,
   the API-surface approval test, and the real-runner
-  `Compono.Xunit.SampleTests` project all remain Phase 3's scope) - adding
+  `Compono.XunitV3.SampleTests` project all remain Phase 3's scope) - adding
   the full exhaustive suite here would have meant either doing Phase 3's
   work inside a Phase 2 PR (against `design-decisions.md`'s
   one-phase-per-PR rule) or leaving genuinely untested binding-algorithm
@@ -708,7 +712,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
   matching the existing null-argument test's shape.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
-  touched no generator code), `Compono.Xunit.Tests` 64/64 (32 × 2 TFMs -
+  touched no generator code), `Compono.XunitV3.Tests` 64/64 (32 × 2 TFMs -
   23 from Phase 1 (one updated in place) + 2 disposal tests (rewritten to
   prove disposal tracking is deliberately absent, per Amendment 4 above) +
   6 binding-algorithm tests + 1 inline-array-argument test, using a
@@ -717,7 +721,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
   existing generator-free pattern). The exhaustive matrix (nullable
   four-combination coverage, seed-message content proof,
   concurrency-stress test, the API-surface approval test, the real-runner
-  `Compono.Xunit.SampleTests` project) remains Phase 3's own scope per the
+  `Compono.XunitV3.SampleTests` project) remains Phase 3's own scope per the
   plan's phase split and ADR-0022's Testing Strategy.
 
 ## Open Items
@@ -729,7 +733,7 @@ exercised indirectly through `Compono.Xunit.Tests`.
   inline value (PR #23 review) — genuinely blocking: the project fails
   to compile for that otherwise-valid usage.** Deliberately *not* fixed
   as a drive-by change here, because it isn't a gap unique to
-  `Compono.Xunit` — `ComposeMethodDiscovery.TransformMethod` reaches
+  `Compono.XunitV3` — `ComposeMethodDiscovery.TransformMethod` reaches
   every eligible parameter through the exact same
   `ComposedTypeAnalyzer.Analyze` root-request path
   `Composer.Create<T>()` and `[Composable]` already use, and that

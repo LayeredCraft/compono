@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Compono.Xunit.Binding;
+namespace Compono.XunitV3.Binding;
 
 /// <summary>
 /// Non-generic delegate shapes every cached invoker is adapted to, regardless of the closed

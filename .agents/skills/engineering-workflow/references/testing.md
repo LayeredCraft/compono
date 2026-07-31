@@ -20,7 +20,7 @@ of a large established pattern yet:
   directly-referenced `Microsoft.Testing.Platform`).
 - One test project per src project, same name + `.Tests` suffix (e.g.
   `Compono.Tests` for `src/Compono`), and it stays that way — don't
-  consolidate tests across projects, even once `Compono.Xunit`/
+  consolidate tests across projects, even once `Compono.XunitV3`/
   `Compono.NSubstitute`/`Compono.Bogus` exist as separate projects.
 - Global usings for `Xunit`, `NSubstitute`, `AwesomeAssertions` are set
   per test csproj — copy that block when creating a new test project.

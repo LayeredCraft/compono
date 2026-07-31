@@ -33,7 +33,7 @@ points:
   infrastructure that runs on every test, so allocations and generated-
   plan execution cost matter from the start.
 - **Modular by design.** The core `Compono` package must never reference
-  or know about an integration package (`Compono.Xunit`,
+  or know about an integration package (`Compono.XunitV3`,
   `Compono.NSubstitute`, `Compono.Bogus`, or any future one).
 
 ## Don't build ahead of the milestone
@@ -43,7 +43,7 @@ milestone it belongs to. Don't implement a future milestone's scope early
 just because you're nearby in the code — e.g. don't build provider-
 pipeline machinery while Milestone 1 is still just direct constructor
 invocation, don't add a reflection fallback path preemptively, don't
-stand up a package (`Compono.Xunit`, etc.) before its own milestone
+stand up a package (`Compono.XunitV3`, etc.) before its own milestone
 starts it. `docs/mvp.md` scopes each milestone explicitly; if something
 looks missing, check whether it's deferred there before assuming it's a
 gap to fill.
@@ -96,7 +96,7 @@ just once at session start — each task type routes to a different file.
 - `docs/*.md` (`architecture.md`, `public-api.md`, `mvp.md`,
   `manifesto.md`, `design-principles.md`) — current/intended state,
   linking back to the ADR that decided it.
-- `Compono.Xunit`, `Compono.NSubstitute`, `Compono.Bogus` are named in
+- `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus` are named in
   `docs/mvp.md` but don't exist as projects yet — forward-looking, not
   current fact.
 

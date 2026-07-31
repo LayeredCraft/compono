@@ -1763,9 +1763,9 @@ public sealed class CompositionPlanVerifyTests
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {
             SourceCode = """
-                namespace Compono.Xunit
+                namespace Compono.XunitV3
                 {
-                    // Stands in for the real Compono.Xunit.ComposeAttribute (a separate package/
+                    // Stands in for the real Compono.XunitV3.ComposeAttribute (a separate package/
                     // assembly, not referenced from this generator test project) - ComposeMethodDiscovery
                     // matches on the fully qualified metadata name alone, so a same-named type here
                     // triggers it identically to the real one.
@@ -1790,7 +1790,7 @@ public sealed class CompositionPlanVerifyTests
                         // in this source - Invoice is reachable only as this [Compose]-attributed
                         // method's own parameter, which ComposeMethodDiscovery must still discover
                         // (ADR-0022 Amendment 2026-07-30, fix #2).
-                        [Compono.Xunit.Compose]
+                        [Compono.XunitV3.Compose]
                         public static void Creates_invoice(Invoice invoice)
                         {
                         }
@@ -1804,9 +1804,9 @@ public sealed class CompositionPlanVerifyTests
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {
             SourceCode = """
-                namespace Compono.Xunit
+                namespace Compono.XunitV3
                 {
-                    // Stands in for the real Compono.Xunit.ComposeAttribute/ICompositionProfile (a
+                    // Stands in for the real Compono.XunitV3.ComposeAttribute/ICompositionProfile (a
                     // separate package/assembly, not referenced from this generator test project) -
                     // ComposeMethodDiscovery matches on the fully qualified metadata name alone, so
                     // same-named types here trigger it identically to the real ones.
@@ -1821,7 +1821,7 @@ public sealed class CompositionPlanVerifyTests
                     }
 
                     // [Compose<TProfile>]'s attribute class metadata name is the arity-suffixed
-                    // "Compono.Xunit.ComposeAttribute`1" - distinct from the non-generic
+                    // "Compono.XunitV3.ComposeAttribute`1" - distinct from the non-generic
                     // ComposeAttribute's metadata name above, and reached only via
                     // ComposeMethodDiscovery.GenericAttributeMetadataName's own, separately
                     // registered discovery provider.
@@ -1834,7 +1834,7 @@ public sealed class CompositionPlanVerifyTests
 
                 namespace TestNamespace
                 {
-                    public sealed class TestProfile : Compono.Xunit.ICompositionProfile
+                    public sealed class TestProfile : Compono.XunitV3.ICompositionProfile
                     {
                         public void Configure(object builder) { }
                     }
@@ -1854,7 +1854,7 @@ public sealed class CompositionPlanVerifyTests
                         // (PR #23 review: ForAttributeWithMetadataName matches an attribute usage's
                         // own attribute class metadata name, not a base type's, so the non-generic
                         // ComposeMethodDiscovery registration alone never sees this form).
-                        [Compono.Xunit.Compose<TestProfile>]
+                        [Compono.XunitV3.Compose<TestProfile>]
                         public static void Creates_statement(Statement statement)
                         {
                         }
@@ -1868,7 +1868,7 @@ public sealed class CompositionPlanVerifyTests
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {
             SourceCode = """
-                namespace Compono.Xunit
+                namespace Compono.XunitV3
                 {
                     public class ComposeAttribute : System.Attribute
                     {
@@ -1887,10 +1887,10 @@ public sealed class CompositionPlanVerifyTests
                     public static class TestClass
                     {
                         // A generic test method is excluded from ComposeMethodDiscovery entirely,
-                        // mirroring Compono.Xunit's own binding algorithm rejecting generic test
+                        // mirroring Compono.XunitV3's own binding algorithm rejecting generic test
                         // methods pre-composition - Receipt must end up with no generated plan
                         // whatsoever (no other discovery path reaches it in this source).
-                        [Compono.Xunit.Compose]
+                        [Compono.XunitV3.Compose]
                         public static void Creates_receipt<T>(Receipt receipt, T other)
                         {
                         }
