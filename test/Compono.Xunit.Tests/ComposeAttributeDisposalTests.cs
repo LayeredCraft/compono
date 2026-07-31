@@ -3,10 +3,16 @@ using Xunit.Sdk;
 
 namespace Compono.Xunit.Tests;
 
+// GetData deliberately never registers a composed value with disposalTracker (PR #24 review) -
+// CompositionRow.Resolve/ResolveShared give no visibility into which pipeline stage produced a
+// value, so a freshly-constructed (Compono-owned, safe to dispose) value is indistinguishable from
+// one returned by a registration or a configured IServiceProvider (externally owned, per
+// docs/adr/0019-registrations-and-service-provider-injection.md's ownership contract). These tests
+// guard against silently reintroducing automatic disposal tracking without first solving that.
 public sealed class ComposeAttributeDisposalTests
 {
     [Fact]
-    public async Task GetData_RegistersAComposedDisposableValue_WithTheDisposalTracker()
+    public async Task GetData_NeverRegistersAComposedDisposableValue_WithTheDisposalTracker()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.DisposableProfile>();
         var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithDisposableParameter))!;
@@ -15,29 +21,16 @@ public sealed class ComposeAttributeDisposalTests
         var rows = await attribute.GetData(method, tracker);
         var disposable = (DisposableValue)rows.Single().GetData()[0]!;
 
-        tracker.TrackedObjects.Should().Contain(disposable);
-    }
+        tracker.TrackedObjects.Should().NotContain(disposable);
 
-    [Fact]
-    public async Task DisposingTheTracker_DisposesAComposedDisposableValue()
-    {
-        var attribute = new ComposeAttribute<SampleTestMethods.DisposableProfile>();
-        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithDisposableParameter))!;
-        var tracker = new DisposalTracker();
-
-        var rows = await attribute.GetData(method, tracker);
-        var disposable = (DisposableValue)rows.Single().GetData()[0]!;
         await tracker.DisposeAsync();
 
-        disposable.Disposed.Should().BeTrue();
+        disposable.Disposed.Should().BeFalse();
     }
 
     [Fact]
-    public async Task GetData_RegistersASharedDisposableValueOnce_EvenWhenALaterParameterReusesIt()
+    public async Task GetData_NeverRegistersASharedDisposableValue_EvenWhenALaterParameterReusesIt()
     {
-        // [Shared] DisposableValue and the ordinary DisposableValue parameter after it resolve to
-        // the exact same instance (CompositionContext.ResolveCore's stage-2 scope read) - both must
-        // not independently register it with disposalTracker, or DisposeAsync disposes it twice.
         var attribute = new ComposeAttribute<SampleTestMethods.DisposableProfile>();
         var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithSharedDisposableFollowedByOrdinaryOfTheSameType))!;
         var tracker = new DisposalTracker();
@@ -48,10 +41,6 @@ public sealed class ComposeAttributeDisposalTests
         var ordinary = (DisposableValue)data[1]!;
 
         ordinary.Should().BeSameAs(shared);
-        tracker.TrackedObjects.Should().ContainSingle(tracked => ReferenceEquals(tracked, shared));
-
-        await tracker.DisposeAsync();
-
-        shared.DisposeCount.Should().Be(1);
+        tracker.TrackedObjects.Should().BeEmpty();
     }
 }

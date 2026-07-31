@@ -596,22 +596,42 @@ exercised indirectly through `Compono.Xunit.Tests`.
   (`LeafTypeClassifier.IsProviderResolved`) with no `[Composable]`/generated
   plan involved; the binding-plan-identity assertion the test exists for is
   unchanged.
-- **Every composed value is registered with `GetData`'s own
-  `disposalTracker` parameter as soon as it's composed** (PR #24 review) —
-  the initial Phase 2 commit produced composed argument values but never
-  registered them with the `DisposalTracker` xUnit itself hands `GetData`,
-  so a composed `IDisposable`/`IAsyncDisposable` value (a real one, or a
-  future `Compono.NSubstitute` substitute) was never released after the
-  test ran. `DisposalTracker.Add(object?)` no-ops for a value that isn't
-  disposable and tolerates `null`, so it's called unconditionally for
-  every `resolveInvoker`/`resolveSharedInvoker` result, registered
-  immediately after that call rather than batched at the end — so a later
-  parameter that throws (composition failure, or one of the pre-binding
-  inline-value checks) still releases whatever this row already composed,
-  not just a value from a row that completed successfully. Inline values
-  are never registered - a `[Compose(...)]` attribute's constructor
-  arguments must be compile-time constants, so an inline value can never
-  be an `IDisposable` instance in the first place.
+- **Automatic disposal tracking was attempted, iterated three times, then
+  reverted** (PR #24 review — see ADR-0022 Amendment 4 for the full
+  account; summarized here for the plan's own timeline):
+  1. A composed `IDisposable`/`IAsyncDisposable` value was never
+     registered with `GetData`'s own `disposalTracker` parameter, so it
+     was never released after the test ran — fixed by registering every
+     composed value as soon as it was produced.
+  2. That fix double-registered a `[Shared]` value reused by a later
+     ordinary parameter of the same type (both resolve to the identical
+     instance via `CompositionContext.ResolveCore`'s stage-2 scope read),
+     causing a double `Dispose()` call — fixed with a per-`GetData`-call
+     reference-equality dedup set.
+  3. The dedup set was allocated and populated unconditionally on every
+     row, against `AGENTS.md`'s "performance is a feature... runs on
+     every test" principle — fixed by filtering to
+     `IDisposable`/`IAsyncDisposable` before touching the set, and
+     allocating it lazily.
+  4. **Fix 1's entire premise turned out to be unsafe**: `CompositionRow
+     .Resolve`/`ResolveShared` give `Compono.Xunit` no visibility into
+     which pipeline stage produced a value, so a value Compono itself
+     freshly constructed is indistinguishable from one returned by a
+     registration or a configured `IServiceProvider` - the latter
+     explicitly owned by the caller, not Compono, per
+     [ADR-0019](../adr/0019-registrations-and-service-provider-injection.md).
+     Registering the latter with `DisposalTracker` would dispose an
+     externally-owned instance (possibly a shared singleton reused across
+     many tests) after just one test - a silent, hard-to-diagnose
+     correctness violation strictly worse than the original leak fix 1
+     addressed. **Reverted entirely** rather than patched with a
+     heuristic - no code in `Compono`'s public surface exists for
+     `Compono.Xunit` to safely distinguish the two cases, and inventing
+     one inline (without a real design dive) was rejected as exactly the
+     kind of one-off decision this repo's process exists to avoid.
+     `ComposeAttributeDisposalTests` now asserts the opposite of what it
+     originally proved: a composed disposable is **not** registered and
+     **not** disposed, guarding against silently reintroducing this.
 - **A profile-configured seed pinning every row is intended behavior, not
   a bug** (PR #24 review) — clarified in ADR-0022's new Amendment 3, not
   fixed in code: Seed Policy and Reporting's "every `GetData` call without
@@ -625,24 +645,6 @@ exercised indirectly through `Compono.Xunit.Tests`.
   the more surprising behavior of the two. No code change - the
   `row.Seed < 0` check two items above already covers this source
   correctly; only the ADR's wording needed the carve-out made explicit.
-- **A `[Shared]` value reused by a later ordinary parameter of the same
-  type was registered with `disposalTracker` twice** (PR #24 review) —
-  `CompositionContext.ResolveCore`'s stage-2 scope read
-  ([ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md))
-  means a `[Shared]` parameter and a later non-shared parameter of the
-  same type resolve to the exact same instance, so the disposal-tracking
-  fix above (registering unconditionally at each composition call site)
-  handed `DisposalTracker` that one instance twice - `DisposeAsync` then
-  calls `Dispose()` on it twice, unsafe for a `Dispose()` that isn't
-  idempotent. Fixed with a per-`GetData`-call `HashSet<object>`
-  (`ReferenceEqualityComparer.Instance`, not default equality - identity,
-  not value equality, is what determines "the same composed instance"
-  here) that every composed value is checked against before registering;
-  `Add` returning `false` (already present) skips the redundant
-  `disposalTracker.Add` call. Covered by
-  `GetData_RegistersASharedDisposableValueOnce_EvenWhenALaterParameterReusesIt`,
-  proving both single registration and a `DisposeCount` of exactly `1`
-  after `DisposeAsync`.
 - **Amendment 3's own follow-through was incomplete** (PR #24 review,
   same round as the double-registration bug) — two more places still
   described pre-Amendment-3 behavior after Amendment 3 shipped:
@@ -684,6 +686,10 @@ exercised indirectly through `Compono.Xunit.Tests`.
   output merged (Codex's real concern). This is the middle ground: enough
   direct coverage that a regression in the algorithm this PR ships is
   actually caught, without duplicating Phase 3's own exhaustive scope.
+  (`ComposeAttributeDisposalTests`' shared-value-reuse test, added
+  earlier for the now-reverted disposal-tracking work below, still
+  covers the `[Shared]`-ordering assertion referenced here even after
+  its own original disposal-specific purpose was reverted.)
 - **A single reference-array inline argument was misread as multiple
   inline values** (PR #24 review) — the same non-expanded `params`
   binding form the existing `[Compose(null)]` fix (PR #23 review)
@@ -700,25 +706,11 @@ exercised indirectly through `Compono.Xunit.Tests`.
   one-element array. Covered by
   `InlineValues_SingleReferenceArrayArgument_TreatedAsOneSuppliedArrayValue`,
   matching the existing null-argument test's shape.
-- **The disposal-dedup `HashSet<object>` was allocated unconditionally,
-  on every row, even when nothing composed was disposable** (PR #24
-  review) — flagged against `AGENTS.md`'s "performance is a feature...
-  this is test infrastructure that runs on every test" principle: every
-  ordinary composed value (a string, a boxed `int`, an ordinary POCO)
-  was still hashed and inserted into the set for no reason, since only
-  `IDisposable`/`IAsyncDisposable` instances can ever reach
-  `disposalTracker`. `TrackForDisposal` now checks
-  `value is IDisposable or IAsyncDisposable` **before** touching the set
-  at all, and the set itself (`HashSet<object>?`, now nullable) is only
-  allocated the first time a disposable value is actually seen - the
-  common case (no disposables composed) now allocates nothing extra
-  beyond the row's own `values` array. No behavior change - the existing
-  disposal tests (registration, dedup, actual `Dispose()` call) still
-  pass unmodified against the lazy version.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
-  touched no generator code), `Compono.Xunit.Tests` 66/66 (33 × 2 TFMs -
-  23 from Phase 1 (one updated in place) + 3 disposal-registration tests +
+  touched no generator code), `Compono.Xunit.Tests` 64/64 (32 × 2 TFMs -
+  23 from Phase 1 (one updated in place) + 2 disposal tests (rewritten to
+  prove disposal tracking is deliberately absent, per Amendment 4 above) +
   6 binding-algorithm tests + 1 inline-array-argument test, using a
   `DisposableProfile`/`DisposableValue` fixture pair composed via a
   registration rather than a generated plan, matching this test project's
