@@ -164,12 +164,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 1: `Compono.Xunit` package skeleton and attributes (ADR-0022)
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] New `src/Compono.Xunit/Compono.Xunit.csproj` (net10.0;net11.0,
+- [x] New `src/Compono.Xunit/Compono.Xunit.csproj` (net10.0;net11.0,
       `PackageReference` to `Compono` + `xunit.v3.extensibility.core`).
-- [ ] `SharedAttribute` (parameter-targeted marker).
-- [ ] `ComposeAttribute` (`Xunit.v3.DataAttribute`): constructor
+- [x] `SharedAttribute` (parameter-targeted marker).
+- [x] `ComposeAttribute` (`Xunit.v3.DataAttribute`): constructor
       (`params object?[] inlineValues`), a plain attribute-legal
       `int Seed { get; set; }` backed by a private `int? _seed` field
       with an internal `SeedAsNullable` property the binding algorithm
@@ -177,9 +177,9 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `Timeout`/`TimeoutAsNullable` pair — `int?` itself cannot be an
       attribute named-argument target, CS0655), `SupportsDiscoveryEnumeration() => false`,
       `GetData` stub wired to Phase 2's binding algorithm.
-- [ ] `ComposeAttribute<TProfile> : ComposeAttribute where TProfile :
+- [x] `ComposeAttribute<TProfile> : ComposeAttribute where TProfile :
       ICompositionProfile, new()`.
-- [ ] `Lazy<Composer>` + immutable binding-plan caching, keyed to the
+- [x] `Lazy<Composer>` + immutable binding-plan caching, keyed to the
       attribute instance. The cached binding plan holds only metadata
       derived once from `testMethod`: ordered `ParameterInfo`s, a
       descriptor template per parameter (ordinal, name, declaring type,
@@ -189,7 +189,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       once). It never holds anything row-scoped: no `CompositionRow`, no
       seed, no scope, no composed value — those are created fresh on
       every `GetData` call by Phase 2's binding algorithm, never cached.
-- [ ] **Cached per-parameter invoker delegates**, built in the same pass
+- [x] **Cached per-parameter invoker delegates**, built in the same pass
       as the binding plan above — `CompositionRow.Resolve<T>`/
       `ResolveShared<T>`/`ShareExplicit<T>` are generic, but
       `Compono.Xunit` only knows each parameter's type as a runtime
@@ -208,7 +208,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `MakeGenericMethod` construction happens exactly once per parameter
       across many repeated `GetData` calls on one attribute instance, not
       once per row.
-- [ ] **New generator discovery component for `[Compose]`-attributed test
+- [x] **New generator discovery component for `[Compose]`-attributed test
       methods** (ADR-0022 Amendment 2026-07-30, fix #2; PR #22 review) —
       a separate `Compono.Generators.Discovery` component, not folded
       into `CreateInvocationDiscovery`, using
@@ -257,6 +257,22 @@ the cache built once in Phase 1; everything after is per-row):
       place that actually enforces it, and it must run before any other
       failure category so a rejected negative seed is reported clearly
       rather than surfacing as a confusing mismatch somewhere else.
+- [ ] **Decide how a `TProfile.Configure` that itself calls `builder.WithSeed(...)`
+      interacts with this check** (PR #23 review): Phase 1's cached
+      `Lazy<Composer>` construction applies the profile
+      (`builder.AddProfile<TProfile>()`, which runs `Configure` immediately)
+      *before* reading `SeedAsNullable`, so a profile-supplied seed reaches
+      `CompositionBuilder.WithSeed` — and therefore `Composer.CreateRow`'s
+      `_configuration.Seed` — independently of `SeedAsNullable`, which stays
+      `null` whenever the attribute itself doesn't set `Seed`. As drafted,
+      the negative-seed check above only inspects `SeedAsNullable`, so a
+      profile-supplied negative seed is invisible to it; the same gap means
+      an unset attribute silently reuses the profile's seed for every row
+      instead of generating a fresh one. Resolve this explicitly here
+      (e.g. read the composer's actual configured seed for the negative
+      check rather than `SeedAsNullable` alone, or reject a profile that
+      configures a seed outright) rather than letting Phase 1's existing
+      `ApplyProfile`-then-`Seed` ordering silently decide it.
 - [ ] If Phase 1's cached signature-validation result is invalid, throw
       here, using `row.Seed` in the appended `Seed:` line — still before
       any parameter is bound or composed, so no random fork is consumed
@@ -461,22 +477,142 @@ exercised indirectly through `Compono.Xunit.Tests`.
   that. This is Phase 0's one piece of generator-touching work; everything
   else in this phase is `Compono` core only.
 
+**Phase 1 (Done):**
+
+- `ComposeAttribute`/`ComposeAttribute<TProfile>`'s `GetData` is a real
+  stub, not a placeholder that skips caching: every call builds/reuses
+  this attribute instance's cached `Lazy<Composer>` and `BindingPlan`
+  (via `LazyInitializer.EnsureInitialized`, since the binding plan needs
+  the reflected `testMethod` a plain `Lazy<T>` can't take as a runtime
+  argument), then throws `NotImplementedException` - Phase 2 replaces
+  that throw with the real inline/composed binding algorithm. This is
+  what lets Phase 1's own caching be tested end-to-end through `GetData`
+  itself, not just through the internal seams that back it.
+- Profile application is a virtual method (`ComposeAttribute.ApplyProfile(CompositionBuilder)`,
+  overridden by `ComposeAttribute<TProfile>` to call
+  `builder.AddProfile<TProfile>()`) rather than a `Type`-plus-`Activator.CreateInstance`
+  indirection - `ComposeAttribute<TProfile>` already has `TProfile` as a
+  compile-time generic parameter, so there's no reason to erase it to a
+  runtime `Type` and reconstruct an instance through reflection.
+- **The `[Compose]`-attributed-method generator discovery component
+  (`ComposeMethodDiscovery`, closing the Open Item Phase 0 left tracked)
+  excludes a `ref`/`out`/`in`/`params` parameter individually, not the
+  whole method** - only a generic method is excluded entirely (its
+  parameter types can close over the method's own type parameter, the
+  same open-generic shape `ComposedTypeAnalyzer` already rejects for
+  every other discovery path). A method's other, ordinary parameters
+  still get discovered even if one parameter is unsupported, since
+  that's a distinct per-parameter runtime rejection
+  `Compono.Xunit`'s own binding algorithm (Phase 2) makes independently.
+  Verified with two isolated `Compono.Generators.Tests` snapshot tests -
+  a type reached only via a `[Compose]`-attributed method's own
+  parameter gets a plan; a `[Compose]`-attributed *generic* method's
+  parameter gets none - using a same-metadata-name stand-in
+  `Compono.Xunit.ComposeAttribute` declared directly in the test source
+  (this generator test project doesn't reference the real
+  `Compono.Xunit` assembly, and `ForAttributeWithMetadataName` matches
+  by fully qualified name alone). The full packaged-consumer proof
+  (`dotnet pack` + local feed + a real `Compono.Xunit.SampleTests`
+  theory reached only this way) is Phase 3's own requirement, per the
+  Amendment below - PR #23 review asked for this ahead of Phase 3
+  specifically for the generic-metadata-name discovery path added in the
+  fix below, so it was done as an ad hoc manual check (not the permanent
+  `SampleTests` project, which is still Phase 3's job): `dotnet pack`'d
+  `Compono` and `Compono.Xunit` into a local feed (after clearing the
+  local package cache for both IDs) and referenced `Compono.Xunit` from a
+  genuinely separate throwaway console project via `PackageReference`
+  alone - no `ProjectReference`, no shared `InternalsVisibleTo`. A
+  `Statement` type reachable only through a `[Compose<TestProfile>]`-
+  attributed method's own parameter (no `Create<Statement>()` call site,
+  no `[Composable]`) got a real generated plan:
+  `PlanCache<Statement>.Instance` was non-null at runtime, proving the
+  generic-metadata-name discovery path (`ComposeMethodDiscovery
+  .GenericAttributeMetadataName`) reaches a real consumer transitively
+  through the packaged `Compono.Xunit` → `Compono` dependency, not just
+  the generator test project's same-metadata-name stand-in attributes.
+- **`[Compose(null)]` fix (PR #23 review)**: a single `null` argument to
+  `params object?[] inlineValues` binds in the C# compiler's non-expanded
+  form - the whole array arrives `null`, not a one-element array
+  containing `null` - so `[Compose(null)]` previously threw from the
+  constructor's `ArgumentNullException.ThrowIfNull` instead of supplying
+  `null` to the test method's first parameter, contradicting this same
+  constructor's own documented "an explicit null entry is a supplied
+  value" contract. Fixed by treating a `null` `inlineValues` array as a
+  one-element array containing that `null` (`inlineValues ?? [null]`) -
+  the only way a `null` array can arise from this constructor's own
+  call sites, since a zero-argument `[Compose()]` already produces an
+  empty array, never `null`.
+- **Enforce a single Compose-family attribute per method (PR #23 review;
+  ADR-0022 Amendment)**: `AllowMultiple = false` is checked by the
+  compiler per exact attribute type, not across `ComposeAttribute`'s own
+  base/derived family, so `[Compose]` plus `[Compose<TProfile>]` (or two
+  differently-closed `[Compose<TProfile>]` forms) compiled without error
+  even though only one Compose-family attribute per method is the
+  documented contract. `BindingPlan.Build`'s `ValidateSignature` now
+  rejects this explicitly via
+  `testMethod.GetCustomAttributes<ComposeAttribute>().Count() > 1`
+  (matches subtypes too), reported through the same `SignatureError`
+  Phase 2 throws - the same "computed once, cached, thrown by Phase 2"
+  shape as every other signature check here, not a new mechanism.
+- Full suite green (as of PR #23's review-response commits): `Compono.Tests`
+  388/388 (unchanged - Phase 1 touched no core code), `Compono.Generators.Tests`
+  166/166 (160 unaffected + 2 `ComposeMethodDiscovery` snapshot tests + 1
+  generic-metadata-name snapshot test, × 2 TFMs), `Compono.Xunit.Tests`
+  46/46 (23 × 2 TFMs) covering
+  `ComposeAttribute`/`ComposeAttribute<TProfile>` caching (`Composer`
+  reuse, profile application, seed round-tripping, binding-plan and
+  invoker-delegate identity across repeated `GetData` calls),
+  `BindingPlan.Build`'s signature validation (multiple Compose-family
+  attributes, generic method,
+  `ref`/`out`/`in`, `params`, duplicate `[Shared]` types) and metadata
+  capture (`[Shared]` flag, nullability, descriptor ordinal/name/declaring
+  type), and the cached invoker delegates' actual runtime correctness
+  (`Resolve`/`ResolveShared`/`ShareExplicit` for both a reference- and a
+  value-typed parameter) against a real `CompositionRow`.
+
 ## Open Items
 
-Tracked but deliberately not fixed yet - valid points raised in review,
-out of scope for the PR that surfaced them:
+- Profile-supplied seed vs. `SeedAsNullable`'s negative-seed check (PR #23
+  review) - tracked as a Phase 2 checklist item above, not resolved here:
+  a `TProfile.Configure` that calls `builder.WithSeed(...)` reaches the
+  cached `Composer`'s configuration independently of `ComposeAttribute
+  .SeedAsNullable`, which Phase 2's planned negative-seed guard reads
+  exclusively. Phase 2's implementation must decide how the two interact
+  before that guard can be considered complete.
+- **`ComposeMethodDiscovery` reports CMP0003 for an interface/abstract/
+  delegate-typed `[Compose]`-attributed parameter unconditionally, even
+  when the author intends it to be satisfied entirely by
+  `TProfile.Configure`'s own `Register<T>(...)` or an always-supplied
+  inline value (PR #23 review) — genuinely blocking: the project fails
+  to compile for that otherwise-valid usage.** Deliberately *not* fixed
+  as a drive-by change here, because it isn't a gap unique to
+  `Compono.Xunit` — `ComposeMethodDiscovery.TransformMethod` reaches
+  every eligible parameter through the exact same
+  `ComposedTypeAnalyzer.Analyze` root-request path
+  `Composer.Create<T>()` and `[Composable]` already use, and that
+  path's "an abstract/delegate root always reaches constructor selection
+  and gets CMP0003, even when a registration might satisfy it at
+  runtime" behavior is deliberate, cross-cutting, and specifically
+  regression-tested (`LeafTypeClassifier.IsRuntimeProviderResolved` is
+  documented as *narrower than* `IsProviderResolved` for exactly this
+  reason; `CompositionPlanVerifyTests.AbstractRootType_
+  StillReportsDiagnostic_AfterRootProviderCheck` exists specifically to
+  keep a registered-but-abstract `Create<T>()` root reaching CMP0003
+  rather than silently compiling into a call that can only fail at
+  runtime with a useless message - the PR #11 regression this guards
+  against). Loosening that check for `[Compose]`-attributed parameters
+  alone - e.g. reusing `LeafTypeClassifier.IsProviderResolved`'s lenient,
+  member-style leaf treatment for a parameter root instead of the
+  stricter `IsRuntimeProviderResolved` - would resolve this specific
+  complaint, but it's a change to a foundational, deliberately-tested
+  diagnostic philosophy spanning every discovery path, not a one-line
+  fix scoped to this package; it needs its own design dive
+  (`design-decisions.md`) weighing the same false-positive-vs-silent-
+  failure tradeoff `Create<T>()`'s root already settled, not a decision
+  made inline while triaging PR feedback. Tracked here for that dive
+  before Phase 2 (which needs to decide inline/registered-parameter
+  semantics anyway) or a dedicated follow-up.
 
-- **No generator discovery path exists yet for a type reached only as a
-  `[Compose]`-attributed test method's own parameter** (Codex, PR #22,
-  second round). Distinct from - and not fixed by - the
-  `CompositionRow` call-site discovery fix above: `Compono.Xunit`'s
-  planned binding (`MethodInfo.MakeGenericMethod`-based, Phase 1) never
-  emits a textual `row.Resolve<T>(...)` call site in the consumer's own
-  source for that fix to match against, so a parameter-only type still
-  gets no plan. See [ADR-0022's Amendment (2026-07-30)](../adr/0022-compono-xunit-package-design.md)
-  for the full analysis and the resolution (a separate `[Compose]`-attributed-method
-  discovery component, not folded into `CreateInvocationDiscovery`) -
-  tracked as Phase 1's new discovery-component task and Phase 3's
-  packaged-sample requirement above, both added to this plan alongside
-  the amendment. Not implemented by this note - closing it out is
-  planning/design work to finish before Phase 1 implementation starts.
+The one item Phase 0 left open (no generator discovery path for a
+`[Compose]`-attributed method's own parameter) was closed by Phase 1's
+`ComposeMethodDiscovery` component above.

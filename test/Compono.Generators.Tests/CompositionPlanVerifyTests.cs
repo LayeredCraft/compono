@@ -1758,6 +1758,147 @@ public sealed class CompositionPlanVerifyTests
                 """,
         }, TestContext.Current.CancellationToken);
 
+    [Fact]
+    public Task ComposeAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.Xunit
+                {
+                    // Stands in for the real Compono.Xunit.ComposeAttribute (a separate package/
+                    // assembly, not referenced from this generator test project) - ComposeMethodDiscovery
+                    // matches on the fully qualified metadata name alone, so a same-named type here
+                    // triggers it identically to the real one.
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class Invoice
+                    {
+                        public Invoice(string reference) { Reference = reference; }
+                        public string Reference { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<Invoice>()/CreateMany<Invoice>() call site, no [Composable]
+                        // attribute, and no CompositionRow.Resolve<T>(descriptor) call site anywhere
+                        // in this source - Invoice is reachable only as this [Compose]-attributed
+                        // method's own parameter, which ComposeMethodDiscovery must still discover
+                        // (ADR-0022 Amendment 2026-07-30, fix #2).
+                        [Compono.Xunit.Compose]
+                        public static void Creates_invoice(Invoice invoice)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposeGenericAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.Xunit
+                {
+                    // Stands in for the real Compono.Xunit.ComposeAttribute/ICompositionProfile (a
+                    // separate package/assembly, not referenced from this generator test project) -
+                    // ComposeMethodDiscovery matches on the fully qualified metadata name alone, so
+                    // same-named types here trigger it identically to the real ones.
+                    public interface ICompositionProfile
+                    {
+                        void Configure(object builder);
+                    }
+
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+
+                    // [Compose<TProfile>]'s attribute class metadata name is the arity-suffixed
+                    // "Compono.Xunit.ComposeAttribute`1" - distinct from the non-generic
+                    // ComposeAttribute's metadata name above, and reached only via
+                    // ComposeMethodDiscovery.GenericAttributeMetadataName's own, separately
+                    // registered discovery provider.
+                    public sealed class ComposeAttribute<TProfile> : ComposeAttribute
+                        where TProfile : ICompositionProfile, new()
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) : base(inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class TestProfile : Compono.Xunit.ICompositionProfile
+                    {
+                        public void Configure(object builder) { }
+                    }
+
+                    public sealed class Statement
+                    {
+                        public Statement(string reference) { Reference = reference; }
+                        public string Reference { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<Statement>()/CreateMany<Statement>() call site, no [Composable]
+                        // attribute, and no non-generic [Compose] use anywhere in this source -
+                        // Statement is reachable only as this [Compose<TProfile>]-attributed method's
+                        // own parameter, proving the generic-metadata-name discovery path on its own
+                        // (PR #23 review: ForAttributeWithMetadataName matches an attribute usage's
+                        // own attribute class metadata name, not a base type's, so the non-generic
+                        // ComposeMethodDiscovery registration alone never sees this form).
+                        [Compono.Xunit.Compose<TestProfile>]
+                        public static void Creates_statement(Statement statement)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposeAttributedGenericMethodParameter_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.Xunit
+                {
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class Receipt
+                    {
+                        public Receipt(string reference) { Reference = reference; }
+                        public string Reference { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // A generic test method is excluded from ComposeMethodDiscovery entirely,
+                        // mirroring Compono.Xunit's own binding algorithm rejecting generic test
+                        // methods pre-composition - Receipt must end up with no generated plan
+                        // whatsoever (no other discovery path reaches it in this source).
+                        [Compono.Xunit.Compose]
+                        public static void Creates_receipt<T>(Receipt receipt, T other)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
     // No automated regression test for RequiredMemberCollector.IsAssignableFromGeneratedCode: the
     // shape it defends against (a required member with no accessible setter, or a required
     // readonly field) is one the C# compiler itself refuses to let *any* C#-authored type declare

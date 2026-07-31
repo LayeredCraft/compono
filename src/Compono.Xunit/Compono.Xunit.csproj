@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;] theory data attributes and [Shared] parameter sharing. See docs/adr/0022-compono-xunit-package-design.md.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Compono\Compono.csproj" />
+        <!-- Ordinary reference, not PrivateAssets="all" - ComposeAttribute/ComposeAttribute{TProfile}
+             derive from and return types this package owns publicly, so a consumer needs them
+             transitively assignable. See ADR-0022's Package Boundaries and Dependencies section. -->
+        <PackageReference Include="xunit.v3.extensibility.core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.Xunit.Tests" />
+    </ItemGroup>
+
+</Project>

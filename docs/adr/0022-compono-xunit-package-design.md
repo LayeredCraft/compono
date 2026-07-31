@@ -444,6 +444,22 @@ remains programmatic-only, unreachable from an attribute). A profile is
 applied exactly once, when the method's cached `Composer` is first built
 (see Caching) — never once per row.
 
+**Amendment (PR #23 review):** `AllowMultiple = false` is enforced by the
+compiler per *exact* attribute type, not across a base/derived family —
+`[Compose]` and `[Compose<TProfile>]` (or two differently-closed
+`[Compose<TProfile>]` forms) are distinct types that each individually
+satisfy their own `AllowMultiple = false`, so the attribute declarations
+alone don't stop a method from being decorated with more than one
+Compose-family attribute; xUnit would then call `GetData` on each
+independently, producing overlapping rows from unrelated composer
+configurations instead of enforcing "only one `[Compose...]` attribute
+per method." Enforced instead at the same place the rest of this ADR's
+signature validation already lives — `BindingPlan.Build`'s
+`ValidateSignature`, via `testMethod.GetCustomAttributes<ComposeAttribute>()`
+(which finds every Compose-family instance, since `GetCustomAttributes<T>`
+matches subtypes of `T` too) — reported through the same `SignatureError`
+Phase 2 throws before any parameter is bound or composed.
+
 ### Seed policy and reporting (design question 9)
 
 `ComposeAttribute.SeedAsNullable` (backing the attribute-legal `int Seed`
