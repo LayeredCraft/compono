@@ -756,9 +756,11 @@ Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integ
 (the `CompositionRow` entry point this package builds on, owned by core
 `Compono`), [ADR-0022](adr/0022-compono-xunit-package-design.md) (this
 package itself), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
-(the `Compono.Xunit` → `Compono.XunitV3` rename). Fully implemented - see
+(the `Compono.Xunit` → `Compono.XunitV3` rename). Implemented - see
 [PLAN-0004](plans/0004-milestone-4-xunit-integration.md) for the phase-by-phase
-account.
+account and its Open Items for one known compile-time gap (an interface/
+abstract/delegate-typed `[Compose]`-attributed parameter reports CMP0003
+unconditionally).
 
 Owns:
 

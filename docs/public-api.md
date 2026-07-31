@@ -185,8 +185,11 @@ directly.
 ## xUnit v3 Experience
 
 Resolved by [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)/
-[ADR-0022](adr/0022-compono-xunit-package-design.md) (`Accepted`, fully
-implemented — see [PLAN-0004](plans/0004-milestone-4-xunit-integration.md)).
+[ADR-0022](adr/0022-compono-xunit-package-design.md) (`Accepted`, implemented —
+see [PLAN-0004](plans/0004-milestone-4-xunit-integration.md); one gap remains
+open past Phase 4, see that plan's Open Items — an interface/abstract/
+delegate-typed `[Compose]`-attributed parameter reports CMP0003 unconditionally,
+even when a profile registration or inline value would satisfy it).
 `[Compose]`/`[Compose<TProfile>]` implement `Xunit.v3.DataAttribute`
 directly; composition happens once per theory row, at execution time (not
 discovery time — composed values, especially a future substitute or any

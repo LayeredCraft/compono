@@ -1059,6 +1059,23 @@ exercised indirectly through `Compono.XunitV3.Tests`.
   `docs/plans/README.md`'s PLAN-0004 status column from `Not Started` to
   `Done` to match this plan's own header.
 - No code changes in this phase - docs only, per its own scope.
+- **PR #27 review (Codex, P2) caught an overstated completion claim** -
+  the first draft of this phase's `docs/mvp.md`/`docs/architecture.md`/
+  `docs/public-api.md` edits said Milestone 4 was "fully implemented,"
+  which reads as unqualified even though the Open Items entry below (an
+  interface/abstract/delegate-typed `[Compose]`-attributed parameter
+  reports CMP0003 unconditionally) was already tracked and still open -
+  and directly affects the `[Shared] IRepository repository` shape shown
+  in this plan's own Goal and in `docs/mvp.md`'s Milestone 4 Example,
+  which doesn't actually compile as written today (confirmed against
+  `test/Compono.XunitV3.SampleTests`, whose own `[Shared]` theory uses a
+  concrete `Repository` type specifically to route around this gap).
+  Fixed by softening "fully implemented" to "implemented" plus an
+  explicit pointer to this Open Item in all three docs, and adding a note
+  under `docs/mvp.md`'s Example/Exit Criteria clarifying the gap - no
+  code change, since the underlying CMP0003 behavior is unchanged and
+  still correctly scoped as a follow-up design dive per the Open Item's
+  own reasoning, not a Phase 4 fix.
 
 ## Open Items
 
