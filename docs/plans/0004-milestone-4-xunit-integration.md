@@ -805,6 +805,33 @@ exercised indirectly through `Compono.XunitV3.Tests`.
   `.local-nuget-feed/` on every restore, so it's self-healing on a clean
   checkout (including in CI, via `RealRunnerTests`' subprocess) without a
   separate manual pack step.
+- **`PackToLocalFeed` needed a cross-process lock - the first CI run of this
+  PR failed with exactly the concurrency this note predicted was possible**:
+  `dotnet test --solution Compono.slnx` runs every test host for every TFM
+  concurrently, so `Compono.XunitV3.Tests`' net10.0 and net11.0 hosts each
+  ran `RealRunnerTests` at the same time, each independently triggering its
+  own nested `dotnet test` against `Compono.XunitV3.SampleTests`, each of
+  which independently triggered `PackToLocalFeed` - two unsynchronized
+  `dotnet pack` sequences racing on the identical shared
+  `.local-nuget-feed/` and `src/Compono`/`src/Compono.Generators`
+  bin/obj output. CI failed with `NuGet.Build.Tasks.Pack.targets(226,5):
+  error : Could not find a part of the path '.../Compono.Generators/bin
+  /Debug/netstandard2.0'`; reproduced locally (running two/three concurrent
+  `dotnet test` invocations against the sample project from a clean
+  checkout) as `The process cannot access the file '.../Compono.1.0.0
+  .nupkg' because it is being used by another process` - same root cause,
+  different symptom depending on exactly which file each process touched
+  first. Fixed by moving the two `dotnet pack` `Exec` calls out of the
+  `.csproj` target and into a new `pack-to-local-feed.sh`, which wraps them
+  in a `mkdir`-based lock (atomic across processes and portable across the
+  bash both macOS dev machines and the Linux CI runner use, so no custom
+  MSBuild task was needed) - a losing process waits and retries rather than
+  racing. Verified by reproducing the exact failure locally pre-fix (two
+  and then three concurrent `dotnet test` invocations against the sample
+  project, and separately against `Compono.XunitV3.Tests` itself matching
+  CI's real net10.0+net11.0 concurrency, all from a fully clean checkout
+  with the local NuGet cache cleared), then confirming all of the same
+  scenarios pass cleanly post-fix.
 - Full suite green: `Compono.Tests` 388/388 (unchanged), `Compono.Generators
   .Tests` 166/166 (unchanged), `Compono.XunitV3.Tests` 92/92 (46 × 2 TFMs -
   32 from Phase 2 + 8 nullable/inline-null tests + 1 non-null-into-`int?`

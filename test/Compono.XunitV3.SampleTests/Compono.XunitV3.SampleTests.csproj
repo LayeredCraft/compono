@@ -32,11 +32,16 @@
        Self-healing on a clean checkout and always tests today's Compono/Compono.XunitV3 source,
        which is the point of a "real packaged consumer" test: a regression in packaging (a missing
        dependency, wrong PrivateAssets, the generator analyzer not flowing transitively) fails this
-       project's own restore/build/run rather than being masked by a stale package. -->
+       project's own restore/build/run rather than being masked by a stale package.
+
+       Delegates to pack-to-local-feed.sh, which serializes the two `dotnet pack` calls behind a
+       cross-process lock - CI (and RealRunnerTests) run this project's net10.0/net11.0 test hosts
+       concurrently, each independently triggering this target via its own nested `dotnet test`, and
+       two unsynchronized `dotnet pack` invocations racing on the same shared .local-nuget-feed/ and
+       src/Compono*/bin/obj output corrupts both (caught in CI - see PLAN-0004 Phase 3 Notes). -->
   <Target Name="PackToLocalFeed" BeforeTargets="Restore">
     <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
-    <Exec Command="dotnet pack &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; -c $(Configuration) -o &quot;$(LocalFeedPath)&quot; -p:Version=1.0.0 --nologo" />
-    <Exec Command="dotnet pack &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; -c $(Configuration) -o &quot;$(LocalFeedPath)&quot; -p:Version=1.0.0 --nologo" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration)" />
   </Target>
 
 </Project>
