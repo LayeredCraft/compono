@@ -63,8 +63,13 @@ public class ComposeAttribute : DataAttribute
     /// <see cref="CompositionBuilder.WithSeed"/>, but restricted to non-negative values (enforced by
     /// Phase 2's binding algorithm, not here) so a seed reported in a failure message is always
     /// pasteable back into this property unchanged. Unset: a fresh, non-negative seed is generated on
-    /// every <see cref="GetData"/> call. A plain <see langword="int"/>, not <see langword="int?"/> -
-    /// an attribute named argument cannot target a <see cref="Nullable{T}"/> property (CS0655); see
+    /// every <see cref="GetData"/> call - <b>unless</b> a profile applied via
+    /// <see cref="ComposeAttribute{TProfile}"/>'s <c>TProfile.Configure</c> itself calls
+    /// <see cref="CompositionBuilder.WithSeed"/>, in which case every row reuses that profile-configured
+    /// seed instead, even though this property itself was never set (ADR-0022 Amendment 3 - a profile
+    /// pinning a seed is a deliberate reproducibility choice, honored the same way a value set here
+    /// would be). A plain <see langword="int"/>, not <see langword="int?"/> - an attribute named
+    /// argument cannot target a <see cref="Nullable{T}"/> property (CS0655); see
     /// <see cref="SeedAsNullable"/> for the property the binding algorithm actually reads.
     /// </summary>
     public int Seed

@@ -971,6 +971,22 @@ the code: "without an explicit seed" means neither `ComposeAttribute.Seed`
 configures a seed, that composer's rows are pinned to it, by design; the
 fresh-seed-per-call guarantee applies only when neither source does.
 
+**This same "explicit" definition governs negative-seed rejection, too**
+(PR #24 review, second finding on the same commit) — the Decision
+Outcome's numbered algorithm step and Seed Policy and Reporting's "Two
+distinct failure moments" bullet both describe the negative-seed check as
+scoped to `ComposeAttribute.Seed`/`SeedAsNullable` specifically, leaving
+`CompositionBuilder.WithSeed(int)`'s full range unaffected. That wording
+predates this amendment's finding that a profile-configured seed counts as
+"explicit" for freshness purposes; the same reasoning extends to
+rejection — a profile author who pins a negative seed gets the same clear,
+named `CompositionException` an attribute-configured negative seed does,
+rather than a confusing downstream composition failure with no indication
+the seed itself was the problem. The implementation (`row.Seed < 0`,
+checked against the row's actual effective seed regardless of source) has
+enforced this since Phase 2's first commit on this PR; this amendment is
+the corresponding decision-text update, not a new code change.
+
 ## Links
 
 - [ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md) —

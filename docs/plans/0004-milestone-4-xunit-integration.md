@@ -643,6 +643,23 @@ exercised indirectly through `Compono.Xunit.Tests`.
   `GetData_RegistersASharedDisposableValueOnce_EvenWhenALaterParameterReusesIt`,
   proving both single registration and a `DisposeCount` of exactly `1`
   after `DisposeAsync`.
+- **Amendment 3's own follow-through was incomplete** (PR #24 review,
+  same round as the double-registration bug) — two more places still
+  described pre-Amendment-3 behavior after Amendment 3 shipped:
+  - ADR-0022's Decision Outcome/Seed Policy text scoped negative-seed
+    rejection to `ComposeAttribute.Seed`/`SeedAsNullable` specifically,
+    but the actual check (`row.Seed < 0`) has always covered any
+    effective row seed, including a profile-configured one - the same
+    "explicit" definition Amendment 3 established for freshness extends
+    to rejection too. Recorded as a second paragraph in Amendment 3
+    rather than a new amendment, since it's the same root clarification.
+  - `ComposeAttribute.Seed`'s public XML doc comment still promised "a
+    fresh seed is generated on every `GetData` call" for an unset
+    property, unqualified - misleading IntelliSense for a
+    `[Compose<TProfile>]` consumer whose profile pins a seed. Updated
+    with the same profile-seed carve-out.
+  No code change in either case - both are documentation fixes closing
+  gaps a prior round's fix introduced without fully propagating.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
   touched no generator code), `Compono.Xunit.Tests` 52/52 (26 × 2 TFMs -
