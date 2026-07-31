@@ -248,23 +248,23 @@ the cache built once in Phase 1; everything after is per-row):
       every failure this package reports must include the row's real
       seed, so the row has to exist first even for a signature that's
       about to be rejected.
-- [x] **If `SeedAsNullable` has a value and it's negative, throw now**,
-      using `row.Seed` (echoing the rejected value back). This is what makes
-      every row `Compono.Xunit` creates have a non-negative seed
-      unconditionally — `CompositionBuilder.WithSeed(int)` itself has no
-      such restriction and happily accepts a negative value when the
-      cached `Composer` is built (Phase 1), so this check is the only
-      place that actually enforces it, and it must run before any other
-      failure category so a rejected negative seed is reported clearly
-      rather than surfacing as a confusing mismatch somewhere else.
+- [x] **If the row's effective seed (`row.Seed`) is negative, throw now**,
+      echoing the rejected value back. This is what makes every row
+      `Compono.Xunit` creates have a non-negative seed unconditionally —
+      `CompositionBuilder.WithSeed(int)` itself has no such restriction and
+      happily accepts a negative value when the cached `Composer` is built
+      (Phase 1), so this check is the only place that actually enforces
+      it, and it must run before any other failure category so a rejected
+      negative seed is reported clearly rather than surfacing as a
+      confusing mismatch somewhere else.
 - [x] **Decide how a `TProfile.Configure` that itself calls `builder.WithSeed(...)`
       interacts with this check** (PR #23 review) — resolved by checking
-      `row.Seed < 0` directly instead of `SeedAsNullable is { } seed && seed
-      < 0`. `row.Seed` is the row's actual effective seed regardless of
+      `row.Seed < 0` directly rather than `SeedAsNullable is { } seed &&
+      seed < 0`. `row.Seed` is the row's actual effective seed regardless of
       which source configured it (this attribute's own `Seed` property, or
       a profile's `Configure` calling `builder.WithSeed(...)`), so this one
-      check closes the gap for both sources without needing to distinguish
-      them — see Notes below.
+      check (the item directly above) closes the gap for both sources
+      without needing to distinguish them — see Notes below.
 - [x] If Phase 1's cached signature-validation result is invalid, throw
       here, using `row.Seed` in the appended `Seed:` line — still before
       any parameter is bound or composed, so no random fork is consumed
