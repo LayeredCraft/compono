@@ -257,6 +257,22 @@ the cache built once in Phase 1; everything after is per-row):
       place that actually enforces it, and it must run before any other
       failure category so a rejected negative seed is reported clearly
       rather than surfacing as a confusing mismatch somewhere else.
+- [ ] **Decide how a `TProfile.Configure` that itself calls `builder.WithSeed(...)`
+      interacts with this check** (PR #23 review): Phase 1's cached
+      `Lazy<Composer>` construction applies the profile
+      (`builder.AddProfile<TProfile>()`, which runs `Configure` immediately)
+      *before* reading `SeedAsNullable`, so a profile-supplied seed reaches
+      `CompositionBuilder.WithSeed` — and therefore `Composer.CreateRow`'s
+      `_configuration.Seed` — independently of `SeedAsNullable`, which stays
+      `null` whenever the attribute itself doesn't set `Seed`. As drafted,
+      the negative-seed check above only inspects `SeedAsNullable`, so a
+      profile-supplied negative seed is invisible to it; the same gap means
+      an unset attribute silently reuses the profile's seed for every row
+      instead of generating a fresh one. Resolve this explicitly here
+      (e.g. read the composer's actual configured seed for the negative
+      check rather than `SeedAsNullable` alone, or reject a profile that
+      configures a seed outright) rather than letting Phase 1's existing
+      `ApplyProfile`-then-`Seed` ordering silently decide it.
 - [ ] If Phase 1's cached signature-validation result is invalid, throw
       here, using `row.Seed` in the appended `Seed:` line — still before
       any parameter is bound or composed, so no random fork is consumed
@@ -515,6 +531,14 @@ exercised indirectly through `Compono.Xunit.Tests`.
 
 ## Open Items
 
-None currently tracked - the one item Phase 0 left open (no generator
-discovery path for a `[Compose]`-attributed method's own parameter) was
-closed by Phase 1's `ComposeMethodDiscovery` component above.
+- Profile-supplied seed vs. `SeedAsNullable`'s negative-seed check (PR #23
+  review) - tracked as a Phase 2 checklist item above, not resolved here:
+  a `TProfile.Configure` that calls `builder.WithSeed(...)` reaches the
+  cached `Composer`'s configuration independently of `ComposeAttribute
+  .SeedAsNullable`, which Phase 2's planned negative-seed guard reads
+  exclusively. Phase 2's implementation must decide how the two interact
+  before that guard can be considered complete.
+
+The one item Phase 0 left open (no generator discovery path for a
+`[Compose]`-attributed method's own parameter) was closed by Phase 1's
+`ComposeMethodDiscovery` component above.

@@ -28,6 +28,19 @@ internal static class ComposeMethodDiscovery
 {
     public const string AttributeMetadataName = "Compono.Xunit.ComposeAttribute";
 
+    /// <summary>
+    /// The metadata name of the closed-over-nothing generic form, <c>[Compose&lt;TProfile&gt;]</c> -
+    /// <see cref="Microsoft.CodeAnalysis.SyntaxValueProvider.ForAttributeWithMetadataName"/> matches
+    /// an attribute usage only against its own <see cref="AttributeData.AttributeClass"/>'s exact
+    /// fully-qualified metadata name, not against a base type's - so
+    /// <c>[Compose&lt;TProfile&gt;]</c>, whose attribute class metadata name is
+    /// <c>Compono.Xunit.ComposeAttribute`1</c> (the CLR arity-suffixed name of the generic type, not
+    /// its non-generic base <see cref="AttributeMetadataName"/>), is invisible to a provider
+    /// registered against <see cref="AttributeMetadataName"/> alone and needs this second,
+    /// independently-registered metadata name.
+    /// </summary>
+    public const string GenericAttributeMetadataName = "Compono.Xunit.ComposeAttribute`1";
+
     public static TransitiveClosureResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)

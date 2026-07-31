@@ -58,6 +58,29 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TransformMethod)
             .WithTrackingName(TrackingNames.ComposeMethods);
 
+        // [Compose<TProfile>] specifically - ForAttributeWithMetadataName matches an attribute
+        // usage against its own attribute class's exact metadata name, not a base type's, so the
+        // non-generic registration above never sees [Compose<TProfile>] (whose attribute class
+        // metadata name is the arity-suffixed "ComposeAttribute`1", not "ComposeAttribute"). Same
+        // transform, since ComposeMethodDiscovery.TransformMethod only cares about the attributed
+        // method's own parameters, not which ComposeAttribute form triggered it.
+        var composeGenericMethodResults = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.GenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                ComposeMethodDiscovery.TransformMethod)
+            .WithTrackingName(TrackingNames.ComposeGenericMethods);
+
+        // Both ComposeMethodDiscovery registrations above (non-generic and generic-metadata-name)
+        // feed the exact same discovery logic - merge them into one provider here so every consumer
+        // below treats "a [Compose]/[Compose<TProfile>]-attributed method" as a single source, same
+        // as CreateInvocations/Composable/AssemblyComposable already do for their own two-syntax-form
+        // splits.
+        var composeMethodResultsAll = composeMethodResults.Collect()
+            .Combine(composeGenericMethodResults.Collect())
+            .SelectMany(static (results, _) => results.Left.Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeMethodsAll);
+
         // Each discovery result carries its own transitive closure (Types) alongside every closed
         // collection shape reached within it (Collections, ADR-0014) - flatten both
         // before the rest of the pipeline dedupes/emits per type/collection.
@@ -67,14 +90,14 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .WithTrackingName(TrackingNames.ComposableTypesFlattened);
         var assemblyComposableTypes = assemblyComposableResults.SelectMany(static (result, _) => result.Types)
             .WithTrackingName(TrackingNames.AssemblyComposablesTypes);
-        var composeMethodTypes = composeMethodResults.SelectMany(static (result, _) => result.Types)
+        var composeMethodTypes = composeMethodResultsAll.SelectMany(static (result, _) => result.Types)
             .WithTrackingName(TrackingNames.ComposeMethodsTypes);
 
         var discoveredCollections = callSiteResults.SelectMany(static (result, _) => result.Collections)
             .Collect()
             .Combine(composableResults.SelectMany(static (result, _) => result.Collections).Collect())
             .Combine(assemblyComposableResults.SelectMany(static (result, _) => result.Collections).Collect())
-            .Combine(composeMethodResults.SelectMany(static (result, _) => result.Collections).Collect())
+            .Combine(composeMethodResultsAll.SelectMany(static (result, _) => result.Collections).Collect())
             .WithTrackingName(TrackingNames.DiscoveredCollectionsCollected)
             .SelectMany(static (collections, _) =>
             {
@@ -240,6 +263,8 @@ internal static class TrackingNames
     public const string AssemblyComposablesNotNull = "AssemblyComposables.NotNull";
     public const string AssemblyComposablesTypes = "AssemblyComposables.Types";
     public const string ComposeMethods = "ComposeMethods";
+    public const string ComposeGenericMethods = "ComposeMethods.Generic";
+    public const string ComposeMethodsAll = "ComposeMethods.All";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";
     public const string DiscoveredDistinct = "Discovered.Distinct";
