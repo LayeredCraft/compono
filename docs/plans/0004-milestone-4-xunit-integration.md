@@ -915,6 +915,20 @@ exercised indirectly through `Compono.XunitV3.Tests`.
      entry remaining in `Compono.csproj` is `Compono.Tests`, unchanged from
      before this PR. See ADR-0022 Amendment 5's own "amendment to this
      amendment" for the full account.
+  7. A sixth review round (P2) caught that `pack-to-local-feed.sh`'s
+     `until mkdir "$lock_dir"; do sleep 1; done` wait loop had no bound -
+     if a prior holder were killed before its own `EXIT` trap could run
+     (`SIGKILL`, a canceled build, a machine restart), the lock directory
+     is never cleaned up, and every later restore of this project would
+     wait on it forever with no way to recover short of knowing to delete
+     it by hand. Fixed with a bounded wait (~120 attempts, matching the
+     ~1 pack/second polling interval already in place) that fails with a
+     clear, actionable message (naming the exact `rm -rf` to run) instead
+     of hanging indefinitely. Verified by manually creating a stale lock
+     directory and confirming the script now fails fast with that message
+     (using a temporarily-reduced attempt count for the test) rather than
+     blocking forever, then confirming a normal run still succeeds once
+     the stale lock is gone.
   - Also folded into this round, at the user's request (not a posted PR
     comment): the sample project had no `[Compose<TProfile>]` theory at
     all - every existing theory used the profile-less `[Compose]` form.
