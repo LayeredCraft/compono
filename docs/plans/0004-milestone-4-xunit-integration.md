@@ -1,6 +1,6 @@
 # [PLAN-0004] Milestone 4: xUnit v3 Integration
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
 (core `CompositionRow`/`CompositionRequestKind.TestParameter`/stage-2 read-gate
@@ -400,22 +400,22 @@ the cache built once in Phase 1; everything after is per-row):
 
 ### Phase 4: Docs and cleanup
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `docs/mvp.md` Milestone 4 section: link ADR-0021/ADR-0022/PLAN-0004,
+- [x] `docs/mvp.md` Milestone 4 section: link ADR-0021/ADR-0022/PLAN-0004,
       mark exit criteria met.
-- [ ] `docs/architecture.md`: correct the stage-2 pipeline table entry
+- [x] `docs/architecture.md`: correct the stage-2 pipeline table entry
       (read gate removed, write gate unchanged) and the `CompositionScope`/Recursion
       Detection sections' now-outdated "only a request the caller marked
       IsShared reads from scope" framing; add `CompositionRow`/`TestParameter`
       to Composition Requests and Package Boundaries (`Compono.XunitV3`).
-- [ ] `docs/public-api.md`: replace the `[InlineComposeData(...)]` sketch
+- [x] `docs/public-api.md`: replace the `[InlineComposeData(...)]` sketch
       with the unified `[Compose(...)]` shape; resolve the "Questions
       still to resolve" under Shared Values per ADR-0022; fill in the
       xUnit v3 Experience section's settled attribute names.
       `[Compose(Seed = ...)]` example already matches ADR-0022; no change
       needed there.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows (already
+- [x] `docs/adr/README.md`/`docs/plans/README.md` index rows (already
       added alongside the ADRs/this plan).
 
 ## Critical Files
@@ -1035,6 +1035,47 @@ exercised indirectly through `Compono.XunitV3.Tests`.
   `Compono.XunitV3.SampleTests` itself last verified by hand reporting
   6 passed/1 deliberately failed (a genuine composition failure) on both
   net10.0 and net11.0.
+
+**Phase 4 (Done):**
+
+- Most of this phase's `docs/architecture.md`/`docs/public-api.md` scope
+  had already landed incrementally during Phases 0-3 (each phase updated
+  its own affected sections as it shipped, per `documentation.md`'s
+  same-PR rule) - the stage-2 pipeline table entry, the `CompositionScope`/
+  Recursion Detection framing, `CompositionRow`/`TestParameter` in
+  Composition Requests and Package Boundaries, and the settled
+  `[Compose]`/`[Shared]` attribute shapes in `docs/public-api.md` were all
+  already current. What Phase 4 actually closed out was the handful of
+  now-stale "not yet implemented" / "Phases 0-2 implemented, Phases 3-4
+  remain" status lines left over from when those sections were written
+  mid-milestone (`docs/mvp.md`, `docs/architecture.md`'s Package
+  Boundaries section, `docs/public-api.md`'s xUnit v3 Experience section)
+  and marked `docs/mvp.md`'s Milestone 4 exit criteria as verified, with a
+  pointer to the Phase 3 evidence (`Compono.XunitV3.Tests` +
+  `Compono.XunitV3.SampleTests`) rather than restating it.
+- `docs/adr/README.md`/`docs/plans/README.md` index rows for ADR-0021/
+  0022/0023 and PLAN-0004 were already present (added alongside each ADR/
+  the plan itself as they were written) - this phase only flipped
+  `docs/plans/README.md`'s PLAN-0004 status column from `Not Started` to
+  `Done` to match this plan's own header.
+- No code changes in this phase - docs only, per its own scope.
+- **PR #27 review (Codex, P2) caught an overstated completion claim** -
+  the first draft of this phase's `docs/mvp.md`/`docs/architecture.md`/
+  `docs/public-api.md` edits said Milestone 4 was "fully implemented,"
+  which reads as unqualified even though the Open Items entry below (an
+  interface/abstract/delegate-typed `[Compose]`-attributed parameter
+  reports CMP0003 unconditionally) was already tracked and still open -
+  and directly affects the `[Shared] IRepository repository` shape shown
+  in this plan's own Goal and in `docs/mvp.md`'s Milestone 4 Example,
+  which doesn't actually compile as written today (confirmed against
+  `test/Compono.XunitV3.SampleTests`, whose own `[Shared]` theory uses a
+  concrete `Repository` type specifically to route around this gap).
+  Fixed by softening "fully implemented" to "implemented" plus an
+  explicit pointer to this Open Item in all three docs, and adding a note
+  under `docs/mvp.md`'s Example/Exit Criteria clarifying the gap - no
+  code change, since the underlying CMP0003 behavior is unchanged and
+  still correctly scoped as a follow-up design dive per the Open Item's
+  own reasoning, not a Phase 4 fix.
 
 ## Open Items
 

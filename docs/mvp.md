@@ -199,10 +199,15 @@ stage-2 shared-value read-gate change), [ADR-0022](adr/0022-compono-xunit-packag
 (`Compono.XunitV3` package: `[Compose]`/`[Compose<TProfile>]`/`[Shared]`
 attributes, inline/composed binding, profile selection, seed policy,
 diagnostics, package dependencies), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
-(the `Compono.Xunit` → `Compono.XunitV3` rename). Phases 0-2 (core entry
-point, attribute skeleton, binding algorithm) are implemented; Phases 3-4
-(test suites/verification, docs/cleanup) remain — tracked by
-[PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
+(the `Compono.Xunit` → `Compono.XunitV3` rename). Implemented across
+Phases 0-4 (core entry point, attribute skeleton, binding algorithm, test
+suites/verification, docs/cleanup) — see
+[PLAN-0004](plans/0004-milestone-4-xunit-integration.md) for the phase-by-phase
+account. One known gap remains open past Phase 4: an interface/abstract/
+delegate-typed `[Compose]`-attributed parameter (including the `IRepository`
+shape in the Example below) reports CMP0003 and fails to compile even when a
+profile registration or an inline value would satisfy it at runtime — see
+PLAN-0004's Open Items.
 
 ### Scope
 
@@ -228,7 +233,18 @@ public void Creates_service(
 }
 ```
 
+This is the target shape; `IRepository` being interface-typed currently hits
+the CMP0003 gap noted above — `test/Compono.XunitV3.SampleTests` uses a
+concrete `Repository` type for its own `[Shared]` theory to route around it
+until that gap is resolved.
+
 ### Exit Criteria
+
+Met for the parameter shapes `Compono.XunitV3` currently supports, verified
+through `test/Compono.XunitV3.Tests` and a real xUnit v3 runner against
+`test/Compono.XunitV3.SampleTests` (PLAN-0004 Phase 3); the CMP0003 gap above
+means "composed parameters work under xUnit v3" doesn't yet extend to a bare
+interface/abstract/delegate-typed `[Compose]` parameter:
 
 - Composed parameters work under xUnit v3
 - Inline values take precedence
