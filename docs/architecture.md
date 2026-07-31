@@ -259,6 +259,49 @@ accidentally blocking a later stage (or a generated plan) that could
 have. This avoids exception-driven provider selection and preserves
 meaningful failures.
 
+### Public providers (stages 5/6)
+
+`ICompositionProvider` above is `Compono`-internal — stages 4/7 (registered
+type/member rules, built-in providers) are implemented entirely inside the
+core package and never exposed for an outside package to author its own.
+Stages 5/6 (semantic values, test doubles) are different: they exist
+specifically for an integration package to contribute open-ended,
+pattern-matching logic ("any interface type"), which means the contract a
+provider author implements has to be public, small, and decoupled from
+`Compono`'s internal request/pipeline plumbing. Resolved by
+[ADR-0024](adr/0024-public-provider-extensibility-model.md), implemented
+(PLAN-0005 Phase 0):
+
+```csharp
+public interface ICompositionValueProvider
+{
+    CompositionProviderResult TryProvide(
+        in CompositionProviderRequest request,
+        ICompositionContext context);
+}
+```
+
+`CompositionProviderRequest` (`RequestedType`/`DeclaringType`/`Name`/
+`Nullability`) and `CompositionProviderResult` (`NotHandled`/`Handled(value)`)
+are their own public types, decoupled from the internal
+`CompositionRequest`/`CompositionResult` pair above — no path, no
+shared-scope flag, no pipeline plumbing a provider author has no legitimate
+use for. `CompositionBuilder.AddSemanticProvider`/`AddTestDoubleProvider`
+register a public provider into stage 5/6 respectively, in registration
+order; internally, each is wrapped in a `PublicProviderAdapter :
+ICompositionProvider` — an adapter, not a second provider contract — so the
+rest of the pipeline (dispatch, tracing, diagnostics identity via
+`ICompositionProvider.ProviderType`) treats a public provider exactly like an
+internal one, with diagnostics naming the real wrapped provider's type, never
+the adapter. A public provider may call `context.Resolve<T>()`
+(descriptor-less) to compose part of its value from a nested request, exactly
+as an internal provider already may; a thrown exception from `TryProvide`
+propagates uncaught, per this ADR's Provider Failure Semantics — same
+"exceptions signal a bug" principle as everywhere else in this pipeline, not
+a stronger contract than an internal provider gets.
+`Compono.NSubstitute`'s `NSubstituteProvider` (registered via
+`AddTestDoubleProvider`) is the first real consumer of this contract.
+
 ## Source-Generated Composition Plans
 
 Source generation is the preferred construction strategy.
@@ -765,9 +808,11 @@ Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integ
 package itself), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
 (the `Compono.Xunit` → `Compono.XunitV3` rename). Implemented - see
 [PLAN-0004](plans/0004-milestone-4-xunit-integration.md) for the phase-by-phase
-account and its Open Items for one known compile-time gap (an interface/
-abstract/delegate-typed `[Compose]`-attributed parameter reports CMP0003
-unconditionally).
+account. The one compile-time gap tracked in that plan's Open Items (an
+interface/abstract/delegate-typed `[Compose]`-attributed parameter reported
+CMP0003 unconditionally) is resolved by
+[PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) Phase 2, see
+[ADR-0024's Amendment 2](adr/0024-public-provider-extensibility-model.md).
 
 Owns:
 
@@ -780,12 +825,26 @@ Owns:
 
 ### Compono.NSubstitute
 
+Design: [ADR-0024](adr/0024-public-provider-extensibility-model.md) (the
+public provider extension point this package builds on, owned by core
+`Compono`), [ADR-0025](adr/0025-compono-nsubstitute-package-design.md) (this
+package itself). Implemented and test-covered/end-to-end verified - see
+[PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for the
+phase-by-phase account.
+
 Owns:
 
-- NSubstitute-backed test-double provider
-- Interface support
-- Optional abstract-class support
-- NSubstitute-specific diagnostics
+- `NSubstituteProvider` — the stage-6 test-double provider (registered via
+  `AddTestDoubleProvider`), composing an interface, delegate, or (when
+  configured) unsealed abstract-class request as a real
+  `Substitute.For(Type[], object[])` value
+- `NSubstituteOptions` — `SubstituteAbstractClasses`
+- `CompositionBuilderExtensions.UseNSubstitute()`/`UseNSubstitute(Action<NSubstituteOptions>)`
+
+Contributes no diagnostics of its own — an unsubstitutable request (a sealed
+concrete class) falls through to `NotHandled`, reaching the engine's existing
+stage-9 "nothing could satisfy this" diagnostic, naming the type and path,
+rather than a package-specific one (ADR-0025's Diagnostics section).
 
 ### Compono.Bogus
 

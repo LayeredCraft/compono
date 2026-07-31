@@ -1079,39 +1079,32 @@ exercised indirectly through `Compono.XunitV3.Tests`.
 
 ## Open Items
 
-- **`ComposeMethodDiscovery` reports CMP0003 for an interface/abstract/
-  delegate-typed `[Compose]`-attributed parameter unconditionally, even
-  when the author intends it to be satisfied entirely by
-  `TProfile.Configure`'s own `Register<T>(...)` or an always-supplied
-  inline value (PR #23 review) — genuinely blocking: the project fails
-  to compile for that otherwise-valid usage.** Deliberately *not* fixed
-  as a drive-by change here, because it isn't a gap unique to
-  `Compono.XunitV3` — `ComposeMethodDiscovery.TransformMethod` reaches
-  every eligible parameter through the exact same
-  `ComposedTypeAnalyzer.Analyze` root-request path
-  `Composer.Create<T>()` and `[Composable]` already use, and that
-  path's "an abstract/delegate root always reaches constructor selection
-  and gets CMP0003, even when a registration might satisfy it at
-  runtime" behavior is deliberate, cross-cutting, and specifically
-  regression-tested (`LeafTypeClassifier.IsRuntimeProviderResolved` is
-  documented as *narrower than* `IsProviderResolved` for exactly this
-  reason; `CompositionPlanVerifyTests.AbstractRootType_
-  StillReportsDiagnostic_AfterRootProviderCheck` exists specifically to
-  keep a registered-but-abstract `Create<T>()` root reaching CMP0003
-  rather than silently compiling into a call that can only fail at
-  runtime with a useless message - the PR #11 regression this guards
-  against). Loosening that check for `[Compose]`-attributed parameters
-  alone - e.g. reusing `LeafTypeClassifier.IsProviderResolved`'s lenient,
-  member-style leaf treatment for a parameter root instead of the
-  stricter `IsRuntimeProviderResolved` - would resolve this specific
-  complaint, but it's a change to a foundational, deliberately-tested
-  diagnostic philosophy spanning every discovery path, not a one-line
-  fix scoped to this package; it needs its own design dive
-  (`design-decisions.md`) weighing the same false-positive-vs-silent-
-  failure tradeoff `Create<T>()`'s root already settled, not a decision
-  made inline while triaging PR feedback. Phase 2's binding algorithm
-  didn't touch generator-level discovery, so this item is unresolved by
-  it — still tracked here for a dedicated design dive or follow-up.
+- ~~**`ComposeMethodDiscovery` reports CMP0003 for an interface/abstract/
+  delegate-typed `[Compose]`-attributed parameter unconditionally...**~~
+  **Resolved by [PLAN-0005](0005-milestone-5-nsubstitute-integration.md)
+  Phase 2 (2026-07-31), see [ADR-0024 Amendment 2](../adr/0024-public-provider-extensibility-model.md).**
+  This item predicted exactly the right fix (reusing
+  `LeafTypeClassifier.IsProviderResolved`'s lenient, member-style leaf
+  treatment for a parameter root instead of the stricter
+  `IsRuntimeProviderResolved`) and correctly identified it as needing its
+  own design dive rather than a drive-by fix here — that dive happened as
+  part of PLAN-0005 Phase 2's real end-to-end verification, when this
+  plan's own `[Shared] IRepository repository` Goal-section shape (see the
+  note below) failed to compile against a real packaged consumer, giving
+  the "a registration/provider might satisfy this at runtime" side of the
+  false-positive-vs-silent-failure tradeoff real dogfooding evidence for
+  the first time. `IsRuntimeProviderResolved` now delegates directly to
+  `IsProviderResolved` — an interface/abstract-class/delegate root
+  (including a `[Compose]`-attributed parameter, since
+  `ComposeMethodDiscovery` shares the same root-request path this item
+  described) is classified identically to a member, at every discovery
+  path, not just this package's own. The regression test this item named,
+  `CompositionPlanVerifyTests.AbstractRootType_
+  StillReportsDiagnostic_AfterRootProviderCheck`, was rewritten (its
+  assertion inverted) as part of that fix, alongside a new
+  `ConcreteRootTypeWithNoAccessibleConstructor_
+  StillReportsDiagnostic_AfterRootProviderCheck` proving a genuinely
+  unconstructible concrete root is unaffected.
 
 The one item Phase 0 left open (no generator discovery path for a
 `[Compose]`-attributed method's own parameter) was closed by Phase 1's
