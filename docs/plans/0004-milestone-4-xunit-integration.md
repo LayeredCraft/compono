@@ -929,6 +929,17 @@ exercised indirectly through `Compono.XunitV3.Tests`.
      (using a temporarily-reduced attempt count for the test) rather than
      blocking forever, then confirming a normal run still succeeds once
      the stale lock is gone.
+  8. A seventh review round (P2) caught that `CompositionException
+     .WithSeedInMessage` - a genuinely new public `Compono` core API as
+     of round 5 - was documented only in ADR-0022, with its
+     `docs/public-api.md` coverage deferred to Phase 4's docs pass. Per
+     this repo's own rule (`AGENTS.md`: update the relevant `docs/*.md` in
+     the same PR that changes the behavior it describes, not a
+     follow-up), added a `Diagnostics API` section entry showing the
+     method's signature, its exception-chain contract (`Diagnostic`
+     copied through unchanged, `original` becomes `InnerException`), and
+     when to reach for it (a plain-message `CompositionException` has no
+     `Diagnostic` to render its own `Seed:` line).
   - Also folded into this round, at the user's request (not a posted PR
     comment): the sample project had no `[Compose<TProfile>]` theory at
     all - every existing theory used the profile-less `[Compose]` form.
