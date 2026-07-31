@@ -660,18 +660,41 @@ exercised indirectly through `Compono.Xunit.Tests`.
     with the same profile-seed carve-out.
   No code change in either case - both are documentation fixes closing
   gaps a prior round's fix introduced without fully propagating.
+- **A minimal slice of core binding-algorithm coverage shipped with this
+  PR rather than waiting for Phase 3** (PR #24 review, P1) — Codex
+  correctly flagged that this PR's only direct assertions were on caching
+  and disposal, not on the binding algorithm's actual output (inline
+  precedence, composed values, the negative-seed rejection, the
+  `Compono.Seed` trait), which risked a regression silently supplying
+  wrong theory arguments merging undetected before Phase 3's tests ever
+  existed. Added `ComposeAttributeBindingTests` (six tests: composed-only,
+  inline-only, mixed inline+composed, negative-seed rejection, the
+  `Compono.Seed` trait matching a configured seed, and the trait present
+  on a passing-shaped row) - enough to catch a regression in the core
+  binding-algorithm promises this PR actually ships. This is deliberately
+  **not** the full Phase 3 matrix (the `[Shared]`-ordering assertion
+  already exists via `ComposeAttributeDisposalTests`' shared-value-reuse
+  test; nullable four-combination coverage, the `Compono.Seed`-value
+  proof against a real failing composition, the concurrency-stress test,
+  the API-surface approval test, and the real-runner
+  `Compono.Xunit.SampleTests` project all remain Phase 3's scope) - adding
+  the full exhaustive suite here would have meant either doing Phase 3's
+  work inside a Phase 2 PR (against `design-decisions.md`'s
+  one-phase-per-PR rule) or leaving genuinely untested binding-algorithm
+  output merged (Codex's real concern). This is the middle ground: enough
+  direct coverage that a regression in the algorithm this PR ships is
+  actually caught, without duplicating Phase 3's own exhaustive scope.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
-  touched no generator code), `Compono.Xunit.Tests` 52/52 (26 × 2 TFMs -
-  23 from Phase 1 (one updated in place) + 3 new disposal-registration
-  tests for the two fixes above, using a `DisposableProfile`/
-  `DisposableValue` fixture pair composed via a registration rather than a
-  generated plan, matching this test project's existing generator-free
-  pattern). Broader
-  binding-algorithm coverage (inline/composed/mixed rows, `[Shared]`
-  semantics, seed reproduction, the `Compono.Seed` trait, the real-runner
-  `Compono.Xunit.SampleTests` project) remains Phase 3's own scope per the
-  plan's phase split and ADR-0022's Testing Strategy.
+  touched no generator code), `Compono.Xunit.Tests` 64/64 (32 × 2 TFMs -
+  23 from Phase 1 (one updated in place) + 3 disposal-registration tests +
+  6 binding-algorithm tests, using a `DisposableProfile`/`DisposableValue`
+  fixture pair composed via a registration rather than a generated plan,
+  matching this test project's existing generator-free pattern). The
+  exhaustive matrix (nullable four-combination coverage, seed-message
+  content proof, concurrency-stress test, the API-surface approval test,
+  the real-runner `Compono.Xunit.SampleTests` project) remains Phase 3's
+  own scope per the plan's phase split and ADR-0022's Testing Strategy.
 
 ## Open Items
 
