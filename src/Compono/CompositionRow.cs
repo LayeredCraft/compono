@@ -52,7 +52,8 @@ public sealed class CompositionRow : ICompositionContext
     /// <exception cref="CompositionException">
     /// No explicit value, shared value, registration, provider, or generated plan could satisfy the
     /// request; or the pipeline-produced value is <see langword="null"/> for a non-nullable request,
-    /// or its runtime type isn't assignable to <typeparamref name="TValue"/>.
+    /// or its runtime type isn't assignable to <typeparamref name="TValue"/>; or a shared value for
+    /// <typeparamref name="TValue"/> has already been established in this row.
     /// </exception>
     public TValue ResolveShared<TValue>(in CompositionRequestDescriptor descriptor) =>
         _context.ResolveDescriptorAsShared<TValue>(descriptor);
@@ -68,7 +69,8 @@ public sealed class CompositionRow : ICompositionContext
     /// <param name="value">The already-known value to share.</param>
     /// <exception cref="CompositionException">
     /// <paramref name="value"/> is <see langword="null"/> for a non-nullable request, or its runtime
-    /// type isn't assignable to <typeparamref name="TValue"/>.
+    /// type isn't assignable to <typeparamref name="TValue"/>; or a shared value for
+    /// <typeparamref name="TValue"/> has already been established in this row.
     /// </exception>
     public void ShareExplicit<TValue>(in CompositionRequestDescriptor descriptor, TValue value) =>
         _context.ShareExplicitTestParameter(descriptor, value);
