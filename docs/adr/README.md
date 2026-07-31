@@ -85,3 +85,5 @@ the mechanics: numbering, status, and the index.
 | [0021](0021-row-composition-entry-point-for-test-framework-integrations.md) | Row Composition Entry Point for Test-Framework Integrations | Accepted |
 | [0022](0022-compono-xunit-package-design.md) | Compono.Xunit Package Design | Accepted |
 | [0023](0023-rename-compono-xunit-to-compono-xunitv3.md) | Rename Compono.Xunit to Compono.XunitV3 | Accepted |
+| [0024](0024-public-provider-extensibility-model.md) | Public Provider Extensibility Model | Accepted |
+| [0025](0025-compono-nsubstitute-package-design.md) | Compono.NSubstitute Package Design | Accepted |

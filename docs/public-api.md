@@ -389,7 +389,42 @@ builder.For<Customer>()
 
 Correlation syntax is a design goal, not an MVP commitment.
 
+## Provider Extensibility
+
+Design target, resolved (not yet implemented) by
+[ADR-0024](adr/0024-public-provider-extensibility-model.md) — a Milestone 5 design
+deliverable, see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md).
+An integration package (or a consumer's own code) contributes open-ended,
+pattern-matching composition logic to pipeline stage 5 (semantic value providers)
+or stage 6 (test-double providers) — the cases a closed-set `.For<T>()` rule can't
+express, like "any interface type":
+
+```csharp
+public interface ICompositionValueProvider
+{
+    CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context);
+}
+
+builder.AddSemanticProvider(new MySemanticProvider());
+builder.AddTestDoubleProvider(new MyTestDoubleProvider());
+```
+
+`CompositionProviderRequest` exposes `RequestedType`/`DeclaringType`/`Name`/
+`Nullability` — enough to match "any interface" (`RequestedType.IsInterface`) or
+"any member literally named `Email`" (`Name == "Email"`) without exposing the
+engine's own internal request/path types. A provider returns
+`CompositionProviderResult.NotHandled` for anything it doesn't apply to (so a later
+provider or pipeline stage still gets a chance) or `CompositionProviderResult.Handled(value)`.
+`Compono.NSubstitute`'s `UseNSubstitute()` (below) is the first real consumer of
+this contract; `Compono.Bogus`'s future `UseBogus()` is expected to use the exact
+same interface, registered via `AddSemanticProvider` instead of
+`AddTestDoubleProvider`.
+
 ## NSubstitute Integration
+
+Design target, resolved (not yet implemented) by
+[ADR-0025](adr/0025-compono-nsubstitute-package-design.md), built on the Provider
+Extensibility contract above.
 
 Activation:
 
@@ -400,9 +435,14 @@ builder.UseNSubstitute();
 Default behavior:
 
 - Compose interfaces as substitutes
-- Optionally compose abstract classes
-- Reuse substitutes through shared scope
-- Avoid automatic recursive member configuration in the MVP
+- Compose delegate types as substitutes
+- Optionally compose abstract classes (on by default; `SubstituteAbstractClasses`)
+- Reuse substitutes through shared scope (falls out of the engine's existing
+  `[Shared]`/scope mechanism — `Compono.NSubstitute` contributes no code toward
+  this specifically)
+- Avoid automatic recursive member configuration in the MVP — a composed
+  substitute is exactly what `Substitute.For<T>()` would produce; its `Returns`/
+  `Received` configuration stays the consumer's own test-body concern
 
 NSubstitute-specific configuration belongs in the integration package:
 
@@ -498,7 +538,10 @@ Preferred concepts:
 - CompositionPlan: generated construction logic
 - CompositionScope: shared-instance lifetime
 - ICompositionProfile: reusable configuration, applied by name
-- CompositionProvider: extension point
+- CompositionProvider: extension point (internal, engine-owned)
+- ICompositionValueProvider: the public extension point stages 5/6 expose to
+  integration packages — see Provider Extensibility, resolved by
+  [ADR-0024](adr/0024-public-provider-extensibility-model.md)
 - Shared: reuse within a scope
 
 ## API Design Rules

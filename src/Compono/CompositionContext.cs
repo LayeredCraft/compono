@@ -84,14 +84,14 @@ internal sealed class CompositionContext : ICompositionContext
     /// <c>Compono.Tests</c> uses to exercise stage 3 directly.
     /// </summary>
     internal CompositionContext(CompositionSeed seed, CompositionRegistrations registrations, IServiceProvider? serviceProvider)
-        : this(seed, registrations, serviceProvider, configurationRuleProviders: [], CollectionSizePolicy.Empty)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders: [], semanticProviders: [], testDoubleProviders: [], CollectionSizePolicy.Empty)
     {
     }
 
     /// <summary>
     /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, the given
     /// explicit stage-3 registrations and configured <c>IServiceProvider</c>, the given compiled
-    /// stage-4 configuration-rule providers and collection-size policy, and the given explicit root
+    /// stage-4/5/6 provider lists and collection-size policy, and the given explicit root
     /// seed - the shape <see cref="Composer.Create{T}"/>/<see cref="Composer.CreateMany{T}"/> use once
     /// a <see cref="CompositionBuilder"/> has been configured.
     /// </summary>
@@ -100,8 +100,10 @@ internal sealed class CompositionContext : ICompositionContext
         CompositionRegistrations registrations,
         IServiceProvider? serviceProvider,
         IReadOnlyList<ICompositionProvider> configurationRuleProviders,
+        IReadOnlyList<ICompositionProvider> semanticProviders,
+        IReadOnlyList<ICompositionProvider> testDoubleProviders,
         CollectionSizePolicy collectionSizePolicy)
-        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders: [], testDoubleProviders: [], builtInProviders: BuiltInProviders.Default, collectionSizePolicy)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders, testDoubleProviders, builtInProviders: BuiltInProviders.Default, collectionSizePolicy)
     {
     }
 
@@ -119,9 +121,11 @@ internal sealed class CompositionContext : ICompositionContext
         CompositionRegistrations registrations,
         IServiceProvider? serviceProvider,
         IReadOnlyList<ICompositionProvider> configurationRuleProviders,
+        IReadOnlyList<ICompositionProvider> semanticProviders,
+        IReadOnlyList<ICompositionProvider> testDoubleProviders,
         CollectionSizePolicy collectionSizePolicy,
         Type rootType)
-        : this(seed, registrations, serviceProvider, configurationRuleProviders, collectionSizePolicy)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders, testDoubleProviders, collectionSizePolicy)
     {
         _path = CompositionPath.Root(rootType);
         _random = RandomSource.FromSeed(seed);
@@ -671,18 +675,18 @@ internal sealed class CompositionContext : ICompositionContext
         foreach (var candidate in providers)
         {
             var checkpoint = _trace.Checkpoint;
-            _trace.Record(stage, candidate.GetType(), CompositionAttemptOutcome.Pending);
+            _trace.Record(stage, candidate.ProviderType, CompositionAttemptOutcome.Pending);
             var result = candidate.TryCompose(request, this);
             _trace.Rewind(checkpoint);
 
             if (result is CompositionResult.Success success)
             {
                 value = success.Value;
-                provider = candidate.GetType();
+                provider = candidate.ProviderType;
                 return true;
             }
 
-            _trace.Record(stage, candidate.GetType(), CompositionAttemptOutcome.NotHandled);
+            _trace.Record(stage, candidate.ProviderType, CompositionAttemptOutcome.NotHandled);
         }
 
         value = null;

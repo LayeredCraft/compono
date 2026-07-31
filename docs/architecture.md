@@ -862,19 +862,22 @@ Owns:
   [ADR-0018](adr/0018-composition-profiles.md): `ICompositionProfile` interface
   (not an abstract base class), eager in-order application, type-keyed cycle
   detection.
-- **Public provider extensibility (how integration packages contribute open-ended
-  pattern-matching logic to stages 5/6)** — evaluated and explicitly deferred to
-  Milestone 5 during the Milestone 3 design review: Milestone 3's own scope
-  (registrations, profiles, type/member rules, `IServiceProvider` fallback) needs no
-  such interface — type/member value rules compile into internal,
-  Compono-authored providers ([ADR-0020](adr/0020-composition-configuration-rules.md)),
-  and service injection folds into stage 3 as a context-owned fallback
-  ([ADR-0019](adr/0019-registrations-and-service-provider-injection.md)) — neither
-  needs a public `ICompositionProvider`-shaped contract. NSubstitute (Milestone 5)
-  is expected to be the first real consumer that needs one (matching "any interface
-  type," a pattern no closed-set rule can express), so the interface gets designed
-  against that concrete need rather than speculatively now. No design has been
-  chosen yet.
+- ~~Public provider extensibility (how integration packages contribute open-ended
+  pattern-matching logic to stages 5/6)~~ — evaluated and explicitly deferred to
+  Milestone 5 during the Milestone 3 design review, for the reasons this bullet
+  originally gave (type/member value rules compile into internal,
+  Compono-authored providers per [ADR-0020](adr/0020-composition-configuration-rules.md);
+  service injection folds into stage 3 per
+  [ADR-0019](adr/0019-registrations-and-service-provider-injection.md); neither
+  needed a public contract). **Resolved by
+  [ADR-0024](adr/0024-public-provider-extensibility-model.md)** (core contract:
+  `ICompositionValueProvider`, `CompositionBuilder.AddSemanticProvider`/
+  `AddTestDoubleProvider`, compiled into stage 5/6 the same way ADR-0020's rules
+  compile into stage 4) **and [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)**
+  (`Compono.NSubstitute`, the first real consumer) — design only as of Milestone 5's
+  design phase, not yet implemented; see
+  [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md). Stages 5/6 in the
+  Resolution Pipeline table above remain empty until that plan's Phase 0/1 land.
 - **Richer `Microsoft.Extensions.DependencyInjection` integration** (`IServiceCollection`
   auto-registration, per-composition scoping, keyed services) — explicitly out of
   scope for `Compono` core per
