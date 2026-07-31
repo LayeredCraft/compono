@@ -232,54 +232,46 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 2: Binding algorithm, `[Shared]`, diagnostics (ADR-0022)
 
-**Status:** Not Started
+**Status:** Done
 
 Ordered to match the runtime flow (composer/profile/seed are read from
 the cache built once in Phase 1; everything after is per-row):
 
-- [ ] Profile application (`[Compose<TProfile>]` → `builder.AddProfile<TProfile>()`;
+- [x] Profile application (`[Compose<TProfile>]` → `builder.AddProfile<TProfile>()`;
       `[Compose]` → default `Composer.Create()`) and `Seed` property →
       `builder.WithSeed(...)` — both folded into Phase 1's cached
       `Lazy<Composer>` construction, so this is "read the cached
       `Composer`," not a per-row step.
-- [ ] `Composer.CreateRow(declaringType)` for the row — **before**
+- [x] `Composer.CreateRow(declaringType)` for the row — **before**
       checking Phase 1's cached signature-validation result, not after:
       an unseeded row's seed doesn't exist until `CreateRow` runs, and
       every failure this package reports must include the row's real
       seed, so the row has to exist first even for a signature that's
       about to be rejected.
-- [ ] **If `SeedAsNullable` has a value and it's negative, throw now**,
-      using `row.Seed` (echoing the rejected value back). This is what makes
-      every row `Compono.Xunit` creates have a non-negative seed
-      unconditionally — `CompositionBuilder.WithSeed(int)` itself has no
-      such restriction and happily accepts a negative value when the
-      cached `Composer` is built (Phase 1), so this check is the only
-      place that actually enforces it, and it must run before any other
-      failure category so a rejected negative seed is reported clearly
-      rather than surfacing as a confusing mismatch somewhere else.
-- [ ] **Decide how a `TProfile.Configure` that itself calls `builder.WithSeed(...)`
-      interacts with this check** (PR #23 review): Phase 1's cached
-      `Lazy<Composer>` construction applies the profile
-      (`builder.AddProfile<TProfile>()`, which runs `Configure` immediately)
-      *before* reading `SeedAsNullable`, so a profile-supplied seed reaches
-      `CompositionBuilder.WithSeed` — and therefore `Composer.CreateRow`'s
-      `_configuration.Seed` — independently of `SeedAsNullable`, which stays
-      `null` whenever the attribute itself doesn't set `Seed`. As drafted,
-      the negative-seed check above only inspects `SeedAsNullable`, so a
-      profile-supplied negative seed is invisible to it; the same gap means
-      an unset attribute silently reuses the profile's seed for every row
-      instead of generating a fresh one. Resolve this explicitly here
-      (e.g. read the composer's actual configured seed for the negative
-      check rather than `SeedAsNullable` alone, or reject a profile that
-      configures a seed outright) rather than letting Phase 1's existing
-      `ApplyProfile`-then-`Seed` ordering silently decide it.
-- [ ] If Phase 1's cached signature-validation result is invalid, throw
+- [x] **If the row's effective seed (`row.Seed`) is negative, throw now**,
+      echoing the rejected value back. This is what makes every row
+      `Compono.Xunit` creates have a non-negative seed unconditionally —
+      `CompositionBuilder.WithSeed(int)` itself has no such restriction and
+      happily accepts a negative value when the cached `Composer` is built
+      (Phase 1), so this check is the only place that actually enforces
+      it, and it must run before any other failure category so a rejected
+      negative seed is reported clearly rather than surfacing as a
+      confusing mismatch somewhere else.
+- [x] **Decide how a `TProfile.Configure` that itself calls `builder.WithSeed(...)`
+      interacts with this check** (PR #23 review) — resolved by checking
+      `row.Seed < 0` directly rather than `SeedAsNullable is { } seed &&
+      seed < 0`. `row.Seed` is the row's actual effective seed regardless of
+      which source configured it (this attribute's own `Seed` property, or
+      a profile's `Configure` calling `builder.WithSeed(...)`), so this one
+      check (the item directly above) closes the gap for both sources
+      without needing to distinguish them — see Notes below.
+- [x] If Phase 1's cached signature-validation result is invalid, throw
       here, using `row.Seed` in the appended `Seed:` line — still before
       any parameter is bound or composed, so no random fork is consumed
       and no partially-composed row is ever produced; only *row creation*
       (and the negative-seed check above) now precede this check, not
       composition.
-- [ ] Positional inline-value binding (index-based "supplied," explicit
+- [x] Positional inline-value binding (index-based "supplied," explicit
       `null` distinguished from "not supplied" by array length only);
       too-many-inline-values checked against `testMethod.GetParameters().Length`.
       **Every** supplied inline value validated before any parameter is
@@ -300,13 +292,13 @@ the cache built once in Phase 1; everything after is per-row):
         a pre-composition `CompositionException` naming the parameter and
         both types.
       Both categories use the appended `Seed:` line (`row.Seed`).
-- [ ] `[Shared]`-first, declaration-order composition (composed via each
+- [x] `[Shared]`-first, declaration-order composition (composed via each
       parameter's cached `resolveSharedInvoker`, inline via
       `shareExplicitInvoker`), then remaining parameters via
       `resolveInvoker` — never a direct, runtime-typed
       `row.Resolve<T>(...)`/`ResolveShared<T>(...)`/`ShareExplicit<T>(...)`
       call; always through Phase 1's cached delegates.
-- [ ] Construct the final `TheoryDataRow` from the assembled `object?[]`
+- [x] Construct the final `TheoryDataRow` from the assembled `object?[]`
       **in method declaration order** — binding/composition order (shared
       first, then the rest) and output order are intentionally different;
       the array passed to `TheoryDataRow` must match the method's own
@@ -570,15 +562,166 @@ exercised indirectly through `Compono.Xunit.Tests`.
   (`Resolve`/`ResolveShared`/`ShareExplicit` for both a reference- and a
   value-typed parameter) against a real `CompositionRow`.
 
+**Phase 2 (Done):**
+
+- **The negative-seed check reads `row.Seed`, not `SeedAsNullable`
+  alone** — resolving the Open Item PR #23 review raised: Phase 1's
+  cached `Lazy<Composer>` construction applies a profile
+  (`builder.AddProfile<TProfile>()`, running `Configure` immediately,
+  which may itself call `builder.WithSeed(...)`) before `SeedAsNullable`
+  is ever read, so a profile-supplied seed reaches
+  `CompositionBuilder.WithSeed` — and therefore `Composer.CreateRow`'s
+  configured seed — independently of whether this attribute's own `Seed`
+  property was ever set. `row.Seed`, read immediately after `CreateRow`
+  runs, is the row's real effective seed regardless of which source
+  configured it, so checking `row.Seed < 0` there closes the gap for a
+  profile-supplied negative seed without needing to separately track
+  which source produced it — no `SeedAsNullable`-specific branch needed.
+- **`GetData` never invokes `MakeGenericMethod`/`MethodInfo.Invoke`** —
+  binding calls only the three cached delegates per parameter
+  (`resolveInvoker`/`resolveSharedInvoker`/`shareExplicitInvoker`) Phase 1
+  built once per parameter; Phase 2 adds no new reflection cost on the
+  per-row path, per ADR-0022's Source Generation Boundary section.
+- `BindingPlan.MethodDisplayName(MethodInfo)` was factored out of
+  `BindingPlan.ValidateSignature`'s previously-inline local so `GetData`'s
+  own pre-composition messages (too many inline values, inline
+  null/type-mismatch) name the method identically to a signature-error
+  message, rather than duplicating the `{DeclaringType.FullName}.{Name}`
+  format independently.
+- `ComposeAttributeCachingTests.GetData_NeverRebuildsTheBindingPlan_AcrossRepeatedCalls`
+  (Phase 1) asserted `GetData` threw `NotImplementedException` on every
+  call, since Phase 1's `GetData` was a stub — updated to call `GetData`
+  for real and assert success, since `SampleTestMethods.Simple(int, string)`
+  composes cleanly through the built-in `int`/`string` providers
+  (`LeafTypeClassifier.IsProviderResolved`) with no `[Composable]`/generated
+  plan involved; the binding-plan-identity assertion the test exists for is
+  unchanged.
+- **Automatic disposal tracking was attempted, iterated three times, then
+  reverted** (PR #24 review — see ADR-0022 Amendment 4 for the full
+  account; summarized here for the plan's own timeline):
+  1. A composed `IDisposable`/`IAsyncDisposable` value was never
+     registered with `GetData`'s own `disposalTracker` parameter, so it
+     was never released after the test ran — fixed by registering every
+     composed value as soon as it was produced.
+  2. That fix double-registered a `[Shared]` value reused by a later
+     ordinary parameter of the same type (both resolve to the identical
+     instance via `CompositionContext.ResolveCore`'s stage-2 scope read),
+     causing a double `Dispose()` call — fixed with a per-`GetData`-call
+     reference-equality dedup set.
+  3. The dedup set was allocated and populated unconditionally on every
+     row, against `AGENTS.md`'s "performance is a feature... runs on
+     every test" principle — fixed by filtering to
+     `IDisposable`/`IAsyncDisposable` before touching the set, and
+     allocating it lazily.
+  4. **Fix 1's entire premise turned out to be unsafe**: `CompositionRow
+     .Resolve`/`ResolveShared` give `Compono.Xunit` no visibility into
+     which pipeline stage produced a value, so a value Compono itself
+     freshly constructed is indistinguishable from one returned by a
+     registration or a configured `IServiceProvider` - the latter
+     explicitly owned by the caller, not Compono, per
+     [ADR-0019](../adr/0019-registrations-and-service-provider-injection.md).
+     Registering the latter with `DisposalTracker` would dispose an
+     externally-owned instance (possibly a shared singleton reused across
+     many tests) after just one test - a silent, hard-to-diagnose
+     correctness violation strictly worse than the original leak fix 1
+     addressed. **Reverted entirely** rather than patched with a
+     heuristic - no code in `Compono`'s public surface exists for
+     `Compono.Xunit` to safely distinguish the two cases, and inventing
+     one inline (without a real design dive) was rejected as exactly the
+     kind of one-off decision this repo's process exists to avoid.
+     `ComposeAttributeDisposalTests` now asserts the opposite of what it
+     originally proved: a composed disposable is **not** registered and
+     **not** disposed, guarding against silently reintroducing this.
+- **A profile-configured seed pinning every row is intended behavior, not
+  a bug** (PR #24 review) — clarified in ADR-0022's new Amendment 3, not
+  fixed in code: Seed Policy and Reporting's "every `GetData` call without
+  an explicit seed generates a fresh one" was ambiguous about whether a
+  profile's own `Configure` calling `builder.WithSeed(...)` counts as
+  "explicit." It does - a profile that pins a seed is deliberately
+  choosing reproducible composition, the same contract
+  `CompositionBuilder.WithSeed` already has everywhere else in Compono,
+  and silently discarding that choice because it arrived through a
+  profile rather than through `ComposeAttribute.Seed` directly would be
+  the more surprising behavior of the two. No code change - the
+  `row.Seed < 0` check two items above already covers this source
+  correctly; only the ADR's wording needed the carve-out made explicit.
+- **Amendment 3's own follow-through was incomplete** (PR #24 review,
+  same round as the double-registration bug) — two more places still
+  described pre-Amendment-3 behavior after Amendment 3 shipped:
+  - ADR-0022's Decision Outcome/Seed Policy text scoped negative-seed
+    rejection to `ComposeAttribute.Seed`/`SeedAsNullable` specifically,
+    but the actual check (`row.Seed < 0`) has always covered any
+    effective row seed, including a profile-configured one - the same
+    "explicit" definition Amendment 3 established for freshness extends
+    to rejection too. Recorded as a second paragraph in Amendment 3
+    rather than a new amendment, since it's the same root clarification.
+  - `ComposeAttribute.Seed`'s public XML doc comment still promised "a
+    fresh seed is generated on every `GetData` call" for an unset
+    property, unqualified - misleading IntelliSense for a
+    `[Compose<TProfile>]` consumer whose profile pins a seed. Updated
+    with the same profile-seed carve-out.
+  No code change in either case - both are documentation fixes closing
+  gaps a prior round's fix introduced without fully propagating.
+- **A minimal slice of core binding-algorithm coverage shipped with this
+  PR rather than waiting for Phase 3** (PR #24 review, P1) — Codex
+  correctly flagged that this PR's only direct assertions were on caching
+  and disposal, not on the binding algorithm's actual output (inline
+  precedence, composed values, the negative-seed rejection, the
+  `Compono.Seed` trait), which risked a regression silently supplying
+  wrong theory arguments merging undetected before Phase 3's tests ever
+  existed. Added `ComposeAttributeBindingTests` (six tests: composed-only,
+  inline-only, mixed inline+composed, negative-seed rejection, the
+  `Compono.Seed` trait matching a configured seed, and the trait present
+  on a passing-shaped row) - enough to catch a regression in the core
+  binding-algorithm promises this PR actually ships. This is deliberately
+  **not** the full Phase 3 matrix (the `[Shared]`-ordering assertion
+  already exists via `ComposeAttributeDisposalTests`' shared-value-reuse
+  test; nullable four-combination coverage, the `Compono.Seed`-value
+  proof against a real failing composition, the concurrency-stress test,
+  the API-surface approval test, and the real-runner
+  `Compono.Xunit.SampleTests` project all remain Phase 3's scope) - adding
+  the full exhaustive suite here would have meant either doing Phase 3's
+  work inside a Phase 2 PR (against `design-decisions.md`'s
+  one-phase-per-PR rule) or leaving genuinely untested binding-algorithm
+  output merged (Codex's real concern). This is the middle ground: enough
+  direct coverage that a regression in the algorithm this PR ships is
+  actually caught, without duplicating Phase 3's own exhaustive scope.
+  (`ComposeAttributeDisposalTests`' shared-value-reuse test, added
+  earlier for the now-reverted disposal-tracking work below, still
+  covers the `[Shared]`-ordering assertion referenced here even after
+  its own original disposal-specific purpose was reverted.)
+- **A single reference-array inline argument was misread as multiple
+  inline values** (PR #24 review) — the same non-expanded `params`
+  binding form the existing `[Compose(null)]` fix (PR #23 review)
+  handles also applies to any reference-array-typed single argument
+  covariantly convertible to `object?[]` (e.g. `string[]`):
+  `[Compose(new string[] { "a", "b" })]` arrived as that exact `string[]`
+  instance (runtime type `string[]`, not `object[]`), so the constructor
+  read it as a 2-element `object?[]` instead of one array value for a
+  single array-typed parameter. Fixed the same way as the null case: the
+  constructor now checks `inlineValues.GetType() != typeof(object[])`
+  (true only for this non-expanded-form single-array case - every
+  genuinely expanded-form call, including `Compose()`'s empty case,
+  always produces a freshly built `object[]`) and wraps it as a
+  one-element array. Covered by
+  `InlineValues_SingleReferenceArrayArgument_TreatedAsOneSuppliedArrayValue`,
+  matching the existing null-argument test's shape.
+- Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
+  no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
+  touched no generator code), `Compono.Xunit.Tests` 64/64 (32 × 2 TFMs -
+  23 from Phase 1 (one updated in place) + 2 disposal tests (rewritten to
+  prove disposal tracking is deliberately absent, per Amendment 4 above) +
+  6 binding-algorithm tests + 1 inline-array-argument test, using a
+  `DisposableProfile`/`DisposableValue` fixture pair composed via a
+  registration rather than a generated plan, matching this test project's
+  existing generator-free pattern). The exhaustive matrix (nullable
+  four-combination coverage, seed-message content proof,
+  concurrency-stress test, the API-surface approval test, the real-runner
+  `Compono.Xunit.SampleTests` project) remains Phase 3's own scope per the
+  plan's phase split and ADR-0022's Testing Strategy.
+
 ## Open Items
 
-- Profile-supplied seed vs. `SeedAsNullable`'s negative-seed check (PR #23
-  review) - tracked as a Phase 2 checklist item above, not resolved here:
-  a `TProfile.Configure` that calls `builder.WithSeed(...)` reaches the
-  cached `Composer`'s configuration independently of `ComposeAttribute
-  .SeedAsNullable`, which Phase 2's planned negative-seed guard reads
-  exclusively. Phase 2's implementation must decide how the two interact
-  before that guard can be considered complete.
 - **`ComposeMethodDiscovery` reports CMP0003 for an interface/abstract/
   delegate-typed `[Compose]`-attributed parameter unconditionally, even
   when the author intends it to be satisfied entirely by
@@ -609,9 +752,9 @@ exercised indirectly through `Compono.Xunit.Tests`.
   fix scoped to this package; it needs its own design dive
   (`design-decisions.md`) weighing the same false-positive-vs-silent-
   failure tradeoff `Create<T>()`'s root already settled, not a decision
-  made inline while triaging PR feedback. Tracked here for that dive
-  before Phase 2 (which needs to decide inline/registered-parameter
-  semantics anyway) or a dedicated follow-up.
+  made inline while triaging PR feedback. Phase 2's binding algorithm
+  didn't touch generator-level discovery, so this item is unresolved by
+  it — still tracked here for a dedicated design dive or follow-up.
 
 The one item Phase 0 left open (no generator discovery path for a
 `[Compose]`-attributed method's own parameter) was closed by Phase 1's

@@ -20,6 +20,14 @@ internal static class SampleTestMethods
     {
     }
 
+    public static void WithDisposableParameter(DisposableValue disposable)
+    {
+    }
+
+    public static void WithSharedDisposableFollowedByOrdinaryOfTheSameType([Shared] DisposableValue shared, DisposableValue ordinary)
+    {
+    }
+
     public static void WithRefParameter(ref int value)
     {
     }
@@ -57,4 +65,21 @@ internal static class SampleTestMethods
     {
         public void Configure(CompositionBuilder builder) => builder.Register(() => "from-profile");
     }
+
+    // Composed via a registration, not a generated plan - this test project doesn't reference
+    // Compono.Generators as an analyzer (testing.md), so a registration is the only way to get a
+    // real (non-fake) composed value for a custom type here.
+    public sealed class DisposableProfile : ICompositionProfile
+    {
+        public void Configure(CompositionBuilder builder) => builder.Register(() => new DisposableValue());
+    }
+}
+
+public sealed class DisposableValue : IDisposable
+{
+    public bool Disposed => DisposeCount > 0;
+
+    public int DisposeCount { get; private set; }
+
+    public void Dispose() => DisposeCount++;
 }

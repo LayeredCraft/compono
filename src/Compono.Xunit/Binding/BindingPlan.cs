@@ -75,6 +75,14 @@ internal sealed class BindingPlan
         return new BindingPlan { SignatureError = null, Parameters = plan };
     }
 
+    /// <summary>
+    /// The dotted display name Phase 2's own pre-composition exception messages use for
+    /// <paramref name="testMethod"/> - shared with <see cref="ValidateSignature"/> so both halves of
+    /// this package's diagnostics name a method identically.
+    /// </summary>
+    internal static string MethodDisplayName(MethodInfo testMethod) =>
+        $"{testMethod.DeclaringType?.FullName}.{testMethod.Name}";
+
     // Mirrors ADR-0022's "Async and Unsupported Shapes" table: generic test methods and ref/out/
     // in/params parameters fail here, before any reflection that would assume a genuinely closed
     // parameter type (RowInvokers.Build's MakeGenericMethod call would itself throw for any of
@@ -82,7 +90,7 @@ internal sealed class BindingPlan
     // section) but reported through the same single signature-validation result Phase 2 checks.
     private static string? ValidateSignature(MethodInfo testMethod, ParameterInfo[] parameters)
     {
-        var methodDisplayName = $"{testMethod.DeclaringType?.FullName}.{testMethod.Name}";
+        var methodDisplayName = MethodDisplayName(testMethod);
 
         // [AttributeUsage(AllowMultiple = false)] is enforced per exact attribute type by the
         // compiler, not across a base/derived family - [Compose] and [Compose<TProfile>] (or two

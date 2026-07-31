@@ -942,6 +942,102 @@ change to Amendment 2026-07-30's fix #2 (the still-deferred
 `[Compose]`-attributed-parameter discovery) — that work is unaffected by
 this correction.
 
+## Amendment 3 (2026-07-31): a profile-configured seed pins every row, clarifying "fresh seed" scope
+
+PR #24 review (Codex, on PLAN-0004 Phase 2) caught that Seed Policy and
+Reporting's "every `GetData` call without an explicit seed generates a
+fresh one" statement, above, is ambiguous about what "explicit" covers.
+Phase 1's cached `Lazy<Composer>` construction applies a profile
+(`builder.AddProfile<TProfile>()`, running `Configure` immediately) before
+`ComposeAttribute.Seed` is ever read; if that `Configure` itself calls
+`builder.WithSeed(...)`, the resulting `Composer`'s configured seed is
+cached for the lifetime of that attribute instance, so every subsequent
+`GetData` call — and therefore every row `Composer.CreateRow` produces —
+reuses that exact seed, never a freshly generated one, even though
+`ComposeAttribute.Seed` itself was never set.
+
+This is the intended, correct behavior, not a bug to fix: a profile that
+calls `WithSeed(...)` is deliberately pinning composition for reproducible
+profile-level testing, the same contract `CompositionBuilder.WithSeed`
+already has everywhere else in Compono (a configured seed applies to every
+operation built from that composer, not just the next one) — silently
+discarding a profile author's own explicit seed choice just because it
+arrived through `Configure` rather than through `ComposeAttribute.Seed`
+directly would be the more surprising behavior of the two, and would
+contradict [ADR-0018](0018-composition-profiles.md)'s existing profile
+model with no compensating benefit. The fix is to the wording above, not
+the code: "without an explicit seed" means neither `ComposeAttribute.Seed`
+**nor** a profile's own `Configure` configured one — when either source
+configures a seed, that composer's rows are pinned to it, by design; the
+fresh-seed-per-call guarantee applies only when neither source does.
+
+**This same "explicit" definition governs negative-seed rejection, too**
+(PR #24 review, second finding on the same commit) — the Decision
+Outcome's numbered algorithm step and Seed Policy and Reporting's "Two
+distinct failure moments" bullet both describe the negative-seed check as
+scoped to `ComposeAttribute.Seed`/`SeedAsNullable` specifically, leaving
+`CompositionBuilder.WithSeed(int)`'s full range unaffected. That wording
+predates this amendment's finding that a profile-configured seed counts as
+"explicit" for freshness purposes; the same reasoning extends to
+rejection — a profile author who pins a negative seed gets the same clear,
+named `CompositionException` an attribute-configured negative seed does,
+rather than a confusing downstream composition failure with no indication
+the seed itself was the problem. The implementation (`row.Seed < 0`,
+checked against the row's actual effective seed regardless of source) has
+enforced this since Phase 2's first commit on this PR; this amendment is
+the corresponding decision-text update, not a new code change.
+
+## Amendment 4 (2026-07-31): automatic disposal tracking attempted, then reverted - ownership can't be determined safely
+
+PR #24 review (Codex, on PLAN-0004 Phase 2) caught that automatic
+disposal tracking - added earlier in the same review cycle to close a
+real gap (a composed `IDisposable`/`IAsyncDisposable` value was never
+released after the test ran, since nothing registered it with `GetData`'s
+own `disposalTracker` parameter) - was itself unsafe. `CompositionRow
+.Resolve`/`ResolveShared` return whatever the pipeline produced with no
+visibility into which stage produced it: a value freshly constructed by
+Compono's own generated composition is indistinguishable, from
+`Compono.Xunit`'s vantage point, from one returned by an exact
+registration or a configured `IServiceProvider` - the latter case
+explicitly governed by [ADR-0019](0019-registrations-and-service-provider-injection.md)'s
+"the caller owns the provider and its entire lifetime; Compono is a pure
+consumer" contract. Registering the latter with `DisposalTracker` would
+have xUnit dispose an externally-owned instance after the test - possibly
+a shared singleton reused across many tests - silently violating that
+contract and corrupting shared state in a way far harder to diagnose than
+the original leak.
+
+**Decision: automatic disposal tracking is reverted, not fixed with a
+heuristic.** `Composer`/`CompositionBuilder` expose no public way for
+`Compono.Xunit` to ask "was a service provider or registration involved
+in producing this value" - the write-only builder API
+([design-decisions.md](../../.claude/skills/engineering-workflow/references/design-decisions.md)
+rule 3: `Compono.Xunit` may only reach the engine through `Compono`'s
+public surface) has no such query, and inventing one only for this
+purpose, without a real design dive weighing what "provenance" should
+mean pipeline-wide, would be exactly the kind of one-off inline decision
+this repo's process exists to avoid. A narrower heuristic (e.g. skip
+tracking only when `UseServiceProvider` was configured) was considered
+and rejected: an exact registration can just as easily return a
+shared/cached instance the registration author owns, so the risk isn't
+scoped to `IServiceProvider` alone, and `Compono.Xunit` has no way to
+distinguish a "fresh per-call" registration factory from a "returns a
+cached instance" one either.
+
+**Consequence:** a test method with a composed `IDisposable` parameter is
+the consumer's own responsibility to clean up (e.g. compose an explicit
+factory/wrapper the test itself disposes, or use `[Compose(theInstance)]`
+with a value the consumer owns and disposes elsewhere) - the same
+"Compono has no opinion on lifetime it wasn't explicitly handed" posture
+[ADR-0019](0019-registrations-and-service-provider-injection.md) already
+takes for `UseServiceProvider`, now applied consistently to every
+composed value regardless of source. Extending `Compono`'s pipeline to
+expose enough per-value provenance for `Compono.Xunit` (or any future
+integration) to distinguish "safe to dispose" from "externally owned" is
+its own design question, deferred - not designed here, and not assumed
+necessary until a concrete need materializes (this milestone's own
+non-goals already exclude speculative future-proofing).
+
 ## Links
 
 - [ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md) —
