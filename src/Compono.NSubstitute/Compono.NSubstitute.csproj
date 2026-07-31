@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <Description>NSubstitute integration for Compono - a test-double provider composing interface, delegate, and (optionally) abstract-class parameters as real NSubstitute substitutes. See docs/adr/0024-public-provider-extensibility-model.md and docs/adr/0025-compono-nsubstitute-package-design.md.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.NSubstitute. -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <PackageReference Include="NSubstitute" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.NSubstitute.Tests" />
+    </ItemGroup>
+
+</Project>

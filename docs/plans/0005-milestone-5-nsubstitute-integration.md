@@ -123,15 +123,15 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 1: `Compono.NSubstitute` package (ADR-0025)
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] New `src/Compono.NSubstitute/Compono.NSubstitute.csproj` (matching
+- [x] New `src/Compono.NSubstitute/Compono.NSubstitute.csproj` (matching
       `Compono.XunitV3.csproj`'s TFM/packaging shape — `PackageReference` to
       `Compono` + `NSubstitute`, `PrivateAssets="none"` on the `Compono`
       reference per PLAN-0004 Phase 3's real packaging-bug lesson).
-- [ ] `NSubstituteOptions`: `SubstituteAbstractClasses` (`bool`, default
+- [x] `NSubstituteOptions`: `SubstituteAbstractClasses` (`bool`, default
       `true`).
-- [ ] `NSubstituteProvider : ICompositionValueProvider`: the
+- [x] `NSubstituteProvider : ICompositionValueProvider`: the
       `IsSubstitutable` static check (interface / delegate / conditionally
       unsealed-abstract-class), `Substitute.For(Type[], object[])` call for
       a match, `NotHandled` otherwise, no `context.Resolve<T>()` call
@@ -146,7 +146,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       **not** `typeof(Delegate).IsAssignableFrom(requestedType)` — the
       latter wrongly matches the non-substitutable `Delegate`/
       `MulticastDelegate` base types themselves.
-- [ ] `CompositionBuilderExtensions.UseNSubstitute()`/
+- [x] `CompositionBuilderExtensions.UseNSubstitute()`/
       `UseNSubstitute(Action<NSubstituteOptions>)` extension methods
       (C# 14 extension-block syntax, per `coding-standards.md`).
 
@@ -316,6 +316,27 @@ alpha must:
   point.
 
 ## Notes
+
+**Phase 1 (Done):**
+
+- Implemented exactly per ADR-0025's Amendment 1 corrected shapes — no
+  deviation from the ADR's own code sketches for `NSubstituteOptions`,
+  `NSubstituteProvider`, or `CompositionBuilderExtensions`.
+- `Compono.NSubstitute.csproj` mirrors `Compono.XunitV3.csproj`'s shape:
+  `net10.0;net11.0` TFMs, `ProjectReference` to `Compono` with
+  `PrivateAssets="none"` (PLAN-0004 Phase 3's packaging lesson, applied
+  proactively rather than rediscovered), `PackageReference` to
+  `NSubstitute` (version centrally managed, already present in
+  `Directory.Packages.props` from the test-project usage), and
+  `InternalsVisibleTo` for the not-yet-created `Compono.NSubstitute.Tests`
+  (Phase 2) so `IsSubstitutable` can stay `internal`.
+  `docs/architecture.md`'s package-dependency diagram already lists
+  `Compono.NSubstitute → Compono, NSubstitute` — matched exactly, no
+  reference to any other package.
+- Added to `Compono.slnx`. Whole-solution `dotnet build` green, no warnings.
+- No test project yet (Phase 2) — `IsSubstitutable`/`NSubstituteProvider`/
+  `UseNSubstitute` are implemented but only build-verified in this phase,
+  not test-verified; that's Phase 2's job per the plan's own phase split.
 
 **Phase 0 (Done):**
 
