@@ -422,9 +422,11 @@ same interface, registered via `AddSemanticProvider` instead of
 
 ## NSubstitute Integration
 
-Design target, resolved (not yet implemented) by
+Implemented (PLAN-0005 Phase 1) per
 [ADR-0025](adr/0025-compono-nsubstitute-package-design.md), built on the Provider
-Extensibility contract above.
+Extensibility contract above — `Compono.NSubstitute`'s `NSubstituteProvider`/
+`NSubstituteOptions`/`UseNSubstitute()` are real code today. Test coverage and
+end-to-end verification are still pending (PLAN-0005 Phase 2).
 
 Activation:
 

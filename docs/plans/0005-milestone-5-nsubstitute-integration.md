@@ -220,12 +220,22 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       versus `Compono.NSubstitute` itself not yet — done early, same PR
       #28 review round. Delegate substitution already in the scope list
       from the design-phase draft.
-- [ ] `docs/mvp.md`: mark this milestone's exit criteria met once
-      `Compono.NSubstitute` actually ships (Phase 1/2) — still open.
+- [x] `docs/mvp.md`: updated again in the Phase 1 PR (Codex, P2, same
+      pattern as the PR #28 round above) — `Compono.NSubstitute` (ADR-0025)
+      now says "implemented (PLAN-0005 Phase 1)," with test
+      coverage/end-to-end verification called out as still pending
+      (Phase 2), rather than leaving the whole package described as "not
+      yet implemented" once the Phase 1 PR actually shipped it. Milestone
+      exit criteria still correctly not marked met — that still needs
+      Phase 2.
 - [x] `docs/public-api.md`: Provider Extensibility section now says
       "Implemented" rather than "design target" — done early, same PR #28
       review round. NSubstitute Integration section correctly still says
       "not yet implemented."
+- [x] `docs/public-api.md`: NSubstitute Integration section updated again
+      in the Phase 1 PR (Codex, P2) — now says "Implemented (PLAN-0005
+      Phase 1)" rather than "not yet implemented," same reasoning as the
+      `docs/mvp.md` update above.
 - [x] `docs/public-api.md`: Naming Vocabulary gains `ICompositionValueProvider`
       — already added during the design phase.
 - [x] `docs/adr/README.md`/`docs/plans/README.md` index rows (already added
@@ -337,6 +347,18 @@ alpha must:
 - No test project yet (Phase 2) — `IsSubstitutable`/`NSubstituteProvider`/
   `UseNSubstitute` are implemented but only build-verified in this phase,
   not test-verified; that's Phase 2's job per the plan's own phase split.
+- **PR review (Codex, one P2 finding) caught the same doc-staleness pattern
+  PR #28's second review round caught for Phase 0.** `docs/public-api.md`'s
+  NSubstitute Integration section and `docs/mvp.md`'s Milestone 5 section
+  both still said `Compono.NSubstitute` was "not yet implemented" after
+  this phase's package/provider/`UseNSubstitute()` code had already landed
+  in the same PR — pulled forward and fixed in this PR rather than
+  deferred to Phase 3, on the same reasoning as the earlier round: leaving
+  the docs contradict the code until a later phase lands is worse than a
+  small out-of-phase doc correction. Both now say "implemented (PLAN-0005
+  Phase 1)" and explicitly call out that test coverage/end-to-end
+  verification remain pending (Phase 2) — this milestone's exit criteria
+  still correctly not marked met.
 
 **Phase 0 (Done):**
 
