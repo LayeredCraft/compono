@@ -46,6 +46,18 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Select(static (result, _) => result!)
             .WithTrackingName(TrackingNames.AssemblyComposablesNotNull);
 
+        // [Compose]/[Compose<TProfile>] on a test method (Compono.Xunit, Milestone 4 Phase 1) - a
+        // type reached only as one of these methods' own parameters has no textual call site for
+        // CreateInvocationDiscovery to match, so it needs this dedicated discovery path. Matches on
+        // the non-generic ComposeAttribute metadata name; ForAttributeWithMetadataName walks base
+        // types, so [Compose<TProfile>] (which derives from it) is found the same way.
+        var composeMethodResults = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.AttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                ComposeMethodDiscovery.TransformMethod)
+            .WithTrackingName(TrackingNames.ComposeMethods);
+
         // Each discovery result carries its own transitive closure (Types) alongside every closed
         // collection shape reached within it (Collections, ADR-0014) - flatten both
         // before the rest of the pipeline dedupes/emits per type/collection.
@@ -55,15 +67,18 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .WithTrackingName(TrackingNames.ComposableTypesFlattened);
         var assemblyComposableTypes = assemblyComposableResults.SelectMany(static (result, _) => result.Types)
             .WithTrackingName(TrackingNames.AssemblyComposablesTypes);
+        var composeMethodTypes = composeMethodResults.SelectMany(static (result, _) => result.Types)
+            .WithTrackingName(TrackingNames.ComposeMethodsTypes);
 
         var discoveredCollections = callSiteResults.SelectMany(static (result, _) => result.Collections)
             .Collect()
             .Combine(composableResults.SelectMany(static (result, _) => result.Collections).Collect())
             .Combine(assemblyComposableResults.SelectMany(static (result, _) => result.Collections).Collect())
+            .Combine(composeMethodResults.SelectMany(static (result, _) => result.Collections).Collect())
             .WithTrackingName(TrackingNames.DiscoveredCollectionsCollected)
             .SelectMany(static (collections, _) =>
             {
-                var ((callSites, composables), assemblyComposables) = collections;
+                var (((callSites, composables), assemblyComposables), composeMethods) = collections;
 
                 // The same closed collection type can legitimately be reached from more than one
                 // discovery path (or more than one member site) - collapse to one emitted plan per
@@ -72,7 +87,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 // member both reaching List<string>) have no value that's correct for both - reported
                 // as CMP0011 instead of silently picking whichever discovery happened to come first,
                 // mirroring DiscoveredTypeInfo's CMP0010 conflict check for ordinary composable types.
-                return callSites.Concat(composables).Concat(assemblyComposables)
+                return callSites.Concat(composables).Concat(assemblyComposables).Concat(composeMethods)
                     .GroupBy(static collection => collection.FullyQualifiedCollectionTypeName)
                     .SelectMany(static group =>
                     {
@@ -128,10 +143,11 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
         var discoveredTypes = callSiteTypes.Collect()
             .Combine(composableTypes.Collect())
             .Combine(assemblyComposableTypes.Collect())
+            .Combine(composeMethodTypes.Collect())
             .WithTrackingName(TrackingNames.DiscoveredCollected)
             .SelectMany(static (types, _) =>
             {
-                var ((callSites, composables), assemblyComposables) = types;
+                var (((callSites, composables), assemblyComposables), composeMethods) = types;
 
                 // Two discoveries can share the same emission identity (Namespace/TypeName/
                 // FullyQualifiedName - what AddSource's hint name and PlanCache<T> slot actually
@@ -150,7 +166,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 // A group can still legitimately contain more than one *structurally identical* entry
                 // (the same type discovered via both a call site and [Composable], say) - that's not
                 // a conflict, just redundant discovery of the same request, and still collapses to one.
-                return callSites.Concat(composables).Concat(assemblyComposables)
+                return callSites.Concat(composables).Concat(assemblyComposables).Concat(composeMethods)
                     .GroupBy(static type => (type.Namespace, type.TypeName, type.FullyQualifiedName))
                     .SelectMany(static group =>
                     {
@@ -223,6 +239,8 @@ internal static class TrackingNames
     public const string AssemblyComposables = "AssemblyComposables";
     public const string AssemblyComposablesNotNull = "AssemblyComposables.NotNull";
     public const string AssemblyComposablesTypes = "AssemblyComposables.Types";
+    public const string ComposeMethods = "ComposeMethods";
+    public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";
     public const string DiscoveredDistinct = "Discovered.Distinct";
     public const string DiscoveredCollectionsCollected = "DiscoveredCollections.Collected";
