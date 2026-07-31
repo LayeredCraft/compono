@@ -98,11 +98,7 @@ public sealed class ComposeAttributeCachingTests
 
         for (var i = 0; i < 5; i++)
         {
-            // GetData itself is a Phase 1 stub - Phase 2 implements the real binding algorithm - but
-            // it must already exercise (and never rebuild) this attribute instance's caching on every
-            // call, which is what this test proves.
-            var act = () => attribute.GetData(method, tracker).AsTask();
-            await act.Should().ThrowAsync<NotImplementedException>();
+            await attribute.GetData(method, tracker);
             plansObservedAfterEachCall.Add(attribute.EnsureBindingPlan(method));
         }
 
