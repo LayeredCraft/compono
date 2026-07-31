@@ -63,6 +63,20 @@ public sealed class ComposeAttributeCachingTests
     }
 
     [Fact]
+    public void InlineValues_SingleReferenceArrayArgument_TreatedAsOneSuppliedArrayValue()
+    {
+        // [Compose(new string[] { "a", "b" })] also binds in the C# compiler's non-expanded params
+        // form - string[] is covariantly convertible to object?[], so the constructor receives that
+        // exact string[] instance (runtime type string[], not object[]) rather than a 2-element
+        // object?[] (PR #24 review). Must be recovered the same way the single-null case is: as one
+        // supplied array value, not two separate inline values.
+        var tags = new[] { "a", "b" };
+        var attribute = new ComposeAttribute(tags);
+
+        attribute.InlineValues.Should().Equal([tags]);
+    }
+
+    [Fact]
     public void EnsureBindingPlan_ReturnsTheSameInstance_AcrossRepeatedCalls()
     {
         var attribute = new ComposeAttribute();

@@ -50,11 +50,26 @@ public class ComposeAttribute : DataAttribute
     /// <see langword="null"/> in exactly that case (PR #23 review); treated as a one-element array
     /// containing that <see langword="null"/> value, matching what the author's single-argument syntax
     /// actually means rather than surfacing the compiler's array-vs-element ambiguity as a thrown
-    /// exception.
+    /// exception. The same non-expanded binding form applies to a single reference-array-typed
+    /// argument covariantly convertible to <see langword="object"/>?[] - e.g.
+    /// <c>[Compose(new string[] { "a", "b" })]</c> - which arrives here as that exact
+    /// <see cref="string"/>[] instance (runtime type <c>string[]</c>, not <c>object[]</c>) rather than
+    /// a 2-element <see langword="object"/>?[] (PR #24 review); wrapped as a one-element array
+    /// containing that whole array value, so it binds to a single array-typed parameter rather than
+    /// being misread as two separate inline values.
     /// </param>
     public ComposeAttribute(params object?[] inlineValues)
     {
-        _inlineValues = inlineValues ?? [null];
+        _inlineValues = inlineValues switch
+        {
+            null => [null],
+            // Every genuinely expanded-form call (zero or more scalar arguments, including
+            // Compose()'s empty case) produces a freshly built array whose runtime type is exactly
+            // object[] - only a single non-expanded reference-array argument arrives with some other
+            // runtime array type, per the remarks above.
+            not null when inlineValues.GetType() != typeof(object[]) => [inlineValues],
+            _ => inlineValues,
+        };
         _composer = new Lazy<Composer>(BuildComposer);
     }
 
@@ -186,7 +201,12 @@ public class ComposeAttribute : DataAttribute
         // type both resolve to the exact same instance (CompositionContext.ResolveCore's stage-2
         // scope read), so registering unconditionally at both sites would hand DisposalTracker the
         // same object twice, which disposes it twice - unsafe for a Dispose() that isn't idempotent.
-        var trackedForDisposal = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        // Allocated lazily, only once a disposable value is actually seen - most composed values
+        // (strings, ints, ordinary POCOs) are never IDisposable/IAsyncDisposable, and this runs on
+        // every theory row (AGENTS.md: "performance is a feature... this is test infrastructure that
+        // runs on every test"), so paying for the set and the per-value type check unconditionally
+        // would be pure waste on the common case.
+        HashSet<object>? trackedForDisposal = null;
 
         // [Shared] parameters compose (or share their inline value) first, in declaration order among
         // themselves, regardless of where they sit among non-shared parameters - so a shared value is
@@ -245,14 +265,21 @@ public class ComposeAttribute : DataAttribute
 
         // Registered as soon as a value is composed, not after the whole row is assembled - a later
         // parameter that throws (composition failure, or one of the pre-binding inline-value checks
-        // above) must not leak a disposable value this row already produced. DisposalTracker.Add
-        // no-ops for a value that isn't IDisposable/IAsyncDisposable and tolerates null, so this is
-        // safe to call for every composed value - trackedForDisposal is what keeps a value shared
-        // between a [Shared] parameter and a later ordinary parameter of the same type from being
-        // registered (and therefore disposed) twice.
+        // above) must not leak a disposable value this row already produced. Filtered to
+        // IDisposable/IAsyncDisposable up front, rather than calling DisposalTracker.Add
+        // unconditionally and relying on it to no-op - that would still pay for a HashSet.Add
+        // reference-hash/insert on every ordinary (non-disposable) composed value. trackedForDisposal
+        // is what keeps a value shared between a [Shared] parameter and a later ordinary parameter of
+        // the same type from being registered (and therefore disposed) twice; it's only allocated the
+        // first time a disposable value is actually seen.
         void TrackForDisposal(object? value)
         {
-            if (value is not null && trackedForDisposal.Add(value))
+            if (value is not (IDisposable or IAsyncDisposable))
+                return;
+
+            trackedForDisposal ??= new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+            if (trackedForDisposal.Add(value))
                 disposalTracker.Add(value);
         }
     }

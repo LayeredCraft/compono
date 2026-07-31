@@ -684,17 +684,49 @@ exercised indirectly through `Compono.Xunit.Tests`.
   output merged (Codex's real concern). This is the middle ground: enough
   direct coverage that a regression in the algorithm this PR ships is
   actually caught, without duplicating Phase 3's own exhaustive scope.
+- **A single reference-array inline argument was misread as multiple
+  inline values** (PR #24 review) — the same non-expanded `params`
+  binding form the existing `[Compose(null)]` fix (PR #23 review)
+  handles also applies to any reference-array-typed single argument
+  covariantly convertible to `object?[]` (e.g. `string[]`):
+  `[Compose(new string[] { "a", "b" })]` arrived as that exact `string[]`
+  instance (runtime type `string[]`, not `object[]`), so the constructor
+  read it as a 2-element `object?[]` instead of one array value for a
+  single array-typed parameter. Fixed the same way as the null case: the
+  constructor now checks `inlineValues.GetType() != typeof(object[])`
+  (true only for this non-expanded-form single-array case - every
+  genuinely expanded-form call, including `Compose()`'s empty case,
+  always produces a freshly built `object[]`) and wraps it as a
+  one-element array. Covered by
+  `InlineValues_SingleReferenceArrayArgument_TreatedAsOneSuppliedArrayValue`,
+  matching the existing null-argument test's shape.
+- **The disposal-dedup `HashSet<object>` was allocated unconditionally,
+  on every row, even when nothing composed was disposable** (PR #24
+  review) — flagged against `AGENTS.md`'s "performance is a feature...
+  this is test infrastructure that runs on every test" principle: every
+  ordinary composed value (a string, a boxed `int`, an ordinary POCO)
+  was still hashed and inserted into the set for no reason, since only
+  `IDisposable`/`IAsyncDisposable` instances can ever reach
+  `disposalTracker`. `TrackForDisposal` now checks
+  `value is IDisposable or IAsyncDisposable` **before** touching the set
+  at all, and the set itself (`HashSet<object>?`, now nullable) is only
+  allocated the first time a disposable value is actually seen - the
+  common case (no disposables composed) now allocates nothing extra
+  beyond the row's own `values` array. No behavior change - the existing
+  disposal tests (registration, dedup, actual `Dispose()` call) still
+  pass unmodified against the lazy version.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
-  touched no generator code), `Compono.Xunit.Tests` 64/64 (32 × 2 TFMs -
+  touched no generator code), `Compono.Xunit.Tests` 66/66 (33 × 2 TFMs -
   23 from Phase 1 (one updated in place) + 3 disposal-registration tests +
-  6 binding-algorithm tests, using a `DisposableProfile`/`DisposableValue`
-  fixture pair composed via a registration rather than a generated plan,
-  matching this test project's existing generator-free pattern). The
-  exhaustive matrix (nullable four-combination coverage, seed-message
-  content proof, concurrency-stress test, the API-surface approval test,
-  the real-runner `Compono.Xunit.SampleTests` project) remains Phase 3's
-  own scope per the plan's phase split and ADR-0022's Testing Strategy.
+  6 binding-algorithm tests + 1 inline-array-argument test, using a
+  `DisposableProfile`/`DisposableValue` fixture pair composed via a
+  registration rather than a generated plan, matching this test project's
+  existing generator-free pattern). The exhaustive matrix (nullable
+  four-combination coverage, seed-message content proof,
+  concurrency-stress test, the API-surface approval test, the real-runner
+  `Compono.Xunit.SampleTests` project) remains Phase 3's own scope per the
+  plan's phase split and ADR-0022's Testing Strategy.
 
 ## Open Items
 
