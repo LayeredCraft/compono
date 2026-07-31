@@ -842,9 +842,12 @@ Owns:
 - `CompositionBuilderExtensions.UseNSubstitute()`/`UseNSubstitute(Action<NSubstituteOptions>)`
 
 Contributes no diagnostics of its own — an unsubstitutable request (a sealed
-concrete class) falls through to `NotHandled`, reaching the engine's existing
-stage-9 "nothing could satisfy this" diagnostic, naming the type and path,
-rather than a package-specific one (ADR-0025's Diagnostics section).
+concrete class) falls through `NotHandled` to later pipeline stages exactly
+like any other stage-6 decline, so it still composes normally at stage 8 if a
+generated plan exists for it. Only when nothing later in the pipeline can
+satisfy the request either does it reach the engine's existing stage-9
+"nothing could satisfy this" diagnostic, naming the type and path — never a
+package-specific one (ADR-0025's Diagnostics section).
 
 ### Compono.Bogus
 
