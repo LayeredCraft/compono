@@ -97,4 +97,28 @@ public sealed class CompositionException : Exception
 
     internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException, object diagnosingContextIdentity) =>
         new(diagnostic, innerException) { DiagnosingContextIdentity = diagnosingContextIdentity };
+
+    // Internal seam for Compono.XunitV3 (PR #26 review; ADR-0022 Amendment 5) - GetData needs a
+    // pipeline-propagated composition failure's own Message to carry the row's seed too, not only
+    // Diagnostic (which already renders a "Seed: <value>" line via its own ToString()). A real xUnit
+    // v3/MTP test-runner failure display shows Exception.Message, not Diagnostic.ToString(), so the
+    // seed was invisible there for a genuine composition failure without this. Diagnostic itself is
+    // preserved unchanged (so Diagnostic.ToString() still renders correctly, without a duplicated
+    // "Seed:" line) and set as InnerException, never discarded.
+    internal static CompositionException WithSeedInMessage(CompositionException original, int seed)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+
+        if (original.Diagnostic is not { } diagnostic)
+            throw new ArgumentException("The exception being wrapped must have a Diagnostic.", nameof(original));
+
+        var message = $"{diagnostic.Message}\n\nSeed: {seed}";
+        return new CompositionException(message, diagnostic, original) { DiagnosingContextIdentity = original.DiagnosingContextIdentity };
+    }
+
+    private CompositionException(string message, CompositionDiagnostic diagnostic, Exception innerException)
+        : base(message, innerException)
+    {
+        Diagnostic = diagnostic;
+    }
 }

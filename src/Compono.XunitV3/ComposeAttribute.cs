@@ -120,8 +120,10 @@ public class ComposeAttribute : DataAttribute
     /// parameter, more than one Compose-family attribute, or more than one <c>[Shared]</c> parameter
     /// of the same type); too many inline values were supplied; a supplied inline value is
     /// <see langword="null"/> for a non-nullable parameter or has a type not assignable to its
-    /// parameter; or composition itself fails for a parameter (propagated un-wrapped from the
-    /// pipeline).
+    /// parameter; or composition itself fails for a parameter - the pipeline's own
+    /// <see cref="CompositionException"/> propagates, with its <see cref="Exception.Message"/>
+    /// rewritten to also carry the row's seed (<see cref="CompositionException.Diagnostic"/> and
+    /// <see cref="Exception.InnerException"/> are otherwise unchanged from what the pipeline threw).
     /// </exception>
     /// <remarks>
     /// <paramref name="disposalTracker"/> is deliberately never used to register a composed value.
@@ -224,12 +226,12 @@ public class ComposeAttribute : DataAttribute
             if (i < _inlineValues.Length)
             {
                 var value = _inlineValues[i];
-                parameter.ShareExplicitInvoker(row, parameter.Descriptor, value);
+                InvokeWithSeedOnFailure(() => parameter.ShareExplicitInvoker(row, parameter.Descriptor, value), row.Seed);
                 values[i] = value;
             }
             else
             {
-                values[i] = parameter.ResolveSharedInvoker(row, parameter.Descriptor);
+                values[i] = InvokeWithSeedOnFailure(() => parameter.ResolveSharedInvoker(row, parameter.Descriptor), row.Seed);
             }
         }
 
@@ -243,7 +245,7 @@ public class ComposeAttribute : DataAttribute
 
             values[i] = i < _inlineValues.Length
                 ? _inlineValues[i]
-                : parameter.ResolveInvoker(row, parameter.Descriptor);
+                : InvokeWithSeedOnFailure(() => parameter.ResolveInvoker(row, parameter.Descriptor), row.Seed);
         }
 
         // Assembled in method declaration order - binding order (shared first, then the rest) and
@@ -291,4 +293,34 @@ public class ComposeAttribute : DataAttribute
     // (ADR-0022's Seed Policy and Reporting) - so every failure category ends the same way, whether
     // Compono.XunitV3 constructed the message or the pipeline did.
     private static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
+
+    // A genuine composition failure (PR #26 review; ADR-0022 Amendment 5) propagates un-wrapped from
+    // the pipeline otherwise, and CompositionException.Message alone never carries the seed for that
+    // case (only exception.Diagnostic does, via its own ToString()) - a real test runner's failure
+    // display shows Message, not Diagnostic.ToString(), so the pasteable-seed promise wasn't actually
+    // visible there. CompositionException.WithSeedInMessage rewrites Message to include it while
+    // preserving Diagnostic and the original exception as InnerException unchanged.
+    private static TResult InvokeWithSeedOnFailure<TResult>(Func<TResult> compose, int seed)
+    {
+        try
+        {
+            return compose();
+        }
+        catch (CompositionException exception) when (exception.Diagnostic is not null)
+        {
+            throw CompositionException.WithSeedInMessage(exception, seed);
+        }
+    }
+
+    private static void InvokeWithSeedOnFailure(Action compose, int seed)
+    {
+        try
+        {
+            compose();
+        }
+        catch (CompositionException exception) when (exception.Diagnostic is not null)
+        {
+            throw CompositionException.WithSeedInMessage(exception, seed);
+        }
+    }
 }

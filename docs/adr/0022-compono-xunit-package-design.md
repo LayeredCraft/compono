@@ -1038,6 +1038,76 @@ its own design question, deferred - not designed here, and not assumed
 necessary until a concrete need materializes (this milestone's own
 non-goals already exclude speculative future-proofing).
 
+## Amendment 5 (2026-07-31): a genuine composition failure's own `Message` must carry the seed too, not only `Diagnostic`
+
+PR #26 review (Codex, on PLAN-0004 Phase 3) caught that `test/Compono
+.XunitV3.SampleTests`' deliberately-failing theory used `[Compose(Seed =
+-1)]` - a negative, rejected seed - which exercises `Compono.XunitV3`'s own
+seed-validation failure (a pre-composition check that always rejects `-1`
+regardless of what it's paired with), not a genuine composition failure.
+That meant `RealRunnerTests` never actually proved the milestone's own
+Goal statement - "a composition failure's message contains a seed that,
+pasted into `[Compose(Seed = ...)]`, reproduces the same failure" - for
+the case that statement is actually about: a real, unsatisfied composition
+request.
+
+Investigating why a genuine case wasn't used originally (Phase 3's own
+`SeedReportingTests`, added under time pressure to close out that task
+list item) surfaced the real gap: a *pipeline*-propagated
+`CompositionException` (an ordinary composition failure - nothing could
+satisfy the requested type) has never carried its seed in
+`Exception.Message` itself, only in `Diagnostic`/`Diagnostic.ToString()`
+(the `Console.WriteLine(exception.Diagnostic)` convention
+`docs/architecture.md` documents, from Milestone 2/3, per
+[ADR-0010](0010-composition-request-pipeline-and-diagnostics-tracing.md)).
+A real xUnit v3/MTP test-runner failure display shows `Exception.Message`,
+not `Diagnostic.ToString()` - so the pasteable-seed promise was invisible
+in real console output for a genuine composition failure the entire time,
+not just in this one sample theory.
+
+**Decision:** `ComposeAttribute.GetData` now catches a `CompositionException`
+propagating from a composition call (`ResolveInvoker`/`ResolveSharedInvoker`/
+`ShareExplicitInvoker`, via a new private `InvokeWithSeedOnFailure` helper
+wrapping each call site) and rethrows it via a new internal `Compono` core
+seam, `CompositionException.WithSeedInMessage(original, seed)` - rewriting
+`Message` to `$"{diagnostic.Message}\n\nSeed: {seed}"` while preserving
+`Diagnostic` completely unchanged (so `Diagnostic.ToString()` still renders
+correctly, without a duplicated `"Seed:"` line) and the original exception
+as `InnerException`. This is an `internal` seam, not a new public API -
+`Compono.csproj` grants `Compono.XunitV3` `InternalsVisibleTo` for exactly
+this, the same pattern already used for `Compono.Tests` - `docs/public
+-api.md`'s "keep public APIs minimal" goal is unaffected.
+
+**Why an internal core seam rather than a workaround entirely inside
+`Compono.XunitV3`:** `CompositionException`'s existing constructors always
+derive `Message` directly from `Diagnostic.Message` (or accept a plain
+string with no `Diagnostic`/`InnerException` at all) - there's no existing
+public shape that lets a caller supply a custom `Message` string alongside
+an existing `Diagnostic` and `InnerException` together.
+`Compono.XunitV3` reconstructing its own `CompositionDiagnostic` copy with
+a seed-appended `Message` field was considered and rejected: `Diagnostic
+.ToString()`'s own format independently appends `"\n\nSeed: {Seed}"`, so a
+diagnostic whose `Message` field *also* had the seed appended would render
+that line twice - a visible regression for the documented `Console
+.WriteLine(exception.Diagnostic)` path. The internal seam avoids that
+entirely by leaving `Diagnostic` untouched and only rewriting the outer
+exception's own `Message`.
+
+**Consequence for `test/Compono.XunitV3.SampleTests`:** `Failing
+CompositionTests` now composes `GatewayConsumer` (a concrete class whose
+constructor takes `IUnregisteredGateway`, an interface satisfied by
+nothing), with an explicit `Seed = 24601` so `RealRunnerTests`' subprocess
+assertion stays deterministic rather than needing to parse an
+auto-generated seed out of console output. `IUnregisteredGateway` itself is
+deliberately never used as the `[Compose]`-attributed parameter's own root
+type - that would hit the CMP0003 diagnostic this plan's own Open Items
+section already documents as deliberate (an abstract/interface/delegate
+root always fails at compile time, regardless of whether a registration
+might satisfy it at runtime) - wrapping it as a *nested* constructor
+parameter uses the more lenient member-level check instead, so it compiles
+and fails only at runtime, which is the failure shape this fixture
+actually needs.
+
 ## Links
 
 - [ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md) —

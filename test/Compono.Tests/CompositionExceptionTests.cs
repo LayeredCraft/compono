@@ -17,6 +17,41 @@ public sealed class CompositionExceptionTests
     }
 
     [Fact]
+    public void WithSeedInMessage_RewritesMessage_ButPreservesDiagnosticAndSetsInnerException()
+    {
+        // Internal seam for Compono.XunitV3 (PR #26 review; ADR-0022 Amendment 5) - a pipeline-thrown
+        // CompositionException's own Message never carried the seed on its own (only Diagnostic did,
+        // via its own ToString()), so Compono.XunitV3's GetData rewrites it before propagating.
+        var diagnostic = new CompositionDiagnostic
+        {
+            RootType = typeof(CompositionExceptionTests),
+            FailedType = typeof(CompositionExceptionTests),
+            Path = "unrelated-path",
+            Trace = [],
+            Seed = 0,
+            Message = "original pipeline failure message",
+        };
+        var original = CompositionException.CreatePipelineDiagnosed(diagnostic, diagnosingContextIdentity: new object());
+
+        var wrapped = CompositionException.WithSeedInMessage(original, seed: 492173);
+
+        wrapped.Message.Should().Be("original pipeline failure message\n\nSeed: 492173");
+        wrapped.Diagnostic.Should().BeSameAs(diagnostic);
+        wrapped.Diagnostic!.Message.Should().Be("original pipeline failure message", "Diagnostic's own Message is left untouched - only the outer exception's Message is rewritten");
+        wrapped.InnerException.Should().BeSameAs(original);
+    }
+
+    [Fact]
+    public void WithSeedInMessage_Throws_WhenTheOriginalExceptionHasNoDiagnostic()
+    {
+        var original = new CompositionException("a plain, non-pipeline-diagnosed message");
+
+        var act = () => CompositionException.WithSeedInMessage(original, seed: 1);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
     public void DoesNotDeclareAnyMemberOfTypeCompositionContext()
     {
         // Regression for a real gap (PR #17 review): an earlier fix identified which
