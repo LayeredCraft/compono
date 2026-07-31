@@ -514,11 +514,39 @@ exercised indirectly through `Compono.Xunit.Tests`.
   by fully qualified name alone). The full packaged-consumer proof
   (`dotnet pack` + local feed + a real `Compono.Xunit.SampleTests`
   theory reached only this way) is Phase 3's own requirement, per the
-  Amendment below.
-- Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 1 touched
-  no core code), `Compono.Generators.Tests` 164/164 (160 unaffected + 2
-  new `ComposeMethodDiscovery` snapshot tests × 2 TFMs),
-  `Compono.Xunit.Tests` (new project) 42/42 (21 × 2 TFMs) covering
+  Amendment below - PR #23 review asked for this ahead of Phase 3
+  specifically for the generic-metadata-name discovery path added in the
+  fix below, so it was done as an ad hoc manual check (not the permanent
+  `SampleTests` project, which is still Phase 3's job): `dotnet pack`'d
+  `Compono` and `Compono.Xunit` into a local feed (after clearing the
+  local package cache for both IDs) and referenced `Compono.Xunit` from a
+  genuinely separate throwaway console project via `PackageReference`
+  alone - no `ProjectReference`, no shared `InternalsVisibleTo`. A
+  `Statement` type reachable only through a `[Compose<TestProfile>]`-
+  attributed method's own parameter (no `Create<Statement>()` call site,
+  no `[Composable]`) got a real generated plan:
+  `PlanCache<Statement>.Instance` was non-null at runtime, proving the
+  generic-metadata-name discovery path (`ComposeMethodDiscovery
+  .GenericAttributeMetadataName`) reaches a real consumer transitively
+  through the packaged `Compono.Xunit` → `Compono` dependency, not just
+  the generator test project's same-metadata-name stand-in attributes.
+- **`[Compose(null)]` fix (PR #23 review)**: a single `null` argument to
+  `params object?[] inlineValues` binds in the C# compiler's non-expanded
+  form - the whole array arrives `null`, not a one-element array
+  containing `null` - so `[Compose(null)]` previously threw from the
+  constructor's `ArgumentNullException.ThrowIfNull` instead of supplying
+  `null` to the test method's first parameter, contradicting this same
+  constructor's own documented "an explicit null entry is a supplied
+  value" contract. Fixed by treating a `null` `inlineValues` array as a
+  one-element array containing that `null` (`inlineValues ?? [null]`) -
+  the only way a `null` array can arise from this constructor's own
+  call sites, since a zero-argument `[Compose()]` already produces an
+  empty array, never `null`.
+- Full suite green (as of PR #23's review-response commits): `Compono.Tests`
+  388/388 (unchanged - Phase 1 touched no core code), `Compono.Generators.Tests`
+  166/166 (160 unaffected + 2 `ComposeMethodDiscovery` snapshot tests + 1
+  generic-metadata-name snapshot test, × 2 TFMs), `Compono.Xunit.Tests`
+  44/44 (22 × 2 TFMs) covering
   `ComposeAttribute`/`ComposeAttribute<TProfile>` caching (`Composer`
   reuse, profile application, seed round-tripping, binding-plan and
   invoker-delegate identity across repeated `GetData` calls),

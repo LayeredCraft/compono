@@ -49,6 +49,20 @@ public sealed class ComposeAttributeCachingTests
     }
 
     [Fact]
+    public void InlineValues_SingleNullArgument_TreatedAsOneSuppliedNullValue()
+    {
+        // [Compose(null)] binds in the C# compiler's non-expanded params form - the constructor
+        // receives a null array, not a one-element array containing null - so the constructor must
+        // recover the author's actual intent (a single supplied null value) instead of throwing on a
+        // null inlineValues array (PR #23 review). The null-forgiving operator here simulates exactly
+        // that compiler-produced null array from ordinary C# code, which can't itself pass a null
+        // array literal to a `params object?[]` parameter without it.
+        var attribute = new ComposeAttribute((object?[])null!);
+
+        attribute.InlineValues.Should().Equal([null]);
+    }
+
+    [Fact]
     public void EnsureBindingPlan_ReturnsTheSameInstance_AcrossRepeatedCalls()
     {
         var attribute = new ComposeAttribute();

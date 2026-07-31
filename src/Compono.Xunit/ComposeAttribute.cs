@@ -37,13 +37,17 @@ public class ComposeAttribute : DataAttribute
     /// Values supplied positionally, left-to-right from the test method's first parameter - every
     /// parameter at an index beyond this array's length is composed instead. An explicit
     /// <see langword="null"/> entry is a supplied value, not "not supplied": presence is determined by
-    /// array length alone.
+    /// array length alone. A single <see langword="null"/> argument (e.g. <c>[Compose(null)]</c>) binds
+    /// in the C# compiler's non-expanded <c>params</c> form - the whole array, not a one-element array
+    /// containing <see langword="null"/> - so <paramref name="inlineValues"/> itself arrives
+    /// <see langword="null"/> in exactly that case (PR #23 review); treated as a one-element array
+    /// containing that <see langword="null"/> value, matching what the author's single-argument syntax
+    /// actually means rather than surfacing the compiler's array-vs-element ambiguity as a thrown
+    /// exception.
     /// </param>
     public ComposeAttribute(params object?[] inlineValues)
     {
-        ArgumentNullException.ThrowIfNull(inlineValues);
-
-        _inlineValues = inlineValues;
+        _inlineValues = inlineValues ?? [null];
         _composer = new Lazy<Composer>(BuildComposer);
     }
 
