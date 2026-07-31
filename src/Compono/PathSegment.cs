@@ -34,9 +34,11 @@ internal abstract record PathSegment
 
     /// <summary>
     /// One descriptor-less <see cref="ICompositionContext.Resolve{TValue}()"/> call made inside a
-    /// registration or configuration-rule factory, identified by its call sequence within that one
-    /// factory invocation - never by requested type. See
-    /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
+    /// registration or configuration-rule factory, or a public
+    /// <see cref="ICompositionValueProvider.TryProvide"/> invocation, identified by its call sequence
+    /// within that one invocation - never by requested type. See
+    /// <c>docs/adr/0019-registrations-and-service-provider-injection.md</c> and
+    /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
     /// </summary>
     internal sealed record ManualResolve(int Ordinal) : PathSegment;
 

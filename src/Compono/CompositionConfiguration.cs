@@ -40,6 +40,22 @@ internal sealed class CompositionConfiguration
     internal required IReadOnlyList<ICompositionProvider> Rules { get; init; }
 
     /// <summary>
+    /// This composer's compiled pipeline stage-5 semantic value providers, in registration order -
+    /// empty if <c>AddSemanticProvider</c> was never called. Each entry wraps one registered
+    /// <see cref="ICompositionValueProvider"/> in a <see cref="Providers.PublicProviderAdapter"/>. See
+    /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
+    /// </summary>
+    internal required IReadOnlyList<ICompositionProvider> SemanticProviders { get; init; }
+
+    /// <summary>
+    /// This composer's compiled pipeline stage-6 test-double providers, in registration order - empty
+    /// if <c>AddTestDoubleProvider</c> was never called. Each entry wraps one registered
+    /// <see cref="ICompositionValueProvider"/> in a <see cref="Providers.PublicProviderAdapter"/>. See
+    /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
+    /// </summary>
+    internal required IReadOnlyList<ICompositionProvider> TestDoubleProviders { get; init; }
+
+    /// <summary>
     /// This composer's collection-size configuration - <see cref="Compono.CollectionSizePolicy.Empty"/>
     /// if neither <c>WithCollectionSize</c> nor a member-scoped override was ever called.
     /// </summary>

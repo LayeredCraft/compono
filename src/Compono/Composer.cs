@@ -64,6 +64,8 @@ public sealed class Composer
             _configuration.Registrations,
             _configuration.ServiceProvider,
             _configuration.Rules,
+            _configuration.SemanticProviders,
+            _configuration.TestDoubleProviders,
             _configuration.CollectionSizePolicy);
         return context.ResolveRoot<T>();
     }
@@ -95,6 +97,8 @@ public sealed class Composer
         _configuration.Registrations,
         _configuration.ServiceProvider,
         _configuration.Rules,
+        _configuration.SemanticProviders,
+        _configuration.TestDoubleProviders,
         _configuration.CollectionSizePolicy);
 
     /// <summary>
@@ -118,6 +122,8 @@ public sealed class Composer
             _configuration.Registrations,
             _configuration.ServiceProvider,
             _configuration.Rules,
+            _configuration.SemanticProviders,
+            _configuration.TestDoubleProviders,
             _configuration.CollectionSizePolicy,
             declaringType);
         return new CompositionRow(context, unchecked((int)seed.Value));
@@ -141,7 +147,7 @@ public sealed class Composer
     /// seed-derivation contract, bypassing configuration entirely.
     /// </summary>
     internal static IReadOnlyList<T> CreateManyForTesting<T>(int count, CompositionSeed seed) =>
-        ComposeMany<T>(count, seed, CompositionRegistrations.Empty, serviceProvider: null, rules: [], CollectionSizePolicy.Empty);
+        ComposeMany<T>(count, seed, CompositionRegistrations.Empty, serviceProvider: null, rules: [], semanticProviders: [], testDoubleProviders: [], CollectionSizePolicy.Empty);
 
     // Shared by the public CreateMany<T>(count) (this composer's configured/generated batch seed and
     // configuration) and CreateManyForTesting<T>(count, seed) (an explicit seed, empty configuration) -
@@ -152,6 +158,8 @@ public sealed class Composer
         CompositionRegistrations registrations,
         IServiceProvider? serviceProvider,
         IReadOnlyList<ICompositionProvider> rules,
+        IReadOnlyList<ICompositionProvider> semanticProviders,
+        IReadOnlyList<ICompositionProvider> testDoubleProviders,
         CollectionSizePolicy collectionSizePolicy)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
@@ -164,7 +172,7 @@ public sealed class Composer
         for (var i = 0; i < count; i++)
         {
             var itemSeed = batchSeed.Fork(i.ToString(CultureInfo.InvariantCulture));
-            var context = new CompositionContext(itemSeed, registrations, serviceProvider, rules, collectionSizePolicy);
+            var context = new CompositionContext(itemSeed, registrations, serviceProvider, rules, semanticProviders, testDoubleProviders, collectionSizePolicy);
             results.Add(context.ResolveRoot<T>());
         }
 

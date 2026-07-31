@@ -26,6 +26,8 @@ public sealed class CompositionBuilder
     private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, Func<ICompositionContext, object?> Factory)> _memberRuleFactories = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), List<ConfigurationSource>> _memberCollectionSizeSources = new();
     private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, int Size)> _memberCollectionSizes = new();
+    private readonly List<ICompositionValueProvider> _semanticProviders = [];
+    private readonly List<ICompositionValueProvider> _testDoubleProviders = [];
     private readonly Stack<Type> _applyingProfiles = new();
 
     internal CompositionBuilder()
@@ -161,6 +163,42 @@ public sealed class CompositionBuilder
     public CompositionTypeRuleBuilder<T> For<T>() => new(this);
 
     /// <summary>
+    /// Registers <paramref name="provider"/> into pipeline stage 5 (semantic value providers) - the
+    /// open-ended, pattern-matching extension point an integration package (e.g. a future
+    /// <c>Compono.Bogus</c>) uses instead of a closed-set <see cref="For{T}"/> rule. See
+    /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// Multiple providers may be registered - tried in registration order, same as every other
+    /// extensible pipeline stage; the first to report a value wins.
+    /// </remarks>
+    /// <param name="provider">The provider to register.</param>
+    public CompositionBuilder AddSemanticProvider(ICompositionValueProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _semanticProviders.Add(provider);
+        return this;
+    }
+
+    /// <summary>
+    /// Registers <paramref name="provider"/> into pipeline stage 6 (test-double providers) - the
+    /// open-ended, pattern-matching extension point an integration package (e.g.
+    /// <c>Compono.NSubstitute</c>) uses instead of a closed-set <see cref="For{T}"/> rule. See
+    /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// Multiple providers may be registered - tried in registration order, same as every other
+    /// extensible pipeline stage; the first to report a value wins.
+    /// </remarks>
+    /// <param name="provider">The provider to register.</param>
+    public CompositionBuilder AddTestDoubleProvider(ICompositionValueProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _testDoubleProviders.Add(provider);
+        return this;
+    }
+
+    /// <summary>
     /// Sets this composer's global default collection size - the size a generated collection plan
     /// builds when no member-scoped <c>.For&lt;T&gt;().Member(x => x.Y).WithCollectionSize(...)</c>
     /// override applies. Falls back to the built-in size of <c>3</c> if never called. See
@@ -232,6 +270,15 @@ public sealed class CompositionBuilder
             .. _typeRuleFactories.Select(entry => (ICompositionProvider)new TypeRuleProvider(entry.Key, entry.Value)),
         ];
 
+        // Public-provider registrations compile into PublicProviderAdapter, the same "public builder
+        // data -> internal ICompositionProvider" shape the rules above already use for .For<T>() -
+        // per docs/adr/0024-public-provider-extensibility-model.md. Registration order is preserved;
+        // no reordering/deduplication happens here.
+        IReadOnlyList<ICompositionProvider> semanticProviders =
+            [.. _semanticProviders.Select(provider => (ICompositionProvider)new PublicProviderAdapter(provider, PipelineStage.SemanticProvider))];
+        IReadOnlyList<ICompositionProvider> testDoubleProviders =
+            [.. _testDoubleProviders.Select(provider => (ICompositionProvider)new PublicProviderAdapter(provider, PipelineStage.TestDoubleProvider))];
+
         return new CompositionConfiguration
         {
             Seed = _seed.HasValue ? _seed.Value : null,
@@ -240,6 +287,8 @@ public sealed class CompositionBuilder
                 : new CompositionRegistrations(_registrationFactories),
             ServiceProvider = _serviceProvider.HasValue ? _serviceProvider.Value : null,
             Rules = rules,
+            SemanticProviders = semanticProviders,
+            TestDoubleProviders = testDoubleProviders,
             CollectionSizePolicy = _memberCollectionSizes.Count == 0 && !_globalCollectionSize.HasValue
                 ? CollectionSizePolicy.Empty
                 : new CollectionSizePolicy(_globalCollectionSize.HasValue ? _globalCollectionSize.Value : null, _memberCollectionSizes),

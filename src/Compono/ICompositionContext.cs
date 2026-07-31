@@ -27,13 +27,15 @@ public interface ICompositionContext
 
     /// <summary>
     /// Resolves a value of type <typeparamref name="TValue"/> from inside a registration or
-    /// configuration-rule factory - the hand-written counterpart to
+    /// configuration-rule factory, or a public <see cref="ICompositionValueProvider.TryProvide"/>
+    /// invocation - the hand-written counterpart to
     /// <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>, which only generated code
-    /// calls. Only valid while such a factory is actively being invoked.
+    /// calls. Only valid while one of those three is actively being invoked.
     /// </summary>
     /// <typeparam name="TValue">The requested value's type.</typeparam>
     /// <exception cref="InvalidOperationException">
-    /// No registration or configuration-rule factory is currently being invoked.
+    /// No registration/configuration-rule factory or public provider invocation is currently in
+    /// progress.
     /// </exception>
     /// <exception cref="CompositionException">
     /// No explicit value, shared value, registration, provider, or generated plan could satisfy the

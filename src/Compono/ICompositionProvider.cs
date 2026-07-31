@@ -12,6 +12,16 @@ namespace Compono;
 internal interface ICompositionProvider
 {
     /// <summary>
+    /// The concrete provider type diagnostics should report for an attempt this instance makes -
+    /// defaults to this instance's own runtime type. <see cref="Providers.PublicProviderAdapter"/>
+    /// overrides this to report the wrapped <see cref="ICompositionValueProvider"/>'s own concrete
+    /// type instead of the adapter's, so <see cref="ProviderAttempt.Provider"/> keeps naming the
+    /// real, meaningful provider for a public-provider attempt exactly as it already does for an
+    /// internal one. See <c>docs/adr/0024-public-provider-extensibility-model.md</c>.
+    /// </summary>
+    Type ProviderType => GetType();
+
+    /// <summary>
     /// Attempts to compose a value for <paramref name="request"/>.
     /// </summary>
     /// <param name="request">The request to attempt.</param>
