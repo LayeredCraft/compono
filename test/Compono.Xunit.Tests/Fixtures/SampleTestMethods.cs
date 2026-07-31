@@ -41,6 +41,18 @@ internal static class SampleTestMethods
     {
     }
 
+    // xUnit1008 (data attribute without [Theory]) is expected and suppressed here - this method is
+    // never run as a real theory, only reflected over via typeof(...).GetMethod(...) for
+    // BindingPlan.Build's multiple-Compose-family-attribute signature check, same as every other
+    // method in this fixture class per the type-level comment above.
+#pragma warning disable xUnit1008
+    [Compose]
+    [Compose<TestProfile>]
+    public static void WithMultipleComposeAttributes(int value)
+    {
+    }
+#pragma warning restore xUnit1008
+
     public sealed class TestProfile : ICompositionProfile
     {
         public void Configure(CompositionBuilder builder) => builder.Register(() => "from-profile");

@@ -542,15 +542,28 @@ exercised indirectly through `Compono.Xunit.Tests`.
   the only way a `null` array can arise from this constructor's own
   call sites, since a zero-argument `[Compose()]` already produces an
   empty array, never `null`.
+- **Enforce a single Compose-family attribute per method (PR #23 review;
+  ADR-0022 Amendment)**: `AllowMultiple = false` is checked by the
+  compiler per exact attribute type, not across `ComposeAttribute`'s own
+  base/derived family, so `[Compose]` plus `[Compose<TProfile>]` (or two
+  differently-closed `[Compose<TProfile>]` forms) compiled without error
+  even though only one Compose-family attribute per method is the
+  documented contract. `BindingPlan.Build`'s `ValidateSignature` now
+  rejects this explicitly via
+  `testMethod.GetCustomAttributes<ComposeAttribute>().Count() > 1`
+  (matches subtypes too), reported through the same `SignatureError`
+  Phase 2 throws - the same "computed once, cached, thrown by Phase 2"
+  shape as every other signature check here, not a new mechanism.
 - Full suite green (as of PR #23's review-response commits): `Compono.Tests`
   388/388 (unchanged - Phase 1 touched no core code), `Compono.Generators.Tests`
   166/166 (160 unaffected + 2 `ComposeMethodDiscovery` snapshot tests + 1
   generic-metadata-name snapshot test, × 2 TFMs), `Compono.Xunit.Tests`
-  44/44 (22 × 2 TFMs) covering
+  46/46 (23 × 2 TFMs) covering
   `ComposeAttribute`/`ComposeAttribute<TProfile>` caching (`Composer`
   reuse, profile application, seed round-tripping, binding-plan and
   invoker-delegate identity across repeated `GetData` calls),
-  `BindingPlan.Build`'s signature validation (generic method,
+  `BindingPlan.Build`'s signature validation (multiple Compose-family
+  attributes, generic method,
   `ref`/`out`/`in`, `params`, duplicate `[Shared]` types) and metadata
   capture (`[Shared]` flag, nullability, descriptor ordinal/name/declaring
   type), and the cached invoker delegates' actual runtime correctness

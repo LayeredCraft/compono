@@ -83,6 +83,21 @@ public sealed class BindingPlanTests
     }
 
     [Fact]
+    public void Build_ReportsASignatureError_ForMultipleComposeFamilyAttributes()
+    {
+        // [AttributeUsage(AllowMultiple = false)] is enforced per exact attribute type, not across
+        // the Compose family - [Compose] and [Compose<TProfile>] are distinct types that each
+        // individually satisfy their own AllowMultiple = false, so stacking both compiles without
+        // this explicit check (PR #23 review).
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithMultipleComposeAttributes))!;
+
+        var plan = BindingPlan.Build(method);
+
+        plan.SignatureError.Should().Contain("Compose");
+        plan.Parameters.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Build_MarksTheParameterAsShared_WhenAttributed()
     {
         var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithShared))!;

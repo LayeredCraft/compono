@@ -12,10 +12,11 @@ namespace Compono.Xunit.Binding;
 internal sealed class BindingPlan
 {
     /// <summary>
-    /// The reason this method's signature is unsupported (generic method, a <c>ref</c>/<c>out</c>/
-    /// <c>in</c>/<c>params</c> parameter, or more than one <c>[Shared]</c> parameter of the same
-    /// type), or <see langword="null"/> if the signature is supported. Phase 2 throws using this
-    /// message - appending the row's seed - before any parameter is bound or composed.
+    /// The reason this method's signature is unsupported (more than one Compose-family attribute, a
+    /// generic method, a <c>ref</c>/<c>out</c>/<c>in</c>/<c>params</c> parameter, or more than one
+    /// <c>[Shared]</c> parameter of the same type), or <see langword="null"/> if the signature is
+    /// supported. Phase 2 throws using this message - appending the row's seed - before any
+    /// parameter is bound or composed.
     /// </summary>
     public required string? SignatureError { get; init; }
 
@@ -82,6 +83,16 @@ internal sealed class BindingPlan
     private static string? ValidateSignature(MethodInfo testMethod, ParameterInfo[] parameters)
     {
         var methodDisplayName = $"{testMethod.DeclaringType?.FullName}.{testMethod.Name}";
+
+        // [AttributeUsage(AllowMultiple = false)] is enforced per exact attribute type by the
+        // compiler, not across a base/derived family - [Compose] and [Compose<TProfile>] (or two
+        // differently-closed [Compose<TProfile>] forms) are distinct types that each individually
+        // satisfy their own AllowMultiple = false, so nothing stops stacking more than one
+        // Compose-family attribute on the same method without this explicit check (PR #23 review).
+        var composeAttributeCount = testMethod.GetCustomAttributes<ComposeAttribute>().Count();
+
+        if (composeAttributeCount > 1)
+            return $"More than one [Compose]/[Compose<TProfile>] attribute on '{methodDisplayName}' - only one Compose-family attribute per test method is allowed.";
 
         if (testMethod.IsGenericMethodDefinition)
             return $"Compono.Xunit does not support generic test methods ('{methodDisplayName}').";
