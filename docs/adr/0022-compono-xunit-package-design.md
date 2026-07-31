@@ -813,6 +813,119 @@ freshly-constructed attribute instance simply repopulates its own
   exists, not its shape — an accepted limitation for a source of
   intentionally-not-pre-known values.
 
+## Amendment (2026-07-30): generator discovery is required after all, for two distinct call shapes
+
+PR #22 review (Codex, on PLAN-0004 Phase 0) caught that design question
+11's **"No generator changes"** decision above was wrong on one count:
+`CompositionRow.Resolve<T>()`/`Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`
+dispatch through the exact same `PlanCache<T>` stage-8 mechanism
+`Composer.Create<T>()` does, and a type reached *only* through one of
+those calls never gets a generated plan unless something else in the
+same compilation independently triggers discovery for it (a
+`Create<T>()`/`CreateMany<T>()` call site elsewhere, or `[Composable]`).
+This was masked in `Compono.Tests`' own row-composition tests, which
+hand-assign `PlanCache<T>.Instance` directly rather than going through
+the real generator — the exact masking pattern `testing.md`'s "verifying
+a new public entry point" rule already names and requires guarding
+against (the `CreateMany<T>()` precedent it cites).
+
+Two distinct fixes follow, addressed separately because they are
+genuinely different discovery problems:
+
+**1. Direct `CompositionRow` usage — fixed immediately (PLAN-0004 Phase
+0, same PR).** `CreateInvocationDiscovery`
+([ADR-0004](0004-composition-plan-discovery-and-dispatch.md)'s call-site
+mechanism) is extended to also match
+`CompositionRow.Resolve<T>()`/`Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`
+call sites, alongside its existing
+`Composer.Create<T>()`/`CreateMany<T>()` matching — the same discovery
+path, disambiguated by the resolved method symbol's containing type
+(`Compono.Composer` vs. `Compono.CompositionRow`), same as
+`Create`/`CreateMany` are already disambiguated from any other type's
+same-named method. Verified with an isolated `Compono.Generators.Tests`
+snapshot test per call shape (a type reached only through that one call,
+no `[Composable]`, no `Create<T>()`/`CreateMany<T>()`) and a real
+`dotnet pack` + local-feed + throwaway-consumer manual check (the same
+proof shape Milestone 1's plan used) — a packaged `Compono` consumed via
+`PackageReference`, never `ProjectReference`, correctly composed a type
+reached only via `row.Resolve<T>(descriptor)`.
+
+**2. `[Compose]`-attributed test-method parameters — deferred, tracked
+for before Phase 1 begins.** This section's original reasoning assumed
+`Compono.Xunit`'s `MethodInfo.MakeGenericMethod`-based binding
+(Runtime-Typed `CompositionRow` Invocation, above) would be the *only*
+way test-method parameter types are ever reached, and that its
+reflection cost was bounded and acceptable — both still hold. What the
+original reasoning missed: **there is no textual `row.Resolve<T>(...)`
+call site anywhere in a consumer's own source for even the now-fixed
+mechanism above to match against** — `Compono.Xunit`'s cached invoker
+delegates are built entirely from runtime `ParameterInfo.ParameterType`
+reflection, inside `Compono.Xunit`'s own compiled binary, never emitted
+as source in the consuming test project. A type reached only as a
+`[Compose]`-attributed test method's own parameter therefore still gets
+no generated plan under fix #1 alone — a fundamentally different
+discovery problem from a missing call-site pattern, since there is no
+call site to find.
+
+The resolution: a **separate discovery component**, deliberately not
+folded into `CreateInvocationDiscovery` — recognizing methods attributed
+with `[Compose]`/`[Compose<TProfile>]` (`ForAttributeWithMetadataName`,
+the same mechanism `ComposableAttributeDiscovery` already uses for
+`[Composable]`) and generating a plan for each eligible parameter type in
+that method's signature. "Eligible" mirrors Phase 2's own supported-shape
+table above (excludes generic methods and `ref`/`out`/`in`/`params`
+parameters — the same shapes `Compono.Xunit`'s binding algorithm itself
+rejects pre-composition). Every eligible parameter gets a plan generated
+unconditionally, even one that's always supplied inline at every call
+site in practice — statically predicting which parameters will actually
+be inline-supplied at a given call site would mean duplicating Phase 2's
+own runtime inline-binding calculation inside the generator, for a
+benefit (skipping plan generation for a type that's cheap to generate a
+plan for anyway) not worth that duplication.
+
+This is scoped as design/planning work to close out **before Phase 1
+implementation begins** — not implemented by this amendment.
+`docs/plans/0004-milestone-4-xunit-integration.md`'s Phase 1 task list
+gets the new discovery-component tasks, and Phase 3's packaged-consumer
+verification (`test/Compono.Xunit.SampleTests`) gets an explicit
+requirement: prove a parameter type discovered *only* from a
+`[Compose]`-attributed method (no `[Composable]`, no
+`Create<T>()`/`CreateMany<T>()`, no direct `CompositionRow` call site)
+receives a generated plan through the real packaged sample.
+
+## Amendment 2 (2026-07-31): the descriptor-less `Resolve<T>()` overload must never be discovered
+
+A further Codex review round on the same PR caught that Amendment
+(2026-07-30)'s fix #1 was itself wrong on one count: it matched **all**
+of `CompositionRow.Resolve<T>()`/`Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`,
+including the descriptor-less `Resolve<T>()` overload. That overload
+exists on `CompositionRow` solely to satisfy `ICompositionContext`'s full
+interface shape — it forwards to `ICompositionContext.Resolve<TValue>()`'s
+manual-resolve seam (`docs/adr/0019-registrations-and-service-provider-injection.md`),
+which throws `InvalidOperationException` unless a registration/
+configuration-rule factory is actively being invoked. A caller holding a
+`CompositionRow` can never satisfy that condition: `InvokeFactory`
+(`CompositionContext`'s single factory-invocation point) always hands a
+factory the raw internal context, never the `CompositionRow` wrapper —
+confirmed both by inspection and by the required manual pack-and-consume
+verification itself, which hit this exact throw before being reworked to
+use the descriptor overload instead. Discovering (and, worse,
+documenting in `docs/public-api.md`) this overload as an ordinary
+row-composition entry point advertised a call shape that always throws
+at runtime — the opposite of what discovery is supposed to guarantee.
+
+**Fix:** `CreateInvocationDiscovery`'s row-resolve match now additionally
+requires `method.Parameters.Length == 1`, excluding the descriptor-less
+overload while still matching both overloads that genuinely work
+(`Resolve<T>(descriptor)`, `ResolveShared<T>(descriptor)`, both
+single-parameter). The isolated `Compono.Generators.Tests` coverage for
+this call shape now asserts the opposite of before: no plan is generated
+for a type reached only through `row.Resolve<T>()`, proving discovery
+correctly excludes it rather than proving it (wrongly) included. No
+change to Amendment 2026-07-30's fix #2 (the still-deferred
+`[Compose]`-attributed-parameter discovery) — that work is unaffected by
+this correction.
+
 ## Links
 
 - [ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md) —

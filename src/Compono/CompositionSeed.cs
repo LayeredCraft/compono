@@ -23,6 +23,20 @@ internal readonly record struct CompositionSeed(ulong Value)
         new(unchecked((ulong)Random.Shared.NextInt64(long.MinValue, long.MaxValue)));
 
     /// <summary>
+    /// Generates a new, non-deterministic root seed for an unseeded <see cref="Composer.CreateRow"/>
+    /// call - drawn from <see langword="int"/>'s non-negative range only, unlike <see cref="Generate"/>'s
+    /// full 64-bit range, so <see cref="CompositionRow.Seed"/> (an <see langword="int"/>, matching
+    /// <see cref="CompositionBuilder.WithSeed"/>'s public contract) is always the complete value for
+    /// that row - never a truncated view of a wider one - and prints identically whether read as this
+    /// type's own <see langword="ulong"/> (<see cref="CompositionDiagnostic.Seed"/>) or as that
+    /// <see langword="int"/>. See
+    /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>'s Seed type
+    /// consistency note.
+    /// </summary>
+    internal static CompositionSeed GenerateRowSeed() =>
+        new(unchecked((ulong)Random.Shared.Next(0, int.MaxValue)));
+
+    /// <summary>
     /// Derives an independent child seed by a stable string key - used for <c>CreateMany</c>'s
     /// two-level <c>"CreateMany"</c> then per-item-index fork
     /// (<c>docs/adr/0012-composition-path-identity-and-deterministic-random-forking.md</c>), not for

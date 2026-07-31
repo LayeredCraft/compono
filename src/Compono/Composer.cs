@@ -98,6 +98,32 @@ public sealed class Composer
         _configuration.CollectionSizePolicy);
 
     /// <summary>
+    /// Creates a new <see cref="CompositionRow"/> - one composition scope for several sibling
+    /// top-level parameter requests (e.g. one xUnit theory row's own method parameters), sharing one
+    /// seed, one shared-value scope, and one pre-rooted path. See
+    /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
+    /// </summary>
+    /// <param name="declaringType">
+    /// The type whose method declares the parameters this row composes (e.g. a test class) - the
+    /// row's diagnostic root, reported as <see cref="CompositionDiagnostic.RootType"/> on failure.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="declaringType"/> is <see langword="null"/>.</exception>
+    public CompositionRow CreateRow(Type declaringType)
+    {
+        ArgumentNullException.ThrowIfNull(declaringType);
+
+        var seed = _configuration.Seed ?? CompositionSeed.GenerateRowSeed();
+        var context = new CompositionContext(
+            seed,
+            _configuration.Registrations,
+            _configuration.ServiceProvider,
+            _configuration.Rules,
+            _configuration.CollectionSizePolicy,
+            declaringType);
+        return new CompositionRow(context, unchecked((int)seed.Value));
+    }
+
+    /// <summary>
     /// Composes an instance of <typeparamref name="T"/> from an explicit root seed - the internal
     /// test seam Milestone 2 Phase 1's own determinism tests (and Phase 4's <c>CreateMany</c>
     /// stability/end-to-end tests) use to exercise the real <see cref="Composer"/>/

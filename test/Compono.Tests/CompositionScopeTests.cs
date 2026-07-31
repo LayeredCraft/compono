@@ -3,21 +3,31 @@ namespace Compono.Tests;
 public sealed class CompositionScopeTests
 {
     [Fact]
-    public void ResolveSharedForTesting_ReusesTheSameValue_ForASecondSharedRequestOfTheSameType()
+    public void ResolveSharedForTesting_Throws_WhenASecondSharedRequestOfTheSameTypeIsMade()
     {
+        // ADR-0022: CompositionRow refuses a second same-type share defensively - this seam drives
+        // isShared:true through the same ResolveCore path CompositionRow.ResolveShared does, so it
+        // gets the same guard. Superseded "reuse the existing value" behavior this test asserted
+        // before Milestone 4's duplicate-share requirement landed.
         var provider = new CountingProvider();
         var context = new CompositionContext([], [], [], [provider]);
 
-        var first = context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
-        var second = context.ResolveSharedForTesting<Widget>(ordinal: 1, name: "b");
+        context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
+        var act = () => context.ResolveSharedForTesting<Widget>(ordinal: 1, name: "b");
 
-        second.Should().BeSameAs(first);
+        act.Should().Throw<CompositionException>().WithMessage("*already been established*");
         provider.CallCount.Should().Be(1);
     }
 
     [Fact]
-    public void Resolve_NeverReadsFromScope_EvenWhenTheSameTypeWasAlreadyShared()
+    public void Resolve_ReadsFromScope_WhenTheSameTypeWasAlreadyShared()
     {
+        // ADR-0021: stage 2's read side became unconditional (any request checks scope for a match,
+        // not just one the caller marked IsShared) so an ordinary, unmarked nested request - e.g. a
+        // composed system-under-test's own constructor parameter - transparently reuses a value a
+        // Milestone 4 [Shared] test parameter already established. Only the write side stays
+        // restricted to IsShared requests (ResolveSharedForTesting above); this is the read-side
+        // change's own coverage, replacing the old "an ordinary request never reads scope" behavior.
         var provider = new CountingProvider();
         var context = new CompositionContext([], [], [], [provider]);
         var descriptor = new CompositionRequestDescriptor(
@@ -26,8 +36,8 @@ public sealed class CompositionScopeTests
         var shared = context.ResolveSharedForTesting<Widget>(ordinal: 0, name: "a");
         var notShared = context.Resolve<Widget>(descriptor);
 
-        notShared.Should().NotBeSameAs(shared);
-        provider.CallCount.Should().Be(2);
+        notShared.Should().BeSameAs(shared);
+        provider.CallCount.Should().Be(1);
     }
 
     [Fact]

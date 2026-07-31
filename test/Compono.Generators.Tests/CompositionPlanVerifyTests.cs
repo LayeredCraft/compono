@@ -1653,6 +1653,111 @@ public sealed class CompositionPlanVerifyTests
                 """,
         }, TestContext.Current.CancellationToken);
 
+    [Fact]
+    public Task RowResolveWithNoDescriptorOnlyInvocation_GeneratesNoPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Customer
+                {
+                    public Customer(string firstName) { FirstName = firstName; }
+                    public string FirstName { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var row = composer.CreateRow(typeof(EntryPoint));
+                        // CompositionRow.Resolve<T>() (the descriptor-less overload) must generate no
+                        // plan at all, not merely be untested - it forwards to
+                        // ICompositionContext.Resolve<TValue>()'s manual-resolve seam, which throws
+                        // unless a registration/configuration-rule factory is actively being invoked,
+                        // a condition a CompositionRow-holding caller can never satisfy (PR #22
+                        // review, second round: discovering this overload advertised a call shape
+                        // that always throws at runtime). Regression coverage for excluding it from
+                        // CreateInvocationDiscovery - no Create<Customer>()/CreateMany<Customer>()
+                        // call site anywhere in this source, and no [Composable] attribute either, so
+                        // Customer must end up with no generated plan whatsoever.
+                        var customer = row.Resolve<TestNamespace.Customer>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RowResolveWithDescriptorOnlyInvocation_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Order
+                {
+                    public Order(string reference) { Reference = reference; }
+                    public string Reference { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var row = composer.CreateRow(typeof(EntryPoint));
+                        var descriptor = new Compono.CompositionRequestDescriptor(
+                            Compono.CompositionRequestKind.TestParameter,
+                            ordinal: 0,
+                            name: "order",
+                            declaringType: typeof(EntryPoint),
+                            Compono.Nullability.NotNullable);
+                        // No Create<Order>()/CreateMany<Order>() call site anywhere in this source,
+                        // and no [Composable] attribute - CompositionRow.Resolve<T>(descriptor) has
+                        // to be its own discovery trigger, distinct from the descriptor-less
+                        // overload above and from ResolveShared<T>(descriptor) below (PR #22 review).
+                        var order = row.Resolve<TestNamespace.Order>(descriptor);
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RowResolveSharedOnlyInvocation_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Widget
+                {
+                    public Widget(string name) { Name = name; }
+                    public string Name { get; }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        var row = composer.CreateRow(typeof(EntryPoint));
+                        var descriptor = new Compono.CompositionRequestDescriptor(
+                            Compono.CompositionRequestKind.TestParameter,
+                            ordinal: 0,
+                            name: "widget",
+                            declaringType: typeof(EntryPoint),
+                            Compono.Nullability.NotNullable);
+                        // No Create<Widget>()/CreateMany<Widget>() call site anywhere in this
+                        // source, and no [Composable] attribute - ResolveShared<T>(descriptor) has
+                        // to be its own discovery trigger too, not merely inherited from matching
+                        // Resolve<T>(descriptor)'s method name (PR #22 review).
+                        var widget = row.ResolveShared<TestNamespace.Widget>(descriptor);
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
     // No automated regression test for RequiredMemberCollector.IsAssignableFromGeneratedCode: the
     // shape it defends against (a required member with no accessible setter, or a required
     // readonly field) is one the C# compiler itself refuses to let *any* C#-authored type declare

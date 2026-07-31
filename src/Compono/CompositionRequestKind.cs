@@ -30,4 +30,12 @@ public enum CompositionRequestKind
     /// per <c>docs/adr/0019-registrations-and-service-provider-injection.md</c>.
     /// </summary>
     ManualResolve,
+
+    /// <summary>
+    /// The request is for one of a test method's own parameters, as opposed to a constructor
+    /// parameter or required member a generated plan is filling in - emitted only by a test-framework
+    /// integration composing a <see cref="CompositionRow"/> row, never by generated code. See
+    /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
+    /// </summary>
+    TestParameter,
 }

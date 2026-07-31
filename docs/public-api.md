@@ -126,6 +126,62 @@ profiles) is a build-time `CompositionConfigurationException` naming every
 conflicting source, not a silent override; a profile that (transitively) adds
 itself is a build-time cycle diagnostic, not a stack overflow.
 
+## Row Composition (Test-Framework Integrations)
+
+Resolved by [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)
+(`Accepted`, implemented — Milestone 4 Phase 0). A test-framework
+integration that needs to compose several *sibling* top-level values in
+one shared scope — e.g. one xUnit theory row's own method parameters —
+uses `Composer.CreateRow`, not `Create<T>()`/`CreateMany<T>()`, which each
+start a brand-new, independent scope per call:
+
+```csharp
+var composer = Composer.Create();
+var row = composer.CreateRow(typeof(OrderServiceTests));
+
+var repository = row.ResolveShared<IRepository>(repositoryDescriptor);
+var service = row.Resolve<OrderService>(serviceDescriptor);
+```
+
+`CompositionRow` is the only public surface a test-framework integration
+uses to reach the engine this way — `Compono` core's own
+`CompositionContext` stays `internal`. It implements
+`ICompositionContext`, so a composed value's own nested requests (a
+generated plan's constructor parameters) are unaffected — generated code
+always programs against `ICompositionContext`, never `CompositionRow`
+directly.
+
+- `Resolve<TValue>(descriptor)`/`ResolveCollectionSize()` — ordinary
+  composition, forwarded straight to the wrapped context; no different
+  from `Create<T>()`'s own resolution.
+- `Resolve<TValue>()` (the descriptor-less overload `CompositionRow` only
+  carries to satisfy `ICompositionContext`'s full interface shape) is
+  **not** a usable direct row-composition entry point — it forwards to
+  the manual-resolve seam meant for a registration/configuration-rule
+  factory's own `context.Resolve<T>()` calls, which throws
+  `InvalidOperationException` unless such a factory is actively being
+  invoked. A `CompositionRow`-holding caller can never satisfy that
+  condition (factories are always invoked with the raw internal context,
+  never a `CompositionRow`), so calling this overload directly on a row
+  always throws.
+- `ResolveShared<TValue>(descriptor)` — composes `TValue` and additionally
+  stores the result into this row's shared scope: a later request for the
+  same type in this row — including one made by a nested generated plan,
+  e.g. a SUT's own constructor parameter — transparently reuses it instead
+  of composing an independent value. This is the mechanism `[Shared]`
+  parameters (see xUnit v3 Experience, below) are built on.
+- `ShareExplicit<TValue>(descriptor, value)` — stores an already-known
+  value (an inline theory argument) directly into the row's shared scope,
+  with no pipeline dispatch or random fork consumed.
+- `Seed` — this row's deterministic root seed, an `int` matching
+  `WithSeed(int)`'s own contract exactly, so a seed read here is always
+  pasteable back into `WithSeed(...)`/`[Compose(Seed = ...)]` to reproduce
+  the same row.
+- Only one shared value per type is allowed per row — a second
+  `ResolveShared`/`ShareExplicit` call for a type already shared in this
+  row throws a `CompositionException` naming the type, rather than
+  silently overwriting or reusing the first value.
+
 ## xUnit v3 Experience
 
 Resolved by [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)/
