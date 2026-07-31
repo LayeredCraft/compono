@@ -20,6 +20,49 @@ internal static class SampleTestMethods
     {
     }
 
+    public static void WithNullableReferenceParameter(string? value)
+    {
+    }
+
+    public static void WithNonNullableReferenceParameter(string value)
+    {
+    }
+
+    public static void WithNullableValueParameter(int? value)
+    {
+    }
+
+    public static void WithNonNullableValueParameter(int value)
+    {
+    }
+
+    // Deliberately single-parameter - a second same-typed parameter would read this shared value
+    // back from scope too (Phase 0's stage-2 read gate applies to every same-typed request in the
+    // row, not just ones marked [Shared]) and re-validate it against that parameter's own
+    // nullability, which isn't what these fixtures exist to test.
+    public static void WithSharedNullableReferenceParameter([Shared] string? value)
+    {
+    }
+
+    public static void WithSharedNonNullableReferenceParameter([Shared] string value)
+    {
+    }
+
+    public static void WithSharedNullableValueParameter([Shared] int? value)
+    {
+    }
+
+    public static void WithSharedNonNullableValueParameter([Shared] int value)
+    {
+    }
+
+    // No provider and no generated plan can ever satisfy this interface (this test project doesn't
+    // reference Compono.Generators as an analyzer, and nothing registers it) - composing it always
+    // fails, deterministically, which is exactly what the seed-message-content proof needs.
+    public static void WithUnregisteredInterfaceParameter(IUnregisteredDependency value)
+    {
+    }
+
     public static void WithDisposableParameter(DisposableValue disposable)
     {
     }
@@ -83,3 +126,5 @@ public sealed class DisposableValue : IDisposable
 
     public void Dispose() => DisposeCount++;
 }
+
+internal interface IUnregisteredDependency;

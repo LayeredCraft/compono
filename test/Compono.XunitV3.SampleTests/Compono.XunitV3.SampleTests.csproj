@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.XunitV3.SampleTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Deliberately no ProjectReference to Compono/Compono.XunitV3 anywhere in this project - the
+         whole point is consuming Compono.XunitV3 exactly the way an external consumer would, via
+         the PackageReference below, so packaging mistakes (a missing dependency, wrong
+         PrivateAssets, the generator analyzer not flowing transitively) surface here instead of
+         being masked by a ProjectReference build. See PLAN-0004 Phase 3 and ADR-0022's Testing
+         Strategy. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Compono.XunitV3" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Self-healing on a clean checkout and always tests today's Compono/Compono.XunitV3 source,
+       which is the point of a "real packaged consumer" test: a regression in packaging (a missing
+       dependency, wrong PrivateAssets, the generator analyzer not flowing transitively) fails this
+       project's own restore/build/run rather than being masked by a stale package. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="dotnet pack &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; -c $(Configuration) -o &quot;$(LocalFeedPath)&quot; -p:Version=1.0.0 --nologo" />
+    <Exec Command="dotnet pack &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; -c $(Configuration) -o &quot;$(LocalFeedPath)&quot; -p:Version=1.0.0 --nologo" />
+  </Target>
+
+</Project>

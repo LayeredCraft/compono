@@ -435,6 +435,10 @@ FodyWeavers.xsd
 
 .idea
 
+# Local NuGet feed populated by Compono.XunitV3.SampleTests' pre-restore pack step
+# (test/Compono.XunitV3.SampleTests/nuget.config) - regenerated on every restore, never committed.
+.local-nuget-feed/
+
 # macOS
 .DS_Store
 .DS_Store?
