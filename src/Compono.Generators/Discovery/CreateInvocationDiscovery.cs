@@ -8,9 +8,8 @@ namespace Compono.Generators.Discovery;
 
 /// <summary>
 /// Finds <c>Composer.Create&lt;T&gt;()</c>/<c>Composer.CreateMany&lt;T&gt;()</c> and
-/// <c>CompositionRow.Resolve&lt;T&gt;()</c>/<c>Resolve&lt;T&gt;(descriptor)</c>/
-/// <c>ResolveShared&lt;T&gt;(descriptor)</c> call sites and resolves each into a
-/// <see cref="DiscoveredTypeInfo"/>, per
+/// <c>CompositionRow.Resolve&lt;T&gt;(descriptor)</c>/<c>ResolveShared&lt;T&gt;(descriptor)</c> call
+/// sites and resolves each into a <see cref="DiscoveredTypeInfo"/>, per
 /// <c>docs/adr/0004-composition-plan-discovery-and-dispatch.md</c>'s call-site discovery mechanism.
 /// </summary>
 /// <remarks>
@@ -22,19 +21,22 @@ namespace Compono.Generators.Discovery;
 /// (PR #13 review, Milestone 2 Phase 4) meant the single most-advertised <c>CreateMany&lt;T&gt;</c>
 /// usage threw a <c>CompositionException</c> at runtime unless the same type happened to be
 /// independently discovered elsewhere.
-/// <c>CompositionRow.Resolve&lt;T&gt;()</c>/<c>Resolve&lt;T&gt;(descriptor)</c>/
-/// <c>ResolveShared&lt;T&gt;(descriptor)</c> (ADR-0021) share this same path for the identical
-/// reason: a consumer whose only root for some type is a <c>CompositionRow</c> call - the shape a
-/// hand-written row-composing test (or a future test-framework integration calling through cached
-/// reflection-built delegates, never a source-level call site of its own) actually takes - needs the
-/// same generated-plan discovery <c>Composer.Create&lt;T&gt;()</c> gets, or that type never gets a
-/// plan at all (PR #22 review). Both <c>Resolve&lt;T&gt;</c> overloads (with and without a
-/// descriptor) are matched - the semantic check below tells them apart from the unrelated,
-/// descriptor-less <c>ICompositionContext.Resolve&lt;TValue&gt;()</c> manual-resolve seam only by
-/// containing type, which is exactly what routes a genuine <c>CompositionRow</c> call here while
-/// still rejecting any other type's same-named method. <c>ShareExplicit</c> is excluded because it
-/// stores an already-known value - there is nothing to compose, so no plan is ever needed for its
-/// type argument.
+/// <c>CompositionRow.Resolve&lt;T&gt;(descriptor)</c>/<c>ResolveShared&lt;T&gt;(descriptor)</c>
+/// (ADR-0021) share this same path for the identical reason: a consumer whose only root for some
+/// type is a <c>CompositionRow</c> call needs the same generated-plan discovery
+/// <c>Composer.Create&lt;T&gt;()</c> gets, or that type never gets a plan at all (PR #22 review).
+/// <c>CompositionRow.Resolve&lt;T&gt;()</c> - the descriptor-less overload, required only to satisfy
+/// <c>ICompositionContext</c>'s full interface shape - is deliberately excluded (PR #22 review,
+/// second round): unlike the descriptor overloads, it forwards to
+/// <c>ICompositionContext.Resolve&lt;TValue&gt;()</c>'s manual-resolve seam, which throws unless a
+/// registration/configuration-rule factory is actively being invoked - a condition a
+/// <c>CompositionRow</c>-holding caller can never satisfy, since <c>InvokeFactory</c> always hands a
+/// factory the raw internal context, never the <c>CompositionRow</c> wrapper. Discovering (and
+/// documenting) it as an ordinary row-composition entry point would advertise a call shape that
+/// always throws at runtime - matched here on parameter count (one, for the descriptor), not name
+/// alone, to exclude it without also excluding the two overloads that do work.
+/// <c>ShareExplicit</c> is excluded because it stores an already-known value - there is nothing to
+/// compose, so no plan is ever needed for its type argument.
 /// </remarks>
 internal static class CreateInvocationDiscovery
 {
@@ -46,10 +48,10 @@ internal static class CreateInvocationDiscovery
             // separate syntax shape (nested inside a ConditionalAccessExpressionSyntax) that the
             // Roslyn syntax walker visits as its own node, so both have to be matched here or the
             // conditional-access form is silently missed by discovery. "Create"/"CreateMany" or
-            // "Resolve"/"ResolveShared" - see this type's remarks for why all four share one
-            // discovery path; the semantic check in Transform is what actually tells a
-            // Composer.Create<T>() call apart from a CompositionRow.Resolve<T>() one (and rejects
-            // any other type's same-named method entirely).
+            // "Resolve"/"ResolveShared" - see this type's remarks for why these share one discovery
+            // path (and why the descriptor-less Resolve<T>() overload is excluded, despite matching
+            // this syntax-only filter - the semantic check in Transform is what actually filters it
+            // out, by parameter count, since a name-only syntax filter can't see overloads).
             Expression: MemberAccessExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany" or "Resolve" or "ResolveShared", TypeArgumentList.Arguments.Count: 1 } }
                      or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany" or "Resolve" or "ResolveShared", TypeArgumentList.Arguments.Count: 1 } },
         };
@@ -65,7 +67,10 @@ internal static class CreateInvocationDiscovery
 
         var isComposerCreate = method.Name is "Create" or "CreateMany"
             && wellKnownTypes.IsType(method.ContainingType, WellKnownTypeData.WellKnownType.Compono_Composer);
+        // Parameters.Length == 1 excludes CompositionRow's descriptor-less Resolve<TValue>()
+        // overload - see this type's remarks for why that overload must never be discovered.
         var isRowResolve = method.Name is "Resolve" or "ResolveShared"
+            && method.Parameters.Length == 1
             && wellKnownTypes.IsType(method.ContainingType, WellKnownTypeData.WellKnownType.Compono_CompositionRow);
 
         if (!isComposerCreate && !isRowResolve)

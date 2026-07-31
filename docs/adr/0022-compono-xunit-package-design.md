@@ -893,6 +893,39 @@ requirement: prove a parameter type discovered *only* from a
 `Create<T>()`/`CreateMany<T>()`, no direct `CompositionRow` call site)
 receives a generated plan through the real packaged sample.
 
+## Amendment 2 (2026-07-31): the descriptor-less `Resolve<T>()` overload must never be discovered
+
+A further Codex review round on the same PR caught that Amendment
+(2026-07-30)'s fix #1 was itself wrong on one count: it matched **all**
+of `CompositionRow.Resolve<T>()`/`Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`,
+including the descriptor-less `Resolve<T>()` overload. That overload
+exists on `CompositionRow` solely to satisfy `ICompositionContext`'s full
+interface shape — it forwards to `ICompositionContext.Resolve<TValue>()`'s
+manual-resolve seam (`docs/adr/0019-registrations-and-service-provider-injection.md`),
+which throws `InvalidOperationException` unless a registration/
+configuration-rule factory is actively being invoked. A caller holding a
+`CompositionRow` can never satisfy that condition: `InvokeFactory`
+(`CompositionContext`'s single factory-invocation point) always hands a
+factory the raw internal context, never the `CompositionRow` wrapper —
+confirmed both by inspection and by the required manual pack-and-consume
+verification itself, which hit this exact throw before being reworked to
+use the descriptor overload instead. Discovering (and, worse,
+documenting in `docs/public-api.md`) this overload as an ordinary
+row-composition entry point advertised a call shape that always throws
+at runtime — the opposite of what discovery is supposed to guarantee.
+
+**Fix:** `CreateInvocationDiscovery`'s row-resolve match now additionally
+requires `method.Parameters.Length == 1`, excluding the descriptor-less
+overload while still matching both overloads that genuinely work
+(`Resolve<T>(descriptor)`, `ResolveShared<T>(descriptor)`, both
+single-parameter). The isolated `Compono.Generators.Tests` coverage for
+this call shape now asserts the opposite of before: no plan is generated
+for a type reached only through `row.Resolve<T>()`, proving discovery
+correctly excludes it rather than proving it (wrongly) included. No
+change to Amendment 2026-07-30's fix #2 (the still-deferred
+`[Compose]`-attributed-parameter discovery) — that work is unaffected by
+this correction.
+
 ## Links
 
 - [ADR-0021](0021-row-composition-entry-point-for-test-framework-integrations.md) —

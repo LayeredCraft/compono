@@ -136,7 +136,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       row's `CompositionRow.Seed` always non-negative and printing
       identically to a failing row's `CompositionDiagnostic.Seed` text.
 - [x] `CreateInvocationDiscovery` extended to match
-      `CompositionRow.Resolve<T>()`/`Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`
+      `CompositionRow.Resolve<T>(descriptor)`/`ResolveShared<T>(descriptor)`
       call sites, alongside its existing `Composer.Create<T>()`/`CreateMany<T>()`
       matching (PR #22 review; ADR-0022 Amendment 2026-07-30, fix #1) —
       without this, a type reached only through a direct `CompositionRow`
@@ -147,6 +147,20 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       throwaway-consumer manual check proving the packaged analyzer
       (never `ProjectReference`) discovers and composes such a type
       correctly.
+- [x] The descriptor-less `Resolve<T>()` overload is explicitly
+      **excluded** from that discovery match (PR #22 review, second
+      round; ADR-0022 Amendment 2026-07-31) — it forwards to the
+      manual-resolve seam meant for a factory's own `context.Resolve<T>()`
+      calls, which always throws `InvalidOperationException` for a
+      `CompositionRow`-holding caller (`InvokeFactory` never hands a
+      factory the `CompositionRow` wrapper). Discovering/documenting it as
+      an ordinary entry point would have advertised a call shape that
+      always throws at runtime - caught only after it had already been
+      matched, documented, and (in an earlier manual verification pass)
+      hit that exact throw firsthand. `CreateInvocationDiscovery` now
+      requires `method.Parameters.Length == 1` to exclude it; the
+      isolated generator test for this call shape now asserts *no* plan
+      gets generated, not that one does.
 
 ### Phase 1: `Compono.Xunit` package skeleton and attributes (ADR-0022)
 
@@ -431,17 +445,21 @@ exercised indirectly through `Compono.Xunit.Tests`.
   failing or deleted — this is the one behavior change Phase 0 makes to
   already-shipped Milestone 2/3 code, and its test needed to move with it.
 - Full suite green: `Compono.Tests` 388/388 (194 × 2 TFMs), `Compono.Generators.Tests`
-  160/160 (154 unaffected + 3 new `CreateInvocationDiscovery`-extension
-  snapshot tests × 2 TFMs) — Phase 0 originally touched no generator
-  code, but a later PR #22 review round added the `CompositionRow`
-  discovery fix below, which does.
-- **`CreateInvocationDiscovery` extended for `CompositionRow` call sites**
-  (PR #22 review, second round; ADR-0022 Amendment 2026-07-30, fix #1) —
-  see the Phase 0 task list above for what changed and how it was
-  verified (isolated generator snapshot tests plus a real `dotnet pack` +
-  local-feed + throwaway-consumer manual check). This is Phase 0's one
-  piece of generator-touching work; everything else in this phase is
-  `Compono` core only.
+  160/160 (154 unaffected + 3 `CreateInvocationDiscovery`-extension
+  snapshot tests × 2 TFMs, one of which asserts *no* plan is generated
+  for the excluded descriptor-less overload) — Phase 0 originally touched
+  no generator code, but later PR #22 review rounds added the
+  `CompositionRow` discovery fix below, which does.
+- **`CreateInvocationDiscovery` extended for `CompositionRow` call sites,
+  then corrected** (PR #22 review, second and third rounds; ADR-0022
+  Amendments 2026-07-30 and 2026-07-31) — see the Phase 0 task list above
+  for what changed and how it was verified (isolated generator snapshot
+  tests plus a real `dotnet pack` + local-feed + throwaway-consumer
+  manual check). The second round's fix over-matched (it also discovered
+  the descriptor-less `Resolve<T>()` overload, which always throws for a
+  `CompositionRow`-holding caller); the third round caught and corrected
+  that. This is Phase 0's one piece of generator-touching work; everything
+  else in this phase is `Compono` core only.
 
 ## Open Items
 

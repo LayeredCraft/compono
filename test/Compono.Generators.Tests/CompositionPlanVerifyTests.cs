@@ -1654,7 +1654,7 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task RowResolveOnlyInvocation_GeneratesCompositionPlan() =>
+    public Task RowResolveWithNoDescriptorOnlyInvocation_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {
             SourceCode = """
@@ -1672,11 +1672,16 @@ public sealed class CompositionPlanVerifyTests
                     {
                         var composer = Compono.Composer.Create();
                         var row = composer.CreateRow(typeof(EntryPoint));
-                        // No Create<Customer>()/CreateMany<Customer>() call site anywhere in this
-                        // source, and no [Composable] attribute - CompositionRow.Resolve<T>() (the
-                        // descriptor-less overload) has to be its own discovery trigger (PR #22
-                        // review), the same way CreateMany<T>() needed to be its own trigger rather
-                        // than piggybacking on Create<T>() having already been called elsewhere.
+                        // CompositionRow.Resolve<T>() (the descriptor-less overload) must generate no
+                        // plan at all, not merely be untested - it forwards to
+                        // ICompositionContext.Resolve<TValue>()'s manual-resolve seam, which throws
+                        // unless a registration/configuration-rule factory is actively being invoked,
+                        // a condition a CompositionRow-holding caller can never satisfy (PR #22
+                        // review, second round: discovering this overload advertised a call shape
+                        // that always throws at runtime). Regression coverage for excluding it from
+                        // CreateInvocationDiscovery - no Create<Customer>()/CreateMany<Customer>()
+                        // call site anywhere in this source, and no [Composable] attribute either, so
+                        // Customer must end up with no generated plan whatsoever.
                         var customer = row.Resolve<TestNamespace.Customer>();
                     }
                 }

@@ -151,9 +151,19 @@ generated plan's constructor parameters) are unaffected — generated code
 always programs against `ICompositionContext`, never `CompositionRow`
 directly.
 
-- `Resolve<TValue>(descriptor)`/`Resolve<TValue>()`/`ResolveCollectionSize()`
-  — ordinary composition, forwarded straight to the wrapped context; no
-  different from `Create<T>()`'s own resolution.
+- `Resolve<TValue>(descriptor)`/`ResolveCollectionSize()` — ordinary
+  composition, forwarded straight to the wrapped context; no different
+  from `Create<T>()`'s own resolution.
+- `Resolve<TValue>()` (the descriptor-less overload `CompositionRow` only
+  carries to satisfy `ICompositionContext`'s full interface shape) is
+  **not** a usable direct row-composition entry point — it forwards to
+  the manual-resolve seam meant for a registration/configuration-rule
+  factory's own `context.Resolve<T>()` calls, which throws
+  `InvalidOperationException` unless such a factory is actively being
+  invoked. A `CompositionRow`-holding caller can never satisfy that
+  condition (factories are always invoked with the raw internal context,
+  never a `CompositionRow`), so calling this overload directly on a row
+  always throws.
 - `ResolveShared<TValue>(descriptor)` — composes `TValue` and additionally
   stores the result into this row's shared scope: a later request for the
   same type in this row — including one made by a nested generated plan,
