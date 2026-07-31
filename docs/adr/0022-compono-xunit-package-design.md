@@ -1107,6 +1107,26 @@ satisfy it at runtime) - wrapping it as a *nested* constructor parameter
 uses the more lenient member-level check instead, so it compiles and fails
 only at runtime, which is the failure shape this fixture actually needs.
 
+**Amendment to this amendment (PR #26 review, third round): the fix above
+only covered a *diagnosed* `CompositionException`.** `InvokeWithSeedOnFailure`'s
+original catch clause was guarded by `when (exception.Diagnostic is not
+null)`, which let a plain-message `CompositionException` (no `Diagnostic`
+at all) escape completely unmodified - exactly the shape a generated
+`HashSet<T>`/`Dictionary` collection plan's unique-value-exhaustion path
+throws (`Compono.Generators/Templates/CollectionPlan.scriban`:
+`throw new CompositionException($"Could not generate {size} unique
+values...")`, no `Diagnostic` constructed at all). Composing a
+default-sized (3) `HashSet<bool>` - `bool`'s value space has only 2
+members - deterministically hits this path with zero seed anywhere in the
+output. Fixed by broadening `CompositionException.WithSeedInMessage`
+itself to build its rewritten `Message` from `original.Message` (not
+`original.Diagnostic!.Message`) and to preserve `original.Diagnostic`
+as-is, whatever it is - `null` stays `null`, a real diagnostic stays
+unchanged - rather than requiring one. `InvokeWithSeedOnFailure`'s catch
+clause no longer needs the `Diagnostic is not null` guard at all: every
+`CompositionException`, diagnosed or not, now gets the same treatment
+uniformly.
+
 ## Amendment 6 (2026-07-31): the automated real-runner test is dropped; the sample project stays, unautomated
 
 The `RealRunnerTests` test this amendment's own "Consequence" section

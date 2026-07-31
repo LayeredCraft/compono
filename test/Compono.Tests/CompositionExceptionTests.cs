@@ -42,13 +42,19 @@ public sealed class CompositionExceptionTests
     }
 
     [Fact]
-    public void WithSeedInMessage_Throws_WhenTheOriginalExceptionHasNoDiagnostic()
+    public void WithSeedInMessage_RewritesMessage_AndLeavesDiagnosticNull_ForAPlainMessageOriginal()
     {
+        // PR #26 review, third round - a generated HashSet<T>/Dictionary collection plan's
+        // unique-value-exhaustion path (CollectionPlan.scriban) throws exactly this shape: a plain
+        // CompositionException(string), no Diagnostic at all. That failure deserves the same
+        // pasteable seed as a diagnosed one, so WithSeedInMessage must handle it too, not throw.
         var original = new CompositionException("a plain, non-pipeline-diagnosed message");
 
-        var act = () => CompositionException.WithSeedInMessage(original, seed: 1);
+        var wrapped = CompositionException.WithSeedInMessage(original, seed: 1);
 
-        act.Should().Throw<ArgumentException>();
+        wrapped.Message.Should().Be("a plain, non-pipeline-diagnosed message\n\nSeed: 1");
+        wrapped.Diagnostic.Should().BeNull();
+        wrapped.InnerException.Should().BeSameAs(original);
     }
 
     [Fact]

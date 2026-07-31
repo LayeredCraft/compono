@@ -845,6 +845,35 @@ exercised indirectly through `Compono.XunitV3.Tests`.
      even though the fix (an isolated per-project `RestorePackagesPath`,
      `obj/.nuget-packages/`) is still in the sample project's `.csproj` for
      anyone using it manually.
+  3. A third round found `InvokeWithSeedOnFailure`'s
+     `when (exception.Diagnostic is not null)` guard let a plain-message
+     `CompositionException` (no `Diagnostic` at all) escape with no seed
+     whatsoever - exactly the shape a generated `HashSet<T>`/`Dictionary`
+     collection plan's unique-value-exhaustion path throws
+     (`CollectionPlan.scriban`). Fixed by broadening
+     `CompositionException.WithSeedInMessage` to build its message from
+     `original.Message` (not `original.Diagnostic!.Message`) and preserve
+     `original.Diagnostic` as-is whatever it is (`null` stays `null`) -
+     removing the need for the guard entirely, so every
+     `CompositionException` gets the same treatment. Covered by a new
+     `Compono.Tests` test (`WithSeedInMessage_RewritesMessage_AndLeaves
+     DiagnosticNull_ForAPlainMessageOriginal`) and a new
+     `Compono.XunitV3.Tests` test using a hand-written
+     `CollectionExhaustionPlan` fixture that mirrors `CollectionPlan
+     .scriban`'s own `HashSet<T>` shape exactly (composing a default-sized
+     `HashSet<bool>` - `bool`'s value space has only 2 members against a
+     default collection size of 3 - deterministically exhausts).
+  4. The same review round also caught that `ComposeAttributeConcurrencyTests`
+     never actually exercised concurrent execution at all:
+     `Enumerable.Range(0, 200).Select(_ => attribute.GetData(...).AsTask())`
+     is lazy, and since `GetData` runs fully synchronously (an
+     already-completed `ValueTask`), `Task.WhenAll` enumerating that
+     deferred sequence never creates call N+1 until call N has already
+     finished - zero overlap, so the test could never have caught a race
+     in the shared `Lazy<Composer>`/binding-plan initialization it exists
+     to test. Fixed by rewriting it with `Parallel.ForEachAsync`, which
+     genuinely dispatches across the thread pool concurrently - verified
+     stable across 5 repeated local runs post-fix.
   - Also folded into this round, at the user's request (not a posted PR
     comment): the sample project had no `[Compose<TProfile>]` theory at
     all - every existing theory used the profile-less `[Compose]` form.
@@ -928,10 +957,15 @@ exercised indirectly through `Compono.XunitV3.Tests`.
     packaging behavior needs re-checking by a person, without being
     re-run - and re-racing - on every commit.
 - Full suite green: `Compono.Tests` 392/392 (196 × 2 TFMs - 384 unaffected
-  + 2 new `CompositionException.WithSeedInMessage` tests, each × 2 TFMs),
-  `Compono.Generators.Tests` 166/166 (unchanged), `Compono.XunitV3.Tests`
-  92/92 (46 × 2 TFMs - unchanged from the first PR #26 round's count, since
-  `RealRunnerTests` was added and then removed within this same PR).
+  + 2 new `CompositionException.WithSeedInMessage` tests, each × 2 TFMs -
+  one of which was rewritten in place during the third review round, net
+  count unchanged), `Compono.Generators.Tests` 166/166 (unchanged),
+  `Compono.XunitV3.Tests` 94/94 (47 × 2 TFMs - 46 from the second review
+  round (unchanged from the first round's count, since `RealRunnerTests`
+  was added and then removed within this same PR) + 1 new plain-message
+  `WithSeedInMessage` test from the third round;
+  `ComposeAttributeConcurrencyTests` rewritten in place to genuinely
+  exercise concurrency, same test count).
   `Compono.XunitV3.SampleTests` itself last verified by hand reporting
   6 passed/1 deliberately failed (a genuine composition failure) on both
   net10.0 and net11.0.

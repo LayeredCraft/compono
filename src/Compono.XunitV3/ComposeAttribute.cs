@@ -296,17 +296,22 @@ public class ComposeAttribute : DataAttribute
 
     // A genuine composition failure (PR #26 review; ADR-0022 Amendment 5) propagates un-wrapped from
     // the pipeline otherwise, and CompositionException.Message alone never carries the seed for that
-    // case (only exception.Diagnostic does, via its own ToString()) - a real test runner's failure
-    // display shows Message, not Diagnostic.ToString(), so the pasteable-seed promise wasn't actually
-    // visible there. CompositionException.WithSeedInMessage rewrites Message to include it while
-    // preserving Diagnostic and the original exception as InnerException unchanged.
+    // case (only exception.Diagnostic does, via its own ToString(), when Diagnostic is even present -
+    // a plain-message CompositionException, e.g. a generated HashSet<T>/Dictionary collection plan's
+    // unique-value-exhaustion path, has no Diagnostic at all and would otherwise escape with no seed
+    // whatsoever - PR #26 review, third round) - a real test runner's failure display shows Message,
+    // not Diagnostic.ToString(), so the pasteable-seed promise wasn't actually visible there.
+    // CompositionException.WithSeedInMessage rewrites Message to include it, handling both shapes
+    // uniformly, while preserving Diagnostic (null or not) and the original exception as
+    // InnerException unchanged - so every CompositionException is caught here, not just diagnosed
+    // ones.
     private static TResult InvokeWithSeedOnFailure<TResult>(Func<TResult> compose, int seed)
     {
         try
         {
             return compose();
         }
-        catch (CompositionException exception) when (exception.Diagnostic is not null)
+        catch (CompositionException exception)
         {
             throw CompositionException.WithSeedInMessage(exception, seed);
         }
@@ -318,7 +323,7 @@ public class ComposeAttribute : DataAttribute
         {
             compose();
         }
-        catch (CompositionException exception) when (exception.Diagnostic is not null)
+        catch (CompositionException exception)
         {
             throw CompositionException.WithSeedInMessage(exception, seed);
         }

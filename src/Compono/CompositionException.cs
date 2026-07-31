@@ -99,24 +99,26 @@ public sealed class CompositionException : Exception
         new(diagnostic, innerException) { DiagnosingContextIdentity = diagnosingContextIdentity };
 
     // Internal seam for Compono.XunitV3 (PR #26 review; ADR-0022 Amendment 5) - GetData needs a
-    // pipeline-propagated composition failure's own Message to carry the row's seed too, not only
-    // Diagnostic (which already renders a "Seed: <value>" line via its own ToString()). A real xUnit
-    // v3/MTP test-runner failure display shows Exception.Message, not Diagnostic.ToString(), so the
-    // seed was invisible there for a genuine composition failure without this. Diagnostic itself is
-    // preserved unchanged (so Diagnostic.ToString() still renders correctly, without a duplicated
-    // "Seed:" line) and set as InnerException, never discarded.
+    // composition failure's own Message to carry the row's seed too, not only Diagnostic (which
+    // already renders a "Seed: <value>" line via its own ToString(), when it's present at all). A
+    // real xUnit v3/MTP test-runner failure display shows Exception.Message, not Diagnostic.ToString(),
+    // so the seed was invisible there for a genuine composition failure without this. Handles both
+    // shapes uniformly, not just the diagnosed one (PR #26 review, third round): a generated
+    // HashSet<T>/Dictionary collection plan's unique-value-exhaustion path
+    // (Compono.Generators/Templates/CollectionPlan.scriban) throws a plain-message
+    // CompositionException with no Diagnostic at all, and that failure deserves the same pasteable
+    // seed as any other. original.Diagnostic is preserved exactly as-is either way (null stays null,
+    // so Diagnostic.ToString() still renders correctly for a diagnosed original, without a duplicated
+    // "Seed:" line) and the original exception is always set as InnerException, never discarded.
     internal static CompositionException WithSeedInMessage(CompositionException original, int seed)
     {
         ArgumentNullException.ThrowIfNull(original);
 
-        if (original.Diagnostic is not { } diagnostic)
-            throw new ArgumentException("The exception being wrapped must have a Diagnostic.", nameof(original));
-
-        var message = $"{diagnostic.Message}\n\nSeed: {seed}";
-        return new CompositionException(message, diagnostic, original) { DiagnosingContextIdentity = original.DiagnosingContextIdentity };
+        var message = $"{original.Message}\n\nSeed: {seed}";
+        return new CompositionException(message, original.Diagnostic, original) { DiagnosingContextIdentity = original.DiagnosingContextIdentity };
     }
 
-    private CompositionException(string message, CompositionDiagnostic diagnostic, Exception innerException)
+    private CompositionException(string message, CompositionDiagnostic? diagnostic, Exception innerException)
         : base(message, innerException)
     {
         Diagnostic = diagnostic;

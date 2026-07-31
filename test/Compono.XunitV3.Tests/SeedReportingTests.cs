@@ -64,6 +64,33 @@ public sealed partial class SeedReportingTests
         exception.InnerException.Should().NotBeNull("the original pipeline exception is preserved, never discarded");
     }
 
+    [Fact]
+    public async Task GetData_FailingComposition_MessageContainsTheSeed_ForAPlainMessageExceptionWithNoDiagnostic()
+    {
+        // CollectionPlan.scriban's generated HashSet<T>/Dictionary unique-value-exhaustion path throws
+        // a plain CompositionException(string) - no Diagnostic at all - so this proves the earlier
+        // catch-filter gap (PR #26 review, third round) is actually closed: every CompositionException
+        // gets the seed appended, not only a pipeline-diagnosed one.
+        const int seed = 246810;
+        var attribute = new ComposeAttribute { Seed = seed };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithExhaustedHashSetParameter))!;
+
+        CollectionPlanCache<HashSet<bool>>.Instance = new SampleTestMethods.CollectionExhaustionPlan();
+
+        try
+        {
+            var act = () => attribute.GetData(method, new DisposalTracker()).AsTask();
+            var exception = (await act.Should().ThrowAsync<CompositionException>()).Which;
+
+            exception.Diagnostic.Should().BeNull();
+            exception.Message.Should().Contain($"Seed: {seed}");
+        }
+        finally
+        {
+            CollectionPlanCache<HashSet<bool>>.Instance = null;
+        }
+    }
+
     [GeneratedRegex(@"Seed: (?<seed>\d+)")]
     private static partial Regex SeedLine();
 }
