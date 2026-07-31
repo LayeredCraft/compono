@@ -596,12 +596,33 @@ exercised indirectly through `Compono.Xunit.Tests`.
   (`LeafTypeClassifier.IsProviderResolved`) with no `[Composable]`/generated
   plan involved; the binding-plan-identity assertion the test exists for is
   unchanged.
+- **Every composed value is registered with `GetData`'s own
+  `disposalTracker` parameter as soon as it's composed** (PR #24 review) —
+  the initial Phase 2 commit produced composed argument values but never
+  registered them with the `DisposalTracker` xUnit itself hands `GetData`,
+  so a composed `IDisposable`/`IAsyncDisposable` value (a real one, or a
+  future `Compono.NSubstitute` substitute) was never released after the
+  test ran. `DisposalTracker.Add(object?)` no-ops for a value that isn't
+  disposable and tolerates `null`, so it's called unconditionally for
+  every `resolveInvoker`/`resolveSharedInvoker` result, registered
+  immediately after that call rather than batched at the end — so a later
+  parameter that throws (composition failure, or one of the pre-binding
+  inline-value checks) still releases whatever this row already composed,
+  not just a value from a row that completed successfully. Inline values
+  are never registered - a `[Compose(...)]` attribute's constructor
+  arguments must be compile-time constants, so an inline value can never
+  be an `IDisposable` instance in the first place.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
-  touched no generator code), `Compono.Xunit.Tests` 46/46 (23 × 2 TFMs,
-  unchanged count - one Phase 1 test updated in place, no new tests added;
-  new binding-algorithm coverage is Phase 3's own scope per the plan's
-  phase split and ADR-0022's Testing Strategy).
+  touched no generator code), `Compono.Xunit.Tests` 50/50 (25 × 2 TFMs -
+  23 from Phase 1 (one updated in place) + 2 new disposal-registration
+  tests for the fix above, using a `DisposableProfile`/`DisposableValue`
+  fixture pair composed via a registration rather than a generated plan,
+  matching this test project's existing generator-free pattern). Broader
+  binding-algorithm coverage (inline/composed/mixed rows, `[Shared]`
+  semantics, seed reproduction, the `Compono.Seed` trait, the real-runner
+  `Compono.Xunit.SampleTests` project) remains Phase 3's own scope per the
+  plan's phase split and ADR-0022's Testing Strategy.
 
 ## Open Items
 

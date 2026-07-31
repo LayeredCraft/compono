@@ -194,7 +194,14 @@ public class ComposeAttribute : DataAttribute
             }
             else
             {
-                values[i] = parameter.ResolveSharedInvoker(row, parameter.Descriptor);
+                // Registered as soon as it's composed, not after the whole row is assembled - a
+                // later parameter that throws (composition failure, or the too-many-inline/inline-
+                // mismatch checks above) must not leak a disposable value this row already produced.
+                // DisposalTracker.Add no-ops for a value that isn't IDisposable/IAsyncDisposable, so
+                // this is safe to call unconditionally for every composed value.
+                var value = parameter.ResolveSharedInvoker(row, parameter.Descriptor);
+                disposalTracker.Add(value);
+                values[i] = value;
             }
         }
 
@@ -206,9 +213,15 @@ public class ComposeAttribute : DataAttribute
             if (parameter.IsShared)
                 continue;
 
-            values[i] = i < _inlineValues.Length
-                ? _inlineValues[i]
-                : parameter.ResolveInvoker(row, parameter.Descriptor);
+            if (i < _inlineValues.Length)
+            {
+                values[i] = _inlineValues[i];
+                continue;
+            }
+
+            var value = parameter.ResolveInvoker(row, parameter.Descriptor);
+            disposalTracker.Add(value);
+            values[i] = value;
         }
 
         // Assembled in method declaration order - binding order (shared first, then the rest) and
