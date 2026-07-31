@@ -24,30 +24,44 @@ internal static class LeafTypeClassifier
     }
 
     /// <summary>
-    /// The narrower subset of <see cref="IsProviderResolved"/> that a stage-7 built-in
-    /// <c>ICompositionProvider</c> actually claims at runtime - enums, built-in simple types, and the
-    /// recognized BCL value types, but <b>not</b> abstract types or delegates (which
-    /// <see cref="IsProviderResolved"/> also treats as "leave as a bare <c>Resolve&lt;T&gt;()</c> call,"
-    /// but nothing ever satisfies at runtime either).
+    /// Used only for the <em>root</em> of <see cref="TransitiveClosureWalker.Walk"/> -
+    /// <c>Composer.Create&lt;T&gt;()</c>'s own requested type, and each of an xUnit theory row's own
+    /// composed parameters (<c>CompositionRow</c>).
     /// </summary>
     /// <remarks>
-    /// Used only for the <em>root</em> of <see cref="TransitiveClosureWalker.Walk"/> - a member of an
-    /// abstract/delegate type is legitimately left unresolved for now (a future provider/registration
-    /// might claim it), but the root of <c>Composer.Create&lt;T&gt;()</c> has no such off-ramp: an
-    /// abstract/delegate root must still reach constructor selection so it gets a real compile-time
-    /// diagnostic (CMP0003) instead of silently compiling into a call that can only ever fail at
-    /// runtime with a generic "nothing could satisfy this" exception - the exact regression PR #11
-    /// review caught when the root skipped classification entirely. <see cref="Nullable{T}"/> is
-    /// included here only when its underlying type is one <c>NullableValueProvider</c> actually
-    /// composes (primitive/enum/recognized BCL value type) - for any other underlying type,
-    /// <see cref="IsNullableValueType"/> returns <see langword="false"/> for both this method and
-    /// <see cref="IsProviderResolved"/>, so a root/member <c>Nullable&lt;T&gt;</c> over a composable
-    /// custom struct falls through to ordinary composable-type handling and gets a real generated
-    /// plan instead of silently compiling into a call that can only ever fail at runtime.
+    /// Milestone 1-4 (pre-ADR-0024): this used to be a narrower subset of
+    /// <see cref="IsProviderResolved"/> that excluded abstract types and delegates - enums, built-in
+    /// simple types, and the recognized BCL value types only. At the time, an abstract/delegate root
+    /// had no off-ramp at all (no provider mechanism existed to ever satisfy one at runtime), so
+    /// <c>Composer.Create&lt;ISomeInterface&gt;()</c> was routed into constructor selection on
+    /// purpose, to surface a real compile-time diagnostic (CMP0003) instead of silently compiling into
+    /// a call that could only ever fail at runtime with a generic "nothing could satisfy this"
+    /// exception - the exact regression PR #11 review caught when the root skipped classification
+    /// entirely.
+    /// <para>
+    /// ADR-0024's public provider extensibility model (Milestone 5) invalidated that assumption: a
+    /// registered <c>ICompositionValueProvider</c> (e.g. <c>Compono.NSubstitute</c>'s
+    /// <c>NSubstituteProvider</c>) can now genuinely satisfy an interface/abstract-class/delegate root
+    /// at runtime, exactly like it already could for a member (<see cref="IsProviderResolved"/> never
+    /// excluded these). Routing such a root into constructor selection today would report a false
+    /// CMP0003 for code that compiles and runs correctly - PLAN-0005 Phase 2's own real end-to-end
+    /// sample test (a bare <c>[Shared] IOrderRepository</c> xUnit theory parameter, substituted via
+    /// <c>UseNSubstitute()</c>) is exactly this case, caught by actually trying to compile it rather
+    /// than only unit-testing the classifier in isolation. This method's root-only distinction from
+    /// <see cref="IsProviderResolved"/> is kept only for <see cref="Nullable{T}"/> now - see below -
+    /// not for abstract types or delegates, which now share the same leaf classification at both root
+    /// and member position.
+    /// </para>
+    /// <see cref="Nullable{T}"/> is included here only when its underlying type is one
+    /// <c>NullableValueProvider</c> actually composes (primitive/enum/recognized BCL value type) - for
+    /// any other underlying type, <see cref="IsNullableValueType"/> returns <see langword="false"/> for
+    /// both this method and <see cref="IsProviderResolved"/>, so a root/member
+    /// <c>Nullable&lt;T&gt;</c> over a composable custom struct falls through to ordinary
+    /// composable-type handling and gets a real generated plan instead of silently compiling into a
+    /// call that can only ever fail at runtime.
     /// </remarks>
     public static bool IsRuntimeProviderResolved(ITypeSymbol type, WellKnownTypes.WellKnownTypes wellKnownTypes) =>
-        type is INamedTypeSymbol named &&
-        (named.TypeKind == TypeKind.Enum || IsBuiltInSimpleType(named) || IsRecognizedBclValueType(named, wellKnownTypes) || IsNullableValueType(named, wellKnownTypes));
+        IsProviderResolved(type, wellKnownTypes);
 
     private static bool IsBuiltInSimpleType(INamedTypeSymbol type) => type.SpecialType is
         SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte or

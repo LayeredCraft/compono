@@ -270,12 +270,18 @@ package: substitutable-shape rules including delegate types, `NSubstituteOptions
 diagnostics). **ADR-0024's core engine extension point is implemented
 (PLAN-0005 Phase 0)** — `builder.AddSemanticProvider(...)`/
 `builder.AddTestDoubleProvider(...)` are real, tested public API today.
-**`Compono.NSubstitute` itself (ADR-0025) is implemented (PLAN-0005 Phase 1)**
-— `NSubstituteProvider`/`NSubstituteOptions`/`UseNSubstitute()` are real code,
-but not yet test-covered or end-to-end verified (PLAN-0005 Phase 2) — see
+**`Compono.NSubstitute` itself (ADR-0025) is implemented and test-covered/
+end-to-end verified (PLAN-0005 Phase 2)** — `NSubstituteProvider`/
+`NSubstituteOptions`/`UseNSubstitute()` are real, tested code, verified both by
+`Compono.NSubstitute.Tests` and by a real packaged `Compono.XunitV3.SampleTests`
+run of this milestone's own Goal scenario. See
 [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for the
-phase-by-phase tracker; this milestone's own exit criteria aren't met until
-that verification lands.
+phase-by-phase tracker (Phase 3, docs/cleanup, still open) and
+[ADR-0024's Amendment 2](adr/0024-public-provider-extensibility-model.md) for
+a `Compono.Generators` compile-time check (`CMP0003`) Phase 2's real
+verification found and fixed along the way — an interface/abstract-class/
+delegate root is now correctly left for a provider to satisfy at runtime
+instead of being rejected at compile time.
 
 ### Scope
 

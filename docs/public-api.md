@@ -422,11 +422,14 @@ same interface, registered via `AddSemanticProvider` instead of
 
 ## NSubstitute Integration
 
-Implemented (PLAN-0005 Phase 1) per
+Implemented and test-covered/end-to-end verified (PLAN-0005 Phase 2) per
 [ADR-0025](adr/0025-compono-nsubstitute-package-design.md), built on the Provider
 Extensibility contract above — `Compono.NSubstitute`'s `NSubstituteProvider`/
-`NSubstituteOptions`/`UseNSubstitute()` are real code today. Test coverage and
-end-to-end verification are still pending (PLAN-0005 Phase 2).
+`NSubstituteOptions`/`UseNSubstitute()` are real, tested code, verified end-to-end
+against a real packaged xUnit v3 consumer (`Compono.XunitV3.SampleTests`) running
+this milestone's own Goal scenario: a `[Shared]` interface theory parameter
+composed as a real substitute and reused by a nested constructor parameter of the
+same type.
 
 Activation:
 

@@ -38,9 +38,17 @@ public sealed class NSubstituteProvider : ICompositionValueProvider
 
     // ADR-0025 Amendment 1: IsSubclassOf(typeof(MulticastDelegate)), not
     // typeof(Delegate).IsAssignableFrom(requestedType) - the latter wrongly matches the
-    // non-substitutable Delegate/MulticastDelegate framework base types themselves.
+    // non-substitutable Delegate/MulticastDelegate framework base types themselves. The abstract-class
+    // branch below needs its own exclusion for the same two types (PLAN-0005 Phase 2 regression
+    // coverage caught this): System.Delegate/System.MulticastDelegate are themselves abstract,
+    // unsealed, non-interface classes, so without excluding them here they'd still slip through this
+    // OR's third clause even though the delegate-specific second clause above correctly declines them.
     internal static bool IsSubstitutable(Type requestedType, bool substituteAbstractClasses) =>
         requestedType.IsInterface
         || requestedType.IsSubclassOf(typeof(MulticastDelegate))
-        || (substituteAbstractClasses && requestedType.IsAbstract && !requestedType.IsSealed && !requestedType.IsInterface);
+        || (substituteAbstractClasses
+            && requestedType.IsAbstract
+            && !requestedType.IsSealed
+            && !requestedType.IsInterface
+            && !typeof(Delegate).IsAssignableFrom(requestedType));
 }

@@ -9,6 +9,7 @@
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
     <Project Path="test/Compono.Generators.Tests/Compono.Generators.Tests.csproj" />
     <Project Path="test/Compono.XunitV3.Tests/Compono.XunitV3.Tests.csproj" />
+    <Project Path="test/Compono.NSubstitute.Tests/Compono.NSubstitute.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj" />
