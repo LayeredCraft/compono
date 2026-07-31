@@ -34,10 +34,46 @@ public sealed class RealRunnerTests
         // internal MSBuild restore/build re-evaluation the nested `dotnet test` performs).
         startInfo.Environment["Compono_LocalPackagesId"] = Guid.NewGuid().ToString("N");
 
+        // A machine-wide named Mutex, not just pack-to-local-feed.sh's own mkdir-based lock (PR #26
+        // review, fourth round): the restore-path isolation above stops two concurrent invocations
+        // from colliding on NuGet's packages folder, but src/Compono and src/Compono.Generators
+        // themselves still build to one shared bin/obj regardless of which invocation is doing the
+        // building - the mkdir lock serializes the two `dotnet pack` Exec calls specifically, but CI
+        // still hit "Could not find a part of the path '.../Compono.Generators/bin/Debug
+        // /netstandard2.0'" even with that lock in place (reproducible in CI, not locally - some
+        // MSBuild-internal timing difference under CI's specific concurrency that direct local
+        // reproduction attempts didn't trigger). Rather than keep chasing that exact internal race,
+        // this Mutex serializes the *entire* nested subprocess (spawn through exit), machine-wide, so
+        // only one nested `dotnet test` against this sample project ever runs at a time, period -
+        // independent of whatever MSBuild is doing internally on either side of it.
+        using var mutex = new Mutex(initiallyOwned: false, name: "Global\\Compono.XunitV3.SampleTests.RealRunner");
+
+        try
+        {
+            mutex.WaitOne();
+        }
+        catch (AbandonedMutexException)
+        {
+            // A previous holder terminated (e.g. a killed test run) without calling ReleaseMutex -
+            // the wait still succeeds and this thread now owns the mutex; the previous holder's own
+            // work is unrelated to whether this acquisition is valid, so there's nothing to rethrow.
+        }
+
         using var process = Process.Start(startInfo)!;
-        var output = process.StandardOutput.ReadToEnd();
-        var error = process.StandardError.ReadToEnd();
-        var exited = process.WaitForExit(TimeSpan.FromMinutes(5));
+        string output;
+        string error;
+        bool exited;
+
+        try
+        {
+            output = process.StandardOutput.ReadToEnd();
+            error = process.StandardError.ReadToEnd();
+            exited = process.WaitForExit(TimeSpan.FromMinutes(5));
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
 
         exited.Should().BeTrue("the sample project's own dotnet test run should complete well within this timeout");
 

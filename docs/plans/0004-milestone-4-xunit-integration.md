@@ -925,6 +925,38 @@ exercised indirectly through `Compono.XunitV3.Tests`.
        concurrent net10.0+net11.0 `dotnet test ... --no-restore`) with a
        clean local NuGet cache each time - all four passed after this fix,
        versus a reliable failure before it under the identical sequence.
+     - **This "shipped" attempt was pushed and still failed in CI** - a
+       fourth round was needed. The restore-path isolation itself worked
+       (CI's own log showed the two invocations resolving genuinely
+       different `Compono_LocalPackagesId` values), but CI still hit the
+       *original* symptom from the very first race (`Could not find a
+       part of the path '.../Compono.Generators/bin/Debug/netstandard2.0'`)
+       - meaning `pack-to-local-feed.sh`'s own `mkdir`-based lock, which
+       serializes only the two `dotnet pack` `Exec` calls, wasn't
+       sufficient on CI's specific runner even though four separate local
+       stress-test batches (a dozen-plus concurrent attempts total, exactly
+       matching CI's Release-build-then-concurrent-test sequence) never
+       reproduced this exact recurrence locally. Rather than continue
+       chasing an MSBuild-internal timing difference that resisted local
+       reproduction, `RealRunnerTests.cs` now wraps the *entire* nested
+       subprocess (spawn through exit) in a machine-wide named
+       `System.Threading.Mutex` (`Global\Compono.XunitV3.SampleTests
+       .RealRunner`) - fully serializing every nested `dotnet test`
+       against the sample project, regardless of what either side is doing
+       internally, rather than relying on the pack step's own narrower
+       lock. This surfaced its own, unrelated bug during local stress
+       testing: `Mutex.WaitOne()` throwing `AbandonedMutexException` (a
+       previous interrupted local run had left the mutex abandoned without
+       releasing it) was treated as an unhandled failure instead of the
+       successful acquisition it actually represents - the standard .NET
+       pattern is to catch it and proceed, which `RealRunnerTests.cs` now
+       does. Verified with eight consecutive concurrent net10.0+net11.0
+       runs (four before the `AbandonedMutexException` fix, all failing on
+       that new exception; four after, all clean) - and the passing runs'
+       own timings (one side consistently ~8s, the other ~15-16s) directly
+       show the serialization actually happening, unlike the previous
+       "both sides run in ~8-9s" timing that never definitively proved the
+       mkdir lock was serializing anything.
   - Also folded into this round, at the user's request (not a posted PR
     comment): the sample project had no `[Compose<TProfile>]` theory at
     all - every existing theory used the profile-less `[Compose]` form.
