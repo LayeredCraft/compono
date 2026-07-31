@@ -185,7 +185,7 @@ directly.
 ## xUnit v3 Experience
 
 Resolved by [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md)/
-[ADR-0022](adr/0022-compono-xunit-package-design.md) (`Accepted`, not yet
+[ADR-0022](adr/0022-compono-xunit-package-design.md) (`Accepted`, fully
 implemented — see [PLAN-0004](plans/0004-milestone-4-xunit-integration.md)).
 `[Compose]`/`[Compose<TProfile>]` implement `Xunit.v3.DataAttribute`
 directly; composition happens once per theory row, at execution time (not

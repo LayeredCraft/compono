@@ -199,10 +199,11 @@ stage-2 shared-value read-gate change), [ADR-0022](adr/0022-compono-xunit-packag
 (`Compono.XunitV3` package: `[Compose]`/`[Compose<TProfile>]`/`[Shared]`
 attributes, inline/composed binding, profile selection, seed policy,
 diagnostics, package dependencies), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
-(the `Compono.Xunit` → `Compono.XunitV3` rename). Phases 0-2 (core entry
-point, attribute skeleton, binding algorithm) are implemented; Phases 3-4
-(test suites/verification, docs/cleanup) remain — tracked by
-[PLAN-0004](plans/0004-milestone-4-xunit-integration.md).
+(the `Compono.Xunit` → `Compono.XunitV3` rename). Fully implemented across
+Phases 0-4 (core entry point, attribute skeleton, binding algorithm, test
+suites/verification, docs/cleanup) — see
+[PLAN-0004](plans/0004-milestone-4-xunit-integration.md) for the phase-by-phase
+account.
 
 ### Scope
 
@@ -229,6 +230,9 @@ public void Creates_service(
 ```
 
 ### Exit Criteria
+
+All met, verified through `test/Compono.XunitV3.Tests` and a real xUnit v3
+runner against `test/Compono.XunitV3.SampleTests` (PLAN-0004 Phase 3):
 
 - Composed parameters work under xUnit v3
 - Inline values take precedence
