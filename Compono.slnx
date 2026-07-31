@@ -3,6 +3,7 @@
     <Project Path="src/Compono/Compono.csproj" />
     <Project Path="src/Compono.Generators/Compono.Generators.csproj" />
     <Project Path="src/Compono.XunitV3/Compono.XunitV3.csproj" />
+    <Project Path="src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
