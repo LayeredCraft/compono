@@ -24,6 +24,10 @@ internal static class SampleTestMethods
     {
     }
 
+    public static void WithSharedDisposableFollowedByOrdinaryOfTheSameType([Shared] DisposableValue shared, DisposableValue ordinary)
+    {
+    }
+
     public static void WithRefParameter(ref int value)
     {
     }
@@ -73,7 +77,9 @@ internal static class SampleTestMethods
 
 public sealed class DisposableValue : IDisposable
 {
-    public bool Disposed { get; private set; }
+    public bool Disposed => DisposeCount > 0;
 
-    public void Dispose() => Disposed = true;
+    public int DisposeCount { get; private set; }
+
+    public void Dispose() => DisposeCount++;
 }

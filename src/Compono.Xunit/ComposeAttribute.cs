@@ -176,6 +176,13 @@ public class ComposeAttribute : DataAttribute
 
         var values = new object?[parameters.Count];
 
+        // Tracks (by reference, not equality) every composed value already registered with
+        // disposalTracker in this row - a [Shared] value and a later ordinary parameter of the same
+        // type both resolve to the exact same instance (CompositionContext.ResolveCore's stage-2
+        // scope read), so registering unconditionally at both sites would hand DisposalTracker the
+        // same object twice, which disposes it twice - unsafe for a Dispose() that isn't idempotent.
+        var trackedForDisposal = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
         // [Shared] parameters compose (or share their inline value) first, in declaration order among
         // themselves, regardless of where they sit among non-shared parameters - so a shared value is
         // always in scope before any parameter that might structurally depend on it composes.
@@ -194,13 +201,8 @@ public class ComposeAttribute : DataAttribute
             }
             else
             {
-                // Registered as soon as it's composed, not after the whole row is assembled - a
-                // later parameter that throws (composition failure, or the too-many-inline/inline-
-                // mismatch checks above) must not leak a disposable value this row already produced.
-                // DisposalTracker.Add no-ops for a value that isn't IDisposable/IAsyncDisposable, so
-                // this is safe to call unconditionally for every composed value.
                 var value = parameter.ResolveSharedInvoker(row, parameter.Descriptor);
-                disposalTracker.Add(value);
+                TrackForDisposal(value);
                 values[i] = value;
             }
         }
@@ -220,7 +222,7 @@ public class ComposeAttribute : DataAttribute
             }
 
             var value = parameter.ResolveInvoker(row, parameter.Descriptor);
-            disposalTracker.Add(value);
+            TrackForDisposal(value);
             values[i] = value;
         }
 
@@ -235,6 +237,19 @@ public class ComposeAttribute : DataAttribute
         dataRow.Traits[SeedTraitName] = [row.Seed.ToString(CultureInfo.InvariantCulture)];
 
         return new ValueTask<IReadOnlyCollection<ITheoryDataRow>>([dataRow]);
+
+        // Registered as soon as a value is composed, not after the whole row is assembled - a later
+        // parameter that throws (composition failure, or one of the pre-binding inline-value checks
+        // above) must not leak a disposable value this row already produced. DisposalTracker.Add
+        // no-ops for a value that isn't IDisposable/IAsyncDisposable and tolerates null, so this is
+        // safe to call for every composed value - trackedForDisposal is what keeps a value shared
+        // between a [Shared] parameter and a later ordinary parameter of the same type from being
+        // registered (and therefore disposed) twice.
+        void TrackForDisposal(object? value)
+        {
+            if (value is not null && trackedForDisposal.Add(value))
+                disposalTracker.Add(value);
+        }
     }
 
     /// <summary>

@@ -625,13 +625,32 @@ exercised indirectly through `Compono.Xunit.Tests`.
   the more surprising behavior of the two. No code change - the
   `row.Seed < 0` check two items above already covers this source
   correctly; only the ADR's wording needed the carve-out made explicit.
+- **A `[Shared]` value reused by a later ordinary parameter of the same
+  type was registered with `disposalTracker` twice** (PR #24 review) —
+  `CompositionContext.ResolveCore`'s stage-2 scope read
+  ([ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md))
+  means a `[Shared]` parameter and a later non-shared parameter of the
+  same type resolve to the exact same instance, so the disposal-tracking
+  fix above (registering unconditionally at each composition call site)
+  handed `DisposalTracker` that one instance twice - `DisposeAsync` then
+  calls `Dispose()` on it twice, unsafe for a `Dispose()` that isn't
+  idempotent. Fixed with a per-`GetData`-call `HashSet<object>`
+  (`ReferenceEqualityComparer.Instance`, not default equality - identity,
+  not value equality, is what determines "the same composed instance"
+  here) that every composed value is checked against before registering;
+  `Add` returning `false` (already present) skips the redundant
+  `disposalTracker.Add` call. Covered by
+  `GetData_RegistersASharedDisposableValueOnce_EvenWhenALaterParameterReusesIt`,
+  proving both single registration and a `DisposeCount` of exactly `1`
+  after `DisposeAsync`.
 - Full suite green: `Compono.Tests` 388/388 (unchanged - Phase 2 touched
   no core code), `Compono.Generators.Tests` 166/166 (unchanged - Phase 2
-  touched no generator code), `Compono.Xunit.Tests` 50/50 (25 × 2 TFMs -
-  23 from Phase 1 (one updated in place) + 2 new disposal-registration
-  tests for the fix above, using a `DisposableProfile`/`DisposableValue`
-  fixture pair composed via a registration rather than a generated plan,
-  matching this test project's existing generator-free pattern). Broader
+  touched no generator code), `Compono.Xunit.Tests` 52/52 (26 × 2 TFMs -
+  23 from Phase 1 (one updated in place) + 3 new disposal-registration
+  tests for the two fixes above, using a `DisposableProfile`/
+  `DisposableValue` fixture pair composed via a registration rather than a
+  generated plan, matching this test project's existing generator-free
+  pattern). Broader
   binding-algorithm coverage (inline/composed/mixed rows, `[Shared]`
   semantics, seed reproduction, the `Compono.Seed` trait, the real-runner
   `Compono.Xunit.SampleTests` project) remains Phase 3's own scope per the
