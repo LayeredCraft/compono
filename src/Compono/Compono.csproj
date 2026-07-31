@@ -35,11 +35,6 @@
              already how GeneratorTestHelpers.CompileAndExecute invokes every test's entry point, so this
              adds no new public/friend surface to the shipped package. -->
         <InternalsVisibleTo Include="Compono.Tests" />
-        <!-- CompositionException.WithSeedInMessage (PR #26 review; ADR-0022 Amendment 5) - lets
-             Compono.XunitV3.ComposeAttribute.GetData wrap a propagating pipeline composition failure
-             so its own Message carries the row's seed. A narrow internal seam, not a new public API -
-             docs/public-api.md's "keep public APIs minimal" goal. -->
-        <InternalsVisibleTo Include="Compono.XunitV3" />
     </ItemGroup>
 
 </Project>

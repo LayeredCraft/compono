@@ -817,10 +817,9 @@ exercised indirectly through `Compono.XunitV3.Tests`.
      `[Compose(Seed = -1)]`, which exercises `Compono.XunitV3`'s own
      seed-validation failure, not a genuine composition failure - the
      milestone's actual Goal statement is about the latter. Fixed by (a)
-     adding `CompositionException.WithSeedInMessage` as a new internal
-     `Compono` core seam (`Compono.XunitV3` granted `InternalsVisibleTo`) so
-     `ComposeAttribute.GetData` now rewrites a propagating pipeline
-     failure's own `Message` to include the seed - previously only
+     adding `CompositionException.WithSeedInMessage` as a new `Compono`
+     core method so `ComposeAttribute.GetData` now rewrites a propagating
+     pipeline failure's own `Message` to include the seed - previously only
      `Diagnostic` had it, and a real test runner's failure display shows
      `Message`, not `Diagnostic.ToString()`; (b) switching the sample
      project's failing theory to a genuine unsatisfied composition
@@ -833,10 +832,12 @@ exercised indirectly through `Compono.XunitV3.Tests`.
      rewritten to assert on `.Message` directly (not `.Diagnostic`) for
      exactly this reason, plus a new test proving `Diagnostic` itself is
      left unchanged (no duplicated `"Seed:"` line) alongside the rewritten
-     `Message`. `Compono.Tests` gained direct coverage of the new internal
-     `CompositionException.WithSeedInMessage` seam itself, per `testing.md`'s
-     "verifying a new public entry point" rule extended to this internal
-     one. This fix is real, independently tested, and kept.
+     `Message`. `Compono.Tests` gained direct coverage of
+     `CompositionException.WithSeedInMessage` itself, per `testing.md`'s
+     "verifying a new public entry point" rule. This fix is real,
+     independently tested, and kept - though its *access mechanism*
+     changed again in round 5 below, after first shipping as `internal`
+     plus `InternalsVisibleTo`.
   2. `PackToLocalFeed`'s fixed `-p:Version=1.0.0` meant a stale entry in
      NuGet's global packages folder from an earlier run could silently
      satisfy a later restore even after the local feed's `.nupkg` contents
@@ -874,6 +875,46 @@ exercised indirectly through `Compono.XunitV3.Tests`.
      to test. Fixed by rewriting it with `Parallel.ForEachAsync`, which
      genuinely dispatches across the thread pool concurrently - verified
      stable across 5 repeated local runs post-fix.
+  5. A fourth review round found two P2 gaps: `PublicApiSurfaceTests`
+     checked only `type.IsPublic`, which reflection never sets for a
+     nested type (`IsNestedPublic` is the separate flag), so an
+     accidentally-added nested public type would have slipped through
+     undetected - fixed by checking both. Separately, `GetData`'s XML doc
+     claimed `InnerException` was "unchanged" from what the pipeline threw,
+     but `WithSeedInMessage` constructs a *new* exception whose
+     `InnerException` is the pipeline's original `CompositionException`
+     itself (one level shallower than that original's own
+     `InnerException`) - e.g. a provider failure's real chain is wrapper
+     → original composition exception → the provider's own thrown
+     exception. Doc corrected to describe the actual chain.
+  6. **A fifth review round caught something serious: the `internal`
+     `WithSeedInMessage` seam from round 2, reached via a new
+     `InternalsVisibleTo("Compono.XunitV3")` grant on `Compono.csproj`,
+     directly reversed [ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)'s
+     own accepted, public-only integration boundary** - that ADR's own
+     Pros and Cons section has an entry for exactly this option, rejected
+     specifically because "it directly reverses a deliberate, documented
+     policy... adopted specifically to keep a shipped package's internal
+     surface from becoming a de facto public contract for 'trusted'
+     consumers." Because `Compono` is unsigned, the grant authenticated
+     only the assembly name - handing any assembly that could claim that
+     name unrestricted access to every internal member of `Compono` core,
+     not scoped to the one method that needed it. This should have been
+     caught before implementation (a quick check against ADR-0021 before
+     adding any `InternalsVisibleTo` entry would have surfaced the direct
+     conflict immediately) rather than by a later review round. **Fixed by
+     removing the grant entirely and making `WithSeedInMessage` itself
+     `public` instead of `internal`** - it already lives inside
+     `CompositionException`, so it already had full access to the private
+     constructor and `DiagnosingContextIdentity` it needs; the only reason
+     it ever required `InternalsVisibleTo` was its own access modifier, not
+     anything about where it's implemented. `Compono.XunitV3` now gets
+     exactly the one operation it needs via an ordinary public API call,
+     `CompositionContext` and every other internal type stay exactly as
+     inaccessible as ADR-0021 intended, and the only `InternalsVisibleTo`
+     entry remaining in `Compono.csproj` is `Compono.Tests`, unchanged from
+     before this PR. See ADR-0022 Amendment 5's own "amendment to this
+     amendment" for the full account.
   - Also folded into this round, at the user's request (not a posted PR
     comment): the sample project had no `[Compose<TProfile>]` theory at
     all - every existing theory used the profile-less `[Compose]` form.

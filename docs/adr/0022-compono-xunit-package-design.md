@@ -1068,17 +1068,16 @@ not just in this one sample theory.
 **Decision:** `ComposeAttribute.GetData` now catches a `CompositionException`
 propagating from a composition call (`ResolveInvoker`/`ResolveSharedInvoker`/
 `ShareExplicitInvoker`, via a new private `InvokeWithSeedOnFailure` helper
-wrapping each call site) and rethrows it via a new internal `Compono` core
-seam, `CompositionException.WithSeedInMessage(original, seed)` - rewriting
-`Message` to `$"{diagnostic.Message}\n\nSeed: {seed}"` while preserving
+wrapping each call site) and rethrows it via a new public `Compono` core
+method, `CompositionException.WithSeedInMessage(original, seed)` - rewriting
+`Message` to `$"{original.Message}\n\nSeed: {seed}"` while preserving
 `Diagnostic` completely unchanged (so `Diagnostic.ToString()` still renders
 correctly, without a duplicated `"Seed:"` line) and the original exception
-as `InnerException`. This is an `internal` seam, not a new public API -
-`Compono.csproj` grants `Compono.XunitV3` `InternalsVisibleTo` for exactly
-this, the same pattern already used for `Compono.Tests` - `docs/public
--api.md`'s "keep public APIs minimal" goal is unaffected.
+as `InnerException`. **Originally shipped as an `internal` seam with a new
+`InternalsVisibleTo("Compono.XunitV3")` grant on `Compono.csproj` - reverted
+after PR #26 review's fourth round; see the amendment below.**
 
-**Why an internal core seam rather than a workaround entirely inside
+**Why a new core method rather than a workaround entirely inside
 `Compono.XunitV3`:** `CompositionException`'s existing constructors always
 derive `Message` directly from `Diagnostic.Message` (or accept a plain
 string with no `Diagnostic`/`InnerException` at all) - there's no existing
@@ -1089,7 +1088,7 @@ a seed-appended `Message` field was considered and rejected: `Diagnostic
 .ToString()`'s own format independently appends `"\n\nSeed: {Seed}"`, so a
 diagnostic whose `Message` field *also* had the seed appended would render
 that line twice - a visible regression for the documented `Console
-.WriteLine(exception.Diagnostic)` path. The internal seam avoids that
+.WriteLine(exception.Diagnostic)` path. `WithSeedInMessage` avoids that
 entirely by leaving `Diagnostic` untouched and only rewriting the outer
 exception's own `Message`.
 
@@ -1126,6 +1125,36 @@ unchanged - rather than requiring one. `InvokeWithSeedOnFailure`'s catch
 clause no longer needs the `Diagnostic is not null` guard at all: every
 `CompositionException`, diagnosed or not, now gets the same treatment
 uniformly.
+
+**Amendment to this amendment (PR #26 review, fourth round): the
+`InternalsVisibleTo` grant directly reversed ADR-0021's own accepted,
+public-only integration boundary.** ADR-0021's Pros and Cons already has
+an entry for exactly this option -
+"Reaching the engine — `InternalsVisibleTo("Compono.Xunit")`" - rejected
+specifically because "it directly reverses a deliberate, documented
+policy... adopted specifically to keep a shipped package's internal
+surface from becoming a de facto public contract for 'trusted'
+consumers." Granting `Compono.XunitV3` `InternalsVisibleTo` for
+`WithSeedInMessage` did exactly that: because `Compono` is unsigned, the
+grant authenticates only the simple assembly name, handing any assembly
+that can claim that name unrestricted access to every internal member of
+`Compono` core - not scoped to the one method that needed it.
+
+**Decision:** the grant is removed. `WithSeedInMessage` itself moved from
+`internal` to `public` instead - it already lives inside
+`CompositionException`, so it already has full access to the private
+constructor and `DiagnosingContextIdentity` it needs; the only reason it
+required `InternalsVisibleTo` at all was its own access modifier, not
+anything about where it's implemented. Making the one method public,
+rather than granting blanket internal access, is the minimal-footprint
+fix `docs/public-api.md`'s "keep public APIs minimal" goal actually calls
+for: `Compono.XunitV3` gets exactly the operation it needs and nothing
+else, `CompositionContext` and every other internal type stay exactly as
+inaccessible to `Compono.XunitV3` as ADR-0021 intended, and any other
+consumer building custom composition-failure tooling gets the same
+utility for free. No `InternalsVisibleTo` entry for `Compono.XunitV3`
+exists in `Compono.csproj` after this fix - the only remaining grant is
+`Compono.Tests`, unchanged from before this PR.
 
 ## Amendment 6 (2026-07-31): the automated real-runner test is dropped; the sample project stays, unautomated
 
