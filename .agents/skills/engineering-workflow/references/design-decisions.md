@@ -31,9 +31,14 @@ Four places, each with a different job — don't blur them together:
   shapes, not shipped ones) — when a doc is describing a target rather than
   current reality, keep that distinction explicit rather than letting a
   doc quietly drift from "intent" to "fact" without the code to back it.
-- **`docs/adr/*.md`** — the actual decision record: numbered, permanent,
-  immutable once accepted. This is where "what was decided and why, and
-  what was rejected" actually lives — see **Writing an ADR** below and
+- **`docs/adr/*.md`** — the actual decision record: numbered, permanent.
+  Its original Decision/Rationale/Consequences text is immutable once
+  accepted — never rewritten to look like it was always this way — but a
+  correction or extension discovered later gets recorded as a dated
+  Amendment appended to the same ADR, rather than either editing the
+  original text or opening a new ADR for something that isn't actually a
+  reversal. This is where "what was decided and why, and what was
+  rejected" actually lives — see **Writing an ADR** below and
   `docs/adr/README.md` for the numbering/status mechanics.
   `docs/adr/0000-adr-template.md` is the template to copy for every new
   ADR. An ADR is not a plan — it doesn't get a task checklist or a
@@ -140,20 +145,38 @@ a short one, not a skipped one:
 5. Update the relevant `docs/*.md` topic doc to reflect the resulting
    current (or intended, per the pre-implementation note above) state,
    linking back to the ADR rather than re-explaining the reasoning.
-6. If this ADR changes direction from an earlier one, set the earlier
-   ADR's `Status` to `Superseded by ADR-XXXX` — don't edit its Decision/
-   Rationale/Consequences, an accepted ADR is a historical record, not a
-   living doc.
+6. If this ADR changes direction from an earlier one — its core Decision
+   Outcome is being replaced, not just corrected or extended — set the
+   earlier ADR's `Status` to `Superseded by ADR-XXXX` — don't edit its
+   Decision/Rationale/Consequences in place for a change this size; write
+   the new decision as its own ADR instead.
+7. If implementation or review surfaces a correction, clarification, or
+   extension to an already-`Accepted` ADR's decision — not a reversal of
+   it — record it as a dated `## Amendment N (YYYY-MM-DD): <title>` section
+   appended to that same ADR, rather than opening a new one. This is the
+   established pattern in this repo (see ADR-0022's Amendments 1-6 for
+   real examples: a caching-interaction clarification, a reverted feature
+   attempt, a gap a later PR review caught, a test-infrastructure decision
+   changed after repeated CI failures) — an Accepted ADR's *original*
+   Decision/Rationale/Consequences text stays exactly as written (that's
+   the "immutable historical record" property that matters: what was
+   decided, and why, at the time, is never rewritten to look like it was
+   always this way), but the ADR as a whole is allowed to grow dated
+   Amendment sections that record what was learned afterward. Reach for
+   step 6 (a full new ADR, superseding this one) only when the core
+   decision itself is being reversed or replaced — a genuinely different
+   answer to the same question, not a correction to how the original
+   answer was implemented or verified.
 
 Keep the ADR itself to decision content — Status, Decision, Rationale (or
 Context/Decision Drivers/Considered Options/Decision Outcome for a deep
-dive that needs the fuller shape), Consequences. Resist the urge to also
-list every file that'll change or write a task checklist inside it; once
-an ADR is `Accepted`, that kind of content goes stale the moment
-implementation starts diverging from the plan in some small way, and
-you're stuck either leaving the ADR wrong or editing a record that's
-supposed to be immutable. That content belongs in a plan instead — see
-below.
+dive that needs the fuller shape), Consequences, and any Amendments per
+step 7 above. Resist the urge to also list every file that'll change or
+write a task checklist inside it; once an ADR is `Accepted`, that kind of
+content goes stale the moment implementation starts diverging from the
+plan in some small way, and you're stuck either leaving the ADR wrong or
+editing content that's supposed to stay as originally written. That
+content belongs in a plan instead — see below.
 
 A design dive — light or deep — that never produces an ADR hasn't actually
 finished. The brainstorm (for a deep dive) or the quick judgment call (for

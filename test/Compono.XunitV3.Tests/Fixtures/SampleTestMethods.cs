@@ -20,6 +20,59 @@ internal static class SampleTestMethods
     {
     }
 
+    public static void WithNullableReferenceParameter(string? value)
+    {
+    }
+
+    public static void WithNonNullableReferenceParameter(string value)
+    {
+    }
+
+    public static void WithNullableValueParameter(int? value)
+    {
+    }
+
+    public static void WithNonNullableValueParameter(int value)
+    {
+    }
+
+    // Deliberately single-parameter - a second same-typed parameter would read this shared value
+    // back from scope too (Phase 0's stage-2 read gate applies to every same-typed request in the
+    // row, not just ones marked [Shared]) and re-validate it against that parameter's own
+    // nullability, which isn't what these fixtures exist to test.
+    public static void WithSharedNullableReferenceParameter([Shared] string? value)
+    {
+    }
+
+    public static void WithSharedNonNullableReferenceParameter([Shared] string value)
+    {
+    }
+
+    public static void WithSharedNullableValueParameter([Shared] int? value)
+    {
+    }
+
+    public static void WithSharedNonNullableValueParameter([Shared] int value)
+    {
+    }
+
+    // No provider and no generated plan can ever satisfy this interface (this test project doesn't
+    // reference Compono.Generators as an analyzer, and nothing registers it) - composing it always
+    // fails, deterministically, which is exactly what the seed-message-content proof needs.
+    public static void WithUnregisteredInterfaceParameter(IUnregisteredDependency value)
+    {
+    }
+
+    // Reaches CollectionExhaustionPlan (registered via CollectionPlanCache<HashSet<bool>>.Instance,
+    // since this test project doesn't reference Compono.Generators as an analyzer) - a plain-message
+    // CompositionException, no Diagnostic at all, exactly matching what the real generated
+    // HashSet<T>/Dictionary collection plan throws on unique-value exhaustion
+    // (CollectionPlan.scriban). Proves GetData appends the seed to this shape too, not only a
+    // pipeline-diagnosed one (PR #26 review, third round).
+    public static void WithExhaustedHashSetParameter(HashSet<bool> values)
+    {
+    }
+
     public static void WithDisposableParameter(DisposableValue disposable)
     {
     }
@@ -66,6 +119,30 @@ internal static class SampleTestMethods
         public void Configure(CompositionBuilder builder) => builder.Register(() => "from-profile");
     }
 
+    // Mirrors CollectionPlan.scriban's own HashSet<T> shape exactly (same UniqueValueResolver call,
+    // same plain-message CompositionException on exhaustion) rather than just throwing directly,
+    // since this test project doesn't reference Compono.Generators as an analyzer and can't get the
+    // real generated plan (testing.md's hand-fake convention). Registered by the test itself (not a
+    // static constructor here - typeof(...)/GetMethod(...) don't trigger a type's static constructor,
+    // only an actual member access does), matching Compono.Tests' CollectionPlanCacheDispatchTests
+    // register/try-finally-unregister pattern.
+    public sealed class CollectionExhaustionPlan : ICompositionPlan<HashSet<bool>>
+    {
+        public HashSet<bool> Compose(ICompositionContext context)
+        {
+            var size = context.ResolveCollectionSize();
+            var result = new HashSet<bool>(size);
+
+            for (var i = 0; i < size; i++)
+            {
+                if (!UniqueValueResolver.TryResolve<bool>(context, CompositionRequestKind.CollectionElement, i, Nullability.NotNullable, result, out _))
+                    throw new CompositionException($"Could not generate {size} unique values of type 'bool' for 'HashSet<bool>' after {UniqueValueResolver.MaxAttempts} attempts per element - the element type's value space is likely too small for the requested collection size.");
+            }
+
+            return result;
+        }
+    }
+
     // Composed via a registration, not a generated plan - this test project doesn't reference
     // Compono.Generators as an analyzer (testing.md), so a registration is the only way to get a
     // real (non-fake) composed value for a custom type here.
@@ -83,3 +160,5 @@ public sealed class DisposableValue : IDisposable
 
     public void Dispose() => DisposeCount++;
 }
+
+internal interface IUnregisteredDependency;

@@ -21,18 +21,6 @@ public sealed class CompositionException : Exception
     /// </summary>
     public CompositionDiagnostic? Diagnostic { get; }
 
-    // Identifies which CompositionContext instance's own BuildException produced this exception - an
-    // opaque identity token (CompositionContext.Identity), not the context itself (PR #17 review):
-    // storing the actual CompositionContext would keep its whole object graph alive for as long as a
-    // consumer or test runner retains this exception - its configured IServiceProvider, registration
-    // factory closures, scope-held shared values, and trace buffer, none of which this comparison
-    // needs. A bare bool couldn't distinguish "some context produced this" from "this context's active
-    // nested resolution produced it" either (a registration factory can capture and invoke an entirely
-    // different Composer and let that composer's own pipeline-diagnosed exception escape, or rethrow
-    // one it captured earlier) - InvokeFactory's catch guard (docs/adr/0010) needs identity, just not
-    // by holding the whole context to get it.
-    internal object? DiagnosingContextIdentity { get; private init; }
-
     /// <summary>
     /// Creates a <see cref="CompositionException"/> with no structured <see cref="Diagnostic"/>.
     /// </summary>
@@ -73,6 +61,56 @@ public sealed class CompositionException : Exception
         Diagnostic = diagnostic;
     }
 
+    /// <summary>
+    /// Creates a copy of <paramref name="original"/> whose <see cref="Exception.Message"/> has a
+    /// <c>"Seed: &lt;value&gt;"</c> line appended, so a consumer building custom composition-failure
+    /// tooling (e.g. a test-framework integration reporting a reproducible seed) can surface it
+    /// without needing <see cref="Diagnostic"/> to be present - <see cref="Diagnostic"/> already
+    /// renders its own <c>"Seed:"</c> line via <see cref="CompositionDiagnostic.ToString"/> when it's
+    /// there, but not every <see cref="CompositionException"/> has one (a plain
+    /// <see cref="CompositionException(string)"/>, e.g. a generated collection plan's
+    /// unique-value-exhaustion failure, has none).
+    /// </summary>
+    /// <param name="original">The exception to copy and append the seed to.</param>
+    /// <param name="seed">The seed value to append.</param>
+    /// <returns>
+    /// A new <see cref="CompositionException"/> whose <see cref="Diagnostic"/> is
+    /// <paramref name="original"/>'s, unchanged (<see langword="null"/> stays <see langword="null"/>),
+    /// and whose <see cref="Exception.InnerException"/> is <paramref name="original"/> itself - so a
+    /// provider failure's full chain becomes this new exception, then <paramref name="original"/>,
+    /// then whatever <paramref name="original"/>'s own <see cref="Exception.InnerException"/> was (if
+    /// any), one level deeper than the original throw.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="original"/> is <see langword="null"/>.</exception>
+    public static CompositionException WithSeedInMessage(CompositionException original, int seed)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+
+        var message = $"{original.Message}\n\nSeed: {seed}";
+        return new CompositionException(message, original.Diagnostic, original) { DiagnosingContextIdentity = original.DiagnosingContextIdentity };
+    }
+
+    // Identifies which CompositionContext instance's own BuildException produced this exception - an
+    // opaque identity token (CompositionContext.Identity), not the context itself (PR #17 review):
+    // storing the actual CompositionContext would keep its whole object graph alive for as long as a
+    // consumer or test runner retains this exception - its configured IServiceProvider, registration
+    // factory closures, scope-held shared values, and trace buffer, none of which this comparison
+    // needs. A bare bool couldn't distinguish "some context produced this" from "this context's active
+    // nested resolution produced it" either (a registration factory can capture and invoke an entirely
+    // different Composer and let that composer's own pipeline-diagnosed exception escape, or rethrow
+    // one it captured earlier) - InvokeFactory's catch guard (docs/adr/0010) needs identity, just not
+    // by holding the whole context to get it.
+    internal object? DiagnosingContextIdentity { get; private init; }
+
+    // The only construction path that sets DiagnosingContextIdentity - used exclusively by
+    // CompositionContext.BuildException (passing its own Identity token), never by a factory/rule that
+    // constructs a CompositionException itself.
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, object diagnosingContextIdentity) =>
+        new(diagnostic) { DiagnosingContextIdentity = diagnosingContextIdentity };
+
+    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException, object diagnosingContextIdentity) =>
+        new(diagnostic, innerException) { DiagnosingContextIdentity = diagnosingContextIdentity };
+
     // The base(...) initializer runs before this constructor's own body, so a guard clause in the
     // body would already be too late - diagnostic.Message is dereferenced in the initializer itself.
     // Routing the null check through this helper is what lets a null argument surface as
@@ -89,12 +127,9 @@ public sealed class CompositionException : Exception
         return innerException;
     }
 
-    // The only construction path that sets DiagnosingContextIdentity - used exclusively by
-    // CompositionContext.BuildException (passing its own Identity token), never by a factory/rule that
-    // constructs a CompositionException itself.
-    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, object diagnosingContextIdentity) =>
-        new(diagnostic) { DiagnosingContextIdentity = diagnosingContextIdentity };
-
-    internal static CompositionException CreatePipelineDiagnosed(CompositionDiagnostic diagnostic, Exception innerException, object diagnosingContextIdentity) =>
-        new(diagnostic, innerException) { DiagnosingContextIdentity = diagnosingContextIdentity };
+    private CompositionException(string message, CompositionDiagnostic? diagnostic, Exception innerException)
+        : base(message, innerException)
+    {
+        Diagnostic = diagnostic;
+    }
 }

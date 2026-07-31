@@ -142,9 +142,13 @@ list). The load-bearing ones:
 ## The non-negotiables
 
 - Architecture is ADR-driven: every non-trivial design decision gets an
-  ADR in `docs/adr/` (immutable once `Accepted`) before code is written
-  against it. Don't silently evolve architecture in code — see
-  `references/design-decisions.md`.
+  ADR in `docs/adr/` before code is written against it. An ADR's original
+  Decision/Rationale/Consequences text is immutable once `Accepted` —
+  never rewritten in place — but a correction or extension found later is
+  recorded as a dated Amendment appended to that same ADR (see ADR-0022's
+  Amendments for real examples); reserve superseding with a whole new ADR
+  for an actual reversal of the core decision. Don't silently evolve
+  architecture in code — see `references/design-decisions.md`.
 - Keep PRs scoped to one decision or one feature — no bundling an
   unrelated fix or refactor. If a plan is phased, that's one PR per
   phase, and the prior phase's status/PR-merge state should be current

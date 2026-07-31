@@ -120,8 +120,14 @@ public class ComposeAttribute : DataAttribute
     /// parameter, more than one Compose-family attribute, or more than one <c>[Shared]</c> parameter
     /// of the same type); too many inline values were supplied; a supplied inline value is
     /// <see langword="null"/> for a non-nullable parameter or has a type not assignable to its
-    /// parameter; or composition itself fails for a parameter (propagated un-wrapped from the
-    /// pipeline).
+    /// parameter; or composition itself fails for a parameter - a new <see cref="CompositionException"/>
+    /// propagates whose <see cref="Exception.Message"/> is the pipeline's original message with the
+    /// row's seed appended and whose <see cref="CompositionException.Diagnostic"/> is copied through
+    /// from that original unchanged (<see langword="null"/> if the original had none). This new
+    /// exception's own <see cref="Exception.InnerException"/> is the pipeline's original
+    /// <see cref="CompositionException"/> itself, not that original's <see cref="Exception.InnerException"/>
+    /// - so a provider failure's chain is wrapper → original composition exception → the provider's
+    /// own thrown exception, one level deeper than the original throw.
     /// </exception>
     /// <remarks>
     /// <paramref name="disposalTracker"/> is deliberately never used to register a composed value.
@@ -224,12 +230,12 @@ public class ComposeAttribute : DataAttribute
             if (i < _inlineValues.Length)
             {
                 var value = _inlineValues[i];
-                parameter.ShareExplicitInvoker(row, parameter.Descriptor, value);
+                InvokeWithSeedOnFailure(() => parameter.ShareExplicitInvoker(row, parameter.Descriptor, value), row.Seed);
                 values[i] = value;
             }
             else
             {
-                values[i] = parameter.ResolveSharedInvoker(row, parameter.Descriptor);
+                values[i] = InvokeWithSeedOnFailure(() => parameter.ResolveSharedInvoker(row, parameter.Descriptor), row.Seed);
             }
         }
 
@@ -243,7 +249,7 @@ public class ComposeAttribute : DataAttribute
 
             values[i] = i < _inlineValues.Length
                 ? _inlineValues[i]
-                : parameter.ResolveInvoker(row, parameter.Descriptor);
+                : InvokeWithSeedOnFailure(() => parameter.ResolveInvoker(row, parameter.Descriptor), row.Seed);
         }
 
         // Assembled in method declaration order - binding order (shared first, then the rest) and
@@ -291,4 +297,39 @@ public class ComposeAttribute : DataAttribute
     // (ADR-0022's Seed Policy and Reporting) - so every failure category ends the same way, whether
     // Compono.XunitV3 constructed the message or the pipeline did.
     private static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
+
+    // A genuine composition failure (PR #26 review; ADR-0022 Amendment 5) propagates un-wrapped from
+    // the pipeline otherwise, and CompositionException.Message alone never carries the seed for that
+    // case (only exception.Diagnostic does, via its own ToString(), when Diagnostic is even present -
+    // a plain-message CompositionException, e.g. a generated HashSet<T>/Dictionary collection plan's
+    // unique-value-exhaustion path, has no Diagnostic at all and would otherwise escape with no seed
+    // whatsoever - PR #26 review, third round) - a real test runner's failure display shows Message,
+    // not Diagnostic.ToString(), so the pasteable-seed promise wasn't actually visible there.
+    // CompositionException.WithSeedInMessage rewrites Message to include it, handling both shapes
+    // uniformly, while preserving Diagnostic (null or not) and the original exception as
+    // InnerException unchanged - so every CompositionException is caught here, not just diagnosed
+    // ones.
+    private static TResult InvokeWithSeedOnFailure<TResult>(Func<TResult> compose, int seed)
+    {
+        try
+        {
+            return compose();
+        }
+        catch (CompositionException exception)
+        {
+            throw CompositionException.WithSeedInMessage(exception, seed);
+        }
+    }
+
+    private static void InvokeWithSeedOnFailure(Action compose, int seed)
+    {
+        try
+        {
+            compose();
+        }
+        catch (CompositionException exception)
+        {
+            throw CompositionException.WithSeedInMessage(exception, seed);
+        }
+    }
 }

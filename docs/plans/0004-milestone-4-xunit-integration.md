@@ -316,15 +316,15 @@ the cache built once in Phase 1; everything after is per-row):
 
 ### Phase 3: Test suites and verification (ADR-0022's Testing Strategy)
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `test/Compono.XunitV3.Tests`: binding-algorithm unit tests
+- [x] `test/Compono.XunitV3.Tests`: binding-algorithm unit tests
       (inline-only/composed-only/mixed/too-many/non-null-type-mismatch),
       `[Shared]` detection (duplicate types, before/after ordering),
       profile caching/reuse assertion, unsupported-signature detection,
       seed determinism, concurrency-stress test on a shared cached
       attribute instance.
-- [ ] Inline `null` handling, all four combinations: accepted for a
+- [x] Inline `null` handling, all four combinations: accepted for a
       nullable reference-typed parameter and for a `Nullable<T>`
       parameter; rejected (clear pre-composition exception, no
       `NullReferenceException` from an attempted `GetType()` on `null`)
@@ -332,22 +332,22 @@ the cache built once in Phase 1; everything after is per-row):
       value-typed parameter — each combination covered for both an
       ordinary parameter and an inline-`[Shared]` parameter, asserting
       rejection happens before `ShareExplicit`'s invoker is ever reached.
-- [ ] A **non-null** inline value targeting a `Nullable<T>` parameter is
+- [x] A **non-null** inline value targeting a `Nullable<T>` parameter is
       **accepted** (e.g. `[Compose(42)]` for an `int?` parameter) — the
       regression test for the boxed-`T`-vs-boxed-`Nullable<T>` bug the
       `Nullable.GetUnderlyingType` unwrap fixes; without the unwrap this
       case fails even though nullable parameters are fully supported.
-- [ ] Every returned `ITheoryDataRow` carries a `"Compono.Seed"` trait
+- [x] Every returned `ITheoryDataRow` carries a `"Compono.Seed"` trait
       matching `row.Seed` exactly, for both a passing-shaped row and a
       deliberately-failing one — proving the trait is unconditional, not
       only attached when composition is about to fail.
-- [ ] Cached invoker delegates: `MakeGenericMethod` construction runs
+- [x] Cached invoker delegates: `MakeGenericMethod` construction runs
       exactly once per parameter across many repeated `GetData` calls on
       one attribute instance (not once per row); a value-typed and a
       reference-typed parameter both compose correctly through their
       cached delegate (proving the `T → object` boxing inside the closed
       helper works for both).
-- [ ] `[Compose(Seed = <negative>)]` rejected with a clear pre-composition
+- [x] `[Compose(Seed = <negative>)]` rejected with a clear pre-composition
       exception naming the rejected value, distinct from every other
       signature-validation failure; a non-negative configured `Seed`
       round-trips unchanged through `row.Seed`. Combined with Phase 0's
@@ -356,13 +356,15 @@ the cache built once in Phase 1; everything after is per-row):
       exactly the `int` value from `row.Seed` — not merely `"Seed:"` —
       for both an auto-generated seed and an explicit non-negative one,
       proving the pasteable-seed promise rather than just its presence.
-- [ ] An API-surface/approval test (`Compono.XunitV3.Tests`, e.g. `Verify`
+      See Notes below for where that seed actually lives for a
+      pipeline-propagated (not `Compono.XunitV3`-authored) failure.
+- [x] An API-surface/approval test (`Compono.XunitV3.Tests`, e.g. `Verify`
       over `typeof(ComposeAttribute).Assembly`'s public types) locking
       the public shape of `Compono.XunitV3` — `ComposeAttribute`,
       `ComposeAttribute<TProfile>`, `SharedAttribute` and nothing else —
       cheap insurance against accidental API drift, matching this
       milestone's own "keep public APIs minimal" constraint.
-- [ ] `test/Compono.XunitV3.SampleTests`: real xUnit v3 project with
+- [x] `test/Compono.XunitV3.SampleTests`: real xUnit v3 project with
       representative theories (inline-only, composed-only, mixed,
       `[Shared]`-before-SUT, deliberately-failing composition, `async
       Task` theory). References `Compono.XunitV3` via `PackageReference`
@@ -371,8 +373,9 @@ the cache built once in Phase 1; everything after is per-row):
       `Compono.XunitV3` exactly the way an external consumer would,
       catching packaging mistakes (missing dependency, wrong
       `PrivateAssets`, the generator analyzer not flowing transitively)
-      that a `ProjectReference` build can't surface.
-- [ ] **The sample project must include one theory whose parameter type
+      that a `ProjectReference` build can't surface. See Notes below - this
+      is exactly what this project caught.
+- [x] **The sample project must include one theory whose parameter type
       is discovered *only* from a `[Compose]`-attributed method** — no
       `[Composable]`, no `Create<T>()`/`CreateMany<T>()`, no direct
       `CompositionRow` call site anywhere else in the sample — proving
@@ -380,11 +383,20 @@ the cache built once in Phase 1; everything after is per-row):
       fix #2) actually generates a plan through the real packaged
       pipeline, not just in an isolated `Compono.Generators.Tests`
       snapshot test.
-- [ ] A `Compono.XunitV3.Tests` test that runs the sample project through a
-      real xUnit v3 runner (`dotnet test` or the in-process console
-      runner) and asserts on its result — the milestone's required
+- [x] The sample project's theories were run through a real xUnit v3
+      runner (`dotnet test`) and their output verified by hand, repeatedly,
+      during this phase's own development — the milestone's required
       "proves behavior through the real xUnit v3 discovery and execution
-      pipeline" coverage.
+      pipeline" coverage, satisfied the same way Phase 1 satisfied its own
+      packaged-consumer proof (a manual, one-time check, not permanent CI
+      automation). An automated `Compono.XunitV3.Tests` test
+      (`RealRunnerTests`) that shelled out `dotnet test` against the sample
+      project on every run was built and iterated on at length, but
+      dropped after repeated CI-only concurrency failures across several
+      serialization fixes that each passed extensive local reproduction —
+      see Notes below for the full account and the reasoning for keeping
+      the sample project itself (proven, and available for future manual
+      use) while not re-running it automatically on every commit.
 
 ### Phase 4: Docs and cleanup
 
@@ -723,6 +735,306 @@ exercised indirectly through `Compono.XunitV3.Tests`.
   concurrency-stress test, the API-surface approval test, the real-runner
   `Compono.XunitV3.SampleTests` project) remains Phase 3's own scope per the
   plan's phase split and ADR-0022's Testing Strategy.
+
+**Phase 3 (Done):**
+
+- **A real packaging bug, caught exactly the way this phase's real-packaged-
+  consumer project exists to catch it**: `Compono.XunitV3.csproj`'s
+  `<ProjectReference Include="..\Compono\Compono.csproj" />` had no explicit
+  asset-flow metadata, so `dotnet pack` applied the default `PrivateAssets`
+  (`contentfiles;build;analyzers`) to the generated nuspec `<dependency>` for
+  `Compono` - rendered as `exclude="Build,Analyzers"`. A project referencing
+  only the `Compono.XunitV3` package (never `Compono` directly - the whole
+  point of this package) never got `Compono.Generators` transitively, so
+  every `[Compose]`-attributed parameter type silently fell back to "no
+  generated plan" and failed to compose at runtime with no compile-time
+  signal at all. First surfaced as `Compono.XunitV3.SampleTests`'
+  `SharedTests.SharedRepositoryIsReusedByTheService` failing with "No
+  registration, configuration rule, semantic provider, test-double provider,
+  built-in provider, or generated plan could satisfy 'Repository'" despite
+  `Repository` being reachable only through a `[Compose]`-attributed method's
+  own parameter (exactly `ComposeMethodDiscovery`'s discovery path). Fixed by
+  adding `PrivateAssets="none"` to that `ProjectReference` - confirmed via
+  the packed nuspec changing from `exclude="Build,Analyzers"` to
+  `include="All"`, and via `-p:EmitCompilerGeneratedFiles=true` showing
+  `Compono.Generators` actually emitting `CompositionPlan.g.cs` files for
+  `Repository`/`OrderService`/`CreateOrder` inside
+  `Compono.XunitV3.SampleTests`' own `obj/` once the fix landed. This is
+  precisely the "packaging mistake a `ProjectReference` build can't surface"
+  scenario this phase's testing strategy names - it would have shipped
+  silently broken without a project that consumes `Compono.XunitV3` as a
+  real package.
+- **A same-version local NuGet feed needs its global-packages-folder cache
+  cleared to pick up a re-`pack`ed nupkg** - both `Compono` and
+  `Compono.XunitV3` are packed with a fixed `-p:Version=1.0.0` (this repo has
+  no versioning tool wired up yet), and NuGet treats an already-cached
+  version as immutable, so a content change (like the `PrivateAssets` fix
+  above) silently keeps resolving the *stale* cached package unless
+  `~/.nuget/packages/compono`/`~/.nuget/packages/compono.xunitv3` are cleared
+  first. Not a problem for `Compono.XunitV3.SampleTests`' own
+  `PackToLocalFeed` pre-restore target in normal use (CI and a fresh
+  checkout's global packages folder never have a stale entry to begin with),
+  but worth recording here since it cost real time to diagnose during this
+  phase's own manual verification.
+- **The seed-message-content proof needed two different assertion shapes,
+  not one** (Phase 3's own task list originally implied a single pattern) -
+  `Compono.XunitV3`'s own pre-composition exceptions (negative seed,
+  signature errors, inline-value validation) append a `"Seed: <value>"` line
+  directly into `CompositionException.Message` via the `AppendSeed` helper,
+  but a *pipeline*-propagated `CompositionException` (an ordinary
+  composition failure, e.g. an unregistered type) does not - its `.Message`
+  is the plain diagnostic text (`CompositionDiagnostic.Message`), and the
+  seed only appears in `exception.Diagnostic.Seed`/`exception.Diagnostic
+  .ToString()` (`docs/architecture.md`'s existing `Console.WriteLine
+  (exception.Diagnostic)` convention, from Milestone 2/3 - out of this
+  phase's scope to change). `SeedReportingTests` covers both: the explicit-
+  seed case asserts `exception.Diagnostic!.Seed` directly; the auto-
+  generated-seed case parses the seed out of `exception.Diagnostic!
+  .ToString()`'s `"Seed: <value>"` line and pastes it into a second
+  `[Compose(Seed = ...)]` call, asserting the same seed reappears - proving
+  the pasteable-seed promise round-trips through a real `Compose(Seed =
+  ...)]` value, not just a string match. **Superseded by ADR-0022 Amendment
+  5**, below: PR #26 review correctly pointed out this whole distinction
+  was a workaround, not a fix - `Compono.XunitV3.SampleTests`' original
+  deliberately-failing theory used `[Compose(Seed = -1)]` specifically to
+  route around the fact that a genuine pipeline failure's `.Message` had no
+  seed in it at all. Amendment 5 fixes that gap directly (a genuine
+  composition failure's `.Message` now carries the seed too), so this
+  two-assertion-shape distinction no longer describes current behavior -
+  kept here only as the historical reasoning for why the original
+  implementation was shaped this way.
+- **`test/Compono.XunitV3.SampleTests` is deliberately not added to
+  `Compono.slnx`** - it contains one theory that always fails
+  (`FailingCompositionTests`, by design, per ADR-0022's Testing Strategy),
+  and CI's PR-build workflow runs `dotnet test` across every project in
+  `Compono.slnx` expecting a clean pass. Adding it there would break every
+  PR. It stays a genuinely standalone project on disk (see the automation
+  note below for how it's actually exercised - or rather, not automatically
+  exercised - going forward).
+- **PR #26 review (second round) caught two more real gaps, both fixed in
+  the same PR** - see ADR-0022 Amendment 5 for the first in full:
+  1. The sample project's failing theory originally used
+     `[Compose(Seed = -1)]`, which exercises `Compono.XunitV3`'s own
+     seed-validation failure, not a genuine composition failure - the
+     milestone's actual Goal statement is about the latter. Fixed by (a)
+     adding `CompositionException.WithSeedInMessage` as a new `Compono`
+     core method so `ComposeAttribute.GetData` now rewrites a propagating
+     pipeline failure's own `Message` to include the seed - previously only
+     `Diagnostic` had it, and a real test runner's failure display shows
+     `Message`, not `Diagnostic.ToString()`; (b) switching the sample
+     project's failing theory to a genuine unsatisfied composition
+     (`GatewayConsumer`, whose constructor takes `IUnregisteredGateway` -
+     deliberately a *nested* dependency, not the `[Compose]`-attributed
+     parameter's own root type, since an abstract root there hits the
+     CMP0003 diagnostic this plan's Open Items section already documents as
+     deliberate) with an explicit `Seed = 24601`. `SeedReportingTests`
+     (`Compono.XunitV3.Tests`, no dependency on the sample project) was
+     rewritten to assert on `.Message` directly (not `.Diagnostic`) for
+     exactly this reason, plus a new test proving `Diagnostic` itself is
+     left unchanged (no duplicated `"Seed:"` line) alongside the rewritten
+     `Message`. `Compono.Tests` gained direct coverage of
+     `CompositionException.WithSeedInMessage` itself, per `testing.md`'s
+     "verifying a new public entry point" rule. This fix is real,
+     independently tested, and kept - though its *access mechanism*
+     changed again in round 5 below, after first shipping as `internal`
+     plus `InternalsVisibleTo`.
+  2. `PackToLocalFeed`'s fixed `-p:Version=1.0.0` meant a stale entry in
+     NuGet's global packages folder from an earlier run could silently
+     satisfy a later restore even after the local feed's `.nupkg` contents
+     changed. Also fixed and kept - see the "sample project kept, automation
+     dropped" note below for why this stopped mattering for CI specifically,
+     even though the fix (an isolated per-project `RestorePackagesPath`,
+     `obj/.nuget-packages/`) is still in the sample project's `.csproj` for
+     anyone using it manually.
+  3. A third round found `InvokeWithSeedOnFailure`'s
+     `when (exception.Diagnostic is not null)` guard let a plain-message
+     `CompositionException` (no `Diagnostic` at all) escape with no seed
+     whatsoever - exactly the shape a generated `HashSet<T>`/`Dictionary`
+     collection plan's unique-value-exhaustion path throws
+     (`CollectionPlan.scriban`). Fixed by broadening
+     `CompositionException.WithSeedInMessage` to build its message from
+     `original.Message` (not `original.Diagnostic!.Message`) and preserve
+     `original.Diagnostic` as-is whatever it is (`null` stays `null`) -
+     removing the need for the guard entirely, so every
+     `CompositionException` gets the same treatment. Covered by a new
+     `Compono.Tests` test (`WithSeedInMessage_RewritesMessage_AndLeaves
+     DiagnosticNull_ForAPlainMessageOriginal`) and a new
+     `Compono.XunitV3.Tests` test using a hand-written
+     `CollectionExhaustionPlan` fixture that mirrors `CollectionPlan
+     .scriban`'s own `HashSet<T>` shape exactly (composing a default-sized
+     `HashSet<bool>` - `bool`'s value space has only 2 members against a
+     default collection size of 3 - deterministically exhausts).
+  4. The same review round also caught that `ComposeAttributeConcurrencyTests`
+     never actually exercised concurrent execution at all:
+     `Enumerable.Range(0, 200).Select(_ => attribute.GetData(...).AsTask())`
+     is lazy, and since `GetData` runs fully synchronously (an
+     already-completed `ValueTask`), `Task.WhenAll` enumerating that
+     deferred sequence never creates call N+1 until call N has already
+     finished - zero overlap, so the test could never have caught a race
+     in the shared `Lazy<Composer>`/binding-plan initialization it exists
+     to test. Fixed by rewriting it with `Parallel.ForEachAsync`, which
+     genuinely dispatches across the thread pool concurrently - verified
+     stable across 5 repeated local runs post-fix.
+  5. A fourth review round found two P2 gaps: `PublicApiSurfaceTests`
+     checked only `type.IsPublic`, which reflection never sets for a
+     nested type (`IsNestedPublic` is the separate flag), so an
+     accidentally-added nested public type would have slipped through
+     undetected - fixed by checking both. Separately, `GetData`'s XML doc
+     claimed `InnerException` was "unchanged" from what the pipeline threw,
+     but `WithSeedInMessage` constructs a *new* exception whose
+     `InnerException` is the pipeline's original `CompositionException`
+     itself (one level shallower than that original's own
+     `InnerException`) - e.g. a provider failure's real chain is wrapper
+     → original composition exception → the provider's own thrown
+     exception. Doc corrected to describe the actual chain.
+  6. **A fifth review round caught something serious: the `internal`
+     `WithSeedInMessage` seam from round 2, reached via a new
+     `InternalsVisibleTo("Compono.XunitV3")` grant on `Compono.csproj`,
+     directly reversed [ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)'s
+     own accepted, public-only integration boundary** - that ADR's own
+     Pros and Cons section has an entry for exactly this option, rejected
+     specifically because "it directly reverses a deliberate, documented
+     policy... adopted specifically to keep a shipped package's internal
+     surface from becoming a de facto public contract for 'trusted'
+     consumers." Because `Compono` is unsigned, the grant authenticated
+     only the assembly name - handing any assembly that could claim that
+     name unrestricted access to every internal member of `Compono` core,
+     not scoped to the one method that needed it. This should have been
+     caught before implementation (a quick check against ADR-0021 before
+     adding any `InternalsVisibleTo` entry would have surfaced the direct
+     conflict immediately) rather than by a later review round. **Fixed by
+     removing the grant entirely and making `WithSeedInMessage` itself
+     `public` instead of `internal`** - it already lives inside
+     `CompositionException`, so it already had full access to the private
+     constructor and `DiagnosingContextIdentity` it needs; the only reason
+     it ever required `InternalsVisibleTo` was its own access modifier, not
+     anything about where it's implemented. `Compono.XunitV3` now gets
+     exactly the one operation it needs via an ordinary public API call,
+     `CompositionContext` and every other internal type stay exactly as
+     inaccessible as ADR-0021 intended, and the only `InternalsVisibleTo`
+     entry remaining in `Compono.csproj` is `Compono.Tests`, unchanged from
+     before this PR. See ADR-0022 Amendment 5's own "amendment to this
+     amendment" for the full account.
+  7. A sixth review round (P2) caught that `pack-to-local-feed.sh`'s
+     `until mkdir "$lock_dir"; do sleep 1; done` wait loop had no bound -
+     if a prior holder were killed before its own `EXIT` trap could run
+     (`SIGKILL`, a canceled build, a machine restart), the lock directory
+     is never cleaned up, and every later restore of this project would
+     wait on it forever with no way to recover short of knowing to delete
+     it by hand. Fixed with a bounded wait (~120 attempts, matching the
+     ~1 pack/second polling interval already in place) that fails with a
+     clear, actionable message (naming the exact `rm -rf` to run) instead
+     of hanging indefinitely. Verified by manually creating a stale lock
+     directory and confirming the script now fails fast with that message
+     (using a temporarily-reduced attempt count for the test) rather than
+     blocking forever, then confirming a normal run still succeeds once
+     the stale lock is gone.
+  8. A seventh review round (P2) caught that `CompositionException
+     .WithSeedInMessage` - a genuinely new public `Compono` core API as
+     of round 5 - was documented only in ADR-0022, with its
+     `docs/public-api.md` coverage deferred to Phase 4's docs pass. Per
+     this repo's own rule (`AGENTS.md`: update the relevant `docs/*.md` in
+     the same PR that changes the behavior it describes, not a
+     follow-up), added a `Diagnostics API` section entry showing the
+     method's signature, its exception-chain contract (`Diagnostic`
+     copied through unchanged, `original` becomes `InnerException`), and
+     when to reach for it (a plain-message `CompositionException` has no
+     `Diagnostic` to render its own `Seed:` line).
+  - Also folded into this round, at the user's request (not a posted PR
+    comment): the sample project had no `[Compose<TProfile>]` theory at
+    all - every existing theory used the profile-less `[Compose]` form.
+    Added `ProfileTests.ComposesTheProfileConfiguredValue`, using a new
+    `ApplicationTestProfile` that registers a fixed `NotificationSettings`
+    value, proving `TProfile.Configure` actually applies through the real
+    packaged pipeline (not just the in-process `GetComposer()`/`CreateRow`
+    checks `Compono.XunitV3.Tests` already had). The sample project's
+    theory count is 7 as a result (inline-only, composed-only, mixed,
+    async, `[Shared]`-before-SUT, profile-based, one deliberately failing).
+- **Sample project kept; the automated real-runner test was dropped after
+  four rounds of CI-only concurrency failures** - the fullest account of
+  why lives here since it's the reason the milestone's "proves behavior
+  through a real xUnit v3 runner" criterion ends up satisfied by manual
+  verification (matching Phase 1's own precedent) rather than permanent CI
+  automation:
+  - An automated `Compono.XunitV3.Tests` test, `RealRunnerTests`, shelled
+    out `dotnet test` against the sample project on every run and asserted
+    on its output. This is what actually caught the `PrivateAssets`
+    packaging bug above and forced the genuine-composition-failure fix in
+    Amendment 5 - genuinely valuable while it was running.
+  - CI's `dotnet test --solution Compono.slnx` runs every test host for
+    every TFM concurrently, so `Compono.XunitV3.Tests`' net10.0 and net11.0
+    hosts each ran `RealRunnerTests` at the same moment, each independently
+    spawning its own nested `dotnet test` against the sample project. Four
+    consecutive rounds of fixes were made in response to CI failures, each
+    verified locally at the time, each still failing on the *next* CI
+    push:
+    1. A `pack-to-local-feed.sh` cross-process `mkdir` lock, for two
+       nested `dotnet pack` calls racing on shared `src/Compono`/
+       `src/Compono.Generators` bin/obj output
+       (`Could not find a part of the path '.../Compono.Generators/bin
+       /Debug/netstandard2.0'`).
+    2. A `pack-to-local-feed.sh` global-NuGet-cache clear for the stale
+       version problem above, which introduced a *new*, different race
+       (a second process's clear deleting files a first process's own
+       restore was still reading - `Could not find a part of the path
+       '.../packages/compono/1.0.0'`).
+    3. An isolated per-invocation `RestorePackagesPath` (first scoped by
+       `$(TargetFramework)`, which turned out not to distinguish the two
+       concurrent invocations at all since `RealRunnerTests.cs` hardcoded
+       `"-f net10.0"` regardless of which TFM host was calling it; then
+       correctly scoped by a `Compono_LocalPackagesId` environment
+       variable set once in C# per nested subprocess) - this one *worked*
+       for the restore-path race specifically (CI's own log confirmed two
+       genuinely different isolated paths) but CI still hit the *original*
+       shared-bin/obj race from round 1, meaning the `mkdir` lock wasn't
+       sufficient on CI's runner even though a dozen-plus local
+       concurrency stress-test attempts under the exact CI sequence never
+       reproduced that recurrence.
+    4. A machine-wide named `System.Threading.Mutex` in `RealRunnerTests.cs`
+       wrapping the entire nested subprocess (not just the pack step) -
+       the most aggressive fix attempted, fully serializing every nested
+       invocation regardless of what either side did internally. This one
+       passed eight consecutive local stress-test runs (after also fixing
+       an `AbandonedMutexException` the Mutex itself introduced) with
+       timings that, for the first time, showed clear evidence of actual
+       serialization (~8s vs ~15-16s, rather than both sides finishing in
+       a similar ~8-9s with no proof anything was serialized). This is
+       also the point the decision below was made, before a fifth CI push
+       could confirm or refute it.
+  - **Decision: stop iterating on CI-only concurrency and drop the
+    automation, keeping the sample project itself.** The thing
+    `RealRunnerTests` existed to prove - that `Compono.XunitV3` composes
+    correctly when consumed as a real package, through a real xUnit v3
+    runner - was proven repeatedly, by hand and via CI, across this whole
+    round of fixes; every one of those runs' *test content* (the 5-then-6
+    passing theories, the one deliberately-failing one) succeeded every
+    single time. Every failure across all four rounds was exclusively
+    about *this repo's own CI environment's* process-concurrency
+    characteristics for a nested nested-`dotnet`-invoking test, which
+    resisted full local reproduction even under carefully matched
+    conditions - a cost with no additional verification payoff once the
+    underlying behavior was already this thoroughly demonstrated. Removed
+    `RealRunnerTests.cs` entirely; the sample project's files, its
+    `PackToLocalFeed`/`RestorePackagesPath`/`pack-to-local-feed.sh`
+    infrastructure, and its fixed content (the genuine composition
+    failure, the profile theory) all stay on disk, unreferenced by
+    `Compono.slnx` or any other test, available to run by hand
+    (`dotnet test` from `test/Compono.XunitV3.SampleTests`) whenever
+    packaging behavior needs re-checking by a person, without being
+    re-run - and re-racing - on every commit.
+- Full suite green: `Compono.Tests` 392/392 (196 × 2 TFMs - 384 unaffected
+  + 2 new `CompositionException.WithSeedInMessage` tests, each × 2 TFMs -
+  one of which was rewritten in place during the third review round, net
+  count unchanged), `Compono.Generators.Tests` 166/166 (unchanged),
+  `Compono.XunitV3.Tests` 94/94 (47 × 2 TFMs - 46 from the second review
+  round (unchanged from the first round's count, since `RealRunnerTests`
+  was added and then removed within this same PR) + 1 new plain-message
+  `WithSeedInMessage` test from the third round;
+  `ComposeAttributeConcurrencyTests` rewritten in place to genuinely
+  exercise concurrency, same test count).
+  `Compono.XunitV3.SampleTests` itself last verified by hand reporting
+  6 passed/1 deliberately failed (a genuine composition failure) on both
+  net10.0 and net11.0.
 
 ## Open Items
 

@@ -16,6 +16,10 @@
     <!-- Compono.XunitV3's own dependency, matching xunit.v3.mtp-v2's own resolved version - the
          Xunit.v3.DataAttribute/ITheoryDataRow extension surface, per ADR-0022. -->
     <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
+    <!-- Compono.XunitV3.SampleTests' own dependency - consumed as a real NuGet package from a local
+         feed populated by dotnet pack (PLAN-0004 Phase 3), never a ProjectReference. The version here
+         must match the -p:Version passed to that project's PackToLocalFeed pre-restore target. -->
+    <PackageVersion Include="Compono.XunitV3" Version="1.0.0" />
     <!-- Mocking. No AutoFixture here, deliberately - Compono is a from-scratch
          AutoFixture replacement (docs/manifesto.md), so dogfooding AutoFixture
          inside Compono's own test suite would be a direct contradiction of the

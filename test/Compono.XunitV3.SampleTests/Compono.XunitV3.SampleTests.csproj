@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.XunitV3.SampleTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Deliberately no ProjectReference to Compono/Compono.XunitV3 anywhere in this project - the
+         whole point is consuming Compono.XunitV3 exactly the way an external consumer would, via
+         the PackageReference below, so packaging mistakes (a missing dependency, wrong
+         PrivateAssets, the generator analyzer not flowing transitively) surface here instead of
+         being masked by a ProjectReference build. See PLAN-0004 Phase 3 and ADR-0022's Testing
+         Strategy. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
+    <!-- Isolates this restore from NuGet's shared global packages folder entirely (PR #26 review,
+         second/third rounds), scoped per Compono_LocalPackagesId - an environment variable
+         RealRunnerTests.cs sets to a fresh GUID before spawning its nested `dotnet test`, so its two
+         concurrent invocations (from the net10.0 and net11.0 Compono.XunitV3.Tests hosts CI runs
+         side by side) never share this path with each other. A fixed version ("1.0.0") would
+         otherwise let a stale entry silently satisfy a later restore even after the local feed's own
+         .nupkg contents changed. Two earlier fixes were tried and reverted first (see
+         pack-to-local-feed.sh's own comment and PLAN-0004 Phase 3 Notes for the full account):
+         clearing the *shared global* cache before every pack raced against a sibling process still
+         reading from it; scoping this path by $(TargetFramework) instead of an env var seemed
+         reasonable but never actually worked - RealRunnerTests.cs hardcodes "-f net10.0" for its
+         nested command regardless of which TFM the *calling* test host itself runs as, so both
+         concurrent invocations resolved the identical "net10.0" value, isolating nothing (still
+         raced, just on a different shared path than before - also reproduced locally). $([System
+         .Guid]::NewGuid()) computed directly as an MSBuild property (rather than in the environment)
+         was tried before that and was unstable for an unrelated reason: NuGet's restore-graph
+         evaluation pass and the actual build evaluation pass each re-evaluate that property function
+         independently, producing two different GUIDs for the same nominal build (a real NU1102
+         version mismatch). An environment variable has none of these problems: it's set once, in the
+         C# process that spawns the nested `dotnet test`, and inherited stably by that whole child
+         process tree - every internal MSBuild re-evaluation reads the identical value, and a second,
+         independently-spawned nested process gets its own distinct one. Falls back to a fixed,
+         non-random literal (not another live function call) for a developer running this project
+         directly, without going through RealRunnerTests, where there is no concurrent sibling to
+         isolate from in the first place. -->
+    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Compono.XunitV3" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Self-healing on a clean checkout and always tests today's Compono/Compono.XunitV3 source,
+       which is the point of a "real packaged consumer" test: a regression in packaging (a missing
+       dependency, wrong PrivateAssets, the generator analyzer not flowing transitively) fails this
+       project's own restore/build/run rather than being masked by a stale package.
+
+       Delegates to pack-to-local-feed.sh, which serializes the two `dotnet pack` calls behind a
+       cross-process lock - CI (and RealRunnerTests) run this project's net10.0/net11.0 test hosts
+       concurrently, each independently triggering this target via its own nested `dotnet test`, and
+       two unsynchronized `dotnet pack` invocations racing on the same shared .local-nuget-feed/ and
+       src/Compono*/bin/obj output corrupts both (caught in CI - see PLAN-0004 Phase 3 Notes). -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+  </Target>
+
+</Project>

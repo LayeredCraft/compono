@@ -17,6 +17,47 @@ public sealed class CompositionExceptionTests
     }
 
     [Fact]
+    public void WithSeedInMessage_RewritesMessage_ButPreservesDiagnosticAndSetsInnerException()
+    {
+        // Internal seam for Compono.XunitV3 (PR #26 review; ADR-0022 Amendment 5) - a pipeline-thrown
+        // CompositionException's own Message never carried the seed on its own (only Diagnostic did,
+        // via its own ToString()), so Compono.XunitV3's GetData rewrites it before propagating.
+        var diagnostic = new CompositionDiagnostic
+        {
+            RootType = typeof(CompositionExceptionTests),
+            FailedType = typeof(CompositionExceptionTests),
+            Path = "unrelated-path",
+            Trace = [],
+            Seed = 0,
+            Message = "original pipeline failure message",
+        };
+        var original = CompositionException.CreatePipelineDiagnosed(diagnostic, diagnosingContextIdentity: new object());
+
+        var wrapped = CompositionException.WithSeedInMessage(original, seed: 492173);
+
+        wrapped.Message.Should().Be("original pipeline failure message\n\nSeed: 492173");
+        wrapped.Diagnostic.Should().BeSameAs(diagnostic);
+        wrapped.Diagnostic!.Message.Should().Be("original pipeline failure message", "Diagnostic's own Message is left untouched - only the outer exception's Message is rewritten");
+        wrapped.InnerException.Should().BeSameAs(original);
+    }
+
+    [Fact]
+    public void WithSeedInMessage_RewritesMessage_AndLeavesDiagnosticNull_ForAPlainMessageOriginal()
+    {
+        // PR #26 review, third round - a generated HashSet<T>/Dictionary collection plan's
+        // unique-value-exhaustion path (CollectionPlan.scriban) throws exactly this shape: a plain
+        // CompositionException(string), no Diagnostic at all. That failure deserves the same
+        // pasteable seed as a diagnosed one, so WithSeedInMessage must handle it too, not throw.
+        var original = new CompositionException("a plain, non-pipeline-diagnosed message");
+
+        var wrapped = CompositionException.WithSeedInMessage(original, seed: 1);
+
+        wrapped.Message.Should().Be("a plain, non-pipeline-diagnosed message\n\nSeed: 1");
+        wrapped.Diagnostic.Should().BeNull();
+        wrapped.InnerException.Should().BeSameAs(original);
+    }
+
+    [Fact]
     public void DoesNotDeclareAnyMemberOfTypeCompositionContext()
     {
         // Regression for a real gap (PR #17 review): an earlier fix identified which

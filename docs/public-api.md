@@ -447,6 +447,33 @@ catch (CompositionException exception)
 }
 ```
 
+`exception.Diagnostic` (when present) already renders its own `Seed: {value}`
+line via `ToString()`, but not every `CompositionException` has a
+`Diagnostic` - a plain-message one (e.g. a generated `HashSet<T>`/
+`Dictionary` collection plan's unique-value-exhaustion failure) does not.
+`CompositionException.WithSeedInMessage(original, seed)` is a static
+factory for exactly this case - it returns a copy of `original` whose
+`Message` has the seed appended directly, regardless of whether
+`Diagnostic` is present:
+
+```csharp
+try
+{
+    composer.Create<Order>();
+}
+catch (CompositionException exception)
+{
+    throw CompositionException.WithSeedInMessage(exception, mySeed);
+}
+```
+
+The returned exception's `Diagnostic` is copied through from `original`
+unchanged (`null` stays `null`), and `original` itself becomes its
+`InnerException` - never discarded. `Compono.XunitV3`'s own `[Compose]`
+binding algorithm (ADR-0022) uses this to guarantee every composition
+failure's `Message` carries a pasteable seed, not only ones that happen to
+have a `Diagnostic`.
+
 Potential debugging API:
 
 ```csharp
