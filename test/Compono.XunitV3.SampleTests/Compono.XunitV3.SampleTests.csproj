@@ -52,6 +52,9 @@
 
   <ItemGroup>
     <PackageReference Include="Compono.XunitV3" />
+    <!-- PLAN-0005 Phase 2's real-runner proof: composing Compono.NSubstitute through the actual
+         packaged dependency chain, same reasoning as Compono.XunitV3 above. -->
+    <PackageReference Include="Compono.NSubstitute" />
   </ItemGroup>
 
   <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
@@ -68,7 +71,7 @@
        src/Compono*/bin/obj output corrupts both (caught in CI - see PLAN-0004 Phase 3 Notes). -->
   <Target Name="PackToLocalFeed" BeforeTargets="Restore">
     <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
-    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
   </Target>
 
 </Project>

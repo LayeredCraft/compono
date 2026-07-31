@@ -20,6 +20,10 @@
          feed populated by dotnet pack (PLAN-0004 Phase 3), never a ProjectReference. The version here
          must match the -p:Version passed to that project's PackToLocalFeed pre-restore target. -->
     <PackageVersion Include="Compono.XunitV3" Version="1.0.0" />
+    <!-- Compono.XunitV3.SampleTests' own dependency, same reasoning as Compono.XunitV3 above
+         (PLAN-0005 Phase 2's real-runner proof) - never a ProjectReference, and this version must
+         match the -p:Version passed to PackToLocalFeed's pack of Compono.NSubstitute. -->
+    <PackageVersion Include="Compono.NSubstitute" Version="1.0.0" />
     <!-- Mocking. No AutoFixture here, deliberately - Compono is a from-scratch
          AutoFixture replacement (docs/manifesto.md), so dogfooding AutoFixture
          inside Compono's own test suite would be a direct contradiction of the

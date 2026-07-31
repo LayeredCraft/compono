@@ -152,9 +152,9 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 2: Test suites and verification
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `test/Compono.NSubstitute.Tests`: `IsSubstitutable` unit coverage
+- [x] `test/Compono.NSubstitute.Tests`: `IsSubstitutable` unit coverage
       (interface / delegate / unsealed abstract class with the option on /
       unsealed abstract class with the option off / sealed class / struct /
       `string`); `NSubstituteProvider.TryProvide` returns a real NSubstitute
@@ -163,7 +163,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       not a hand-rolled heuristic); `UseNSubstitute()`/
       `UseNSubstitute(configure)` wiring a working `NSubstituteProvider`
       into a real `Composer`.
-- [ ] **ADR-0025 Amendment 1 regression coverage:**
+- [x] **ADR-0025 Amendment 1 regression coverage:**
       - Negative `IsSubstitutable` cases for `typeof(Delegate)` and
         `typeof(MulticastDelegate)` themselves (the framework base types),
         alongside a positive case for a real custom `delegate` type — the
@@ -174,7 +174,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
         then mutate `SubstituteAbstractClasses` on that same instance
         afterward, and assert the already-registered provider's behavior is
         unaffected — proving the snapshot, not just that it compiles.
-- [ ] End-to-end composition tests against a real `Composer`: an interface
+- [x] End-to-end composition tests against a real `Composer`: an interface
       parameter composes as a substitute; an abstract class composes as a
       substitute only when the option allows it (and produces the engine's
       ordinary "could not satisfy" diagnostic, naming the type, when it
@@ -184,11 +184,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       shape from this plan's own Goal section, run for real, not just
       asserted against a hand-written fake provider (Phase 0 already covers
       that in isolation).
-- [ ] An API-surface/approval test locking `Compono.NSubstitute`'s public
+- [x] An API-surface/approval test locking `Compono.NSubstitute`'s public
       shape (`NSubstituteProvider`, `NSubstituteOptions`,
       `CompositionBuilderExtensions`, and nothing else), matching
       `Compono.XunitV3.Tests`' existing pattern (PLAN-0004 Phase 3).
-- [ ] A real end-to-end run through `test/Compono.XunitV3.SampleTests` (or a
+- [x] A real end-to-end run through `test/Compono.XunitV3.SampleTests` (or a
       new sibling sample project) proving `UseNSubstitute()` composes
       correctly under a real xUnit v3 theory, not just `Compono.NSubstitute.Tests`'
       own direct `Composer` calls — matching PLAN-0004 Phase 3's real-
@@ -326,6 +326,76 @@ alpha must:
   point.
 
 ## Notes
+
+**Phase 2 (Done):**
+
+- `test/Compono.NSubstitute.Tests` created (23 tests × 2 TFMs = 46), covering
+  `IsSubstitutable` directly (`IsSubstitutableTests.cs`), `NSubstituteProvider.TryProvide`
+  through a real `Composer` (`NSubstituteProviderTests.cs` — `CompositionProviderResult`'s
+  `Value`/`IsHandled` are internal to `Compono`, so a provider's outcome is only
+  observable from outside through the pipeline it feeds, not by calling `TryProvide`
+  directly against a hand-rolled `ICompositionContext`), `UseNSubstitute()`/
+  `UseNSubstitute(configure)` wiring (`CompositionBuilderExtensionsTests.cs`), the
+  `[Shared]`-via-`CompositionRow` reuse shape against the real `NSubstituteProvider`
+  (`EndToEndCompositionTests.cs`), and a `PublicApiSurfaceTests` approval test.
+  "Is this a substitute" is asserted via `NSubstitute.Core.SubstitutionContext.Current
+  .GetCallRouterFor(value)` rather than `is ICallRouterProvider` — a real substitute for
+  an **interface**/abstract-class request is a Castle-proxy instance that does implement
+  `ICallRouterProvider`, but a **delegate** substitute is a plain compiled delegate whose
+  target isn't the proxy itself, so `is ICallRouterProvider` is false for exactly the
+  shape this plan's own scope added (delegate substitutes) — confirmed against a small
+  scratch program before writing the assertion helper, not assumed.
+- **Writing this phase's own `IsSubstitutable` regression coverage caught a real bug in
+  Phase 1's implementation**, before any PR/review round: the negative test for
+  `typeof(Delegate)`/`typeof(MulticastDelegate)` themselves failed, because
+  `System.Delegate`/`System.MulticastDelegate` are *themselves* abstract, unsealed,
+  non-interface classes — `IsSubstitutable`'s third OR-clause (the abstract-class branch)
+  matched them even though the delegate-specific second clause correctly declined them.
+  ADR-0025 Amendment 1's own stated intent ("the latter wrongly matches the
+  non-substitutable Delegate/MulticastDelegate framework base types themselves") was only
+  half-enforced. Fixed in `NSubstituteProvider.IsSubstitutable` by excluding
+  `typeof(Delegate).IsAssignableFrom(requestedType)` from the abstract-class branch —
+  real delegate types are unaffected (already matched by the earlier
+  `IsSubclassOf(MulticastDelegate)` clause, which returns before the abstract branch is
+  ever reached for them).
+- **The real end-to-end run (this plan's own last Phase 2 task) surfaced a second, larger
+  gap**: this plan's own Goal-section snippet (`[Shared] IOrderRepository repository` as a
+  bare xUnit theory parameter) failed to compile with `CMP0003` when actually built against
+  a real packaged `Compono.XunitV3.SampleTests` consumer. `Compono.Generators`'
+  `LeafTypeClassifier.IsRuntimeProviderResolved` — the root-only classifier deciding
+  whether `Composer.Create<T>()`'s (or a `CompositionRow`'s own) requested type needs a
+  generated plan at all — predates ADR-0024 and still hard-excluded interface/
+  abstract-class/delegate roots, on the (once-true, now-stale) assumption that nothing
+  could ever satisfy such a root at runtime. Fixed by making `IsRuntimeProviderResolved`
+  delegate to the member-level `IsProviderResolved` check, so a root is classified
+  identically to a member — see [ADR-0024's Amendment 2](../adr/0024-public-provider-extensibility-model.md)
+  for the full account, including why this ships as an ordinary `fix` (additive
+  compile-time behavior, not a breaking change to an already-shipped contract) rather than
+  under the `breaking` label. Confirmed via user decision before implementing (the
+  alternative considered was leaving `CMP0003` as-is and working around it in the sample
+  test, matching `Domain.cs`'s existing `GatewayConsumer` pattern for the same limitation —
+  rejected in favor of fixing the actual stale assumption, since real dogfooding evidence
+  now contradicts it). Four existing `Compono.Generators.Tests` snapshot tests that
+  asserted the old (now-incorrect) `CMP0003` behavior were rewritten to assert clean
+  compilation instead; one new regression test
+  (`ConcreteRootTypeWithNoAccessibleConstructor_StillReportsDiagnostic_AfterRootProviderCheck`)
+  proves the loosening is scoped to interface/abstract-class/delegate roots only — a
+  concrete type's root classification is unchanged.
+- `test/Compono.XunitV3.SampleTests` extended with a `Compono.NSubstitute` package
+  reference (added to `Directory.Packages.props`' central version management, matching
+  `Compono.XunitV3`'s existing `Version="1.0.0"` local-feed convention), a third
+  `dotnet pack` call threaded through `pack-to-local-feed.sh` and its `PackToLocalFeed`
+  MSBuild target, and a new `NSubstituteTests.cs` running this plan's own Goal scenario
+  verbatim (`CreateOrderHandler`/`IOrderRepository`/`[Shared]`/`UseNSubstitute()` via an
+  `ICompositionProfile`) against the real packaged dependency chain, per PLAN-0004 Phase
+  3's real-packaged-consumer strategy — the same strategy that caught PLAN-0004's own
+  `PrivateAssets` packaging bug, and caught this phase's `CMP0003` gap here.
+- Full suite re-verified green after both fixes: whole-solution `dotnet build`/`dotnet test`
+  720/720 (`Compono.Tests` 412/412, `Compono.Generators.Tests` 168/168,
+  `Compono.XunitV3.Tests` 94/94, `Compono.NSubstitute.Tests` 46/46 — all ×2 TFMs), plus a
+  separate real `dotnet test` run of `test/Compono.XunitV3.SampleTests` against packages
+  packed from current source (not `ProjectReference`), confirming
+  `NSubstituteTests.Saves_order` passes end-to-end.
 
 **Phase 1 (Done):**
 

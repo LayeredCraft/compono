@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Packs Compono and Compono.XunitV3 into the local NuGet feed this project restores against
-# (test/Compono.XunitV3.SampleTests/nuget.config), serialized behind a cross-process lock, and clears
-# this restore's own isolated packages path before every pack.
+# Packs Compono, Compono.XunitV3, and Compono.NSubstitute into the local NuGet feed this project
+# restores against (test/Compono.XunitV3.SampleTests/nuget.config), serialized behind a cross-process
+# lock, and clears this restore's own isolated packages path before every pack.
 #
 # Why the lock: this script is invoked from a PackToLocalFeed MSBuild target
 # (BeforeTargets="Restore") on every restore of this project. CI (and RealRunnerTests, which shells
@@ -32,9 +32,10 @@ set -euo pipefail
 
 compono_csproj="$1"
 xunitv3_csproj="$2"
-feed_dir="$3"
-configuration="$4"
-restore_packages_path="$5"
+nsubstitute_csproj="$3"
+feed_dir="$4"
+configuration="$5"
+restore_packages_path="$6"
 
 lock_dir="$feed_dir/.pack.lock"
 
@@ -64,3 +65,4 @@ rm -rf "$restore_packages_path"
 
 dotnet pack "$compono_csproj" -c "$configuration" -o "$feed_dir" -p:Version=1.0.0 --nologo
 dotnet pack "$xunitv3_csproj" -c "$configuration" -o "$feed_dir" -p:Version=1.0.0 --nologo
+dotnet pack "$nsubstitute_csproj" -c "$configuration" -o "$feed_dir" -p:Version=1.0.0 --nologo

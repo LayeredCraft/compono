@@ -678,6 +678,67 @@ different-type request through the same instance) and
 unchanged, confirming the fix didn't reverse the Provider Failure Semantics
 decision.
 
+## Amendment 2 (2026-07-31): `Compono.Generators`' root-level CMP0003 check loosened for interface/abstract-class/delegate roots
+
+PLAN-0005 Phase 2's own real end-to-end verification (a packaged
+`Compono.XunitV3.SampleTests` run of this plan's Goal-section scenario — a
+bare `[Shared] IOrderRepository` xUnit theory parameter, substituted via
+`UseNSubstitute()`) failed to compile with `CMP0003` ("`IOrderRepository` is
+abstract and cannot be constructed directly"), exposing a real gap this ADR's
+Decision Outcome didn't anticipate: `Compono.Generators`'
+`LeafTypeClassifier.IsRuntimeProviderResolved` — the check that decides
+whether the *root* of a `Composer.Create<T>()` call (or, equivalently, one of
+a `CompositionRow`'s own composed theory parameters) needs a generated
+constructor-selection plan at all — was narrower than its member-level
+counterpart (`IsProviderResolved`) specifically to **exclude** interface,
+abstract-class, and delegate root types, routing them into constructor
+selection so they'd get a real compile-time diagnostic instead of silently
+compiling into a call that could only ever fail at runtime. That exclusion
+predates this ADR (introduced in PLAN-0001's Milestone 1 work, hardened by a
+PR #11 regression fix) and was correct at the time: before this ADR, nothing
+could ever satisfy such a root at runtime, so treating it as a genuine
+compile error was strictly more helpful than a generic runtime failure.
+
+This ADR's own Decision Outcome invalidates that assumption. A registered
+`ICompositionValueProvider` (stage 5/6) can now genuinely satisfy an
+interface/abstract-class/delegate root at runtime, exactly like it already
+could for a *member* of the same shape — `IsProviderResolved` never excluded
+members this way, only the root-only classifier did. Continuing to route such
+a root into constructor selection reports a false `CMP0003` for code that
+compiles and runs correctly once a suitable provider (e.g.
+`Compono.NSubstitute`'s `NSubstituteProvider`) is registered — exactly this
+ADR's own worked example.
+
+**Fix:** `LeafTypeClassifier.IsRuntimeProviderResolved` now delegates directly
+to `IsProviderResolved` — an interface, abstract class, or delegate root is
+classified identically at root and member position, left as a bare
+`context.Resolve<T>()` call for a provider to satisfy. This is an *additive*
+compile-time behavior change during alpha, not a breaking one: it makes
+previously non-compiling code compile; it does not change the meaning or
+diagnostics of any code that already compiled. Per this ADR's own Alpha
+Compatibility Policy, the `breaking` label/major-version-bump mechanism is
+reserved for changes to an already-shipped contract's *shape* — loosening an
+overly-strict compile-time rejection doesn't qualify, so this shipped as an
+ordinary `fix`, no `breaking` label applied. A concrete, non-abstract,
+non-delegate root's classification is entirely unchanged — it still reaches
+constructor selection and still gets a real `CMP0001`/`CMP0002`/`CMP0003`
+diagnostic for an ambiguous, inaccessible, or otherwise unconstructible
+shape, per `ConstructorSelector`'s own unchanged logic.
+
+Regression coverage in `Compono.Generators.Tests/CompositionPlanVerifyTests.cs`:
+`AbstractRootType_GeneratesNoPlan_ProviderResolvedAtRuntime`,
+`InterfaceRootType_GeneratesNoPlan_ProviderResolvedAtRuntime`,
+`DelegateRootType_GeneratesNoPlan_ProviderResolvedAtRuntime`, and
+`ComposableAttributeOnInterface_GeneratesNoPlan_ProviderResolvedAtRuntime`
+(the `[Composable]` eager-warmup path shares the same root classification) all
+now assert clean compilation with no generated plan, replacing four tests that
+previously asserted `CMP0003`.
+`ConcreteRootTypeWithNoAccessibleConstructor_StillReportsDiagnostic_AfterRootProviderCheck`
+is the inverse regression guard, proving the loosening is scoped to
+interface/abstract-class/delegate roots only. PLAN-0005 Phase 2's packaged
+`Compono.XunitV3.SampleTests.NSubstituteTests.Saves_order` test is the real
+end-to-end proof this fix exists for.
+
 ## Links
 
 - [docs/mvp.md](../mvp.md) — Milestone 5 scope, and Milestone 3's explicit

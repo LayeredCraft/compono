@@ -86,59 +86,89 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task AbstractType_ReportsDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
-            new CodeGenerationOptions
-            {
-                SourceCode = """
-                    namespace TestNamespace;
+    public Task AbstractRootType_GeneratesNoPlan_ProviderResolvedAtRuntime() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
 
-                    public abstract class Customer
-                    {
-                        // Legal on an abstract type - only ever called from a derived class's
-                        // constructor - but `new Customer(...)` is never legal regardless.
-                        public Customer(string firstName) { }
-                    }
+                public abstract class Customer
+                {
+                    // Legal on an abstract type - only ever called from a derived class's
+                    // constructor - but `new Customer(...)` is never legal regardless.
+                    public Customer(string firstName) { }
+                }
 
-                    public static class EntryPoint
+                public static class EntryPoint
+                {
+                    public static void Run()
                     {
-                        public static void Run()
-                        {
-                            var composer = Compono.Composer.Create();
-                            var customer = composer.Create<TestNamespace.Customer>();
-                        }
+                        var composer = Compono.Composer.Create();
+                        // PLAN-0005 Phase 2 (ADR-0024 root-check loosening): an abstract root used to
+                        // be rejected with CMP0003 - reachable only from a derived class's own
+                        // constructor, which the generator has no way to invoke. Milestone 5's public
+                        // provider extensibility gives it a real off-ramp instead: left as a bare
+                        // context.Resolve<Customer>() call for a registered
+                        // ICompositionValueProvider (e.g. Compono.NSubstitute's NSubstituteProvider)
+                        // to satisfy at runtime, exactly like an abstract *member* already could.
+                        var customer = composer.Create<TestNamespace.Customer>();
                     }
-                    """,
-            },
-            expectedDiagnosticId: "CMP0003",
-            TestContext.Current.CancellationToken);
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task DelegateType_ReportsDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
-            new CodeGenerationOptions
-            {
-                SourceCode = """
-                    namespace TestNamespace;
+    public Task InterfaceRootType_GeneratesNoPlan_ProviderResolvedAtRuntime() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
 
-                    public delegate void Handler(string message);
+                public interface IHandler
+                {
+                    void Handle(string message);
+                }
 
-                    public static class EntryPoint
+                public static class EntryPoint
+                {
+                    public static void Run()
                     {
-                        public static void Run()
-                        {
-                            var composer = Compono.Composer.Create();
-                            // Not abstract, and Roslyn exposes a synthetic (object, IntPtr)
-                            // constructor on it - `new Handler(arg1, arg2)` isn't legal delegate
-                            // construction syntax, so this must be rejected before it reaches
-                            // codegen rather than emitting uncompilable generated code.
-                            var handler = composer.Create<TestNamespace.Handler>();
-                        }
+                        var composer = Compono.Composer.Create();
+                        // An interface root reports IsAbstract: true in Roslyn, same as an abstract
+                        // class - covered by the same root-check loosening as
+                        // AbstractRootType_GeneratesNoPlan_ProviderResolvedAtRuntime above, kept as
+                        // its own test since an interface (not just an abstract class) is exactly
+                        // this plan's own Goal-section shape (UseNSubstitute()'s IOrderRepository).
+                        var handler = composer.Create<TestNamespace.IHandler>();
                     }
-                    """,
-            },
-            expectedDiagnosticId: "CMP0003",
-            TestContext.Current.CancellationToken);
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task DelegateRootType_GeneratesNoPlan_ProviderResolvedAtRuntime() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public delegate void Handler(string message);
+
+                public static class EntryPoint
+                {
+                    public static void Run()
+                    {
+                        var composer = Compono.Composer.Create();
+                        // Not abstract, but still a leaf per LeafTypeClassifier.IsProviderResolved
+                        // (TypeKind.Delegate) - previously excluded at root position only
+                        // (CMP0003), now left as a bare context.Resolve<Handler>() call for a
+                        // registered provider (e.g. NSubstituteProvider) to satisfy, matching a
+                        // delegate member's existing treatment.
+                        var handler = composer.Create<TestNamespace.Handler>();
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 
     [Fact]
     public Task SameSimpleNameInDifferentNamespaces_GeneratesBothPlans() =>
@@ -1057,16 +1087,16 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task AbstractRootType_StillReportsDiagnostic_AfterRootProviderCheck() =>
+    public Task ConcreteRootTypeWithNoAccessibleConstructor_StillReportsDiagnostic_AfterRootProviderCheck() =>
         GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions
             {
                 SourceCode = """
                     namespace TestNamespace;
 
-                    public abstract class Customer
+                    public sealed class Customer
                     {
-                        public Customer(string firstName) { }
+                        private Customer() { }
                     }
 
                     public static class EntryPoint
@@ -1074,17 +1104,20 @@ public sealed class CompositionPlanVerifyTests
                         public static void Run()
                         {
                             var composer = Compono.Composer.Create();
-                            // Regression guard for the PR #11 root-type fix: an abstract root has no
-                            // runtime provider either (LeafTypeClassifier.IsRuntimeProviderResolved is
-                            // narrower than IsProviderResolved specifically to keep this case reaching
-                            // constructor selection), so it must still get CMP0003 at compile time
-                            // rather than silently compiling into a call that can only fail at runtime.
+                            // Regression guard for PLAN-0005 Phase 2's root-check loosening
+                            // (LeafTypeClassifier.IsRuntimeProviderResolved now equals
+                            // IsProviderResolved): only interface/abstract-class/delegate roots
+                            // became provider-resolved leaves - a concrete, non-abstract, non-delegate
+                            // type is still routed into constructor selection exactly as before, and a
+                            // sealed type with no accessible constructor must still get CMP0002 at
+                            // compile time, not silently compile into a call that can only fail at
+                            // runtime.
                             var customer = composer.Create<TestNamespace.Customer>();
                         }
                     }
                     """,
             },
-            expectedDiagnosticId: "CMP0003",
+            expectedDiagnosticId: "CMP0002",
             TestContext.Current.CancellationToken);
 
     [Fact]
@@ -1321,26 +1354,24 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task ComposableAttributeOnInterface_ReportsDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
-            new CodeGenerationOptions
-            {
-                SourceCode = """
-                    namespace TestNamespace;
+    public Task ComposableAttributeOnInterface_GeneratesNoPlan_ProviderResolvedAtRuntime() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
 
-                    // Interfaces are a legal [Composable] target (AttributeTargets.Interface) so
-                    // this reaches Compono's own CMP0003 diagnostic instead of a bare compiler
-                    // error with no explanation - interfaces report IsAbstract: true in Roslyn, so
-                    // ConstructorSelector rejects them the same way it rejects an abstract class.
-                    [Compono.Composable]
-                    public interface IWidget
-                    {
-                        string Name { get; }
-                    }
-                    """,
-            },
-            expectedDiagnosticId: "CMP0003",
-            TestContext.Current.CancellationToken);
+                // Interfaces are a legal [Composable] target (AttributeTargets.Interface) - an
+                // interface reports IsAbstract: true in Roslyn, so [Composable]'s eager-warmup walk
+                // classifies it the same way an ordinary Composer.Create<IWidget>() root now does
+                // (PLAN-0005 Phase 2's root-check loosening): a provider-resolved leaf with nothing to
+                // eagerly generate, not a CMP0003 diagnostic.
+                [Compono.Composable]
+                public interface IWidget
+                {
+                    string Name { get; }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 
     [Fact]
     public Task ComposableAttributeOnRefStruct_ReportsDiagnostic() =>
