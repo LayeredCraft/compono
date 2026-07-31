@@ -9,17 +9,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- PrivateAssets="none" (PLAN-0004 Phase 3 real-packaged-consumer verification) - an ordinary
-             PackageReference/ProjectReference defaults PrivateAssets to "contentfiles;build;analyzers",
-             meaning those asset kinds stop at this package and never flow to a consumer of
-             Compono.XunitV3 - dotnet pack renders that default as exclude="Build,Analyzers" on the
-             generated <dependency> for Compono in this package's own nuspec. Left at its default, a
-             project that references only the Compono.XunitV3 package (never Compono directly - the
-             whole point of this package existing) never gets Compono.Generators transitively, and every
-             [Compose]-attributed type silently falls back to "no generated plan" - a real regression a
-             ProjectReference-based build can't surface. Caught by
-             test/Compono.XunitV3.SampleTests failing to compose a type reached only via a
-             [Compose]-attributed method until this was added. -->
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.XunitV3 - caught by test/Compono.XunitV3.SampleTests failing to compose
+             a [Compose]-attributed type until this was added (PLAN-0004 Phase 3). -->
         <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
         <!-- Ordinary reference, not PrivateAssets="all" - ComposeAttribute/ComposeAttribute{TProfile}
              derive from and return types this package owns publicly, so a consumer needs them
