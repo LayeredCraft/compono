@@ -46,11 +46,13 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Select(static (result, _) => result!)
             .WithTrackingName(TrackingNames.AssemblyComposablesNotNull);
 
-        // [Compose]/[Compose<TProfile>] on a test method (Compono.Xunit, Milestone 4 Phase 1) - a
-        // type reached only as one of these methods' own parameters has no textual call site for
-        // CreateInvocationDiscovery to match, so it needs this dedicated discovery path. Matches on
-        // the non-generic ComposeAttribute metadata name; ForAttributeWithMetadataName walks base
-        // types, so [Compose<TProfile>] (which derives from it) is found the same way.
+        // [Compose] on a test method (Compono.Xunit, Milestone 4 Phase 1) - a type reached only as
+        // one of these methods' own parameters has no textual call site for CreateInvocationDiscovery
+        // to match, so it needs this dedicated discovery path. Matches on the non-generic
+        // ComposeAttribute metadata name only - ForAttributeWithMetadataName matches an attribute
+        // usage's own attribute-class metadata name, not a base type's, so [Compose<TProfile>] (whose
+        // attribute class metadata name is the distinct, arity-suffixed "ComposeAttribute`1") needs
+        // its own separately-registered provider below, not this one (PR #23 review).
         var composeMethodResults = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.AttributeMetadataName,
