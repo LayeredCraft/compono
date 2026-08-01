@@ -192,7 +192,7 @@ not every stage is the same *kind* of thing:
 | 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (implemented, Milestone 3 Phase 1): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 Phase 1 shipped its real public shape (`builder.Register<T>(...)`, `builder.UseServiceProvider(...)`). |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection, per [ADR-0020](adr/0020-composition-configuration-rules.md) (implemented, Milestone 3 Phase 3). Renamed from "profile rules" (`PipelineStage.ConfigurationRule`): populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile's `Configure` — a profile is a reusable application mechanism over this stage, not its owner ([ADR-0018](adr/0018-composition-profiles.md)). Collection-size configuration does **not** populate this stage — see Configuration Rules, below. |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddSemanticProvider(ICompositionValueProvider)`) is implemented as of Milestone 5 Phase 0 ([ADR-0024](adr/0024-public-provider-extensibility-model.md)) — but no `Compono`-shipped package registers anything into it by default, since `Compono.Bogus` (Milestone 6) doesn't exist yet. Empty in practice until then, populated in mechanism now. |
-| 6 | Test-double providers | Ordered `ICompositionProvider` collection. Same status as stage 5: the public registration surface (`builder.AddTestDoubleProvider(ICompositionValueProvider)`) is implemented ([ADR-0024](adr/0024-public-provider-extensibility-model.md)), but empty in practice until `Compono.NSubstitute` (Milestone 5's own package, [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)) ships — see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for its phase status. |
+| 6 | Test-double providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddTestDoubleProvider(ICompositionValueProvider)`) is implemented ([ADR-0024](adr/0024-public-provider-extensibility-model.md)), and `Compono.NSubstitute` ([ADR-0025](adr/0025-compono-nsubstitute-package-design.md), implemented and test-covered — see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md)) is a real registrant via `UseNSubstitute()`. Still empty by default in any composition that doesn't opt into it — registration is per-`Composer`, not automatic just because the package is referenced. |
 | 7 | Built-in value providers | **Hybrid** (ADR-0014): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
 | 9 | Diagnostic failure | Context-owned terminal stage |
@@ -944,12 +944,12 @@ Owns:
   `AddTestDoubleProvider`, compiled into stage 5/6 the same way ADR-0020's rules
   compile into stage 4 — **implemented, PLAN-0005 Phase 0**) **and
   [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)** (`Compono.NSubstitute`,
-  the first real consumer of that contract — design only, not yet implemented;
-  see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for its
-  phase status). The core extension point itself is real and tested; stages
-  5/6 in the Resolution Pipeline table above stay empty in practice only
-  because no `Compono`-shipped package (`Compono.Bogus`, `Compono.NSubstitute`)
-  registers anything into them yet.
+  the first real consumer of that contract — **implemented and test-covered/
+  end-to-end verified, PLAN-0005**, all phases done). Both the core extension
+  point and its first real consumer are shipped: stage 6 in the Resolution
+  Pipeline table above is populated whenever a consumer calls
+  `UseNSubstitute()`; stage 5 stays empty in practice only because
+  `Compono.Bogus` (Milestone 6) doesn't exist yet.
 - **Richer `Microsoft.Extensions.DependencyInjection` integration** (`IServiceCollection`
   auto-registration, per-composition scoping, keyed services) — explicitly out of
   scope for `Compono` core per
