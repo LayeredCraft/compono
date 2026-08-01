@@ -23,6 +23,11 @@ internal sealed class RandomSource : IRandomSource
     private const byte ManualResolveTag = 5;
     private const byte TestParameterTag = 6;
 
+    // Distinct from the seven PathSegment-kind tags above - DeriveSeed's own fixed salt, so a
+    // caller-derived seed (ADR-0026) is never accidentally identical to a value this same node might
+    // separately fork for an ordinary PathSegment-keyed child.
+    private const byte DeriveSeedTag = 7;
+
     private readonly ulong _forkState;
     private ulong _valueState;
 
@@ -61,4 +66,7 @@ internal sealed class RandomSource : IRandomSource
 
     /// <inheritdoc />
     public ulong NextUInt64() => SplitMix64.Next(ref _valueState);
+
+    /// <inheritdoc />
+    public ulong DeriveSeed() => Fnv1a.Combine(_forkState, DeriveSeedTag, ReadOnlySpan<byte>.Empty);
 }

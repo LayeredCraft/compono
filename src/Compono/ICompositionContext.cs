@@ -44,6 +44,25 @@ public interface ICompositionContext
     TValue Resolve<TValue>();
 
     /// <summary>
+    /// Derives a deterministic <see cref="int"/> seed from this context's root seed and the request
+    /// currently being resolved - usable to seed a caller-owned PRNG (e.g. a <c>Bogus.Randomizer</c>)
+    /// without exposing the engine's own internal random source or path representation. The same root
+    /// seed and the same request path always derive the same value; a different path (a different
+    /// member, a different constructor parameter, a different element of a collection) always derives
+    /// independently. Calling this method repeatedly for the same active request returns the same
+    /// value every time - it does not advance any stream, and does not perturb any other value's own
+    /// derivation. Valid in the same scope as <see cref="Resolve{TValue}()"/>: from inside a
+    /// registration or configuration-rule factory, or a public
+    /// <see cref="ICompositionValueProvider.TryProvide"/> invocation. See
+    /// <c>docs/adr/0026-deterministic-seed-derivation-for-providers.md</c>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// No registration/configuration-rule factory or public provider invocation is currently in
+    /// progress.
+    /// </exception>
+    int DeriveSeed();
+
+    /// <summary>
     /// Resolves the collection size a generated collection plan should build - the size a
     /// member-scoped <c>WithCollectionSize</c> override configures for the collection member
     /// currently being resolved, falling back to the global default, then the built-in size of

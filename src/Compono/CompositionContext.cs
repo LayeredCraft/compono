@@ -262,6 +262,28 @@ internal sealed class CompositionContext : ICompositionContext
     }
 
     /// <inheritdoc />
+    public int DeriveSeed()
+    {
+        if (_manualResolveFrames.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(ICompositionContext)}.{nameof(DeriveSeed)}() can only be called from inside a " +
+                "registration or configuration-rule factory, or a public " +
+                $"{nameof(ICompositionValueProvider)}.{nameof(ICompositionValueProvider.TryProvide)} invocation.");
+        }
+
+        // _random is always non-null here: a manual-resolve frame only exists while InvokeFactory/
+        // InvokeProvider is running, and both are only ever called from inside ResolveCore's try block,
+        // which has already set _random for the request currently being resolved.
+        var raw = _random!.DeriveSeed();
+
+        // Folds the full 64-bit derived value into an int by XORing its two halves, rather than
+        // truncating to the low 32 bits alone - keeps entropy from both halves instead of silently
+        // discarding the high bits.
+        return unchecked((int)(raw ^ (raw >> 32)));
+    }
+
+    /// <inheritdoc />
     public int ResolveCollectionSize() => ResolveCollectionSizeCore();
 
     /// <summary>

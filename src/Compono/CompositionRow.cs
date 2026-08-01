@@ -38,6 +38,9 @@ public sealed class CompositionRow : ICompositionContext
     public TValue Resolve<TValue>() => _context.Resolve<TValue>();
 
     /// <inheritdoc />
+    public int DeriveSeed() => _context.DeriveSeed();
+
+    /// <inheritdoc />
     public int ResolveCollectionSize() => _context.ResolveCollectionSize();
 
     /// <summary>

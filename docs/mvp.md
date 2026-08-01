@@ -311,19 +311,40 @@ A typical service test can receive a shared substitute, a composed system under 
 
 ## Milestone 6: Bogus Integration
 
+Owns the reference implementation of Milestone 5's stage-5/6 provider
+architecture, and the one core gap that architecture didn't yet need to close:
+Milestone 5's `Compono.NSubstitute` never needed randomness, so nothing exposed
+deterministic, path-independent random values to a provider or registration
+factory. Design: [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)
+(core capability: `ICompositionContext.DeriveSeed()`, an on-demand, path-hashed
+seed reusing [ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)'s
+existing mechanism, deliberately not exposing `IRandomSource` or path internals),
+[ADR-0027](adr/0027-compono-bogus-package-design.md) (`Compono.Bogus` package:
+three customization models — a conservative member-name convention provider
+(stage 5), an explicit member-level `UseBogus(faker => ...)` rule (stage 4
+sugar), and a whole-object `UseBogus<T>(...)` registration (stage 3 sugar);
+correlated values satisfied via Bogus's own `Faker<T>` rather than a new
+Compono-native `.DependsOn(...)` mechanism, which is explicitly deferred; verified
+coexistence with `Compono.NSubstitute` via disjoint type claims, with zero
+reference between the two packages in either direction). Both ADRs are
+`Accepted`; tracked by [PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
+**ADR-0026's core capability is implemented (PLAN-0006 Phase 0)** —
+`ICompositionContext.DeriveSeed()` is real, tested public API today. **`Compono.Bogus`
+itself (ADR-0027) is not yet implemented** — see the plan's phase-by-phase status.
+
 ### Scope
 
 - Semantic value-provider contract
-- Shared deterministic seed
+- Shared deterministic seed (`ICompositionContext.DeriveSeed()`, ADR-0026 —
+  implemented, PLAN-0006 Phase 0)
 - Bogus `Faker` access
 - Locale configuration
 - Conservative member-name conventions
 - Explicit member rules
-- Initial correlated-value experiment
+- Initial correlated-value experiment (satisfied via whole-object `Faker<T>`,
+  ADR-0027 — not a new Compono-native dependency mechanism)
 
 ### Initial Conventions
-
-Potential mappings:
 
 - `FirstName`
 - `LastName`
@@ -336,11 +357,17 @@ Potential mappings:
 - `PostalCode`
 - `CompanyName`
 
-Ambiguous member names such as `Name` should not be guessed aggressively.
+Ambiguous member names such as `Name` should not be guessed aggressively —
+resolved by [ADR-0027](adr/0027-compono-bogus-package-design.md): the allowlist
+above, exact match, case-sensitive, gated to `string`-typed members only.
 
 ### Exit Criteria
 
-A composed customer can receive realistic, deterministic values without the core package referencing Bogus.
+A composed customer can receive realistic, deterministic values without the core
+package referencing Bogus — and `UseBogus()`/`UseNSubstitute()` compose in one
+profile, any call order, with no special ordering or package-to-package
+dependency, per [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)'s Goal
+scenario. Not yet met — implementation has not started.
 
 ## Milestone 7: Dogfooding
 

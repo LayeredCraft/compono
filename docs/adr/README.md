@@ -87,3 +87,5 @@ the mechanics: numbering, status, and the index.
 | [0023](0023-rename-compono-xunit-to-compono-xunitv3.md) | Rename Compono.Xunit to Compono.XunitV3 | Accepted |
 | [0024](0024-public-provider-extensibility-model.md) | Public Provider Extensibility Model | Accepted |
 | [0025](0025-compono-nsubstitute-package-design.md) | Compono.NSubstitute Package Design | Accepted |
+| [0026](0026-deterministic-seed-derivation-for-providers.md) | Deterministic Seed Derivation for Providers and Registration Factories | Accepted |
+| [0027](0027-compono-bogus-package-design.md) | Compono.Bogus Package Design | Accepted |
