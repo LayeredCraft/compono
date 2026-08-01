@@ -254,11 +254,17 @@ and Option B are sequential statements, not a chain.
 ```csharp
 internal static class BogusConventions
 {
+    // Concrete FrozenDictionary as the private backing field, per coding-standards.md's
+    // collection-surface rule (applies to internal surfaces too, not just public ones) - the
+    // internal-facing members below expose IReadOnlyDictionary, never the concrete type itself.
+    private static readonly FrozenDictionary<string, Func<Faker, string>> ByNameCore = /* the original 10 entries */;
+    private static readonly FrozenDictionary<BogusConvention, Func<Faker, string>> ByConventionCore = /* same 10 entries, keyed by enum */;
+
     /// <summary>Built-in name -> generator, for collision checks and the default lookup.</summary>
-    internal static readonly FrozenDictionary<string, Func<Faker, string>> ByName = /* the original 10 entries */;
+    internal static IReadOnlyDictionary<string, Func<Faker, string>> ByName => ByNameCore;
 
     /// <summary>Built-in convention -> generator, for resolving an alias's target.</summary>
-    internal static readonly FrozenDictionary<BogusConvention, Func<Faker, string>> ByConvention = /* same 10 entries, keyed by enum */;
+    internal static IReadOnlyDictionary<BogusConvention, Func<Faker, string>> ByConvention => ByConventionCore;
 }
 ```
 

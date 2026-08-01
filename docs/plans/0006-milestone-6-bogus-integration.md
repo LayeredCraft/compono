@@ -226,12 +226,14 @@ together — in one coherent pass, per ADR-0028's Links section).
       behavior beyond identity.
 - [ ] `BogusConventions` (new internal static class): the shared built-in
       source of truth `BogusMemberNameProvider`'s hardcoded `Conventions`
-      dictionary (Phase 1) moves to —
-      `ByName: FrozenDictionary<string, Func<Faker, string>>` (collision
-      checks, the default lookup) and
-      `ByConvention: FrozenDictionary<BogusConvention, Func<Faker, string>>`
-      (alias-target resolution), both derived from one underlying set so the
-      ten generator delegates aren't duplicated.
+      dictionary (Phase 1) moves to — `ByName`/`ByConvention`, both typed
+      `IReadOnlyDictionary<...>` (collision checks/default lookup, and
+      alias-target resolution, respectively), backed by `private static
+      readonly FrozenDictionary<...>` fields per `coding-standards.md`'s
+      collection-surface rule (applies to `internal` members too, not just
+      `public` ones — the concrete `FrozenDictionary` type never crosses
+      even this in-assembly boundary), both derived from one underlying set
+      so the ten generator delegates aren't duplicated.
 - [ ] `BogusOptions.AddAlias(string aliasName, BogusConvention target)`/
       `AddConvention(string memberName, Func<Faker, string> generate)`:
       eager validation performed by `AddAlias`/`AddConvention` against
