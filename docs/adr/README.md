@@ -89,3 +89,4 @@ the mechanics: numbering, status, and the index.
 | [0025](0025-compono-nsubstitute-package-design.md) | Compono.NSubstitute Package Design | Accepted |
 | [0026](0026-deterministic-seed-derivation-for-providers.md) | Deterministic Seed Derivation for Providers and Registration Factories | Accepted |
 | [0027](0027-compono-bogus-package-design.md) | Compono.Bogus Package Design | Accepted |
+| [0028](0028-configurable-bogus-member-name-conventions.md) | Configurable Bogus Member-Name Conventions | Accepted |

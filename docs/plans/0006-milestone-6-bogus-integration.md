@@ -6,10 +6,15 @@
 (core capability: `ICompositionContext.DeriveSeed()`), [ADR-0027](../adr/0027-compono-bogus-package-design.md)
 (`Compono.Bogus` package: `BogusMemberNameProvider`, `BogusOptions`, member-level
 `UseBogus(faker => ...)` sugar, whole-object `UseBogus<T>(...)` sugar, coexistence
-with `Compono.NSubstitute`)
+with `Compono.NSubstitute`), [ADR-0028](../adr/0028-configurable-bogus-member-name-conventions.md)
+(configurable conventions: `BogusConvention`, `BogusOptions.AddAlias`/`AddConvention`,
+scoped to a single `UseBogus(...)` call — a new ADR, not an amendment to ADR-0027)
 
-**Note:** both ADRs are `Accepted` as of the design review that produced this plan
-(2026-07-31) — implementation may begin.
+**Note:** all three ADRs are `Accepted`. ADR-0026/ADR-0027 were accepted
+2026-07-31; ADR-0028 (configurable conventions) was accepted 2026-08-01, after
+its own design review — see that ADR for the alternatives considered and
+rejected (notably: cross-call/cross-profile conflict detection, and the core
+build-finalization hook it would have needed, both explicitly deferred).
 
 ## Goal
 
@@ -57,6 +62,13 @@ Per ADR-0026/ADR-0027's Decision Outcomes:
   `UseBogus<T>(Action<Faker<T>>)`/`UseBogus<T>(string, Action<Faker<T>>)`,
   `MemberRuleExtensions.UseBogus(Func<Faker, TMember>, string)` on the existing
   member-rule builder.
+- Configurable member-name conventions (ADR-0028): `BogusConvention` (public
+  enum), `BogusOptions.AddAlias(string, BogusConvention)`/
+  `AddConvention(string, Func<Faker, string>)`, the internal
+  `BogusConventions` shared built-in lookup, and `BogusMemberNameProvider`'s
+  constructor gaining a merged-conventions parameter. Scoped to a single
+  `UseBogus(...)` call — no cross-call/cross-profile conflict detection (see
+  ADR-0028's Non-Goals).
 - New test project: `test/Compono.Bogus.Tests`.
 - A `test/Compono.XunitV3.SampleTests` extension proving `Compono.Bogus` and
   `Compono.NSubstitute` compose in one real, packaged xUnit v3 consumer (this
@@ -68,6 +80,10 @@ Consequences:
 
 - `.DependsOn(...)` — a Compono-native member-dependency mechanism. Correlated
   values are satisfied via whole-object `Faker<T>` (`UseBogus<T>()`) instead.
+- Cross-call/cross-profile alias/custom-convention conflict detection or
+  merging, and the generic `CompositionBuilder` build-finalization capability
+  it would need — evaluated and explicitly deferred by ADR-0028; each
+  `UseBogus(...)` call's conventions are validated independently.
 - Any change to `Compono.NSubstitute` — this plan touches `Compono.Bogus` and
   core only; coexistence is verified, not implemented, on the NSubstitute side.
 - A `Compono.Benchmarks` entry for a Bogus-composed graph — nice-to-have, not
@@ -126,7 +142,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `Compono.NSubstitute.csproj`'s TFM/packaging shape — `ProjectReference` to
       `Compono` with `PrivateAssets="none"`, `PackageReference` to `Bogus`
       (version `35.6.5`, added to `Directory.Packages.props`, alongside a
-      `Compono.Bogus` `Version="1.0.0"` local-feed entry for Phase 2's future
+      `Compono.Bogus` `Version="1.0.0"` local-feed entry for Phase 3's future
       packaged-consumer test)).
 - [x] `BogusOptions`: `Locale` (`string`, default `"en"`),
       `EnableMemberNameConventions` (`bool`, default `true`).
@@ -190,7 +206,81 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       No `context.Semantic` accessor, no core change beyond Phase 0's
       `DeriveSeed()`.
 
-### Phase 2: Test suites and verification
+### Phase 2: Configurable member-name conventions (ADR-0028)
+
+**Status:** Not Started
+
+Renumbered from the original 3-phase plan (Phase 2 "Test suites and
+verification" → Phase 3, Phase 3 "Docs and cleanup" → Phase 4) so
+implementation phases stay grouped together before the test-suite phase, per
+ADR-0028's own design review (added 2026-08-01, after Phase 0 shipped and
+Phase 1 was in review). This phase builds directly on Phase 1's
+`BogusMemberNameProvider`/`BogusOptions`, so it has to land after Phase 1
+merges, before Phase 3's test suite (which should cover the complete
+`Compono.Bogus.Tests` surface — base package and configurable conventions
+together — in one coherent pass, per ADR-0028's Links section).
+
+- [ ] `BogusConvention` (public enum): `FirstName`, `LastName`, `FullName`,
+      `Email`, `PhoneNumber`, `StreetAddress`, `City`, `State`, `PostalCode`,
+      `CompanyName` — one member per existing built-in convention, no
+      behavior beyond identity.
+- [ ] `BogusConventions` (new internal static class): the shared built-in
+      source of truth `BogusMemberNameProvider`'s hardcoded `Conventions`
+      dictionary (Phase 1) moves to — `ByName`/`ByConvention`, both typed
+      `IReadOnlyDictionary<...>` (collision checks/default lookup, and
+      alias-target resolution, respectively), backed by `private static
+      readonly FrozenDictionary<...>` fields per `coding-standards.md`'s
+      collection-surface rule (applies to `internal` members too, not just
+      `public` ones — the concrete `FrozenDictionary` type never crosses
+      even this in-assembly boundary), both derived from one underlying set
+      so the ten generator delegates aren't duplicated.
+- [ ] `BogusOptions.AddAlias(string aliasName, BogusConvention target)`/
+      `AddConvention(string memberName, Func<Faker, string> generate)`:
+      eager validation performed by `AddAlias`/`AddConvention` against
+      `BogusConventions.ByName` plus this instance's own private accumulator —
+      `ArgumentNullException.ThrowIfNull` for a null name/`generate` (matching
+      this repo's own established guard convention, `coding-standards.md`),
+      `ArgumentException` for an empty/whitespace name or any duplicate or
+      collision (naming the conflicting member name, the existing mapping,
+      and the attempted mapping), `ArgumentOutOfRangeException` for an
+      undefined `BogusConvention` value. Both return `void` — matching
+      `Locale`/`EnableMemberNameConventions`'s plain-property-setter shape, no
+      fluent chaining.
+- [ ] `BogusMemberNameProvider` gains a second, `internal` constructor
+      overload — `(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)`,
+      called only by `CompositionBuilderExtensions.UseBogus(...)`, freezing
+      its own copy internally (`conventions.ToFrozenDictionary()` unless
+      already one). Preserves the existing `ArgumentNullException.ThrowIfNull(locale)`
+      guard the real, already-merged Phase 1 public constructor has
+      (`src/Compono.Bogus/BogusMemberNameProvider.cs`) — the public
+      constructor now delegates to this one via `: this(locale, BogusConventions.ByName)`,
+      so the guard has to live in the shared internal constructor for both
+      paths to keep it; also guards `conventions` itself.
+      **The existing `public BogusMemberNameProvider(string locale)`
+      (Phase 1, already merged via `#33`) is untouched** — not a breaking
+      change, no `breaking` label needed. Deliberately `internal`, not
+      `public`: a public overload would let a caller construct the provider
+      with an arbitrary dictionary that omits or remaps a built-in name,
+      silently supporting the replace/remove-a-built-in capability this
+      ADR declares a Non-Goal and bypassing `AddAlias`/`AddConvention`'s own
+      eager validation entirely.
+- [ ] `CompositionBuilderExtensions.UseBogus(Action<BogusOptions> configure)`:
+      after `configure(options)` returns, merges `BogusConventions.ByName`
+      with `options`'s own validated accumulator into one
+      `FrozenDictionary<string, Func<Faker, string>>` (no further validation
+      needed — `AddAlias`/`AddConvention` already guaranteed no collisions),
+      then constructs `BogusMemberNameProvider` from that snapshot. Still
+      gated entirely by `EnableMemberNameConventions` — `false` means no
+      provider is registered at all, aliases/custom conventions included
+      (ADR-0028's explicit all-or-nothing scope; no partial mode in this
+      version).
+- [ ] Explicitly **not** in this phase (ADR-0028 Non-Goals): cross-call/
+      cross-profile conflict detection or merging across separate
+      `UseBogus(...)` calls; any `CompositionBuilder` core change; replacing
+      or removing a built-in convention; non-`string` custom conventions;
+      any fuzzy/pattern/priority matching.
+
+### Phase 3: Test suites and verification
 
 **Status:** Not Started
 
@@ -237,9 +327,40 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       determinism-under-concurrency test, not a race characterization); the
       same seed and request path reproduce the same generated object across
       separate runs.
-- [ ] An API-surface/approval test locking `Compono.Bogus`'s public shape,
-      matching `Compono.NSubstitute.Tests`'/`Compono.XunitV3.Tests`' existing
-      pattern.
+- [ ] Configurable-convention coverage (ADR-0028): `AddAlias(...)` resolves to
+      the same value a direct call to the aliased `BogusConvention`'s own
+      built-in generator would produce, for the same seed/path;
+      `AddConvention(...)` produces the custom callback's value, seeded via
+      `context.DeriveSeed()` exactly like the built-in/alias path; an alias
+      or custom name colliding with a built-in name, an existing alias, or an
+      existing custom convention throws `ArgumentException` immediately from
+      the `AddAlias`/`AddConvention` call that introduced it (not deferred to
+      `UseBogus(...)` returning); a null name or a null `generate` throws
+      `ArgumentNullException`, an empty/whitespace name throws
+      `ArgumentException`, an undefined `BogusConvention` value throws
+      `ArgumentOutOfRangeException`; `EnableMemberNameConventions = false`
+      means aliases and custom conventions configured in the same call are
+      never registered, not just the built-in conventions;
+      **the documented cross-call limitation**
+      — two separate `UseBogus(...)` calls each defining the same
+      alias/custom name for different values compose via ordinary
+      registration-order/first-match-wins pipeline semantics, asserted
+      directly so the behavior is explicit rather than accidental (ADR-0028's
+      Negative Consequences); **exact, case-sensitive matching, explicitly
+      exercised, not just assumed from the built-in allowlist's own existing
+      coverage** — a request for `sku` does not match an
+      `AddConvention("Sku", ...)` entry (and vice versa); `AddAlias("givenname", ...)`
+      and `AddAlias("GivenName", ...)` in the same call are treated as two
+      distinct names, not a collision; a name differing only by case from a
+      built-in convention name (e.g. `firstname` vs. `FirstName`) is *not*
+      rejected as a collision and does *not* match the built-in generator —
+      proving the merged lookup and its collision checks both use ordinal,
+      case-sensitive comparison throughout, not a comparer that was
+      accidentally left case-insensitive.
+- [ ] An API-surface/approval test locking `Compono.Bogus`'s public shape
+      (now including `BogusConvention` and `BogusOptions.AddAlias`/
+      `AddConvention`), matching `Compono.NSubstitute.Tests`'/
+      `Compono.XunitV3.Tests`' existing pattern.
 - [ ] A real end-to-end run through `test/Compono.XunitV3.SampleTests` (or a new
       sibling sample) proving this plan's own Goal scenario — `UseBogus()` and
       `UseNSubstitute()` composing one graph under a real xUnit v3 theory,
@@ -248,28 +369,31 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       packaging/compile-time bugs a `ProjectReference`-only build couldn't
       surface.
 
-### Phase 3: Docs and cleanup
+### Phase 4: Docs and cleanup
 
 **Status:** Not Started
 
-- [ ] `docs/mvp.md` Milestone 6 section: links ADR-0026/ADR-0027/PLAN-0006,
+- [ ] `docs/mvp.md` Milestone 6 section: links ADR-0026/ADR-0027/ADR-0028/PLAN-0006,
       states implementation status per phase, matching Milestone 5's own
       phase-by-phase doc-update pattern (update in the PR that actually ships
       each phase, not deferred wholesale to this final phase).
 - [ ] `docs/architecture.md`: `ICompositionContext`'s conceptual sketch gains
       `DeriveSeed()`; stage 5's Resolution Pipeline row and the stages-4/5/6/7
       summary paragraph stop describing stage 5 as unconditionally empty;
-      `Compono.Bogus` Package Boundaries entry gains a real `Owns` list, Design
-      line, and implementation status, matching `Compono.NSubstitute`'s entry
-      shape; the Open Architectural Decisions "public provider extensibility"
-      entry notes both stage 5 and stage 6 now have real registrants.
+      `Compono.Bogus` Package Boundaries entry gains a real `Owns` list
+      (including `BogusConvention`/`BogusConventions`), Design line, and
+      implementation status, matching `Compono.NSubstitute`'s entry shape; the
+      Open Architectural Decisions "public provider extensibility" entry
+      notes both stage 5 and stage 6 now have real registrants.
 - [ ] `docs/public-api.md`: Bogus Integration section replaced with the real
       three-model design (convention provider, member-level `UseBogus(faker => ...)`,
       whole-object `UseBogus<T>(...)`) — the `context.Semantic.Email()` sketch
-      and the `.DependsOn(...)` sketch both removed/reframed per ADR-0027;
-      Naming Vocabulary gains `BogusMemberNameProvider`/`BogusOptions` if
-      warranted; Diagnostics/Deterministic Reproduction sections cross-reference
-      `DeriveSeed()`.
+      and the `.DependsOn(...)` sketch both removed/reframed per ADR-0027 —
+      plus ADR-0028's configurable-conventions sketch (`AddAlias`/
+      `AddConvention`) and its documented cross-call limitation; Naming
+      Vocabulary gains `BogusMemberNameProvider`/`BogusOptions`/
+      `BogusConvention` if warranted; Diagnostics/Deterministic Reproduction
+      sections cross-reference `DeriveSeed()`.
 - [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows (already added
       during the design phase).
 
@@ -288,9 +412,13 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
   `MemberRuleExtensions.cs` — Phase 1.
 - `Directory.Packages.props` (`Bogus`, `Compono.Bogus` `PackageVersion`
   entries), `Compono.slnx` (new project entry) — Phase 1.
-- `test/Compono.Bogus.Tests/` (new project) — Phase 2.
-- `test/Compono.XunitV3.SampleTests/` — new coexistence test(s) — Phase 2.
-- `docs/mvp.md`, `docs/architecture.md`, `docs/public-api.md` — Phase 3.
+- `src/Compono.Bogus/BogusConvention.cs` (new), `BogusConventions.cs` (new,
+  internal), `BogusOptions.cs`/`BogusMemberNameProvider.cs`/
+  `CompositionBuilderExtensions.cs` (modified — `AddAlias`/`AddConvention`,
+  the merged-conventions constructor parameter) — Phase 2.
+- `test/Compono.Bogus.Tests/` (new project) — Phase 3.
+- `test/Compono.XunitV3.SampleTests/` — new coexistence test(s) — Phase 3.
+- `docs/mvp.md`, `docs/architecture.md`, `docs/public-api.md` — Phase 4.
 
 ## Test Plan
 
@@ -300,12 +428,15 @@ Arrange-Act-Assert, fixed-seed determinism assertions, one test project per
 isolation before the package that will really use it exists" rule,
 `DeriveSeed()` gets its own `Compono.Tests` coverage (Phase 0) independent of
 `Compono.Bogus`, mirroring PLAN-0005 Phase 0's treatment of
-`ICompositionValueProvider`. `Compono.Bogus.Tests` (Phase 2) then covers the
-package's own real behavior, its coexistence with `Compono.NSubstitute` in the
-same `Composer`, and `UseBogus<T>()`'s per-request `Faker<T>` lifetime under
-concurrent composition, plus one real-runner proof (a packaged `test/Compono.XunitV3.SampleTests` run) since that
-specific shape has twice caught real bugs a `ProjectReference`-only build
-couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
+`ICompositionValueProvider`. `Compono.Bogus.Tests` (Phase 3) then covers the
+package's own real behavior — the base package (Phase 1) and configurable
+conventions (Phase 2) together, in one coherent pass — its coexistence with
+`Compono.NSubstitute` in the same `Composer`, `UseBogus<T>()`'s per-request
+`Faker<T>` lifetime under concurrent composition, and ADR-0028's own eager
+validation/collision contract, plus one real-runner proof (a packaged
+`test/Compono.XunitV3.SampleTests` run) since that specific shape has twice
+caught real bugs a `ProjectReference`-only build couldn't (PLAN-0004 Phase 3,
+PLAN-0005 Phase 2).
 
 ## Open Items
 
@@ -316,14 +447,36 @@ couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
 - `.DependsOn(...)` (ADR-0027's deferred member-dependency mechanism) is not
   designed here. Revisit only if Milestone 7 dogfooding surfaces a real need
   `Faker<T>`'s whole-object correlation doesn't already cover.
+- Cross-call/cross-profile alias/custom-convention conflict detection, and
+  the generic `CompositionBuilder` build-finalization capability it would
+  need, are not designed here (ADR-0028 Non-Goals). Revisit only if a second,
+  real integration-configuration need (beyond this one) justifies the cost of
+  a genuine core capability with at least two real consumers.
 
 ## Notes
+
+**Design addition (2026-08-01):** [ADR-0028](../adr/0028-configurable-bogus-member-name-conventions.md)
+(configurable member-name conventions — `BogusConvention`, `BogusOptions.AddAlias`/
+`AddConvention`) accepted after its own design review, proposed and confirmed
+after Phase 0 shipped and while Phase 1 was in review. A **new** ADR, not an
+amendment to ADR-0027 — ADR-0027's own accepted Decision Outcome is unchanged.
+Added as a new Phase 2, renumbering the original Phase 2 ("Test suites and
+verification") to Phase 3 and Phase 3 ("Docs and cleanup") to Phase 4, so
+implementation phases stay grouped before the single, comprehensive test-suite
+phase. The design review's most consequential moment was a considered-and-reversed
+decision: cross-call/cross-profile conflict detection was initially requested,
+investigated in depth (it would require either a new generic `CompositionBuilder`
+build-finalization capability in its own core-extension ADR, or a
+`ConditionalWeakTable`-keyed accumulator with weaker first-use-not-`Build()`-time
+validation timing), then explicitly declined once that cost was weighed against
+a single, milestone-scoped need — see ADR-0028's own Considered
+Options/Decision Outcome for the full account.
 
 **Phase 0 (Done):**
 
 - Implemented in the same branch/PR as the design docs (ADR-0026, ADR-0027,
   this plan), per explicit user direction — mirrors PLAN-0005 Phase 0's same
-  choice. Phases 1-3 remain separate PRs, per `design-decisions.md`'s phase
+  choice. Phases 1-4 remain separate PRs, per `design-decisions.md`'s phase
   rule.
 - Implemented exactly per ADR-0026's Decision Outcome: `IRandomSource`/
   `RandomSource` gained `DeriveSeed()` (a pure read of the node's own
@@ -364,10 +517,12 @@ couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
   `PrivateAssets="none"` (PLAN-0004 Phase 3's packaging lesson, applied
   proactively), `PackageReference` to `Bogus` (version centrally managed,
   `35.6.5` — the latest stable release at the time of this phase), and
-  `InternalsVisibleTo` for the not-yet-created `Compono.Bogus.Tests` (Phase 2).
+  `InternalsVisibleTo` for the not-yet-created `Compono.Bogus.Tests` (now
+  Phase 3, after ADR-0028's Phase 2 insertion — see the design-addition note
+  above).
   `Directory.Packages.props` also gained a `Compono.Bogus` `Version="1.0.0"`
   local-feed entry, matching `Compono.XunitV3`/`Compono.NSubstitute`'s
-  existing pattern, ahead of Phase 2's own packaged-consumer test needing it.
+  existing pattern, ahead of that phase's own packaged-consumer test needing it.
 - `MemberRuleExtensions.UseBogus(...)` is a **generic** C# 14 extension block
   (`extension<TParent, TMember>(CompositionMemberRuleBuilder<TParent, TMember> builder)
   where TMember : notnull`) — the first generic extension block in this
@@ -381,11 +536,11 @@ couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
   a plain `<c>UseBogus()</c>`-style code-formatted reference instead of
   `<see cref>` for that one cross-reference case, not a suppression.
 - Added to `Compono.slnx`. Whole-solution `dotnet build` green, 0 warnings.
-- No test project yet (Phase 2) — `BogusOptions`/`BogusMemberNameProvider`/
-  `UseBogus()`/`UseBogus<T>()`/the member-rule `UseBogus(...)` sugar are
-  implemented but only build-verified in this phase, not test-verified —
-  matching PLAN-0005 Phase 1's own explicit precedent for the identical
-  package-skeleton-then-tests split.
+- No test project yet (now Phase 3, after renumbering) —
+  `BogusOptions`/`BogusMemberNameProvider`/`UseBogus()`/`UseBogus<T>()`/the
+  member-rule `UseBogus(...)` sugar are implemented but only build-verified
+  in this phase, not test-verified — matching PLAN-0005 Phase 1's own
+  explicit precedent for the identical package-skeleton-then-tests split.
 - **PR #33 review (Codex, one P2 finding) caught a real determinism defect in
   `UseBogus<T>()`'s own implementation, fixed before merge — see
   [ADR-0027 Amendment 1](../adr/0027-compono-bogus-package-design.md#amendment-1-2026-08-01-useseed-must-run-before-configurefaker-not-after)
@@ -399,14 +554,14 @@ couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
   `UseBogus(...)` sugar (Models 1/2) were already correct — both apply
   `Random` via an object initializer before calling into user code, so this
   defect was scoped to Model 3 only. Regression coverage added to this
-  plan's own Phase 2 task list above (not written yet — Phase 1 stays
+  plan's own Phase 3 task list above (not written yet — Phase 1 stays
   build-verified only, per this phase's own scope).
 - A second stale-doc finding (`docs/mvp.md`'s Milestone 6 Exit Criteria still
   said "implementation has not started" after this phase's own earlier fix
   already said `Compono.Bogus` was implemented) — same doc-staleness pattern
   PLAN-0005's review rounds caught repeatedly; fixed in the same PR.
 
-Phase 3 (docs/cleanup) hasn't started yet.
+Phase 4 (docs/cleanup) hasn't started yet.
 ADR-0026/ADR-0027 reached `Accepted` on 2026-07-31, after a design review that
 resolved (in order): how Bogus's
 randomness should relate to ADR-0012's path-independence guarantee (a new,

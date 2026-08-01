@@ -520,10 +520,11 @@ via an object initializer (`new Faker(locale) { Random = new Randomizer(...) }`)
 rather than a separate statement, so this defect was scoped to Model 3 only.
 
 Caught and fixed within PLAN-0006 Phase 1, before any external consumer or
-Phase 2 test existed — `docs/plans/0006-milestone-6-bogus-integration.md`'s
-own Phase 2 task list now includes explicit regression coverage for this
-ordering (an eager-random-read `configureFaker` callback, asserted
-deterministic for the same seed).
+its test-suite phase existed — `docs/plans/0006-milestone-6-bogus-integration.md`'s
+own Phase 3 (Test suites and verification — renumbered from Phase 2 after
+ADR-0028's later Phase 2 insertion) task list now includes explicit
+regression coverage for this ordering (an eager-random-read `configureFaker`
+callback, asserted deterministic for the same seed).
 
 ## Links
 

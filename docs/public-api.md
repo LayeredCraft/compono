@@ -360,7 +360,8 @@ identical key is a build-time conflict, the same as a duplicate registration.
 
 Design: [ADR-0027](adr/0027-compono-bogus-package-design.md) — **implemented,
 PLAN-0006 Phase 1** (build-verified; test coverage/end-to-end verification
-pending Phase 2), built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
+pending Phase 3), [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
+(`Accepted`, not yet implemented — Phase 2), built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
 `ICompositionContext.DeriveSeed()` (**implemented, PLAN-0006 Phase 0** — see
 Deterministic Reproduction, below).
 `Compono.Bogus` has three independent customization models, not one, and a real
@@ -390,6 +391,50 @@ builder.UseBogus(options =>
     options.EnableMemberNameConventions = false; // opt out, keep explicit rules only
 });
 ```
+
+**Configurable conventions** — design: [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
+(`Accepted`, not yet implemented — see [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)
+Phase 2). A domain that doesn't use the built-in allowlist's exact names, or
+that has its own package-wide semantic name, can extend `UseBogus()` without
+repeating a member-level rule at every call site:
+
+```csharp
+builder.UseBogus(options =>
+{
+    // An additional exact name that reuses a built-in generator.
+    options.AddAlias("GivenName", BogusConvention.FirstName);
+    options.AddAlias("Surname", BogusConvention.LastName);
+    options.AddAlias("Zip", BogusConvention.PostalCode);
+
+    // A custom exact-name convention, backed by a user callback.
+    options.AddConvention("Sku", faker => faker.Commerce.Ean13());
+});
+```
+
+Both are exact, case-sensitive matches, merged with the built-in allowlist
+into a single lookup — a name can only ever map to one generator. `AddAlias`/
+`AddConvention` perform eager validation when called: a null name throws
+`ArgumentNullException` (matching this repo's own `ArgumentNullException.ThrowIfNull`
+guard convention); an empty/whitespace name, or any duplicate or collision
+with a built-in name, an existing alias, or an existing custom convention,
+throws `ArgumentException` — immediately from the call that introduced it,
+not deferred, and not silently overwritten.
+Custom conventions are `string`-only (a non-`string` package-wide value needs
+the member-level `.Member(...).UseBogus(faker => ...)` sugar below instead).
+Replacing or removing a built-in convention isn't supported.
+
+`EnableMemberNameConventions = false` is still all-or-nothing: it disables
+the entire provider, including any aliases/custom conventions configured in
+the same call — there's no way yet to keep custom conventions active while
+turning off only the built-in guesses.
+
+**This validation is scoped to one `UseBogus(...)` call** — a second, separate
+call (e.g. from a different profile) that defines a colliding alias/custom
+name is **not** detected; each call registers its own independent provider,
+and ordinary pipeline registration-order/first-match-wins semantics decide
+which one applies (ADR-0028's Non-Goals). Centralize Bogus configuration into
+one `UseBogus(...)` call — typically inside one reusable profile — to avoid
+relying on that fallback.
 
 **Explicit member rules** (stage 4, sugar over the existing `.For<T>().Member(...).Use(...)`
 mechanism — no `context.Semantic` accessor, no core change beyond `DeriveSeed()`):
@@ -625,6 +670,9 @@ Preferred concepts:
 - `DeriveSeed()`: on-demand, path-derived deterministic seed a provider or
   factory calls for its own randomness — see Deterministic Reproduction,
   resolved by [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)
+- `BogusConvention`: the fixed, closed set of Compono.Bogus's built-in
+  member-name conventions — see Bogus Integration, resolved by
+  [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
 
 ## API Design Rules
 

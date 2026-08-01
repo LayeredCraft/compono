@@ -867,16 +867,28 @@ Design: [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md) (the
 core `ICompositionContext.DeriveSeed()` capability this package builds on, owned
 by core `Compono` — **implemented, PLAN-0006 Phase 0**), [ADR-0027](adr/0027-compono-bogus-package-design.md)
 (this package itself — **implemented, PLAN-0006 Phase 1**; build-verified only,
-test coverage/end-to-end verification still pending Phase 2) — see
+test coverage/end-to-end verification still pending Phase 3), [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
+(configurable member-name conventions — aliases and custom exact-name
+conventions on top of ADR-0027's fixed allowlist; a new ADR, not an amendment
+to ADR-0027; `Accepted`, **not yet implemented**) — see
 [PLAN-0006](plans/0006-milestone-6-bogus-integration.md) for the phase-by-phase
 account.
 
 Owns:
 
 - `BogusMemberNameProvider` — the stage-5 semantic value provider (registered
-  via `AddSemanticProvider`), matching a conservative, exact-match, `string`-typed
-  member-name allowlist (`FirstName`/`Email`/etc.)
-- `BogusOptions` — `Locale`, `EnableMemberNameConventions`
+  via `AddSemanticProvider`), matching an exact-match, `string`-typed lookup
+  merging the conservative built-in allowlist (`FirstName`/`Email`/etc.,
+  ADR-0027) with any consumer-configured aliases/custom conventions
+  (ADR-0028)
+- `BogusOptions` — `Locale`, `EnableMemberNameConventions`,
+  `AddAlias(string, BogusConvention)`/`AddConvention(string, Func<Faker, string>)`
+  (ADR-0028) — both validated eagerly against the same call's own already-
+  configured entries and the built-in allowlist, scoped to a single
+  `UseBogus(...)` call (no cross-call/cross-profile detection, see
+  ADR-0028's Non-Goals)
+- `BogusConvention` — a closed public enum identifying each built-in
+  convention, for `AddAlias`'s own target parameter (ADR-0028)
 - `CompositionBuilderExtensions.UseBogus()`/`UseBogus(Action<BogusOptions>)`/
   `UseBogus<T>(Action<Faker<T>>)`/`UseBogus<T>(string, Action<Faker<T>>)`
   — the last two are purely ergonomic sugar over the existing `Register<T>`
@@ -891,7 +903,8 @@ mechanism — `.DependsOn(...)` is explicitly deferred (ADR-0027). Coexists with
 `Compono.NSubstitute` with zero reference between the two packages in either
 direction: `BogusMemberNameProvider` only ever claims `string`-typed members,
 `NSubstituteProvider` only ever claims interface/delegate/abstract-class
-requests — disjoint by construction.
+requests — disjoint by construction, unaffected by ADR-0028 (aliases/custom
+conventions are `string`-only too).
 
 ## Package Dependency Diagram
 
@@ -986,7 +999,7 @@ requests — disjoint by construction.
   `UseBogus()` (`Compono.Bogus`, [ADR-0027](adr/0027-compono-bogus-package-design.md),
   built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
   `ICompositionContext.DeriveSeed()` capability — **implemented, PLAN-0006
-  Phase 1**, test coverage/end-to-end verification still pending Phase 2).
+  Phase 1**, test coverage/end-to-end verification still pending Phase 3).
   Tracked by [PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
 - **Richer `Microsoft.Extensions.DependencyInjection` integration** (`IServiceCollection`
   auto-registration, per-composition scoping, keyed services) — explicitly out of

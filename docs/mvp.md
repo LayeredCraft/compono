@@ -326,14 +326,20 @@ sugar), and a whole-object `UseBogus<T>(...)` registration (stage 3 sugar);
 correlated values satisfied via Bogus's own `Faker<T>` rather than a new
 Compono-native `.DependsOn(...)` mechanism, which is explicitly deferred; verified
 coexistence with `Compono.NSubstitute` via disjoint type claims, with zero
-reference between the two packages in either direction). Both ADRs are
-`Accepted`; tracked by [PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
+reference between the two packages in either direction), [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
+(configurable conventions — `BogusConvention`, `BogusOptions.AddAlias`/
+`AddConvention`, extending ADR-0027's fixed allowlist with consumer-defined
+aliases and custom exact-name conventions; scoped to a single `UseBogus(...)`
+call, with cross-call/cross-profile detection explicitly deferred; a new ADR,
+not an amendment to ADR-0027). All three ADRs are `Accepted`; tracked by
+[PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
 **ADR-0026's core capability is implemented (PLAN-0006 Phase 0)** —
 `ICompositionContext.DeriveSeed()` is real, tested public API today.
 **`Compono.Bogus` itself (ADR-0027) is implemented (PLAN-0006 Phase 1)** —
 `BogusMemberNameProvider`/`BogusOptions`/`UseBogus()`/`UseBogus<T>()`/the
 member-rule `UseBogus(...)` sugar are real code, build-verified but not yet
-test-covered or end-to-end verified — see the plan's phase-by-phase status.
+test-covered or end-to-end verified. **Configurable conventions (ADR-0028)
+are not yet implemented** — see the plan's phase-by-phase status.
 
 ### Scope
 
@@ -343,6 +349,8 @@ test-covered or end-to-end verified — see the plan's phase-by-phase status.
 - Bogus `Faker` access
 - Locale configuration
 - Conservative member-name conventions
+- Configurable conventions — aliases and custom exact-name conventions on top
+  of the built-in allowlist (ADR-0028)
 - Explicit member rules
 - Initial correlated-value experiment (satisfied via whole-object `Faker<T>`,
   ADR-0027 — not a new Compono-native dependency mechanism)
@@ -372,7 +380,7 @@ profile, any call order, with no special ordering or package-to-package
 dependency, per [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)'s Goal
 scenario. Not yet met — `Compono.Bogus` itself is implemented (PLAN-0006 Phase 1),
 but test coverage and the real end-to-end packaged-consumer verification this
-exit criterion requires are still pending Phase 2.
+exit criterion requires are still pending Phase 3.
 
 ## Milestone 7: Dogfooding
 
