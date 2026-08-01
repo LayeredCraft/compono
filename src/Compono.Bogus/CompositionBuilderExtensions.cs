@@ -76,9 +76,16 @@ public static class CompositionBuilderExtensions
                 // but no Faker<T> instance is ever retained or reused across requests, so concurrent
                 // Create<T>() calls for the same T never share one. See ADR-0027's Model 3 section for
                 // why a cached/shared instance was considered and rejected.
-                var faker = new Faker<T>(locale);
+                //
+                // UseSeed() is applied BEFORE configureFaker runs (ADR-0027 Amendment 1) - a RuleFor
+                // call that eagerly reads randomness (e.g. RuleFor(x => x.Id, faker.Random.Guid()),
+                // rather than a lazy f => f.Random.Guid() factory) draws from faker.Random at
+                // configuration time, not at Generate() time. Seeding first means that eager draw also
+                // uses this request's deterministic seed, not Bogus's own default, unseeded Randomizer
+                // state.
+                var faker = new Faker<T>(locale).UseSeed(context.DeriveSeed());
                 configureFaker(faker);
-                return faker.UseSeed(context.DeriveSeed()).Generate();
+                return faker.Generate();
             });
         }
     }

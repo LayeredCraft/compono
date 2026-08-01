@@ -157,11 +157,21 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       ```csharp
       builder.Register<T>(context =>
       {
-          var faker = new Faker<T>(locale);
+          var faker = new Faker<T>(locale).UseSeed(context.DeriveSeed());
           configureFaker(faker);
-          return faker.UseSeed(context.DeriveSeed()).Generate();
+          return faker.Generate();
       });
       ```
+      **`UseSeed(...)` runs before `configureFaker`, not after** — corrected
+      by [ADR-0027 Amendment 1](../adr/0027-compono-bogus-package-design.md#amendment-1-2026-08-01-useseed-must-run-before-configurefaker-not-after)
+      (caught by PR #33 review): a `configureFaker` callback that eagerly
+      reads randomness at configuration time (an already-evaluated
+      `RuleFor(x => x.Id, faker.Random.Guid())`, not a lazy
+      `f => f.Random.Guid()` factory) must still see this request's
+      deterministic seed, not Bogus's own default unseeded `Randomizer`
+      state — seeding first covers both that eager read and every lazy
+      `RuleFor` factory `Generate()` evaluates afterward, since `UseSeed(...)`
+      sets `Random` immediately and it persists across both calls.
       A fresh `Faker<T>` is constructed **inside the factory**, once per `T`
       resolution — the factory closure itself is captured once at `Build()`
       time (same as any other `Register<T>` factory), but no `Faker<T>`
@@ -193,7 +203,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `UseBogus<T>(...)` producing a fully Bogus-generated instance, including a
       correlated `RuleFor((f, x) => ...)` rule; duplicate `UseBogus<T>()`
       registration for the same `T` hits the existing
-      `CompositionConfigurationException`.
+      `CompositionConfigurationException`; **ADR-0027 Amendment 1 regression
+      coverage** — a `UseBogus<T>()` `configureFaker` callback that eagerly
+      reads randomness at configuration time (`RuleFor(x => x.Id, faker.Random.Guid())`,
+      not a lazy factory) still produces a deterministic result for the same
+      Compono seed, proving `UseSeed(...)` is applied before `configureFaker`
+      runs, not after.
 - [ ] Determinism regression coverage (ADR-0026's contract, exercised through
       real Bogus usage): same seed reproduces the same convention-provider
       value and the same `UseBogus<T>()`-generated object; adding an unrelated
@@ -371,6 +386,25 @@ couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
   implemented but only build-verified in this phase, not test-verified —
   matching PLAN-0005 Phase 1's own explicit precedent for the identical
   package-skeleton-then-tests split.
+- **PR #33 review (Codex, one P2 finding) caught a real determinism defect in
+  `UseBogus<T>()`'s own implementation, fixed before merge — see
+  [ADR-0027 Amendment 1](../adr/0027-compono-bogus-package-design.md#amendment-1-2026-08-01-useseed-must-run-before-configurefaker-not-after)
+  for the full account.** `configureFaker(faker)` ran before
+  `faker.UseSeed(context.DeriveSeed())`, so a `configureFaker` callback that
+  eagerly reads randomness at configuration time (rather than through a lazy
+  `RuleFor` factory) drew from Bogus's own default, unseeded `Randomizer`
+  state instead of this request's deterministic seed. Fixed by constructing
+  `Faker<T>` and applying `UseSeed(...)` in the same statement, before
+  `configureFaker` runs. `BogusMemberNameProvider`/the member-rule
+  `UseBogus(...)` sugar (Models 1/2) were already correct — both apply
+  `Random` via an object initializer before calling into user code, so this
+  defect was scoped to Model 3 only. Regression coverage added to this
+  plan's own Phase 2 task list above (not written yet — Phase 1 stays
+  build-verified only, per this phase's own scope).
+- A second stale-doc finding (`docs/mvp.md`'s Milestone 6 Exit Criteria still
+  said "implementation has not started" after this phase's own earlier fix
+  already said `Compono.Bogus` was implemented) — same doc-staleness pattern
+  PLAN-0005's review rounds caught repeatedly; fixed in the same PR.
 
 Phase 3 (docs/cleanup) hasn't started yet.
 ADR-0026/ADR-0027 reached `Accepted` on 2026-07-31, after a design review that

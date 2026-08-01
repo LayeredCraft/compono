@@ -481,6 +481,50 @@ package's entire public surface. `Compono.Bogus` never references
 - Bad, because a consumer wanting one shared locale across every Bogus feature
   states it twice rather than once.
 
+## Amendment 1 (2026-08-01): `UseSeed()` must run before `configureFaker`, not after
+
+PR #33 review (Codex, one P2 finding against Phase 1's implementation of this
+ADR's Model 3) caught a real defect in this ADR's own `UseBogus<T>()` code
+sketch: `configureFaker(faker)` ran *before* `faker.UseSeed(context.DeriveSeed())`.
+`Faker<T>.RuleFor` factories (`f => f.Internet.Email()`) are lazy — they don't
+draw randomness until `Generate()` runs, so those are unaffected — but a
+`configureFaker` callback that eagerly reads randomness at configuration time
+(e.g. `RuleFor(x => x.Id, faker.Random.Guid())`, an already-evaluated value
+rather than a lazy factory delegate) draws from `faker.Random` *before* this
+ADR's own seed had been applied, using Bogus's own default, unseeded
+`Randomizer` state instead. Two `Create<T>()` calls with the same Compono seed
+could then produce different objects for that one eagerly-read member —
+exactly the determinism contract this whole design exists to guarantee,
+broken by the sketch's own statement order, not by anything a consumer did
+wrong.
+
+**Fix:** apply `UseSeed(context.DeriveSeed())` immediately after constructing
+`Faker<T>`, *before* calling `configureFaker`, then call `Generate()` last:
+
+```csharp
+var faker = new Faker<T>(locale).UseSeed(context.DeriveSeed());
+configureFaker(faker);
+return faker.Generate();
+```
+
+`UseSeed(...)` sets the instance's `Random` immediately (not lazily) and that
+state persists for both `configureFaker`'s own execution and the later
+`Generate()` call, so one seed application covers both an eager read inside
+`configureFaker` and every lazy `RuleFor` factory `Generate()` evaluates. This
+is a *statement-order* correction only — every architectural guarantee this
+ADR's Model 3 section commits to (fresh `Faker<T>` per request, never shared/
+cached, no new pipeline mechanism) is unchanged. `BogusMemberNameProvider`
+and the member-rule `UseBogus(...)` sugar (Models 1/2) were already correct —
+both construct their `Faker`/apply its `Random` before calling into user code,
+via an object initializer (`new Faker(locale) { Random = new Randomizer(...) }`)
+rather than a separate statement, so this defect was scoped to Model 3 only.
+
+Caught and fixed within PLAN-0006 Phase 1, before any external consumer or
+Phase 2 test existed — `docs/plans/0006-milestone-6-bogus-integration.md`'s
+own Phase 2 task list now includes explicit regression coverage for this
+ordering (an eager-random-read `configureFaker` callback, asserted
+deterministic for the same seed).
+
 ## Links
 
 - [docs/mvp.md](../mvp.md) — Milestone 6 scope, non-goals, exit criterion
