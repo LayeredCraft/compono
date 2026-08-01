@@ -329,8 +329,11 @@ coexistence with `Compono.NSubstitute` via disjoint type claims, with zero
 reference between the two packages in either direction). Both ADRs are
 `Accepted`; tracked by [PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
 **ADR-0026's core capability is implemented (PLAN-0006 Phase 0)** —
-`ICompositionContext.DeriveSeed()` is real, tested public API today. **`Compono.Bogus`
-itself (ADR-0027) is not yet implemented** — see the plan's phase-by-phase status.
+`ICompositionContext.DeriveSeed()` is real, tested public API today.
+**`Compono.Bogus` itself (ADR-0027) is implemented (PLAN-0006 Phase 1)** —
+`BogusMemberNameProvider`/`BogusOptions`/`UseBogus()`/`UseBogus<T>()`/the
+member-rule `UseBogus(...)` sugar are real code, build-verified but not yet
+test-covered or end-to-end verified — see the plan's phase-by-phase status.
 
 ### Scope
 
@@ -367,7 +370,9 @@ A composed customer can receive realistic, deterministic values without the core
 package referencing Bogus — and `UseBogus()`/`UseNSubstitute()` compose in one
 profile, any call order, with no special ordering or package-to-package
 dependency, per [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)'s Goal
-scenario. Not yet met — implementation has not started.
+scenario. Not yet met — `Compono.Bogus` itself is implemented (PLAN-0006 Phase 1),
+but test coverage and the real end-to-end packaged-consumer verification this
+exit criterion requires are still pending Phase 2.
 
 ## Milestone 7: Dogfooding
 

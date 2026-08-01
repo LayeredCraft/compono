@@ -120,14 +120,17 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 1: `Compono.Bogus` package (ADR-0027)
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] New `src/Compono.Bogus/Compono.Bogus.csproj` (matching
+- [x] New `src/Compono.Bogus/Compono.Bogus.csproj` (matching
       `Compono.NSubstitute.csproj`'s TFM/packaging shape — `ProjectReference` to
-      `Compono` with `PrivateAssets="none"`, `PackageReference` to `Bogus`).
-- [ ] `BogusOptions`: `Locale` (`string`, default `"en"`),
+      `Compono` with `PrivateAssets="none"`, `PackageReference` to `Bogus`
+      (version `35.6.5`, added to `Directory.Packages.props`, alongside a
+      `Compono.Bogus` `Version="1.0.0"` local-feed entry for Phase 2's future
+      packaged-consumer test)).
+- [x] `BogusOptions`: `Locale` (`string`, default `"en"`),
       `EnableMemberNameConventions` (`bool`, default `true`).
-- [ ] `BogusMemberNameProvider : ICompositionValueProvider`: exact-match,
+- [x] `BogusMemberNameProvider : ICompositionValueProvider`: exact-match,
       case-sensitive lookup against the documented allowlist (`FirstName`,
       `LastName`, `FullName`, `Email`, `PhoneNumber`, `StreetAddress`, `City`,
       `State`, `PostalCode`, `CompanyName`), backed by a `FrozenDictionary`
@@ -137,10 +140,10 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       itself, deliberately absent from the allowlist). Constructs a fresh
       `Faker`/`Randomizer` per handled request, seeded via
       `context.DeriveSeed()` — never a shared instance across requests.
-- [ ] `CompositionBuilderExtensions.UseBogus()`/`UseBogus(Action<BogusOptions>)`:
+- [x] `CompositionBuilderExtensions.UseBogus()`/`UseBogus(Action<BogusOptions>)`:
       registers `BogusMemberNameProvider` via `AddSemanticProvider` when
       `EnableMemberNameConventions` is `true`.
-- [ ] `CompositionBuilderExtensions.UseBogus<T>(Action<Faker<T>> configureFaker) where T : class`/
+- [x] `CompositionBuilderExtensions.UseBogus<T>(Action<Faker<T>> configureFaker) where T : class`/
       `UseBogus<T>(string locale, Action<Faker<T>> configureFaker) where T : class`
       (the `class` constraint matches `Faker<T>`'s own; the parameter is named
       `configureFaker`, not `configure`, since it's now an `Action`, not a
@@ -154,11 +157,21 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       ```csharp
       builder.Register<T>(context =>
       {
-          var faker = new Faker<T>(locale);
+          var faker = new Faker<T>(locale).UseSeed(context.DeriveSeed());
           configureFaker(faker);
-          return faker.UseSeed(context.DeriveSeed()).Generate();
+          return faker.Generate();
       });
       ```
+      **`UseSeed(...)` runs before `configureFaker`, not after** — corrected
+      by [ADR-0027 Amendment 1](../adr/0027-compono-bogus-package-design.md#amendment-1-2026-08-01-useseed-must-run-before-configurefaker-not-after)
+      (caught by PR #33 review): a `configureFaker` callback that eagerly
+      reads randomness at configuration time (an already-evaluated
+      `RuleFor(x => x.Id, faker.Random.Guid())`, not a lazy
+      `f => f.Random.Guid()` factory) must still see this request's
+      deterministic seed, not Bogus's own default unseeded `Randomizer`
+      state — seeding first covers both that eager read and every lazy
+      `RuleFor` factory `Generate()` evaluates afterward, since `UseSeed(...)`
+      sets `Random` immediately and it persists across both calls.
       A fresh `Faker<T>` is constructed **inside the factory**, once per `T`
       resolution — the factory closure itself is captured once at `Build()`
       time (same as any other `Register<T>` factory), but no `Faker<T>`
@@ -170,9 +183,10 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       guarantee). Fully independent
       of `UseBogus()`/`BogusOptions.Locale` — no ordering dependency, defaults
       to `"en"` on its own.
-- [ ] `MemberRuleExtensions.UseBogus(Func<Faker, TMember>, string locale = "en")`
-      on the existing `.For<T>().Member(x => x.Y)` builder: compiles to
-      `.Use(context => configure(new Faker(locale) { Random = new Randomizer(context.DeriveSeed()) }))`.
+- [x] `MemberRuleExtensions.UseBogus(Func<Faker, TMember>, string locale = "en")`
+      on the existing `.For<T>().Member(x => x.Y)` builder (via a generic
+      C# 14 extension block, `extension<TParent, TMember>(CompositionMemberRuleBuilder<TParent, TMember> builder)`):
+      compiles to `.Use(context => configure(new Faker(locale) { Random = new Randomizer(context.DeriveSeed()) }))`.
       No `context.Semantic` accessor, no core change beyond Phase 0's
       `DeriveSeed()`.
 
@@ -189,7 +203,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `UseBogus<T>(...)` producing a fully Bogus-generated instance, including a
       correlated `RuleFor((f, x) => ...)` rule; duplicate `UseBogus<T>()`
       registration for the same `T` hits the existing
-      `CompositionConfigurationException`.
+      `CompositionConfigurationException`; **ADR-0027 Amendment 1 regression
+      coverage** — a `UseBogus<T>()` `configureFaker` callback that eagerly
+      reads randomness at configuration time (`RuleFor(x => x.Id, faker.Random.Guid())`,
+      not a lazy factory) still produces a deterministic result for the same
+      Compono seed, proving `UseSeed(...)` is applied before `configureFaker`
+      runs, not after.
 - [ ] Determinism regression coverage (ADR-0026's contract, exercised through
       real Bogus usage): same seed reproduces the same convention-provider
       value and the same `UseBogus<T>()`-generated object; adding an unrelated
@@ -267,6 +286,8 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 - `src/Compono.Bogus/` (new project) — `BogusOptions.cs`,
   `BogusMemberNameProvider.cs`, `CompositionBuilderExtensions.cs`,
   `MemberRuleExtensions.cs` — Phase 1.
+- `Directory.Packages.props` (`Bogus`, `Compono.Bogus` `PackageVersion`
+  entries), `Compono.slnx` (new project entry) — Phase 1.
 - `test/Compono.Bogus.Tests/` (new project) — Phase 2.
 - `test/Compono.XunitV3.SampleTests/` — new coexistence test(s) — Phase 2.
 - `docs/mvp.md`, `docs/architecture.md`, `docs/public-api.md` — Phase 3.
@@ -333,7 +354,59 @@ couldn't (PLAN-0004 Phase 3, PLAN-0005 Phase 2).
 - Full suite green: `Compono.Tests` 426/426 (213 × 2 TFMs — 206 pre-existing +
   7 new), whole-solution `dotnet build`/`dotnet test` 734/734, no warnings.
 
-Phases 1-3 (the `Compono.Bogus` package itself) haven't started yet.
+**Phase 1 (Done):**
+
+- Implemented exactly per ADR-0027's Decision Outcome — no deviation from the
+  ADR's own code sketches for `BogusOptions`, `BogusMemberNameProvider`,
+  `CompositionBuilderExtensions`, or `MemberRuleExtensions`.
+- `Compono.Bogus.csproj` mirrors `Compono.NSubstitute.csproj`'s shape:
+  `net10.0;net11.0` TFMs, `ProjectReference` to `Compono` with
+  `PrivateAssets="none"` (PLAN-0004 Phase 3's packaging lesson, applied
+  proactively), `PackageReference` to `Bogus` (version centrally managed,
+  `35.6.5` — the latest stable release at the time of this phase), and
+  `InternalsVisibleTo` for the not-yet-created `Compono.Bogus.Tests` (Phase 2).
+  `Directory.Packages.props` also gained a `Compono.Bogus` `Version="1.0.0"`
+  local-feed entry, matching `Compono.XunitV3`/`Compono.NSubstitute`'s
+  existing pattern, ahead of Phase 2's own packaged-consumer test needing it.
+- `MemberRuleExtensions.UseBogus(...)` is a **generic** C# 14 extension block
+  (`extension<TParent, TMember>(CompositionMemberRuleBuilder<TParent, TMember> builder)
+  where TMember : notnull`) — the first generic extension block in this
+  codebase; `CompositionBuilderExtensions`' own `UseBogus<T>(...)` overloads
+  are ordinary generic methods inside a non-generic `extension(CompositionBuilder builder)`
+  block, which is a different (already-established) shape.
+- XML-doc `<see cref="...">` pointing at a sibling method inside the *same*
+  `extension(...)` block doesn't resolve (`CS1574`) — the compiler can't look
+  up another extension member by simple name from inside its own block yet.
+  Fixed by following `Compono.NSubstitute`'s own existing precedent exactly:
+  a plain `<c>UseBogus()</c>`-style code-formatted reference instead of
+  `<see cref>` for that one cross-reference case, not a suppression.
+- Added to `Compono.slnx`. Whole-solution `dotnet build` green, 0 warnings.
+- No test project yet (Phase 2) — `BogusOptions`/`BogusMemberNameProvider`/
+  `UseBogus()`/`UseBogus<T>()`/the member-rule `UseBogus(...)` sugar are
+  implemented but only build-verified in this phase, not test-verified —
+  matching PLAN-0005 Phase 1's own explicit precedent for the identical
+  package-skeleton-then-tests split.
+- **PR #33 review (Codex, one P2 finding) caught a real determinism defect in
+  `UseBogus<T>()`'s own implementation, fixed before merge — see
+  [ADR-0027 Amendment 1](../adr/0027-compono-bogus-package-design.md#amendment-1-2026-08-01-useseed-must-run-before-configurefaker-not-after)
+  for the full account.** `configureFaker(faker)` ran before
+  `faker.UseSeed(context.DeriveSeed())`, so a `configureFaker` callback that
+  eagerly reads randomness at configuration time (rather than through a lazy
+  `RuleFor` factory) drew from Bogus's own default, unseeded `Randomizer`
+  state instead of this request's deterministic seed. Fixed by constructing
+  `Faker<T>` and applying `UseSeed(...)` in the same statement, before
+  `configureFaker` runs. `BogusMemberNameProvider`/the member-rule
+  `UseBogus(...)` sugar (Models 1/2) were already correct — both apply
+  `Random` via an object initializer before calling into user code, so this
+  defect was scoped to Model 3 only. Regression coverage added to this
+  plan's own Phase 2 task list above (not written yet — Phase 1 stays
+  build-verified only, per this phase's own scope).
+- A second stale-doc finding (`docs/mvp.md`'s Milestone 6 Exit Criteria still
+  said "implementation has not started" after this phase's own earlier fix
+  already said `Compono.Bogus` was implemented) — same doc-staleness pattern
+  PLAN-0005's review rounds caught repeatedly; fixed in the same PR.
+
+Phase 3 (docs/cleanup) hasn't started yet.
 ADR-0026/ADR-0027 reached `Accepted` on 2026-07-31, after a design review that
 resolved (in order): how Bogus's
 randomness should relate to ADR-0012's path-independence guarantee (a new,

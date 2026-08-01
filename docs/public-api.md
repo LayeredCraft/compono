@@ -358,9 +358,9 @@ identical key is a build-time conflict, the same as a duplicate registration.
 
 ## Bogus Integration
 
-Design: [ADR-0027](adr/0027-compono-bogus-package-design.md) (`Accepted`, not yet
-implemented — see [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)),
-built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
+Design: [ADR-0027](adr/0027-compono-bogus-package-design.md) — **implemented,
+PLAN-0006 Phase 1** (build-verified; test coverage/end-to-end verification
+pending Phase 2), built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
 `ICompositionContext.DeriveSeed()` (**implemented, PLAN-0006 Phase 0** — see
 Deterministic Reproduction, below).
 `Compono.Bogus` has three independent customization models, not one, and a real
@@ -482,9 +482,8 @@ engine's own internal request/path types. A provider returns
 `CompositionProviderResult.NotHandled` for anything it doesn't apply to (so a later
 provider or pipeline stage still gets a chance) or `CompositionProviderResult.Handled(value)`.
 `Compono.NSubstitute`'s `UseNSubstitute()` (below) is the first real consumer of
-this contract; `Compono.Bogus`'s future `UseBogus()` is expected to use the exact
-same interface, registered via `AddSemanticProvider` instead of
-`AddTestDoubleProvider`.
+this contract; `Compono.Bogus`'s `UseBogus()` (below) is the second, registered
+via `AddSemanticProvider` instead of `AddTestDoubleProvider`.
 
 ## NSubstitute Integration
 
