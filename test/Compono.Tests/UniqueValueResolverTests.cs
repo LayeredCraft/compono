@@ -67,6 +67,8 @@ public sealed class UniqueValueResolverTests
 
         public TValue Resolve<TValue>() => throw new NotSupportedException("Not exercised by these tests.");
 
+        public int DeriveSeed() => throw new NotSupportedException("Not exercised by these tests.");
+
         public int ResolveCollectionSize() => throw new NotSupportedException("Not exercised by these tests.");
     }
 }

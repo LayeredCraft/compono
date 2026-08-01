@@ -22,4 +22,14 @@ internal interface IRandomSource
 
     /// <summary>Produces the next pseudo-random 64-bit value for this node's own value stream.</summary>
     ulong NextUInt64();
+
+    /// <summary>
+    /// Derives a stable 64-bit value from this node's own fork state and a fixed salt distinct from
+    /// <see cref="Fork"/>'s own per-<see cref="PathSegment"/>-kind tags. Never reads or mutates the
+    /// value-state <see cref="NextUInt64"/> advances, so repeated calls for the same node return the
+    /// same result and never perturb that node's own value stream. Backs
+    /// <see cref="ICompositionContext.DeriveSeed"/> - see
+    /// <c>docs/adr/0026-deterministic-seed-derivation-for-providers.md</c>.
+    /// </summary>
+    ulong DeriveSeed();
 }

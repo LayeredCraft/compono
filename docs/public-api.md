@@ -332,12 +332,14 @@ builder.For<IClock>()
     .Use(_ => new SystemClock());
 ```
 
-Generated semantic data:
+Generated semantic data — via `Compono.Bogus`'s own `UseBogus(...)` sugar over
+`.Use(context => ...)` (there is no `context.Semantic` accessor; see Bogus
+Integration, below, and [ADR-0027](adr/0027-compono-bogus-package-design.md)):
 
 ```csharp
 builder.For<Customer>()
     .Member(x => x.Email)
-    .Use(context => context.Semantic.Email());
+    .UseBogus(faker => faker.Internet.Email());
 ```
 
 Collection size is configured the same way but is **not** a type/member rule
@@ -356,22 +358,41 @@ identical key is a build-time conflict, the same as a duplicate registration.
 
 ## Bogus Integration
 
-Basic activation:
+Design: [ADR-0027](adr/0027-compono-bogus-package-design.md) (`Accepted`, not yet
+implemented — see [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)),
+built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
+`ICompositionContext.DeriveSeed()` (**implemented, PLAN-0006 Phase 0** — see
+Deterministic Reproduction, below).
+`Compono.Bogus` has three independent customization models, not one, and a real
+profile typically uses more than one at once:
+
+- **`UseBogus()`** — project-wide conventions: most `FirstName`/`Email`/etc.
+  members across the graph should just look realistic, with zero per-type setup.
+- **`.Member(...).UseBogus(faker => ...)`** — a handful of members need
+  something the convention allowlist doesn't (or shouldn't) guess.
+- **`UseBogus<T>()`** — a type's values are meaningfully correlated with each
+  other (an email derived from a name), so the whole object is more naturally
+  "Bogus owns this type" than several independent member rules.
+
+**Basic activation** — enables the conservative member-name convention provider
+(stage 5) by default:
 
 ```csharp
 builder.UseBogus();
 ```
 
-Locale:
+Locale and the convention provider's own on/off switch:
 
 ```csharp
 builder.UseBogus(options =>
 {
     options.Locale = "en_US";
+    options.EnableMemberNameConventions = false; // opt out, keep explicit rules only
 });
 ```
 
-Explicit Bogus rules:
+**Explicit member rules** (stage 4, sugar over the existing `.For<T>().Member(...).Use(...)`
+mechanism — no `context.Semantic` accessor, no core change beyond `DeriveSeed()`):
 
 ```csharp
 builder.For<Customer>()
@@ -379,17 +400,60 @@ builder.For<Customer>()
     .UseBogus(faker => faker.Name.FirstName());
 ```
 
-Correlated rules:
+Always wins over the convention provider for the same member, since stage 4
+runs before stage 5 unconditionally.
+
+**Whole-object generation** (purely ergonomic sugar over the existing
+`Register<T>` registration mechanism — no hidden pipeline stage, no special
+runtime behavior of its own, same duplicate-registration conflict rule as any
+other `Register<T>` call):
 
 ```csharp
-builder.For<Customer>()
-    .Member(x => x.Email)
-    .DependsOn(x => x.FirstName, x => x.LastName)
-    .UseBogus((faker, firstName, lastName) =>
-        faker.Internet.Email(firstName, lastName));
+builder.UseBogus<Customer>(faker => faker
+    .RuleFor(x => x.FirstName, f => f.Name.FirstName())
+    .RuleFor(x => x.LastName, f => f.Name.LastName())
+    .RuleFor(x => x.Email, (f, x) => f.Internet.Email(x.FirstName, x.LastName)));
 ```
 
-Correlation syntax is a design goal, not an MVP commitment.
+`configureFaker` is `Action<Faker<T>>`, not a `Func` — it configures the
+instance in place; `RuleFor`'s own fluent chaining is convenient here but not
+load-bearing, since nothing needs to be returned back to Compono.
+
+Correlated values (`Email` derived from `FirstName`/`LastName` above) are
+satisfied entirely by Bogus's own `Faker<T>.RuleFor((faker, instance) => ...)` —
+there is no separate Compono-native `.DependsOn(...)` member-dependency
+mechanism; it was evaluated during Milestone 6's design review and explicitly
+deferred (ADR-0027) in favor of `Faker<T>`, which already solves this problem
+natively.
+
+`UseBogus<T>()` is intentionally independent of `UseBogus()` — it never
+requires `UseBogus()` to have been called, and never reads its
+`BogusOptions.Locale`. `UseBogus<T>()` is purely ergonomic sugar over the
+existing `Register<T>` registration mechanism (stage 3, an ordinary exact
+registration); `UseBogus()` activates the stage-5 semantic provider. They're
+different pipeline stages solving different problems — a consumer can call
+`UseBogus<Customer>(...)` alone, with `UseBogus()` never called at all, and it
+works exactly the same. Pass the locale explicitly (named argument recommended
+for readability) if it should match `UseBogus()`'s own:
+
+```csharp
+builder
+    .UseBogus(options => options.Locale = "fr")
+    .UseBogus<Customer>(
+        locale: "fr",
+        configureFaker: faker => faker.RuleFor(x => x.FirstName, f => f.Name.FirstName()));
+```
+
+`locale` is a plain `string`, not an options type — deliberate: it's the only
+per-registration setting `Faker<T>`'s own constructor takes today, and adding a
+one-property options type would be speculative surface for a second option
+nothing currently needs (ADR-0027).
+
+Coexistence with `Compono.NSubstitute`: both packages can be activated in the
+same profile, in either order, with no reference between them. Bogus's
+convention provider only ever claims `string`-typed members; NSubstitute's
+provider only ever claims interface/delegate/(optionally) abstract-class
+requests — disjoint by construction, per ADR-0027's Coexistence section.
 
 ## Provider Extensibility
 
@@ -481,6 +545,15 @@ public void Reproduces_failure(Order order)
 
 Confirmed viable against xUnit v3's real extensibility surface (ADR-0022).
 
+A provider or registration/configuration-rule factory that needs its own
+deterministic randomness (`Compono.Bogus`'s `BogusMemberNameProvider`, or the
+`UseBogus(...)`/`UseBogus<T>(...)` sugar) calls `context.DeriveSeed()` — an
+`int` derived from the composer's root seed and the request currently being
+resolved, reusing the same path-hash [ADR-0012](adr/0012-composition-path-identity-and-deterministic-random-forking.md)
+already uses internally, without exposing `IRandomSource` or path internals.
+Resolved by [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md) —
+**implemented, PLAN-0006 Phase 0**.
+
 A composition failure's message ends with `Seed: {value}`, matching
 `docs/architecture.md`'s existing Diagnostics example — a successful row
 does not surface its seed anywhere by default, to keep passing-test output
@@ -550,6 +623,9 @@ Preferred concepts:
   integration packages — see Provider Extensibility, resolved by
   [ADR-0024](adr/0024-public-provider-extensibility-model.md)
 - Shared: reuse within a scope
+- `DeriveSeed()`: on-demand, path-derived deterministic seed a provider or
+  factory calls for its own randomness — see Deterministic Reproduction,
+  resolved by [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)
 
 ## API Design Rules
 

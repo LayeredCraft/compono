@@ -62,6 +62,12 @@ public interface ICompositionContext
     // generated code uses. See ADR-0019's Registrations and Service Injection
     // section below.
     T Resolve<T>();
+
+    // Milestone 6 Phase 0 (implemented, PLAN-0006) - an on-demand, path-derived
+    // deterministic seed a public provider or registration/rule factory can use for
+    // its own randomness (e.g. Compono.Bogus's Faker/Randomizer), without exposing
+    // the engine's own internal IRandomSource or path representation. See ADR-0026.
+    int DeriveSeed();
 }
 ```
 
@@ -191,7 +197,7 @@ not every stage is the same *kind* of thing:
 | 2 | Shared or scoped values | Context-owned deterministic check against the scope. Milestone 2/3 shipped this gated by the *current* request's own `IsShared` flag on both the read and write side; [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integrations.md) (implemented, Milestone 4 Phase 0) changed the **read** side to an unconditional scope check (any request, `IsShared` or not, sees an already-shared value for its type) while leaving the **write** side unchanged (only an `IsShared` request ever populates scope) — required for a Milestone 4 `[Shared]` test parameter's value to reach an *ordinary*, unmarked nested constructor parameter of the same type. |
 | 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (implemented, Milestone 3 Phase 1): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 Phase 1 shipped its real public shape (`builder.Register<T>(...)`, `builder.UseServiceProvider(...)`). |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection, per [ADR-0020](adr/0020-composition-configuration-rules.md) (implemented, Milestone 3 Phase 3). Renamed from "profile rules" (`PipelineStage.ConfigurationRule`): populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile's `Configure` — a profile is a reusable application mechanism over this stage, not its owner ([ADR-0018](adr/0018-composition-profiles.md)). Collection-size configuration does **not** populate this stage — see Configuration Rules, below. |
-| 5 | Semantic value providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddSemanticProvider(ICompositionValueProvider)`) is implemented as of Milestone 5 Phase 0 ([ADR-0024](adr/0024-public-provider-extensibility-model.md)) — but no `Compono`-shipped package registers anything into it by default, since `Compono.Bogus` (Milestone 6) doesn't exist yet. Empty in practice until then, populated in mechanism now. |
+| 5 | Semantic value providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddSemanticProvider(ICompositionValueProvider)`) is implemented since Milestone 5 Phase 0 ([ADR-0024](adr/0024-public-provider-extensibility-model.md)). `Compono.Bogus` ([ADR-0027](adr/0027-compono-bogus-package-design.md), design `Accepted`, **not yet implemented** — see [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)) is designed as this stage's first real registrant via `UseBogus()`. Still empty in practice until that plan ships. |
 | 6 | Test-double providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddTestDoubleProvider(ICompositionValueProvider)`) is implemented ([ADR-0024](adr/0024-public-provider-extensibility-model.md)), and `Compono.NSubstitute` ([ADR-0025](adr/0025-compono-nsubstitute-package-design.md), implemented and test-covered — see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md)) is a real registrant via `UseNSubstitute()`. Still empty by default in any composition that doesn't opt into it — registration is per-`Composer`, not automatic just because the package is referenced. |
 | 7 | Built-in value providers | **Hybrid** (ADR-0014): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
@@ -208,7 +214,9 @@ something — calls `.For<T>()` (stage 4), calls `UseNSubstitute()`
 (`Compono.NSubstitute`, implemented, stage 6 — [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)),
 or calls `AddSemanticProvider`/`AddTestDoubleProvider` directly with a
 hand-written provider (either stage). Stage 5 alone has no shipped package
-to opt into yet — `Compono.Bogus` (Milestone 6) doesn't exist. Provider order
+to opt into yet — `Compono.Bogus`'s design is `Accepted` ([ADR-0027](adr/0027-compono-bogus-package-design.md))
+but not yet implemented (Milestone 6, [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)).
+Provider order
 *within* an extensible stage is registration order; stage 7 alone already
 holds three real providers (`PrimitiveValueProvider`, `EnumValueProvider`,
 `NullableValueProvider` — `BuiltInProviders.Default`), so "no stage has
@@ -856,13 +864,34 @@ package-specific one (ADR-0025's Diagnostics section).
 
 ### Compono.Bogus
 
+Design: [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md) (the
+core `ICompositionContext.DeriveSeed()` capability this package builds on, owned
+by core `Compono` — **implemented, PLAN-0006 Phase 0**), [ADR-0027](adr/0027-compono-bogus-package-design.md)
+(this package itself, `Accepted`, **not yet implemented**) — see
+[PLAN-0006](plans/0006-milestone-6-bogus-integration.md) for the phase-by-phase
+account.
+
 Owns:
 
-- Bogus-backed semantic providers
-- Locale configuration
-- Member-name conventions
-- Correlated value rules
-- Integration with Compono's deterministic seed
+- `BogusMemberNameProvider` — the stage-5 semantic value provider (registered
+  via `AddSemanticProvider`), matching a conservative, exact-match, `string`-typed
+  member-name allowlist (`FirstName`/`Email`/etc.)
+- `BogusOptions` — `Locale`, `EnableMemberNameConventions`
+- `CompositionBuilderExtensions.UseBogus()`/`UseBogus(Action<BogusOptions>)`/
+  `UseBogus<T>(Action<Faker<T>>)`/`UseBogus<T>(string, Action<Faker<T>>)`
+  — the last two are purely ergonomic sugar over the existing `Register<T>`
+  registration mechanism (stage 3): no hidden pipeline stage, no special
+  runtime behavior of their own
+- `MemberRuleExtensions.UseBogus(Func<Faker, TMember>, string)` — sugar over the
+  existing `.For<T>().Member(...).Use(...)` stage-4 rule mechanism
+
+Correlated values are satisfied by Bogus's own `Faker<T>` (the whole-object
+`UseBogus<T>()` model above), not a separate Compono-native member-dependency
+mechanism — `.DependsOn(...)` is explicitly deferred (ADR-0027). Coexists with
+`Compono.NSubstitute` with zero reference between the two packages in either
+direction: `BogusMemberNameProvider` only ever claims `string`-typed members,
+`NSubstituteProvider` only ever claims interface/delegate/abstract-class
+requests — disjoint by construction.
 
 ## Package Dependency Diagram
 
@@ -954,7 +983,11 @@ Owns:
   point and its first real consumer are shipped: stage 6 in the Resolution
   Pipeline table above is populated whenever a consumer calls
   `UseNSubstitute()`; stage 5 stays empty in practice only because
-  `Compono.Bogus` (Milestone 6) doesn't exist yet.
+  `Compono.Bogus` (Milestone 6) isn't implemented yet — its design is
+  `Accepted` ([ADR-0027](adr/0027-compono-bogus-package-design.md), built on
+  [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s new
+  `ICompositionContext.DeriveSeed()` capability), tracked by
+  [PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
 - **Richer `Microsoft.Extensions.DependencyInjection` integration** (`IServiceCollection`
   auto-registration, per-composition scoping, keyed services) — explicitly out of
   scope for `Compono` core per
