@@ -245,9 +245,19 @@ together — in one coherent pass, per ADR-0028's Links section).
       `Locale`/`EnableMemberNameConventions`'s plain-property-setter shape, no
       fluent chaining.
 - [ ] `BogusMemberNameProvider`'s constructor changes from `(string locale)`
-      to `(string locale, FrozenDictionary<string, Func<Faker, string>> conventions)` —
-      an ordinary signature evolution, not a breaking-change-during-alpha
-      concern (`Compono.Bogus` hasn't shipped past `main` yet at this phase).
+      to `(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)`
+      — an interface, not the concrete `FrozenDictionary`
+      `CompositionBuilderExtensions` itself builds (`coding-standards.md`'s
+      "never expose a concrete collection type on a public API surface"
+      rule); the constructor defensively freezes its own copy internally.
+      **This is a breaking change to an already-shipped public constructor**
+      (Phase 1/`#33` merged `BogusMemberNameProvider(string locale)` to
+      `main` before this ADR's own review concluded) — per
+      [ADR-0024](../adr/0024-public-provider-extensibility-model.md)'s Alpha
+      Compatibility Policy, the PR implementing this task must apply the
+      `breaking` label (Release Drafter's `version-resolver.major` category)
+      and call out the change explicitly in its description, not just note
+      it here.
 - [ ] `CompositionBuilderExtensions.UseBogus(Action<BogusOptions> configure)`:
       after `configure(options)` returns, merges `BogusConventions.ByName`
       with `options`'s own validated accumulator into one
@@ -450,7 +460,7 @@ Options/Decision Outcome for the full account.
 
 - Implemented in the same branch/PR as the design docs (ADR-0026, ADR-0027,
   this plan), per explicit user direction — mirrors PLAN-0005 Phase 0's same
-  choice. Phases 1-3 remain separate PRs, per `design-decisions.md`'s phase
+  choice. Phases 1-4 remain separate PRs, per `design-decisions.md`'s phase
   rule.
 - Implemented exactly per ADR-0026's Decision Outcome: `IRandomSource`/
   `RandomSource` gained `DeriveSeed()` (a pure read of the node's own

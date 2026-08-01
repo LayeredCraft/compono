@@ -280,11 +280,32 @@ public CompositionBuilder UseBogus(Action<BogusOptions> configure)
 ```
 
 `BogusMemberNameProvider`'s constructor changes from `(string locale)` to
-`(string locale, FrozenDictionary<string, Func<Faker, string>> conventions)` —
-an ordinary signature evolution, not a breaking change requiring the Release
-Drafter `breaking` label: `Compono.Bogus` itself has not shipped past `main`
-yet (PLAN-0006 Phase 1 is still an open PR at the time of this ADR), so there
-is no already-released contract to break.
+`(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)` —
+an interface, not the concrete `FrozenDictionary` `CompositionBuilderExtensions`
+itself builds, per `coding-standards.md`'s "never expose a concrete collection
+type on a public API surface" rule: the provider only needs read access, and a
+consumer constructing `BogusMemberNameProvider` directly (its own public
+constructor, same as `NSubstituteProvider`'s) shouldn't be forced to build the
+specialized `FrozenDictionary` representation just to satisfy the parameter
+type. The constructor defensively freezes its own copy internally
+(`conventions.ToFrozenDictionary()` if the argument isn't already one) before
+storing it, so the provider's own internal lookup is still the same immutable
+`FrozenDictionary` this ADR's Model 1 already commits to — this is purely a
+public-parameter-type relaxation, not a change to the provider's own internal
+representation or immutability guarantee.
+
+Unlike this ADR's original framing, this **is** a breaking change to an
+already-shipped public constructor: PLAN-0006 Phase 1 (`BogusMemberNameProvider(string locale)`,
+one required parameter) merged to `main` before this ADR's own design review
+concluded (`#33`). Growing that constructor to two required parameters breaks
+any existing direct caller, regardless of the second parameter's exact type.
+Per [ADR-0024](0024-public-provider-extensibility-model.md)'s Alpha
+Compatibility Policy (inherited by every ADR downstream of it, including this
+one): a breaking change to an already-shipped contract during alpha is
+allowed, but the implementing PR must apply the `breaking` label (Release
+Drafter's `version-resolver.major` category) and call out the change
+explicitly in its description — see `PLAN-0006`'s own Phase 2 task list for
+this requirement carried through to implementation.
 
 ### `EnableMemberNameConventions` remains an all-or-nothing switch
 
@@ -314,8 +335,11 @@ new reasoning required.
 - Zero new core `Compono` surface — the entire feature lives inside
   `Compono.Bogus`, exactly satisfying `design-decisions.md` rule 3.
 - One merged, immutable lookup keeps runtime matching a single dictionary
-  read with no ordering/precedence rules to document or test beyond "exact
-  name, first configured wins within one call."
+  read with no ordering/precedence rules to document or test at all: within
+  one `UseBogus(...)` call, every exact name is unique by construction — a
+  duplicate or collision is rejected eagerly, at the `AddAlias`/`AddConvention`
+  call that introduced it, so no two entries for the same name ever coexist
+  for a "first wins" resolution to apply to.
 - Reuses this repo's own established BCL-precedent validation shape (eager,
   immediate `ArgumentException` validation, matching `Dictionary<TKey, TValue>.Add`'s
   own duplicate-key behavior) rather than inventing a new configuration-error
