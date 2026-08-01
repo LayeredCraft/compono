@@ -236,11 +236,12 @@ together — in one coherent pass, per ADR-0028's Links section).
       `AddConvention(string memberName, Func<Faker, string> generate)`:
       eager validation performed by `AddAlias`/`AddConvention` against
       `BogusConventions.ByName` plus this instance's own private accumulator —
-      `ArgumentException` for a null/empty/whitespace name or any duplicate or
+      `ArgumentNullException.ThrowIfNull` for a null name/`generate` (matching
+      this repo's own established guard convention, `coding-standards.md`),
+      `ArgumentException` for an empty/whitespace name or any duplicate or
       collision (naming the conflicting member name, the existing mapping,
-      and the attempted mapping), `ArgumentNullException` for a null
-      `generate`, `ArgumentOutOfRangeException` for an undefined
-      `BogusConvention` value. Both return `void` — matching
+      and the attempted mapping), `ArgumentOutOfRangeException` for an
+      undefined `BogusConvention` value. Both return `void` — matching
       `Locale`/`EnableMemberNameConventions`'s plain-property-setter shape, no
       fluent chaining.
 - [ ] `BogusMemberNameProvider`'s constructor changes from `(string locale)`
@@ -318,9 +319,9 @@ together — in one coherent pass, per ADR-0028's Links section).
       or custom name colliding with a built-in name, an existing alias, or an
       existing custom convention throws `ArgumentException` immediately from
       the `AddAlias`/`AddConvention` call that introduced it (not deferred to
-      `UseBogus(...)` returning); a null/empty/whitespace name throws
-      `ArgumentException`, a null `generate` throws `ArgumentNullException`,
-      an undefined `BogusConvention` value throws
+      `UseBogus(...)` returning); a null name or a null `generate` throws
+      `ArgumentNullException`, an empty/whitespace name throws
+      `ArgumentException`, an undefined `BogusConvention` value throws
       `ArgumentOutOfRangeException`; `EnableMemberNameConventions = false`
       means aliases and custom conventions configured in the same call are
       never registered, not just the built-in conventions;
@@ -534,7 +535,7 @@ Options/Decision Outcome for the full account.
   already said `Compono.Bogus` was implemented) — same doc-staleness pattern
   PLAN-0005's review rounds caught repeatedly; fixed in the same PR.
 
-Phase 3 (docs/cleanup) hasn't started yet.
+Phase 4 (docs/cleanup) hasn't started yet.
 ADR-0026/ADR-0027 reached `Accepted` on 2026-07-31, after a design review that
 resolved (in order): how Bogus's
 randomness should relate to ADR-0012's path-independence guarantee (a new,

@@ -413,10 +413,12 @@ builder.UseBogus(options =>
 
 Both are exact, case-sensitive matches, merged with the built-in allowlist
 into a single lookup — a name can only ever map to one generator. `AddAlias`/
-`AddConvention` perform eager validation when called: a null/empty/whitespace
-name, or any duplicate or collision with a built-in name, an existing alias,
-or an existing custom convention, throws `ArgumentException` immediately from
-the call that introduced it — not deferred, and not silently overwritten.
+`AddConvention` perform eager validation when called: a null name throws
+`ArgumentNullException` (matching this repo's own `ArgumentNullException.ThrowIfNull`
+guard convention); an empty/whitespace name, or any duplicate or collision
+with a built-in name, an existing alias, or an existing custom convention,
+throws `ArgumentException` — immediately from the call that introduced it,
+not deferred, and not silently overwritten.
 Custom conventions are `string`-only (a non-`string` package-wide value needs
 the member-level `.Member(...).UseBogus(faker => ...)` sugar below instead).
 Replacing or removing a built-in convention isn't supported.

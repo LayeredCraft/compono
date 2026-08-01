@@ -201,8 +201,9 @@ public sealed class BogusOptions
     /// </summary>
     /// <param name="aliasName">The additional exact member name to match.</param>
     /// <param name="target">The built-in convention this alias's matched requests should generate.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="aliasName"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="aliasName"/> is null, empty, or all-whitespace; or already configured as a
+    /// <paramref name="aliasName"/> is empty or all-whitespace; or already configured as a
     /// built-in convention name, an existing alias, or an existing custom convention.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="target"/> is not a defined <see cref="BogusConvention"/> value.</exception>
@@ -217,11 +218,13 @@ public sealed class BogusOptions
     /// </summary>
     /// <param name="memberName">The exact member name to match.</param>
     /// <param name="generate">Produces this member's value from a seeded <see cref="Faker"/>.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="memberName"/> or <paramref name="generate"/> is <see langword="null"/>.
+    /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="memberName"/> is null, empty, or all-whitespace; or already configured as a
+    /// <paramref name="memberName"/> is empty or all-whitespace; or already configured as a
     /// built-in convention name, an existing alias, or an existing custom convention.
     /// </exception>
-    /// <exception cref="ArgumentNullException"><paramref name="generate"/> is <see langword="null"/>.</exception>
     public void AddConvention(string memberName, Func<Faker, string> generate);
 }
 ```
