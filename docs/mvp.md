@@ -329,8 +329,11 @@ coexistence with `Compono.NSubstitute` via disjoint type claims, with zero
 reference between the two packages in either direction). Both ADRs are
 `Accepted`; tracked by [PLAN-0006](plans/0006-milestone-6-bogus-integration.md).
 **ADR-0026's core capability is implemented (PLAN-0006 Phase 0)** —
-`ICompositionContext.DeriveSeed()` is real, tested public API today. **`Compono.Bogus`
-itself (ADR-0027) is not yet implemented** — see the plan's phase-by-phase status.
+`ICompositionContext.DeriveSeed()` is real, tested public API today.
+**`Compono.Bogus` itself (ADR-0027) is implemented (PLAN-0006 Phase 1)** —
+`BogusMemberNameProvider`/`BogusOptions`/`UseBogus()`/`UseBogus<T>()`/the
+member-rule `UseBogus(...)` sugar are real code, build-verified but not yet
+test-covered or end-to-end verified — see the plan's phase-by-phase status.
 
 ### Scope
 

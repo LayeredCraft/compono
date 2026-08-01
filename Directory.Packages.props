@@ -24,6 +24,17 @@
          (PLAN-0005 Phase 2's real-runner proof) - never a ProjectReference, and this version must
          match the -p:Version passed to PackToLocalFeed's pack of Compono.NSubstitute. -->
     <PackageVersion Include="Compono.NSubstitute" Version="1.0.0" />
+    <!-- Compono.XunitV3.SampleTests' own dependency, same reasoning as Compono.XunitV3/
+         Compono.NSubstitute above (PLAN-0006 Phase 2's real-runner proof) - never a
+         ProjectReference, and this version must match the -p:Version passed to
+         PackToLocalFeed's pack of Compono.Bogus. -->
+    <PackageVersion Include="Compono.Bogus" Version="1.0.0" />
+    <!-- Semantic test-data generation: Compono.Bogus's own dependency, per
+         docs/adr/0027-compono-bogus-package-design.md. Not a contradiction of the
+         "no AutoFixture" rule below - Bogus generates realistic scalar/whole-object
+         values, it isn't a test-fixture-generation framework Compono itself competes
+         with. -->
+    <PackageVersion Include="Bogus" Version="35.6.5" />
     <!-- Mocking. No AutoFixture here, deliberately - Compono is a from-scratch
          AutoFixture replacement (docs/manifesto.md), so dogfooding AutoFixture
          inside Compono's own test suite would be a direct contradiction of the
