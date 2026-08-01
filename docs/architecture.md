@@ -201,12 +201,14 @@ Stages 4/5/6/7 each hold an actual ordered collection of providers, and
 every one of their public registration surfaces is implemented today
 (`.For<T>()` for stage 4, since Milestone 3; `AddSemanticProvider`/
 `AddTestDoubleProvider` for stages 5/6, since Milestone 5 Phase 0 —
-[ADR-0024](adr/0024-public-provider-extensibility-model.md)) — but only 4
-and 7 have anything registered in them *by default*: stage 4 only when a
-consumer actually calls `.For<T>()`, stage 7 unconditionally
-(`BuiltInProviders.Default`). Stages 5/6 stay empty until a consumer
-registers a provider directly, or until `Compono.Bogus`/`Compono.NSubstitute`
-(which don't exist yet) do it on their behalf. Provider order
+[ADR-0024](adr/0024-public-provider-extensibility-model.md)). Only stage 7
+has anything registered *unconditionally* (`BuiltInProviders.Default`);
+every other stage is opt-in, populated only when a consumer actually does
+something — calls `.For<T>()` (stage 4), calls `UseNSubstitute()`
+(`Compono.NSubstitute`, implemented, stage 6 — [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)),
+or calls `AddSemanticProvider`/`AddTestDoubleProvider` directly with a
+hand-written provider (either stage). Stage 5 alone has no shipped package
+to opt into yet — `Compono.Bogus` (Milestone 6) doesn't exist. Provider order
 *within* an extensible stage is registration order; stage 7 alone already
 holds three real providers (`PrimitiveValueProvider`, `EnumValueProvider`,
 `NullableValueProvider` — `BuiltInProviders.Default`), so "no stage has
@@ -792,13 +794,16 @@ Owns:
 
 ### Compono.Generators
 
-Potentially owns:
+Resolved by [ADR-0003](adr/0003-generator-package-distribution.md): never
+published to NuGet on its own — its compiled output is packed directly into
+the `Compono` nupkg as an analyzer dependency, so from a consumer's point of
+view it doesn't exist as a separate package at all.
+
+Owns:
 
 - Incremental source generator
 - Generated plan registration
 - Compile-time diagnostics
-
-Whether this ships separately or is bundled as an analyzer dependency of `Compono` remains open.
 
 ### Compono.XunitV3
 
