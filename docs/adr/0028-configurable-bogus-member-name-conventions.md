@@ -264,10 +264,14 @@ internal static class BogusConventions
 
 `BogusOptions` validates every `AddAlias`/`AddConvention` call immediately,
 against `BogusConventions.ByName.ContainsKey(...)` plus its own private,
-mutable accumulator (a plain `Dictionary<string, Func<Faker, string>>`) —
-each call either succeeds and records the new entry, or throws
-`ArgumentException` naming the duplicate or collision, the same eager-validation
-shape the BCL's own `Dictionary<TKey, TValue>.Add` uses for a duplicate key.
+mutable accumulator (a plain `Dictionary<string, Func<Faker, string>>`,
+**using the default `string` comparer — ordinal, case-sensitive — never
+`StringComparer.OrdinalIgnoreCase`/`InvariantCultureIgnoreCase`/any other
+case-insensitive or culture-aware comparer**, matching this ADR's own
+exact-case-sensitive-match requirement throughout) — each call either
+succeeds and records the new entry, or throws `ArgumentException` naming the
+duplicate or collision, the same eager-validation shape the BCL's own
+`Dictionary<TKey, TValue>.Add` uses for a duplicate key.
 `CompositionBuilderExtensions.UseBogus(Action<BogusOptions> configure)`
 merges `BogusConventions.ByName` with that accumulator into one
 `FrozenDictionary<string, Func<Faker, string>>` immediately after
@@ -315,6 +319,11 @@ public sealed class BogusMemberNameProvider : ICompositionValueProvider
     // to it via the validated AddAlias/AddConvention path.
     internal BogusMemberNameProvider(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)
     {
+        // Preserves the exact guard the real, already-merged Phase 1 public constructor already
+        // has (src/Compono.Bogus/BogusMemberNameProvider.cs) - the public constructor now delegates
+        // here, so the check has to live in this shared constructor for both paths to keep it.
+        ArgumentNullException.ThrowIfNull(locale);
+        ArgumentNullException.ThrowIfNull(conventions);
         _locale = locale;
         _conventions = conventions as FrozenDictionary<string, Func<Faker, string>>
             ?? conventions.ToFrozenDictionary();

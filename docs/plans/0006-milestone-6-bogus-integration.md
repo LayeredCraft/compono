@@ -248,7 +248,13 @@ together — in one coherent pass, per ADR-0028's Links section).
       overload — `(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)`,
       called only by `CompositionBuilderExtensions.UseBogus(...)`, freezing
       its own copy internally (`conventions.ToFrozenDictionary()` unless
-      already one). **The existing `public BogusMemberNameProvider(string locale)`
+      already one). Preserves the existing `ArgumentNullException.ThrowIfNull(locale)`
+      guard the real, already-merged Phase 1 public constructor has
+      (`src/Compono.Bogus/BogusMemberNameProvider.cs`) — the public
+      constructor now delegates to this one via `: this(locale, BogusConventions.ByName)`,
+      so the guard has to live in the shared internal constructor for both
+      paths to keep it; also guards `conventions` itself.
+      **The existing `public BogusMemberNameProvider(string locale)`
       (Phase 1, already merged via `#33`) is untouched** — not a breaking
       change, no `breaking` label needed. Deliberately `internal`, not
       `public`: a public overload would let a caller construct the provider
@@ -338,7 +344,17 @@ together — in one coherent pass, per ADR-0028's Links section).
       alias/custom name for different values compose via ordinary
       registration-order/first-match-wins pipeline semantics, asserted
       directly so the behavior is explicit rather than accidental (ADR-0028's
-      Negative Consequences).
+      Negative Consequences); **exact, case-sensitive matching, explicitly
+      exercised, not just assumed from the built-in allowlist's own existing
+      coverage** — a request for `sku` does not match an
+      `AddConvention("Sku", ...)` entry (and vice versa); `AddAlias("givenname", ...)`
+      and `AddAlias("GivenName", ...)` in the same call are treated as two
+      distinct names, not a collision; a name differing only by case from a
+      built-in convention name (e.g. `firstname` vs. `FirstName`) is *not*
+      rejected as a collision and does *not* match the built-in generator —
+      proving the merged lookup and its collision checks both use ordinal,
+      case-sensitive comparison throughout, not a comparer that was
+      accidentally left case-insensitive.
 - [ ] An API-surface/approval test locking `Compono.Bogus`'s public shape
       (now including `BogusConvention` and `BogusOptions.AddAlias`/
       `AddConvention`), matching `Compono.NSubstitute.Tests`'/
