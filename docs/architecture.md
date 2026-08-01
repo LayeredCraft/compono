@@ -192,7 +192,7 @@ not every stage is the same *kind* of thing:
 | 3 | Exact registrations | **Hybrid**, per [ADR-0019](adr/0019-registrations-and-service-provider-injection.md) (implemented, Milestone 3 Phase 1): a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if a consumer called `UseServiceProvider(...)` — a fallback `IServiceProvider.GetService(typeof(T))` call. Milestone 2 shipped this stage as internal-only with no public builder; Milestone 3 Phase 1 shipped its real public shape (`builder.Register<T>(...)`, `builder.UseServiceProvider(...)`). |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection, per [ADR-0020](adr/0020-composition-configuration-rules.md) (implemented, Milestone 3 Phase 3). Renamed from "profile rules" (`PipelineStage.ConfigurationRule`): populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile's `Configure` — a profile is a reusable application mechanism over this stage, not its owner ([ADR-0018](adr/0018-composition-profiles.md)). Collection-size configuration does **not** populate this stage — see Configuration Rules, below. |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddSemanticProvider(ICompositionValueProvider)`) is implemented as of Milestone 5 Phase 0 ([ADR-0024](adr/0024-public-provider-extensibility-model.md)) — but no `Compono`-shipped package registers anything into it by default, since `Compono.Bogus` (Milestone 6) doesn't exist yet. Empty in practice until then, populated in mechanism now. |
-| 6 | Test-double providers | Ordered `ICompositionProvider` collection. Same status as stage 5: the public registration surface (`builder.AddTestDoubleProvider(ICompositionValueProvider)`) is implemented ([ADR-0024](adr/0024-public-provider-extensibility-model.md)), but empty in practice until `Compono.NSubstitute` (Milestone 5's own package, [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)) ships — see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for its phase status. |
+| 6 | Test-double providers | Ordered `ICompositionProvider` collection. The public registration surface (`builder.AddTestDoubleProvider(ICompositionValueProvider)`) is implemented ([ADR-0024](adr/0024-public-provider-extensibility-model.md)), and `Compono.NSubstitute` ([ADR-0025](adr/0025-compono-nsubstitute-package-design.md), implemented and test-covered — see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md)) is a real registrant via `UseNSubstitute()`. Still empty by default in any composition that doesn't opt into it — registration is per-`Composer`, not automatic just because the package is referenced. |
 | 7 | Built-in value providers | **Hybrid** (ADR-0014): an ordered `ICompositionProvider` collection (primitive/simple types, enums, nullable value types), populated internally by `Compono` itself, tried first — followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes (array, `List<T>`, `IReadOnlyList<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`), the same closed-generic-field-read mechanism stage 8 uses, since `ICompositionProvider` can't itself construct a generic collection without reflection |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider` (see Source-Generated Composition Plans, below) |
 | 9 | Diagnostic failure | Context-owned terminal stage |
@@ -201,12 +201,14 @@ Stages 4/5/6/7 each hold an actual ordered collection of providers, and
 every one of their public registration surfaces is implemented today
 (`.For<T>()` for stage 4, since Milestone 3; `AddSemanticProvider`/
 `AddTestDoubleProvider` for stages 5/6, since Milestone 5 Phase 0 —
-[ADR-0024](adr/0024-public-provider-extensibility-model.md)) — but only 4
-and 7 have anything registered in them *by default*: stage 4 only when a
-consumer actually calls `.For<T>()`, stage 7 unconditionally
-(`BuiltInProviders.Default`). Stages 5/6 stay empty until a consumer
-registers a provider directly, or until `Compono.Bogus`/`Compono.NSubstitute`
-(which don't exist yet) do it on their behalf. Provider order
+[ADR-0024](adr/0024-public-provider-extensibility-model.md)). Only stage 7
+has anything registered *unconditionally* (`BuiltInProviders.Default`);
+every other stage is opt-in, populated only when a consumer actually does
+something — calls `.For<T>()` (stage 4), calls `UseNSubstitute()`
+(`Compono.NSubstitute`, implemented, stage 6 — [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)),
+or calls `AddSemanticProvider`/`AddTestDoubleProvider` directly with a
+hand-written provider (either stage). Stage 5 alone has no shipped package
+to opt into yet — `Compono.Bogus` (Milestone 6) doesn't exist. Provider order
 *within* an extensible stage is registration order; stage 7 alone already
 holds three real providers (`PrimitiveValueProvider`, `EnumValueProvider`,
 `NullableValueProvider` — `BuiltInProviders.Default`), so "no stage has
@@ -258,6 +260,49 @@ stops a provider that merely can't produce *this* particular request from
 accidentally blocking a later stage (or a generated plan) that could
 have. This avoids exception-driven provider selection and preserves
 meaningful failures.
+
+### Public providers (stages 5/6)
+
+`ICompositionProvider` above is `Compono`-internal — stages 4/7 (registered
+type/member rules, built-in providers) are implemented entirely inside the
+core package and never exposed for an outside package to author its own.
+Stages 5/6 (semantic values, test doubles) are different: they exist
+specifically for an integration package to contribute open-ended,
+pattern-matching logic ("any interface type"), which means the contract a
+provider author implements has to be public, small, and decoupled from
+`Compono`'s internal request/pipeline plumbing. Resolved by
+[ADR-0024](adr/0024-public-provider-extensibility-model.md), implemented
+(PLAN-0005 Phase 0):
+
+```csharp
+public interface ICompositionValueProvider
+{
+    CompositionProviderResult TryProvide(
+        in CompositionProviderRequest request,
+        ICompositionContext context);
+}
+```
+
+`CompositionProviderRequest` (`RequestedType`/`DeclaringType`/`Name`/
+`Nullability`) and `CompositionProviderResult` (`NotHandled`/`Handled(value)`)
+are their own public types, decoupled from the internal
+`CompositionRequest`/`CompositionResult` pair above — no path, no
+shared-scope flag, no pipeline plumbing a provider author has no legitimate
+use for. `CompositionBuilder.AddSemanticProvider`/`AddTestDoubleProvider`
+register a public provider into stage 5/6 respectively, in registration
+order; internally, each is wrapped in a `PublicProviderAdapter :
+ICompositionProvider` — an adapter, not a second provider contract — so the
+rest of the pipeline (dispatch, tracing, diagnostics identity via
+`ICompositionProvider.ProviderType`) treats a public provider exactly like an
+internal one, with diagnostics naming the real wrapped provider's type, never
+the adapter. A public provider may call `context.Resolve<T>()`
+(descriptor-less) to compose part of its value from a nested request, exactly
+as an internal provider already may; a thrown exception from `TryProvide`
+propagates uncaught, per this ADR's Provider Failure Semantics — same
+"exceptions signal a bug" principle as everywhere else in this pipeline, not
+a stronger contract than an internal provider gets.
+`Compono.NSubstitute`'s `NSubstituteProvider` (registered via
+`AddTestDoubleProvider`) is the first real consumer of this contract.
 
 ## Source-Generated Composition Plans
 
@@ -749,13 +794,16 @@ Owns:
 
 ### Compono.Generators
 
-Potentially owns:
+Resolved by [ADR-0003](adr/0003-generator-package-distribution.md): never
+published to NuGet on its own — its compiled output is packed directly into
+the `Compono` nupkg as an analyzer dependency, so from a consumer's point of
+view it doesn't exist as a separate package at all.
+
+Owns:
 
 - Incremental source generator
 - Generated plan registration
 - Compile-time diagnostics
-
-Whether this ships separately or is bundled as an analyzer dependency of `Compono` remains open.
 
 ### Compono.XunitV3
 
@@ -765,9 +813,11 @@ Design: [ADR-0021](adr/0021-row-composition-entry-point-for-test-framework-integ
 package itself), [ADR-0023](adr/0023-rename-compono-xunit-to-compono-xunitv3.md)
 (the `Compono.Xunit` → `Compono.XunitV3` rename). Implemented - see
 [PLAN-0004](plans/0004-milestone-4-xunit-integration.md) for the phase-by-phase
-account and its Open Items for one known compile-time gap (an interface/
-abstract/delegate-typed `[Compose]`-attributed parameter reports CMP0003
-unconditionally).
+account. The one compile-time gap tracked in that plan's Open Items (an
+interface/abstract/delegate-typed `[Compose]`-attributed parameter reported
+CMP0003 unconditionally) is resolved by
+[PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) Phase 2, see
+[ADR-0024's Amendment 2](adr/0024-public-provider-extensibility-model.md).
 
 Owns:
 
@@ -780,12 +830,29 @@ Owns:
 
 ### Compono.NSubstitute
 
+Design: [ADR-0024](adr/0024-public-provider-extensibility-model.md) (the
+public provider extension point this package builds on, owned by core
+`Compono`), [ADR-0025](adr/0025-compono-nsubstitute-package-design.md) (this
+package itself). Implemented and test-covered/end-to-end verified - see
+[PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for the
+phase-by-phase account.
+
 Owns:
 
-- NSubstitute-backed test-double provider
-- Interface support
-- Optional abstract-class support
-- NSubstitute-specific diagnostics
+- `NSubstituteProvider` — the stage-6 test-double provider (registered via
+  `AddTestDoubleProvider`), composing an interface, delegate, or (when
+  configured) unsealed abstract-class request as a real
+  `Substitute.For(Type[], object[])` value
+- `NSubstituteOptions` — `SubstituteAbstractClasses`
+- `CompositionBuilderExtensions.UseNSubstitute()`/`UseNSubstitute(Action<NSubstituteOptions>)`
+
+Contributes no diagnostics of its own — an unsubstitutable request (a sealed
+concrete class) falls through `NotHandled` to later pipeline stages exactly
+like any other stage-6 decline, so it still composes normally at stage 8 if a
+generated plan exists for it. Only when nothing later in the pipeline can
+satisfy the request either does it reach the engine's existing stage-9
+"nothing could satisfy this" diagnostic, naming the type and path — never a
+package-specific one (ADR-0025's Diagnostics section).
 
 ### Compono.Bogus
 
@@ -882,12 +949,12 @@ Owns:
   `AddTestDoubleProvider`, compiled into stage 5/6 the same way ADR-0020's rules
   compile into stage 4 — **implemented, PLAN-0005 Phase 0**) **and
   [ADR-0025](adr/0025-compono-nsubstitute-package-design.md)** (`Compono.NSubstitute`,
-  the first real consumer of that contract — design only, not yet implemented;
-  see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for its
-  phase status). The core extension point itself is real and tested; stages
-  5/6 in the Resolution Pipeline table above stay empty in practice only
-  because no `Compono`-shipped package (`Compono.Bogus`, `Compono.NSubstitute`)
-  registers anything into them yet.
+  the first real consumer of that contract — **implemented and test-covered/
+  end-to-end verified, PLAN-0005**, all phases done). Both the core extension
+  point and its first real consumer are shipped: stage 6 in the Resolution
+  Pipeline table above is populated whenever a consumer calls
+  `UseNSubstitute()`; stage 5 stays empty in practice only because
+  `Compono.Bogus` (Milestone 6) doesn't exist yet.
 - **Richer `Microsoft.Extensions.DependencyInjection` integration** (`IServiceCollection`
   auto-registration, per-composition scoping, keyed services) — explicitly out of
   scope for `Compono` core per

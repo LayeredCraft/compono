@@ -1,6 +1,6 @@
 # [PLAN-0005] Milestone 5: NSubstitute Integration
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0024](../adr/0024-public-provider-extensibility-model.md)
 (core public provider extensibility: `ICompositionValueProvider`,
@@ -199,7 +199,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 3: Docs and cleanup
 
-**Status:** Not Started
+**Status:** Done
 
 - [x] `docs/architecture.md`: Resolution Pipeline stage 5/6 rows, the
       stages-4/5/6/7 summary paragraph, and the "Public provider
@@ -209,12 +209,24 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       review (Codex, P2): the design-phase wording became stale the
       moment Phase 0 merged. Still accurately says `Compono.NSubstitute`
       itself doesn't exist yet.
-- [ ] `docs/architecture.md`: Providers section still needs the
-      public/internal provider split write-up (`ICompositionValueProvider`
-      alongside the existing internal `ICompositionProvider` sketch); a
-      Package Boundaries entry for `Compono.NSubstitute`'s real `Owns`
-      list — both deferred to this phase since they're additive
-      documentation, not corrections of a false claim.
+- [x] `docs/architecture.md`: Providers section now has the public/internal
+      provider split write-up (a new "Public providers (stages 5/6)"
+      subsection documenting `ICompositionValueProvider`/
+      `CompositionProviderRequest`/`CompositionProviderResult`/
+      `PublicProviderAdapter` alongside the existing internal
+      `ICompositionProvider` sketch); the `Compono.NSubstitute` Package
+      Boundaries entry now has a real `Owns` list (`NSubstituteProvider`/
+      `NSubstituteOptions`/`CompositionBuilderExtensions`) plus a Design
+      line and implementation status, matching the `Compono.XunitV3` entry's
+      shape. Also caught and fixed while closing this out: the
+      `Compono.XunitV3` Package Boundaries entry, `docs/mvp.md`'s Milestone
+      4 section/Example/Exit Criteria, `docs/public-api.md`'s xUnit v3
+      Experience section, and PLAN-0004's own Open Items all still described
+      the pre-Phase-2 CMP0003 gap (an interface/abstract/delegate-typed
+      `[Compose]` parameter failing to compile) as open — stale the moment
+      this plan's own Phase 2 fixed it (ADR-0024 Amendment 2). All five
+      updated to point at that Amendment instead of leaving Milestone 4's
+      docs contradicted by Milestone 5's own fix.
 - [x] `docs/mvp.md` Milestone 5 section: links ADR-0024/ADR-0025/PLAN-0005,
       states ADR-0024's core mechanism is implemented (PLAN-0005 Phase 0)
       versus `Compono.NSubstitute` itself not yet — done early, same PR
@@ -326,6 +338,34 @@ alpha must:
   point.
 
 ## Notes
+
+**Phase 3 (Done):**
+
+- Closed out the one remaining Phase 3 task: `docs/architecture.md`'s
+  Providers section gained a "Public providers (stages 5/6)" subsection
+  (`ICompositionValueProvider`/`CompositionProviderRequest`/
+  `CompositionProviderResult`/`PublicProviderAdapter`, alongside the
+  pre-existing internal `ICompositionProvider` sketch), and the
+  `Compono.NSubstitute` Package Boundaries entry gained a Design line,
+  implementation-status note, and its real `Owns` list
+  (`NSubstituteProvider`/`NSubstituteOptions`/`CompositionBuilderExtensions`),
+  matching `Compono.XunitV3`'s existing entry shape.
+- Auditing the rest of the doc set for this closeout surfaced a second,
+  larger round of staleness: PLAN-0004's Open Items, `docs/architecture.md`'s
+  `Compono.XunitV3` Package Boundaries entry, `docs/mvp.md`'s Milestone 4
+  section/Example/Exit Criteria, and `docs/public-api.md`'s xUnit v3
+  Experience section all still described the CMP0003 interface/abstract/
+  delegate-root gap as open — every one of them written or last touched
+  before this plan's own Phase 2 fixed exactly that gap (ADR-0024 Amendment
+  2). Same pattern as PR #28/#29's doc-staleness rounds, just spanning a
+  different plan's docs this time since the fix happened to land here rather
+  than in PLAN-0004. All five updated to point at the Amendment instead of
+  contradicting Milestone 5's own shipped fix; PLAN-0004's Open Items entry
+  itself is marked resolved (struck through, not deleted, so the original
+  problem statement stays legible) rather than removed.
+- No code changes in this phase — docs only, per its own scope. This plan's
+  overall `Status` moved to `Done`: every phase (0-3) is now checked off, and
+  this milestone's exit criteria (`docs/mvp.md`) are met.
 
 **Phase 2 (Done):**
 

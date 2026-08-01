@@ -203,11 +203,13 @@ diagnostics, package dependencies), [ADR-0023](adr/0023-rename-compono-xunit-to-
 Phases 0-4 (core entry point, attribute skeleton, binding algorithm, test
 suites/verification, docs/cleanup) — see
 [PLAN-0004](plans/0004-milestone-4-xunit-integration.md) for the phase-by-phase
-account. One known gap remains open past Phase 4: an interface/abstract/
+account. The one gap that remained open past Phase 4 — an interface/abstract/
 delegate-typed `[Compose]`-attributed parameter (including the `IRepository`
-shape in the Example below) reports CMP0003 and fails to compile even when a
-profile registration or an inline value would satisfy it at runtime — see
-PLAN-0004's Open Items.
+shape in the Example below) reported CMP0003 and failed to compile even when a
+profile registration or a runtime provider would satisfy it — is now resolved
+by [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) Phase 2, see
+[ADR-0024's Amendment 2](adr/0024-public-provider-extensibility-model.md) and
+PLAN-0004's Open Items for the full account.
 
 ### Scope
 
@@ -233,18 +235,21 @@ public void Creates_service(
 }
 ```
 
-This is the target shape; `IRepository` being interface-typed currently hits
-the CMP0003 gap noted above — `test/Compono.XunitV3.SampleTests` uses a
-concrete `Repository` type for its own `[Shared]` theory to route around it
-until that gap is resolved.
+This shape compiles and runs today — an interface-typed `[Shared]` parameter
+like `IRepository` is composed as a provider-resolved leaf
+([ADR-0024's Amendment 2](adr/0024-public-provider-extensibility-model.md)),
+satisfied at runtime by whatever `TProfile.Configure` registers (a plain
+`Register<T>(...)`, or `Compono.NSubstitute`'s `UseNSubstitute()`).
+`test/Compono.XunitV3.SampleTests`' original `[Shared]` theory still uses a
+concrete `Repository` type (predating this fix); `NSubstituteTests.cs` in the
+same project runs this exact interface-typed shape for real.
 
 ### Exit Criteria
 
-Met for the parameter shapes `Compono.XunitV3` currently supports, verified
-through `test/Compono.XunitV3.Tests` and a real xUnit v3 runner against
-`test/Compono.XunitV3.SampleTests` (PLAN-0004 Phase 3); the CMP0003 gap above
-means "composed parameters work under xUnit v3" doesn't yet extend to a bare
-interface/abstract/delegate-typed `[Compose]` parameter:
+Met, verified through `test/Compono.XunitV3.Tests` and a real xUnit v3 runner
+against `test/Compono.XunitV3.SampleTests` (PLAN-0004 Phase 3), including a
+bare interface/abstract/delegate-typed `[Compose]` parameter as of PLAN-0005
+Phase 2:
 
 - Composed parameters work under xUnit v3
 - Inline values take precedence
@@ -274,9 +279,9 @@ diagnostics). **ADR-0024's core engine extension point is implemented
 end-to-end verified (PLAN-0005 Phase 2)** — `NSubstituteProvider`/
 `NSubstituteOptions`/`UseNSubstitute()` are real, tested code, verified both by
 `Compono.NSubstitute.Tests` and by a real packaged `Compono.XunitV3.SampleTests`
-run of this milestone's own Goal scenario. See
-[PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for the
-phase-by-phase tracker (Phase 3, docs/cleanup, still open) and
+run of this milestone's own Goal scenario. **This milestone is complete** —
+see [PLAN-0005](plans/0005-milestone-5-nsubstitute-integration.md) for the
+phase-by-phase tracker (all four phases `Done`) and
 [ADR-0024's Amendment 2](adr/0024-public-provider-extensibility-model.md) for
 a `Compono.Generators` compile-time check (`CMP0003`) Phase 2's real
 verification found and fixed along the way — an interface/abstract-class/
