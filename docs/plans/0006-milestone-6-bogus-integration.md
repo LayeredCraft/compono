@@ -244,20 +244,18 @@ together — in one coherent pass, per ADR-0028's Links section).
       undefined `BogusConvention` value. Both return `void` — matching
       `Locale`/`EnableMemberNameConventions`'s plain-property-setter shape, no
       fluent chaining.
-- [ ] `BogusMemberNameProvider`'s constructor changes from `(string locale)`
-      to `(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)`
-      — an interface, not the concrete `FrozenDictionary`
-      `CompositionBuilderExtensions` itself builds (`coding-standards.md`'s
-      "never expose a concrete collection type on a public API surface"
-      rule); the constructor defensively freezes its own copy internally.
-      **This is a breaking change to an already-shipped public constructor**
-      (Phase 1/`#33` merged `BogusMemberNameProvider(string locale)` to
-      `main` before this ADR's own review concluded) — per
-      [ADR-0024](../adr/0024-public-provider-extensibility-model.md)'s Alpha
-      Compatibility Policy, the PR implementing this task must apply the
-      `breaking` label (Release Drafter's `version-resolver.major` category)
-      and call out the change explicitly in its description, not just note
-      it here.
+- [ ] `BogusMemberNameProvider` gains a second, `internal` constructor
+      overload — `(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)`,
+      called only by `CompositionBuilderExtensions.UseBogus(...)`, freezing
+      its own copy internally (`conventions.ToFrozenDictionary()` unless
+      already one). **The existing `public BogusMemberNameProvider(string locale)`
+      (Phase 1, already merged via `#33`) is untouched** — not a breaking
+      change, no `breaking` label needed. Deliberately `internal`, not
+      `public`: a public overload would let a caller construct the provider
+      with an arbitrary dictionary that omits or remaps a built-in name,
+      silently supporting the replace/remove-a-built-in capability this
+      ADR declares a Non-Goal and bypassing `AddAlias`/`AddConvention`'s own
+      eager validation entirely.
 - [ ] `CompositionBuilderExtensions.UseBogus(Action<BogusOptions> configure)`:
       after `configure(options)` returns, merges `BogusConventions.ByName`
       with `options`'s own validated accumulator into one

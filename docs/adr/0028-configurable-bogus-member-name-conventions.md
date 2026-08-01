@@ -24,12 +24,24 @@ once, package-wide.
 
 This ADR is scoped to a single new capability — configurable conventions on
 `BogusOptions` — and is deliberately a **new** ADR, not an amendment to
-ADR-0027: ADR-0027's own accepted Decision Outcome (the three-model split, the
-fixed built-in allowlist, its Considered Options and Pros/Cons) is unchanged by
-this design and stays exactly as originally written, per
-`design-decisions.md`'s rule that an amendment is for a correction to an
-existing decision, not a genuinely new one layered on top of it. ADR-0027
-remains the accepted foundation this ADR builds on.
+ADR-0027. `design-decisions.md`'s Amendment mechanic exists for "a correction,
+clarification, or extension to an already-Accepted ADR's decision" discovered
+during implementation or review — by that general rule alone, this capability
+(an extension of ADR-0027's fixed-allowlist decision) could plausibly have
+been written as an Amendment instead. **This is an explicit, deliberate
+exception to that default, directed by the repository's maintainer at the
+start of this design review** ("Create a new ADR... Do not amend ADR-0027;
+ADR-0027 should remain the accepted package-design foundation"), not an
+oversight or a misreading of the general rule. The reasoning: this design
+review surfaced genuine alternatives and a real mid-review reversal (see
+Decision Outcome's cross-call-detection discussion) substantial enough to
+warrant this ADR's own full Context/Decision Drivers/Considered Options/Pros-
+and-Cons treatment — the depth an Amendment section (a compact, dated note
+appended to an existing document) isn't shaped for — while keeping ADR-0027
+itself exactly as originally accepted: its own Decision Outcome, Considered
+Options, and Pros/Cons are unchanged by this design and stay exactly as
+originally written. ADR-0027 remains the accepted foundation this ADR builds
+on.
 
 ## Decision Drivers
 
@@ -279,33 +291,45 @@ public CompositionBuilder UseBogus(Action<BogusOptions> configure)
 }
 ```
 
-`BogusMemberNameProvider`'s constructor changes from `(string locale)` to
-`(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)` —
-an interface, not the concrete `FrozenDictionary` `CompositionBuilderExtensions`
-itself builds, per `coding-standards.md`'s "never expose a concrete collection
-type on a public API surface" rule: the provider only needs read access, and a
-consumer constructing `BogusMemberNameProvider` directly (its own public
-constructor, same as `NSubstituteProvider`'s) shouldn't be forced to build the
-specialized `FrozenDictionary` representation just to satisfy the parameter
-type. The constructor defensively freezes its own copy internally
-(`conventions.ToFrozenDictionary()` if the argument isn't already one) before
-storing it, so the provider's own internal lookup is still the same immutable
-`FrozenDictionary` this ADR's Model 1 already commits to — this is purely a
-public-parameter-type relaxation, not a change to the provider's own internal
-representation or immutability guarantee.
+**`BogusMemberNameProvider` gains a second, `internal` constructor overload —
+its existing `public BogusMemberNameProvider(string locale)` (Phase 1,
+already merged to `main` via `#33`) is untouched:**
 
-Unlike this ADR's original framing, this **is** a breaking change to an
-already-shipped public constructor: PLAN-0006 Phase 1 (`BogusMemberNameProvider(string locale)`,
-one required parameter) merged to `main` before this ADR's own design review
-concluded (`#33`). Growing that constructor to two required parameters breaks
-any existing direct caller, regardless of the second parameter's exact type.
-Per [ADR-0024](0024-public-provider-extensibility-model.md)'s Alpha
-Compatibility Policy (inherited by every ADR downstream of it, including this
-one): a breaking change to an already-shipped contract during alpha is
-allowed, but the implementing PR must apply the `breaking` label (Release
-Drafter's `version-resolver.major` category) and call out the change
-explicitly in its description — see `PLAN-0006`'s own Phase 2 task list for
-this requirement carried through to implementation.
+```csharp
+public sealed class BogusMemberNameProvider : ICompositionValueProvider
+{
+    // Unchanged from Phase 1 - built-ins only, exactly ADR-0027's original contract.
+    // Not a breaking change: this overload's behavior and signature are untouched.
+    public BogusMemberNameProvider(string locale)
+        : this(locale, BogusConventions.ByName)
+    {
+    }
+
+    // New, internal only - the merged-conventions path UseBogus(...) uses. Deliberately not
+    // public: a public overload would let a caller construct the provider with an arbitrary
+    // dictionary that omits or remaps a built-in name (e.g. a "FirstName" entry pointing at
+    // something else, or missing entirely) - silently supporting the replace/remove-a-built-in
+    // capability this ADR declares a Non-Goal, and bypassing AddAlias/AddConvention's own eager
+    // validation entirely. Keeping this overload internal means the only way to reach it is
+    // through UseBogus(...), which always starts from BogusConventions.ByName and only ever adds
+    // to it via the validated AddAlias/AddConvention path.
+    internal BogusMemberNameProvider(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)
+    {
+        _locale = locale;
+        _conventions = conventions as FrozenDictionary<string, Func<Faker, string>>
+            ?? conventions.ToFrozenDictionary();
+    }
+}
+```
+
+No breaking change, and no `IReadOnlyDictionary`-vs-`FrozenDictionary` public-surface
+question to resolve at all: the only public constructor is the same one-parameter
+shape Phase 1 already shipped, doing exactly what it already does. The
+`internal` overload's own parameter is `IReadOnlyDictionary<string, Func<Faker, string>>`
+purely so its one real caller (`CompositionBuilderExtensions.UseBogus`, in the
+same assembly) doesn't have to pass the exact `FrozenDictionary` type — an
+ordinary internal-implementation-detail choice, not a public-API decision
+`coding-standards.md`'s collection-surface rule even applies to.
 
 ### `EnableMemberNameConventions` remains an all-or-nothing switch
 
@@ -370,10 +394,11 @@ new reasoning required.
   guessing at all, has no way to express that in this version — they get
   either "built-ins plus my extensions" or "nothing." Accepted as a
   deliberate scope cut (see Decision Outcome), not an oversight.
-- `BogusMemberNameProvider`'s constructor signature changes (adds a required
-  `conventions` parameter) — a real, if inconsequential (pre-release, see
-  above), API churn one design iteration after ADR-0027 shipped its original
-  shape.
+- `BogusMemberNameProvider` grows a second, `internal` constructor overload —
+  a small, non-breaking addition (its existing `public` constructor is
+  untouched), but still one more code path for the type's own maintainer to
+  keep in sync with the public one (e.g. if `BogusMemberNameProvider(string locale)`
+  itself ever needs to change, both overloads have to move together).
 
 ## Non-Goals
 
@@ -406,9 +431,10 @@ new reasoning required.
   to hold in their head.
 - Good, because collision detection is a single-pass dictionary build, not a
   cross-provider runtime race.
-- Bad, because `BogusMemberNameProvider`'s constructor grows a parameter and
-  its built-in dictionary moves to a shared internal type — more surface
-  area to touch than leaving it untouched and bolting on a second provider.
+- Bad, because `BogusMemberNameProvider` grows a second, `internal`
+  constructor overload and its built-in dictionary moves to a shared
+  internal type — more surface area to touch than leaving it untouched and
+  bolting on a second provider.
 
 ### Separate provider(s) for aliases/custom conventions
 
