@@ -370,7 +370,9 @@ A composed customer can receive realistic, deterministic values without the core
 package referencing Bogus — and `UseBogus()`/`UseNSubstitute()` compose in one
 profile, any call order, with no special ordering or package-to-package
 dependency, per [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)'s Goal
-scenario. Not yet met — implementation has not started.
+scenario. Not yet met — `Compono.Bogus` itself is implemented (PLAN-0006 Phase 1),
+but test coverage and the real end-to-end packaged-consumer verification this
+exit criterion requires are still pending Phase 2.
 
 ## Milestone 7: Dogfooding
 
