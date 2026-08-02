@@ -284,9 +284,9 @@ together — in one coherent pass, per ADR-0028's Links section).
 
 ### Phase 3: Test suites and verification
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `test/Compono.Bogus.Tests`: `BogusMemberNameProvider` unit coverage (each
+- [x] `test/Compono.Bogus.Tests`: `BogusMemberNameProvider` unit coverage (each
       allowlisted name against `string`, each allowlisted name against a
       non-`string` type declines, `Name` itself declines, an unlisted name
       declines); `UseBogus()`/`UseBogus(configure)` wiring a working provider
@@ -297,27 +297,34 @@ together — in one coherent pass, per ADR-0028's Links section).
       registration for the same `T` hits the existing
       `CompositionConfigurationException`; **ADR-0027 Amendment 1 regression
       coverage** — a `UseBogus<T>()` `configureFaker` callback that eagerly
-      reads randomness at configuration time (`RuleFor(x => x.Id, faker.Random.Guid())`,
-      not a lazy factory) still produces a deterministic result for the same
-      Compono seed, proving `UseSeed(...)` is applied before `configureFaker`
-      runs, not after.
-- [ ] Determinism regression coverage (ADR-0026's contract, exercised through
+      draws from the seeded `Faker<T>` at configuration time (calling
+      `faker.Generate()` itself before returning, rather than a lazy
+      `f => f.Name.FirstName()` `RuleFor` factory) still produces a
+      deterministic result for the same Compono seed, proving `UseSeed(...)`
+      is applied before `configureFaker` runs, not after. (`Faker<T>` exposes
+      no public `Random` accessor — confirmed by inspection, not assumed — so
+      the ADR's own illustrative `RuleFor(x => x.Id, faker.Random.Guid())`
+      snippet doesn't literally compile against it; `faker.Generate()` is the
+      real, compilable way to force an eager draw from that same seeded
+      instance's internal state.)
+- [x] Determinism regression coverage (ADR-0026's contract, exercised through
       real Bogus usage): same seed reproduces the same convention-provider
       value and the same `UseBogus<T>()`-generated object; adding an unrelated
       Bogus-backed member elsewhere in the graph doesn't perturb an existing
       one; `CreateMany<T>(n)` produces independently-seeded items for a
       `UseBogus<T>()`-registered type, matching ADR-0012's existing
       `CreateMany` seed-derivation contract.
-- [ ] Coexistence tests against a real `Composer` with both `UseBogus()` and
+- [x] Coexistence tests against a real `Composer` with both `UseBogus()` and
       `UseNSubstitute()` registered, **any call order**: a string member
       resolves via Bogus, an interface/delegate/abstract-class request resolves
-      via NSubstitute, neither provider is ever attempted for the other's
-      claimed shape (asserted via diagnostics trace, not just outcome); an
+      via NSubstitute, neither provider ever claims/handles the other's
+      claimed shape - each is still attempted at its own pipeline stage and
+      correctly declines (asserted via diagnostics trace, not just outcome); an
       explicit `Register<T>`/`.For<T>().Use(...)` for a type/member either
       package could otherwise touch wins over both; a `[Shared]` NSubstitute
       substitute and Bogus-supplied scalar values coexist correctly in one
       row's scope.
-- [ ] `UseBogus<T>()` lifetime/concurrency coverage, proving the corrected
+- [x] `UseBogus<T>()` lifetime/concurrency coverage, proving the corrected
       per-request-`Faker<T>` design (ADR-0027) actually holds: the `configure`
       callback runs once per resolved object, not once at registration time
       (assert an invocation counter increments once per `Create<T>()` call);
@@ -329,7 +336,7 @@ together — in one coherent pass, per ADR-0028's Links section).
       determinism-under-concurrency test, not a race characterization); the
       same seed and request path reproduce the same generated object across
       separate runs.
-- [ ] Configurable-convention coverage (ADR-0028): `AddAlias(...)` resolves to
+- [x] Configurable-convention coverage (ADR-0028): `AddAlias(...)` resolves to
       the same value a direct call to the aliased `BogusConvention`'s own
       built-in generator would produce, for the same seed/path;
       `AddConvention(...)` produces the custom callback's value, seeded via
@@ -359,11 +366,11 @@ together — in one coherent pass, per ADR-0028's Links section).
       proving the merged lookup and its collision checks both use ordinal,
       case-sensitive comparison throughout, not a comparer that was
       accidentally left case-insensitive.
-- [ ] An API-surface/approval test locking `Compono.Bogus`'s public shape
+- [x] An API-surface/approval test locking `Compono.Bogus`'s public shape
       (now including `BogusConvention` and `BogusOptions.AddAlias`/
       `AddConvention`), matching `Compono.NSubstitute.Tests`'/
       `Compono.XunitV3.Tests`' existing pattern.
-- [ ] A real end-to-end run through `test/Compono.XunitV3.SampleTests` (or a new
+- [x] A real end-to-end run through `test/Compono.XunitV3.SampleTests` (or a new
       sibling sample) proving this plan's own Goal scenario — `UseBogus()` and
       `UseNSubstitute()` composing one graph under a real xUnit v3 theory,
       packaged (not `ProjectReference`) — matching PLAN-0004 Phase 3/PLAN-0005
@@ -606,8 +613,66 @@ Options/Decision Outcome for the full account.
   writing any code, rather than proceeding straight to a PR/review loop as
   the previous three phases did.
 
-Phase 4 (docs/cleanup) hasn't started yet, and Phase 3 (test suites) hasn't
-started yet either.
+**Phase 3 (Done):**
+
+- `test/Compono.Bogus.Tests` (new project, mirroring `Compono.NSubstitute.Tests`'
+  shape): `BogusMemberNameProviderTests.cs`, `CompositionBuilderExtensionsTests.cs`,
+  `MemberRuleExtensionsTests.cs`, `DeterminismTests.cs`, `CoexistenceTests.cs`,
+  `UseBogusOfTLifetimeTests.cs`, `BogusConventionConfigurationTests.cs`,
+  `PublicApiSurfaceTests.cs` — 60 tests × 2 TFMs = 120. Added to `Compono.slnx`.
+- Since `Compono.Bogus.Tests` doesn't reference the source generator
+  (`testing.md`'s established "unit tests use hand-written fakes / manual
+  descriptors, not the real generator" pattern), every member-name-convention
+  and coexistence test resolves through `Composer.CreateRow(...).Resolve<TValue>(descriptor)`
+  with an explicit `CompositionRequestDescriptor`, never `Composer.Create<T>()`
+  against an arbitrary hand-shaped class — `UseBogus<T>()` tests are the one
+  exception, since that registration compiles to an exact `Register<T>` factory
+  (stage 3), which needs no generated plan at all.
+- **"Declines" coverage uses an equivalence technique, not pattern-matching on
+  Bogus's own string output**: `BogusMemberNameProvider.TryProvide` never
+  touches `context.DeriveSeed()`/constructs a `Faker` before deciding to
+  decline (confirmed by reading its own source), so composing the same
+  descriptor with and without the provider registered, under the same fixed
+  seed, produces byte-identical fallback values whenever the provider
+  declines, and a different value whenever it handles the request — this
+  proves "declines"/"handles" without hardcoding what Bogus's own generated
+  string looks like (locale/version-fragile) or relying on `PrimitiveValueProvider`'s
+  internal alphabet.
+- **ADR-0027 Amendment 1 regression coverage found the ADR's own illustrative
+  snippet doesn't compile**: `RuleFor(x => x.Id, faker.Random.Guid())` implies
+  `Faker<T>` exposes a public `.Random` — reflecting over the real `Bogus`
+  35.6.5 assembly (`Faker<T>` fields/properties/interfaces) confirms it does
+  not; only the member-rule sugar's plain, non-generic `Faker` does. The
+  regression test instead has `configureFaker` call `faker.Generate()` itself
+  before returning (before `RuleFor`-driven `Generate()` normally would),
+  which genuinely draws from the same `UseSeed(...)`-applied internal state
+  eagerly — the real, compilable equivalent of the ADR's illustrative bug
+  class. Not a plan deviation in substance, just in the literal repro
+  mechanism; noted here rather than editing the ADR (which stays as originally
+  written, per `design-decisions.md`).
+- Coexistence tests use the diagnostic-trace assertion this phase's own task
+  wording called for (`ProviderAttempt`/`CompositionDiagnostic.Trace`) to prove
+  `BogusMemberNameProvider` is tried-and-declines for a non-`string` shape
+  rather than never invoked at all — the pipeline always tries every
+  registered semantic provider in order, so "disjoint claims" means "always
+  declines the other's shape," not "never attempted."
+- `test/Compono.XunitV3.SampleTests`: new `BogusTests.cs` (`Customer` with
+  `FirstName`/`LastName`/`Email`, `BogusTestProfile` calling
+  `UseBogus().UseNSubstitute()` — the opposite call order from
+  `NSubstituteTestProfile`'s `UseNSubstitute()`-only config, proving order
+  doesn't matter) exercises this plan's own Goal scenario through the real
+  packaged `Compono.Bogus`/`Compono.NSubstitute` → `Compono` dependency chain.
+  `Compono.Bogus.csproj` added to the `PackageReference`/`PackToLocalFeed`
+  wiring (`.csproj`, `pack-to-local-feed.sh`, now packing 4 projects instead
+  of 3). Verified with a real `dotnet test -f net10.0`/`-f net11.0` run against
+  this project directly (it's intentionally not in `Compono.slnx`, matching
+  PLAN-0004/PLAN-0005's own precedent): 8/9 theories pass, the 9th being
+  `FailingCompositionTests`' pre-existing, deliberate failure (unrelated to
+  this phase, used by a separate real-runner proof elsewhere).
+- Whole-solution `dotnet build`/`dotnet test`: 854/854 (734 pre-Phase-3 + 120
+  new from `Compono.Bogus.Tests`), 0 warnings, both TFMs.
+
+Phase 4 (docs/cleanup) hasn't started yet.
 ADR-0026/ADR-0027 reached `Accepted` on 2026-07-31, after a design review that
 resolved (in order): how Bogus's
 randomness should relate to ADR-0012's path-independence guarantee (a new,

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.Bogus.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.Bogus\Compono.Bogus.csproj" />
+    <!-- Coexistence coverage (this plan's own Goal scenario) needs both integration packages
+         registered on the same real Composer - see CoexistenceTests.cs. -->
+    <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
+  </ItemGroup>
+
+</Project>
