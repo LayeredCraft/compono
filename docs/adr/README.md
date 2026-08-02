@@ -90,3 +90,4 @@ the mechanics: numbering, status, and the index.
 | [0026](0026-deterministic-seed-derivation-for-providers.md) | Deterministic Seed Derivation for Providers and Registration Factories | Accepted |
 | [0027](0027-compono-bogus-package-design.md) | Compono.Bogus Package Design | Accepted |
 | [0028](0028-configurable-bogus-member-name-conventions.md) | Configurable Bogus Member-Name Conventions | Accepted |
+| [0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md) | Milestone 7 Dogfooding Strategy and Capability-Gap Decision Framework | Accepted |

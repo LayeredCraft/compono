@@ -392,15 +392,38 @@ coverage and a real packaged `test/Compono.XunitV3.SampleTests` run
 
 ## Milestone 7: Dogfooding
 
+Design: [ADR-0029](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
+(dogfooding strategy: migration-driven evidence over synthetic spikes, a
+four-question gap decision rubric, and where each gap's outcome gets
+recorded — a new `Proposed` ADR for a roadmap candidate, or a dated
+Amendment to the governing existing ADR for an intentional design
+difference). The selected real-world project is
+`ncipollina/cosmere-tracker`'s AutoFixture-based test kit
+(`test/Cosmere.Tracker.TestKit`), which already exercises three candidate
+capability gaps against Compono's current design: `Freeze<T>()`-style
+hidden shared values (`HttpClientSpecimenBuilder`'s frozen
+`HttpMessageHandler`), NSubstitute `ConfigureMembers`
+(`AutoNSubstituteCustomization { ConfigureMembers = true }` in
+`BaseFixtureFactory`), and AutoFixture's `OmitOnRecursionBehavior` versus
+Compono's fail-fast recursion detection. Per `docs/manifesto.md`, none of
+these three is assumed into the roadmap merely because AutoFixture has
+them — each is decided by ADR-0029's rubric from real migration evidence.
+Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
+
 ### Scope
 
-- Select one existing real-world project
+- Select one existing real-world project — `ncipollina/cosmere-tracker`
 - Rewrite its tests using Compono
-- Record missing capabilities
+- Record missing capabilities — the three candidate gaps above, plus any
+  further one the migration surfaces
 - Measure performance
 - Measure API friction
 - Refine diagnostics
 - Remove unnecessary abstractions
+- Decide each candidate gap's outcome (roadmap candidate vs. intentional
+  design difference) per ADR-0029's rubric, recorded in
+  `docs/research/0001-autofixture-comparison.md` and the resulting
+  ADR(s)/Amendment(s)
 
 ### Success Measures
 
@@ -409,6 +432,8 @@ coverage and a real packaged `test/Compono.XunitV3.SampleTests` run
 - Most setup belongs in profiles rather than custom attributes
 - Failures are reproducible
 - Performance does not regress unacceptably
+- Every candidate capability gap has a recorded outcome — not left open or
+  assumed into the roadmap by default
 
 ## Milestone 8: Public Preview
 
