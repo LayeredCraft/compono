@@ -317,8 +317,9 @@ together — in one coherent pass, per ADR-0028's Links section).
 - [x] Coexistence tests against a real `Composer` with both `UseBogus()` and
       `UseNSubstitute()` registered, **any call order**: a string member
       resolves via Bogus, an interface/delegate/abstract-class request resolves
-      via NSubstitute, neither provider is ever attempted for the other's
-      claimed shape (asserted via diagnostics trace, not just outcome); an
+      via NSubstitute, neither provider ever claims/handles the other's
+      claimed shape - each is still attempted at its own pipeline stage and
+      correctly declines (asserted via diagnostics trace, not just outcome); an
       explicit `Register<T>`/`.For<T>().Use(...)` for a type/member either
       package could otherwise touch wins over both; a `[Shared]` NSubstitute
       substitute and Bogus-supplied scalar values coexist correctly in one
