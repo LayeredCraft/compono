@@ -73,14 +73,21 @@ public sealed class CompositionBuilderExtensionsTests
         // ADR-0027 Amendment 1 regression: Faker<T> exposes no public Random accessor (only the
         // member-rule sugar's plain Faker does), so the only way configureFaker can eagerly draw from
         // this request's seeded Randomizer - rather than a lazy f => f.Name.FirstName() factory
-        // Generate() evaluates later - is calling faker.Generate() itself before returning, consuming
-        // the same UseSeed(...)-applied state. That eager draw must still be deterministic for the same
-        // Compono seed, proving UseSeed(...) runs before configureFaker, not after.
+        // Generate() evaluates later - is registering a genuinely random-valued rule, then calling
+        // faker.Generate() itself before returning to force that rule to evaluate immediately,
+        // consuming randomness right there rather than later. (Calling Generate() with no rule
+        // registered first - a prior version of this test's mistake, caught by review - just returns
+        // Customer's default, constant property values regardless of seed, proving nothing.) The
+        // eagerly-drawn value is then pinned as the final rule, so the extension's own later
+        // Generate() call returns that exact already-drawn value. This eager draw must still be
+        // deterministic for the same Compono seed, proving UseSeed(...) runs before configureFaker,
+        // not after.
         static Customer ComposeRoot() =>
             Composer.Create(builder => builder
                     .WithSeed(4219)
                     .UseBogus<Customer>(faker =>
                     {
+                        faker.RuleFor(c => c.FirstName, f => f.Random.Guid().ToString());
                         var eager = faker.Generate();
                         faker.RuleFor(c => c.FirstName, eager.FirstName);
                     }))

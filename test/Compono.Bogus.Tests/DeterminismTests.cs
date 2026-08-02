@@ -59,13 +59,22 @@ public sealed class DeterminismTests
     [Fact]
     public void CreateMany_ProducesIndependentlySeededItems_ForAUseBogusOfTRegisteredType()
     {
+        // "5 distinct names" doesn't actually prove per-item seed derivation: a broken shared
+        // sequential randomizer would usually still produce 5 distinct draws, and a correct
+        // implementation could coincidentally repeat a name from Bogus's own finite name list. The
+        // real ADR-0012 CreateMany contract - item i's seed depends only on the batch seed and its own
+        // index, never on the total count requested - is what Compono.Tests' own
+        // ComposerCreateManyTests.CreateManyForTesting_ProducesByteForByteIdenticalItems_ForTheSharedPrefixOfTwoDifferentCounts
+        // asserts, mirrored here through the public Composer.CreateMany<T>() surface: item 0..2 must be
+        // byte-for-byte identical whether 3 or 5 total items are requested from the same seed.
         var composer = Composer.Create(builder => builder
             .WithSeed(4219)
             .UseBogus<Customer>(faker => faker.RuleFor(c => c.FirstName, f => f.Name.FirstName())));
 
-        var customers = composer.CreateMany<Customer>(5);
+        var three = composer.CreateMany<Customer>(3).Select(c => c.FirstName);
+        var five = composer.CreateMany<Customer>(5).Take(3).Select(c => c.FirstName);
 
-        customers.Select(c => c.FirstName).Distinct().Should().HaveCount(5);
+        five.Should().Equal(three);
     }
 
     private static CompositionRequestDescriptor EmailDescriptor =>
