@@ -61,20 +61,30 @@ public sealed class DeterminismTests
     {
         // "5 distinct names" doesn't actually prove per-item seed derivation: a broken shared
         // sequential randomizer would usually still produce 5 distinct draws, and a correct
-        // implementation could coincidentally repeat a name from Bogus's own finite name list. The
-        // real ADR-0012 CreateMany contract - item i's seed depends only on the batch seed and its own
-        // index, never on the total count requested - is what Compono.Tests' own
-        // ComposerCreateManyTests.CreateManyForTesting_ProducesByteForByteIdenticalItems_ForTheSharedPrefixOfTwoDifferentCounts
-        // asserts, mirrored here through the public Composer.CreateMany<T>() surface: item 0..2 must be
-        // byte-for-byte identical whether 3 or 5 total items are requested from the same seed.
+        // implementation could coincidentally repeat a name from Bogus's own finite name list. A
+        // Guid-valued rule removes that finite-cardinality ambiguity entirely - two independent
+        // per-item seeds practically never collide on a Guid, so "all 5 are pairwise distinct" is a
+        // real, high-cardinality assertion of independent seeding, not a "usually passes anyway" one.
+        //
+        // But distinctness alone still isn't sufficient - a regression that assigns every item the
+        // *same* derived seed would produce identical items (never satisfying distinctness, so that
+        // part alone would already catch it), while a regression that derives each item's seed from
+        // (total count, index) rather than index alone would satisfy distinctness within a single call
+        // but never reproduce a shared prefix across two different total counts. Only the two
+        // assertions together - independently distinct AND shared-prefix-across-counts - pin down the
+        // real ADR-0012 CreateMany contract: item i's seed depends only on the batch seed and its own
+        // index, never on the total count requested. The shared-prefix half mirrors Compono.Tests' own
+        // ComposerCreateManyTests.CreateManyForTesting_ProducesByteForByteIdenticalItems_ForTheSharedPrefixOfTwoDifferentCounts,
+        // through the public Composer.CreateMany<T>() surface instead of the internal test seam.
         var composer = Composer.Create(builder => builder
             .WithSeed(4219)
-            .UseBogus<Customer>(faker => faker.RuleFor(c => c.FirstName, f => f.Name.FirstName())));
+            .UseBogus<Customer>(faker => faker.RuleFor(c => c.FirstName, f => f.Random.Guid().ToString())));
 
-        var three = composer.CreateMany<Customer>(3).Select(c => c.FirstName);
-        var five = composer.CreateMany<Customer>(5).Take(3).Select(c => c.FirstName);
+        var three = composer.CreateMany<Customer>(3).Select(c => c.FirstName).ToArray();
+        var five = composer.CreateMany<Customer>(5).Select(c => c.FirstName).ToArray();
 
-        five.Should().Equal(three);
+        five.Should().OnlyHaveUniqueItems();
+        five.Take(3).Should().Equal(three);
     }
 
     private static CompositionRequestDescriptor EmailDescriptor =>
