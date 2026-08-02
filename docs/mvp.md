@@ -388,7 +388,7 @@ dependency, per [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)'s Goal
 scenario. **Met** as of PLAN-0006 Phase 3 — `Compono.Bogus.Tests`' coexistence
 coverage and a real packaged `test/Compono.XunitV3.SampleTests` run
 (`BogusTests.Saves_order`) both verify this exit criterion directly. Phase 4
-(docs/cleanup) is the only remaining slice of this milestone.
+(docs/cleanup) is also **Done** — see PLAN-0006. **Milestone 6 is complete.**
 
 ## Milestone 7: Dogfooding
 
