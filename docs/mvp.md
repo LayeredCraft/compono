@@ -392,15 +392,57 @@ coverage and a real packaged `test/Compono.XunitV3.SampleTests` run
 
 ## Milestone 7: Dogfooding
 
+Design: [ADR-0029](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
+(dogfooding strategy: migration-driven evidence over synthetic spikes,
+favoring idiomatic Compono over mechanical translation, a gap decision
+rubric feeding a five-way classification — bug / roadmap candidate /
+acceptable Compono-native alternative / intentional design difference /
+migration-only friction — and two required living deliverables: a
+migration guide and an evidence-backed roadmap). The selected real-world
+project is `ncipollina/cosmere-tracker`'s AutoFixture-based test kit
+(`test/Cosmere.Tracker.TestKit`), which already exercises three candidate
+capability gaps against Compono's current design: `Freeze<T>()`-style
+hidden shared values (`HttpClientSpecimenBuilder`'s frozen
+`HttpMessageHandler`), NSubstitute `ConfigureMembers`
+(`AutoNSubstituteCustomization { ConfigureMembers = true }` in
+`BaseFixtureFactory`), and AutoFixture's `OmitOnRecursionBehavior` versus
+Compono's fail-fast recursion detection. Per `docs/manifesto.md`, none of
+these three is assumed into the roadmap merely because AutoFixture has
+them — each is classified by ADR-0029's rubric from real migration
+evidence, and friction counts as evidence even where a working (if
+technically different) Compono alternative already exists.
+`Compono.Bogus` adoption is the one deliberate exception to
+migration-driven scoping — `cosmere-tracker`'s AutoFixture kit has no
+semantic-data concept at all, but ADR-0029 mandates the migration adopt
+`Compono.Bogus` anyway, since Milestone 6's package otherwise has no
+real-project validation beyond its own sample project.
+Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
+
 ### Scope
 
-- Select one existing real-world project
-- Rewrite its tests using Compono
-- Record missing capabilities
-- Measure performance
-- Measure API friction
+- Select one existing real-world project — `ncipollina/cosmere-tracker`
+- Rewrite its tests using Compono, idiomatically rather than as a
+  mechanical AutoFixture translation, adopting the full package set
+  (`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`) —
+  `Compono.Bogus` is mandatory even though the source project has no
+  equivalent to migrate from
+- Record missing capabilities and positive findings — the three candidate
+  gaps above, plus any further finding the migration surfaces
+- Measure performance and broader maintainability (concepts introduced/
+  removed, setup visible per test, contributor-facing complexity)
+- Measure API friction, including friction where a technically different
+  Compono alternative already works
 - Refine diagnostics
-- Remove unnecessary abstractions
+- Remove unnecessary abstractions (documented, not assumed)
+- Classify every finding (bug / roadmap candidate / acceptable alternative
+  / intentional design difference / migration-only friction) per ADR-0029's
+  rubric, recorded in `docs/research/0001-autofixture-comparison.md` and
+  the resulting ADR(s)/Amendment(s)/bug-fix PR(s)
+- Produce `docs/migration/migrating-from-autofixture.md` (living, drafted
+  before migration starts, updated with every migration PR) and
+  `docs/roadmap/post-mvp.md` (evidence-backed, roadmap-candidate findings
+  only)
+- Answer ADR-0029's final architectural conclusion questions in Phase 4
 
 ### Success Measures
 
@@ -409,6 +451,16 @@ coverage and a real packaged `test/Compono.XunitV3.SampleTests` run
 - Most setup belongs in profiles rather than custom attributes
 - Failures are reproducible
 - Performance does not regress unacceptably
+- Every discovered finding has a recorded classification — not left open or
+  assumed into the roadmap by default
+- The research findings are a balanced assessment, recording where Compono
+  improved the suite as well as where it introduced friction
+- `docs/migration/migrating-from-autofixture.md` is substantially complete
+  by the end of Phase 4, needing only editorial cleanup
+- `docs/roadmap/post-mvp.md` exists and every entry traces to real migration
+  evidence
+- Phase 4's final architectural conclusion answers whether Compono is
+  suitable as the default AutoFixture replacement for `cosmere-tracker`
 
 ## Milestone 8: Public Preview
 
