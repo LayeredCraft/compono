@@ -187,24 +187,23 @@ public sealed class BogusConventionConfigurationTests
     }
 
     [Fact]
-    public void ExactCaseSensitiveMatching_ANameDifferingOnlyByCaseFromABuiltIn_IsNotRejectedAsACollision_AndDoesNotMatchTheBuiltIn()
+    public void ExactCaseSensitiveMatching_ANameDifferingOnlyByCaseFromABuiltIn_IsNotRejectedAsACollision_AndSurvivesTheMergeAsItsOwnDistinctEntry()
     {
         var descriptor = new CompositionRequestDescriptor(
             CompositionRequestKind.ConstructorParameter, ordinal: 0, "firstname", declaringType: null, Nullability.NotNullable);
 
-        var act = () => new BogusOptions().AddConvention("firstname", f => "custom-lowercase-firstname");
-        act.Should().NotThrow();
-
-        var withoutProvider = Composer.Create(builder => builder.WithSeed(4219))
+        // Registered through the real UseBogus(...) call this time (not a throwaway BogusOptions), so
+        // this proves the accepted lowercase entry actually survives CompositionBuilderExtensions'
+        // built-in/custom merge, not just that AddConvention's own eager validation accepts it.
+        var value = Composer.Create(builder => builder
+                .WithSeed(4219)
+                .UseBogus(options => options.AddConvention("firstname", _ => "custom-lowercase-firstname")))
             .CreateRow(typeof(BogusConventionConfigurationTests))
             .Resolve<string>(descriptor);
-        var withProvider = Composer.Create(builder => builder.WithSeed(4219).UseBogus())
-            .CreateRow(typeof(BogusConventionConfigurationTests))
-            .Resolve<string>(descriptor);
 
-        // "firstname" (lowercase) isn't itself configured on this UseBogus() call, so it still
-        // declines exactly like any other unlisted name - proving the built-in lookup's own case
-        // sensitivity, not just BogusOptions.AddAlias/AddConvention's.
-        withProvider.Should().Be(withoutProvider);
+        // Not rejected as a collision with the built-in "FirstName" entry, and resolves to the custom
+        // callback's own value - proving "firstname" and "FirstName" are merged as two distinct,
+        // case-sensitive keys, not one colliding pair.
+        value.Should().Be("custom-lowercase-firstname");
     }
 }

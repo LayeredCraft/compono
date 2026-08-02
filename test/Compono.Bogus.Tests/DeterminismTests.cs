@@ -44,11 +44,14 @@ public sealed class DeterminismTests
 
         var withUnrelatedSibling = Composer.Create(builder => builder.WithSeed(4219).UseBogus())
             .CreateRow(typeof(DeterminismTests));
-        var email = withUnrelatedSibling.Resolve<string>(EmailDescriptor);
-        // An unrelated sibling request on the same row, resolved after Email - each descriptor's own
-        // ordinal forks an independent path (ADR-0012), so resolving it doesn't change Email's already-
-        // produced value.
+        // An unrelated sibling request on the same row, resolved BEFORE Email - each descriptor's own
+        // ordinal forks an independent path (ADR-0012), so resolving it first must not perturb Email's
+        // own value. Resolving it after Email (as a prior version of this test did) would pass even
+        // under a broken, single-shared-sequential-randomizer implementation, since a later draw can't
+        // retroactively change an already-produced value - this order is what actually exercises the
+        // path-independence regression.
         withUnrelatedSibling.Resolve<string>(FirstNameDescriptor);
+        var email = withUnrelatedSibling.Resolve<string>(EmailDescriptor);
 
         email.Should().Be(baseline);
     }
