@@ -27,10 +27,15 @@ Per ADR-0029's Decision Outcome and `docs/mvp.md`'s Milestone 7 section:
 - Migrating `cosmere-tracker`'s `Cosmere.Tracker.TestKit` and its consuming
   test projects (`Cosmere.Tracker.Api.Tests`, `Cosmere.Tracker.Shared.Tests`,
   `Cosmere.Tracker.Seeder.Tests`) from AutoFixture/AutoFixture.AutoNSubstitute/
-  AutoFixture.Xunit3 to Compono/`Compono.XunitV3`/`Compono.NSubstitute`,
-  favoring idiomatic Compono over a mechanical 1:1 translation (ADR-0029's
-  "Migration idiom") — this happens in the `cosmere-tracker` repo, not this
-  one.
+  AutoFixture.Xunit3 to Compono/`Compono.XunitV3`/`Compono.NSubstitute`/
+  `Compono.Bogus`, favoring idiomatic Compono over a mechanical 1:1
+  translation (ADR-0029's "Migration idiom") — this happens in the
+  `cosmere-tracker` repo, not this one. `Compono.Bogus` adoption is
+  **mandatory**, per ADR-0029's "Compono.Bogus adoption is mandatory" —
+  unlike the other packages, there's no existing AutoFixture call site to
+  migrate away from, so it requires deliberate investigation of
+  `cosmere-tracker`'s domain models rather than falling out of the
+  migration automatically.
 - Recording quantitative and qualitative evidence — including positive
   findings, not only friction — for the three known gaps
   (`Freeze<HttpMessageHandler>` in `HttpClientSpecimenBuilder`,
@@ -78,17 +83,25 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       customizations, `AutoNSubstituteCustomization`, recursion behaviors,
       specimen builders, and any other concept `cosmere-tracker`'s test kit
       exercises) — drafted **before migration begins**, per ADR-0029's
-      "Required deliverables." Content per concept is filled in during
-      Phase 1, not now.
+      "Required deliverables." Reserve a section for `Compono.Bogus` even
+      though it has no AutoFixture-side concept to contrast against — it
+      documents an added capability, not a migrated one. Content per
+      concept is filled in during Phase 1, not now.
+- [ ] Survey `cosmere-tracker`'s domain models
+      (`src/Cosmere.Tracker.Shared/Models/**` and any DTOs under
+      `src/Cosmere.Tracker.Api/Dtos/**`) for string-typed members that
+      plausibly warrant realistic data (book titles, character names, world
+      names, etc.) — the starting candidate list for Phase 1's mandatory
+      `Compono.Bogus` adoption.
 
 ## Phase 1: Migrate the test kit
 
 **Status:** Not Started
 
 - [ ] Replace `Cosmere.Tracker.TestKit`'s AutoFixture package references
-      with `Compono`/`Compono.XunitV3`/`Compono.NSubstitute` (add
-      `Compono.Bogus` only if the migration finds a real use for semantic
-      values; not assumed up front).
+      with `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/
+      `Compono.Bogus` — `Compono.Bogus` inclusion is mandatory (ADR-0029),
+      not conditional on the migration happening to need it.
 - [ ] Replace `CosmereTrackerAutoDataAttribute`/
       `InlineCosmereTrackerAutoDataAttribute` with `[Compose<TProfile>]`/
       inline-plus-composed parameters, per
@@ -115,6 +128,16 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       Compono's construction-cycle failure actually fires during migration
       and what it took to resolve (restructure the graph, add an explicit
       registration, etc.) — gap 3's evidence.
+- [ ] Adopt `Compono.Bogus` against the Phase 0 candidate list — wire
+      `UseBogus()` into the migrated profile for members that match the
+      built-in convention allowlist, and use ADR-0028's
+      `BogusOptions.AddAlias`/`AddConvention` (or member-level
+      `UseBogus(faker => ...)`/whole-object `UseBogus<T>()`) for
+      `cosmere-tracker`-specific domain vocabulary the allowlist doesn't
+      cover. Record what worked, what needed a custom convention/alias, and
+      any member where no realistic-data adoption made sense — this
+      evidence is itself a Milestone 7 finding, classified like any other
+      (ADR-0029's "Compono.Bogus adoption is mandatory").
 - [ ] Record any further finding surfaced along the way that isn't one of
       the three named above, including positive findings (per ADR-0029's
       "Evidence to collect") and any bug (per "Bug handling" — fixed in its

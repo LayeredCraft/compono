@@ -73,6 +73,21 @@ actionable artifacts from that evidence while it's fresh — a migration
 guide and a roadmap — not just a backward-looking research record; see
 Decision Outcome's "Required deliverables" below.
 
+A third gap in this ADR's first design: `cosmere-tracker`'s AutoFixture
+test kit has no `Compono.Bogus` analog at all — it never generates
+semantic-looking data, only anonymous AutoFixture specimens. That absence
+is not a reason to skip `Compono.Bogus` in this migration. Milestone 6
+shipped `Compono.Bogus` but its only end-to-end verification so far is
+`test/Compono.XunitV3.SampleTests`, a sample project built to exercise the
+package, not a real, independently-motivated codebase. Milestone 7 is the
+first chance to dogfood `Compono.Bogus` against a real domain the package
+wasn't shaped around in advance — `cosmere-tracker`'s domain (books,
+characters, worlds) skews away from the built-in convention allowlist's
+person/contact bias (`FirstName`/`Email`/`StreetAddress`, etc.), which
+makes it a genuinely useful test of ADR-0028's configurable
+aliases/custom conventions, not just the happy path. See "Compono.Bogus
+adoption is mandatory" below.
+
 ## Decision Drivers
 
 - `docs/manifesto.md`'s explicit non-goal of AutoFixture feature parity —
@@ -106,6 +121,11 @@ Decision Outcome's "Required deliverables" below.
 - Bugs are a distinct outcome from capability gaps — a scenario that was
   already intended to work but doesn't is a defect to fix through the
   normal engineering workflow, not a design question for the rubric.
+- `docs/mvp.md`'s MVP success criterion 4 ("Bogus can provide deterministic
+  semantic values through an ancillary package") deserves the same
+  real-project validation the other packages get in this milestone — a
+  package having no AutoFixture analog in the source project is not a
+  reason to leave it undogfooded.
 
 ## Considered Options
 
@@ -287,6 +307,34 @@ forced merely to make Compono look better — an abstraction is only removed
 when its replacement is genuinely as good or better, and every removed
 abstraction is documented in the migration guide alongside what replaced it
 and why, so the decision is auditable rather than asserted.
+
+### Compono.Bogus adoption is mandatory
+
+Unlike the three named gaps above, `Compono.Bogus` isn't something
+`cosmere-tracker`'s AutoFixture kit already does and Compono does
+differently — it's a capability the source project simply never used, so
+migration-driven evidence alone would never surface it (there's no AutoFixture
+call site to migrate away from). This is the one deliberate exception to
+"only migrate what's there": the migration **must** identify real
+domain members in `cosmere-tracker`'s composed types (`src/Cosmere.Tracker.Shared/Models/**`
+and friends — `BookItem`, `CharacterWorldEdgeItem`, etc.) that would
+plausibly hold realistic string data, and adopt `UseBogus()`/member-level
+`UseBogus(faker => ...)`/`UseBogus<T>()` for them in the migrated profile,
+per [ADR-0027](0027-compono-bogus-package-design.md). Where
+`cosmere-tracker`'s domain vocabulary (book titles, character names, world
+names) doesn't match `Compono.Bogus`'s built-in person/contact-biased
+convention allowlist, this is treated as a real opportunity to exercise
+[ADR-0028](0028-configurable-bogus-member-name-conventions.md)'s
+`BogusOptions.AddAlias`/`AddConvention` mechanism against a real domain
+that mechanism wasn't designed with in mind — evidence from that usage is
+itself a valid Milestone 7 finding (classified per "Gap classification"
+above, same as any other), not exempt from the process just because it's
+mandatory. If, after real investigation, no domain member in
+`cosmere-tracker` can plausibly use `Compono.Bogus` at all, that finding
+itself — recorded with the reasoning, not silently skipped — satisfies this
+requirement; "mandatory" means the investigation and adoption attempt are
+required, not a fabricated `UseBogus()` call bolted onto an unrelated
+member just to check a box.
 
 ### Required deliverables
 
@@ -497,6 +545,11 @@ design and is not deferred.
 - [ADR-0025](0025-compono-nsubstitute-package-design.md) — governs
   `Compono.NSubstitute`'s "no recursive auto-configuration" non-goal; the
   likely Amendment target for gap 2 if it ends in "no change"
+- [ADR-0027](0027-compono-bogus-package-design.md)/[ADR-0028](0028-configurable-bogus-member-name-conventions.md) —
+  govern `Compono.Bogus`'s conventions and configurable aliases; the
+  package this ADR mandates be dogfooded even though `cosmere-tracker`'s
+  source AutoFixture kit has no equivalent usage to migrate from (see
+  "Compono.Bogus adoption is mandatory" above)
 - [ADR-0001](0001-source-generation-first.md) — the no-reflection-by-default
   constraint the rubric's "principle alignment" question checks against
 - `design-decisions.md` — the Amendment mechanic and `docs/research/`

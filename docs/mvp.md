@@ -411,13 +411,21 @@ these three is assumed into the roadmap merely because AutoFixture has
 them — each is classified by ADR-0029's rubric from real migration
 evidence, and friction counts as evidence even where a working (if
 technically different) Compono alternative already exists.
+`Compono.Bogus` adoption is the one deliberate exception to
+migration-driven scoping — `cosmere-tracker`'s AutoFixture kit has no
+semantic-data concept at all, but ADR-0029 mandates the migration adopt
+`Compono.Bogus` anyway, since Milestone 6's package otherwise has no
+real-project validation beyond its own sample project.
 Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
 
 ### Scope
 
 - Select one existing real-world project — `ncipollina/cosmere-tracker`
 - Rewrite its tests using Compono, idiomatically rather than as a
-  mechanical AutoFixture translation
+  mechanical AutoFixture translation, adopting the full package set
+  (`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`) —
+  `Compono.Bogus` is mandatory even though the source project has no
+  equivalent to migrate from
 - Record missing capabilities and positive findings — the three candidate
   gaps above, plus any further finding the migration surfaces
 - Measure performance and broader maintainability (concepts introduced/
