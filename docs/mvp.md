@@ -337,12 +337,16 @@ not an amendment to ADR-0027). All three ADRs are `Accepted`; tracked by
 `ICompositionContext.DeriveSeed()` is real, tested public API today.
 **`Compono.Bogus` itself (ADR-0027) is implemented (PLAN-0006 Phase 1)** —
 `BogusMemberNameProvider`/`BogusOptions`/`UseBogus()`/`UseBogus<T>()`/the
-member-rule `UseBogus(...)` sugar are real code, build-verified but not yet
-test-covered or end-to-end verified. **Configurable conventions (ADR-0028)
-are also implemented (PLAN-0006 Phase 2)** — `BogusConvention`,
+member-rule `UseBogus(...)` sugar are real code. **Configurable conventions
+(ADR-0028) are also implemented (PLAN-0006 Phase 2)** — `BogusConvention`,
 `BogusOptions.AddAlias`/`AddConvention`, and `BogusMemberNameProvider`'s
-merged-conventions constructor overload are real code, build-verified but
-not yet test-covered — see the plan's phase-by-phase status.
+merged-conventions constructor overload are real code. **`Compono.Bogus` is
+now test-covered and end-to-end verified (PLAN-0006 Phase 3)** —
+`Compono.Bogus.Tests` (60 tests × 2 TFMs) covers the base package,
+configurable conventions, `Compono.NSubstitute` coexistence (any call order),
+and `UseBogus<T>()`'s per-request lifetime/concurrency contract, and a real
+packaged `test/Compono.XunitV3.SampleTests` run proves this milestone's own
+Goal scenario end-to-end — see the plan's phase-by-phase status.
 
 ### Scope
 
@@ -381,9 +385,10 @@ A composed customer can receive realistic, deterministic values without the core
 package referencing Bogus — and `UseBogus()`/`UseNSubstitute()` compose in one
 profile, any call order, with no special ordering or package-to-package
 dependency, per [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)'s Goal
-scenario. Not yet met — `Compono.Bogus` itself is implemented (PLAN-0006 Phase 1),
-but test coverage and the real end-to-end packaged-consumer verification this
-exit criterion requires are still pending Phase 3.
+scenario. **Met** as of PLAN-0006 Phase 3 — `Compono.Bogus.Tests`' coexistence
+coverage and a real packaged `test/Compono.XunitV3.SampleTests` run
+(`BogusTests.Saves_order`) both verify this exit criterion directly. Phase 4
+(docs/cleanup) is the only remaining slice of this milestone.
 
 ## Milestone 7: Dogfooding
 
