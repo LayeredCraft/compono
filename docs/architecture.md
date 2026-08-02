@@ -870,7 +870,8 @@ by core `Compono` — **implemented, PLAN-0006 Phase 0**), [ADR-0027](adr/0027-c
 test coverage/end-to-end verification still pending Phase 3), [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
 (configurable member-name conventions — aliases and custom exact-name
 conventions on top of ADR-0027's fixed allowlist; a new ADR, not an amendment
-to ADR-0027; `Accepted`, **not yet implemented**) — see
+to ADR-0027 — **implemented, PLAN-0006 Phase 2**; build-verified only, test
+coverage still pending Phase 3) — see
 [PLAN-0006](plans/0006-milestone-6-bogus-integration.md) for the phase-by-phase
 account.
 

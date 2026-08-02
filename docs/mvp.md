@@ -339,7 +339,10 @@ not an amendment to ADR-0027). All three ADRs are `Accepted`; tracked by
 `BogusMemberNameProvider`/`BogusOptions`/`UseBogus()`/`UseBogus<T>()`/the
 member-rule `UseBogus(...)` sugar are real code, build-verified but not yet
 test-covered or end-to-end verified. **Configurable conventions (ADR-0028)
-are not yet implemented** — see the plan's phase-by-phase status.
+are also implemented (PLAN-0006 Phase 2)** — `BogusConvention`,
+`BogusOptions.AddAlias`/`AddConvention`, and `BogusMemberNameProvider`'s
+merged-conventions constructor overload are real code, build-verified but
+not yet test-covered — see the plan's phase-by-phase status.
 
 ### Scope
 

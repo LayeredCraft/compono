@@ -208,7 +208,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 2: Configurable member-name conventions (ADR-0028)
 
-**Status:** Not Started
+**Status:** Done
 
 Renumbered from the original 3-phase plan (Phase 2 "Test suites and
 verification" → Phase 3, Phase 3 "Docs and cleanup" → Phase 4) so
@@ -220,11 +220,11 @@ merges, before Phase 3's test suite (which should cover the complete
 `Compono.Bogus.Tests` surface — base package and configurable conventions
 together — in one coherent pass, per ADR-0028's Links section).
 
-- [ ] `BogusConvention` (public enum): `FirstName`, `LastName`, `FullName`,
+- [x] `BogusConvention` (public enum): `FirstName`, `LastName`, `FullName`,
       `Email`, `PhoneNumber`, `StreetAddress`, `City`, `State`, `PostalCode`,
       `CompanyName` — one member per existing built-in convention, no
       behavior beyond identity.
-- [ ] `BogusConventions` (new internal static class): the shared built-in
+- [x] `BogusConventions` (new internal static class): the shared built-in
       source of truth `BogusMemberNameProvider`'s hardcoded `Conventions`
       dictionary (Phase 1) moves to — `ByName`/`ByConvention`, both typed
       `IReadOnlyDictionary<...>` (collision checks/default lookup, and
@@ -232,21 +232,23 @@ together — in one coherent pass, per ADR-0028's Links section).
       readonly FrozenDictionary<...>` fields per `coding-standards.md`'s
       collection-surface rule (applies to `internal` members too, not just
       `public` ones — the concrete `FrozenDictionary` type never crosses
-      even this in-assembly boundary), both derived from one underlying set
-      so the ten generator delegates aren't duplicated.
-- [ ] `BogusOptions.AddAlias(string aliasName, BogusConvention target)`/
+      even this in-assembly boundary), both derived from one underlying
+      `(name, convention, generate)` tuple array so the ten generator
+      delegates aren't duplicated.
+- [x] `BogusOptions.AddAlias(string aliasName, BogusConvention target)`/
       `AddConvention(string memberName, Func<Faker, string> generate)`:
       eager validation performed by `AddAlias`/`AddConvention` against
       `BogusConventions.ByName` plus this instance's own private accumulator —
       `ArgumentNullException.ThrowIfNull` for a null name/`generate` (matching
       this repo's own established guard convention, `coding-standards.md`),
       `ArgumentException` for an empty/whitespace name or any duplicate or
-      collision (naming the conflicting member name, the existing mapping,
-      and the attempted mapping), `ArgumentOutOfRangeException` for an
-      undefined `BogusConvention` value. Both return `void` — matching
+      collision (naming the conflicting member name and whether it collided
+      with a built-in or an already-configured entry), `ArgumentOutOfRangeException`
+      for an undefined `BogusConvention` value. Both return `void` — matching
       `Locale`/`EnableMemberNameConventions`'s plain-property-setter shape, no
-      fluent chaining.
-- [ ] `BogusMemberNameProvider` gains a second, `internal` constructor
+      fluent chaining. Both share one private `AddCore` helper for the
+      validation/accumulation logic.
+- [x] `BogusMemberNameProvider` gains a second, `internal` constructor
       overload — `(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)`,
       called only by `CompositionBuilderExtensions.UseBogus(...)`, freezing
       its own copy internally (`conventions.ToFrozenDictionary()` unless
@@ -264,7 +266,7 @@ together — in one coherent pass, per ADR-0028's Links section).
       silently supporting the replace/remove-a-built-in capability this
       ADR declares a Non-Goal and bypassing `AddAlias`/`AddConvention`'s own
       eager validation entirely.
-- [ ] `CompositionBuilderExtensions.UseBogus(Action<BogusOptions> configure)`:
+- [x] `CompositionBuilderExtensions.UseBogus(Action<BogusOptions> configure)`:
       after `configure(options)` returns, merges `BogusConventions.ByName`
       with `options`'s own validated accumulator into one
       `FrozenDictionary<string, Func<Faker, string>>` (no further validation
@@ -274,7 +276,7 @@ together — in one coherent pass, per ADR-0028's Links section).
       provider is registered at all, aliases/custom conventions included
       (ADR-0028's explicit all-or-nothing scope; no partial mode in this
       version).
-- [ ] Explicitly **not** in this phase (ADR-0028 Non-Goals): cross-call/
+- [x] Explicitly **not** in this phase (ADR-0028 Non-Goals): cross-call/
       cross-profile conflict detection or merging across separate
       `UseBogus(...)` calls; any `CompositionBuilder` core change; replacing
       or removing a built-in convention; non-`string` custom conventions;
@@ -561,7 +563,51 @@ Options/Decision Outcome for the full account.
   already said `Compono.Bogus` was implemented) — same doc-staleness pattern
   PLAN-0005's review rounds caught repeatedly; fixed in the same PR.
 
-Phase 4 (docs/cleanup) hasn't started yet.
+**Phase 2 (Done):**
+
+- Implemented exactly per ADR-0028's final Decision Outcome — the version
+  that survived six rounds of design-PR review (`#34`), not the original
+  sketch. Concretely: `BogusMemberNameProvider`'s public one-arg constructor
+  is untouched and delegates to a new `internal` two-arg overload;
+  `BogusConventions.ByName`/`ByConvention` are `IReadOnlyDictionary`-typed
+  properties backed by `private` `FrozenDictionary` fields, not internal
+  `FrozenDictionary` fields directly; `AddAlias`/`AddConvention` throw
+  `ArgumentNullException` for a null name (never `ArgumentException`); the
+  internal constructor re-guards `locale`/`conventions` since the public one
+  now delegates through it.
+- `BogusConventions`' `ByNameCore`/`ByConventionCore` are both derived from
+  one canonical `(string Name, BogusConvention Convention, Func<Faker, string> Generate)[]`
+  array via `ToFrozenDictionary` — the ADR's own sketch showed two
+  independently-written dictionaries; consolidated to one array so the ten
+  generator lambdas exist exactly once, matching the ADR's own stated intent
+  ("both derived from one underlying set") rather than its literal code
+  sample.
+- `BogusOptions.AddAlias`/`AddConvention` share one private `AddCore(string
+  name, string paramName, Func<Faker, string> generate)` helper for the
+  null/whitespace/collision validation and accumulation — the two public
+  methods differ only in how they obtain `generate` (a direct parameter for
+  `AddConvention`, `BogusConventions.ByConvention[target]` for `AddAlias`,
+  after checking `Enum.IsDefined(target)`).
+- `CompositionBuilderExtensions.UseBogus(configure)` merges via a plain
+  `Dictionary<string, Func<Faker, string>>` seeded from `BogusConventions.ByName`,
+  then overwritten by `options.CustomConventions` (safe — `AddAlias`/
+  `AddConvention` already guarantee no key in `CustomConventions` collides
+  with a built-in name), frozen once via `.ToFrozenDictionary()` before
+  constructing `BogusMemberNameProvider`.
+- Hit the same `CS1574` (`<see cref>` to a sibling extension member doesn't
+  resolve) Phase 1 already found — this time on `BogusConventions`' own doc
+  comment referencing `CompositionBuilderExtensions.UseBogus()`. Same fix:
+  `<c>UseBogus()</c>` instead of `<see cref>`.
+- No test project yet (Phase 3) — build-verified only: whole-solution
+  `dotnet build`/`dotnet test` 734/734 (unchanged from Phase 1, since this
+  phase adds no tests), 0 warnings. Matches Phase 1's own precedent.
+- Human-in-the-loop implementation, per explicit user direction: presented
+  the concrete file-by-file plan (new files, exact modifications) before
+  writing any code, rather than proceeding straight to a PR/review loop as
+  the previous three phases did.
+
+Phase 4 (docs/cleanup) hasn't started yet, and Phase 3 (test suites) hasn't
+started yet either.
 ADR-0026/ADR-0027 reached `Accepted` on 2026-07-31, after a design review that
 resolved (in order): how Bogus's
 randomness should relate to ADR-0012's path-independence guarantee (a new,

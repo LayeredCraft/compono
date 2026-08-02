@@ -361,7 +361,8 @@ identical key is a build-time conflict, the same as a duplicate registration.
 Design: [ADR-0027](adr/0027-compono-bogus-package-design.md) — **implemented,
 PLAN-0006 Phase 1** (build-verified; test coverage/end-to-end verification
 pending Phase 3), [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
-(`Accepted`, not yet implemented — Phase 2), built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
+— **implemented, PLAN-0006 Phase 2** (build-verified; test coverage pending
+Phase 3), built on [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md)'s
 `ICompositionContext.DeriveSeed()` (**implemented, PLAN-0006 Phase 0** — see
 Deterministic Reproduction, below).
 `Compono.Bogus` has three independent customization models, not one, and a real
@@ -393,8 +394,8 @@ builder.UseBogus(options =>
 ```
 
 **Configurable conventions** — design: [ADR-0028](adr/0028-configurable-bogus-member-name-conventions.md)
-(`Accepted`, not yet implemented — see [PLAN-0006](plans/0006-milestone-6-bogus-integration.md)
-Phase 2). A domain that doesn't use the built-in allowlist's exact names, or
+— **implemented, PLAN-0006 Phase 2** (build-verified; test coverage pending
+Phase 3). A domain that doesn't use the built-in allowlist's exact names, or
 that has its own package-wide semantic name, can extend `UseBogus()` without
 repeating a member-level rule at every call site:
 

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Bogus;
 
 namespace Compono;
@@ -26,9 +27,17 @@ public static class CompositionBuilderExtensions
             var options = new BogusOptions();
             configure(options);
 
-            return options.EnableMemberNameConventions
-                ? builder.AddSemanticProvider(new BogusMemberNameProvider(options.Locale))
-                : builder;
+            if (!options.EnableMemberNameConventions)
+                return builder;
+
+            // AddAlias/AddConvention already guaranteed no duplicates or collisions eagerly, so this
+            // merge needs no further validation - every key in options.CustomConventions is
+            // guaranteed absent from BogusConventions.ByName.
+            var merged = new Dictionary<string, Func<Faker, string>>(BogusConventions.ByName);
+            foreach (var (name, generate) in options.CustomConventions)
+                merged[name] = generate;
+
+            return builder.AddSemanticProvider(new BogusMemberNameProvider(options.Locale, merged.ToFrozenDictionary()));
         }
 
         /// <summary>

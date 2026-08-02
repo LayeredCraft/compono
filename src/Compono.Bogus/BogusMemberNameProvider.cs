@@ -12,47 +12,50 @@ namespace Compono;
 /// </summary>
 public sealed class BogusMemberNameProvider : ICompositionValueProvider
 {
-    // Immutable, built once - a FrozenDictionary, not a plain Dictionary, since this is a fixed,
-    // read-only lookup table shared across every request this provider ever handles. Exact match,
-    // case-sensitive, against CompositionProviderRequest.Name only - no substring/prefix/fuzzy
-    // matching, and no attempt at pluralization or synonym handling. "Name" itself (ambiguous per
-    // docs/mvp.md's own callout) is deliberately absent from this allowlist.
-    private static readonly FrozenDictionary<string, Func<Faker, string>> Conventions =
-        new Dictionary<string, Func<Faker, string>>
-        {
-            ["FirstName"] = f => f.Name.FirstName(),
-            ["LastName"] = f => f.Name.LastName(),
-            ["FullName"] = f => f.Name.FullName(),
-            ["Email"] = f => f.Internet.Email(),
-            ["PhoneNumber"] = f => f.Phone.PhoneNumber(),
-            ["StreetAddress"] = f => f.Address.StreetAddress(),
-            ["City"] = f => f.Address.City(),
-            ["State"] = f => f.Address.State(),
-            ["PostalCode"] = f => f.Address.ZipCode(),
-            ["CompanyName"] = f => f.Company.CompanyName(),
-        }.ToFrozenDictionary();
-
     private readonly string _locale;
+
+    // Immutable, built once - a FrozenDictionary, not a plain Dictionary, since this is a fixed,
+    // read-only lookup for the lifetime of this provider instance. Exact match, case-sensitive,
+    // against CompositionProviderRequest.Name only - no substring/prefix/fuzzy matching, and no
+    // attempt at pluralization or synonym handling. "Name" itself (ambiguous per docs/mvp.md's own
+    // callout) is deliberately absent from the built-in allowlist this always contains at minimum.
+    private readonly FrozenDictionary<string, Func<Faker, string>> _conventions;
 
     /// <summary>Creates a <see cref="BogusMemberNameProvider"/> using <paramref name="locale"/>.</summary>
     /// <param name="locale">The Bogus locale each handled request's own <see cref="Faker"/> uses.</param>
     public BogusMemberNameProvider(string locale)
+        : this(locale, BogusConventions.ByName)
+    {
+    }
+
+    // New, internal only (ADR-0028) - the merged-conventions path CompositionBuilderExtensions.UseBogus
+    // uses. Deliberately not public: a public overload would let a caller construct the provider with
+    // an arbitrary dictionary that omits or remaps a built-in name, silently supporting the
+    // replace/remove-a-built-in capability ADR-0028 declares a Non-Goal, and bypassing
+    // BogusOptions.AddAlias/AddConvention's own eager validation entirely. Keeping this overload
+    // internal means the only way to reach it is through UseBogus(...), which always starts from
+    // BogusConventions.ByName and only ever adds to it via the validated AddAlias/AddConvention path.
+    internal BogusMemberNameProvider(string locale, IReadOnlyDictionary<string, Func<Faker, string>> conventions)
     {
         ArgumentNullException.ThrowIfNull(locale);
+        ArgumentNullException.ThrowIfNull(conventions);
         _locale = locale;
+        _conventions = conventions as FrozenDictionary<string, Func<Faker, string>>
+            ?? conventions.ToFrozenDictionary();
     }
 
     /// <inheritdoc />
     public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
     {
-        // Type-gated to string only - every convention in the allowlist above produces a string, so
-        // this provider can never claim an interface, delegate, or abstract-class request. That's
-        // what makes coexistence with Compono.NSubstitute's stage-6 provider automatic: the two
-        // providers claim disjoint request shapes by construction, with no coordination needed.
+        // Type-gated to string only - every convention (built-in, alias, or custom) produces a
+        // string, so this provider can never claim an interface, delegate, or abstract-class
+        // request. That's what makes coexistence with Compono.NSubstitute's stage-6 provider
+        // automatic: the two providers claim disjoint request shapes by construction, with no
+        // coordination needed.
         if (request.RequestedType != typeof(string) || request.Name is not { } name)
             return CompositionProviderResult.NotHandled;
 
-        if (!Conventions.TryGetValue(name, out var generate))
+        if (!_conventions.TryGetValue(name, out var generate))
             return CompositionProviderResult.NotHandled;
 
         // A fresh Faker/Randomizer per handled request, seeded from context.DeriveSeed() - never a
