@@ -55,6 +55,24 @@ migration surfaces — not the answer itself for any of them; each gap's
 actual outcome is recorded separately (see Decision Outcome's "Where
 outcomes get recorded").
 
+The user's own stated objective sharpens this further: the practical goal
+is to actually replace AutoFixture with Compono across their own
+repositories, not merely to produce a research artifact. The milestone's
+central question is therefore:
+
+> Can Compono replace AutoFixture in this real repository while keeping
+> the tests readable, maintainable, predictable, and reasonably concise?
+
+That framing has two consequences this ADR's first design missed. First,
+"Compono can technically do this a different way" is not a reason to
+exclude something from the evidence — a gap is real evidence if it
+prevents a clean replacement or makes the result materially less readable,
+concise, or maintainable, even when a working (if less pleasant) Compono
+equivalent exists. Second, the milestone needs to produce durable,
+actionable artifacts from that evidence while it's fresh — a migration
+guide and a roadmap — not just a backward-looking research record; see
+Decision Outcome's "Required deliverables" below.
+
 ## Decision Drivers
 
 - `docs/manifesto.md`'s explicit non-goal of AutoFixture feature parity —
@@ -73,6 +91,21 @@ outcomes get recorded").
   cost/benefit tally.
 - The three gaps above are the known starting set, not a closed list — the
   real migration may surface others; the framework has to generalize.
+- The practical objective is a real AutoFixture replacement, not just a
+  research exercise — friction is real evidence even where a technically-
+  different Compono API already produces a working result (see Context's
+  central question above).
+- A "no change" or "acceptable alternative" outcome is only credible if the
+  milestone also captures what Compono did well — a process that only
+  records friction can't support a balanced "should this repo actually
+  switch" conclusion.
+- Migration decisions and their rationale need to be captured *while the
+  context is fresh* — reconstructing "why we chose X over Y" from memory
+  after the milestone closes produces a worse, less trustworthy record than
+  capturing it in the PR that made the decision.
+- Bugs are a distinct outcome from capability gaps — a scenario that was
+  already intended to work but doesn't is a defect to fix through the
+  normal engineering workflow, not a design question for the rubric.
 
 ## Considered Options
 
@@ -147,36 +180,148 @@ confirmation of one that already exists.
 
 Every candidate gap — the three named above, and any further one the
 migration surfaces — is decided using the same four questions, all
-answered from evidence gathered during the real migration:
+answered from evidence gathered during the real migration. The questions
+inform which of the five classifications below applies; they are not a
+pre-filter for whether something counts as evidence at all (per the
+Context's central question and this ADR's Decision Drivers) — a gap that
+survives question 3 (a workaround exists) is still recorded and classified,
+not discarded.
 
 1. **Observed frequency.** How many real, distinct places in
    `cosmere-tracker`'s test kit or tests actually needed this behavior —
    not "could plausibly use it," but did, in the code as it stood before
    migration.
-2. **Workaround cost.** Concretely, in the migrated code, what did
+2. **Was this scenario ever intended to work as AutoFixture's behavior
+   suggests?** If Compono's documented/`Accepted`-ADR behavior already
+   claims to support the scenario and it doesn't work, that's a bug, not a
+   design question — see "Bug handling" below, and skip the remaining
+   questions.
+3. **Workaround cost.** Concretely, in the migrated code, what did
    Compono's existing explicit alternative cost — extra constructor/method
    parameters, extra lines, a `[Shared]`-typed parameter appearing in a
    test signature that previously had one fewer thing to read — shown as a
-   real before/after snippet, not a hypothetical one.
-3. **Principle alignment.** Would satisfying this gap require reflection
+   real before/after snippet, not a hypothetical one. A low or zero cost
+   here (the replacement stays pleasant) points toward "acceptable
+   alternative"; a real, material cost points toward "roadmap candidate" or
+   "intentional design difference," decided by question 4.
+4. **Principle alignment.** Would satisfying this gap require reflection
    or hidden state that conflicts with
    [ADR-0001](0001-source-generation-first.md)'s no-reflection-by-default
    posture, or with this repo's explicit-over-implicit bias
    (`docs/manifesto.md`)? A gap that can only be closed by working against
-   an existing constraint needs a much higher bar on the first two
-   questions to justify it.
-4. **Net readability/predictability delta.** Would removing this specific
-   friction plausibly make the migrated tests easier to read and reason
-   about by more than the explicitness it would cost — an actual judgment
-   call on the real migrated code, not an abstract API-design preference.
+   an existing constraint needs a much higher bar on frequency and cost to
+   become a roadmap candidate rather than an intentional design
+   difference.
 
-The rubric's output is one of exactly two outcomes per gap — "roadmap
-candidate" (a new `Proposed` ADR sketching the problem, left for a future
-milestone to design the actual API) or "intentional design difference" (a
-dated Amendment to the governing existing ADR, recording the evidence and
-why Compono's current behavior stays as-is). There is no third "maybe"
-outcome; Milestone 7's job is to close each gap out one way or the other,
-even if the roadmap candidate outcome defers the actual design work.
+### Gap classification
+
+Every discovered finding — not only the three named gaps — gets exactly
+one of five classifications, each with its own recording mechanism:
+
+1. **Bug** — the scenario was already intended to work (per an existing
+   `Accepted` ADR or documented behavior) but doesn't. Fixed through the
+   normal engineering workflow (its own scoped PR in this repo, following
+   `tasks/implement.md`/`pr-review.md` as usual), not the rubric. Still
+   recorded in the Milestone 7 research doc, since it affected replacement
+   suitability during migration. Does **not** need a new capability ADR —
+   restoring already-intended behavior isn't a new design decision. See
+   "Bug handling" below and PLAN-0007's Notes section.
+2. **Roadmap candidate** — Compono genuinely needs a new capability. A new
+   `Proposed` ADR records the problem only (per this ADR's own restraint
+   below) for a future milestone's design pass.
+3. **Acceptable Compono-native alternative** — a different API than
+   AutoFixture's, but the replacement remains pleasant (low workaround
+   cost, no material readability loss). Recorded in the research doc and
+   the migration guide (see "Required deliverables" below); no ADR or
+   Amendment needed — there's no decision to make, just a pattern to
+   document for the next migrator.
+4. **Intentional design difference** — supporting the AutoFixture behavior
+   would conflict with Compono's principles or impose disproportionate
+   complexity relative to its observed value. A dated Amendment to the
+   governing existing ADR (ADR-0011/ADR-0022 for gaps 1/3, ADR-0025 for gap
+   2, or whichever ADR governs a newly-discovered gap) records the evidence
+   and the "no change" verdict.
+5. **Migration-only friction** — the pain occurs during conversion but does
+   not remain in the resulting Compono test suite (e.g., a one-time
+   mechanical translation step). This does **not** mean the friction was
+   excluded from consideration — it was evaluated like every other finding
+   and only ended up here because the evidence showed it doesn't persist.
+   Recorded in the research doc and, where it'll help the next migrator, as
+   a tip in the migration guide; no ADR or Amendment needed.
+
+There is no unclassified or dropped finding; Milestone 7's job is to close
+every discovered gap out into exactly one of these five categories, even
+where "roadmap candidate" defers the actual design work.
+
+### Bug handling
+
+A blocking bug discovered during migration does not have to be worked
+around merely to preserve "Milestone 7 adds no product code" — that
+statement was this ADR's original simplifying assumption, not a hard
+constraint (see PLAN-0007's Test Plan). Concretely:
+
+- A blocking bug may be fixed during Milestone 7 through its own scoped PR
+  in this repo, following the normal `tasks/implement.md`/`tasks/pr-review.md`
+  workflow — it is not gated behind ADR-0029/PLAN-0007's own review cycle.
+- The bug and its impact on the migration are still documented in the
+  Milestone 7 research doc, classification "Bug" (see "Gap classification"
+  above).
+- A bug that merely restores already-intended behavior does not need a new
+  capability ADR — there is no new design decision, only a defect
+  correction against an existing `Accepted` ADR.
+- PLAN-0007's Notes section records any such implementation detour, linked
+  to its issue/PR, so the plan's history stays accurate about *how* the
+  milestone actually proceeded.
+
+### Migration idiom
+
+The migration prefers idiomatic Compono over mechanically recreating
+AutoFixture's architecture with renamed APIs — the point of dogfooding is
+to discover what a *good* Compono-based test kit looks like, not to produce
+a literal translation. `CosmereTrackerAutoDataAttribute`,
+`BaseFixtureFactory`, `HttpClientSpecimenBuilder`, and
+`CosmereTrackerCustomization` are not automatically preserved if a profile,
+a registration, a provider, or `[Compose<TProfile>]` makes the custom
+abstraction unnecessary. This cuts the other way too: simplification is not
+forced merely to make Compono look better — an abstraction is only removed
+when its replacement is genuinely as good or better, and every removed
+abstraction is documented in the migration guide alongside what replaced it
+and why, so the decision is auditable rather than asserted.
+
+### Required deliverables
+
+Two additional documents are first-class Milestone 7 deliverables, not
+after-the-fact write-ups:
+
+- **`docs/migration/migrating-from-autofixture.md`** — the migration guide,
+  and the primary artifact a real AutoFixture user reaches for when moving
+  to Compono. It is a **living document**, not a final-phase deliverable:
+  its planned structure and the major AutoFixture concepts expected to be
+  migrated (`Freeze<T>()`, `AutoDataAttribute`/customizations,
+  `AutoNSubstituteCustomization`, recursion behaviors, specimen builders,
+  and any other concept `cosmere-tracker`'s test kit exercises) are drafted
+  **before migration begins** (PLAN-0007 Phase 0). It is then updated
+  **alongside the code, in every migration PR** — every meaningful
+  migration decision is captured while the context is fresh, not
+  reconstructed from memory afterward. For each AutoFixture concept it
+  covers: the AutoFixture approach, the Compono approach, why the Compono
+  approach was chosen, whether the result is better/equivalent/a tradeoff,
+  links to the relevant ADR(s)/research findings, and before-and-after code
+  examples — drawn from the real `cosmere-tracker` migration wherever
+  possible, not synthetic ones. By the time Milestone 7's Phase 4 closes,
+  this guide is already substantially complete; only editorial cleanup
+  remains.
+- **`docs/roadmap/post-mvp.md`** — an evidence-backed roadmap generated
+  directly from Milestone 7's findings, not a wish list. Only findings
+  classified "roadmap candidate" (per "Gap classification" above) appear
+  here — bugs get fixed, intentional design differences and acceptable
+  alternatives do not become roadmap items. Every entry traces back to the
+  migration guide, the research findings, and its capability-gap decision
+  (the `Proposed` ADR that recorded it), and captures at minimum: the
+  capability, why it matters, how frequently it occurred during migration,
+  its impact on readability/maintainability, and a relative priority (high/
+  medium/low confidence). This becomes the starting point for post-MVP
+  planning rather than requiring a re-read of all the underlying research.
 
 ### Where the migration happens
 
@@ -191,27 +336,103 @@ links to the specific `cosmere-tracker` commit(s)/branch the evidence was
 drawn from, so the trail is followable without vendoring the other repo's
 history into this one.
 
+### Evidence to collect
+
+Line counts and `dotnet test` run time alone under-measure the MVP's
+"pleasant to maintain" success criterion (`docs/mvp.md`). Baseline and
+post-migration comparison also record, per `docs/research/0001-autofixture-comparison.md`:
+
+- Framework-specific concepts removed, and Compono-specific concepts
+  introduced, with a rough count of each.
+- Custom fixture infrastructure removed vs. retained (and why, per
+  "Migration idiom" above).
+- Number of reusable profiles/providers/registrations the migrated suite
+  actually needed.
+- How much setup is visible in individual test methods/signatures (the
+  `[Shared] HttpMessageHandler`-in-every-signature question from gap 1 is a
+  direct instance of this).
+- Whether a given change made behavior more explicit in a genuinely helpful
+  way, or just more verbose — a judgment call recorded with its reasoning,
+  not just a verdict.
+- Whether a new contributor to the migrated suite would need to understand
+  more or fewer concepts than before.
+
+This produces a **balanced assessment**, not only a friction log: the
+research doc explicitly records where Compono improved the suite — e.g.
+profiles replacing custom `AutoData` attribute classes, deterministic seed
+reproduction, clearer dependency-path failures, explicit provider
+precedence, fewer fixture-specific abstractions, simpler NSubstitute setup,
+or readability gained by removing hidden fixture behavior — with the same
+rigor as its friction findings, not as an afterthought.
+
+### Final architectural conclusion
+
+Milestone 7's closing phase (PLAN-0007 Phase 4) explicitly answers whether
+dogfooding changed Compono's overall design direction, not just whether
+each individual gap was decided:
+
+- Whether any manifesto or design-principle language should change as a
+  result.
+- Whether the migration strengthened or weakened confidence in
+  explicit-over-implicit as Compono's default posture.
+- Whether profiles remained the right primary configuration mechanism for
+  a real project's needs.
+- Whether the public provider model (ADR-0024) was sufficient for real
+  application-specific customization, or strained anywhere.
+- Whether any MVP success criterion (`docs/mvp.md`) should be revised in
+  light of real evidence.
+- Whether Compono is now suitable as the default AutoFixture replacement
+  for new tests in `cosmere-tracker` specifically.
+
+### Evidence-driven restraint
+
+This milestone still does not design the API for hidden shared values,
+recursive substitute configuration, recursion omission, or any newly
+discovered "roadmap candidate" capability — that restraint from this ADR's
+original design is unchanged by the above. A roadmap-candidate outcome
+produces only a problem-focused `Proposed` ADR; the actual API design
+belongs in a later deep-design milestone, per `design-decisions.md`'s deep-
+dive process. The one exception is a **blocking bug** (see "Bug handling"
+above): fixing a bug that restores already-intended behavior is not API
+design and is not deferred.
+
 ### Positive Consequences
 
-- A gap can genuinely end in "no change" without that outcome being
-  invisible or undiscoverable later — it's a real, indexed Amendment.
-- The rubric generalizes to any further gap the migration turns up beyond
-  the three named here, so this ADR doesn't need to be revisited for a new
-  candidate discovered mid-migration.
+- A gap can genuinely end in "no change" (either "acceptable alternative"
+  or "intentional design difference") without that outcome being invisible
+  or undiscoverable later — it's a real, indexed record.
+- The rubric and five-way classification generalize to any further finding
+  the migration turns up beyond the three named here, so this ADR doesn't
+  need to be revisited for a new candidate discovered mid-migration.
 - Reusing `design-decisions.md`'s existing mechanics (ADR, Amendment,
-  research doc) means Milestone 7 needs no new process infrastructure.
+  research doc) means Milestone 7 needs no new process infrastructure
+  beyond the two required deliverables (migration guide, roadmap).
+- The migration guide and roadmap being living, phase-gated deliverables
+  means Milestone 7 produces durably useful documentation as a byproduct
+  of the work itself, not a separate write-up task competing for attention
+  after the "real" work is done.
+- Capturing positive findings alongside friction supports an honest answer
+  to the milestone's central question, rather than a report that only ever
+  argues for expanding Compono's surface area.
 
 ### Negative Consequences
 
-- Migration-driven evidence means the three gaps' verdicts land at
-  different points in the migration (whenever the relevant code is
-  reached), not all at once — accepted, per the rationale above.
+- Migration-driven evidence means gap verdicts land at different points in
+  the migration (whenever the relevant code is reached), not all at once —
+  accepted, per the rationale above.
 - A "roadmap candidate" outcome produces a `Proposed` ADR with no design
-  content beyond the problem statement (per the user's explicit
-  instruction not to design the hidden-shared-values API yet) — that ADR
-  will need its own later design pass (deep dive, per `design-decisions.md`)
-  before it can move to `Accepted`. This is intentional, not a gap in this
-  ADR.
+  content beyond the problem statement (per "Evidence-driven restraint"
+  above) — that ADR will need its own later design pass (deep dive, per
+  `design-decisions.md`) before it can move to `Accepted`. This is
+  intentional, not a gap in this ADR.
+- Requiring the migration guide to be updated in every migration PR adds
+  real overhead to each PR in `cosmere-tracker` — accepted, because the
+  alternative (reconstructing rationale after the fact) was explicitly
+  rejected as producing a worse record.
+- A blocking bug fixed mid-milestone means PLAN-0007's "no product code"
+  framing doesn't hold universally — mitigated by "Bug handling" above
+  making the exception explicit rather than leaving it to be discovered
+  and worked around.
 
 ## Pros and Cons of the Options
 
@@ -282,3 +503,8 @@ history into this one.
   convention this ADR reuses rather than reinventing
 - `git@github.com:ncipollina/cosmere-tracker.git` — the real project being
   migrated; not part of this monorepo
+- `docs/migration/migrating-from-autofixture.md` — the migration guide
+  required by "Required deliverables" above (created in PLAN-0007 Phase 0,
+  living through Phase 3)
+- `docs/roadmap/post-mvp.md` — the evidence-backed roadmap required by
+  "Required deliverables" above (created in PLAN-0007 Phase 3)

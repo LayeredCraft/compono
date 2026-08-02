@@ -3,19 +3,22 @@
 **Status:** Not Started
 
 **Implements:** [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
-(dogfooding strategy, migration-driven evidence, gap decision rubric,
-where outcomes get recorded)
+(dogfooding strategy, migration-driven evidence, gap decision rubric and
+five-way classification, required deliverables, bug handling, evidence-
+driven restraint)
 
 ## Goal
 
 `ncipollina/cosmere-tracker`'s AutoFixture-based test kit
-(`test/Cosmere.Tracker.TestKit`) is fully migrated to Compono, evidence is
-collected per ADR-0029's rubric, and each of the three known candidate
-gaps (hidden shared values, NSubstitute `ConfigureMembers`, recursion
-omission) — plus any further gap the migration surfaces — has a recorded
-outcome: either a new `Proposed` ADR (roadmap candidate) or a dated
-Amendment to the governing existing ADR (intentional design difference).
-`docs/mvp.md`'s Milestone 7 section reflects the outcome.
+(`test/Cosmere.Tracker.TestKit`) is fully, idiomatically migrated to
+Compono; every discovered finding (the three known candidate gaps plus any
+further one surfaced) is classified per ADR-0029 (bug / roadmap candidate /
+acceptable alternative / intentional design difference / migration-only
+friction) and recorded; `docs/migration/migrating-from-autofixture.md` is
+substantially complete; `docs/roadmap/post-mvp.md` exists and traces every
+entry to real evidence; and Phase 4's final architectural conclusion
+answers whether dogfooding changed Compono's overall design direction.
+`docs/mvp.md`'s Milestone 7 section reflects all of the above.
 
 ## Scope
 
@@ -24,38 +27,59 @@ Per ADR-0029's Decision Outcome and `docs/mvp.md`'s Milestone 7 section:
 - Migrating `cosmere-tracker`'s `Cosmere.Tracker.TestKit` and its consuming
   test projects (`Cosmere.Tracker.Api.Tests`, `Cosmere.Tracker.Shared.Tests`,
   `Cosmere.Tracker.Seeder.Tests`) from AutoFixture/AutoFixture.AutoNSubstitute/
-  AutoFixture.Xunit3 to Compono/`Compono.XunitV3`/`Compono.NSubstitute`
-  — this happens in the `cosmere-tracker` repo, not this one.
-- Recording quantitative and qualitative evidence for the three known gaps
+  AutoFixture.Xunit3 to Compono/`Compono.XunitV3`/`Compono.NSubstitute`,
+  favoring idiomatic Compono over a mechanical 1:1 translation (ADR-0029's
+  "Migration idiom") — this happens in the `cosmere-tracker` repo, not this
+  one.
+- Recording quantitative and qualitative evidence — including positive
+  findings, not only friction — for the three known gaps
   (`Freeze<HttpMessageHandler>` in `HttpClientSpecimenBuilder`,
   `AutoNSubstituteCustomization { ConfigureMembers = true }` in
   `BaseFixtureFactory`, `OmitOnRecursionBehavior` in the same factory) and
-  any additional gap the migration turns up.
-- Applying ADR-0029's rubric to each gap and producing its recorded outcome
-  in this repo (`docs/research/0001-autofixture-comparison.md` plus the
-  resulting ADR(s)/Amendment(s)).
-- Updating `docs/mvp.md`'s Milestone 7 section with the outcome.
+  any additional finding the migration turns up, per ADR-0029's "Evidence
+  to collect."
+- Applying ADR-0029's rubric to classify every finding and producing its
+  recorded outcome in this repo (`docs/research/0001-autofixture-comparison.md`
+  plus the resulting ADR(s)/Amendment(s)/bug-fix PR(s)).
+- Writing and maintaining `docs/migration/migrating-from-autofixture.md` as
+  a living document throughout the migration, not after it.
+- Producing `docs/roadmap/post-mvp.md` from only the "roadmap candidate"
+  findings.
+- Updating `docs/mvp.md`'s Milestone 7 section with the outcome, including
+  the Phase 4 final architectural conclusion.
 
-Explicitly deferred (per the user's own framing and ADR-0029): designing
-the actual API for any gap that ends in "roadmap candidate" — that gap's
-`Proposed` ADR records the problem only, left for a future milestone's own
-design pass.
+Explicitly deferred (per ADR-0029's "Evidence-driven restraint"): designing
+the actual API for any finding classified "roadmap candidate" — that
+finding's `Proposed` ADR records the problem only, left for a future
+milestone's own design pass. The one exception is a blocking bug, which may
+be fixed in its own scoped PR per ADR-0029's "Bug handling."
 
-## Phase 0: Baseline
+## Phase 0: Baseline and migration-guide skeleton
 
 **Status:** Not Started
 
 - [ ] In `cosmere-tracker`: capture a written baseline of the current
-      AutoFixture-based test kit before any Compono change — file/line
-      counts for `Cosmere.Tracker.TestKit`, count of `[CosmereTrackerAutoData]`/
-      `[InlineCosmereTrackerAutoData]` call sites across the 18 test files,
-      current `dotnet test` run time, and a short readability note per
-      existing fixture-related file (`BaseFixtureFactory`,
-      `CosmereTrackerCustomization`, `HttpClientSpecimenBuilder`,
-      `HttpClientSpecification`).
+      AutoFixture-based test kit before any Compono change, per ADR-0029's
+      "Evidence to collect" — file/line counts for `Cosmere.Tracker.TestKit`,
+      count of `[CosmereTrackerAutoData]`/`[InlineCosmereTrackerAutoData]`
+      call sites across the 18 test files, current `dotnet test` run time, a
+      short readability note per existing fixture-related file
+      (`BaseFixtureFactory`, `CosmereTrackerCustomization`,
+      `HttpClientSpecimenBuilder`, `HttpClientSpecification`), and the
+      broader maintainability dimensions (framework-specific concepts in
+      play, custom fixture infrastructure present, setup visible per test
+      method, concepts a new contributor would need to know today).
 - [ ] Confirm the exact `cosmere-tracker` commit this baseline was taken
       against (for `docs/research/0001-autofixture-comparison.md`'s link
       back).
+- [ ] Create `docs/migration/migrating-from-autofixture.md` in this repo
+      with its planned structure and the major AutoFixture concepts
+      expected to be migrated (`Freeze<T>()`, `AutoDataAttribute`/
+      customizations, `AutoNSubstituteCustomization`, recursion behaviors,
+      specimen builders, and any other concept `cosmere-tracker`'s test kit
+      exercises) — drafted **before migration begins**, per ADR-0029's
+      "Required deliverables." Content per concept is filled in during
+      Phase 1, not now.
 
 ## Phase 1: Migrate the test kit
 
@@ -68,14 +92,21 @@ design pass.
 - [ ] Replace `CosmereTrackerAutoDataAttribute`/
       `InlineCosmereTrackerAutoDataAttribute` with `[Compose<TProfile>]`/
       inline-plus-composed parameters, per
-      [ADR-0022](../adr/0022-compono-xunit-package-design.md)'s shape.
+      [ADR-0022](../adr/0022-compono-xunit-package-design.md)'s shape —
+      preferring the idiomatic Compono shape over preserving the custom
+      attribute wrapper if it's no longer pulling its weight (ADR-0029's
+      "Migration idiom"); if it's removed, document what replaced it and
+      why in the migration guide.
 - [ ] Port `CosmereTrackerCustomization`'s intent into an
-      `ICompositionProfile` ([ADR-0018](../adr/0018-composition-profiles.md)).
+      `ICompositionProfile` ([ADR-0018](../adr/0018-composition-profiles.md)),
+      same idiom-over-mechanical-translation preference.
 - [ ] Migrate `HttpClientSpecimenBuilder`'s frozen-`HttpMessageHandler`
       pattern using Compono's current explicit mechanism — a `[Shared]
       HttpMessageHandler` parameter plus a registration/rule producing the
-      configured `HttpClient` — recording exactly what this costs relative
-      to the original `Freeze<T>()` call (gap 1's evidence).
+      configured `HttpClient` — recording the real before/after and its
+      classification (gap 1's evidence; friction from requiring the
+      parameter in every relevant signature counts as evidence even though
+      a working replacement exists, per ADR-0029's central question).
 - [ ] Migrate `AutoNSubstituteCustomization { ConfigureMembers = true }`
       usages to `UseNSubstitute()`, recording every call site where a test
       previously relied on an auto-configured substitute member and now
@@ -84,46 +115,83 @@ design pass.
       Compono's construction-cycle failure actually fires during migration
       and what it took to resolve (restructure the graph, add an explicit
       registration, etc.) — gap 3's evidence.
-- [ ] Record any further capability gap surfaced along the way that isn't
-      one of the three named above.
+- [ ] Record any further finding surfaced along the way that isn't one of
+      the three named above, including positive findings (per ADR-0029's
+      "Evidence to collect") and any bug (per "Bug handling" — fixed in its
+      own scoped compono PR, linked from this plan's Notes section).
+- [ ] Update `docs/migration/migrating-from-autofixture.md` in the same PR
+      as each meaningful migration decision — not batched to the end of
+      this phase. Each entry: AutoFixture approach, Compono approach, why
+      it was chosen, better/equivalent/tradeoff verdict, links to the
+      relevant ADR/research finding, and a real before/after snippet from
+      `cosmere-tracker`.
 
 ## Phase 2: Evidence collection
 
 **Status:** Not Started
 
-- [ ] Post-migration metrics matching Phase 0's baseline shape: file/line
-      counts, `dotnet test` run time, per-file readability notes — enough
-      to compare directly against the baseline.
-- [ ] Per-gap evidence dossier (frequency, before/after snippet, principle-
-      alignment note) for each of the three known gaps plus any additional
-      one found, per ADR-0029's rubric.
+- [ ] Post-migration metrics matching Phase 0's baseline shape (file/line
+      counts, `dotnet test` run time, per-file readability notes, and the
+      broader maintainability dimensions from ADR-0029's "Evidence to
+      collect") — enough to compare directly against the baseline.
+- [ ] Per-finding evidence dossier (frequency, before/after snippet,
+      principle-alignment note, classification per ADR-0029's five-way
+      taxonomy) for each of the three known gaps plus any additional
+      finding, including positive findings.
 
-## Phase 3: Gap decisions
+## Phase 3: Classify findings and produce the roadmap
 
 **Status:** Not Started
 
 - [ ] Create `docs/research/0001-autofixture-comparison.md` (first use of
       this directory) with the dogfooding narrative, Phase 0/2's baseline
-      and post-migration metrics, and each gap's evidence.
-- [ ] Apply ADR-0029's rubric to each gap; for each, either:
-      - open a new `Proposed` ADR recording the problem only (roadmap
-        candidate), or
-      - append a dated Amendment to the governing existing ADR (ADR-0011/
-        ADR-0022 for gaps 1/3, ADR-0025 for gap 2) recording the evidence
-        and the "no change" verdict.
+      and post-migration metrics, positive findings, and every finding's
+      evidence and classification.
+- [ ] Classify every finding per ADR-0029's five-way taxonomy and record
+      its outcome:
+      - **Bug** — fixed via its own scoped compono PR (if not already done
+        during Phase 1), documented here, no new capability ADR, linked
+        from PLAN-0007's Notes.
+      - **Roadmap candidate** — a new `Proposed` ADR recording the problem
+        only.
+      - **Acceptable Compono-native alternative** — documented here and in
+        the migration guide; no ADR/Amendment.
+      - **Intentional design difference** — a dated Amendment to the
+        governing existing ADR (ADR-0011/ADR-0022 for gaps 1/3, ADR-0025
+        for gap 2, or whichever ADR governs a newly-discovered gap).
+      - **Migration-only friction** — documented here and, where useful, as
+        a migration-guide tip; no ADR/Amendment.
 - [ ] Close `docs/research/0001-autofixture-comparison.md` with a
-      `## Decisions` section listing exactly which ADR(s)/Amendment(s)
-      each gap fed into.
+      `## Decisions` section listing exactly which ADR(s)/Amendment(s)/
+      bug-fix PR(s) each finding fed into.
+- [ ] Create `docs/roadmap/post-mvp.md` from only the "roadmap candidate"
+      findings — per finding: capability, why it matters, observed
+      frequency, readability/maintainability impact, and a relative
+      priority (high/medium/low confidence) — each entry tracing back to
+      the migration guide, the research findings, and its `Proposed` ADR.
 
-## Phase 4: Docs and cleanup
+## Phase 4: Final conclusion, docs, and cleanup
 
 **Status:** Not Started
 
-- [ ] `docs/mvp.md` Milestone 7 section: links ADR-0029, PLAN-0007, and
-      `docs/research/0001-autofixture-comparison.md`; states the outcome
-      per gap; success measures checked against the real migration
-      evidence (readability, understandability, profile-first setup,
-      reproducible failures, performance).
+- [ ] Answer ADR-0029's "Final architectural conclusion" questions in
+      `docs/research/0001-autofixture-comparison.md` (or a dedicated
+      closing section): manifesto/design-principle language changes,
+      confidence in explicit-over-implicit, whether profiles remained the
+      right primary mechanism, whether the public provider model was
+      sufficient, any MVP success-criterion revisions, and whether Compono
+      is now the default AutoFixture replacement for `cosmere-tracker`.
+- [ ] `docs/migration/migrating-from-autofixture.md`: confirm it needs only
+      editorial cleanup at this point, not new content reconstruction — if
+      it doesn't, that's a sign Phase 1's "update alongside the code" rule
+      wasn't followed and should be fixed before closing the milestone.
+- [ ] `docs/mvp.md` Milestone 7 section: links ADR-0029, PLAN-0007,
+      `docs/research/0001-autofixture-comparison.md`,
+      `docs/migration/migrating-from-autofixture.md`, and
+      `docs/roadmap/post-mvp.md`; states the outcome per finding; success
+      measures checked against the real migration evidence (readability,
+      understandability, profile-first setup, reproducible failures,
+      performance); records the final architectural conclusion.
 - [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows for any new
       ADR(s) opened in Phase 3 (already added for ADR-0029/PLAN-0007
       during the design phase).
@@ -134,11 +202,17 @@ In `compono` (this repo):
 
 - `docs/adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md` —
   the process this plan executes
+- `docs/migration/migrating-from-autofixture.md` — new, drafted Phase 0,
+  written incrementally through Phase 1, substantially complete by Phase 4
 - `docs/research/0001-autofixture-comparison.md` — new, the evidence
   record (Phase 3)
-- New `docs/adr/00NN-*.md` for any "roadmap candidate" gap outcome
+- `docs/roadmap/post-mvp.md` — new, the evidence-backed roadmap (Phase 3)
+- New `docs/adr/00NN-*.md` for any "roadmap candidate" finding
 - `docs/adr/0011-...md`/`docs/adr/0022-...md`/`docs/adr/0025-...md` — gain
-  dated Amendments for any "intentional design difference" gap outcome
+  dated Amendments for any "intentional design difference" finding
+- Any scoped bug-fix PR's changed files in this repo, if a blocking bug is
+  found (per ADR-0029's "Bug handling") — linked from this plan's Notes,
+  not enumerated here in advance since it isn't known yet
 - `docs/mvp.md` — Milestone 7 section (Phase 4)
 
 In `cosmere-tracker` (separate repo, not tracked by this plan's Critical
@@ -152,15 +226,21 @@ Files beyond noting where the work happens):
 ## Test Plan
 
 The migrated `cosmere-tracker` test suites passing under Compono, in that
-repo, is itself the primary verification — there is no new automated test
-added to the `compono` repo by this plan (it produces documentation and
-decision records, not product code). If a gap's outcome is a "roadmap
-candidate" that later gets designed and implemented in a future milestone,
-that future milestone's own plan carries its test plan, per `testing.md`.
+repo, is itself the primary verification. This plan does not itself add
+product code to the `compono` repo — but per ADR-0029's "Bug handling," a
+blocking bug discovered during migration may be fixed here through its own
+scoped PR, following that PR's own normal test plan
+(`tasks/implement.md`/`testing.md`), tracked in this plan's Notes rather
+than pre-declared here since it isn't known in advance. If a finding's
+outcome is a "roadmap candidate" that later gets designed and implemented
+in a future milestone, that future milestone's own plan carries its test
+plan, per `testing.md`.
 
 ## Notes
 
 Anything discovered mid-migration that changes this plan's shape from what
 was originally scoped gets recorded here, not silently absorbed — a plan
 being wrong about *how* doesn't require superseding anything, unlike an
-ADR being wrong about *what/why*.
+ADR being wrong about *what/why*. Any blocking-bug detour (ADR-0029's "Bug
+handling") is recorded here with a link to its issue/PR as soon as it
+happens, not reconstructed later.
