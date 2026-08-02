@@ -1,6 +1,6 @@
 # [PLAN-0006] Milestone 6: Bogus Integration
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0026](../adr/0026-deterministic-seed-derivation-for-providers.md)
 (core capability: `ICompositionContext.DeriveSeed()`), [ADR-0027](../adr/0027-compono-bogus-package-design.md)
@@ -380,21 +380,23 @@ together — in one coherent pass, per ADR-0028's Links section).
 
 ### Phase 4: Docs and cleanup
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `docs/mvp.md` Milestone 6 section: links ADR-0026/ADR-0027/ADR-0028/PLAN-0006,
+- [x] `docs/mvp.md` Milestone 6 section: links ADR-0026/ADR-0027/ADR-0028/PLAN-0006,
       states implementation status per phase, matching Milestone 5's own
       phase-by-phase doc-update pattern (update in the PR that actually ships
-      each phase, not deferred wholesale to this final phase).
-- [ ] `docs/architecture.md`: `ICompositionContext`'s conceptual sketch gains
+      each phase, not deferred wholesale to this final phase). Verified
+      complete — already carried per-phase during Phases 0-3.
+- [x] `docs/architecture.md`: `ICompositionContext`'s conceptual sketch gains
       `DeriveSeed()`; stage 5's Resolution Pipeline row and the stages-4/5/6/7
       summary paragraph stop describing stage 5 as unconditionally empty;
       `Compono.Bogus` Package Boundaries entry gains a real `Owns` list
       (including `BogusConvention`/`BogusConventions`), Design line, and
       implementation status, matching `Compono.NSubstitute`'s entry shape; the
       Open Architectural Decisions "public provider extensibility" entry
-      notes both stage 5 and stage 6 now have real registrants.
-- [ ] `docs/public-api.md`: Bogus Integration section replaced with the real
+      notes both stage 5 and stage 6 now have real registrants. Verified
+      complete — already carried per-phase during Phases 0-2.
+- [x] `docs/public-api.md`: Bogus Integration section replaced with the real
       three-model design (convention provider, member-level `UseBogus(faker => ...)`,
       whole-object `UseBogus<T>(...)`) — the `context.Semantic.Email()` sketch
       and the `.DependsOn(...)` sketch both removed/reframed per ADR-0027 —
@@ -402,8 +404,9 @@ together — in one coherent pass, per ADR-0028's Links section).
       `AddConvention`) and its documented cross-call limitation; Naming
       Vocabulary gains `BogusMemberNameProvider`/`BogusOptions`/
       `BogusConvention` if warranted; Diagnostics/Deterministic Reproduction
-      sections cross-reference `DeriveSeed()`.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows (already added
+      sections cross-reference `DeriveSeed()`. Verified complete — already
+      carried per-phase during Phases 0-2.
+- [x] `docs/adr/README.md`/`docs/plans/README.md` index rows (already added
       during the design phase).
 
 ## Critical Files
