@@ -57,13 +57,23 @@ removed entirely; nothing replaced them as a named type, since
 The four wrapper classes existed purely to bind a specific `IFixture` factory
 to an attribute; Compono has no equivalent indirection to wrap.
 
-**Positive finding — a pure-inline `[Theory]` needs no Compono attribute at
-all.** `TextNormalizerTests` had 7 `[InlineCosmereTrackerAutoData(...)]` rows
-where every parameter was supplied inline (no AutoFixture-composed value was
-ever used) — AutoFixture still required routing through the
-`InlineAutoDataAttribute` subclass regardless. Compono's `[Compose]` only
-applies where a parameter is actually composed; when every value is inline,
-plain xUnit `[InlineData]` is correct and simpler:
+**Project-local cleanup — a pure-inline `[Theory]` needs no Compono
+attribute at all.** `TextNormalizerTests` had 7
+`[InlineCosmereTrackerAutoData(...)]` rows where every parameter was
+supplied inline (no AutoFixture-composed value was ever used).
+`InlineCosmereTrackerAutoDataAttribute` was `cosmere-tracker`'s own
+wrapper, though, not something AutoFixture required — plain xUnit
+`[InlineData]` was already available and would have worked identically
+before this migration too; nothing about AutoFixture forced routing
+through the custom subclass for a row with no composed parameter at all
+(per
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-9--pure-inline-theory-rows-needed-no-autodataattribute-wrapper-even-before-migration-project-local-cleanup)'s
+Finding 9, migration-only friction, not a framework capability
+difference). What migration did do here is remove that redundant
+project-local wrapper: `[Compose]` is method-scoped
+(`AttributeTargets.Method`), not parameter-scoped, so a fully inline row
+with no parameter left to compose needs no Compose-family attribute at
+all — plain `[InlineData]` is correct and simpler:
 
 ```csharp
 // Before (AutoFixture)

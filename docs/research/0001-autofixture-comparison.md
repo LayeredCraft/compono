@@ -349,122 +349,129 @@ signal.
 ## Concepts removed entirely (Phase 2)
 
 Per [ADR-0029 Amendment 2](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-2-2026-08-02-removed-concepts-get-their-own-explicit-inventory-not-just-a-count),
-an explicit named inventory, not just a count — which of the following
-disappeared entirely after migration versus were merely replaced
-one-for-one, and what (if anything) replaced each:
+an explicit named inventory, not just a count — split into two distinct
+lists per Amendment 2's own wording, since only the first demonstrates a
+real reduction in conceptual complexity; a one-for-one replacement is a
+different (also worth recording) kind of finding, not evidence of
+elimination. Matches the migration guide's own removed-vs-replaced table
+structure.
 
-- **`IFixture`** — disappeared entirely. No Compono equivalent exists or
-  is needed; `CompositionBuilder` is configured directly per profile, with
-  no central fixture object threading through the kit.
-- **`ICustomization`** — the type itself disappeared, but it has a named
-  successor, so this is a replacement, not an elimination:
-  `ICompositionProfile` — not one-for-one in shape, though: a profile is
-  a plain class with a `Configure(CompositionBuilder)` method, not an
-  extensibility interface layered on top of a fixture; there's no
-  `Customize(IFixture)` equivalent to implement.
-- **`ISpecimenBuilder`** — the type itself disappeared, but it has a named
-  successor, so this is a replacement, not an elimination:
-  `builder.Register<T>(Func<ICompositionContext, T>)` for hand-built
-  values and `builder.UseBogus<T>(Action<Faker<T>>)` for Bogus-generated
-  ones — direct factory functions instead of a builder interface
-  participating in AutoFixture's specimen-resolution pipeline.
-- **`IRequestSpecification`** — disappeared entirely, with nothing
-  replacing it. It existed solely to let `HttpClientSpecimenBuilder`
-  detect "this parameter wants an `HttpClient`" during specimen
-  resolution; Compono's compile-time `[Compose]` parameter typing makes
-  that runtime type-matching step unnecessary. (Its removal is entangled
-  with `CMP0001` — see the per-finding dossier below.)
-- **`Freeze<T>()`/`[Frozen]`** — disappeared at most of its ~30 call
-  sites, replaced one-for-one with `[Shared]` where genuine sharing
-  existed. Endpoint tests (`ListWorldsEndpointTests`, etc.) used
+### Eliminated entirely — no Compono successor
+
+- **`IFixture`** — no Compono equivalent exists or is needed;
+  `CompositionBuilder` is configured directly per profile, with no
+  central fixture object threading through the kit.
+- **`IRequestSpecification`** — nothing replaces it. It existed solely to
+  let `HttpClientSpecimenBuilder` detect "this parameter wants an
+  `HttpClient`" during specimen resolution; Compono's compile-time
+  `[Compose]` parameter typing makes that runtime type-matching step
+  unnecessary. (Its removal is entangled with `CMP0001` — see the
+  per-finding dossier below.)
+- **`BaseFixtureFactory` and other fixture-factory infrastructure** —
+  eliminated, including its `ThrowingRecursionBehavior`→
+  `OmitOnRecursionBehavior` swap and
+  `AutoNSubstituteCustomization { ConfigureMembers = true }` call.
+  `OmitOnRecursionBehavior`'s *configurability* has no successor —
+  Compono has no per-composition switch to opt into silent omission on a
+  construction cycle — but recursion itself isn't absent: generated
+  composition plans do recursively resolve dependencies, and a genuine
+  construction cycle is detected and fails fast with a path-annotated
+  `CompositionException`
+  ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md)) —
+  a real behavior change, not a like-for-like replacement, so it stays in
+  this list; see gap 3's dossier entry below for the evidence (zero
+  cycles were actually exercised by this migration). `ConfigureMembers`'s
+  member-auto-stubbing switch also has no successor at all (contrast with
+  `AutoNSubstituteCustomization`'s *substitute-creation* half, which does
+  — see the Replaced list below).
+- **`NamedRequest`** — nothing replaces it. It existed to let specimen
+  builders make name-aware decisions during AutoFixture's
+  request-resolution pipeline; Compono's `Register<T>`/`UseBogus<T>`
+  factories are typed directly per domain type; there's no generic
+  "named request" concept for a factory to inspect.
+- **`CosmereTrackerCustomization`** — confirming Phase 0's prediction: it
+  was already a no-op with commented-out examples at baseline, and Phase
+  1 confirmed no consumer needed a project-wide extension hook at that
+  layer, so it was dropped rather than migrated (per ADR-0029's
+  "migration idiom" — idiomatic Compono over mechanical translation).
+  Nothing replaces it because nothing needed replacing.
+- **`DynamoDbResponseSpecimenBuilder`** (not in the original starting
+  list — surfaced during Phase 1) — documented explicitly in
+  `PersistenceTestProfile`'s XML remarks: it composed a `PartiqlPage` as
+  a test parameter, but no test in the project ever requested one that
+  way; every real usage constructed `PartiqlPage` directly in the test
+  body. Zero real call sites, dropped with nothing replacing it —
+  alongside gap 1's `HttpClientSpecimenBuilder` finding of the same
+  shape (which *is* replaced — see below).
+
+### Replaced one-for-one — a named Compono successor exists
+
+- **`ICustomization`** → `ICompositionProfile` — not one-for-one in
+  shape, though: a profile is a plain class with a
+  `Configure(CompositionBuilder)` method, not an extensibility interface
+  layered on top of a fixture; there's no `Customize(IFixture)`
+  equivalent to implement.
+- **`ISpecimenBuilder`** → `builder.Register<T>(Func<ICompositionContext, T>)`
+  for hand-built values and `builder.UseBogus<T>(Action<Faker<T>>)` for
+  Bogus-generated ones — direct factory functions instead of a builder
+  interface participating in AutoFixture's specimen-resolution pipeline.
+- **`Freeze<T>()`/`[Frozen]`** → `[Shared]`, but only where genuine
+  sharing existed — most of its ~30 call sites don't actually belong in
+  this list. Endpoint tests (`ListWorldsEndpointTests`, etc.) used
   `[Frozen] ICosmereTrackerRepository repo` purely to obtain a substitute
   — no reuse elsewhere in the composition — so post-migration those
   parameters need no annotation at all (Compono composes an interface to
-  a substitute automatically once `UseNSubstitute()` is active); this is
-  the majority case, a clean elimination rather than a replacement.
-  Persistence tests (`GetWorldByIdAsync_UsesPkSkPartiql`, etc.) used
+  a substitute automatically once `UseNSubstitute()` is active); that
+  majority case is a clean elimination, not a replacement, and belongs
+  conceptually with the list above even though it's the same source
+  attribute as the real replacement below. Persistence tests
+  (`GetWorldByIdAsync_UsesPkSkPartiql`, etc.) used
   `[Frozen] IDynamoPartiqlClient partiql` where the same substitute
   instance genuinely needed to be visible for both auto-construction
-  (`sut`) and stubbing — there, `[Shared] IDynamoPartiqlClient partiql` is
-  the direct equivalent. See the migration guide's "NSubstitute
-  `ConfigureMembers`" section for the full before/after of both cases.
+  (`sut`) and stubbing — there, `[Shared] IDynamoPartiqlClient partiql`
+  is the direct one-for-one equivalent, which is why this entry is listed
+  here. See the migration guide's "NSubstitute `ConfigureMembers`"
+  section for the full before/after of both cases.
 - **The custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses**
-  (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`,
-  and the previously-unlisted `EndpointAutoDataAttribute`/
+  (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`, and the
+  previously-unlisted `EndpointAutoDataAttribute`/
   `PersistenceAutoDataAttribute` local-kit equivalents surfaced during
-  Phase 1) — the subclasses themselves disappeared, but they have a named
-  successor, so this is a replacement, not an elimination:
-  `[Compose]`/`[Compose<TProfile>]`, which are Compono.XunitV3 framework
-  attributes, not per-project subclasses — no equivalent *custom*
-  attribute class exists anywhere in the migrated kit, but the capability
-  they provided (routing a test through the project's fixture setup) has
-  a direct, named replacement, unlike the entries above that have none.
-- **`BaseFixtureFactory` and other fixture-factory infrastructure** —
-  disappeared entirely, including its
-  `ThrowingRecursionBehavior`→`OmitOnRecursionBehavior` swap and
-  `AutoNSubstituteCustomization { ConfigureMembers = true }` call.
-  `OmitOnRecursionBehavior`'s *configurability* disappeared — Compono has
-  no per-composition switch to opt into silent omission on a construction
-  cycle — but recursion itself isn't absent: generated composition plans
-  do recursively resolve dependencies, and a genuine construction cycle is
-  detected and fails fast with a path-annotated `CompositionException`
-  ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md)).
-  The actual replacement is fail-fast diagnostics for the cycle case, not
-  an absence of recursion; see gap 3's dossier entry below for the
-  evidence (zero cycles were actually exercised by this migration). No
-  `ConfigureMembers`-style global auto-stubbing switch exists either;
-  `UseNSubstitute()` registers NSubstitute as the provider for interface
-  types, full stop — narrower in scope than `BaseFixtureFactory`'s
-  combined behavior, but not because Compono can't recurse.
-- **`NamedRequest`** — disappeared entirely, with nothing replacing it. It
-  existed to let specimen builders make name-aware decisions during
-  AutoFixture's request-resolution pipeline; Compono's `Register<T>`/
-  `UseBogus<T>` factories are typed directly per domain type; there's no
-  generic "named request" concept for a factory to inspect.
-- **`CosmereTrackerCustomization`** — disappeared entirely, confirming
-  Phase 0's prediction: it was already a no-op with commented-out examples
-  at baseline, and Phase 1 confirmed no consumer needed a project-wide
-  extension hook at that layer, so it was dropped rather than migrated
-  (per ADR-0029's "migration idiom" — idiomatic Compono over mechanical
-  translation).
-- **`DynamoDbResponseSpecimenBuilder`** (not in the original starting
-  list — surfaced during Phase 1) — disappeared entirely, documented
-  explicitly in `PersistenceTestProfile`'s XML remarks: it composed a
-  `PartiqlPage` as a test parameter, but no test in the project ever
-  requested one that way; every real usage constructed `PartiqlPage`
-  directly in the test body. Zero real call sites, alongside gap 1's
-  `HttpClientSpecimenBuilder` finding of the same shape.
-- **Not removed — carried forward unchanged:**
-  `HttpMessageHandlerExtensions.ReturnsResponse` (the reflection-based
-  NSubstitute stubbing helper) ported as-is; it was never an AutoFixture
-  concept, so migration didn't touch it.
-- **Not removed — replaced one-for-one, not eliminated:**
-  `HttpClientSpecimenBuilder`/`HttpClientSpecification` →
+  Phase 1) → `[Compose]`/`[Compose<TProfile>]`, which are Compono.XunitV3
+  framework attributes, not per-project subclasses — no equivalent
+  *custom* attribute class exists anywhere in the migrated kit, but the
+  capability they provided (routing a test through the project's fixture
+  setup) has a direct, named replacement.
+- **`HttpClientSpecimenBuilder`/`HttpClientSpecification`** →
   `ClientTestProfile`/`IHttpClientProvider`. Kept by explicit request
   despite zero current call sites, because it's a capability needed for
   future tests — this is the one baseline concept pair that survived the
   migration in spirit (frozen-handler-backed `HttpClient` composition)
   while changing mechanism entirely (see the per-finding dossier below).
-- **`SpecimenBuilderHash`** — disappeared entirely, replaced one-for-one:
-  the hand-rolled SHA256 hash-prefix helper it used for deterministic
-  values became `Bogus.Randomizer`/`Faker<T>.UseSeed` — Compono.Bogus's
-  own deterministic-seed mechanism (`context.DeriveSeed()`), not a custom
-  hash helper.
-- **`DynamoDbOptionsSpecimenBuilder`** — disappeared entirely, replaced
-  one-for-one. Unlike `DynamoDbResponseSpecimenBuilder` above, this one
-  had a real, load-bearing call site — `CosmereTrackerRepository`'s
-  constructor requires `IOptions<DynamoDbOptions>` whenever `sut` is
-  composed — and became a straightforward
-  `builder.Register<IOptions<DynamoDbOptions>>(() => ...)` call in
-  `PersistenceTestProfile`.
+- **`SpecimenBuilderHash`** → `Bogus.Randomizer`/`Faker<T>.UseSeed` —
+  Compono.Bogus's own deterministic-seed mechanism
+  (`context.DeriveSeed()`) replaces the hand-rolled SHA256 hash-prefix
+  helper it used for deterministic values, not a custom hash helper.
+- **`DynamoDbOptionsSpecimenBuilder`** → `builder.Register<IOptions<DynamoDbOptions>>(() => ...)`
+  in `PersistenceTestProfile`. Unlike `DynamoDbResponseSpecimenBuilder`
+  above, this one had a real, load-bearing call site —
+  `CosmereTrackerRepository`'s constructor requires
+  `IOptions<DynamoDbOptions>` whenever `sut` is composed.
 - **`AutoNSubstituteCustomization`'s substitute-creation half** (distinct
-  from its member-auto-configuration half, already covered under
-  `BaseFixtureFactory` above) — disappeared, replaced one-for-one by
-  `builder.UseNSubstitute()`: one line per profile, registering
-  NSubstitute as the provider for interface types. The two halves of
-  `AutoNSubstituteCustomization` had different fates — substitute
-  creation itself carried over cleanly; member auto-configuration
-  (`ConfigureMembers = true`) did not, per gap 2's dossier entry.
+  from its member-auto-configuration half, which has no successor — see
+  `BaseFixtureFactory` above) → `builder.UseNSubstitute()`: one line per
+  profile, registering NSubstitute as the provider for interface types.
+  The two halves of `AutoNSubstituteCustomization` had different fates —
+  substitute creation itself carried over cleanly; member
+  auto-configuration (`ConfigureMembers = true`) did not, per gap 2's
+  dossier entry.
+
+### Neither — carried forward unchanged
+
+- **`HttpMessageHandlerExtensions.ReturnsResponse`** (the reflection-based
+  NSubstitute stubbing helper) — ported as-is; it was never an
+  AutoFixture concept, so migration didn't touch it. Not eliminated (it
+  still exists) and not a replacement (nothing about it changed) — a
+  third category distinct from both lists above.
 
 ## Per-finding evidence dossier (Phase 2)
 
