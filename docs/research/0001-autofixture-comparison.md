@@ -232,8 +232,10 @@ signal.
 
 - **`SharedTestKitProfile.cs`** (132 lines, the largest single file) —
   denser than any individual baseline file, but the density is
-  concentrated in one place instead of spread across four
-  (`SharedCustomization` + three domain-item specimen builders +
+  concentrated in one place instead of spread across six
+  (`SharedCustomization`, the four domain-item specimen builders —
+  `BookItemSpecimenBuilder`/`CharacterItemSpecimenBuilder`/
+  `WorldItemSpecimenBuilder`/`EdgeItemSpecimenBuilder` — and
   `SpecimenBuilderHash`): one `Configure` method wires all three
   `UseBogus<T>()` calls plus six edge-item `Register<T>` calls, and each
   domain type's faker rules live in one adjacent private method
@@ -304,8 +306,10 @@ signal.
 - **Concepts a new contributor needs today:** the 7 Compono-family
   concepts above, plus (unchanged from baseline) knowing which of the
   three fixture-kit tiers to extend for a given change — the tier-count
-  didn't shrink, but each tier is now a single, self-contained profile
-  class rather than a customization/specimen-builder/attribute trio.
+  didn't shrink, and (per "Custom fixture infrastructure present" above)
+  only the shared and per-suite local tiers are a single, self-contained
+  profile class; the base tier's configuration entry point is a profile
+  but the tier itself still carries supporting types alongside it.
 
 ## Concepts removed entirely (Phase 2)
 
@@ -428,21 +432,39 @@ call.
 
 ### Gap 1 — frozen `HttpMessageHandler` for `HttpClient` composition
 
-- **Frequency:** 0 real call sites for `[ClientAutoData]`/
-  `[InlineClientAutoData]` anywhere in `cosmere-tracker` outside
-  `Cosmere.Tracker.TestKit`'s own definition files (confirmed Phase 1).
-  The capability was migrated anyway, by explicit request, since it's
-  needed for future HTTP-client tests.
+- **Frequency:** two distinct populations, not one. (a) 0 real call sites
+  for `[ClientAutoData]`/`[InlineClientAutoData]` specifically —
+  `HttpClientSpecimenBuilder`'s hidden-frozen-`HttpMessageHandler` pattern
+  ADR-0029 originally framed this gap around — anywhere in `cosmere-tracker`
+  outside `Cosmere.Tracker.TestKit`'s own definition files (confirmed
+  Phase 1); migrated anyway, by explicit request, since it's needed for
+  future HTTP-client tests. (b) `Freeze<T>()`/`[Frozen]` more broadly
+  (ADR-0029's actual gap-1 framing — "hidden shared values") has ~30 real
+  call sites project-wide. Most of those (endpoint tests) used `[Frozen]`
+  purely to obtain a substitute, with no real sharing — Compono needs no
+  annotation there at all. A real subset (persistence tests, e.g.
+  `GetWorldByIdAsync_UsesPkSkPartiql`) used `[Frozen] IDynamoPartiqlClient
+  partiql` for genuine sharing (the same substitute instance visible for
+  both auto-construction and stubbing), migrated directly to
+  `[Shared] IDynamoPartiqlClient partiql` — this is gap 1's real,
+  exercised evidence: explicit `[Shared]` is a direct, low-cost
+  replacement for AutoFixture's hidden-frozen-value idiom where genuine
+  sharing existed. (The same call sites also inform gap 2's
+  `ConfigureMembers` analysis below, for the unstubbed-call behavior
+  those tests separately depend on — this entry is about the sharing
+  mechanism, gap 2 is about the auto-configuration behavior.)
 - **Before/after:** see the migration guide's gap 1 section for the full
-  `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute` before-snippet;
-  after is `ClientTestProfile` (`test/Cosmere.Tracker.TestKit/Profiles/ClientTestProfile.cs`)
+  `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute` before-snippet
+  (population (a)) and its "NSubstitute `ConfigureMembers`" section for
+  the `[Frozen]`→`[Shared]` before/after (population (b)); after for (a)
+  is `ClientTestProfile` (`test/Cosmere.Tracker.TestKit/Profiles/ClientTestProfile.cs`)
   + `IHttpClientProvider` (`test/Cosmere.Tracker.TestKit/Http/IHttpClientProvider.cs`).
-- **Principle-alignment note:** the migrated form makes the frozen-handler
-  relationship an explicit, composable dependency (`IHttpClientProvider`
-  resolved from a shared `HttpMessageHandler`) rather than an
-  attribute-hidden specimen-resolution rule — aligns with Compono's
-  explicit-composition design principle, at the cost of needing an
-  interface indirection `HttpClient` itself can't satisfy (see `CMP0001`
+- **Principle-alignment note:** for (a), the migrated form makes the
+  frozen-handler relationship an explicit, composable dependency
+  (`IHttpClientProvider` resolved from a shared `HttpMessageHandler`)
+  rather than an attribute-hidden specimen-resolution rule — aligns with
+  Compono's explicit-composition design principle, at the cost of needing
+  an interface indirection `HttpClient` itself can't satisfy (see `CMP0001`
   below).
 - **Lean classification:** intentional design difference — the frozen
   handler pattern maps to a real Compono construct with equivalent
