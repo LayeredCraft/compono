@@ -251,7 +251,7 @@ signal.
   The latter is a documented compiler limitation with a doc-comment
   pointing at ADR-0002; the former had no equivalent signpost anywhere in
   the baseline code.
-- **`EndpointTestProfile.cs`** (11 lines) / **`PersistenceTestProfile.cs`**
+- **`EndpointTestProfile.cs`** (19 lines) / **`PersistenceTestProfile.cs`**
   (38 lines, including its documented decision not to port
   `DynamoDbResponseSpecimenBuilder`) — both replace the baseline's
   per-suite local kit tier (`EndpointAutoDataAttribute`,
@@ -352,14 +352,20 @@ one-for-one, and what (if anything) replaced each:
 - **`BaseFixtureFactory` and other fixture-factory infrastructure** —
   disappeared entirely, including its
   `ThrowingRecursionBehavior`→`OmitOnRecursionBehavior` swap and
-  `AutoNSubstituteCustomization { ConfigureMembers = true }` call. Compono
-  has no recursion-behavior concept (it doesn't recursively populate
-  object graphs the way AutoFixture's engine does) and no
-  `ConfigureMembers`-style global auto-stubbing switch; `UseNSubstitute()`
-  registers NSubstitute as the provider for interface types, full stop —
-  narrower in scope, nothing replaces the recursion-behavior swap because
-  nothing in Compono's model produces the recursion `BaseFixtureFactory`
-  was defending against.
+  `AutoNSubstituteCustomization { ConfigureMembers = true }` call.
+  `OmitOnRecursionBehavior`'s *configurability* disappeared — Compono has
+  no per-composition switch to opt into silent omission on a construction
+  cycle — but recursion itself isn't absent: generated composition plans
+  do recursively resolve dependencies, and a genuine construction cycle is
+  detected and fails fast with a path-annotated `CompositionException`
+  ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md)).
+  The actual replacement is fail-fast diagnostics for the cycle case, not
+  an absence of recursion; see gap 3's dossier entry below for the
+  evidence (zero cycles were actually exercised by this migration). No
+  `ConfigureMembers`-style global auto-stubbing switch exists either;
+  `UseNSubstitute()` registers NSubstitute as the provider for interface
+  types, full stop — narrower in scope than `BaseFixtureFactory`'s
+  combined behavior, but not because Compono can't recurse.
 - **`NamedRequest`** — disappeared entirely, with nothing replacing it. It
   existed to let specimen builders make name-aware decisions during
   AutoFixture's request-resolution pipeline; Compono's `Register<T>`/
@@ -613,13 +619,20 @@ call.
   pointer to ADR-0002.
 - **Principle-alignment note:** ADR-0002's constructor-selection algorithm
   anticipated a `[CompositionConstructor]` disambiguation attribute for
-  exactly this case, but it was never implemented — this finding is that
-  gap becoming concretely observable during real dogfooding rather than a
-  new problem.
+  exactly this case, but it was never implemented. That attribute alone
+  wouldn't actually close this specific gap, though: `HttpClient` is a BCL
+  type `cosmere-tracker` doesn't own, so a source attribute on its
+  constructor was never going to be applicable regardless of whether the
+  attribute ships. The real candidate, per the migration guide's own
+  framing, is generic support for disambiguating construction of a
+  *registered/external* ambiguous type — a mechanism that works for a type
+  the consumer can't annotate, which `[CompositionConstructor]` doesn't
+  cover on its own.
 - **Lean classification:** roadmap candidate — the interface-wrapper
-  workaround is viable and arguably fine practice regardless, but
-  `[CompositionConstructor]` (or equivalent) closes a real, documented gap
-  between ADR-0002's design and its implementation.
+  workaround is viable and arguably fine practice regardless, but generic
+  disambiguation support for registered/external ambiguous types (not
+  specifically `[CompositionConstructor]`) closes a real, documented gap
+  between ADR-0002's design and what this migration actually needed.
 
 ### Finding 8 — Three-tier fixture stack maintainability (structural finding, not a specific API gap)
 

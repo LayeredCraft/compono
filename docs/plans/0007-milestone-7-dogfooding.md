@@ -367,7 +367,7 @@ inventory including `Freeze<T>()`/`[Frozen]` (eliminated at most of its
 two concepts beyond Amendment 2's starting list
 (`DynamoDbResponseSpecimenBuilder`, dropped for zero call sites, and
 `EndpointAutoDataAttribute`/`PersistenceAutoDataAttribute`, folded into
-the custom-attribute-subclass entry); and eight dossier entries (the
+the custom-attribute-subclass entry); and nine dossier entries (the
 three ADR-0029 gaps — including gap 3, recursion behavior, corrected
 after an earlier draft mislabeled it as the `Compono.Bogus` finding — the
 `Compono.Bogus` finding itself, `AllowMultiple = false` Compose-family
