@@ -281,12 +281,18 @@ signal.
   one either.
 - **Custom fixture infrastructure present:** yes, still three tiers
   (`Cosmere.Tracker.TestKit` → `Cosmere.Tracker.Shared.TestKit` →
-  per-suite local profile), but each tier is now one plain class
-  implementing one interface (`ICompositionProfile`), composed via
+  per-suite local profile). Each tier's configuration entry point is now
+  one profile class implementing `ICompositionProfile`, composed via
   `builder.AddProfile<T>()` rather than inherited/subclassed attribute
-  types — the tier structure survived the migration (it reflects a real
-  reuse need, not AutoFixture idiom), but the mechanism connecting the
-  tiers got simpler.
+  types — but that's the entry point, not the whole tier: the base tier
+  (`Cosmere.Tracker.TestKit`) still carries 3 files
+  (`ClientTestProfile` plus its supporting `IHttpClientProvider`/
+  `HttpClientProvider` and `HttpMessageHandlerExtensions`), matching the
+  "Test kit inventory" table above. The tier structure survived the
+  migration (it reflects a real reuse need, not AutoFixture idiom), and
+  the mechanism connecting the tiers got simpler, but "one class per
+  tier" would overstate it — only the shared and per-suite local tiers
+  are actually a single file each.
 - **Setup visible per test method:** `[Compose]`/`[Compose<TProfile>]`
   parameters are explicit in the test method signature about which
   profile is in play, and `[Shared]` parameters are explicit about reused
@@ -405,7 +411,8 @@ not one of the three named gaps), and every additional finding Phase 1
 surfaced beyond that starting list (`CMP0001`; the `[AttributeUsage(AllowMultiple
 = false)]` Compose-family stacking constraint; `Compono.Bogus`'s exact
 member-name-matching ambiguity; `DynamoDbResponseSpecimenBuilder`'s zero
-call sites; and the three-tier fixture-stack structural finding). An
+call sites; the three-tier fixture-stack structural finding; and the
+pure-inline-`[Theory]` positive finding). An
 earlier draft of this dossier mislabeled the `Compono.Bogus` finding as
 "gap 3" and omitted the recursion-behavior gap along with three of these
 additional findings entirely — corrected here; see ADR-0029's Context
@@ -648,9 +655,13 @@ call.
   kit → shared kit → per-suite local kit) existed at baseline and still
   exists post-migration.
 - **Before/after:** see "Test kit inventory (post-migration)" above for
-  the file/line comparison; the tier count didn't change, but each tier
-  collapsed from a multi-file attribute/customization/specimen-builder
-  group into one `ICompositionProfile` class per tier.
+  the file/line comparison; the tier count didn't change, and each tier's
+  configuration entry point collapsed from a multi-file attribute/
+  customization/specimen-builder group into one `ICompositionProfile`
+  class — though the base tier still carries supporting types alongside
+  its profile (`IHttpClientProvider`/`HttpClientProvider`,
+  `HttpMessageHandlerExtensions`), so "one class per tier" would overstate
+  it for that tier specifically.
 - **Principle-alignment note:** this finding was raised in Phase 0's
   baseline notes as "worth carrying into Phase 2's comparison" — carrying
   it through, the post-migration numbers confirm the tier structure
@@ -660,6 +671,28 @@ call.
   close, a structural observation that Compono simplifies the
   implementation of a pattern the project will keep regardless of test
   framework.
+
+### Finding 9 — Pure-inline `[Theory]` rows need no Compono attribute at all (positive finding)
+
+- **Frequency:** 7 rows, 1 test class (`TextNormalizerTests`), each a
+  `[InlineCosmereTrackerAutoData(...)]` row where every parameter was
+  supplied inline and no AutoFixture-composed value was ever used.
+- **Before/after:** baseline still had to route every row through the
+  `InlineCosmereTrackerAutoDataAttribute` subclass regardless of whether
+  any value was actually composed; post-migration, plain xUnit
+  `[InlineData]` is correct and sufficient, with no Compono attribute
+  needed at all. See the migration guide's "pure-inline `[Theory]`" note
+  for the full before/after snippet.
+- **Principle-alignment note:** a case where Compono's more explicit,
+  parameter-scoped `[Compose]` model (only applying where a parameter is
+  actually composed) is strictly simpler than AutoFixture's
+  attribute-per-method idiom (which always routes through the custom
+  `AutoDataAttribute` subclass, composed or not) — no workaround, no
+  indirection, just less code.
+- **Lean classification:** intentional design difference (positive) — not
+  a gap Compono needs to close; AutoFixture's own idiom carried
+  unnecessary indirection for this case that Compono's parameter-scoped
+  model doesn't have to begin with.
 
 ## Classifications (Phase 3)
 

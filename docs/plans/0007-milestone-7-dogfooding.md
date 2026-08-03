@@ -367,17 +367,22 @@ inventory including `Freeze<T>()`/`[Frozen]` (eliminated at most of its
 two concepts beyond Amendment 2's starting list
 (`DynamoDbResponseSpecimenBuilder`, dropped for zero call sites, and
 `EndpointAutoDataAttribute`/`PersistenceAutoDataAttribute`, folded into
-the custom-attribute-subclass entry); and nine dossier entries (the
+the custom-attribute-subclass entry); and ten dossier entries (the
 three ADR-0029 gaps — including gap 3, recursion behavior, corrected
 after an earlier draft mislabeled it as the `Compono.Bogus` finding — the
 `Compono.Bogus` finding itself, `AllowMultiple = false` Compose-family
 stacking, `Compono.Bogus`'s exact member-name-matching ambiguity,
-`DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`, and the
-three-tier-stack structural finding) with first-pass classification leans
-— final classification is Phase 3's job, not redone here. A PR review on
-this phase's own PR (#42) caught the gap-3 mislabeling and the three
-missing dossier entries, along with the inventory-total arithmetic error
-and the runtime-cost overclaim, all corrected before merge.
+`DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`, the
+three-tier-stack structural finding, and the pure-inline-`[Theory]`
+positive finding) with first-pass classification leans — final
+classification is Phase 3's job, not redone here. A PR review on this
+phase's own PR (#42) went through several rounds, catching (in order):
+the gap-3 mislabeling and three missing dossier entries; the
+inventory-total arithmetic error and the runtime-cost overclaim; the
+CMP0001 fix-mechanism framing and the recursion-as-impossible wording;
+the NSubstitute-default overgeneralization and the constructor-count
+threshold; and finally this tenth dossier entry plus a one-class-per-tier
+overstatement — all corrected before merge.
 
 ## Phase 3: Classify findings and produce the roadmap
 
