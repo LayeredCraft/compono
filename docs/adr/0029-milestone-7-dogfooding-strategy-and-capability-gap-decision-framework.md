@@ -341,7 +341,7 @@ member just to check a box.
 Two additional documents are first-class Milestone 7 deliverables, not
 after-the-fact write-ups:
 
-- **`docs/migration/migrating-from-autofixture.md`** — the migration guide,
+- **`docs/migrating-from-autofixture.md`** — the migration guide,
   and the primary artifact a real AutoFixture user reaches for when moving
   to Compono. It is a **living document**, not a final-phase deliverable:
   its planned structure and the major AutoFixture concepts expected to be
@@ -543,7 +543,7 @@ about a partial or negative result once members *are* found: if
 turns out to be a poor fit for others (or for the domain generally — e.g.
 excessive alias/convention configuration for too little readability gain),
 that is an equally valid, equally successful outcome of the dogfooding
-exercise, not a shortfall against this ADR's mandate. `docs/migration/migrating-from-autofixture.md`'s
+exercise, not a shortfall against this ADR's mandate. `docs/migrating-from-autofixture.md`'s
 `Compono.Bogus` section and `docs/research/0001-autofixture-comparison.md`'s
 findings must record, specifically: where semantic generation improved the
 resulting tests, where it introduced friction, which members needed
@@ -671,7 +671,7 @@ Milestone 7/Milestone 8 sections and [PLAN-0007](../plans/0007-milestone-7-dogfo
   convention this ADR reuses rather than reinventing
 - `git@github.com:ncipollina/cosmere-tracker.git` — the real project being
   migrated; not part of this monorepo
-- `docs/migration/migrating-from-autofixture.md` — the migration guide
+- `docs/migrating-from-autofixture.md` — the migration guide
   required by "Required deliverables" above (created in PLAN-0007 Phase 0,
   living through Phase 3)
 - `docs/roadmap/post-mvp.md` — the evidence-backed roadmap required by

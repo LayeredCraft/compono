@@ -438,7 +438,7 @@ Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
   / intentional design difference / migration-only friction) per ADR-0029's
   rubric, recorded in `docs/research/0001-autofixture-comparison.md` and
   the resulting ADR(s)/Amendment(s)/bug-fix PR(s)
-- Produce `docs/migration/migrating-from-autofixture.md` (living, drafted
+- Produce `docs/migrating-from-autofixture.md` (living, drafted
   before migration starts, updated with every migration PR) and
   `docs/roadmap/post-mvp.md` (evidence-backed, roadmap-candidate findings
   only)
@@ -464,7 +464,7 @@ Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
   assumed into the roadmap by default
 - The research findings are a balanced assessment, recording where Compono
   improved the suite as well as where it introduced friction
-- `docs/migration/migrating-from-autofixture.md` is substantially complete
+- `docs/migrating-from-autofixture.md` is substantially complete
   by the end of Phase 4, needing only editorial cleanup
 - `docs/roadmap/post-mvp.md` exists and every entry traces to real migration
   evidence
@@ -490,14 +490,15 @@ publishes the content.
 - Publish `0.x` packages
 - Write every page in `docs/documentation-architecture.md`'s tree, per
   Phase 5's scoped backlog — Getting Started, Concepts, How-to Guides,
-  Cookbook, Package Guides, Architecture, Troubleshooting, Reference,
-  Roadmap
-- Promote `docs/migration/migrating-from-autofixture.md` into its decided
-  top-level placement (if not already done in Phase 5) and refine/polish it
-  from "substantially complete" to publication-ready
+  Cookbook, Samples, Package Guides, Best Practices, Architecture,
+  Troubleshooting, Reference, Roadmap
+- Refine/polish `docs/migrating-from-autofixture.md` (promoted to its
+  top-level path in Phase 5) from "substantially complete" to
+  publication-ready, and add its `mkdocs.yml` nav entry
 - Resolve `docs/documentation-architecture.md`'s Open Items (API reference
-  generation toolchain, Samples' final placement, versioning policy,
-  contribution guidance, issue templates, `docs/public-api.md`'s eventual
+  generation toolchain, Cookbook navigation/tagging at scale, where Sample
+  applications physically live, versioning policy, contribution guidance,
+  issue templates, `docs/public-api.md`/`docs/manifesto.md`'s eventual
   disposition)
 - Benchmark results
 - Explicit known limitations

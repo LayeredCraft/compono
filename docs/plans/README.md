@@ -50,3 +50,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0005](0005-milestone-5-nsubstitute-integration.md) | Milestone 5: NSubstitute Integration | Done |
 | [0006](0006-milestone-6-bogus-integration.md) | Milestone 6: Bogus Integration | Done |
 | [0007](0007-milestone-7-dogfooding.md) | Milestone 7: Dogfooding | In Progress |
+| [0008](0008-milestone-8-public-preview.md) | Milestone 8: Public Preview | Not Started |

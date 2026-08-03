@@ -5,7 +5,7 @@
 capability test); Phase 2's formal
 post-migration metrics/evidence dossier and Phase 3's classification still to
 come — see
-[the migration guide](../migration/migrating-from-autofixture.md) for Phase
+[the migration guide](../migrating-from-autofixture.md) for Phase
 1's real before/after findings in the meantime)
 
 **Feeds:** [PLAN-0007](../plans/0007-milestone-7-dogfooding.md), per
@@ -82,7 +82,7 @@ out in ADR-0029's Context.
   needed for future tests) rather than dropped, surfacing a further real
   finding: `HttpClient` can't be composed directly as a Compono parameter at
   all (`CMP0001`). See the
-  [migration guide](../migration/migrating-from-autofixture.md) for the full
+  [migration guide](../migrating-from-autofixture.md) for the full
   evidence, including the real (and frequent) `[Frozen]`-for-substitute usage
   found elsewhere that gap 1's rubric evidence actually rests on.
 

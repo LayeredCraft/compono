@@ -122,8 +122,7 @@ docs/
 │   ├── minimal-apis.md
 │   ├── mediatr.md
 │   └── ef-core.md
-├── migrating-from-autofixture.md             # promoted; currently
-│                                              # docs/migration/migrating-from-autofixture.md
+├── migrating-from-autofixture.md             # promoted to top-level (Phase 5)
 ├── packages/
 │   ├── index.md
 │   ├── compono.md
@@ -321,10 +320,11 @@ readers who want the deeper "why" behind a pattern the sample uses.
 
 **Audience:** an experienced AutoFixture user evaluating or actively
 migrating to Compono.
-**Status:** exists today at `docs/migration/migrating-from-autofixture.md`
-— substantially complete (Milestone 7's own required deliverable);
-promotion to `docs/migrating-from-autofixture.md` and the site nav is
-Milestone 8 execution work, not a content rewrite.
+**Status:** exists today at `docs/migrating-from-autofixture.md` —
+substantially complete (Milestone 7's own required deliverable), promoted
+to this top-level path in Phase 5. The site nav entry itself
+(`mkdocs.yml`) is Milestone 8 execution work; the content and file
+location are done.
 **Purpose:** the fastest on-ramp for someone who already thinks in
 AutoFixture's terms — organized around AutoFixture concepts, not a
 mechanical API mapping table.
@@ -478,17 +478,19 @@ sections, not a job Reference should grow into filling.
 ## 12. Roadmap
 
 **Audience:** anyone asking "is X available, experimental, or planned?"
-**Status:** partially exists (`docs/roadmap/post-mvp.md`, created in
-PLAN-0007 Phase 3); `index.md`/`proposed-adrs.md`/`future-packages.md` not
-yet created.
+**Status:** not yet created. `docs/roadmap/post-mvp.md` is
+[PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3's own required
+output, and Phase 3 is `Not Started` as of this writing — nothing under
+`docs/roadmap/` exists yet.
 **Purpose:** the single, indexed home for everything not fully available
 today — never a prerequisite for anything in sections 1-11.
 **Contents:**
 - `index.md` — the today/experimental/planned framing itself, and a map of
   the other three pages.
-- `post-mvp.md` — exists; evidence-backed roadmap candidates, each tracing
-  to a migration-guide entry, a research finding, and a `Proposed` ADR
-  (ADR-0029's own required shape).
+- `post-mvp.md` — not yet created; when Phase 3 produces it, this holds
+  evidence-backed roadmap candidates, each tracing to a migration-guide
+  entry, a research finding, and a `Proposed` ADR (ADR-0029's own required
+  shape).
 - `proposed-adrs.md` — a status-filtered view of `docs/adr/README.md`:
   every ADR that's `Proposed`, or `Accepted` but not yet implemented,
   answering "is X planned" directly.

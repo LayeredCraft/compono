@@ -105,11 +105,82 @@ markdown_extensions:
 # Navigation
 nav:
   - Home: index.md
-  - Manifesto: manifesto.md
-  - Architecture: architecture.md
-  - Design Principles: design-principles.md
-  - Public API: public-api.md
-  - Performance: performance.md
+  - Getting Started:
+    - Overview: getting-started/index.md
+    - Installation: getting-started/installation.md
+    - Your First Composed Theory: getting-started/first-test.md
+    - Learning Paths: getting-started/learning-paths.md
+    - Next Steps: getting-started/next-steps.md
+  - Concepts:
+    - Overview: concepts/index.md
+    - The Composition Model: concepts/composition-model.md
+    - Profiles: concepts/profiles.md
+    - Registrations and Rules: concepts/registrations-and-rules.md
+    - Shared Values: concepts/shared-values.md
+    - Providers: concepts/providers.md
+    - Determinism and Seeding: concepts/determinism-and-seeding.md
+    - Collections: concepts/collections.md
+  - How-to Guides:
+    - Overview: how-to/index.md
+    - Create an Object: how-to/create-an-object.md
+    - Write a Composed Theory: how-to/write-a-composed-theory.md
+    - Customize a Member: how-to/customize-a-member.md
+    - Register a Type: how-to/register-a-type.md
+    - Use Profiles: how-to/use-profiles.md
+    - Share a Value Across a Test: how-to/share-a-value-across-a-test.md
+  - Cookbook: cookbook/index.md
+  - Samples:
+    - Overview: samples/index.md
+    - Basic Usage: samples/basic-usage.md
+    - ASP.NET API: samples/aspnet-api.md
+    - CQRS: samples/cqrs.md
+    - Clean Architecture: samples/clean-architecture.md
+    - Minimal APIs: samples/minimal-apis.md
+    - MediatR: samples/mediatr.md
+    - EF Core: samples/ef-core.md
+  - Migrating from AutoFixture: migrating-from-autofixture.md
+  - Package Guides:
+    - Overview: packages/index.md
+    - Compono: packages/compono.md
+    - Compono.XunitV3: packages/compono-xunitv3.md
+    - Compono.NSubstitute: packages/compono-nsubstitute.md
+    - Compono.Bogus: packages/compono-bogus.md
+  - Best Practices:
+    - Overview: best-practices/index.md
+    - Organizing Profiles: best-practices/organizing-profiles.md
+    - Large Test Suites: best-practices/large-test-suites.md
+    - Naming Conventions: best-practices/naming-conventions.md
+    - Reusing Configuration: best-practices/reusing-configuration.md
+    - Performance Recommendations: best-practices/performance-recommendations.md
+    - Deterministic, Non-Brittle Tests: best-practices/deterministic-and-non-brittle-tests.md
+  - Architecture:
+    - Overview: architecture/index.md
+    - Design Principles (current): architecture/design-principles.md
+    - Current Architecture:
+      - Source Generation: architecture/current/source-generation.md
+      - Generated Plans and Discovery: architecture/current/generated-plans-and-discovery.md
+      - The Provider Pipeline: architecture/current/provider-pipeline.md
+      - Deterministic Seeding: architecture/current/deterministic-seeding.md
+      - Performance: architecture/current/performance.md
+    - Historical Decision Log: architecture/decision-log.md
+  - Troubleshooting:
+    - Overview: troubleshooting/index.md
+    - Common Errors: troubleshooting/common-errors.md
+    - FAQ: troubleshooting/faq.md
+  - Reference:
+    - Overview: reference/index.md
+    - Diagnostics: reference/diagnostics.md
+    - Glossary: reference/glossary.md
+  - Roadmap:
+    - Overview: roadmap/index.md
+    - Proposed ADRs: roadmap/proposed-adrs.md
+    - Future Packages: roadmap/future-packages.md
+  - Documentation Architecture: documentation-architecture.md
+  - Manifesto (legacy): manifesto.md
+  - Architecture Overview (legacy): architecture.md
+  - Design Principles (legacy): design-principles.md
+  - Public API (legacy): public-api.md
+  - Performance (legacy): performance.md
   - MVP: mvp.md
   - ADRs:
     - Source Generation First: adr/0001-source-generation-first.md

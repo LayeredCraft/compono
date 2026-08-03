@@ -2,7 +2,7 @@
 
 This file teaches *how to think about* documentation, not a fixed tree to
 follow — Compono's actual documentation structure is decided elsewhere
-(currently [ADR-0030](../../../docs/adr/0030-compono-documentation-architecture.md)
+(currently [ADR-0030](../../../../docs/adr/0030-compono-documentation-architecture.md)
 and `docs/documentation-architecture.md`, kept current as that structure
 evolves) and will keep changing as the project grows. The philosophy and
 principles below are meant to stay stable across that evolution — apply

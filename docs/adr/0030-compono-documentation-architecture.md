@@ -65,7 +65,7 @@ produces) are what it executes against.
   mechanics already establish that "planned" and "shipped" are different
   categories; the documentation structure has to keep making that
   distinction visible.
-- The migration guide (`docs/migration/migrating-from-autofixture.md`) is a
+- The migration guide (`docs/migrating-from-autofixture.md`) is a
   flagship artifact, not an appendix — it is the only place in the entire
   documentation set backed by a real, evidence-audited migration, and it
   answers a real, common on-ramp question ("I already know AutoFixture,
@@ -262,7 +262,7 @@ model, not a recipe).
 Each of the four current packages
 (`Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`) gets one
 page answering, in this order: when to install it, when *not* to (the
-absence of this is exactly what made ADR-0027's `Compono.Bogus`
+absence of this is exactly what made ADR-0029's `Compono.Bogus`
 "mandatory adoption" clause necessary to write explicitly — a
 package's own docs should make this call obvious without needing an ADR to
 say so), how it fits into the ecosystem (what it depends on, what depends
@@ -274,7 +274,7 @@ page here the moment it ships, not before.
 
 Organized around the AutoFixture concepts a migrator already knows, not a
 mechanical API mapping table — matching how
-`docs/migration/migrating-from-autofixture.md` is already structured today
+`docs/migrating-from-autofixture.md` is already structured today
 (`Freeze<T>()`, `AutoDataAttribute`/customizations, `AutoNSubstituteCustomization`,
 recursion behaviors, specimen builders, `Compono.Bogus` as an added
 capability). Milestone 7 already produced and evidence-audited this content
@@ -444,7 +444,7 @@ The single home for everything not yet available to a user today:
 - [Diátaxis](https://diataxis.fr) — the external framework this ADR adapts
   (four-mode split); see "Decision Outcome" above for what was kept vs.
   changed
-- `docs/migration/migrating-from-autofixture.md` — the flagship artifact
+- `docs/migrating-from-autofixture.md` — the flagship artifact
   this ADR promotes to top-level placement
 - `docs/roadmap/post-mvp.md` — the evidence-backed roadmap content the
   Roadmap area's structure is built around
