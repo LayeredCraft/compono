@@ -358,9 +358,14 @@ private static void ConfigureBookItem(Faker<BookItem> faker)
     faker.RuleFor(b => b.Id, f => f.Random.Uuid().ToString());
     faker.RuleFor(b => b.Title, f => f.Commerce.ProductName());
     faker.RuleFor(b => b.TitleNormalized, (_, b) => TextNormalizer.Normalize(b.Title));
-    faker.RuleFor(b => b.CreatedAt, f => f.Date.PastOffset(2).ToString("O"));
+    faker.RuleFor(b => b.CreatedAt, f => f.Date.PastOffset(2, ReferenceDate).ToString("O"));
     faker.RuleFor(b => b.UpdatedAt, (f, b) => DateTimeOffset.Parse(b.CreatedAt!).AddMinutes(f.Random.Int(0, 1440)).ToString("O"));
 }
+
+// Bogus's Date.PastOffset defaults its refDate to the current system clock, which would make
+// CreatedAt depend on when the test actually runs rather than just the seed - a fixed reference
+// date keeps it fully seed-deterministic (compono PR #40 review).
+private static readonly DateTimeOffset ReferenceDate = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
 ```
 
 `TitleNormalized`/`UpdatedAt` both use Bogus's own sibling-property access
@@ -368,9 +373,10 @@ private static void ConfigureBookItem(Faker<BookItem> faker)
 `CreatedAt` — no direct `ICompositionContext` access needed anywhere in the
 callback, since the seeded `Faker<T>` instance (`f`) is already enough for
 every value these types need, including `Id` (`f.Random.Uuid()`) and the
-timestamps (`f.Date.PastOffset(...)`). This exercises Compono.Bogus's actual
-public API and its determinism contract
-([ADR-0026](../adr/0026-deterministic-seed-derivation-for-providers.md))
+timestamps (`f.Date.PastOffset(2, ReferenceDate)`, pinned to a fixed
+reference date rather than `Date.PastOffset`'s own current-clock default).
+This exercises Compono.Bogus's actual public API and its determinism
+contract ([ADR-0026](../adr/0026-deterministic-seed-derivation-for-providers.md))
 exactly as designed — no workaround needed at all, once the (incorrect)
 assumption about context access was dropped. Edge items (`BookCharacterEdgeItem`
 etc.) have no semantic string fields, so they stay a plain `Register<T>`
