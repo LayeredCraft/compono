@@ -376,13 +376,16 @@ ambiguity, `DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`,
 the three-tier-stack structural finding, and the pure-inline-`[Theory]`
 cleanup finding) with first-pass classification leans — final
 classification is Phase 3's job, not redone here. A PR review on this
-phase's own PR (#42) went through several rounds, catching (in order):
-the gap-3 mislabeling and three missing dossier entries; the
-inventory-total arithmetic error and the runtime-cost overclaim; the
-CMP0001 fix-mechanism framing and the recursion-as-impossible wording;
-the NSubstitute-default overgeneralization and the constructor-count
-threshold; and finally this tenth dossier entry plus a one-class-per-tier
-overstatement — all corrected before merge.
+phase's own PR (#42) went through many rounds — gap mislabeling and
+missing dossier entries, arithmetic/inventory errors, several ADR-0029
+taxonomy misclassifications (caught more than once — the rubric's
+material-cost/principle-alignment questions and its one-classification-
+per-finding rule are easy to get subtly wrong), `[Compose]`'s
+method-vs-parameter scope (caught in three separate places in this
+document), and cross-document staleness against the migration guide —
+each round's fix pushed as its own commit; see this branch's commit
+history for the full, exact sequence rather than hand-maintaining a
+chronology here that would only go stale as further rounds land.
 
 ## Phase 3: Classify findings and produce the roadmap
 

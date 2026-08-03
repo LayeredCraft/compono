@@ -564,21 +564,28 @@ call.
   — an explicit stub a test previously didn't need to write — not a low
   or zero one; this entry previously understated that as "small," which
   contradicted the migration guide's own recorded verdict on the same
-  evidence. On principle alignment: Compono.NSubstitute has no
-  `ConfigureMembers` equivalent by deliberate design (ADR-0025's
-  non-goal), and explicit stubbing aligns with, rather than conflicts
-  with, Compono's explicit-over-implicit posture — the previously-hidden
-  dependency on `ExecuteAsync`'s return shape is now visible in the test
-  body, arguably a correctness improvement, not just friction.
+  evidence. On principle alignment: ADR-0029's question 4 asks whether
+  *satisfying the gap* — i.e., Compono.NSubstitute restoring
+  `ConfigureMembers`-style hidden auto-configuration of substitute return
+  values — would conflict with Compono's principles, not whether the
+  workaround does. It would: silently auto-configuring a substitute's
+  members based on its declared return type is exactly the kind of hidden
+  behavior Compono's explicit-over-implicit design bias exists to avoid —
+  a test's actual dependency on `ExecuteAsync`'s return shape would go
+  back to being invisible in the test body, the same problem this gap's
+  own evidence just demonstrated (two tests passing on an implicit
+  default they never actually verified). That's a genuine principle
+  conflict, not merely a preference.
 - **Lean classification:** intentional design difference — per ADR-0029's
-  question 3, a real material cost (not a low one) points away from
-  "acceptable alternative" specifically; per question 4, no principle
-  conflict exists (the opposite — deliberate alignment with
-  explicit-over-implicit), which is what this category, not "roadmap
-  candidate," is for. The verdict is "no change": `ConfigureMembers`'s
-  auto-configuration behavior is deliberately absent from
-  Compono.NSubstitute, the material cost is the accepted price of that
-  choice, and it isn't a capability Compono genuinely needs to add.
+  question 3, a real material cost (not a low one) already rules out
+  "acceptable alternative," which requires a low-cost, pleasant swap;
+  per question 4, satisfying this gap (restoring `ConfigureMembers`-style
+  auto-configuration) would conflict with Compono's explicit-over-implicit
+  principle, which is exactly this category's own definition — "supporting
+  the AutoFixture behavior would conflict with Compono's principles." The
+  verdict is "no change": the material cost is the accepted price of a
+  deliberate principle, not evidence Compono is missing a capability it
+  genuinely needs.
 
 ### Gap 3 — recursion behavior (`OmitOnRecursionBehavior` vs. fail-fast)
 
