@@ -197,6 +197,9 @@ reading order. Each leaf item replaces that page's Phase 5 stub.
 
 ### Repository-process content
 
+- [ ] Repository-root `README.md` — review and update (distinct from
+      `docs/getting-started/*`; part of the original Milestone 8 scope,
+      not part of the `docs/` hierarchy this backlog otherwise tracks)
 - [ ] `contributing.md`
 - [ ] Versioning policy (page location decided alongside `contributing.md`)
 - [ ] Issue templates
@@ -213,8 +216,14 @@ reading order. Each leaf item replaces that page's Phase 5 stub.
 
 - Every path listed in Tasks above, under `docs/` — Phase 5 already
   created each as a stub; this plan replaces stub content with real
-  content, not new files (except `samples/*`'s actual runnable projects
-  and `contributing.md`/versioning/issue-template content, which are new).
+  content, not new files, **except**: `samples/*`'s actual runnable
+  projects; `contributing.md`/versioning/issue-template content;
+  repository-root `README.md` (a pre-existing file this plan updates, not
+  a Phase 5 stub); `reference/api/`, which doesn't exist at all yet and
+  depends on the API-reference generation toolchain Open Item; and
+  `roadmap/post-mvp.md`, which also doesn't exist yet and is conditional
+  on [PLAN-0007](0007-milestone-7-dogfooding.md) Phase 3 (`Not Started`) —
+  treat both as genuinely new artifacts to create, not stubs to replace.
 - `mkdocs.yml` — nav's "(legacy)" entries retired as their content's
   disposition resolves.
 - `docs/documentation-architecture.md` — its Open Items section shrinks as

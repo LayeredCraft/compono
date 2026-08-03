@@ -488,6 +488,10 @@ publishes the content.
 ### Scope
 
 - Publish `0.x` packages
+- Review and update the repository-root `README.md` — a distinct artifact
+  from `docs/getting-started/*` (the GitHub landing page vs. the docs
+  site's onboarding section); not dropped by the documentation-architecture
+  rewrite of this scope, just tracked alongside it
 - Write every page in `docs/documentation-architecture.md`'s tree, per
   Phase 5's scoped backlog — Getting Started, Concepts, How-to Guides,
   Cookbook, Samples, Package Guides, Best Practices, Architecture,
