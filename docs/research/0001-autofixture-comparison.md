@@ -585,11 +585,16 @@ call.
   current pressure to close it — `cosmere-tracker` never needed the
   multi-row-plus-composed-parameter combination for real, so this is
   recorded evidence rather than an unblocking need.
-- **Lean classification:** roadmap candidate — a real gap between what
-  AutoFixture's stacking idiom could express and what Compono can today,
-  but per ADR-0029's evidence-driven restraint, zero real call sites
-  means it needs its own design pass before committing to a specific fix
-  rather than being decided here.
+- **Lean classification:** intentional design difference (unexercised
+  constraint, pending Phase 3) — ADR-0029 requires a roadmap candidate to
+  be backed by real observed frequency and workaround cost, and neither
+  exists here: `cosmere-tracker` never hit a real test needing this
+  combination, so there's no migrated workaround to point to and no
+  measurable cost. Recorded as a discovered constraint for the evidence
+  record, not promoted to a roadmap candidate on this evidence alone —
+  consistent with gap 3's treatment of its own zero-frequency finding
+  above. If a future project's dogfooding surfaces a real call site,
+  that's new evidence Phase 3 (or a later milestone) can act on.
 
 ### Finding 5 — `Compono.Bogus` exact member-name matching can't disambiguate same-named, different-semantic members
 
@@ -705,16 +710,21 @@ call.
   `[InlineData]` is correct and sufficient, with no Compono attribute
   needed at all. See the migration guide's "pure-inline `[Theory]`" note
   for the full before/after snippet.
-- **Principle-alignment note:** a case where Compono's more explicit,
-  parameter-scoped `[Compose]` model (only applying where a parameter is
-  actually composed) is strictly simpler than AutoFixture's
-  attribute-per-method idiom (which always routes through the custom
-  `AutoDataAttribute` subclass, composed or not) — no workaround, no
-  indirection, just less code.
+- **Principle-alignment note:** `[Compose]` itself is method-scoped, not
+  parameter-scoped (`ComposeAttribute`'s `[AttributeUsage(AttributeTargets.Method)]`
+  — it creates the theory row and, per its own binding rules, composes
+  every parameter not supplied inline). The actual positive finding is
+  narrower than "Compose only applies where composed": it's that a fully
+  inline `[Theory]` doesn't need *any* Compose-family attribute at all —
+  `[InlineData]` alone is sufficient, since there's no parameter left for
+  a method-scoped `[Compose]` to do anything with. That's still simpler
+  than AutoFixture's idiom (which always routed through the custom
+  `AutoDataAttribute` subclass, composed or not), just for a narrower
+  reason than parameter-level selectivity.
 - **Lean classification:** intentional design difference (positive) — not
   a gap Compono needs to close; AutoFixture's own idiom carried
-  unnecessary indirection for this case that Compono's parameter-scoped
-  model doesn't have to begin with.
+  unnecessary indirection for this case that a fully inline Compono test
+  doesn't have to begin with.
 
 ## Classifications (Phase 3)
 
