@@ -356,12 +356,14 @@ one-for-one, and what (if anything) replaced each:
 - **`IFixture`** — disappeared entirely. No Compono equivalent exists or
   is needed; `CompositionBuilder` is configured directly per profile, with
   no central fixture object threading through the kit.
-- **`ICustomization`** — disappeared entirely. Replaced by
-  `ICompositionProfile` — but not one-for-one: a profile is a plain class
-  with a `Configure(CompositionBuilder)` method, not an extensibility
-  interface layered on top of a fixture; there's no `Customize(IFixture)`
-  equivalent to implement.
-- **`ISpecimenBuilder`** — disappeared entirely. Replaced by
+- **`ICustomization`** — the type itself disappeared, but it has a named
+  successor, so this is a replacement, not an elimination:
+  `ICompositionProfile` — not one-for-one in shape, though: a profile is
+  a plain class with a `Configure(CompositionBuilder)` method, not an
+  extensibility interface layered on top of a fixture; there's no
+  `Customize(IFixture)` equivalent to implement.
+- **`ISpecimenBuilder`** — the type itself disappeared, but it has a named
+  successor, so this is a replacement, not an elimination:
   `builder.Register<T>(Func<ICompositionContext, T>)` for hand-built
   values and `builder.UseBogus<T>(Action<Faker<T>>)` for Bogus-generated
   ones — direct factory functions instead of a builder interface
@@ -390,10 +392,13 @@ one-for-one, and what (if anything) replaced each:
   (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`,
   and the previously-unlisted `EndpointAutoDataAttribute`/
   `PersistenceAutoDataAttribute` local-kit equivalents surfaced during
-  Phase 1) — all disappeared entirely. Replaced by
+  Phase 1) — the subclasses themselves disappeared, but they have a named
+  successor, so this is a replacement, not an elimination:
   `[Compose]`/`[Compose<TProfile>]`, which are Compono.XunitV3 framework
-  attributes, not per-project subclasses — no equivalent custom attribute
-  class exists anywhere in the migrated kit.
+  attributes, not per-project subclasses — no equivalent *custom*
+  attribute class exists anywhere in the migrated kit, but the capability
+  they provided (routing a test through the project's fixture setup) has
+  a direct, named replacement, unlike the entries above that have none.
 - **`BaseFixtureFactory` and other fixture-factory infrastructure** —
   disappeared entirely, including its
   `ThrowingRecursionBehavior`→`OmitOnRecursionBehavior` swap and

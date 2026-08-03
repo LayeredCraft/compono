@@ -389,10 +389,12 @@ overstatement — all corrected before merge.
 **Status:** Not Started
 
 - [ ] Finalize `docs/research/0001-autofixture-comparison.md` (created in
-      Phase 0 as the first use of this directory, with its baseline section
-      already filled in) — fill in the dogfooding narrative, Phase 2's
-      post-migration metrics, positive findings, and every finding's
-      evidence and classification.
+      Phase 0 with its baseline section filled in; Phase 2 has since filled
+      in post-migration metrics, the concepts-removed inventory, and the
+      full ten-entry per-finding evidence dossier with first-pass
+      classification leans) — fill in the dogfooding narrative and
+      finalize every finding's classification (below), turning Phase 2's
+      leans into final verdicts.
 - [ ] Classify every finding per ADR-0029's five-way taxonomy and record
       its outcome:
       - **Bug** — fixed via its own scoped compono PR (if not already done
