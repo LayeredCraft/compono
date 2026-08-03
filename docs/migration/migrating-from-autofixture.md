@@ -99,8 +99,11 @@ real further finding for Milestone 7's evidence beyond the three named gaps
 (candidate roadmap item; needs its own design pass, not decided here per
 ADR-0029's evidence-driven restraint).
 
-For the common "one row, some inline, some composed" case, `[Compose]` works
-exactly as expected — see `CursorEncoderTests`:
+`cosmere-tracker`'s migration never actually needed a mixed "some inline,
+some composed" row — every real test was either fully composed
+(`CursorEncoderTests`, below) or, per the finding above, fully inline
+(`TextNormalizerTests`). `CursorEncoderTests` shows the fully-composed case
+— the direct replacement for AutoFixture's non-inline `[AutoData]`:
 
 ```csharp
 // Before
@@ -112,6 +115,17 @@ public void EncodeDecode_RoundTrips(Guid id) { ... }
 [Theory]
 [Compose]
 public void EncodeDecode_RoundTrips(Guid id) { ... }
+```
+
+For the actual mixed shape — some parameters supplied inline, the rest
+composed — no real `cosmere-tracker` test needed it, so there's no real
+before/after to show here. Compono.XunitV3's own sample tests demonstrate
+the mechanism (not part of this migration, shown for completeness only):
+
+```csharp
+// test/Compono.XunitV3.SampleTests/InlineAndComposedTests.cs
+[Compose(42)]                            // quantity supplied inline; productName composed
+public void MixesInlineAndComposedValues(int quantity, string productName) { ... }
 ```
 
 ## `ICustomization` and composition profiles
@@ -365,6 +379,44 @@ capability (a frozen, substitute `HttpMessageHandler` behind a configured
 `HttpClient`) is one the repo owner explicitly wants preserved for future
 HTTP-client tests, not dropped just because nothing uses it *yet* — so it
 was ported, not deleted, and is documented here as a real, working pattern.
+Here is gap 1's original AutoFixture-side code — the frozen-`HttpMessageHandler`
+concept the rest of this section replaces:
+
+```csharp
+// Before — Attributes/ClientAutoDataAttribute.cs
+public sealed class ClientAutoDataAttribute() : AutoDataAttribute(CreateFixture)
+{
+    internal static IFixture CreateFixture()
+    {
+        return BaseFixtureFactory.CreateFixture(fixture =>
+        {
+            fixture.Freeze<HttpMessageHandler>();
+            fixture.Customizations.Add(new HttpClientSpecimenBuilder());
+        });
+    }
+}
+
+// Before — SpecimenBuilders/HttpClientSpecimenBuilder.cs
+public sealed class HttpClientSpecimenBuilder(IRequestSpecification requestSpecification) : ISpecimenBuilder
+{
+    public HttpClientSpecimenBuilder() : this(new HttpClientSpecification()) { }
+
+    public object Create(object request, ISpecimenContext context)
+    {
+        if (!requestSpecification.IsSatisfiedBy(request))
+            return new NoSpecimen();
+
+        var handler = context.Resolve(typeof(HttpMessageHandler)) as HttpMessageHandler;
+        return new HttpClient(handler!) { BaseAddress = new Uri("https://localhost/") };
+    }
+}
+```
+
+`fixture.Freeze<HttpMessageHandler>()` is exactly ADR-0029's "hidden shared
+values" framing: the frozen handler never appears as a parameter anywhere a
+test can see — `HttpClientSpecimenBuilder` resolves it by type from
+`ISpecimenContext` behind the scenes. Compono's replacement (below) makes
+the sharing explicit via `[Shared] HttpMessageHandler`.
 
 **Real limitation found: `HttpClient` can't be composed directly as a test
 parameter at all**, regardless of any registration. `Compono.Generators`'
@@ -452,7 +504,20 @@ whenever `sut` is composed — and became a straightforward
 
 `cosmere-tracker`'s AutoFixture kit had no equivalent concept — it only ever
 produced anonymous specimens. Phase 0 identified the candidate members:
-`BookItem.Title`, `CharacterItem.Name`, `WorldItem.Name`, `WorldItem.SystemName`.
+`BookItem.Title`/`BookDto.Title`, `CharacterItem.Name`/`CharacterDto.Name`,
+`WorldItem.Name`/`WorldDto.Name`, `WorldItem.SystemName`/`WorldDto.SystemName`
+— both the domain-model side and the API-response DTO side of each pair.
+
+**The DTO side of each pair had no real adoption opportunity.** Confirmed
+during Phase 1: no `Cosmere.Tracker.Api.Dtos` type (`BookDto`, `CharacterDto`,
+`WorldDto`) is ever composed as a test parameter anywhere in
+`cosmere-tracker` — they're production API-response types, built by mapping
+code from the already-adopted `*Item` types (`BookItem` → `BookDto`, etc.),
+not independently generated or composed in any test. This is the same
+zero-real-call-site pattern as `HttpClientSpecimenBuilder`/
+`DynamoDbResponseSpecimenBuilder` above: there was no separate composition
+call site for `Compono.Bogus` to be wired into on the DTO side, so the rest
+of this section covers only the `*Item` side, where real adoption happened.
 
 **Real limitation found: exact member-name matching can't disambiguate two
 types that share a member name with different semantics.**

@@ -207,7 +207,15 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       dogfooding without ever calling a `Compono.Bogus` API. Corrected to use
       `UseBogus<T>()` directly. Recommendation recorded in the migration
       guide: a genuine win for semantic string fields, not just a tradeoff
-      (ADR-0029 Amendment 1).
+      (ADR-0029 Amendment 1). Phase 0's candidate list also named the DTO
+      side of each pair (`BookDto.Title`, `CharacterDto.Name`,
+      `WorldDto.Name`/`SystemName`) — confirmed during Phase 1 that none of
+      `Cosmere.Tracker.Api`'s DTOs are ever composed as a test parameter
+      anywhere in `cosmere-tracker`; they're production API-response types
+      built by mapping code from the already-Bogus-adopted `*Item` types, so
+      there was no separate composition call site to adopt `Compono.Bogus`
+      against. Recorded in the migration guide alongside the `*Item`
+      findings.
 - [x] Further findings recorded (beyond the three named gaps):
       `DynamoDbResponseSpecimenBuilder` had zero real call sites and was
       dropped entirely; `HttpClientSpecimenBuilder`'s equivalent
