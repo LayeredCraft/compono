@@ -654,11 +654,63 @@ less composition code after migration (`BaseFixtureFactory` and the
 AutoFixture-era attributes were all deleted; the HTTP-client capability was
 ported forward, not deleted, as `ClientTestProfile`/`IHttpClientProvider`
 alongside the unrelated `HttpMessageHandlerExtensions` helper),
-`Cosmere.Tracker.Shared.TestKit`
-is one profile (`SharedTestKitProfile`) registering the four domain types,
-and each consuming project's local profile (`EndpointTestProfile`,
+`Cosmere.Tracker.Shared.TestKit` is one profile (`SharedTestKitProfile`)
+registering nine exact types — `BookItem`/`CharacterItem`/`WorldItem` via
+`UseBogus<T>()` plus all six edge-item types via `Register<T>` — and each
+consuming project's local profile (`EndpointTestProfile`,
 `PersistenceTestProfile`) composes the shared profile plus its own
 project-specific registration via `builder.AddProfile<SharedTestKitProfile>()`.
 The tier count didn't collapse, but the amount of code living in the
 lowest tier (`Cosmere.Tracker.TestKit`) dropped from ~185 AutoFixture-specific
-lines to zero.
+lines to zero:
+
+```csharp
+// Before — three tiers of AutoFixture chaining
+// Cosmere.Tracker.TestKit/BaseFixtureFactory.cs
+public static IFixture CreateFixture(Action<IFixture>? customizeAction = null)
+{
+    var fixture = new Fixture();
+    fixture.Behaviors.OfType<ThrowingRecursionBehavior>().ToList()
+        .ForEach(b => fixture.Behaviors.Remove(b));
+    fixture.Behaviors.Add(new OmitOnRecursionBehavior());
+    fixture.Customize(new AutoNSubstituteCustomization { ConfigureMembers = true });
+    customizeAction?.Invoke(fixture);
+    return fixture;
+}
+
+// Cosmere.Tracker.Shared.Tests/TestKit/Attributes/PersistenceAutoDataAttribute.cs
+public sealed class PersistenceAutoDataAttribute() : AutoDataAttribute(CreateFixture)
+{
+    internal static IFixture CreateFixture() => BaseFixtureFactory.CreateFixture(fixture =>
+    {
+        fixture.Customize(new SharedCustomization());          // Cosmere.Tracker.Shared.TestKit tier
+        fixture.Customizations.Add(new DynamoDbOptionsSpecimenBuilder());
+        fixture.Customizations.Add(new DynamoDbResponseSpecimenBuilder());
+    });
+}
+
+// After — one profile per tier, composed via AddProfile
+// Cosmere.Tracker.Shared.TestKit/Profiles/SharedTestKitProfile.cs
+public sealed class SharedTestKitProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder)
+    {
+        builder.UseBogus<BookItem>(ConfigureBookItem);
+        builder.UseBogus<CharacterItem>(ConfigureCharacterItem);
+        builder.UseBogus<WorldItem>(ConfigureWorldItem);
+        builder.Register(CreateBookCharacterEdge);
+        // ...five more edge-item registrations
+    }
+}
+
+// Cosmere.Tracker.Shared.Tests/TestKit/Profiles/PersistenceTestProfile.cs
+public sealed class PersistenceTestProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder)
+    {
+        builder.AddProfile<SharedTestKitProfile>();
+        builder.UseNSubstitute();
+        builder.Register<IOptions<DynamoDbOptions>>(() => Options.Create(new DynamoDbOptions { /* ... */ }));
+    }
+}
+```
