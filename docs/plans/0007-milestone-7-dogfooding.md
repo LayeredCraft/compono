@@ -1,6 +1,6 @@
 # [PLAN-0007] Milestone 7: Dogfooding
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
 (dogfooding strategy, migration-driven evidence, gap decision rubric and
@@ -35,7 +35,10 @@ Per ADR-0029's Decision Outcome and `docs/mvp.md`'s Milestone 7 section:
   unlike the other packages, there's no existing AutoFixture call site to
   migrate away from, so it requires deliberate investigation of
   `cosmere-tracker`'s domain models rather than falling out of the
-  migration automatically.
+  migration automatically. Per Amendment 1, what's mandatory is the
+  experiment (the investigation and adoption attempt), not a predetermined
+  positive conclusion — a recorded finding that `Compono.Bogus` is a poor
+  fit for some or all of the surveyed members is an equally valid outcome.
 - Recording quantitative and qualitative evidence — including positive
   findings, not only friction — for the three known gaps
   (`Freeze<HttpMessageHandler>` in `HttpClientSpecimenBuilder`,
@@ -61,9 +64,9 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
 
 ## Phase 0: Baseline and migration-guide skeleton
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] In `cosmere-tracker`: capture a written baseline of the current
+- [x] In `cosmere-tracker`: capture a written baseline of the current
       AutoFixture-based test kit before any Compono change, per ADR-0029's
       "Evidence to collect" — file/line counts for `Cosmere.Tracker.TestKit`,
       count of `[CosmereTrackerAutoData]`/`[InlineCosmereTrackerAutoData]`
@@ -73,11 +76,21 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       `HttpClientSpecimenBuilder`, `HttpClientSpecification`), and the
       broader maintainability dimensions (framework-specific concepts in
       play, custom fixture infrastructure present, setup visible per test
-      method, concepts a new contributor would need to know today).
-- [ ] Confirm the exact `cosmere-tracker` commit this baseline was taken
+      method, concepts a new contributor would need to know today). Recorded
+      in `docs/research/0001-autofixture-comparison.md`'s new "Baseline
+      (Phase 0)" section — 72 tests passing in 1.346s test-execution time,
+      8 files/218 lines in `Cosmere.Tracker.TestKit`, 1+7 AutoData call
+      sites, plus one previously-undocumented finding: a three-tier fixture
+      stack (`Cosmere.Tracker.TestKit` → `Cosmere.Tracker.Shared.TestKit` →
+      per-suite local kits) not called out in ADR-0029's Context, and zero
+      live call sites for `[ClientAutoData]`/`[InlineClientAutoData]` in the
+      three consuming test projects (gap 1's `HttpClientSpecimenBuilder`
+      path is only exercised from within the test kit's own definitions
+      today — worth confirming during Phase 1).
+- [x] Confirm the exact `cosmere-tracker` commit this baseline was taken
       against (for `docs/research/0001-autofixture-comparison.md`'s link
-      back).
-- [ ] Create `docs/migration/migrating-from-autofixture.md` in this repo
+      back) — `2dbd62ec73a8d8ad64b865a22d7b34a056ca537d`.
+- [x] Create `docs/migration/migrating-from-autofixture.md` in this repo
       with its planned structure and the major AutoFixture concepts
       expected to be migrated (`Freeze<T>()`, `AutoDataAttribute`/
       customizations, `AutoNSubstituteCustomization`, recursion behaviors,
@@ -86,13 +99,20 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       "Required deliverables." Reserve a section for `Compono.Bogus` even
       though it has no AutoFixture-side concept to contrast against — it
       documents an added capability, not a migrated one. Content per
-      concept is filled in during Phase 1, not now.
-- [ ] Survey `cosmere-tracker`'s domain models
+      concept is filled in during Phase 1, not now. Also reserved sections
+      for two concepts discovered during the baseline survey that ADR-0029
+      didn't name: reflection-based NSubstitute stubbing
+      (`HttpMessageHandlerExtensions`) and the multi-tier fixture stack.
+- [x] Survey `cosmere-tracker`'s domain models
       (`src/Cosmere.Tracker.Shared/Models/**` and any DTOs under
       `src/Cosmere.Tracker.Api/Dtos/**`) for string-typed members that
       plausibly warrant realistic data (book titles, character names, world
       names, etc.) — the starting candidate list for Phase 1's mandatory
-      `Compono.Bogus` adoption.
+      `Compono.Bogus` adoption. Candidates: `BookItem.Title`/`BookDto.Title`,
+      `CharacterItem.Name`/`CharacterDto.Name`, `WorldItem.Name`/
+      `WorldDto.Name`, `WorldItem.SystemName`/`WorldDto.SystemName` —
+      recorded in the migration guide's `Compono.Bogus` section, along with
+      why `*Normalized`/`Id`/timestamp members were excluded.
 
 ## Phase 1: Migrate the test kit
 
@@ -120,6 +140,17 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       classification (gap 1's evidence; friction from requiring the
       parameter in every relevant signature counts as evidence even though
       a working replacement exists, per ADR-0029's central question).
+      **First**, confirm whether `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute`/
+      `InlineClientAutoDataAttribute` have any real caller anywhere in
+      `cosmere-tracker` at all — Phase 0's baseline found zero call sites in
+      the three consuming test projects, and a repo-wide search at PR
+      review time found none outside the TestKit's own definition files
+      either. If that holds when Phase 1 actually reaches this code, "zero
+      observed frequency" is itself gap 1's finding (per the rubric's
+      question 1) — record it as such rather than assuming a live migration
+      target, and treat porting vs. dropping
+      `HttpClientSpecimenBuilder`/`HttpClientSpecification` on its own
+      merits (ADR-0029's "Migration idiom").
 - [ ] Migrate `AutoNSubstituteCustomization { ConfigureMembers = true }`
       usages to `UseNSubstitute()`, recording every call site where a test
       previously relied on an auto-configured substitute member and now
@@ -137,7 +168,13 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       cover. Record what worked, what needed a custom convention/alias, and
       any member where no realistic-data adoption made sense — this
       evidence is itself a Milestone 7 finding, classified like any other
-      (ADR-0029's "Compono.Bogus adoption is mandatory").
+      (ADR-0029's "Compono.Bogus adoption is mandatory," clarified by
+      Amendment 1). The migration guide's `Compono.Bogus` section and the
+      research doc must state a final recommendation for its continued use
+      in `cosmere-tracker` — including "don't use it for X" where the
+      evidence supports that; a negative or partial recommendation is a
+      successful outcome of the experiment, not a shortfall against the
+      mandate.
 - [ ] Record any further finding surfaced along the way that isn't one of
       the three named above, including positive findings (per ADR-0029's
       "Evidence to collect") and any bug (per "Bug handling" — fixed in its
@@ -157,6 +194,14 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       counts, `dotnet test` run time, per-file readability notes, and the
       broader maintainability dimensions from ADR-0029's "Evidence to
       collect") — enough to compare directly against the baseline.
+- [ ] Explicit named inventory of concepts that disappeared entirely during
+      migration — not just a rough count — per Amendment 2: which of
+      `IFixture`, `ICustomization`, `ISpecimenBuilder`,
+      `IRequestSpecification`, the custom `AutoDataAttribute`/
+      `InlineAutoDataAttribute` subclasses, `BaseFixtureFactory`,
+      `NamedRequest`, and any other Phase 0/1-surfaced concept were dropped
+      entirely versus merely replaced one-for-one with a Compono
+      equivalent, and what (if anything) replaced each one.
 - [ ] Per-finding evidence dossier (frequency, before/after snippet,
       principle-alignment note, classification per ADR-0029's five-way
       taxonomy) for each of the three known gaps plus any additional
@@ -166,9 +211,10 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
 
 **Status:** Not Started
 
-- [ ] Create `docs/research/0001-autofixture-comparison.md` (first use of
-      this directory) with the dogfooding narrative, Phase 0/2's baseline
-      and post-migration metrics, positive findings, and every finding's
+- [ ] Finalize `docs/research/0001-autofixture-comparison.md` (created in
+      Phase 0 as the first use of this directory, with its baseline section
+      already filled in) — fill in the dogfooding narrative, Phase 2's
+      post-migration metrics, positive findings, and every finding's
       evidence and classification.
 - [ ] Classify every finding per ADR-0029's five-way taxonomy and record
       its outcome:
@@ -204,6 +250,13 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       right primary mechanism, whether the public provider model was
       sufficient, any MVP success-criterion revisions, and whether Compono
       is now the default AutoFixture replacement for `cosmere-tracker`.
+- [ ] Synthesize the above into one explicit, evidence-backed recommendation
+      per Amendment 3 — a stated next action (e.g. Compono becomes the
+      recommended default for new `cosmere-tracker` test code; existing
+      tests migrate incrementally rather than in one pass; specific
+      roadmap-candidate findings should land first; or the current MVP is
+      already sufficient as-is), not just a capability statement that
+      Compono *can* replace AutoFixture.
 - [ ] `docs/migration/migrating-from-autofixture.md`: confirm it needs only
       editorial cleanup at this point, not new content reconstruction — if
       it doesn't, that's a sign Phase 1's "update alongside the code" rule
@@ -227,8 +280,9 @@ In `compono` (this repo):
   the process this plan executes
 - `docs/migration/migrating-from-autofixture.md` — new, drafted Phase 0,
   written incrementally through Phase 1, substantially complete by Phase 4
-- `docs/research/0001-autofixture-comparison.md` — new, the evidence
-  record (Phase 3)
+- `docs/research/0001-autofixture-comparison.md` — created Phase 0 (baseline
+  section), the evidence record; finalized (post-migration metrics,
+  classifications, `## Decisions`) in Phases 2-3
 - `docs/roadmap/post-mvp.md` — new, the evidence-backed roadmap (Phase 3)
 - New `docs/adr/00NN-*.md` for any "roadmap candidate" finding
 - `docs/adr/0011-...md`/`docs/adr/0022-...md`/`docs/adr/0025-...md` — gain

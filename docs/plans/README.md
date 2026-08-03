@@ -49,4 +49,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0004](0004-milestone-4-xunit-integration.md) | Milestone 4: xUnit v3 Integration | Done |
 | [0005](0005-milestone-5-nsubstitute-integration.md) | Milestone 5: NSubstitute Integration | Done |
 | [0006](0006-milestone-6-bogus-integration.md) | Milestone 6: Bogus Integration | Done |
-| [0007](0007-milestone-7-dogfooding.md) | Milestone 7: Dogfooding | Not Started |
+| [0007](0007-milestone-7-dogfooding.md) | Milestone 7: Dogfooding | In Progress |
