@@ -1,6 +1,22 @@
 # [PLAN-0008] Milestone 8: Public Preview
 
-**Status:** Not Started
+**Status:** Not Started — **draft backlog, not yet phased.** A PR review
+correctly flagged that this plan's single, undifferentiated Tasks section
+(58+ pages, sample apps, API-reference tooling, repository-process work,
+and publishing, all under one status) doesn't give Milestone 8 independently
+shippable phases the way `design-decisions.md`'s "Writing a Plan" section
+expects — real phase boundaries with their own checklists and statuses,
+"each phase ships as its own PR." Splitting this backlog into ordered
+phases is itself a real design decision (how coarse, what belongs together,
+what blocks what) deserving its own deep dive
+(`tasks/design.md`) before Milestone 8 starts executing against it — not a
+quick restructuring inside this PR, which is Milestone 7's own scope. This
+plan stays in its current flat, unphased shape as a scoped *backlog*
+(satisfying [ADR-0029 Amendment 4](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-4-2026-08-03-documentation-architecture-becomes-a-required-milestone-7-deliverable)'s
+requirement that Milestone 8 get a scoped list instead of a blank page) —
+its own phase design happens before Milestone 8's plan moves to
+`In Progress`, per `docs/plans/README.md`'s "every ADR/design a plan
+implements must already be settled" rule.
 
 **Implements:** [ADR-0030](../adr/0030-compono-documentation-architecture.md)
 (documentation architecture, including Amendment 1) — this plan is the

@@ -334,9 +334,9 @@ readers who want the deeper "why" behind a pattern the sample uses.
 migrating to Compono.
 **Status:** exists today at `docs/migrating-from-autofixture.md` —
 substantially complete (Milestone 7's own required deliverable), promoted
-to this top-level path in Phase 5. The site nav entry itself
-(`mkdocs.yml`) is Milestone 8 execution work; the content and file
-location are done.
+to this top-level path in Phase 5, `mkdocs.yml` nav entry already added.
+Only its content's final publication review remains, which is Milestone
+8's job.
 **Purpose:** the fastest on-ramp for someone who already thinks in
 AutoFixture's terms — organized around AutoFixture concepts, not a
 mechanical API mapping table.

@@ -248,6 +248,88 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       section's real before/after content, in this same change.
 
 
+## Phase 5: Documentation architecture (Milestone 8 blueprint)
+
+**Status:** Done
+
+Per Amendment 4 and [ADR-0030](../adr/0030-compono-documentation-architecture.md)
+(including Amendment 1). Originally numbered — and originally intended to
+run — after Phase 4, on the reasoning that the final architectural
+conclusion (whether dogfooding changed Compono's design direction, whether
+the public provider model held up, etc.) is direct input to Architecture's
+content scope. In practice this phase was designed and closed before
+Phase 2 even started, since the architecture (hierarchy, section purposes,
+audiences) didn't end up needing that conclusion as an input the way
+originally assumed — Architecture's actual page content (a Milestone 8
+concern) can still incorporate Phase 4's conclusion whenever it lands.
+
+**Positioned here, right after Phase 1, to match when it actually ran** —
+a PR review correctly pointed out that leaving this phase physically after
+Phase 4 while marking it `Done` and Phases 2-4 `Not Started` made phase
+order and status unreliable signals for what to execute next. The label
+stays "Phase 5" (not renumbered to "Phase 2") since that identifier is
+already referenced from ADR-0029 Amendment 4, ADR-0030, `docs/mvp.md`, and
+[PLAN-0008](0008-milestone-8-public-preview.md) — renumbering it would
+cascade edits across all of those for no real benefit, since the identifier
+itself (unlike its position in this file) was never the thing causing
+confusion.
+
+- [x] Write [ADR-0030](../adr/0030-compono-documentation-architecture.md)
+      (developer-journey hierarchy adapted from Diátaxis, migration guide
+      promoted to a top-level entry, dedicated Roadmap area for
+      forward-looking content) and Amendment 4 to ADR-0029 (the scope
+      extension this phase executes). Amendment 1 to ADR-0030 records a
+      further refinement round: documentation as a first-class product, a
+      documentation quality bar, the "every page leads somewhere" rule,
+      Cookbook's expected scale, two new top-level areas (Samples, Best
+      Practices), Learning Paths, Architecture's three-way split (Design
+      Principles/Current Architecture/Historical Decision Log), API
+      reference's supplement-not-replace framing, and the package-count-
+      agnostic structure stated explicitly.
+- [x] Write `docs/documentation-architecture.md` — the living reference:
+      full proposed tree (12 top-level areas after Amendment 1), purpose/
+      audience/contents/relationships for every section, the documentation
+      quality bar, suggested reading order, and an Open Items list for
+      decisions this architecture deliberately leaves to Milestone 8 (API
+      reference toolchain, Cookbook navigation/tagging at scale, where
+      Sample applications physically live, `public-api.md`/`manifesto.md`'s
+      eventual disposition).
+- [x] `docs/mvp.md`: Milestone 7 scope/success measures updated for the
+      documentation-architecture deliverable; Milestone 8 scope rewritten
+      to "write, refine, polish, review, and publish against
+      `docs/documentation-architecture.md`" rather than designing from
+      scratch.
+- [x] `docs/adr/README.md` index row for ADR-0030.
+- [x] Create the initial documentation skeleton matching
+      `docs/documentation-architecture.md`'s tree — 58 stub pages (a
+      "Status: Skeleton" banner, one purpose paragraph, and a link back to
+      `docs/documentation-architecture.md`), correct directory structure,
+      `mkdocs.yml` nav updated to include every one of them (plus
+      "(legacy)"-labeled entries for the pre-existing
+      `architecture.md`/`design-principles.md`/`public-api.md`/
+      `performance.md`/`manifesto.md` pages, until Milestone 8 resolves
+      their Open-Item disposition).
+- [x] Promote the migration guide: `docs/migration/migrating-from-autofixture.md`
+      moved to `docs/migrating-from-autofixture.md` (content unchanged);
+      every cross-reference across `docs/mvp.md`,
+      `docs/documentation-architecture.md`, `docs/research/0001-autofixture-comparison.md`,
+      both ADR-0029/ADR-0030, and this plan updated to the new path.
+- [x] Produce the Milestone 8 documentation work-item backlog:
+      [PLAN-0008](0008-milestone-8-public-preview.md), a page-by-page
+      Tasks checklist (grouped by `docs/documentation-architecture.md`
+      section, in its own reading order) plus the non-page Milestone 8
+      scope items (Open Items resolution, package publishing, benchmark
+      results, known limitations) — indexed in
+      `docs/plans/README.md`.
+
+All five originally-scoped Phase 5 deliverables are done, matching
+ADR-0029 Amendment 4's and `docs/mvp.md`'s stated scope exactly — an
+earlier draft of this section deferred the skeleton/promotion/backlog to
+Milestone 8 and marked Phase 5 "Done" anyway, which a PR review correctly
+flagged as silently overriding the accepted scope without formally
+amending it. Corrected by actually producing them here instead of amending
+the scope down.
+
 ## Phase 2: Evidence collection
 
 **Status:** Not Started
@@ -333,81 +415,6 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
 - [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows for any new
       ADR(s) opened in Phase 3 (already added for ADR-0029/PLAN-0007
       during the design phase).
-
-## Phase 5: Documentation architecture (Milestone 8 blueprint)
-
-**Status:** Done
-
-Per Amendment 4 and [ADR-0030](../adr/0030-compono-documentation-architecture.md)
-(including Amendment 1). Originally numbered after Phase 4 on the
-reasoning that the final architectural conclusion (whether dogfooding
-changed Compono's design direction, whether the public provider model held
-up, etc.) is direct input to Architecture's content scope — in practice
-this phase was designed and closed before Phase 4 started, since the
-architecture (hierarchy, section purposes, audiences) didn't end up needing
-that conclusion as an input the way originally assumed; Architecture's
-actual page content (a Milestone 8 concern) can still incorporate Phase
-4's conclusion whenever it lands. Numbering left as-is rather than
-renumbered, since a plan being wrong about *how*/*when* doesn't require
-resequencing, only an honest note like this one. Writing this phase first
-would mean designing the Architecture
-section before knowing what it actually needs to explain.
-
-- [x] Write [ADR-0030](../adr/0030-compono-documentation-architecture.md)
-      (developer-journey hierarchy adapted from Diátaxis, migration guide
-      promoted to a top-level entry, dedicated Roadmap area for
-      forward-looking content) and Amendment 4 to ADR-0029 (the scope
-      extension this phase executes). Amendment 1 to ADR-0030 records a
-      further refinement round: documentation as a first-class product, a
-      documentation quality bar, the "every page leads somewhere" rule,
-      Cookbook's expected scale, two new top-level areas (Samples, Best
-      Practices), Learning Paths, Architecture's three-way split (Design
-      Principles/Current Architecture/Historical Decision Log), API
-      reference's supplement-not-replace framing, and the package-count-
-      agnostic structure stated explicitly.
-- [x] Write `docs/documentation-architecture.md` — the living reference:
-      full proposed tree (12 top-level areas after Amendment 1), purpose/
-      audience/contents/relationships for every section, the documentation
-      quality bar, suggested reading order, and an Open Items list for
-      decisions this architecture deliberately leaves to Milestone 8 (API
-      reference toolchain, Cookbook navigation/tagging at scale, where
-      Sample applications physically live, `public-api.md`/`manifesto.md`'s
-      eventual disposition).
-- [x] `docs/mvp.md`: Milestone 7 scope/success measures updated for the
-      documentation-architecture deliverable; Milestone 8 scope rewritten
-      to "write, refine, polish, review, and publish against
-      `docs/documentation-architecture.md`" rather than designing from
-      scratch.
-- [x] `docs/adr/README.md` index row for ADR-0030.
-- [x] Create the initial documentation skeleton matching
-      `docs/documentation-architecture.md`'s tree — 58 stub pages (a
-      "Status: Skeleton" banner, one purpose paragraph, and a link back to
-      `docs/documentation-architecture.md`), correct directory structure,
-      `mkdocs.yml` nav updated to include every one of them (plus
-      "(legacy)"-labeled entries for the pre-existing
-      `architecture.md`/`design-principles.md`/`public-api.md`/
-      `performance.md`/`manifesto.md` pages, until Milestone 8 resolves
-      their Open-Item disposition).
-- [x] Promote the migration guide: `docs/migration/migrating-from-autofixture.md`
-      moved to `docs/migrating-from-autofixture.md` (content unchanged);
-      every cross-reference across `docs/mvp.md`,
-      `docs/documentation-architecture.md`, `docs/research/0001-autofixture-comparison.md`,
-      both ADR-0029/ADR-0030, and this plan updated to the new path.
-- [x] Produce the Milestone 8 documentation work-item backlog:
-      [PLAN-0008](0008-milestone-8-public-preview.md), a page-by-page
-      Tasks checklist (grouped by `docs/documentation-architecture.md`
-      section, in its own reading order) plus the non-page Milestone 8
-      scope items (Open Items resolution, package publishing, benchmark
-      results, known limitations) — indexed in
-      `docs/plans/README.md`.
-
-All five originally-scoped Phase 5 deliverables are done, matching
-ADR-0029 Amendment 4's and `docs/mvp.md`'s stated scope exactly — an
-earlier draft of this section deferred the skeleton/promotion/backlog to
-Milestone 8 and marked Phase 5 "Done" anyway, which a PR review correctly
-flagged as silently overriding the accepted scope without formally
-amending it. Corrected by actually producing them here instead of amending
-the scope down.
 
 ## Critical Files
 
@@ -505,3 +512,17 @@ correctly flagged this as silently narrowing ADR-0029 Amendment 4's/
 by direct instruction, all five originally-scoped Phase 5 deliverables were
 produced instead (see the Phase 5 checklist above), rather than amending
 the scope down to match what had been skipped.
+
+A later PR review also flagged that [PLAN-0008](0008-milestone-8-public-preview.md)
+(Phase 5's Milestone 8 backlog) has no phase boundaries of its own — a
+real gap against this repo's "each phase ships as its own PR" convention.
+By explicit decision, that split is deferred to its own design pass
+(`tasks/design.md`) before Milestone 8 begins, rather than restructured
+inside this documentation-architecture PR — PLAN-0008 is marked as a draft,
+unphased backlog pending that design work, not treated as finished. Phase
+5 itself was also physically repositioned (right after Phase 1, matching
+when it actually ran) in response to a separate review finding that its
+prior position — after the still-`Not Started` Phases 2-4 — made phase
+order/status unreliable; its "Phase 5" label was kept rather than
+renumbered, since that identifier is already referenced from several other
+documents.
