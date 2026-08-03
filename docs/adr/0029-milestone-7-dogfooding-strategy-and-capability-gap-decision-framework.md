@@ -529,6 +529,80 @@ design and is not deferred.
   duplicating what the Amendment mechanic already does for exactly this
   case.
 
+## Amendment 1 (2026-08-02): the `Compono.Bogus` experiment is mandatory, not its conclusion
+
+"Compono.Bogus adoption is mandatory" (above) was reviewed against
+PLAN-0007's Phase 0 output and clarified before migration began: what's
+mandatory is running the real experiment — investigating
+`cosmere-tracker`'s domain models and attempting `UseBogus()`/
+`AddAlias`/`AddConvention` adoption against them — not a predetermined
+"and it worked" outcome. The original wording already allowed "no member
+can plausibly use it" as a valid recorded finding, but didn't say the same
+about a partial or negative result once members *are* found: if
+`Compono.Bogus` is adopted for some members and, after real investigation,
+turns out to be a poor fit for others (or for the domain generally — e.g.
+excessive alias/convention configuration for too little readability gain),
+that is an equally valid, equally successful outcome of the dogfooding
+exercise, not a shortfall against this ADR's mandate. `docs/migration/migrating-from-autofixture.md`'s
+`Compono.Bogus` section and `docs/research/0001-autofixture-comparison.md`'s
+findings must record, specifically: where semantic generation improved the
+resulting tests, where it introduced friction, which members needed
+`AddAlias`/`AddConvention`/member-level `UseBogus(faker => ...)` versus the
+built-in allowlist, and a final recommendation for `Compono.Bogus`'s
+continued use in `cosmere-tracker` — including a recommendation of
+"don't use it for X" where the evidence supports that. This is a
+clarification of "Compono.Bogus adoption is mandatory"'s existing intent,
+not a reversal — the experiment was always the requirement; this Amendment
+makes explicit that the rubric's evidence-driven restraint (a real "no" must
+stay available, per this ADR's Decision Drivers) applies to `Compono.Bogus`
+exactly as it does to the three named gaps.
+
+## Amendment 2 (2026-08-02): removed concepts get their own explicit inventory, not just a count
+
+"Evidence to collect"'s first bullet ("Framework-specific concepts removed,
+and Compono-specific concepts introduced, with a rough count of each") is
+sharpened: a rough count under-tells the story of reduced conceptual
+complexity that dropping a concept *entirely* represents. Baseline and
+post-migration comparison must name, not just count, every AutoFixture/
+AutoFixture.AutoNSubstitute concept and every piece of `cosmere-tracker`-
+specific fixture infrastructure that disappears entirely after migration
+rather than being replaced by a Compono equivalent — for example (the
+starting list, from Phase 0's baseline; the actual list is whatever Phase 1
+finds, not limited to this one): `IFixture`, `ICustomization`,
+`ISpecimenBuilder`, `IRequestSpecification`, the custom `AutoDataAttribute`/
+`InlineAutoDataAttribute` subclasses (`CosmereTrackerAutoDataAttribute`,
+`ClientAutoDataAttribute`), `BaseFixtureFactory` and other fixture-factory
+infrastructure, and `NamedRequest`. `docs/research/0001-autofixture-comparison.md`
+records this as an explicit named list (concept removed → what, if
+anything, replaced it, or "nothing — no longer needed"), distinct from the
+list of concepts that were merely replaced one-for-one with a Compono
+equivalent. This is a clarification of "Evidence to collect," not a new
+evidence category — "concepts removed" was already in scope; this Amendment
+specifies the form that evidence must take.
+
+## Amendment 3 (2026-08-02): the final architectural conclusion ends with an explicit recommendation
+
+"Final architectural conclusion" (above) lists six questions Milestone 7's
+closing phase must answer, but stopped short of requiring a synthesis of
+them into a concrete answer to "given everything we learned, what should we
+do now." This is clarified: PLAN-0007 Phase 4 closes with an explicit,
+evidence-backed recommendation — not merely "Compono can replace
+AutoFixture" as a capability statement, but a stated next action, for
+example (illustrative, not exhaustive): Compono becomes the recommended
+default for new `cosmere-tracker` test code; existing AutoFixture-based
+tests migrate incrementally rather than in one pass; specific roadmap-
+candidate findings should land before recommending migration more broadly;
+or the current MVP is already sufficient for that recommendation without
+waiting on any roadmap item. The recommendation must flow from this
+milestone's actual findings (the five-way classifications, the baseline-
+vs-post-migration comparison, Amendment 2's removed-concepts inventory) —
+not be asserted independently of them. This is a clarification of "Final
+architectural conclusion"'s existing intent (it already asked "whether
+Compono is now suitable as the default... for `cosmere-tracker`
+specifically"), not a reversal — this Amendment makes the expected output a
+stated recommendation rather than leaving it as an implicit conclusion a
+reader has to infer from the six answered questions.
+
 ## Links
 
 - [docs/mvp.md](../mvp.md) — Milestone 7 scope/success measures this ADR
