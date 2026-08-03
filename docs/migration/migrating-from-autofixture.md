@@ -352,10 +352,15 @@ private static BookItem CreateBookItem(ICompositionContext context)
     faker.RuleFor(b => b.Id, f => f.Random.Uuid().ToString());
     faker.RuleFor(b => b.Title, f => f.Commerce.ProductName());
     faker.RuleFor(b => b.TitleNormalized, (_, b) => TextNormalizer.Normalize(b.Title));
-    faker.RuleFor(b => b.CreatedAt, _ => DateTimeOffset.UtcNow.ToString("O"));
-    faker.RuleFor(b => b.UpdatedAt, _ => DateTimeOffset.UtcNow.ToString("O"));
+    faker.RuleFor(b => b.CreatedAt, _ => Timestamp(context));
+    faker.RuleFor(b => b.UpdatedAt, _ => Timestamp(context));
     return faker.Generate();
 }
+
+// Deterministic per seed, not DateTimeOffset.UtcNow - the same seed must reproduce the same
+// CreatedAt/UpdatedAt on a later run, not just the same Id/Title (compono PR #40 review).
+private static string Timestamp(ICompositionContext context) =>
+    Epoch.AddSeconds(Math.Abs(context.DeriveSeed())).ToString("O");
 ```
 
 This still exercises Compono.Bogus's determinism contract
@@ -386,22 +391,33 @@ zero real callers at that point; now exercised by `ClientTestProfileTests`
 (see the `HttpClient`/`CMP0001` discussion above) alongside the newly-ported
 `ClientTestProfile`.
 
-## What disappeared entirely
+## What disappeared entirely vs. what was merely replaced
 
-Per [ADR-0029 Amendment 2](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-2-2026-08-02-removed-concepts-get-their-own-explicit-inventory-not-just-a-count):
+Per [ADR-0029 Amendment 2](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-2-2026-08-02-removed-concepts-get-their-own-explicit-inventory-not-just-a-count),
+these are two distinct categories, not one — a concept that disappeared with
+*nothing* taking its place represents a real drop in conceptual complexity;
+a concept replaced one-for-one by a Compono equivalent does not, even though
+the AutoFixture-era name is gone either way.
 
-| Concept | Disappeared entirely? | Replaced by |
-|---|---|---|
-| `IFixture` | Yes | Nothing — composition is per-test-method via `[Compose<TProfile>]`, no fixture object |
-| `ICustomization` | Yes | `ICompositionProfile` (functionally similar, but only one project actually had real customization logic) |
-| `ISpecimenBuilder` | Yes | `CompositionBuilder.Register<T>(...)` inside a profile |
-| `IRequestSpecification` | Yes | Nothing — Compono's registration is keyed by exact type, no separate request-matching type needed |
-| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`, `EndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`) | Yes | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
-| `BaseFixtureFactory` | Yes | `builder.UseNSubstitute()` (one line in each profile) |
-| `NamedRequest` | Yes | Nothing — `Register<T>` factories don't need to pattern-match the requesting parameter's shape |
-| `HttpClientSpecimenBuilder`/`HttpClientSpecification`/`ClientAutoDataAttribute` | Yes | `ClientTestProfile` + `IHttpClientProvider` (ported despite zero real call sites at migration time — an explicit request to keep this capability for future tests; see above) |
-| `DynamoDbResponseSpecimenBuilder` | Yes | Nothing — zero real call sites (see above); not ported |
-| `SpecimenBuilderHash` | Yes | `Bogus.Randomizer`/`Faker<T>.UseSeed` (Compono.Bogus's own deterministic-seed mechanism replaces the hand-rolled SHA256 hash-prefix helper) |
+**Removed entirely — no replacement concept exists:**
+
+| Concept | Why nothing replaced it |
+|---|---|
+| `IFixture` | Composition is per-test-method via `[Compose<TProfile>]` — there's no fixture object at all, configured or otherwise |
+| `IRequestSpecification` | Compono's registration is keyed by exact type; no separate request-matching type is needed |
+| `NamedRequest` | `Register<T>` factories don't need to pattern-match the requesting parameter's shape |
+| `DynamoDbResponseSpecimenBuilder` | Zero real call sites (see above) — dropped, not ported |
+
+**Replaced one-for-one with a Compono equivalent:**
+
+| Concept | Compono equivalent |
+|---|---|
+| `ICustomization` | `ICompositionProfile` (only one project actually had real customization logic to carry over) |
+| `ISpecimenBuilder` | `CompositionBuilder.Register<T>(...)` inside a profile |
+| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`, `EndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`) | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
+| `BaseFixtureFactory` | `builder.UseNSubstitute()` (one line in each profile) |
+| `HttpClientSpecimenBuilder`/`HttpClientSpecification`/`ClientAutoDataAttribute` | `ClientTestProfile` + `IHttpClientProvider` (ported despite zero real call sites at migration time — an explicit request to keep this capability for future tests; see above) |
+| `SpecimenBuilderHash` | `Bogus.Randomizer`/`Faker<T>.UseSeed` (Compono.Bogus's own deterministic-seed mechanism replaces the hand-rolled SHA256 hash-prefix helper) |
 
 ## Multi-tier fixture stacks
 

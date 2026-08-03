@@ -358,10 +358,14 @@ handling") is recorded here with a link to its issue/PR as soon as it
 happens, not reconstructed later.
 
 **Phase 1 (2026-08-03):** No blocking bug found; no compono product-code PR
-needed. Two AutoFixture-era specimen builders discovered to have zero real
-call sites beyond `HttpClientSpecimenBuilder` (gap 1's originally-named
-case): `DynamoDbResponseSpecimenBuilder` in `Cosmere.Tracker.Shared.Tests`.
-Both dropped entirely rather than migrated. `Cosmere.Tracker.Shared.Tests`'
+needed. One further AutoFixture-era specimen builder discovered to have
+zero real call sites beyond `HttpClientSpecimenBuilder` (gap 1's
+originally-named case): `DynamoDbResponseSpecimenBuilder` in
+`Cosmere.Tracker.Shared.Tests`, dropped entirely rather than migrated
+(unlike `HttpClientSpecimenBuilder`'s own equivalent, which was ported as
+`ClientTestProfile`/`IHttpClientProvider` despite the same zero-call-site
+finding — see above; the two builders' zero-frequency evidence doesn't mean
+the same disposition for both). `Cosmere.Tracker.Shared.Tests`'
 `ListWorldsAsync_WhenSortEmpty_DefaultsToName`/
 `ListCharactersAsync_WhenSortEmpty_DefaultsToName` required an explicit
 NSubstitute stub they didn't previously need (gap 2 evidence — see the
