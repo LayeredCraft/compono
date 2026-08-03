@@ -1,10 +1,9 @@
 # [RESEARCH-0001] AutoFixture vs. Compono: `cosmere-tracker` Dogfooding
 
-**Status:** In Progress (Phase 0 baseline and Phase 1 migration complete, all
-73 `cosmere-tracker` tests passing under Compono (72 migrated plus one new
-capability test); Phase 2's formal
-post-migration metrics/evidence dossier and Phase 3's classification still to
-come — see
+**Status:** In Progress (Phase 0 baseline, Phase 1 migration, and Phase 2
+evidence collection complete, all 73 `cosmere-tracker` tests passing under
+Compono (72 migrated plus one new capability test); Phase 3's
+classification and Phase 4's final conclusion still to come — see
 [the migration guide](../migrating-from-autofixture.md) for Phase
 1's real before/after findings in the meantime)
 
@@ -163,7 +162,131 @@ container for this baseline run.
 
 ## Post-migration metrics (Phase 2)
 
-_To be filled in after Phase 1's migration completes._
+Captured against `cosmere-tracker` `main` at commit `4d25e14198d5de3291404c424b6aafa6c2a6299a`
+("feat(testkit): migrate from AutoFixture to Compono (#162)", merged
+2026-08-03), the squash-merge of PR #162 — the same migration Phase 1's
+before/after evidence in [the migration guide](../migrating-from-autofixture.md)
+was drawn from, now on `main`.
+
+### Test kit inventory (post-migration)
+
+| Project/folder | Files | Lines | Purpose |
+|---|---|---|---|
+| `Cosmere.Tracker.TestKit` | 3 | 95 | `IHttpClientProvider`/`HttpClientProvider` (`Http/`), `ClientTestProfile` (`Profiles/`), `HttpMessageHandlerExtensions.ReturnsResponse` (`Extensions/`) |
+| `Cosmere.Tracker.Shared.TestKit` | 1 | 132 | `SharedTestKitProfile` — domain items (`BookItem`/`CharacterItem`/`WorldItem` via `UseBogus<T>()`, edge items via `Register<T>`) |
+| `Cosmere.Tracker.Api.Tests/TestKit` | 2 | 50 | `EndpointTestProfile` (`Profiles/`) + `ClientTestProfileTests` (new capability test, not kit infrastructure) |
+| `Cosmere.Tracker.Shared.Tests/TestKit` | 1 | 38 | `PersistenceTestProfile` |
+| **Total (kit infrastructure only, excl. the new capability test)** | **7** | **~305** | |
+
+Compared to the Phase 0 baseline's two quantified tiers alone (`Cosmere.Tracker.TestKit`:
+218 lines/8 files, `Cosmere.Tracker.Shared.TestKit`: 271 lines/6 files —
+489 lines/14 files total, before even counting the per-suite local kits
+the baseline described but didn't line-count): **~305 lines across 7 files
+post-migration, roughly a 38% line reduction** against just those two
+tiers, while also collapsing the baseline's three-tier fixture stack
+(base kit → shared kit → per-suite local kit, each with its own
+attributes/customizations/specimen builders) down to plain
+`ICompositionProfile` classes composed via `AddProfile<T>()` — one concept
+(a profile) instead of the base kit's four (`IFixture` factory,
+`ICustomization`, `ISpecimenBuilder`, `IRequestSpecification`) at every
+tier.
+
+### `dotnet test` post-migration run
+
+```
+dotnet build Cosmere.Tracker.slnx -c Debug   →  0 errors, 753 warnings (pre-existing style warnings unrelated to the migration), ~[build time not separately isolated]
+dotnet test Cosmere.Tracker.slnx -c Debug --no-build
+  Cosmere.Tracker.Api.Tests:    33 passed (362ms)
+  Cosmere.Tracker.Seeder.Tests:  2 passed (396ms)
+  Cosmere.Tracker.Shared.Tests: 38 passed (428ms)
+  total: 73, failed: 0, succeeded: 73, skipped: 0
+  duration: 1s 292ms (test execution)
+```
+
+73 tests (72 migrated + 1 new `ClientTestProfileTests` capability test,
+added to actually exercise the `ClientTestProfile`/`IHttpClientProvider`
+path this migration introduced) vs. the baseline's 72 — zero regressions,
+and total execution time is statistically flat against baseline (1s 292ms
+vs. 1s 346ms), i.e. the migration carried no measurable runtime cost. The
+753 warnings are pre-existing repo-wide style warnings (see `dotnet build`
+output), unrelated to the test kit change; the baseline's 66 warnings were
+narrower NuGet-advisory/version-constraint warnings from a different
+`dotnet build` invocation, so the two counts aren't directly comparable to
+each other — both are noted here for completeness, not as a regression
+signal.
+
+### Per-file readability notes (post-migration)
+
+- **`SharedTestKitProfile.cs`** (132 lines, the largest single file) —
+  denser than any individual baseline file, but the density is
+  concentrated in one place instead of spread across four
+  (`SharedCustomization` + three domain-item specimen builders +
+  `SpecimenBuilderHash`): one `Configure` method wires all three
+  `UseBogus<T>()` calls plus six edge-item `Register<T>` calls, and each
+  domain type's faker rules live in one adjacent private method
+  (`ConfigureBookItem`/`ConfigureCharacterItem`/`ConfigureWorldItem`)
+  directly below `Configure` — a reader sees the whole shape of one type's
+  generated data in one place, rather than needing to find a separate
+  specimen-builder file per type as the baseline required.
+- **`ClientTestProfile.cs`** + **`IHttpClientProvider.cs`** (Compono
+  side of the migrated `HttpClientSpecimenBuilder`/`HttpClientSpecification`
+  pair) — two files, same as baseline, but the indirection changed
+  character: baseline's two hops were "which `IRequestSpecification`
+  matches, which `ISpecimenBuilder` handles it"; post-migration's two hops
+  are "why can't `HttpClient` be composed directly (`IHttpClientProvider`'s
+  XML remarks explain `CMP0001`), what does the profile register instead."
+  The latter is a documented compiler limitation with a doc-comment
+  pointing at ADR-0002; the former had no equivalent signpost anywhere in
+  the baseline code.
+- **`EndpointTestProfile.cs`** (11 lines) / **`PersistenceTestProfile.cs`**
+  (38 lines, including its documented decision not to port
+  `DynamoDbResponseSpecimenBuilder`) — both replace the baseline's
+  per-suite local kit tier (`EndpointAutoDataAttribute`,
+  `PersistenceAutoDataAttribute` + DynamoDB specimen builders) with a
+  profile that composes `SharedTestKitProfile` and adds
+  `UseNSubstitute()`/suite-specific registrations. Readable top-to-bottom
+  in one file each; the baseline's equivalent required knowing which
+  `AutoDataAttribute` subclass to look up per suite, then following it
+  into whichever specimen builder it referenced.
+- **No equivalent of `BaseFixtureFactory.cs`, `CosmereTrackerCustomization.cs`,
+  or `NamedRequest.cs` exists post-migration** — see "Concepts removed
+  entirely" below for what happened to each.
+
+### Broader maintainability dimensions (post-migration)
+
+- **Framework-specific concepts in play:** `ICompositionProfile`,
+  `CompositionBuilder`/`AddProfile<T>()`, `Register<T>()`,
+  `[Compose]`/`[Compose<TProfile>]`, `[Shared]`, `UseNSubstitute()`,
+  `UseBogus<T>()` — 7 Compono/Compono.NSubstitute/Compono.Bogus concepts,
+  down from the baseline's 8 AutoFixture/AutoFixture.AutoNSubstitute
+  concepts, but composed into fewer files per concept (the base kit's four
+  layered concepts — fixture factory, customization, specimen builder,
+  request specification — collapse into one: a profile).
+  `HttpMessageHandlerExtensions.ReturnsResponse`'s reflection-based
+  NSubstitute stubbing (`BindingFlags.NonPublic`) is unchanged and carried
+  forward as-is; it was never an AutoFixture concept and isn't a Compono
+  one either.
+- **Custom fixture infrastructure present:** yes, still three tiers
+  (`Cosmere.Tracker.TestKit` → `Cosmere.Tracker.Shared.TestKit` →
+  per-suite local profile), but each tier is now one plain class
+  implementing one interface (`ICompositionProfile`), composed via
+  `builder.AddProfile<T>()` rather than inherited/subclassed attribute
+  types — the tier structure survived the migration (it reflects a real
+  reuse need, not AutoFixture idiom), but the mechanism connecting the
+  tiers got simpler.
+- **Setup visible per test method:** `[Compose]`/`[Compose<TProfile>]`
+  parameters are explicit in the test method signature about which
+  profile is in play, and `[Shared]` parameters are explicit about reused
+  instances — this is the direct trade ADR-0029 anticipated for gap 1:
+  baseline's `[ClientAutoData]` hid the frozen-`HttpMessageHandler` pattern
+  entirely behind the attribute, where `ClientTestProfile` composed via
+  `[Compose<ClientTestProfile>]` makes the shared-handler relationship
+  visible in the test signature at the cost of a longer signature.
+- **Concepts a new contributor needs today:** the 7 Compono-family
+  concepts above, plus (unchanged from baseline) knowing which of the
+  three fixture-kit tiers to extend for a given change — the tier-count
+  didn't shrink, but each tier is now a single, self-contained profile
+  class rather than a customization/specimen-builder/attribute trio.
 
 ## Concepts removed entirely (Phase 2)
 
@@ -172,28 +295,208 @@ an explicit named inventory, not just a count — which of the following
 disappeared entirely after migration versus were merely replaced
 one-for-one, and what (if anything) replaced each:
 
-- `IFixture`
-- `ICustomization`
-- `ISpecimenBuilder`
-- `IRequestSpecification`
-- The custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses
-  (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`)
-- `BaseFixtureFactory` and other fixture-factory infrastructure
-- `NamedRequest`
-- Any other concept Phase 1 surfaces beyond this starting list
-
-_To be filled in after Phase 1's migration completes._
+- **`IFixture`** — disappeared entirely. No Compono equivalent exists or
+  is needed; `CompositionBuilder` is configured directly per profile, with
+  no central fixture object threading through the kit.
+- **`ICustomization`** — disappeared entirely. Replaced by
+  `ICompositionProfile` — but not one-for-one: a profile is a plain class
+  with a `Configure(CompositionBuilder)` method, not an extensibility
+  interface layered on top of a fixture; there's no `Customize(IFixture)`
+  equivalent to implement.
+- **`ISpecimenBuilder`** — disappeared entirely. Replaced by
+  `builder.Register<T>(Func<ICompositionContext, T>)` for hand-built
+  values and `builder.UseBogus<T>(Action<Faker<T>>)` for Bogus-generated
+  ones — direct factory functions instead of a builder interface
+  participating in AutoFixture's specimen-resolution pipeline.
+- **`IRequestSpecification`** — disappeared entirely, with nothing
+  replacing it. It existed solely to let `HttpClientSpecimenBuilder`
+  detect "this parameter wants an `HttpClient`" during specimen
+  resolution; Compono's compile-time `[Compose]` parameter typing makes
+  that runtime type-matching step unnecessary. (Its removal is entangled
+  with `CMP0001` — see the per-finding dossier below.)
+- **The custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses**
+  (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`,
+  and the previously-unlisted `EndpointAutoDataAttribute`/
+  `PersistenceAutoDataAttribute` local-kit equivalents surfaced during
+  Phase 1) — all disappeared entirely. Replaced by
+  `[Compose]`/`[Compose<TProfile>]`, which are Compono.XunitV3 framework
+  attributes, not per-project subclasses — no equivalent custom attribute
+  class exists anywhere in the migrated kit.
+- **`BaseFixtureFactory` and other fixture-factory infrastructure** —
+  disappeared entirely, including its
+  `ThrowingRecursionBehavior`→`OmitOnRecursionBehavior` swap and
+  `AutoNSubstituteCustomization { ConfigureMembers = true }` call. Compono
+  has no recursion-behavior concept (it doesn't recursively populate
+  object graphs the way AutoFixture's engine does) and no
+  `ConfigureMembers`-style global auto-stubbing switch; `UseNSubstitute()`
+  registers NSubstitute as the provider for interface types, full stop —
+  narrower in scope, nothing replaces the recursion-behavior swap because
+  nothing in Compono's model produces the recursion `BaseFixtureFactory`
+  was defending against.
+- **`NamedRequest`** — disappeared entirely, with nothing replacing it. It
+  existed to let specimen builders make name-aware decisions during
+  AutoFixture's request-resolution pipeline; Compono's `Register<T>`/
+  `UseBogus<T>` factories are typed directly per domain type; there's no
+  generic "named request" concept for a factory to inspect.
+- **`CosmereTrackerCustomization`** — disappeared entirely, confirming
+  Phase 0's prediction: it was already a no-op with commented-out examples
+  at baseline, and Phase 1 confirmed no consumer needed a project-wide
+  extension hook at that layer, so it was dropped rather than migrated
+  (per ADR-0029's "migration idiom" — idiomatic Compono over mechanical
+  translation).
+- **`DynamoDbResponseSpecimenBuilder`** (not in the original starting
+  list — surfaced during Phase 1) — disappeared entirely, documented
+  explicitly in `PersistenceTestProfile`'s XML remarks: it composed a
+  `PartiqlPage` as a test parameter, but no test in the project ever
+  requested one that way; every real usage constructed `PartiqlPage`
+  directly in the test body. Zero real call sites, alongside gap 1's
+  `HttpClientSpecimenBuilder` finding of the same shape.
+- **Not removed — carried forward unchanged:**
+  `HttpMessageHandlerExtensions.ReturnsResponse` (the reflection-based
+  NSubstitute stubbing helper) ported as-is; it was never an AutoFixture
+  concept, so migration didn't touch it.
+- **Not removed — replaced one-for-one, not eliminated:**
+  `HttpClientSpecimenBuilder`/`HttpClientSpecification` →
+  `ClientTestProfile`/`IHttpClientProvider`. Kept by explicit request
+  despite zero current call sites, because it's a capability needed for
+  future tests — this is the one baseline concept pair that survived the
+  migration in spirit (frozen-handler-backed `HttpClient` composition)
+  while changing mechanism entirely (see the per-finding dossier below).
 
 ## Per-finding evidence dossier (Phase 2)
 
-_To be filled in — one entry per finding (the three named gaps, the
-mandatory `Compono.Bogus` finding, and any further finding surfaced during
-migration), each with frequency, before/after snippet, principle-alignment
-note, and classification per ADR-0029's five-way taxonomy. Per
-[Amendment 1](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-1-2026-08-02-the-componobogus-experiment-is-mandatory-not-its-conclusion),
-the `Compono.Bogus` finding's dossier ends in a stated recommendation for
-its continued use in `cosmere-tracker` — a negative or partial
-recommendation is a valid, successful outcome, not a shortfall._
+One entry per finding: the three named gaps from ADR-0029, the mandatory
+`Compono.Bogus` finding, and the two additional findings Phase 1 surfaced
+beyond ADR-0029's starting list (`CMP0001`, and the two `NullReferenceException`
+tests). Each entry gives frequency, a before/after snippet (or a pointer
+to one already recorded in [the migration guide](../migrating-from-autofixture.md),
+per this repo's link-don't-duplicate documentation principle), a
+principle-alignment note, and a classification per ADR-0029's five-way
+taxonomy (bug / roadmap candidate / acceptable Compono-native alternative
+/ intentional design difference / migration-only friction). Full
+classification rationale is deferred to Phase 3; the note here is a
+first-pass lean, not the final call.
+
+### Gap 1 — frozen `HttpMessageHandler` for `HttpClient` composition
+
+- **Frequency:** 0 real call sites for `[ClientAutoData]`/
+  `[InlineClientAutoData]` anywhere in `cosmere-tracker` outside
+  `Cosmere.Tracker.TestKit`'s own definition files (confirmed Phase 1).
+  The capability was migrated anyway, by explicit request, since it's
+  needed for future HTTP-client tests.
+- **Before/after:** see the migration guide's gap 1 section for the full
+  `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute` before-snippet;
+  after is `ClientTestProfile` (`test/Cosmere.Tracker.TestKit/Profiles/ClientTestProfile.cs`)
+  + `IHttpClientProvider` (`test/Cosmere.Tracker.TestKit/Http/IHttpClientProvider.cs`).
+- **Principle-alignment note:** the migrated form makes the frozen-handler
+  relationship an explicit, composable dependency (`IHttpClientProvider`
+  resolved from a shared `HttpMessageHandler`) rather than an
+  attribute-hidden specimen-resolution rule — aligns with Compono's
+  explicit-composition design principle, at the cost of needing an
+  interface indirection `HttpClient` itself can't satisfy (see `CMP0001`
+  below).
+- **Lean classification:** intentional design difference — the frozen
+  handler pattern maps to a real Compono construct with equivalent
+  capability, just expressed as an explicit interface dependency rather
+  than an implicit specimen-builder rule.
+
+### Gap 2 — `[Frozen]`-for-substitute + auto-configured members (the 2 `NullReferenceException` tests)
+
+- **Frequency:** 2 test failures on first migration attempt
+  (`ListWorldsAsync_WhenSortEmpty_DefaultsToName`,
+  `ListCharactersAsync_WhenSortEmpty_DefaultsToName`), plus the
+  broader-pattern evidence in the migration guide of how often
+  `[Frozen]`-for-substitute was used baseline-wide.
+- **Before/after:** baseline relied on
+  `AutoNSubstituteCustomization { ConfigureMembers = true }` (part of
+  `BaseFixtureFactory`) auto-configuring substitute return values for any
+  unstubbed call; after migration, bare `Substitute.For<T>()` via
+  `UseNSubstitute()` returns `null` for unstubbed calls with no
+  auto-configuration equivalent. Fixed by adding explicit
+  `.ReturnsForAnyArgs(new PartiqlPage([], null))` stubs — see the
+  migration guide for the full before/after.
+- **Principle-alignment note:** the failure is a real behavioral gap, not
+  a migration mistake — Compono.NSubstitute has no `ConfigureMembers`
+  equivalent. Making previously-implicit stub behavior explicit surfaced
+  two tests that were passing on an implicit default rather than an
+  intentional stub, arguably a latent test-quality issue baseline
+  papered over.
+- **Lean classification:** acceptable Compono-native alternative —
+  explicit stubbing is more verbose per call site but removes a global,
+  easy-to-forget auto-configuration behavior; the 2-test fix cost was
+  small relative to the clarity gained.
+
+### Gap 3 — `Compono.Bogus` mandatory dogfooding (`UseBogus<T>()`)
+
+- **Frequency:** 3 domain types (`BookItem`, `CharacterItem`,
+  `WorldItem`) in `SharedTestKitProfile`, each with 2-3 semantic
+  string/date `RuleFor` rules — the entirety of `cosmere-tracker`'s
+  Bogus-driven data generation.
+- **Before/after:** baseline had no Bogus dependency at all (AutoFixture
+  generated semantic-looking strings via its own anonymous-value engine);
+  after migration, `builder.UseBogus<T>(ConfigureBookItem)` etc. in
+  `SharedTestKitProfile.cs`. Two real bugs surfaced and fixed during this
+  adoption (both compono PR #40 review findings, recorded in code
+  comments in `SharedTestKitProfile.cs`): (1) an initial hand-rolled
+  `Register<T>` + `new Faker<T>().UseSeed(...)` implementation that
+  bypassed `UseBogus<T>()`'s own context-seeding entirely, based on an
+  incorrect belief that its callback lacked context access; (2)
+  `DateTimeOffset.UtcNow`/clock-dependent `PastOffset` defaults that broke
+  determinism, fixed via a fixed `ReferenceDate` constant.
+- **Principle-alignment note:** per
+  [Amendment 1](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-1-2026-08-02-the-componobogus-experiment-is-mandatory-not-its-conclusion),
+  this dossier owes a stated recommendation, not just a capability
+  report. **Recommendation: continue using `Compono.Bogus`'s
+  `UseBogus<T>()` in `cosmere-tracker`.** Once actually called through its
+  real API (rather than the initial bypassed hand-roll), it composes
+  cleanly with `context.DeriveSeed()`'s determinism contract and reads as
+  a natural extension of a profile's `Configure` method — no friction
+  remained after the two review-caught bugs were fixed. This is a
+  positive finding, not a neutral or partial one.
+- **Lean classification:** acceptable Compono-native alternative (verging
+  on a genuine improvement — semantic realism plus explicit, per-type
+  Faker rules in one place, versus AutoFixture's opaque anonymous-value
+  generation).
+
+### Finding 4 — `CMP0001`: `HttpClient` can't be composed directly (compile-time constructor-selection limitation)
+
+- **Frequency:** 1 diagnostic, discovered once while migrating gap 1;
+  applies to any type with 3+ accessible constructors composed directly
+  as a `[Compose]` parameter, not just `HttpClient`.
+- **Before/after:** no baseline equivalent — this is a Compono-side
+  limitation, not an AutoFixture behavior being replaced. Worked around
+  via `IHttpClientProvider` (an interface is always treated as a
+  provider-resolved leaf, bypassing constructor-selection entirely) — see
+  `IHttpClientProvider.cs`'s XML remarks for the full mechanism and its
+  pointer to ADR-0002.
+- **Principle-alignment note:** ADR-0002's constructor-selection algorithm
+  anticipated a `[CompositionConstructor]` disambiguation attribute for
+  exactly this case, but it was never implemented — this finding is that
+  gap becoming concretely observable during real dogfooding rather than a
+  new problem.
+- **Lean classification:** roadmap candidate — the interface-wrapper
+  workaround is viable and arguably fine practice regardless, but
+  `[CompositionConstructor]` (or equivalent) closes a real, documented gap
+  between ADR-0002's design and its implementation.
+
+### Finding 5 — Three-tier fixture stack maintainability (structural finding, not a specific API gap)
+
+- **Frequency:** applies repo-wide — every one of the three tiers (base
+  kit → shared kit → per-suite local kit) existed at baseline and still
+  exists post-migration.
+- **Before/after:** see "Test kit inventory (post-migration)" above for
+  the file/line comparison; the tier count didn't change, but each tier
+  collapsed from a multi-file attribute/customization/specimen-builder
+  group into one `ICompositionProfile` class per tier.
+- **Principle-alignment note:** this finding was raised in Phase 0's
+  baseline notes as "worth carrying into Phase 2's comparison" — carrying
+  it through, the post-migration numbers confirm the tier structure
+  itself is a real reuse need (it survived migration unchanged), while
+  the per-tier mechanism got measurably simpler.
+- **Lean classification:** intentional design difference — not a gap to
+  close, a structural observation that Compono simplifies the
+  implementation of a pattern the project will keep regardless of test
+  framework.
 
 ## Classifications (Phase 3)
 

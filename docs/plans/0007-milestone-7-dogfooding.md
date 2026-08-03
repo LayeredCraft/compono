@@ -332,13 +332,13 @@ the scope down.
 
 ## Phase 2: Evidence collection
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] Post-migration metrics matching Phase 0's baseline shape (file/line
+- [x] Post-migration metrics matching Phase 0's baseline shape (file/line
       counts, `dotnet test` run time, per-file readability notes, and the
       broader maintainability dimensions from ADR-0029's "Evidence to
       collect") — enough to compare directly against the baseline.
-- [ ] Explicit named inventory of concepts that disappeared entirely during
+- [x] Explicit named inventory of concepts that disappeared entirely during
       migration — not just a rough count — per Amendment 2: which of
       `IFixture`, `ICustomization`, `ISpecimenBuilder`,
       `IRequestSpecification`, the custom `AutoDataAttribute`/
@@ -346,10 +346,24 @@ the scope down.
       `NamedRequest`, and any other Phase 0/1-surfaced concept were dropped
       entirely versus merely replaced one-for-one with a Compono
       equivalent, and what (if anything) replaced each one.
-- [ ] Per-finding evidence dossier (frequency, before/after snippet,
+- [x] Per-finding evidence dossier (frequency, before/after snippet,
       principle-alignment note, classification per ADR-0029's five-way
       taxonomy) for each of the three known gaps plus any additional
       finding, including positive findings.
+
+Evidence written into `docs/research/0001-autofixture-comparison.md`'s
+"Post-migration metrics," "Concepts removed entirely," and "Per-finding
+evidence dossier" sections, against `cosmere-tracker` PR #162's merge
+commit (`4d25e14`). Findings included: ~305 lines/7 files post-migration
+vs. baseline's 489 lines/14 files across the two quantified tiers (~38%
+reduction); 73/73 tests passing in 1s 292ms (flat vs. baseline's 72/72 in
+1s 346ms); a full named-concept inventory (including two concepts beyond
+Amendment 2's starting list: `DynamoDbResponseSpecimenBuilder`, dropped
+for zero call sites, and `EndpointAutoDataAttribute`/
+`PersistenceAutoDataAttribute`, folded into the custom-attribute-subclass
+entry); and five dossier entries (gaps 1-3 plus `CMP0001` and the
+three-tier-stack structural finding) with first-pass classification leans
+— final classification is Phase 3's job, not redone here.
 
 ## Phase 3: Classify findings and produce the roadmap
 
