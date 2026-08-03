@@ -308,9 +308,15 @@ signal.
 - **Custom fixture infrastructure present:** yes, still three tiers
   (`Cosmere.Tracker.TestKit` → `Cosmere.Tracker.Shared.TestKit` →
   per-suite local profile). Each tier's configuration entry point is now
-  one profile class implementing `ICompositionProfile`, composed via
-  `builder.AddProfile<T>()` rather than inherited/subclassed attribute
-  types — but that's the entry point, not the whole tier: the base tier
+  one profile class implementing `ICompositionProfile`, rather than
+  inherited/subclassed attribute types — activated two different ways,
+  not uniformly via `AddProfile<T>()`: the base and per-suite-local
+  profiles are each selected directly on a test method via
+  `[Compose<TProfile>]`, while only the two per-suite-local profiles
+  additionally call `builder.AddProfile<SharedTestKitProfile>()`
+  internally to pull the shared tier in (see "Test kit inventory
+  (post-migration)" above for the full breakdown). That's the entry
+  point, not the whole tier, either way: the base tier
   (`Cosmere.Tracker.TestKit`) still carries 3 files
   (`ClientTestProfile` plus its supporting `IHttpClientProvider`/
   `HttpClientProvider` and `HttpMessageHandlerExtensions`), matching the
