@@ -370,11 +370,11 @@ two concepts beyond Amendment 2's starting list
 the custom-attribute-subclass entry); and ten dossier entries (the
 three ADR-0029 gaps — including gap 3, recursion behavior, corrected
 after an earlier draft mislabeled it as the `Compono.Bogus` finding — the
-`Compono.Bogus` finding itself, `AllowMultiple = false` Compose-family
-stacking, `Compono.Bogus`'s exact member-name-matching ambiguity,
-`DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`, the
-three-tier-stack structural finding, and the pure-inline-`[Theory]`
-positive finding) with first-pass classification leans — final
+`Compono.Bogus` finding itself, the Compose-family binding-validation
+stacking constraint, `Compono.Bogus`'s exact member-name-matching
+ambiguity, `DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`,
+the three-tier-stack structural finding, and the pure-inline-`[Theory]`
+cleanup finding) with first-pass classification leans — final
 classification is Phase 3's job, not redone here. A PR review on this
 phase's own PR (#42) went through several rounds, catching (in order):
 the gap-3 mislabeling and three missing dossier entries; the

@@ -412,11 +412,11 @@ One entry per finding: ADR-0029's three named gaps (1: frozen shared
 values, 2: NSubstitute `ConfigureMembers`, 3: recursion behavior), the
 mandatory `Compono.Bogus` finding (a required experiment per Amendment 1,
 not one of the three named gaps), and every additional finding Phase 1
-surfaced beyond that starting list (`CMP0001`; the `[AttributeUsage(AllowMultiple
-= false)]` Compose-family stacking constraint; `Compono.Bogus`'s exact
+surfaced beyond that starting list (`CMP0001`; the Compose-family
+binding-validation stacking constraint; `Compono.Bogus`'s exact
 member-name-matching ambiguity; `DynamoDbResponseSpecimenBuilder`'s zero
 call sites; the three-tier fixture-stack structural finding; and the
-pure-inline-`[Theory]` positive finding). An
+pure-inline-`[Theory]` cleanup finding). An
 earlier draft of this dossier mislabeled the `Compono.Bogus` finding as
 "gap 3" and omitted the recursion-behavior gap along with three of these
 additional findings entirely — corrected here; see ADR-0029's Context
@@ -562,7 +562,7 @@ call.
   Faker rules in one place, versus AutoFixture's opaque anonymous-value
   generation).
 
-### Finding 4 — `[AttributeUsage(AllowMultiple = false)]` blocks stacking distinct Compose-family attributes
+### Finding 4 — Compose-family binding validation blocks stacking distinct Compose-family attributes
 
 - **Frequency:** 0 real call sites needing the combination in
   `cosmere-tracker` (`TextNormalizerTests`' inline rows were pure-inline,
@@ -699,32 +699,38 @@ call.
   implementation of a pattern the project will keep regardless of test
   framework.
 
-### Finding 9 — Pure-inline `[Theory]` rows need no Compono attribute at all (positive finding)
+### Finding 9 — Pure-inline `[Theory]` rows needed no `AutoDataAttribute` wrapper even before migration (project-local cleanup)
 
 - **Frequency:** 7 rows, 1 test class (`TextNormalizerTests`), each a
   `[InlineCosmereTrackerAutoData(...)]` row where every parameter was
   supplied inline and no AutoFixture-composed value was ever used.
-- **Before/after:** baseline still had to route every row through the
+- **Before/after:** baseline routed every row through the
   `InlineCosmereTrackerAutoDataAttribute` subclass regardless of whether
   any value was actually composed; post-migration, plain xUnit
   `[InlineData]` is correct and sufficient, with no Compono attribute
   needed at all. See the migration guide's "pure-inline `[Theory]`" note
-  for the full before/after snippet.
+  for the full before/after snippet. Critically, this wasn't an
+  AutoFixture requirement: plain `[InlineData]` was already available and
+  would have worked equally well for these seven fully-inline rows while
+  AutoFixture was still installed — nothing about AutoFixture forced
+  routing through the custom subclass for a row with no composed
+  parameter at all.
 - **Principle-alignment note:** `[Compose]` itself is method-scoped, not
   parameter-scoped (`ComposeAttribute`'s `[AttributeUsage(AttributeTargets.Method)]`
   — it creates the theory row and, per its own binding rules, composes
-  every parameter not supplied inline). The actual positive finding is
-  narrower than "Compose only applies where composed": it's that a fully
-  inline `[Theory]` doesn't need *any* Compose-family attribute at all —
-  `[InlineData]` alone is sufficient, since there's no parameter left for
-  a method-scoped `[Compose]` to do anything with. That's still simpler
-  than AutoFixture's idiom (which always routed through the custom
-  `AutoDataAttribute` subclass, composed or not), just for a narrower
-  reason than parameter-level selectivity.
-- **Lean classification:** intentional design difference (positive) — not
-  a gap Compono needs to close; AutoFixture's own idiom carried
-  unnecessary indirection for this case that a fully inline Compono test
-  doesn't have to begin with.
+  every parameter not supplied inline), so this isn't a case of Compono
+  selectively skipping parameters. The real story is narrower and
+  project-local: `InlineCosmereTrackerAutoDataAttribute` was
+  `cosmere-tracker`'s own wrapper, not something AutoFixture required —
+  `TextNormalizerTests` could have used plain `[InlineData]` at any point
+  before this migration and lost nothing. Migrating away from the custom
+  wrapper simply removed a redundant project-local abstraction; it isn't
+  evidence that Compono's model is more capable than AutoFixture's for
+  this case, since AutoFixture never stood in the way here either.
+- **Lean classification:** migration-only friction — a pre-existing,
+  unnecessary project-local wrapper identified and removed during
+  migration, not a framework capability difference between AutoFixture
+  and Compono.
 
 ## Classifications (Phase 3)
 
