@@ -194,16 +194,20 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       member-name matching can't disambiguate `CharacterItem.Name` (a
       person's name) from `WorldItem.Name` (a place name) sharing the
       literal member name `"Name"` — the built-in convention/alias/custom-
-      convention path doesn't fit. Adopted instead via a hand-written
-      `Register<T>` factory per type, building a `Faker<T>` seeded from
-      `context.DeriveSeed()` with `RuleFor` (including sibling-property
-      access for `TitleNormalized`/`NameNormalized` derived fields) — this
-      still exercises Compono.Bogus's determinism contract but not its
-      `UseBogus<T>()` ergonomic sugar, since that sugar's callback has no
-      access to the resolving `ICompositionContext`. Recommendation recorded
-      in the migration guide: genuinely useful for semantic string fields,
-      via the direct `Faker<T>` + `DeriveSeed()` pattern rather than
-      `UseBogus<T>()` — a tradeoff, not a clean win (ADR-0029 Amendment 1).
+      convention path doesn't fit. Adopted instead via
+      `builder.UseBogus<T>(faker => ...)` — Compono.Bogus's own whole-object
+      sugar — per type, with `RuleFor` (including sibling-property access
+      for `TitleNormalized`/`NameNormalized`/`UpdatedAt` derived fields). An
+      earlier version of this task bypassed `UseBogus<T>()` for a hand-rolled
+      `Register<T>` factory on the incorrect claim that its callback has no
+      access to the resolving `ICompositionContext` — caught in PR review:
+      `UseBogus<T>` already seeds the `Faker<T>` from `context.DeriveSeed()`
+      internally before invoking the callback, so there was never a reason to
+      bypass it, and doing so meant this task initially recorded successful
+      dogfooding without ever calling a `Compono.Bogus` API. Corrected to use
+      `UseBogus<T>()` directly. Recommendation recorded in the migration
+      guide: a genuine win for semantic string fields, not just a tradeoff
+      (ADR-0029 Amendment 1).
 - [x] Further findings recorded (beyond the three named gaps):
       `DynamoDbResponseSpecimenBuilder` had zero real call sites and was
       dropped entirely; `HttpClientSpecimenBuilder`'s equivalent

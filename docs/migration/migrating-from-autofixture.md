@@ -331,54 +331,59 @@ serve both correctly. This is exactly the kind of domain `Compono.Bogus`'s
 built-in allowlist wasn't designed around (ADR-0029's own framing), and a
 genuine finding from dogfooding it against a non-person-centric domain.
 
-**Resolution used: whole-object generation via `Faker<T>`, not the
-member-name-convention path.** Because `BookItem`/`CharacterItem`/`WorldItem`
-also need derived fields consistent with their semantic string
-(`TitleNormalized`/`NameNormalized` must equal
-`TextNormalizer.Normalize(Title/Name)`) and a composition-path-derived
-identity (not just a random value), `UseBogus()`'s convention path and the
-`UseBogus<T>(Action<Faker<T>>)` sugar were both a poor fit —
-`UseBogus<T>`'s `configureFaker` callback has no access to the resolving
-`ICompositionContext`, so a composition-path-derived seed for the record's
-`Id` isn't reachable from inside it. Instead, `SharedTestKitProfile` registers
-each type directly via `Register<T>`, building its own `Faker<T>` seeded from
-`context.DeriveSeed()` and using Bogus's own `RuleFor(x => x.Y, (f, x) => ...)`
-sibling-property access to keep `TitleNormalized` consistent with `Title`:
+**Resolution used: `UseBogus<T>()`, Compono.Bogus's real whole-object
+sugar — an earlier attempt at this section wrongly bypassed it.** The first
+version of this migration hand-rolled `Register<T>(context => { var faker =
+new Faker<T>().UseSeed(context.DeriveSeed()); ...; return faker.Generate();
+})` per type, on the claim that `UseBogus<T>(Action<Faker<T>>)`'s
+`configureFaker` callback has no access to the resolving
+`ICompositionContext`. That claim was **wrong**, caught in PR review:
+`CompositionBuilderExtensions.UseBogus<T>` already does exactly
+`new Faker<T>(locale).UseSeed(context.DeriveSeed())` internally, *before*
+invoking `configureFaker` — so every `RuleFor` inside the callback already
+runs against a `Faker<T>` seeded from the composition's own context. There
+was never a reason to bypass the package's own integration point; doing so
+meant Phase 1 recorded "successful dogfooding" without ever calling a
+`Compono.Bogus` API. Corrected to use `builder.UseBogus<T>(...)` directly:
 
 ```csharp
-private static BookItem CreateBookItem(ICompositionContext context)
+public void Configure(CompositionBuilder builder)
 {
-    var faker = new Faker<BookItem>().UseSeed(context.DeriveSeed());
+    builder.UseBogus<BookItem>(ConfigureBookItem);
+    // ...
+}
+
+private static void ConfigureBookItem(Faker<BookItem> faker)
+{
     faker.RuleFor(b => b.Id, f => f.Random.Uuid().ToString());
     faker.RuleFor(b => b.Title, f => f.Commerce.ProductName());
     faker.RuleFor(b => b.TitleNormalized, (_, b) => TextNormalizer.Normalize(b.Title));
-    faker.RuleFor(b => b.CreatedAt, _ => Timestamp(context));
-    faker.RuleFor(b => b.UpdatedAt, _ => Timestamp(context));
-    return faker.Generate();
+    faker.RuleFor(b => b.CreatedAt, f => f.Date.PastOffset(2).ToString("O"));
+    faker.RuleFor(b => b.UpdatedAt, (f, b) => DateTimeOffset.Parse(b.CreatedAt!).AddMinutes(f.Random.Int(0, 1440)).ToString("O"));
 }
-
-// Deterministic per seed, not DateTimeOffset.UtcNow - the same seed must reproduce the same
-// CreatedAt/UpdatedAt on a later run, not just the same Id/Title (compono PR #40 review).
-private static string Timestamp(ICompositionContext context) =>
-    Epoch.AddSeconds(Math.Abs(context.DeriveSeed())).ToString("O");
 ```
 
-This still exercises Compono.Bogus's determinism contract
-([ADR-0026](../adr/0026-deterministic-seed-derivation-for-providers.md)) via
-`context.DeriveSeed()`, but not its `UseBogus<T>()` ergonomic sugar — a real,
-recorded limitation of that sugar for types needing path-derived identity
-alongside Bogus-generated semantic fields.
+`TitleNormalized`/`UpdatedAt` both use Bogus's own sibling-property access
+(the `(f, instance)` `RuleFor` overload) to stay consistent with `Title`/
+`CreatedAt` — no direct `ICompositionContext` access needed anywhere in the
+callback, since the seeded `Faker<T>` instance (`f`) is already enough for
+every value these types need, including `Id` (`f.Random.Uuid()`) and the
+timestamps (`f.Date.PastOffset(...)`). This exercises Compono.Bogus's actual
+public API and its determinism contract
+([ADR-0026](../adr/0026-deterministic-seed-derivation-for-providers.md))
+exactly as designed — no workaround needed at all, once the (incorrect)
+assumption about context access was dropped. Edge items (`BookCharacterEdgeItem`
+etc.) have no semantic string fields, so they stay a plain `Register<T>`
+factory — `Compono.Bogus` has nothing to add there.
 
-**Recommendation:** `Compono.Bogus` is genuinely useful for `cosmere-tracker`
-for semantic string fields (`Title`, `Name`, `SystemName`) once wired through
-a hand-written `Register<T>` factory using `Faker<T>` + `context.DeriveSeed()`
-directly — this is a **tradeoff, not a clean win**: the ergonomic
-`UseBogus<T>(Action<Faker<T>>)` sugar doesn't fit types needing
-context-derived identity, so the improvement is "better-looking generated
-data," not "less code than the AutoFixture specimen builder it replaced."
-Recommend continued use for new domain types with semantic string fields,
-via the direct `Faker<T>` + `DeriveSeed()` pattern above rather than
-`UseBogus<T>()`.
+**Recommendation:** `Compono.Bogus`'s `UseBogus<T>(Action<Faker<T>>)` sugar
+is a clean fit for `cosmere-tracker`'s semantic string fields (`Title`,
+`Name`, `SystemName`) — a genuine win over the AutoFixture-era specimen
+builders, not just a tradeoff: fewer lines, no hand-rolled seeding, and
+Bogus's own realistic generators (`Commerce.ProductName()`, `Name.FullName()`,
+`Address.Country()`) read better than the old `"book-{hash}"`-style
+placeholder strings. Recommend `UseBogus<T>()` as the default for any new
+domain type with a semantic string field.
 
 ## Reflection-based NSubstitute stubbing (`HttpMessageHandlerExtensions`)
 
