@@ -306,10 +306,17 @@ public async Task Client_UsesTheSharedHandlersConfiguredResponse(
 `Freeze<HttpMessageHandler>()` + `HttpClientSpecimenBuilder` let a test just
 ask for `HttpClient` directly; Compono needs an extra interface + wrapper
 class because of `CMP0001`'s compile-time-only view. This is itself
-Milestone 7 evidence beyond gap 1's original framing (roadmap-candidate
-material for Compono itself — the never-shipped `[CompositionConstructor]`
-attribute — tracked for Phase 3's classification, not designed here per
-ADR-0029's evidence-driven restraint).
+Milestone 7 evidence beyond gap 1's original framing — roadmap-candidate
+material for Compono itself, tracked for Phase 3's classification, not
+designed here per ADR-0029's evidence-driven restraint. The candidate is
+**support for disambiguating construction of a registered/external ambiguous
+type generically**, not specifically "ship the `[CompositionConstructor]`
+attribute ADR-0002 anticipated" — `HttpClient` is a BCL type `cosmere-tracker`
+doesn't own, so a source attribute on its constructor was never going to be
+the fix for *this* case regardless of whether that attribute ships; whatever
+mechanism Phase 3's own design pass picks has to work for a type the
+consumer can't annotate, which the originally-anticipated attribute
+mechanism doesn't cover on its own.
 
 - `DynamoDbResponseSpecimenBuilder` — composed a `PartiqlPage` as a test
   parameter, matching a naming convention (`"empty"`/`"multiple"`/`"paged"`
