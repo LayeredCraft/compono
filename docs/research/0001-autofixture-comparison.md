@@ -197,9 +197,17 @@ included in the 284/6 kit-infrastructure subtotal above for completeness.
 Across all three tiers, the baseline's three-tier fixture stack (base kit
 → shared kit → per-suite local kit, each with its own attributes/
 customizations/specimen builders) collapses post-migration to plain
-`ICompositionProfile` classes composed via `AddProfile<T>()` at every
-tier — one concept (a profile) instead of the base kit's four (`IFixture`
-factory, `ICustomization`, `ISpecimenBuilder`, `IRequestSpecification`).
+`ICompositionProfile` classes — one concept (a profile) instead of the
+base kit's four (`IFixture` factory, `ICustomization`, `ISpecimenBuilder`,
+`IRequestSpecification`). Not every tier is activated the same way,
+though: `ClientTestProfile` (base tier) and the per-suite local profiles
+(`EndpointTestProfile`, `PersistenceTestProfile`) are each selected onto
+a test method directly via `[Compose<TProfile>]`; `AddProfile<T>()` is
+used differently — only by `EndpointTestProfile` and `PersistenceTestProfile`
+internally, each to pull `SharedTestKitProfile` (the shared tier) into
+their own `Configure` method. `SharedTestKitProfile` itself is never
+directly `[Compose<TProfile>]`-selected by a test in this migration — it's
+only ever reached via one of those two `AddProfile<T>()` calls.
 
 ### `dotnet test` post-migration run
 
