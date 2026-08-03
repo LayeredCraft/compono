@@ -29,10 +29,12 @@ work is pushed and CI tries to restore it. Instead, `cosmere-tracker`'s
 `Directory.Packages.props` pins `Compono`/`Compono.XunitV3`/
 `Compono.NSubstitute`/`Compono.Bogus` to a real published prerelease from
 nuget.org (`0.1.0-alpha.33` at time of writing) — `compono`'s own
-`publish-preview.yaml` publishes a fresh `alpha` prerelease on every push to
-its `main` branch, so a recent one is always available. Bump all four
-versions together when a newer alpha is needed; there is no local feed or
-pack step to run.
+`publish-preview.yaml` publishes a fresh `alpha` prerelease on every
+non-docs-only push to its `main` branch (it has `paths-ignore: docs/**,
+README.md`, so a docs-only PR merge — like this one — does *not* trigger a
+new publish), so a recent one is available whenever `main`'s actual source
+changes. Bump all four versions together when a newer alpha is needed; there
+is no local feed or pack step to run.
 
 ## `AutoDataAttribute`/`InlineAutoDataAttribute` and customizations
 
@@ -118,11 +120,61 @@ AutoFixture's `ICustomization` versus Compono's `ICompositionProfile`
 ([ADR-0018](../adr/0018-composition-profiles.md)). `cosmere-tracker`'s
 `CosmereTrackerCustomization` turned out to be an empty stub (commented-out
 examples only, never actually customized anything) — there was no real
-intent to port. It was deleted outright rather than migrated to a profile;
-`SharedCustomization` (in `Cosmere.Tracker.Shared.TestKit`), by contrast, did
-real work (registered four domain-item specimen builders) and became
-`SharedTestKitProfile : ICompositionProfile`, composed into each consuming
-project's own profile via `builder.AddProfile<SharedTestKitProfile>()`.
+intent to port:
+
+```csharp
+// Before — CosmereTrackerCustomization.cs, entirely commented-out
+public sealed class CosmereTrackerCustomization : ICustomization
+{
+    public void Customize(IFixture fixture)
+    {
+        // Add specimen builders for domain objects as needed
+        // Example:
+        // fixture.Customizations.Add(new QuestionSpecimenBuilder());
+
+        // Freeze common dependencies
+        // Example:
+        // fixture.Freeze<ILogger>();
+    }
+}
+
+// After — deleted outright, nothing replaced it (there was no real
+// customization to carry forward)
+```
+
+It was deleted outright rather than migrated to a profile; `SharedCustomization`
+(in `Cosmere.Tracker.Shared.TestKit`), by contrast, did real work (registered
+four domain-item specimen builders) and became `SharedTestKitProfile :
+ICompositionProfile`, composed into each consuming project's own profile via
+`builder.AddProfile<SharedTestKitProfile>()`:
+
+```csharp
+// Before — SharedCustomization.cs
+public sealed class SharedCustomization : ICustomization
+{
+    public void Customize(IFixture fixture)
+    {
+        fixture.Customizations.Add(new CharacterItemSpecimenBuilder());
+        fixture.Customizations.Add(new BookItemSpecimenBuilder());
+        fixture.Customizations.Add(new WorldItemSpecimenBuilder());
+        fixture.Customizations.Add(new EdgeItemSpecimenBuilder());
+    }
+}
+
+// After — SharedTestKitProfile.cs (see the specimen-builder section below
+// for what each Register<T> call itself became)
+public sealed class SharedTestKitProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder)
+    {
+        builder.UseBogus<BookItem>(ConfigureBookItem);
+        builder.UseBogus<CharacterItem>(ConfigureCharacterItem);
+        builder.UseBogus<WorldItem>(ConfigureWorldItem);
+        builder.Register(CreateBookCharacterEdge);
+        // ...remaining edge-item registrations
+    }
+}
+```
 
 ## `AutoNSubstituteCustomization` (`ConfigureMembers`) — gap 2
 
@@ -235,7 +287,54 @@ domain-item specimen builder in `Cosmere.Tracker.Shared.TestKit`
 `Register<T>` call inside `SharedTestKitProfile`, one per type — direct,
 equivalent translation, no `NamedRequest`/`ParameterInfo` pattern-matching
 needed since Compono's registration is keyed by exact type, not by
-inspecting the request shape by hand.
+inspecting the request shape by hand. `BookItem`/`CharacterItem`/`WorldItem`
+went through `UseBogus<T>()` instead (see the `Compono.Bogus` section
+below); edge items have no semantic string fields, so they stay a plain
+`Register<T>` factory — `EdgeItemSpecimenBuilder`'s `BookCharacterEdgeItem`
+case is representative of all six:
+
+```csharp
+// Before — EdgeItemSpecimenBuilder.cs (one case of a six-way switch handling
+// all edge-item types plus their Type/ParameterInfo/NamedRequest shapes)
+public sealed class EdgeItemSpecimenBuilder : ISpecimenBuilder
+{
+    public object Create(object request, ISpecimenContext context)
+    {
+        return request switch
+        {
+            Type t when t == typeof(BookCharacterEdgeItem) => CreateBookCharacterEdge(null, context),
+            ParameterInfo p when p.ParameterType == typeof(BookCharacterEdgeItem) => CreateBookCharacterEdge(p.Name, context),
+            NamedRequest { InnerRequest: Type t } nr when t == typeof(BookCharacterEdgeItem) => CreateBookCharacterEdge(nr.Name, context),
+            // ...five more cases, one per remaining edge-item type
+            _ => new NoSpecimen(),
+        };
+    }
+
+    private static BookCharacterEdgeItem CreateBookCharacterEdge(string? name, ISpecimenContext context)
+    {
+        var seed = name ?? context.Create<string>();
+        return new BookCharacterEdgeItem
+        {
+            Id = Guid.NewGuid().ToString("D").ToLowerInvariant(),
+            BookId = DeterministicGuid.CreateBookId($"testkit:{seed}:book"),
+            CharacterId = DeterministicGuid.CreateCharacterId($"testkit:{seed}:char"),
+            CreatedAt = DateTimeOffset.UtcNow.ToString("O"),
+            UpdatedAt = DateTimeOffset.UtcNow.ToString("O"),
+        };
+    }
+}
+
+// After — SharedTestKitProfile.cs (one Register<T> call per edge type, no
+// request-shape pattern-matching needed at all)
+private static BookCharacterEdgeItem CreateBookCharacterEdge(ICompositionContext context) => new()
+{
+    Id = NewId(context),
+    BookId = NewId(context),
+    CharacterId = NewId(context),
+    CreatedAt = Timestamp(context),
+    UpdatedAt = Timestamp(context),
+};
+```
 
 **One AutoFixture-era specimen builder had zero real call sites, but was
 migrated anyway.** `HttpClientSpecimenBuilder`/`HttpClientSpecification`
@@ -444,7 +543,7 @@ the AutoFixture-era name is gone either way.
 |---|---|
 | `ICustomization` | `ICompositionProfile` (only one project actually had real customization logic to carry over) |
 | `ISpecimenBuilder` | `CompositionBuilder.Register<T>(...)` inside a profile |
-| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`, `EndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`) | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
+| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses — four pairs, eight classes total (`CosmereTrackerAutoDataAttribute`/`InlineCosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`/`InlineClientAutoDataAttribute`, `EndpointAutoDataAttribute`/`InlineEndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`/`InlinePersistenceAutoDataAttribute`) | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
 | `BaseFixtureFactory`'s `AutoNSubstituteCustomization { ConfigureMembers = true }` setup | `builder.UseNSubstitute()` (one line in each profile) — see gap 2 above; this is only *one* of the two behaviors `BaseFixtureFactory` bundled, not the whole factory |
 | `HttpClientSpecimenBuilder`/`HttpClientSpecification`/`ClientAutoDataAttribute` | `ClientTestProfile` + `IHttpClientProvider` (ported despite zero real call sites at migration time — an explicit request to keep this capability for future tests; see above) |
 | `SpecimenBuilderHash` | `Bogus.Randomizer`/`Faker<T>.UseSeed` (Compono.Bogus's own deterministic-seed mechanism replaces the hand-rolled SHA256 hash-prefix helper) |
