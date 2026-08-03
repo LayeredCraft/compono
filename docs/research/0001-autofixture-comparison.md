@@ -437,57 +437,43 @@ call.
 
 ### Gap 1 — frozen `HttpMessageHandler` for `HttpClient` composition
 
-- **Frequency:** two distinct populations, not one. (a) 0 real call sites
-  for `[ClientAutoData]`/`[InlineClientAutoData]` specifically —
-  `HttpClientSpecimenBuilder`'s hidden-frozen-`HttpMessageHandler` pattern
-  ADR-0029 originally framed this gap around — anywhere in `cosmere-tracker`
-  outside `Cosmere.Tracker.TestKit`'s own definition files (confirmed
-  Phase 1); migrated anyway, by explicit request, since it's needed for
-  future HTTP-client tests. (b) `Freeze<T>()`/`[Frozen]` more broadly
-  (ADR-0029's actual gap-1 framing — "hidden shared values") has ~30 real
-  call sites project-wide. Most of those (endpoint tests) used `[Frozen]`
-  purely to obtain a substitute, with no real sharing — Compono needs no
-  annotation there at all. A real subset (persistence tests, e.g.
+- **Frequency:** ~30 real `Freeze<T>()`/`[Frozen]` call sites project-wide
+  — ADR-0029's actual gap-1 framing ("hidden shared values") is about
+  `Freeze<T>()` broadly, not specifically the `[ClientAutoData]`/
+  `HttpClientSpecimenBuilder` pattern the gap was originally illustrated
+  with. Most of those ~30 (endpoint tests) used `[Frozen]` purely to
+  obtain a substitute, with no real sharing — Compono needs no annotation
+  there at all. A real subset (persistence tests, e.g.
   `GetWorldByIdAsync_UsesPkSkPartiql`) used `[Frozen] IDynamoPartiqlClient
   partiql` for genuine sharing (the same substitute instance visible for
   both auto-construction and stubbing), migrated directly to
   `[Shared] IDynamoPartiqlClient partiql` — this is gap 1's real,
-  exercised evidence: explicit `[Shared]` is a direct, low-cost
-  replacement for AutoFixture's hidden-frozen-value idiom where genuine
-  sharing existed. (The same call sites also inform gap 2's
+  exercised evidence. (The same call sites also inform gap 2's
   `ConfigureMembers` analysis below, for the unstubbed-call behavior
   those tests separately depend on — this entry is about the sharing
-  mechanism, gap 2 is about the auto-configuration behavior.)
-- **Before/after:** see the migration guide's gap 1 section for the full
-  `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute` before-snippet
-  (population (a)) and its "NSubstitute `ConfigureMembers`" section for
-  the `[Frozen]`→`[Shared]` before/after (population (b)); after for (a)
-  is `ClientTestProfile` (`test/Cosmere.Tracker.TestKit/Profiles/ClientTestProfile.cs`)
-  + `IHttpClientProvider` (`test/Cosmere.Tracker.TestKit/Http/IHttpClientProvider.cs`).
-- **Principle-alignment note:** two separate conclusions, one per
-  population. For (a), the migrated form makes the frozen-handler
-  relationship an explicit, composable dependency (`IHttpClientProvider`
-  resolved from a shared `HttpMessageHandler`) rather than an
-  attribute-hidden specimen-resolution rule — aligns with Compono's
-  explicit-composition design principle, but at a real cost: an interface
-  indirection `HttpClient` itself can't satisfy without it (see `CMP0001`
-  below), which is more than a like-for-like swap. For (b) — the
-  genuinely-shared persistence-test subset — the replacement was
-  low-cost and direct: `[Frozen] IDynamoPartiqlClient partiql` became
-  `[Shared] IDynamoPartiqlClient partiql`, same shape, same intent, no
-  extra indirection, no principle conflict, no disproportionate
-  complexity. The majority-case endpoint tests (b's other subset) needed
+  mechanism, gap 2 is about the auto-configuration behavior. The
+  `[ClientAutoData]`/`HttpClientSpecimenBuilder`-specific illustration
+  ADR-0029 originally used has 0 real call sites of its own outside
+  `Cosmere.Tracker.TestKit`'s definition files — migrated anyway by
+  explicit request for future HTTP-client tests, and its own workaround
+  cost — needing an interface indirection `HttpClient` itself can't
+  satisfy — is `CMP0001`'s finding below, not re-classified here to keep
+  this entry to one outcome.)
+- **Before/after:** see the migration guide's "NSubstitute
+  `ConfigureMembers`" section for the `[Frozen]`→`[Shared]` before/after
+  this entry's evidence is drawn from, and its gap 1 section for the
+  `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute` illustration
+  (covered by `CMP0001`'s finding below, not this one).
+- **Principle-alignment note:** the exercised evidence — persistence
+  tests' genuine sharing — replaced cleanly: `[Frozen] IDynamoPartiqlClient
+  partiql` became `[Shared] IDynamoPartiqlClient partiql`, same shape,
+  same intent, no extra indirection, no principle conflict, no
+  disproportionate complexity. The majority endpoint-test subset needed
   no annotation at all, an even lower cost than a swap.
-- **Lean classification:** split, not one answer for the whole gap. (b)
-  is an acceptable Compono-native alternative — ADR-0029's rubric points
-  there for a low-cost, pleasant replacement, which this is: `[Shared]`
-  is a direct substitute with no downside observed, and the majority
-  endpoint-test subset is strictly simpler (nothing to annotate at all).
-  (a) leans intentional design difference — the frozen handler pattern
-  maps to a real Compono construct with equivalent capability, but only
-  by adding an interface indirection neither the developer nor the test
-  needed before, which is closer to a genuine capability trade-off than
-  a clean swap.
+- **Lean classification:** acceptable Compono-native alternative —
+  `[Shared]` is a direct, low-cost, pleasant substitute for
+  `Freeze<T>()`/`[Frozen]` everywhere this migration actually exercised
+  it, with no downside observed.
 
 ### Gap 2 — `[Frozen]`-for-substitute + auto-configured members (the 2 `NullReferenceException` tests)
 
@@ -554,8 +540,9 @@ call.
   `WorldItem`) in `SharedTestKitProfile`, each with 2-3 semantic
   string/date `RuleFor` rules — the entirety of `cosmere-tracker`'s
   Bogus-driven data generation.
-- **Before/after:** baseline had no Bogus dependency at all (AutoFixture
-  generated semantic-looking strings via its own anonymous-value engine);
+- **Before/after:** baseline had no Bogus dependency at all — AutoFixture
+  never generated semantic-looking data, only anonymous, nonsemantic
+  specimens via its own anonymous-value engine (per ADR-0029's Context);
   after migration, `builder.UseBogus<T>(ConfigureBookItem)` etc. in
   `SharedTestKitProfile.cs`. Two real bugs surfaced and fixed during this
   adoption (both compono PR #40 review findings, recorded in code
@@ -712,10 +699,13 @@ call.
   it through, the post-migration numbers confirm the tier structure
   itself is a real reuse need (it survived migration unchanged), while
   the per-tier mechanism got measurably simpler.
-- **Lean classification:** intentional design difference — not a gap to
-  close, a structural observation that Compono simplifies the
-  implementation of a pattern the project will keep regardless of test
-  framework.
+- **Lean classification:** acceptable Compono-native alternative — no
+  principle conflict and no disproportionate complexity here, the
+  opposite: the same required tier structure remains, but its mechanism
+  became measurably simpler and more pleasant at low cost, exactly
+  ADR-0029's definition of this category rather than "intentional design
+  difference" (which requires a principle conflict or a "no change"
+  verdict this finding doesn't support).
 
 ### Finding 9 — Pure-inline `[Theory]` rows needed no `AutoDataAttribute` wrapper even before migration (project-local cleanup)
 
