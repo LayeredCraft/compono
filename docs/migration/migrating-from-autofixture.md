@@ -124,6 +124,7 @@ the mechanism (not part of this migration, shown for completeness only):
 
 ```csharp
 // test/Compono.XunitV3.SampleTests/InlineAndComposedTests.cs
+[Theory]
 [Compose(42)]                            // quantity supplied inline; productName composed
 public void MixesInlineAndComposedValues(int quantity, string productName) { ... }
 ```
