@@ -269,6 +269,22 @@ signal.
 
 ### Broader maintainability dimensions (post-migration)
 
+- **Reusable profiles, providers, and registrations — the total count:**
+  4 `ICompositionProfile` classes (`ClientTestProfile`,
+  `SharedTestKitProfile`, `EndpointTestProfile`, `PersistenceTestProfile`
+  — one per tier plus one per consuming project, matching the "Test kit
+  inventory" table above); 9 `Register<T>`/`Register` calls across them
+  (2 in `ClientTestProfile` — `HttpMessageHandler`, `IHttpClientProvider`;
+  6 in `SharedTestKitProfile` — the edge-item types; 1 in
+  `PersistenceTestProfile` — `IOptions<DynamoDbOptions>`); 3
+  `UseBogus<T>()` calls (`BookItem`/`CharacterItem`/`WorldItem`, all in
+  `SharedTestKitProfile`); 2 `UseNSubstitute()` calls
+  (`EndpointTestProfile`, `PersistenceTestProfile`); 2 `AddProfile<T>()`
+  calls (both composing `SharedTestKitProfile` into a consuming project's
+  own profile). Baseline has no directly equivalent single count to
+  compare against — its customization/specimen-builder/attribute trio
+  per tier doesn't decompose into the same units — so this is reported as
+  a post-migration total for Phase 4's use, not a before/after delta.
 - **Framework-specific concepts in play:** `ICompositionProfile`,
   `CompositionBuilder`/`AddProfile<T>()`, `Register<T>()`,
   `[Compose]`/`[Compose<TProfile>]`, `[Shared]`, `UseNSubstitute()`,
@@ -410,6 +426,26 @@ one-for-one, and what (if anything) replaced each:
   future tests — this is the one baseline concept pair that survived the
   migration in spirit (frozen-handler-backed `HttpClient` composition)
   while changing mechanism entirely (see the per-finding dossier below).
+- **`SpecimenBuilderHash`** — disappeared entirely, replaced one-for-one:
+  the hand-rolled SHA256 hash-prefix helper it used for deterministic
+  values became `Bogus.Randomizer`/`Faker<T>.UseSeed` — Compono.Bogus's
+  own deterministic-seed mechanism (`context.DeriveSeed()`), not a custom
+  hash helper.
+- **`DynamoDbOptionsSpecimenBuilder`** — disappeared entirely, replaced
+  one-for-one. Unlike `DynamoDbResponseSpecimenBuilder` above, this one
+  had a real, load-bearing call site — `CosmereTrackerRepository`'s
+  constructor requires `IOptions<DynamoDbOptions>` whenever `sut` is
+  composed — and became a straightforward
+  `builder.Register<IOptions<DynamoDbOptions>>(() => ...)` call in
+  `PersistenceTestProfile`.
+- **`AutoNSubstituteCustomization`'s substitute-creation half** (distinct
+  from its member-auto-configuration half, already covered under
+  `BaseFixtureFactory` above) — disappeared, replaced one-for-one by
+  `builder.UseNSubstitute()`: one line per profile, registering
+  NSubstitute as the provider for interface types. The two halves of
+  `AutoNSubstituteCustomization` had different fates — substitute
+  creation itself carried over cleanly; member auto-configuration
+  (`ConfigureMembers = true`) did not, per gap 2's dossier entry.
 
 ## Per-finding evidence dossier (Phase 2)
 
@@ -675,11 +711,22 @@ call.
   *registered/external* ambiguous type — a mechanism that works for a type
   the consumer can't annotate, which `[CompositionConstructor]` doesn't
   cover on its own.
-- **Lean classification:** roadmap candidate — the interface-wrapper
-  workaround is viable and arguably fine practice regardless, but generic
-  disambiguation support for registered/external ambiguous types (not
-  specifically `[CompositionConstructor]`) closes a real, documented gap
-  between ADR-0002's design and what this migration actually needed.
+- **Lean classification:** intentional design difference (unexercised
+  constraint, pending Phase 3) — not roadmap candidate. This diagnostic
+  fired only while porting `ClientTestProfile`'s capability, which itself
+  has zero real pre-migration call sites (see gap 1's `[ClientAutoData]`
+  evidence above) — no test in `cosmere-tracker` actually needed to
+  compose `HttpClient` before migration; the capability was preserved for
+  hypothetical future tests, by explicit request, not because a real test
+  hit a wall. ADR-0029 defines observed frequency as pre-migration places
+  that actually needed the behavior, and rejects a synthetic exercise as
+  roadmap evidence on its own. The interface-wrapper workaround already
+  closes this cleanly at the cost this migration actually paid; generic
+  disambiguation support for registered/external ambiguous types remains
+  a plausible future improvement, but promoting it to a roadmap candidate
+  needs a real pre-existing call site this migration doesn't have —
+  recorded here for the evidence trail instead, consistent with gap 3's
+  and Finding 4's own zero/synthetic-frequency treatment above.
 
 ### Finding 8 — Three-tier fixture stack maintainability (structural finding, not a specific API gap)
 
