@@ -341,7 +341,7 @@ member just to check a box.
 Two additional documents are first-class Milestone 7 deliverables, not
 after-the-fact write-ups:
 
-- **`docs/migrating-from-autofixture.md`** — the migration guide,
+- **`docs/migration/migrating-from-autofixture.md`** — the migration guide,
   and the primary artifact a real AutoFixture user reaches for when moving
   to Compono. It is a **living document**, not a final-phase deliverable:
   its planned structure and the major AutoFixture concepts expected to be
@@ -543,7 +543,7 @@ about a partial or negative result once members *are* found: if
 turns out to be a poor fit for others (or for the domain generally — e.g.
 excessive alias/convention configuration for too little readability gain),
 that is an equally valid, equally successful outcome of the dogfooding
-exercise, not a shortfall against this ADR's mandate. `docs/migrating-from-autofixture.md`'s
+exercise, not a shortfall against this ADR's mandate. `docs/migration/migrating-from-autofixture.md`'s
 `Compono.Bogus` section and `docs/research/0001-autofixture-comparison.md`'s
 findings must record, specifically: where semantic generation improved the
 resulting tests, where it introduced friction, which members needed
@@ -644,6 +644,24 @@ evidence the rest of Milestone 7 already produces. `docs/mvp.md`'s
 Milestone 7/Milestone 8 sections and [PLAN-0007](../plans/0007-milestone-7-dogfooding.md)
 (a new Phase 5) reflect the resulting scope directly.
 
+## Amendment 5 (2026-08-03): the migration guide's promotion is complete
+
+Amendment 4 (above) decided that the migration guide graduates into the
+primary documentation hierarchy as a first-class entry, per
+[ADR-0030](0030-compono-documentation-architecture.md)'s "where the
+migration guide lives." [PLAN-0007](../plans/0007-milestone-7-dogfooding.md)
+Phase 5 has since executed that decision: the file physically moved from
+`docs/migration/migrating-from-autofixture.md` (this ADR's original path,
+preserved above exactly as accepted) to `docs/migrating-from-autofixture.md`,
+content unchanged. This Amendment records the completed relocation as a
+dated fact rather than editing the original "Required deliverables"/
+Amendment 1/Links references above, which stay exactly as they read when
+each was accepted — per this repo's own ADR-immutability rule, a later
+fact about a path changing doesn't get retrofitted into earlier text, it
+gets its own dated Amendment. Any reader following this ADR's original
+references to `docs/migration/migrating-from-autofixture.md` should treat
+this Amendment as the pointer to where that file actually lives today.
+
 ## Links
 
 - [docs/mvp.md](../mvp.md) — Milestone 7 scope/success measures this ADR
@@ -671,7 +689,7 @@ Milestone 7/Milestone 8 sections and [PLAN-0007](../plans/0007-milestone-7-dogfo
   convention this ADR reuses rather than reinventing
 - `git@github.com:ncipollina/cosmere-tracker.git` — the real project being
   migrated; not part of this monorepo
-- `docs/migrating-from-autofixture.md` — the migration guide
+- `docs/migration/migrating-from-autofixture.md` — the migration guide
   required by "Required deliverables" above (created in PLAN-0007 Phase 0,
   living through Phase 3)
 - `docs/roadmap/post-mvp.md` — the evidence-backed roadmap required by

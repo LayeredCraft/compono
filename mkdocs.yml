@@ -162,7 +162,9 @@ nav:
       - The Provider Pipeline: architecture/current/provider-pipeline.md
       - Deterministic Seeding: architecture/current/deterministic-seeding.md
       - Performance: architecture/current/performance.md
-    - Historical Decision Log: architecture/decision-log.md
+    - Historical Decision Log:
+      - Overview: architecture/decision-log.md
+      - Source Generation First (ADR-0001): adr/0001-source-generation-first.md
   - Troubleshooting:
     - Overview: troubleshooting/index.md
     - Common Errors: troubleshooting/common-errors.md
@@ -181,9 +183,6 @@ nav:
   - Design Principles (legacy): design-principles.md
   - Public API (legacy): public-api.md
   - Performance (legacy): performance.md
-  - MVP: mvp.md
-  - ADRs:
-    - Source Generation First: adr/0001-source-generation-first.md
 
 # Social links
 extra:

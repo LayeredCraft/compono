@@ -159,7 +159,7 @@ docs/
 │   └── glossary.md
 ├── roadmap/
 │   ├── index.md                              # today / experimental / planned
-│   ├── post-mvp.md                           # exists (created PLAN-0007 Phase 3)
+│   ├── post-mvp.md                           # not yet created (PLAN-0007 Phase 3)
 │   ├── proposed-adrs.md                      # status-filtered ADR index
 │   └── future-packages.md
 ├── contributing.md                           # not yet created (Milestone 8 scope)
@@ -179,7 +179,9 @@ learning path.
 ## 1. Getting Started
 
 **Audience:** someone who has never used Compono.
-**Status:** not yet created (`docs/index.md` covers a subset of this today).
+**Status:** skeleton exists (all 5 pages — a "Status: Skeleton" placeholder
+banner, one purpose paragraph, and a link back here; no real content yet).
+`docs/index.md` covers a subset of this today.
 **Purpose:** answer "what is this, and can I get something working in the
 next five minutes," and point every kind of newcomer toward the right next
 step.
@@ -212,7 +214,8 @@ through everything else).
 
 **Audience:** someone actively writing tests with Compono who needs the
 mental model, not yet a specific task.
-**Status:** not yet created.
+**Status:** skeleton exists (all 8 pages — placeholder only, no real
+content yet).
 **Purpose:** teach *what things are and when to reach for them* — the
 vocabulary every later section assumes.
 **Contents:** one page per concept, each answering "what is this / when do
@@ -243,7 +246,8 @@ API entry) — per "Every page leads somewhere" above.
 
 **Audience:** someone with a specific, moderately-scoped task, who already
 has the Concepts model.
-**Status:** not yet created.
+**Status:** skeleton exists (all 7 pages — placeholder only, no real
+content yet).
 **Purpose:** task-oriented instructions — assumes prerequisite concepts,
 links back to them instead of re-teaching.
 **Contents:** directly covers the concrete question list ADR-0030's
@@ -266,7 +270,8 @@ package-specific context this section doesn't assume).
 
 **Audience:** someone who wants a fast, copy/paste answer to one narrow
 problem, without reading a full guide.
-**Status:** not yet created.
+**Status:** skeleton exists (`index.md` only — placeholder, no real
+recipes yet).
 **Purpose:** recipes, not lessons. See ADR-0030's "Cookbook" section for
 the exact scope/depth distinction from How-to Guides, and "Samples" below
 for the distinction from complete applications.
@@ -295,7 +300,9 @@ a recipe, and out to Samples for a reader whose "recipe" has grown into
 
 **Audience:** someone who wants to see multiple concepts working together
 in a realistic application, not a single isolated problem.
-**Status:** not yet created.
+**Status:** skeleton exists (all 8 documentation pages — placeholder
+summaries only; the actual runnable sample applications don't exist yet,
+see Open Items).
 **Purpose:** complete, runnable applications — deliberately distinct from
 Cookbook, not a larger cookbook entry. Cookbook is one problem, one
 solution, copy/paste, short; Samples are full applications with realistic
@@ -345,7 +352,8 @@ Package Guides once the reader has decided what to adopt.
 ## 7. Package Guides
 
 **Audience:** someone deciding whether/how to adopt a specific package.
-**Status:** not yet created.
+**Status:** skeleton exists (all 5 pages — placeholder only, no real
+content yet).
 **Purpose:** the ecosystem-level "what is this package for" question, one
 page per package.
 **Contents:** per package (`compono.md`, `compono-xunitv3.md`,
@@ -368,7 +376,8 @@ Roadmap's "future integration packages").
 
 **Audience:** someone who already knows how to use Compono and is now
 asking "what's the recommended way to do this at scale?"
-**Status:** not yet created.
+**Status:** skeleton exists (all 7 pages — placeholder only, no real
+content yet).
 **Purpose:** accumulated experience and guidance — distinct from Concepts
 (what things are) and Cookbook (how to solve one narrow problem right
 now). This is where "the recommended way" lives once there is one.
@@ -399,10 +408,11 @@ rather than merged into one undifferentiated "Architecture" page (Amendment
 1): most users only need **Current Architecture**; contributors
 additionally want the **Historical Decision Log**; anyone evaluating
 Compono's philosophy wants **Design Principles**.
-**Status:** partially exists (`docs/architecture.md`, `docs/performance.md`,
+**Status:** skeleton exists for all 8 pages in the structure below
+(placeholder only); separately, `docs/architecture.md`, `docs/performance.md`,
 `docs/design-principles.md`, `docs/manifesto.md`, `docs/public-api.md`
-cover overlapping ground today, pre-dating this hierarchy); consolidation
-into the structure below is Milestone 8 work.
+have real content today but pre-date this hierarchy — consolidating that
+real content into the skeleton below is Milestone 8 work.
 **Purpose:** why Compono exists and how it works internally — tradeoffs and
 rejected alternatives, not just a description of the current shape.
 **Contents:** three explicitly separate parts:
@@ -437,7 +447,8 @@ re-deriving the reasoning.
 
 **Audience:** anyone stuck, at any point — reachable from anywhere, not a
 step in the linear reading order.
-**Status:** not yet created.
+**Status:** skeleton exists (all 3 pages — placeholder only, no real
+content yet).
 **Purpose:** fast path from "something's wrong" to a fix.
 **Contents:**
 - `common-errors.md` — indexed by diagnostic code (e.g. `CMP0001`, the
@@ -454,8 +465,10 @@ not just how to fix it.
 ## 11. Reference
 
 **Audience:** anyone who already knows what they're looking for.
-**Status:** not yet created (API reference depends on a generation
-toolchain decision, out of scope for this architecture — see Open Items).
+**Status:** skeleton exists for `index.md`/`diagnostics.md`/`glossary.md`
+(placeholder only); `api/` itself doesn't exist yet — it depends on a
+generation toolchain decision, out of scope for this architecture (see
+Open Items).
 **Purpose:** authoritative, exhaustive, not meant to be read start to end.
 **API reference supplements the documentation — it never replaces it.** A
 reader should be able to learn Compono entirely through Getting Started,
@@ -478,10 +491,11 @@ sections, not a job Reference should grow into filling.
 ## 12. Roadmap
 
 **Audience:** anyone asking "is X available, experimental, or planned?"
-**Status:** not yet created. `docs/roadmap/post-mvp.md` is
-[PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3's own required
-output, and Phase 3 is `Not Started` as of this writing — nothing under
-`docs/roadmap/` exists yet.
+**Status:** skeleton exists for `index.md`/`proposed-adrs.md`/
+`future-packages.md` (placeholder only). `docs/roadmap/post-mvp.md` does
+**not** exist yet — it's [PLAN-0007](plans/0007-milestone-7-dogfooding.md)
+Phase 3's own required output, and Phase 3 is `Not Started` as of this
+writing.
 **Purpose:** the single, indexed home for everything not fully available
 today — never a prerequisite for anything in sections 1-11.
 **Contents:**

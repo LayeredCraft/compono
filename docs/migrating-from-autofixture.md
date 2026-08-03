@@ -6,8 +6,8 @@ test for the `ClientTestProfile`/`IHttpClientProvider` pattern); post-migration
 metrics/classification still to come in Phase 2/3
 
 This guide is a living deliverable of Milestone 7's dogfooding pass
-([ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
-[PLAN-0007](../plans/0007-milestone-7-dogfooding.md)) — it exists to help a
+([ADR-0029](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
+[PLAN-0007](plans/0007-milestone-7-dogfooding.md)) — it exists to help a
 real AutoFixture user move to Compono, drawn from an actual migration
 (`ncipollina/cosmere-tracker`'s `test/Cosmere.Tracker.TestKit` and its three
 consuming test projects), not synthetic examples.
@@ -46,7 +46,7 @@ project, each combining `BaseFixtureFactory` with its own customization).
 Compono's idiomatic shape is a single `[Compose<TProfile>]` attribute per
 test method, with the profile doing what the custom `AutoDataAttribute`
 subclass used to do implicitly
-([ADR-0022](../adr/0022-compono-xunit-package-design.md)).
+([ADR-0022](adr/0022-compono-xunit-package-design.md)).
 
 **Better** — every one of the four custom `AutoDataAttribute` subclasses was
 removed entirely; nothing replaced them as a named type, since
@@ -132,7 +132,7 @@ public void MixesInlineAndComposedValues(int quantity, string productName) { ...
 ## `ICustomization` and composition profiles
 
 AutoFixture's `ICustomization` versus Compono's `ICompositionProfile`
-([ADR-0018](../adr/0018-composition-profiles.md)). `cosmere-tracker`'s
+([ADR-0018](adr/0018-composition-profiles.md)). `cosmere-tracker`'s
 `CosmereTrackerCustomization` turned out to be an empty stub (commented-out
 examples only, never actually customized anything) — there was no real
 intent to port:
@@ -197,7 +197,7 @@ public sealed class SharedTestKitProfile : ICompositionProfile
 = true }` — every generated substitute had its members auto-configured
 (sensible return values, including a recursively-constructed object for a
 `Task<T>`-returning member) rather than returning `default`. Compono's
-`Compono.NSubstitute` ([ADR-0025](../adr/0025-compono-nsubstitute-package-design.md))
+`Compono.NSubstitute` ([ADR-0025](adr/0025-compono-nsubstitute-package-design.md))
 deliberately returns a bare `Substitute.For<T>()` — no auto-configuration.
 
 **Real evidence, both directions.** Migrating away from `ConfigureMembers`
@@ -306,14 +306,14 @@ graph; edges reference other entities by string id, not by object reference.
 This is itself the gap-3 finding for Phase 1: **zero observed frequency**
 for this migration. Compono's fail-fast `CompositionException` with a
 path-annotated message
-([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md))
+([ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md))
 was never exercised, positively or negatively, by this codebase.
 
 ## Specimen builders and registrations
 
 AutoFixture's `ISpecimenBuilder`/`IRequestSpecification` pattern versus
 Compono's `CompositionBuilder.Register<T>(Func<ICompositionContext, T>)`
-([ADR-0024](../adr/0024-public-provider-extensibility-model.md)). Every
+([ADR-0024](adr/0024-public-provider-extensibility-model.md)). Every
 domain-item specimen builder in `Cosmere.Tracker.Shared.TestKit`
 (`BookItemSpecimenBuilder`, `CharacterItemSpecimenBuilder`,
 `WorldItemSpecimenBuilder`, `EdgeItemSpecimenBuilder`) became a
@@ -422,7 +422,7 @@ the sharing explicit via `[Shared] HttpMessageHandler`.
 **Real limitation found: `HttpClient` can't be composed directly as a test
 parameter at all**, regardless of any registration. `Compono.Generators`'
 constructor-selection validation (diagnostic `CMP0001`,
-[ADR-0002](../adr/0002-constructor-selection-algorithm.md)) inspects a
+[ADR-0002](adr/0002-constructor-selection-algorithm.md)) inspects a
 composed parameter's type at *compile time*, purely from its constructor
 count on the Roslyn symbol — it has no visibility into any *runtime*
 `CompositionBuilder.For<T>().Use(...)` rule that would actually construct
@@ -577,7 +577,7 @@ every value these types need, including `Id` (`f.Random.Uuid()`) and the
 timestamps (`f.Date.PastOffset(2, ReferenceDate)`, pinned to a fixed
 reference date rather than `Date.PastOffset`'s own current-clock default).
 This exercises Compono.Bogus's actual public API and its determinism
-contract ([ADR-0026](../adr/0026-deterministic-seed-derivation-for-providers.md))
+contract ([ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md))
 exactly as designed — no workaround needed at all, once the (incorrect)
 assumption about context access was dropped. Edge items (`BookCharacterEdgeItem`
 etc.) have no semantic string fields, so they stay a plain `Register<T>`
@@ -605,7 +605,7 @@ zero real callers at that point; now exercised by `ClientTestProfileTests`
 
 ## What disappeared entirely vs. what was merely replaced
 
-Per [ADR-0029 Amendment 2](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-2-2026-08-02-removed-concepts-get-their-own-explicit-inventory-not-just-a-count),
+Per [ADR-0029 Amendment 2](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-2-2026-08-02-removed-concepts-get-their-own-explicit-inventory-not-just-a-count),
 these are two distinct categories, not one — a concept that disappeared with
 *nothing* taking its place represents a real drop in conceptual complexity;
 a concept replaced one-for-one by a Compono equivalent does not, even though
