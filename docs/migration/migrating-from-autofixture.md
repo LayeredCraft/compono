@@ -74,15 +74,26 @@ public void Normalize_ProducesExpected(string? input, string expected) { ... }
 public void Normalize_ProducesExpected(string? input, string expected) { ... }
 ```
 
-**Real limitation found — `[Compose]`/`[Compose<TProfile>]` is
-`AllowMultiple = false`.** A test that needs *both* several distinct inline
-rows *and* one or more genuinely composed parameters in each row (AutoFixture
-handles this by stacking `[InlineAutoData(...)]` instances) has no direct
-Compono equivalent today — stacking `[Compose(...)]` attributes fails to
-compile. `cosmere-tracker`'s migration didn't hit a real test needing this
-combination (`TextNormalizerTests`' rows were pure-inline, per above), so this
-is recorded as a discovered constraint, not a blocking gap — but it is a real
-further finding for Milestone 7's evidence beyond the three named gaps
+**Real limitation found — stacking more than one Compose-family attribute on
+one method has no direct Compono equivalent.** A test that needs *both*
+several distinct inline rows *and* one or more genuinely composed parameters
+in each row (AutoFixture handles this by stacking `[InlineAutoData(...)]`
+instances) can't be expressed this way in Compono today. The failure mode is
+more specific than "fails to compile," though: `[AttributeUsage(AllowMultiple
+= false)]` is enforced by the compiler per *exact* attribute type, so two
+*different* Compose-family types (e.g. `[Compose]` plus `[Compose<MyProfile>]`,
+or two differently-closed `[Compose<TProfile>]` forms) compile without
+complaint — nothing at the type-attribute level stops stacking them. Compono.
+XunitV3's own `BindingPlan.ValidateSignature` (`src/Compono.XunitV3/Binding/BindingPlan.cs`)
+explicitly counts the whole Compose-family regardless of closed type and
+throws a `CompositionException` at data-binding time (when the test's data is
+actually generated), not at compile time. Only two instances of the *exact
+same* closed attribute type are a genuine compiler error, via
+`AllowMultiple = false` on that one type. `cosmere-tracker`'s migration
+didn't hit a real test needing the multi-row-plus-composed-parameter
+combination (`TextNormalizerTests`' rows were pure-inline, per above), so
+this is recorded as a discovered constraint, not a blocking gap — but it is a
+real further finding for Milestone 7's evidence beyond the three named gaps
 (candidate roadmap item; needs its own design pass, not decided here per
 ADR-0029's evidence-driven restraint).
 
@@ -418,6 +429,7 @@ the AutoFixture-era name is gone either way.
 | `IRequestSpecification` | Compono's registration is keyed by exact type; no separate request-matching type is needed |
 | `NamedRequest` | `Register<T>` factories don't need to pattern-match the requesting parameter's shape |
 | `DynamoDbResponseSpecimenBuilder` | Zero real call sites (see above) — dropped, not ported |
+| `BaseFixtureFactory` *(the factory abstraction itself)* | Nothing — there's no single place bundling multiple fixture behaviors together anymore; see the split below for what happened to the two behaviors it configured |
 
 **Replaced one-for-one with a Compono equivalent:**
 
@@ -426,9 +438,18 @@ the AutoFixture-era name is gone either way.
 | `ICustomization` | `ICompositionProfile` (only one project actually had real customization logic to carry over) |
 | `ISpecimenBuilder` | `CompositionBuilder.Register<T>(...)` inside a profile |
 | Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses (`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`, `EndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`) | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
-| `BaseFixtureFactory` | `builder.UseNSubstitute()` (one line in each profile) |
+| `BaseFixtureFactory`'s `AutoNSubstituteCustomization { ConfigureMembers = true }` setup | `builder.UseNSubstitute()` (one line in each profile) — see gap 2 above; this is only *one* of the two behaviors `BaseFixtureFactory` bundled, not the whole factory |
 | `HttpClientSpecimenBuilder`/`HttpClientSpecification`/`ClientAutoDataAttribute` | `ClientTestProfile` + `IHttpClientProvider` (ported despite zero real call sites at migration time — an explicit request to keep this capability for future tests; see above) |
 | `SpecimenBuilderHash` | `Bogus.Randomizer`/`Faker<T>.UseSeed` (Compono.Bogus's own deterministic-seed mechanism replaces the hand-rolled SHA256 hash-prefix helper) |
+
+`BaseFixtureFactory`'s *other* behavior — swapping in `OmitOnRecursionBehavior`
+— has no Compono equivalent at all, replaced or otherwise: gap 3 (above)
+found zero construction-cycle failures during this migration, so there was
+nothing to port. Splitting `BaseFixtureFactory` across both tables (as the
+removed abstraction) and this one (for the one behavior of its two that maps
+onto a Compono call) is the accurate accounting per Amendment 2 — treating
+the whole factory as "replaced by `UseNSubstitute()`" would overstate what
+that one line actually covers.
 
 ## Multi-tier fixture stacks
 
