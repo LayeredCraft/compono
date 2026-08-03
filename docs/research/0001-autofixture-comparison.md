@@ -295,12 +295,20 @@ signal.
   a post-migration total for Phase 4's use, not a before/after delta.
 - **Framework-specific concepts in play:** `ICompositionProfile`,
   `CompositionBuilder`/`AddProfile<T>()`, `Register<T>()`,
-  `[Compose]`/`[Compose<TProfile>]`, `[Shared]`, `UseNSubstitute()`,
-  `UseBogus<T>()` — 7 Compono/Compono.NSubstitute/Compono.Bogus concepts,
-  down from the baseline's 8 AutoFixture/AutoFixture.AutoNSubstitute
-  concepts, but composed into fewer files per concept (the base kit's four
-  layered concepts — fixture factory, customization, specimen builder,
-  request specification — collapse into one: a profile).
+  `ICompositionContext.Resolve<TValue>()`, `[Compose]`/`[Compose<TProfile>]`,
+  `[Shared]`, `UseNSubstitute()`, `UseBogus<T>()` — 8
+  Compono/Compono.NSubstitute/Compono.Bogus concepts. This list and the
+  baseline's 8-concept list above are both illustrative groupings for
+  this specific bullet, not a rigorous concept census — neither one
+  includes every entry the completed "Concepts removed entirely" section
+  below documents (e.g. `ISpecimenContext.Resolve`/`NoSpecimen` on the
+  baseline side, surfaced by that section but not itemized here); treat
+  a same-count "N down from M" framing as coincidental, not a claimed
+  precise reduction — the definitive, complete inventory is that section,
+  not this one. What both lists agree on regardless of exact count: the
+  base kit's four layered concepts (fixture factory, customization,
+  specimen builder, request specification) collapse into one on the
+  Compono side (a profile).
   `HttpMessageHandlerExtensions.ReturnsResponse`'s reflection-based
   NSubstitute stubbing (`BindingFlags.NonPublic`) is unchanged and carried
   forward as-is; it was never an AutoFixture concept and isn't a Compono

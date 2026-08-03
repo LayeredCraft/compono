@@ -364,10 +364,12 @@ run (1s 346ms) — reported as the two observed numbers, not a statistical
 claim, since neither side has repeated samples; a full named-concept
 inventory including `Freeze<T>()`/`[Frozen]` (eliminated at most of its
 ~30 call sites, replaced by `[Shared]` where genuine sharing existed) and
-two concepts beyond Amendment 2's starting list
-(`DynamoDbResponseSpecimenBuilder`, dropped for zero call sites, and
+four concepts beyond Amendment 2's starting list
+(`DynamoDbResponseSpecimenBuilder`, dropped for zero call sites;
 `EndpointAutoDataAttribute`/`PersistenceAutoDataAttribute`, folded into
-the custom-attribute-subclass entry); and ten dossier entries (the
+the custom-attribute-subclass entry; `NoSpecimen`, dropped with nothing
+replacing it; and `ISpecimenContext.Resolve`, replaced one-for-one by
+`ICompositionContext.Resolve<TValue>()`); and ten dossier entries (the
 three ADR-0029 gaps — including gap 3, recursion behavior, corrected
 after an earlier draft mislabeled it as the `Compono.Bogus` finding — the
 `Compono.Bogus` finding itself, the Compose-family binding-validation
