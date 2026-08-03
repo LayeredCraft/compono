@@ -453,8 +453,13 @@ call.
   `AutoNSubstituteCustomization { ConfigureMembers = true }` (part of
   `BaseFixtureFactory`) auto-configuring substitute return values for any
   unstubbed call; after migration, bare `Substitute.For<T>()` via
-  `UseNSubstitute()` returns `null` for unstubbed calls with no
-  auto-configuration equivalent. Fixed by adding explicit
+  `UseNSubstitute()` has no auto-configuration equivalent. For the
+  observed case specifically — `partiql.ExecuteAsync(...)`, a
+  `Task<PartiqlPage>`-returning member — the unstubbed call returned
+  NSubstitute's own default for that shape: a non-null completed `Task`
+  whose `Result` was `null`, not a null `Task` itself. The repository's
+  own code dereferenced that null `Result`, throwing
+  `NullReferenceException`. Fixed by adding explicit
   `.ReturnsForAnyArgs(new PartiqlPage([], null))` stubs — see the
   migration guide for the full before/after.
 - **Principle-alignment note:** the failure is a real behavioral gap, not
@@ -609,8 +614,11 @@ call.
 ### Finding 7 — `CMP0001`: `HttpClient` can't be composed directly (compile-time constructor-selection limitation)
 
 - **Frequency:** 1 diagnostic, discovered once while migrating gap 1;
-  applies to any type with 3+ accessible constructors composed directly
-  as a `[Compose]` parameter, not just `HttpClient`.
+  applies to any type with 2+ accessible constructors composed directly
+  as a `[Compose]` parameter, not just `HttpClient` (`ConstructorSelector.Select`,
+  `src/Compono.Generators/Discovery/ConstructorSelector.cs`, has dedicated
+  branches only for zero and exactly one accessible constructor — every
+  other count, including exactly two, hits `AmbiguousConstructor`/`CMP0001`).
 - **Before/after:** no baseline equivalent — this is a Compono-side
   limitation, not an AutoFixture behavior being replaced. Worked around
   via `IHttpClientProvider` (an interface is always treated as a
