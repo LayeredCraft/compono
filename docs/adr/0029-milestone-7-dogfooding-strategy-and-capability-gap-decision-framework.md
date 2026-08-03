@@ -603,6 +603,65 @@ specifically"), not a reversal — this Amendment makes the expected output a
 stated recommendation rather than leaving it as an implicit conclusion a
 reader has to infer from the six answered questions.
 
+## Amendment 4 (2026-08-03): documentation architecture becomes a required Milestone 7 deliverable
+
+Milestone 7's scope, as originally accepted, produced two required
+deliverables (the migration guide, the evidence-backed roadmap) and ended
+at Phase 4's final architectural conclusion — documentation *design* (the
+hierarchy, section purposes, how future content stays separated from
+current) was left to Milestone 8, per `docs/mvp.md`'s original Milestone 8
+scope ("README and getting-started guide, Architecture documentation,
+Samples"). This is amended: dogfooding a real migration is also the
+richest source of evidence this project will ever have for *how developers
+actually learn and use Compono* — the real "how do I..." questions, the
+concepts that confused a real AutoFixture user, the gap a real migration
+surfaced (`CMP0001`) — and that evidence is expensive to reconstruct later
+if documentation design waits until Milestone 8 starts from a blank page.
+Milestone 7 now also produces:
+
+- The complete documentation architecture — hierarchy, section purposes,
+  audiences, ordering, and how forward-looking content stays separated from
+  the primary learning path — decided in
+  [ADR-0030](0030-compono-documentation-architecture.md) and recorded as a
+  living reference in `docs/documentation-architecture.md`.
+- The initial documentation skeleton matching that hierarchy (stub pages,
+  correct nav structure) — not finished content, a scaffold Milestone 8
+  writes into.
+- The migration guide's promotion decision (ADR-0030's "where the migration
+  guide lives") — the guide itself was already a required deliverable
+  before this Amendment; what's new is that it graduates into the primary
+  documentation hierarchy as a first-class entry, not an appendix.
+- A concrete list of documentation work items that become Milestone 8's own
+  deliverables, so Milestone 8 executes against a scoped backlog rather
+  than re-deriving one.
+
+This is a genuine scope extension, not a reversal of anything this ADR
+already decided — Milestone 7's core dogfooding process (migration-driven
+evidence, the gap rubric, the five-way classification, the two original
+required deliverables) is unchanged; this Amendment adds a third required
+deliverable category (documentation architecture) that draws on the same
+evidence the rest of Milestone 7 already produces. `docs/mvp.md`'s
+Milestone 7/Milestone 8 sections and [PLAN-0007](../plans/0007-milestone-7-dogfooding.md)
+(a new Phase 5) reflect the resulting scope directly.
+
+## Amendment 5 (2026-08-03): the migration guide's promotion is complete
+
+Amendment 4 (above) decided that the migration guide graduates into the
+primary documentation hierarchy as a first-class entry, per
+[ADR-0030](0030-compono-documentation-architecture.md)'s "where the
+migration guide lives." [PLAN-0007](../plans/0007-milestone-7-dogfooding.md)
+Phase 5 has since executed that decision: the file physically moved from
+`docs/migration/migrating-from-autofixture.md` (this ADR's original path,
+preserved above exactly as accepted) to `docs/migrating-from-autofixture.md`,
+content unchanged. This Amendment records the completed relocation as a
+dated fact rather than editing the original "Required deliverables"/
+Amendment 1/Links references above, which stay exactly as they read when
+each was accepted — per this repo's own ADR-immutability rule, a later
+fact about a path changing doesn't get retrofitted into earlier text, it
+gets its own dated Amendment. Any reader following this ADR's original
+references to `docs/migration/migrating-from-autofixture.md` should treat
+this Amendment as the pointer to where that file actually lives today.
+
 ## Links
 
 - [docs/mvp.md](../mvp.md) — Milestone 7 scope/success measures this ADR
@@ -635,3 +694,6 @@ reader has to infer from the six answered questions.
   living through Phase 3)
 - `docs/roadmap/post-mvp.md` — the evidence-backed roadmap required by
   "Required deliverables" above (created in PLAN-0007 Phase 3)
+- [ADR-0030](0030-compono-documentation-architecture.md) — the
+  documentation architecture decision Amendment 4 made room for within
+  Milestone 7

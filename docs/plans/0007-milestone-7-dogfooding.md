@@ -5,7 +5,9 @@
 **Implements:** [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
 (dogfooding strategy, migration-driven evidence, gap decision rubric and
 five-way classification, required deliverables, bug handling, evidence-
-driven restraint)
+driven restraint, and Amendment 4's documentation-architecture deliverable),
+[ADR-0030](../adr/0030-compono-documentation-architecture.md) (the
+documentation architecture Phase 5 produces)
 
 ## Goal
 
@@ -14,15 +16,20 @@ driven restraint)
 Compono; every discovered finding (the three known candidate gaps plus any
 further one surfaced) is classified per ADR-0029 (bug / roadmap candidate /
 acceptable alternative / intentional design difference / migration-only
-friction) and recorded; `docs/migration/migrating-from-autofixture.md` is
+friction) and recorded; `docs/migrating-from-autofixture.md` is
 substantially complete; `docs/roadmap/post-mvp.md` exists and traces every
-entry to real evidence; and Phase 4's final architectural conclusion
-answers whether dogfooding changed Compono's overall design direction.
-`docs/mvp.md`'s Milestone 7 section reflects all of the above.
+entry to real evidence; Phase 4's final architectural conclusion answers
+whether dogfooding changed Compono's overall design direction; and Phase
+5 produces the complete documentation architecture (ADR-0030,
+`docs/documentation-architecture.md`), an initial documentation skeleton,
+the migration guide's promotion decision, and a scoped Milestone 8
+documentation backlog. `docs/mvp.md`'s Milestone 7 and Milestone 8 sections
+reflect all of the above.
 
 ## Scope
 
-Per ADR-0029's Decision Outcome and `docs/mvp.md`'s Milestone 7 section:
+Per ADR-0029's Decision Outcome (including Amendment 4) and `docs/mvp.md`'s
+Milestone 7 section:
 
 - Migrating `cosmere-tracker`'s `Cosmere.Tracker.TestKit` and its consuming
   test projects (`Cosmere.Tracker.Api.Tests`, `Cosmere.Tracker.Shared.Tests`,
@@ -49,12 +56,20 @@ Per ADR-0029's Decision Outcome and `docs/mvp.md`'s Milestone 7 section:
 - Applying ADR-0029's rubric to classify every finding and producing its
   recorded outcome in this repo (`docs/research/0001-autofixture-comparison.md`
   plus the resulting ADR(s)/Amendment(s)/bug-fix PR(s)).
-- Writing and maintaining `docs/migration/migrating-from-autofixture.md` as
+- Writing and maintaining `docs/migrating-from-autofixture.md` as
   a living document throughout the migration, not after it.
 - Producing `docs/roadmap/post-mvp.md` from only the "roadmap candidate"
   findings.
 - Updating `docs/mvp.md`'s Milestone 7 section with the outcome, including
   the Phase 4 final architectural conclusion.
+- Per Amendment 4 and [ADR-0030](../adr/0030-compono-documentation-architecture.md):
+  designing Compono's complete documentation architecture (hierarchy,
+  section purposes/audiences/ordering, how forward-looking content stays
+  separated), recorded in `docs/documentation-architecture.md`; creating
+  the initial documentation skeleton matching that hierarchy; deciding
+  (and recording) the migration guide's promotion into the primary
+  hierarchy; and producing a scoped documentation-work-item backlog that
+  becomes Milestone 8's own deliverables.
 
 Explicitly deferred (per ADR-0029's "Evidence-driven restraint"): designing
 the actual API for any finding classified "roadmap candidate" — that
@@ -90,7 +105,7 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
 - [x] Confirm the exact `cosmere-tracker` commit this baseline was taken
       against (for `docs/research/0001-autofixture-comparison.md`'s link
       back) — `2dbd62ec73a8d8ad64b865a22d7b34a056ca537d`.
-- [x] Create `docs/migration/migrating-from-autofixture.md` in this repo
+- [x] Create `docs/migrating-from-autofixture.md` in this repo
       with its planned structure and the major AutoFixture concepts
       expected to be migrated (`Freeze<T>()`, `AutoDataAttribute`/
       customizations, `AutoNSubstituteCustomization`, recursion behaviors,
@@ -229,9 +244,91 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       under Compono (`dotnet test Cosmere.Tracker.slnx`: 73 passed, 0
       failed, ~1.2s, matching Phase 0's baseline of 72 passed in 1.346s
       plus the one new capability test).
-- [x] Updated `docs/migration/migrating-from-autofixture.md` with every
+- [x] Updated `docs/migrating-from-autofixture.md` with every
       section's real before/after content, in this same change.
 
+
+## Phase 5: Documentation architecture (Milestone 8 blueprint)
+
+**Status:** Done
+
+Per Amendment 4 and [ADR-0030](../adr/0030-compono-documentation-architecture.md)
+(including Amendment 1). Originally numbered — and originally intended to
+run — after Phase 4, on the reasoning that the final architectural
+conclusion (whether dogfooding changed Compono's design direction, whether
+the public provider model held up, etc.) is direct input to Architecture's
+content scope. In practice this phase was designed and closed before
+Phase 2 even started, since the architecture (hierarchy, section purposes,
+audiences) didn't end up needing that conclusion as an input the way
+originally assumed — Architecture's actual page content (a Milestone 8
+concern) can still incorporate Phase 4's conclusion whenever it lands.
+
+**Positioned here, right after Phase 1, to match when it actually ran** —
+a PR review correctly pointed out that leaving this phase physically after
+Phase 4 while marking it `Done` and Phases 2-4 `Not Started` made phase
+order and status unreliable signals for what to execute next. The label
+stays "Phase 5" (not renumbered to "Phase 2") since that identifier is
+already referenced from ADR-0029 Amendment 4, ADR-0030, `docs/mvp.md`, and
+[PLAN-0008](0008-milestone-8-public-preview.md) — renumbering it would
+cascade edits across all of those for no real benefit, since the identifier
+itself (unlike its position in this file) was never the thing causing
+confusion.
+
+- [x] Write [ADR-0030](../adr/0030-compono-documentation-architecture.md)
+      (developer-journey hierarchy adapted from Diátaxis, migration guide
+      promoted to a top-level entry, dedicated Roadmap area for
+      forward-looking content) and Amendment 4 to ADR-0029 (the scope
+      extension this phase executes). Amendment 1 to ADR-0030 records a
+      further refinement round: documentation as a first-class product, a
+      documentation quality bar, the "every page leads somewhere" rule,
+      Cookbook's expected scale, two new top-level areas (Samples, Best
+      Practices), Learning Paths, Architecture's three-way split (Design
+      Principles/Current Architecture/Historical Decision Log), API
+      reference's supplement-not-replace framing, and the package-count-
+      agnostic structure stated explicitly.
+- [x] Write `docs/documentation-architecture.md` — the living reference:
+      full proposed tree (12 top-level areas after Amendment 1), purpose/
+      audience/contents/relationships for every section, the documentation
+      quality bar, suggested reading order, and an Open Items list for
+      decisions this architecture deliberately leaves to Milestone 8 (API
+      reference toolchain, Cookbook navigation/tagging at scale, where
+      Sample applications physically live, `public-api.md`/`manifesto.md`'s
+      eventual disposition).
+- [x] `docs/mvp.md`: Milestone 7 scope/success measures updated for the
+      documentation-architecture deliverable; Milestone 8 scope rewritten
+      to "write, refine, polish, review, and publish against
+      `docs/documentation-architecture.md`" rather than designing from
+      scratch.
+- [x] `docs/adr/README.md` index row for ADR-0030.
+- [x] Create the initial documentation skeleton matching
+      `docs/documentation-architecture.md`'s tree — 58 stub pages (a
+      "Status: Skeleton" banner, one purpose paragraph, and a link back to
+      `docs/documentation-architecture.md`), correct directory structure,
+      `mkdocs.yml` nav updated to include every one of them (plus
+      "(legacy)"-labeled entries for the pre-existing
+      `architecture.md`/`design-principles.md`/`public-api.md`/
+      `performance.md`/`manifesto.md` pages, until Milestone 8 resolves
+      their Open-Item disposition).
+- [x] Promote the migration guide: `docs/migration/migrating-from-autofixture.md`
+      moved to `docs/migrating-from-autofixture.md` (content unchanged);
+      every cross-reference across `docs/mvp.md`,
+      `docs/documentation-architecture.md`, `docs/research/0001-autofixture-comparison.md`,
+      both ADR-0029/ADR-0030, and this plan updated to the new path.
+- [x] Produce the Milestone 8 documentation work-item backlog:
+      [PLAN-0008](0008-milestone-8-public-preview.md), a page-by-page
+      Tasks checklist (grouped by `docs/documentation-architecture.md`
+      section, in its own reading order) plus the non-page Milestone 8
+      scope items (Open Items resolution, package publishing, benchmark
+      results, known limitations) — indexed in
+      `docs/plans/README.md`.
+
+All five originally-scoped Phase 5 deliverables are done, matching
+ADR-0029 Amendment 4's and `docs/mvp.md`'s stated scope exactly — an
+earlier draft of this section deferred the skeleton/promotion/backlog to
+Milestone 8 and marked Phase 5 "Done" anyway, which a PR review correctly
+flagged as silently overriding the accepted scope without formally
+amending it. Corrected by actually producing them here instead of amending
+the scope down.
 
 ## Phase 2: Evidence collection
 
@@ -304,13 +401,13 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       roadmap-candidate findings should land first; or the current MVP is
       already sufficient as-is), not just a capability statement that
       Compono *can* replace AutoFixture.
-- [ ] `docs/migration/migrating-from-autofixture.md`: confirm it needs only
+- [ ] `docs/migrating-from-autofixture.md`: confirm it needs only
       editorial cleanup at this point, not new content reconstruction — if
       it doesn't, that's a sign Phase 1's "update alongside the code" rule
       wasn't followed and should be fixed before closing the milestone.
 - [ ] `docs/mvp.md` Milestone 7 section: links ADR-0029, PLAN-0007,
       `docs/research/0001-autofixture-comparison.md`,
-      `docs/migration/migrating-from-autofixture.md`, and
+      `docs/migrating-from-autofixture.md`, and
       `docs/roadmap/post-mvp.md`; states the outcome per finding; success
       measures checked against the real migration evidence (readability,
       understandability, profile-first setup, reproducible failures,
@@ -325,7 +422,7 @@ In `compono` (this repo):
 
 - `docs/adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md` —
   the process this plan executes
-- `docs/migration/migrating-from-autofixture.md` — new, drafted Phase 0,
+- `docs/migrating-from-autofixture.md` — new, drafted Phase 0,
   written incrementally through Phase 1, substantially complete by Phase 4
 - `docs/research/0001-autofixture-comparison.md` — created Phase 0 (baseline
   section), the evidence record; finalized (post-migration metrics,
@@ -337,7 +434,20 @@ In `compono` (this repo):
 - Any scoped bug-fix PR's changed files in this repo, if a blocking bug is
   found (per ADR-0029's "Bug handling") — linked from this plan's Notes,
   not enumerated here in advance since it isn't known yet
-- `docs/mvp.md` — Milestone 7 section (Phase 4)
+- `docs/mvp.md` — Milestone 7 section (Phase 4); Milestone 7 and Milestone 8
+  sections both (Phase 5)
+- `docs/adr/0030-compono-documentation-architecture.md` — new, Phase 5
+- `docs/documentation-architecture.md` — new, Phase 5, the living reference
+  Milestone 8 executes against
+- `docs/documentation-architecture.md`'s full tree (see that document) —
+  58 new stub pages for the skeleton, Phase 5
+- `docs/migrating-from-autofixture.md` — moved here from
+  `docs/migration/migrating-from-autofixture.md`, Phase 5 (content
+  unchanged; every cross-reference to the old path updated)
+- `mkdocs.yml` — nav updated to match the full skeleton, Phase 5
+- `docs/plans/0008-milestone-8-public-preview.md` — new, Phase 5, the
+  Milestone 8 work-item backlog
+- `docs/plans/README.md` — index row for PLAN-0008, Phase 5
 
 In `cosmere-tracker` (separate repo, not tracked by this plan's Critical
 Files beyond noting where the work happens):
@@ -392,3 +502,27 @@ from this repo's source (mirroring `Compono.XunitV3.SampleTests`); reverted
 before commit once it was clear `cosmere-tracker`'s own CI can't reach a
 sibling `compono` checkout — replaced with pinned published `alpha`
 prereleases from nuget.org instead.
+
+**Phase 5 (2026-08-03):** An interim draft of this phase closed with only
+the architecture/blueprint done (ADR-0030 plus Amendment 1,
+`docs/documentation-architecture.md`), deferring the skeleton, migration
+guide promotion, and Milestone 8 backlog to Milestone 8 itself. A PR review
+correctly flagged this as silently narrowing ADR-0029 Amendment 4's/
+`docs/mvp.md`'s accepted scope without a formal amendment recording it —
+by direct instruction, all five originally-scoped Phase 5 deliverables were
+produced instead (see the Phase 5 checklist above), rather than amending
+the scope down to match what had been skipped.
+
+A later PR review also flagged that [PLAN-0008](0008-milestone-8-public-preview.md)
+(Phase 5's Milestone 8 backlog) has no phase boundaries of its own — a
+real gap against this repo's "each phase ships as its own PR" convention.
+By explicit decision, that split is deferred to its own design pass
+(`tasks/design.md`) before Milestone 8 begins, rather than restructured
+inside this documentation-architecture PR — PLAN-0008 is marked as a draft,
+unphased backlog pending that design work, not treated as finished. Phase
+5 itself was also physically repositioned (right after Phase 1, matching
+when it actually ran) in response to a separate review finding that its
+prior position — after the still-`Not Started` Phases 2-4 — made phase
+order/status unreliable; its "Phase 5" label was kept rather than
+renumbered, since that identifier is already referenced from several other
+documents.

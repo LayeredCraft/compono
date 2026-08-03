@@ -438,11 +438,20 @@ Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
   / intentional design difference / migration-only friction) per ADR-0029's
   rubric, recorded in `docs/research/0001-autofixture-comparison.md` and
   the resulting ADR(s)/Amendment(s)/bug-fix PR(s)
-- Produce `docs/migration/migrating-from-autofixture.md` (living, drafted
+- Produce `docs/migrating-from-autofixture.md` (living, drafted
   before migration starts, updated with every migration PR) and
   `docs/roadmap/post-mvp.md` (evidence-backed, roadmap-candidate findings
   only)
 - Answer ADR-0029's final architectural conclusion questions in Phase 4
+- Per [ADR-0029 Amendment 4](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-4-2026-08-03-documentation-architecture-becomes-a-required-milestone-7-deliverable)/
+  [ADR-0030](adr/0030-compono-documentation-architecture.md): design
+  Compono's complete public-documentation architecture (developer-journey
+  hierarchy, section purposes/audiences/ordering, how forward-looking
+  content stays separate from the primary learning path) while the
+  dogfooding evidence is fresh, recorded in `docs/documentation-architecture.md`;
+  produce the initial documentation skeleton matching it; decide the
+  migration guide's promotion into that hierarchy; and hand Milestone 8 a
+  scoped documentation work-item backlog instead of a blank design problem
 
 ### Success Measures
 
@@ -455,26 +464,50 @@ Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
   assumed into the roadmap by default
 - The research findings are a balanced assessment, recording where Compono
   improved the suite as well as where it introduced friction
-- `docs/migration/migrating-from-autofixture.md` is substantially complete
+- `docs/migrating-from-autofixture.md` is substantially complete
   by the end of Phase 4, needing only editorial cleanup
 - `docs/roadmap/post-mvp.md` exists and every entry traces to real migration
   evidence
 - Phase 4's final architectural conclusion answers whether Compono is
   suitable as the default AutoFixture replacement for `cosmere-tracker`
+- `docs/documentation-architecture.md` exists, covers every section named in
+  ADR-0030, and Milestone 8 has a scoped backlog to execute against rather
+  than its own design phase
 
 ## Milestone 8: Public Preview
+
+Per [ADR-0029 Amendment 4](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-4-2026-08-03-documentation-architecture-becomes-a-required-milestone-7-deliverable)/
+[ADR-0030](adr/0030-compono-documentation-architecture.md), this milestone
+executes against Milestone 7's documentation architecture
+(`docs/documentation-architecture.md`) and its Phase 5 work-item backlog,
+rather than designing the documentation from scratch — the hierarchy,
+section purposes/audiences/ordering, and migration-guide placement are
+already decided; this milestone writes, refines, polishes, reviews, and
+publishes the content.
 
 ### Scope
 
 - Publish `0.x` packages
-- README and getting-started guide
-- Architecture documentation
-- Samples
-- Versioning policy
-- Contribution guidance
-- Issue templates
+- Review and update the repository-root `README.md` — a distinct artifact
+  from `docs/getting-started/*` (the GitHub landing page vs. the docs
+  site's onboarding section); not dropped by the documentation-architecture
+  rewrite of this scope, just tracked alongside it
+- Write every page in `docs/documentation-architecture.md`'s tree, per
+  Phase 5's scoped backlog — Getting Started, Concepts, How-to Guides,
+  Cookbook, Samples, Package Guides, Best Practices, Architecture,
+  Troubleshooting, Reference, Roadmap
+- Refine/polish `docs/migrating-from-autofixture.md` (promoted to its
+  top-level path in Phase 5, `mkdocs.yml` nav entry already added) from
+  "substantially complete" to publication-ready
+- Resolve `docs/documentation-architecture.md`'s Open Items (API reference
+  generation toolchain, Cookbook navigation/tagging at scale, where Sample
+  applications physically live, versioning policy, contribution guidance,
+  issue templates, `docs/public-api.md`/`docs/manifesto.md`'s eventual
+  disposition)
 - Benchmark results
 - Explicit known limitations
+- Update `mkdocs.yml`'s nav to match the published hierarchy exactly, and
+  publish the site
 
 ## MVP Non-goals
 

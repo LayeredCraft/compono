@@ -235,6 +235,9 @@ PublishScripts/
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
+# except docs/packages/, which is real Package Guides documentation content
+# (ADR-0030), not a NuGet packages cache directory.
+!docs/[Pp]ackages/*
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files
