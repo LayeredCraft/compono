@@ -265,14 +265,32 @@ surfaced two distinct patterns:
 
 ## Recursion behaviors (`OmitOnRecursionBehavior` vs. fail-fast) — gap 3
 
-`BaseFixtureFactory` swapped AutoFixture's default `ThrowingRecursionBehavior`
-for `OmitOnRecursionBehavior`. **No construction-cycle failure was ever
-triggered during this migration** — none of `cosmere-tracker`'s composed
-types (`BookItem`/`CharacterItem`/`WorldItem`/edge items,
-`CosmereTrackerRepository`) form a self-referencing graph; edges reference
-other entities by string id, not by object reference. This is itself the
-gap-3 finding for Phase 1: **zero observed frequency** for this migration.
-Compono's fail-fast `CompositionException` with a path-annotated message
+`BaseFixtureFactory` (`cosmere-tracker`'s own factory class) swapped
+AutoFixture's default `ThrowingRecursionBehavior` for the AutoFixture-library
+`OmitOnRecursionBehavior`:
+
+```csharp
+// Before — BaseFixtureFactory.cs
+var fixture = new Fixture();
+
+// Prevent infinite recursion for self-referencing types
+fixture.Behaviors.OfType<ThrowingRecursionBehavior>().ToList()
+    .ForEach(b => fixture.Behaviors.Remove(b));
+fixture.Behaviors.Add(new OmitOnRecursionBehavior());
+
+// After — nothing. Compono has no per-composition recursion-behavior
+// configuration to opt into at all; a genuine construction cycle always
+// fails fast with a path-annotated CompositionException
+// (ADR-0011) — there's no equivalent call to make, replaced or otherwise.
+```
+
+**No construction-cycle failure was ever triggered during this migration** —
+none of `cosmere-tracker`'s composed types (`BookItem`/`CharacterItem`/
+`WorldItem`/edge items, `CosmereTrackerRepository`) form a self-referencing
+graph; edges reference other entities by string id, not by object reference.
+This is itself the gap-3 finding for Phase 1: **zero observed frequency**
+for this migration. Compono's fail-fast `CompositionException` with a
+path-annotated message
 ([ADR-0011](../adr/0011-composition-scope-shared-values-and-recursion-detection.md))
 was never exercised, positively or negatively, by this codebase.
 
@@ -535,7 +553,9 @@ the AutoFixture-era name is gone either way.
 | `IRequestSpecification` | Compono's registration is keyed by exact type; no separate request-matching type is needed |
 | `NamedRequest` | `Register<T>` factories don't need to pattern-match the requesting parameter's shape |
 | `DynamoDbResponseSpecimenBuilder` | Zero real call sites (see above) — dropped, not ported |
-| `BaseFixtureFactory` *(the factory abstraction itself)* | Nothing — there's no single place bundling multiple fixture behaviors together anymore; see the split below for what happened to the two behaviors it configured |
+| `BaseFixtureFactory` *(the factory class itself — this was `cosmere-tracker`'s own code, not an AutoFixture API; it just wired together three real AutoFixture-library behaviors, each tracked separately below/above)* | Nothing — there's no single place bundling multiple fixture behaviors together anymore |
+| `AutoNSubstituteCustomization { ConfigureMembers = true }`'s member auto-configuration | Nothing — Compono never auto-configures a substitute's members; the ~30 call sites that didn't actually need this had zero workaround cost, and the two call sites that did (gap 2's `ListWorldsAsync_WhenSortEmpty_DefaultsToName`/`ListCharactersAsync_WhenSortEmpty_DefaultsToName`) now write an explicit NSubstitute stub instead — that's ordinary per-test code, not a Compono-provided replacement concept |
+| `OmitOnRecursionBehavior` | Nothing — gap 3 found zero construction-cycle failures during this migration, so there was no real workaround to replace it with; see the recursion-behaviors section above |
 
 **Replaced one-for-one with a Compono equivalent:**
 
@@ -544,18 +564,20 @@ the AutoFixture-era name is gone either way.
 | `ICustomization` | `ICompositionProfile` (only one project actually had real customization logic to carry over) |
 | `ISpecimenBuilder` | `CompositionBuilder.Register<T>(...)` inside a profile |
 | Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses — four pairs, eight classes total (`CosmereTrackerAutoDataAttribute`/`InlineCosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`/`InlineClientAutoDataAttribute`, `EndpointAutoDataAttribute`/`InlineEndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`/`InlinePersistenceAutoDataAttribute`) | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
-| `BaseFixtureFactory`'s `AutoNSubstituteCustomization { ConfigureMembers = true }` setup | `builder.UseNSubstitute()` (one line in each profile) — see gap 2 above; this is only *one* of the two behaviors `BaseFixtureFactory` bundled, not the whole factory |
+| `AutoNSubstituteCustomization`'s substitute creation itself (not its member auto-configuration — see the removed-entirely table above) | `builder.UseNSubstitute()` (one line in each profile) — see gap 2 above |
 | `HttpClientSpecimenBuilder`/`HttpClientSpecification`/`ClientAutoDataAttribute` | `ClientTestProfile` + `IHttpClientProvider` (ported despite zero real call sites at migration time — an explicit request to keep this capability for future tests; see above) |
 | `SpecimenBuilderHash` | `Bogus.Randomizer`/`Faker<T>.UseSeed` (Compono.Bogus's own deterministic-seed mechanism replaces the hand-rolled SHA256 hash-prefix helper) |
 
-`BaseFixtureFactory`'s *other* behavior — swapping in `OmitOnRecursionBehavior`
-— has no Compono equivalent at all, replaced or otherwise: gap 3 (above)
-found zero construction-cycle failures during this migration, so there was
-nothing to port. Splitting `BaseFixtureFactory` across both tables (as the
-removed abstraction) and this one (for the one behavior of its two that maps
-onto a Compono call) is the accurate accounting per Amendment 2 — treating
-the whole factory as "replaced by `UseNSubstitute()`" would overstate what
-that one line actually covers.
+`BaseFixtureFactory` (`cosmere-tracker`'s own class) wired together three
+real AutoFixture-library behaviors, each with its own, different fate:
+substitute creation itself → replaced by `UseNSubstitute()`; member
+auto-configuration → removed, no replacement concept (explicit per-test
+stubs where actually needed); `OmitOnRecursionBehavior` → also removed, no
+replacement at all, since gap 3 (above) found zero construction-cycle
+failures during this migration and so had nothing to port. Splitting the
+factory's own removal from each of the AutoFixture behaviors it configured
+— rather than treating the whole thing as "replaced by `UseNSubstitute()`"
+— is the accurate accounting per Amendment 2.
 
 ## Multi-tier fixture stacks
 
