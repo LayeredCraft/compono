@@ -295,14 +295,19 @@ signal.
   the mechanism connecting the tiers got simpler, but "one class per
   tier" would overstate it — only the shared and per-suite local tiers
   are actually a single file each.
-- **Setup visible per test method:** `[Compose]`/`[Compose<TProfile>]`
-  parameters are explicit in the test method signature about which
-  profile is in play, and `[Shared]` parameters are explicit about reused
-  instances — this is the direct trade ADR-0029 anticipated for gap 1:
-  baseline's `[ClientAutoData]` hid the frozen-`HttpMessageHandler` pattern
-  entirely behind the attribute, where `ClientTestProfile` composed via
-  `[Compose<ClientTestProfile>]` makes the shared-handler relationship
-  visible in the test signature at the cost of a longer signature.
+- **Setup visible per test method:** two different locations, not one.
+  `[Compose]`/`[Compose<TProfile>]` are method-level attributes
+  (`ComposeAttribute` targets `AttributeTargets.Method`) — which profile
+  is in play is explicit on the method, not in the parameter list.
+  `[Shared]` parameters are the ones explicit in the signature itself,
+  naming the reused type directly. This is still the direct trade
+  ADR-0029 anticipated for gap 1: baseline's `[ClientAutoData]` hid the
+  frozen-`HttpMessageHandler` pattern entirely behind the attribute, with
+  no visibility anywhere in the test; post-migration,
+  `[Compose<ClientTestProfile>]` on the method makes the profile choice
+  visible there, and `[Shared] HttpMessageHandler handler` in the
+  parameter list makes the shared-handler relationship visible in the
+  signature itself, at the cost of a longer signature.
 - **Concepts a new contributor needs today:** the 7 Compono-family
   concepts above, plus (unchanged from baseline) knowing which of the
   three fixture-kit tiers to extend for a given change — the tier-count
