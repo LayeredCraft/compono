@@ -1,7 +1,12 @@
 # [RESEARCH-0001] AutoFixture vs. Compono: `cosmere-tracker` Dogfooding
 
-**Status:** In Progress (Phase 0 baseline captured; migration, evidence
-collection, and classification still to come)
+**Status:** In Progress (Phase 0 baseline and Phase 1 migration complete, all
+73 `cosmere-tracker` tests passing under Compono (72 migrated plus one new
+capability test); Phase 2's formal
+post-migration metrics/evidence dossier and Phase 3's classification still to
+come — see
+[the migration guide](../migration/migrating-from-autofixture.md) for Phase
+1's real before/after findings in the meantime)
 
 **Feeds:** [PLAN-0007](../plans/0007-milestone-7-dogfooding.md), per
 [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
@@ -68,10 +73,18 @@ out in ADR-0029's Context.
 - `[ClientAutoData]`/`[InlineClientAutoData]`: 0 call sites in these three
   projects (used only within `Cosmere.Tracker.TestKit`'s own definitions;
   no consuming test currently exercises the `HttpClientSpecimenBuilder`
-  path directly through this attribute pair — worth confirming during
-  Phase 1 whether `HttpClientSpecimenBuilder`/gap 1 has any live call site
-  at all, or whether its migration evidence has to come from a different
-  angle)
+  path directly through this attribute pair) — **confirmed during Phase 1**:
+  zero real call sites anywhere in `cosmere-tracker` outside
+  `Cosmere.Tracker.TestKit`'s own definition files. This is itself gap 1's
+  Phase 1 finding; `HttpClientSpecimenBuilder`/`HttpClientSpecification`/
+  `ClientAutoDataAttribute` were nonetheless migrated (as `ClientTestProfile`/
+  `IHttpClientProvider`, by explicit request, since this is a capability
+  needed for future tests) rather than dropped, surfacing a further real
+  finding: `HttpClient` can't be composed directly as a Compono parameter at
+  all (`CMP0001`). See the
+  [migration guide](../migration/migrating-from-autofixture.md) for the full
+  evidence, including the real (and frequent) `[Frozen]`-for-substitute usage
+  found elsewhere that gap 1's rubric evidence actually rests on.
 
 ### `dotnet test` baseline run
 

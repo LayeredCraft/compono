@@ -116,75 +116,122 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
 
 ## Phase 1: Migrate the test kit
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] Replace `Cosmere.Tracker.TestKit`'s AutoFixture package references
+- [x] Replace `Cosmere.Tracker.TestKit`'s AutoFixture package references
       with `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/
       `Compono.Bogus` — `Compono.Bogus` inclusion is mandatory (ADR-0029),
-      not conditional on the migration happening to need it.
-- [ ] Replace `CosmereTrackerAutoDataAttribute`/
-      `InlineCosmereTrackerAutoDataAttribute` with `[Compose<TProfile>]`/
-      inline-plus-composed parameters, per
-      [ADR-0022](../adr/0022-compono-xunit-package-design.md)'s shape —
-      preferring the idiomatic Compono shape over preserving the custom
-      attribute wrapper if it's no longer pulling its weight (ADR-0029's
-      "Migration idiom"); if it's removed, document what replaced it and
-      why in the migration guide.
-- [ ] Port `CosmereTrackerCustomization`'s intent into an
-      `ICompositionProfile` ([ADR-0018](../adr/0018-composition-profiles.md)),
-      same idiom-over-mechanical-translation preference.
-- [ ] Migrate `HttpClientSpecimenBuilder`'s frozen-`HttpMessageHandler`
-      pattern using Compono's current explicit mechanism — a `[Shared]
-      HttpMessageHandler` parameter plus a registration/rule producing the
-      configured `HttpClient` — recording the real before/after and its
-      classification (gap 1's evidence; friction from requiring the
-      parameter in every relevant signature counts as evidence even though
-      a working replacement exists, per ADR-0029's central question).
-      **First**, confirm whether `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute`/
-      `InlineClientAutoDataAttribute` have any real caller anywhere in
-      `cosmere-tracker` at all — Phase 0's baseline found zero call sites in
-      the three consuming test projects, and a repo-wide search at PR
-      review time found none outside the TestKit's own definition files
-      either. If that holds when Phase 1 actually reaches this code, "zero
-      observed frequency" is itself gap 1's finding (per the rubric's
-      question 1) — record it as such rather than assuming a live migration
-      target, and treat porting vs. dropping
-      `HttpClientSpecimenBuilder`/`HttpClientSpecification` on its own
-      merits (ADR-0029's "Migration idiom").
-- [ ] Migrate `AutoNSubstituteCustomization { ConfigureMembers = true }`
-      usages to `UseNSubstitute()`, recording every call site where a test
-      previously relied on an auto-configured substitute member and now
-      needs an explicit `Returns`/`When` setup instead (gap 2's evidence).
-- [ ] Migrate away from `OmitOnRecursionBehavior`, recording every place
-      Compono's construction-cycle failure actually fires during migration
-      and what it took to resolve (restructure the graph, add an explicit
-      registration, etc.) — gap 3's evidence.
-- [ ] Adopt `Compono.Bogus` against the Phase 0 candidate list — wire
-      `UseBogus()` into the migrated profile for members that match the
-      built-in convention allowlist, and use ADR-0028's
-      `BogusOptions.AddAlias`/`AddConvention` (or member-level
-      `UseBogus(faker => ...)`/whole-object `UseBogus<T>()`) for
-      `cosmere-tracker`-specific domain vocabulary the allowlist doesn't
-      cover. Record what worked, what needed a custom convention/alias, and
-      any member where no realistic-data adoption made sense — this
-      evidence is itself a Milestone 7 finding, classified like any other
-      (ADR-0029's "Compono.Bogus adoption is mandatory," clarified by
-      Amendment 1). The migration guide's `Compono.Bogus` section and the
-      research doc must state a final recommendation for its continued use
-      in `cosmere-tracker` — including "don't use it for X" where the
-      evidence supports that; a negative or partial recommendation is a
-      successful outcome of the experiment, not a shortfall against the
-      mandate.
-- [ ] Record any further finding surfaced along the way that isn't one of
-      the three named above, including positive findings (per ADR-0029's
-      "Evidence to collect") and any bug (per "Bug handling" — fixed in its
-      own scoped compono PR, linked from this plan's Notes section).
-- [ ] Update `docs/migration/migrating-from-autofixture.md` in the same PR
-      as each meaningful migration decision — not batched to the end of
-      this phase. Each entry: AutoFixture approach, Compono approach, why
-      it was chosen, better/equivalent/tradeoff verdict, links to the
-      relevant ADR/research finding, and a real before/after snippet from
-      `cosmere-tracker`.
+      not conditional on the migration happening to need it. Referenced as
+      published `alpha` prereleases from nuget.org (pinned in
+      `cosmere-tracker/Directory.Packages.props`, currently
+      `0.1.0-alpha.33`) — a local NuGet feed packed from this repo's source
+      was tried first and rejected, since `cosmere-tracker`'s own GitHub
+      Actions CI has no sibling `compono` checkout to pack from and would
+      fail to restore.
+- [x] Replace `CosmereTrackerAutoDataAttribute`/
+      `InlineCosmereTrackerAutoDataAttribute` (and the three sibling
+      per-project wrapper pairs: `ClientAutoDataAttribute`,
+      `EndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`) with
+      `[Compose<TProfile>]`/`[Compose]`, per
+      [ADR-0022](../adr/0022-compono-xunit-package-design.md)'s shape — all
+      four removed entirely (ADR-0029's "Migration idiom"); documented in
+      the migration guide. A further finding beyond scope: pure-inline
+      `[Theory]` rows (`TextNormalizerTests`) need no Compono attribute at
+      all, just plain `[InlineData]` — and `[Compose]`/`[Compose<TProfile>]`
+      is `AllowMultiple = false`, so AutoFixture's "stack multiple
+      `[InlineAutoData(...)]` rows, each with a composed parameter" idiom has
+      no direct Compono equivalent (not hit by any real `cosmere-tracker`
+      test, but recorded as a discovered constraint).
+- [x] Port `CosmereTrackerCustomization`'s intent into an
+      `ICompositionProfile` ([ADR-0018](../adr/0018-composition-profiles.md)) —
+      turned out to be an empty stub with no real intent to port, deleted
+      outright. `SharedCustomization` (real logic) became
+      `SharedTestKitProfile`.
+- [x] Migrate `HttpClientSpecimenBuilder`'s frozen-`HttpMessageHandler`
+      pattern. **Confirmed zero real call sites** anywhere in
+      `cosmere-tracker` outside `Cosmere.Tracker.TestKit`'s own definition
+      files — this is gap 1's finding (per the rubric's question 1, "zero
+      observed frequency"). Ported anyway, by explicit request, as
+      `ClientTestProfile`/`IHttpClientProvider` (`Cosmere.Tracker.TestKit/Http/`,
+      `Cosmere.Tracker.TestKit/Profiles/`) with a real capability test
+      (`ClientTestProfileTests`) — zero frequency doesn't mean "delete," a
+      capability the repo owner will need is kept working and documented, not
+      dropped just because nothing uses it *yet*. This surfaced a real,
+      further finding beyond gap 1's original framing: `HttpClient` cannot be
+      composed directly as a Compono test parameter at all — its 3 accessible
+      constructors trip `Compono.Generators`' compile-time `CMP0001`
+      diagnostic regardless of any runtime registration/rule, since the
+      generator has no visibility into `CompositionBuilder` registrations
+      ([ADR-0002](../adr/0002-constructor-selection-algorithm.md)'s own
+      anticipated `[CompositionConstructor]` disambiguation attribute was
+      never implemented). Worked around by composing `IHttpClientProvider`
+      (an interface, always a provider-resolved leaf) instead of `HttpClient`
+      directly — full before/after and the workaround in the migration guide.
+      Separately, real `[Frozen]`-for-substitute usage *was* found elsewhere
+      (~30 call sites, see gap 2 below) — most needed no `[Shared]`
+      equivalent at all (zero workaround cost), a handful of genuine
+      cross-object-sharing call sites (`CosmereTrackerRepository` persistence
+      tests) mapped directly to `[Shared]` at equally low cost. Recorded in
+      the migration guide.
+- [x] Migrate `AutoNSubstituteCustomization { ConfigureMembers = true }`
+      usages to `UseNSubstitute()`. Real evidence found: most call sites had
+      zero workaround cost (plain composed parameter replaces `[Frozen]`);
+      genuine sharing call sites mapped to `[Shared]` at equally low cost;
+      and two tests (`ListWorldsAsync_WhenSortEmpty_DefaultsToName`,
+      `ListCharactersAsync_WhenSortEmpty_DefaultsToName`) surfaced a real,
+      previously-hidden dependency on `ConfigureMembers`' auto-configured
+      return values — fixed with an explicit `Returns`/`ReturnsForAnyArgs`
+      stub each test should arguably have had regardless. All recorded with
+      before/after snippets in the migration guide (gap 2's evidence).
+- [x] Migrate away from `OmitOnRecursionBehavior` — **zero construction-cycle
+      failures were ever triggered** during this migration; none of
+      `cosmere-tracker`'s composed types form a self-referencing graph. This
+      "zero observed frequency" is itself gap 3's Phase 1 finding, recorded
+      in the migration guide.
+- [x] Adopt `Compono.Bogus` against the Phase 0 candidate list
+      (`BookItem.Title`, `CharacterItem.Name`, `WorldItem.Name`/
+      `SystemName`). Real finding: `BogusMemberNameProvider`'s exact
+      member-name matching can't disambiguate `CharacterItem.Name` (a
+      person's name) from `WorldItem.Name` (a place name) sharing the
+      literal member name `"Name"` — the built-in convention/alias/custom-
+      convention path doesn't fit. Adopted instead via
+      `builder.UseBogus<T>(faker => ...)` — Compono.Bogus's own whole-object
+      sugar — per type, with `RuleFor` (including sibling-property access
+      for `TitleNormalized`/`NameNormalized`/`UpdatedAt` derived fields). An
+      earlier version of this task bypassed `UseBogus<T>()` for a hand-rolled
+      `Register<T>` factory on the incorrect claim that its callback has no
+      access to the resolving `ICompositionContext` — caught in PR review:
+      `UseBogus<T>` already seeds the `Faker<T>` from `context.DeriveSeed()`
+      internally before invoking the callback, so there was never a reason to
+      bypass it, and doing so meant this task initially recorded successful
+      dogfooding without ever calling a `Compono.Bogus` API. Corrected to use
+      `UseBogus<T>()` directly. Recommendation recorded in the migration
+      guide: a genuine win for semantic string fields, not just a tradeoff
+      (ADR-0029 Amendment 1). Phase 0's candidate list also named the DTO
+      side of each pair (`BookDto.Title`, `CharacterDto.Name`,
+      `WorldDto.Name`/`SystemName`) — confirmed during Phase 1 that none of
+      `Cosmere.Tracker.Api`'s DTOs are ever composed as a test parameter
+      anywhere in `cosmere-tracker`; they're production API-response types
+      built by mapping code from the already-Bogus-adopted `*Item` types, so
+      there was no separate composition call site to adopt `Compono.Bogus`
+      against. Recorded in the migration guide alongside the `*Item`
+      findings.
+- [x] Further findings recorded (beyond the three named gaps):
+      `DynamoDbResponseSpecimenBuilder` had zero real call sites and was
+      dropped entirely; `HttpClientSpecimenBuilder`'s equivalent
+      (`ClientTestProfile`/`IHttpClientProvider`) also had zero real call
+      sites but was ported anyway, by explicit request, and now has a real
+      capability test (`ClientTestProfileTests`) exercising the previously-
+      uncalled `HttpMessageHandlerExtensions` helper too; `HttpClient`
+      cannot be composed directly as a Compono parameter at all (`CMP0001`,
+      see above); `[Compose]`'s `AllowMultiple = false` constraint (see
+      above). No blocking bug found — all 73 `cosmere-tracker` tests pass
+      under Compono (`dotnet test Cosmere.Tracker.slnx`: 73 passed, 0
+      failed, ~1.2s, matching Phase 0's baseline of 72 passed in 1.346s
+      plus the one new capability test).
+- [x] Updated `docs/migration/migrating-from-autofixture.md` with every
+      section's real before/after content, in this same change.
+
 
 ## Phase 2: Evidence collection
 
@@ -321,3 +368,27 @@ being wrong about *how* doesn't require superseding anything, unlike an
 ADR being wrong about *what/why*. Any blocking-bug detour (ADR-0029's "Bug
 handling") is recorded here with a link to its issue/PR as soon as it
 happens, not reconstructed later.
+
+**Phase 1 (2026-08-03):** No blocking bug found; no compono product-code PR
+needed. One further AutoFixture-era specimen builder discovered to have
+zero real call sites beyond `HttpClientSpecimenBuilder` (gap 1's
+originally-named case): `DynamoDbResponseSpecimenBuilder` in
+`Cosmere.Tracker.Shared.Tests`, dropped entirely rather than migrated
+(unlike `HttpClientSpecimenBuilder`'s own equivalent, which was ported as
+`ClientTestProfile`/`IHttpClientProvider` despite the same zero-call-site
+finding — see above; the two builders' zero-frequency evidence doesn't mean
+the same disposition for both). `Cosmere.Tracker.Shared.Tests`'
+`ListWorldsAsync_WhenSortEmpty_DefaultsToName`/
+`ListCharactersAsync_WhenSortEmpty_DefaultsToName` required an explicit
+NSubstitute stub they didn't previously need (gap 2 evidence — see the
+migration guide's `AutoNSubstituteCustomization` section); fixed inline as
+part of the migration itself, not a separate PR, since it's a test-only
+change with no product-code impact. `test/Directory.Build.props`'
+project-wide global usings (`AutoFixture`/`AutoFixture.Xunit3`/
+`AutoFixture.Kernel`) were replaced with `Compono`/`Compono.XunitV3` — not
+previously called out in this plan's Critical Files, added here for the
+record. First attempt at package referencing used a local NuGet feed packed
+from this repo's source (mirroring `Compono.XunitV3.SampleTests`); reverted
+before commit once it was clear `cosmere-tracker`'s own CI can't reach a
+sibling `compono` checkout — replaced with pinned published `alpha`
+prereleases from nuget.org instead.
