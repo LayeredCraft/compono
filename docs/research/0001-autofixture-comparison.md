@@ -403,6 +403,15 @@ structure.
   body. Zero real call sites, dropped with nothing replacing it —
   alongside gap 1's `HttpClientSpecimenBuilder` finding of the same
   shape (which *is* replaced — see below).
+- **`NoSpecimen`** (not in the original starting list — surfaced by the
+  migration guide's specimen-builder examples, e.g.
+  `HttpClientSpecimenBuilder.Create`/edge-item specimen builders
+  returning `new NoSpecimen()` for a request they don't handle) — nothing
+  replaces it. It's AutoFixture's sentinel return value meaning "I don't
+  build this, defer to the next specimen builder in the pipeline" —
+  Compono has no specimen-builder chain-of-responsibility to decline
+  from at all; a `Register<T>` factory unconditionally handles its own
+  type, so there's no "not mine, pass it on" case to express.
 
 ### Replaced one-for-one — a named Compono successor exists
 
@@ -415,6 +424,13 @@ structure.
   for hand-built values and `builder.UseBogus<T>(Action<Faker<T>>)` for
   Bogus-generated ones — direct factory functions instead of a builder
   interface participating in AutoFixture's specimen-resolution pipeline.
+- **`ISpecimenContext.Resolve`** (the mechanism `HttpClientSpecimenBuilder`
+  and the migration guide's other specimen-builder examples used to
+  resolve a frozen/nested value by type from inside a builder's `Create`
+  method) → `ICompositionContext.Resolve<TValue>()` — the same
+  resolve-a-value-from-inside-a-factory shape, used directly in
+  `ClientTestProfile`'s `context.Resolve<HttpMessageHandler>()` call. A
+  genuine direct successor, not just a conceptual one.
 - **`Freeze<T>()`/`[Frozen]`** → `[Shared]`, but only where genuine
   sharing existed — most of its ~30 call sites don't actually belong in
   this list. Endpoint tests (`ListWorldsEndpointTests`, etc.) used
