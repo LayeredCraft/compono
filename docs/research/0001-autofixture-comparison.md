@@ -459,17 +459,30 @@ call.
   the `[Frozen]`→`[Shared]` before/after (population (b)); after for (a)
   is `ClientTestProfile` (`test/Cosmere.Tracker.TestKit/Profiles/ClientTestProfile.cs`)
   + `IHttpClientProvider` (`test/Cosmere.Tracker.TestKit/Http/IHttpClientProvider.cs`).
-- **Principle-alignment note:** for (a), the migrated form makes the
-  frozen-handler relationship an explicit, composable dependency
-  (`IHttpClientProvider` resolved from a shared `HttpMessageHandler`)
-  rather than an attribute-hidden specimen-resolution rule — aligns with
-  Compono's explicit-composition design principle, at the cost of needing
-  an interface indirection `HttpClient` itself can't satisfy (see `CMP0001`
-  below).
-- **Lean classification:** intentional design difference — the frozen
-  handler pattern maps to a real Compono construct with equivalent
-  capability, just expressed as an explicit interface dependency rather
-  than an implicit specimen-builder rule.
+- **Principle-alignment note:** two separate conclusions, one per
+  population. For (a), the migrated form makes the frozen-handler
+  relationship an explicit, composable dependency (`IHttpClientProvider`
+  resolved from a shared `HttpMessageHandler`) rather than an
+  attribute-hidden specimen-resolution rule — aligns with Compono's
+  explicit-composition design principle, but at a real cost: an interface
+  indirection `HttpClient` itself can't satisfy without it (see `CMP0001`
+  below), which is more than a like-for-like swap. For (b) — the
+  genuinely-shared persistence-test subset — the replacement was
+  low-cost and direct: `[Frozen] IDynamoPartiqlClient partiql` became
+  `[Shared] IDynamoPartiqlClient partiql`, same shape, same intent, no
+  extra indirection, no principle conflict, no disproportionate
+  complexity. The majority-case endpoint tests (b's other subset) needed
+  no annotation at all, an even lower cost than a swap.
+- **Lean classification:** split, not one answer for the whole gap. (b)
+  is an acceptable Compono-native alternative — ADR-0029's rubric points
+  there for a low-cost, pleasant replacement, which this is: `[Shared]`
+  is a direct substitute with no downside observed, and the majority
+  endpoint-test subset is strictly simpler (nothing to annotate at all).
+  (a) leans intentional design difference — the frozen handler pattern
+  maps to a real Compono construct with equivalent capability, but only
+  by adding an interface indirection neither the developer nor the test
+  needed before, which is closer to a genuine capability trade-off than
+  a clean swap.
 
 ### Gap 2 — `[Frozen]`-for-substitute + auto-configured members (the 2 `NullReferenceException` tests)
 
