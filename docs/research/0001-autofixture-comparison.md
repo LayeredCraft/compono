@@ -557,16 +557,28 @@ call.
   `NullReferenceException`. Fixed by adding explicit
   `.ReturnsForAnyArgs(new PartiqlPage([], null))` stubs — see the
   migration guide for the full before/after.
-- **Principle-alignment note:** the failure is a real behavioral gap, not
-  a migration mistake — Compono.NSubstitute has no `ConfigureMembers`
-  equivalent. Making previously-implicit stub behavior explicit surfaced
-  two tests that were passing on an implicit default rather than an
-  intentional stub, arguably a latent test-quality issue baseline
-  papered over.
-- **Lean classification:** acceptable Compono-native alternative —
-  explicit stubbing is more verbose per call site but removes a global,
-  easy-to-forget auto-configuration behavior; the 2-test fix cost was
-  small relative to the clarity gained.
+- **Principle-alignment note:** per ADR-0029's own rubric, workaround cost
+  and principle alignment are two separate questions, and this finding
+  needs both, not just the second. On cost: the migration guide's own
+  verdict on this exact evidence is a **real, material workaround cost**
+  — an explicit stub a test previously didn't need to write — not a low
+  or zero one; this entry previously understated that as "small," which
+  contradicted the migration guide's own recorded verdict on the same
+  evidence. On principle alignment: Compono.NSubstitute has no
+  `ConfigureMembers` equivalent by deliberate design (ADR-0025's
+  non-goal), and explicit stubbing aligns with, rather than conflicts
+  with, Compono's explicit-over-implicit posture — the previously-hidden
+  dependency on `ExecuteAsync`'s return shape is now visible in the test
+  body, arguably a correctness improvement, not just friction.
+- **Lean classification:** intentional design difference — per ADR-0029's
+  question 3, a real material cost (not a low one) points away from
+  "acceptable alternative" specifically; per question 4, no principle
+  conflict exists (the opposite — deliberate alignment with
+  explicit-over-implicit), which is what this category, not "roadmap
+  candidate," is for. The verdict is "no change": `ConfigureMembers`'s
+  auto-configuration behavior is deliberately absent from
+  Compono.NSubstitute, the material cost is the accepted price of that
+  choice, and it isn't a capability Compono genuinely needs to add.
 
 ### Gap 3 — recursion behavior (`OmitOnRecursionBehavior` vs. fail-fast)
 
