@@ -332,13 +332,13 @@ the scope down.
 
 ## Phase 2: Evidence collection
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] Post-migration metrics matching Phase 0's baseline shape (file/line
+- [x] Post-migration metrics matching Phase 0's baseline shape (file/line
       counts, `dotnet test` run time, per-file readability notes, and the
       broader maintainability dimensions from ADR-0029's "Evidence to
       collect") — enough to compare directly against the baseline.
-- [ ] Explicit named inventory of concepts that disappeared entirely during
+- [x] Explicit named inventory of concepts that disappeared entirely during
       migration — not just a rough count — per Amendment 2: which of
       `IFixture`, `ICustomization`, `ISpecimenBuilder`,
       `IRequestSpecification`, the custom `AutoDataAttribute`/
@@ -346,20 +346,60 @@ the scope down.
       `NamedRequest`, and any other Phase 0/1-surfaced concept were dropped
       entirely versus merely replaced one-for-one with a Compono
       equivalent, and what (if anything) replaced each one.
-- [ ] Per-finding evidence dossier (frequency, before/after snippet,
+- [x] Per-finding evidence dossier (frequency, before/after snippet,
       principle-alignment note, classification per ADR-0029's five-way
       taxonomy) for each of the three known gaps plus any additional
       finding, including positive findings.
+
+Evidence written into `docs/research/0001-autofixture-comparison.md`'s
+"Post-migration metrics," "Concepts removed entirely," and "Per-finding
+evidence dossier" sections, against `cosmere-tracker` PR #162's merge
+commit (`4d25e14`). Findings included: 227 lines/4 files post-migration
+vs. baseline's 489 lines/14 files across the two directly-comparable
+tiers (54% line reduction, 71% file reduction — a separate, previously
+uncounted third tier adds 57 more lines/2 files with no baseline figure
+to compare against); 73/73 tests passing, with the one measured
+post-migration run (1s 292ms) 54ms faster than the one measured baseline
+run (1s 346ms) — reported as the two observed numbers, not a statistical
+claim, since neither side has repeated samples; a full named-concept
+inventory including `Freeze<T>()`/`[Frozen]` (eliminated at most of its
+~30 call sites, replaced by `[Shared]` where genuine sharing existed) and
+four concepts beyond Amendment 2's starting list
+(`DynamoDbResponseSpecimenBuilder`, dropped for zero call sites;
+`EndpointAutoDataAttribute`/`PersistenceAutoDataAttribute`, folded into
+the custom-attribute-subclass entry; `NoSpecimen`, dropped with nothing
+replacing it; and `ISpecimenContext.Resolve`, replaced one-for-one by
+`ICompositionContext.Resolve<TValue>()`); and ten dossier entries (the
+three ADR-0029 gaps — including gap 3, recursion behavior, corrected
+after an earlier draft mislabeled it as the `Compono.Bogus` finding — the
+`Compono.Bogus` finding itself, the Compose-family binding-validation
+stacking constraint, `Compono.Bogus`'s exact member-name-matching
+ambiguity, `DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`,
+the three-tier-stack structural finding, and the pure-inline-`[Theory]`
+cleanup finding) with first-pass classification leans — final
+classification is Phase 3's job, not redone here. A PR review on this
+phase's own PR (#42) went through many rounds — gap mislabeling and
+missing dossier entries, arithmetic/inventory errors, several ADR-0029
+taxonomy misclassifications (caught more than once — the rubric's
+material-cost/principle-alignment questions and its one-classification-
+per-finding rule are easy to get subtly wrong), `[Compose]`'s
+method-vs-parameter scope (caught in three separate places in this
+document), and cross-document staleness against the migration guide —
+each round's fix pushed as its own commit; see this branch's commit
+history for the full, exact sequence rather than hand-maintaining a
+chronology here that would only go stale as further rounds land.
 
 ## Phase 3: Classify findings and produce the roadmap
 
 **Status:** Not Started
 
 - [ ] Finalize `docs/research/0001-autofixture-comparison.md` (created in
-      Phase 0 as the first use of this directory, with its baseline section
-      already filled in) — fill in the dogfooding narrative, Phase 2's
-      post-migration metrics, positive findings, and every finding's
-      evidence and classification.
+      Phase 0 with its baseline section filled in; Phase 2 has since filled
+      in post-migration metrics, the concepts-removed inventory, and the
+      full ten-entry per-finding evidence dossier with first-pass
+      classification leans) — fill in the dogfooding narrative and
+      finalize every finding's classification (below), turning Phase 2's
+      leans into final verdicts.
 - [ ] Classify every finding per ADR-0029's five-way taxonomy and record
       its outcome:
       - **Bug** — fixed via its own scoped compono PR (if not already done
