@@ -140,6 +140,17 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
       classification (gap 1's evidence; friction from requiring the
       parameter in every relevant signature counts as evidence even though
       a working replacement exists, per ADR-0029's central question).
+      **First**, confirm whether `HttpClientSpecimenBuilder`/`ClientAutoDataAttribute`/
+      `InlineClientAutoDataAttribute` have any real caller anywhere in
+      `cosmere-tracker` at all — Phase 0's baseline found zero call sites in
+      the three consuming test projects, and a repo-wide search at PR
+      review time found none outside the TestKit's own definition files
+      either. If that holds when Phase 1 actually reaches this code, "zero
+      observed frequency" is itself gap 1's finding (per the rubric's
+      question 1) — record it as such rather than assuming a live migration
+      target, and treat porting vs. dropping
+      `HttpClientSpecimenBuilder`/`HttpClientSpecification` on its own
+      merits (ADR-0029's "Migration idiom").
 - [ ] Migrate `AutoNSubstituteCustomization { ConfigureMembers = true }`
       usages to `UseNSubstitute()`, recording every call site where a test
       previously relied on an auto-configured substitute member and now
@@ -200,9 +211,10 @@ be fixed in its own scoped PR per ADR-0029's "Bug handling."
 
 **Status:** Not Started
 
-- [ ] Create `docs/research/0001-autofixture-comparison.md` (first use of
-      this directory) with the dogfooding narrative, Phase 0/2's baseline
-      and post-migration metrics, positive findings, and every finding's
+- [ ] Finalize `docs/research/0001-autofixture-comparison.md` (created in
+      Phase 0 as the first use of this directory, with its baseline section
+      already filled in) — fill in the dogfooding narrative, Phase 2's
+      post-migration metrics, positive findings, and every finding's
       evidence and classification.
 - [ ] Classify every finding per ADR-0029's five-way taxonomy and record
       its outcome:
@@ -268,8 +280,9 @@ In `compono` (this repo):
   the process this plan executes
 - `docs/migration/migrating-from-autofixture.md` — new, drafted Phase 0,
   written incrementally through Phase 1, substantially complete by Phase 4
-- `docs/research/0001-autofixture-comparison.md` — new, the evidence
-  record (Phase 3)
+- `docs/research/0001-autofixture-comparison.md` — created Phase 0 (baseline
+  section), the evidence record; finalized (post-migration metrics,
+  classifications, `## Decisions`) in Phases 2-3
 - `docs/roadmap/post-mvp.md` — new, the evidence-backed roadmap (Phase 3)
 - New `docs/adr/00NN-*.md` for any "roadmap candidate" finding
 - `docs/adr/0011-...md`/`docs/adr/0022-...md`/`docs/adr/0025-...md` — gain

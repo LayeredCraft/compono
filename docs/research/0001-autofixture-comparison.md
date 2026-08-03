@@ -17,12 +17,16 @@ document through Phase 3, not a final write-up.
 
 ## Baseline (Phase 0)
 
-Captured against `cosmere-tracker` commit
-[`2dbd62e`](https://github.com/ncipollina/cosmere-tracker/commit/2dbd62ec73a8d8ad64b865a22d7b34a056ca537d)
-(2026-02-23), before any Compono change. At capture time, the working tree
-had one unrelated uncommitted change (`Directory.Packages.props` package
-version bumps, unrelated to the test kit) which does not affect this
-baseline.
+Captured against `cosmere-tracker` commit `1bae0b6` ("chore(deps): bump
+centrally-managed package versions", 2026-08-03), before any Compono
+change. This commit is the previous baseline commit (`2dbd62e`) plus one
+intentional, unrelated dependency-version refresh in
+`Directory.Packages.props` (AWS SDK, FastEndpoints, Microsoft.Extensions.*,
+OpenTelemetry, NSubstitute, DynamoMapper, etc.) that was already present
+and intentional at capture time — committed here so the cited commit
+exactly matches the working tree the baseline numbers were measured
+against, rather than leaving the measurement dependent on an uncommitted
+diff.
 
 ### Test kit inventory
 
