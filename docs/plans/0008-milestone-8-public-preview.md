@@ -69,6 +69,13 @@ likely an Amendment to ADR-0030), not a silent deviation absorbed here.
 Grouped by `docs/documentation-architecture.md` section, in its own
 reading order. Each leaf item replaces that page's Phase 5 stub.
 
+### Home
+
+- [ ] `docs/index.md` (site Home, not a Phase 5 stub — a pre-existing real
+      page) — review and correct its example, which currently calls a
+      nonexistent `Compono.Create(builder => ...)`; the real API is
+      `Composer.Create(builder => ...)` (`src/Compono/Composer.cs`)
+
 ### Getting Started
 
 - [ ] `getting-started/index.md`
@@ -216,13 +223,14 @@ reading order. Each leaf item replaces that page's Phase 5 stub.
 
 - Every path listed in Tasks above, under `docs/` — Phase 5 already
   created each as a stub; this plan replaces stub content with real
-  content, not new files, **except**: `samples/*`'s actual runnable
-  projects; `contributing.md`/versioning/issue-template content;
-  repository-root `README.md` (a pre-existing file this plan updates, not
-  a Phase 5 stub); `reference/api/`, which doesn't exist at all yet and
-  depends on the API-reference generation toolchain Open Item; and
-  `roadmap/post-mvp.md`, which also doesn't exist yet and is conditional
-  on [PLAN-0007](0007-milestone-7-dogfooding.md) Phase 3 (`Not Started`) —
+  content, not new files, **except**: `docs/index.md` and repository-root
+  `README.md` (both pre-existing real pages this plan corrects/updates, not
+  Phase 5 stubs); `samples/*`'s actual runnable projects;
+  `contributing.md`/versioning/issue-template content; `reference/api/`,
+  which doesn't exist at all yet and depends on the API-reference
+  generation toolchain Open Item; and `roadmap/post-mvp.md`, which also
+  doesn't exist yet and is conditional on
+  [PLAN-0007](0007-milestone-7-dogfooding.md) Phase 3 (`Not Started`) —
   treat both as genuinely new artifacts to create, not stubs to replace.
 - `mkdocs.yml` — nav's "(legacy)" entries retired as their content's
   disposition resolves.
