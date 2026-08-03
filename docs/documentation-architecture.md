@@ -9,9 +9,14 @@ against this blueprint).
 This is the living reference for Compono's public documentation — the
 hierarchy, what belongs in each section, who it's for, and the order a new
 user should move through it. It describes **intended** state: most of the
-pages named below don't exist yet (see "Status" per section). ADR-0030
-records *why* this shape was chosen; this document is *what* it is, kept
-current as Milestone 8 builds it out.
+pages named below exist today as placeholder skeletons (a "Status:
+Skeleton" banner and a one-paragraph purpose statement, no real content —
+see "Status" per section for exactly which). A handful of real exceptions
+don't exist at all yet, notably `docs/roadmap/post-mvp.md` (Phase 3's own
+output), `contributing.md`, and `reference/api/` (depends on a toolchain
+decision). ADR-0030 records *why* this shape was chosen; this document is
+*what* it is, kept current as Milestone 8 replaces each skeleton with real
+content.
 
 This is a blueprint, not finished documentation — nothing here should be
 read as "already published."

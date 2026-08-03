@@ -493,8 +493,8 @@ publishes the content.
   Cookbook, Samples, Package Guides, Best Practices, Architecture,
   Troubleshooting, Reference, Roadmap
 - Refine/polish `docs/migrating-from-autofixture.md` (promoted to its
-  top-level path in Phase 5) from "substantially complete" to
-  publication-ready, and add its `mkdocs.yml` nav entry
+  top-level path in Phase 5, `mkdocs.yml` nav entry already added) from
+  "substantially complete" to publication-ready
 - Resolve `docs/documentation-architecture.md`'s Open Items (API reference
   generation toolchain, Cookbook navigation/tagging at scale, where Sample
   applications physically live, versioning policy, contribution guidance,
