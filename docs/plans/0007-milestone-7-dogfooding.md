@@ -354,16 +354,30 @@ the scope down.
 Evidence written into `docs/research/0001-autofixture-comparison.md`'s
 "Post-migration metrics," "Concepts removed entirely," and "Per-finding
 evidence dossier" sections, against `cosmere-tracker` PR #162's merge
-commit (`4d25e14`). Findings included: ~305 lines/7 files post-migration
-vs. baseline's 489 lines/14 files across the two quantified tiers (~38%
-reduction); 73/73 tests passing in 1s 292ms (flat vs. baseline's 72/72 in
-1s 346ms); a full named-concept inventory (including two concepts beyond
-Amendment 2's starting list: `DynamoDbResponseSpecimenBuilder`, dropped
-for zero call sites, and `EndpointAutoDataAttribute`/
-`PersistenceAutoDataAttribute`, folded into the custom-attribute-subclass
-entry); and five dossier entries (gaps 1-3 plus `CMP0001` and the
+commit (`4d25e14`). Findings included: 227 lines/4 files post-migration
+vs. baseline's 489 lines/14 files across the two directly-comparable
+tiers (54% line reduction, 71% file reduction — a separate, previously
+uncounted third tier adds 57 more lines/2 files with no baseline figure
+to compare against); 73/73 tests passing, with the one measured
+post-migration run (1s 292ms) 54ms faster than the one measured baseline
+run (1s 346ms) — reported as the two observed numbers, not a statistical
+claim, since neither side has repeated samples; a full named-concept
+inventory including `Freeze<T>()`/`[Frozen]` (eliminated at most of its
+~30 call sites, replaced by `[Shared]` where genuine sharing existed) and
+two concepts beyond Amendment 2's starting list
+(`DynamoDbResponseSpecimenBuilder`, dropped for zero call sites, and
+`EndpointAutoDataAttribute`/`PersistenceAutoDataAttribute`, folded into
+the custom-attribute-subclass entry); and eight dossier entries (the
+three ADR-0029 gaps — including gap 3, recursion behavior, corrected
+after an earlier draft mislabeled it as the `Compono.Bogus` finding — the
+`Compono.Bogus` finding itself, `AllowMultiple = false` Compose-family
+stacking, `Compono.Bogus`'s exact member-name-matching ambiguity,
+`DynamoDbResponseSpecimenBuilder`'s zero call sites, `CMP0001`, and the
 three-tier-stack structural finding) with first-pass classification leans
-— final classification is Phase 3's job, not redone here.
+— final classification is Phase 3's job, not redone here. A PR review on
+this phase's own PR (#42) caught the gap-3 mislabeling and the three
+missing dossier entries, along with the inventory-total arithmetic error
+and the runtime-cost overclaim, all corrected before merge.
 
 ## Phase 3: Classify findings and produce the roadmap
 
