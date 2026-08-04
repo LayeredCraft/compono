@@ -5,6 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — Core Composition Engine</Title>
         <Description>Core composition engine for Compono, a modern, source-generated test composition framework for .NET - CompositionContext, the provider resolution pipeline, and the built-in source generator. No dependency on any test framework, mocking framework, or Bogus - see docs/manifesto.md's "Modular by design" and design-decisions.md rule 3.</Description>
     </PropertyGroup>
 

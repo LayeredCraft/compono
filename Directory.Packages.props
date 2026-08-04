@@ -14,8 +14,11 @@
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!-- Compono.XunitV3's own dependency, matching xunit.v3.mtp-v2's own resolved version - the
-         Xunit.v3.DataAttribute/ITheoryDataRow extension surface, per ADR-0022. -->
-    <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
+         Xunit.v3.DataAttribute/ITheoryDataRow extension surface, per ADR-0022. This is the
+         dependency version Compono.XunitV3's own .nuspec ships to consumers - a tested-range
+         constraint (tested minimum, exclusive next-untested-major upper bound), not a bare
+         unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="[3.2.2, 4.0.0)" />
     <!-- Compono.XunitV3.SampleTests' own dependency - consumed as a real NuGet package from a local
          feed populated by dotnet pack (PLAN-0004 Phase 3), never a ProjectReference. The version here
          must match the -p:Version passed to that project's PackToLocalFeed pre-restore target. -->
@@ -33,15 +36,20 @@
          docs/adr/0027-compono-bogus-package-design.md. Not a contradiction of the
          "no AutoFixture" rule below - Bogus generates realistic scalar/whole-object
          values, it isn't a test-fixture-generation framework Compono itself competes
-         with. -->
-    <PackageVersion Include="Bogus" Version="35.6.5" />
+         with. This is the dependency version Compono.Bogus's own .nuspec ships to
+         consumers - a tested-range constraint, not a bare unbounded floor or a blanket
+         exact pin, per ADR-0031 Amendment 1. -->
+    <PackageVersion Include="Bogus" Version="[35.6.5, 36.0.0)" />
     <!-- Mocking. No AutoFixture here, deliberately - Compono is a from-scratch
          AutoFixture replacement (docs/manifesto.md), so dogfooding AutoFixture
          inside Compono's own test suite would be a direct contradiction of the
          product this repo exists to build. Test data is handwritten/explicit
          until Compono itself exists and Milestone 7 (Dogfooding) can use
-         Compono to compose its own test data instead. -->
-    <PackageVersion Include="NSubstitute" Version="6.0.0" />
+         Compono to compose its own test data instead. This is the dependency
+         version Compono.NSubstitute's own .nuspec ships to consumers - a
+         tested-range constraint, not a bare unbounded floor or a blanket exact
+         pin, per ADR-0031 Amendment 1. -->
+    <PackageVersion Include="NSubstitute" Version="[6.0.0, 7.0.0)" />
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->

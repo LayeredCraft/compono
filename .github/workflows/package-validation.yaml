@@ -1,0 +1,117 @@
+name: Package Validation
+
+# Locally-controlled pre-merge PR gate for the ADR-0031 package-readiness bar
+# (PLAN-0008 Phase 0) - distinct from publish-preview.yaml/publish-release.yaml,
+# which are single-job, opaque `uses:` calls to the shared devops-templates
+# workflow with no step-level hook to insert this sequence into. Must include
+# labeled/unlabeled activity types (not just pr-build.yaml's default set) -
+# release-drafter.yaml applies the breaking-change autolabel in its own,
+# separately-triggered run, so a gate that only reads labels at the PR's
+# initial push can run before the label exists or stay green after it's later
+# removed. The `github.event.pull_request.labels` expression below always
+# reflects this job's own current trigger, never a cached value from an
+# earlier run.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  package-validation:
+    runs-on: ubuntu-latest
+    env:
+      # ADR-0031's 0.X+1.0 policy already permits a labeled breaking-change PR to
+      # break API compatibility - failing the same PR on the incompatibility the
+      # label declares would be a self-contradiction, so only the baseline
+      # compatibility check below is skipped, not packing/content-inspection/
+      # CS1591 enforcement.
+      BREAKING_CHANGE: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+      PACK_OUTPUT: ${{ github.workspace }}/artifacts/package-validation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Restore
+        run: dotnet restore Compono.slnx
+
+      - name: Resolve nuget.org baseline versions
+        run: |
+          set -euo pipefail
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
+            id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
+            # nuget.org's flatcontainer index 404s for a package that has never been
+            # published - exactly the very-first-ever-publish case, where validation
+            # is correctly inert (nothing to compare against yet).
+            response=$(curl -sf -w '\n%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id_lower}/index.json" || echo -e "\n000")
+            status="${response##*$'\n'}"
+            body="${response%$'\n'*}"
+            if [ "$status" = "200" ]; then
+              # The currently-latest published version, prerelease or not - Compono is
+              # still 0.x/prerelease-only today, and that's genuinely what's "currently
+              # published" to diff a compatibility baseline against.
+              version=$(echo "$body" | jq -r '.versions | last // empty')
+            else
+              version=""
+            fi
+            env_name="BASELINE_$(echo "$pkg" | tr '.' '_')"
+            echo "${env_name}=${version}" >> "$GITHUB_ENV"
+            echo "${pkg} nuget.org baseline: ${version:-<none, first publish>}"
+          done
+
+      - name: Pack publishable packages
+        run: |
+          set -euo pipefail
+          mkdir -p "$PACK_OUTPUT"
+
+          pack_one() {
+            local csproj="$1"
+            local baseline_env="$2"
+            local baseline="${!baseline_env:-}"
+            local args=()
+            if [ "$BREAKING_CHANGE" != "true" ] && [ -n "$baseline" ]; then
+              args+=("-p:PackageValidationBaselineVersion=${baseline}")
+            fi
+            echo "Packing $csproj ${args[*]:-<no baseline>}"
+            dotnet pack "$csproj" -c Release -o "$PACK_OUTPUT" "${args[@]}"
+          }
+
+          pack_one src/Compono/Compono.csproj BASELINE_Compono
+          pack_one src/Compono.XunitV3/Compono.XunitV3.csproj BASELINE_Compono_XunitV3
+          pack_one src/Compono.NSubstitute/Compono.NSubstitute.csproj BASELINE_Compono_NSubstitute
+          pack_one src/Compono.Bogus/Compono.Bogus.csproj BASELINE_Compono_Bogus
+
+      - name: Enforce XML doc comments (CS1591) on publishable packages
+        run: |
+          set -euo pipefail
+          for csproj in \
+            src/Compono/Compono.csproj \
+            src/Compono.XunitV3/Compono.XunitV3.csproj \
+            src/Compono.NSubstitute/Compono.NSubstitute.csproj \
+            src/Compono.Bogus/Compono.Bogus.csproj; do
+            echo "Building $csproj with CS1591 as an error"
+            dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
+          done
+
+      - name: Inspect packed .nupkg contents
+        run: .github/scripts/inspect-packed-nupkgs.sh "$PACK_OUTPUT"
+
+      - name: Local-feed packed-consumer smoke test
+        # Reuses test/Compono.XunitV3.SampleTests' own PackToLocalFeed restore
+        # (packs current source, not this job's Release artifacts above, into
+        # .local-nuget-feed and restores the four publishable packages from
+        # there as a real consumer would) - filtered to exclude
+        # FailingCompositionTests, which fails by design per ADR-0022's
+        # Testing Strategy and is why this project is deliberately not in
+        # Compono.slnx (docs/plans/0004-milestone-4-xunit-integration.md).
+        run: |
+          dotnet test test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj \
+            -c Release \
+            -- --filter-not-class "Compono.XunitV3.SampleTests.FailingCompositionTests"

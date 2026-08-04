@@ -453,6 +453,83 @@ substitute for one.
 - Bad, because it still requires bumping `cosmere-tracker`'s pinned
   version once this ships, same as any other identifier change would.
 
+## Amendment 1 (2026-08-04): third-party dependencies use tested ranges, not exact pins
+
+The "Exact, tested dependency pins during `0.x`" bullet above, as
+originally written, applied one blanket exact-pin rule to two genuinely
+different dependency surfaces: (a) the internal lockstep relationship
+between `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`/
+`Compono.Generators`, and (b) Compono's *external* third-party
+dependencies (Bogus, NSubstitute, xUnit, Microsoft libraries, Roslyn,
+Scriban). Collapsing both into "exact pins for everything" was a mistake
+surfaced during Phase 0 implementation, before either had actually shipped
+to a real consumer — this amendment corrects it before it does, rather than
+after.
+
+**What stays exactly as decided:** the internal case. `Compono.XunitV3`/
+`Compono.NSubstitute`/`Compono.Bogus` still declare an exact-pin (`[x.y.z]`)
+dependency on `Compono`'s own version in their packed `.nuspec` — lockstep
+versioning (this ADR's Decision Outcome above) means "install matching
+versions across the Compono family" is the compatibility rule, and an
+exact pin is what actually enforces that rule rather than just stating it.
+This is unchanged.
+
+**What changes:** Compono's *external* third-party dependencies no longer
+use blanket exact-pin syntax. An exact pin (`[6.0.0]`) forces every
+consumer of `Compono.NSubstitute` onto the identical `NSubstitute` patch
+version Compono itself built against, even when a newer compatible
+`NSubstitute` patch exists — a consumer already using a different
+NSubstitute/Bogus/xUnit version elsewhere in their project would be
+blocked from a compatible upgrade for no compatibility reason, which is a
+real consumer-experience cost this ADR's original text underweighted by
+treating "young ecosystem, stay pinned" as a one-size-fits-all default.
+
+**The corrected policy:** Compono publishes intentional dependency
+constraints that represent the versions it actually supports, not a
+reflexive floor-or-exact choice:
+
+- Establish a tested minimum version (the version actually built and
+  tested against).
+- Permit compatible updates within that dependency's supported major
+  version — an exclusive upper bound at the next untested major
+  (`[6.0.0, 7.0.0)` for `NSubstitute`, `[35.6.5, 36.0.0)` for `Bogus`,
+  `[3.2.2, 4.0.0)` for `xunit.v3.extensibility.core`), not an open-ended
+  floor and not a single exact version.
+- Exclude the next major version until it's actually been tested against
+  — the exclusive upper bound, not a claim that the next major is known
+  to be incompatible.
+- Avoid unintentionally admitting an untested prerelease of the next major
+  (NuGet's default stable-range matching already excludes prereleases
+  outside an explicit prerelease floor, so this is a property to verify
+  per dependency, not a syntax change on top of the range above).
+- Narrower bounds only where real, specific compatibility evidence (a
+  known break against a specific version, not a hypothetical one)
+  justifies them.
+
+This applies to dependencies that flow into a publishable package's own
+`.nuspec` (`NSubstitute` for `Compono.NSubstitute`, `Bogus` for
+`Compono.Bogus`, `xunit.v3.extensibility.core` for `Compono.XunitV3`) —
+the case that actually affects a consumer's install. It has no bearing on
+dependencies that never reach a consumer at all: `Compono.Generators`'
+Roslyn/Scriban/polyfill dependencies (`PrivateAssets="all"`, and the
+project itself is `IsPackable=false` per
+[ADR-0003](0003-generator-package-distribution.md)) and the test-only
+tooling versions (`Microsoft.Testing.Platform`, `xunit.v3.mtp-v2`, etc.)
+that never appear in a shipped `.nuspec` at all — those stay whatever
+version this repo's own build/test needs, exact or not, since "genuinely
+required, private build-time tooling" was always the acknowledged
+exception, not a case this correction touches.
+
+Package-readiness auditing (Phase 0) now includes, per publishable
+dependency that flows to a consumer: confirming the declared minimum is
+the version actually tested; confirming the upper bound excludes an
+untested next major; confirming no untested next-major prerelease is
+unintentionally admitted; and inspecting the generated `.nuspec` to
+confirm the range NuGet consumers actually receive matches what was
+intended — not just that *some* range was declared. See
+[PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for the
+concrete task list this amendment revises.
+
 ## Links
 
 - [ADR-0001](0001-source-generation-first.md) — source-generation-first

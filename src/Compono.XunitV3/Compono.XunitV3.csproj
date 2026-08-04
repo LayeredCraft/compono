@@ -5,6 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — xUnit v3 Integration</Title>
         <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;] theory data attributes and [Shared] parameter sharing. See docs/adr/0022-compono-xunit-package-design.md and docs/adr/0023-rename-compono-xunit-to-compono-xunitv3.md.</Description>
     </PropertyGroup>
 
@@ -23,5 +24,22 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Compono.XunitV3.Tests" />
     </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a
+         bare, minimum-inclusive version by default (e.g. "0.3.0"), which would let a consumer
+         install this package alongside a newer, incompatible Compono and still restore - exactly
+         the cross-package version drift ADR-0031 declares unsupported. Rewrites the SDK's own
+         _ProjectReferencesWithVersions item (what GenerateNuspec actually reads) to bracket/exact
+         syntax instead. Keeping <ProjectReference> itself (rather than switching to
+         <PackageReference>) preserves the fast local inner-loop build for cross-package development
+         in this repo - this target only changes the version *range* dotnet pack writes into the
+         .nuspec, nothing about how the project is referenced/built locally. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
 
 </Project>

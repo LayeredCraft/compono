@@ -1,6 +1,6 @@
 # [PLAN-0008] Milestone 8: Public Preview
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0030](../adr/0030-compono-documentation-architecture.md)
 (including Amendments 1-2), [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)
@@ -73,7 +73,7 @@ pass surfaced:
 
 ## Phase 0: Package readiness hardening
 
-**Status:** Not Started
+**Status:** Done
 
 **Checkpoint: Package Quality Complete** — every package meets ADR-0031's
 readiness bar and can be safely built against by every later phase.
@@ -90,17 +90,22 @@ being novel — it hardens what already ships — but Phases 3/4/8 depend on
 it being *done* before writing package-specific content or running the
 acceptance test.
 
-- [ ] Rename `publish-preview.yaml`'s `prereleaseIdentifier` input from
+- [x] Rename `publish-preview.yaml`'s `prereleaseIdentifier` input from
       `alpha` to `preview` (ADR-0031) — `main` starts publishing
       `0.x.y-preview.N` instead of `0.x.y-alpha.N`. Still a real SemVer
       prerelease either way, so this carries no sequencing risk and
       belongs here, not at a later checkpoint.
-- [ ] Convert `Directory.Packages.props`'s `PackageVersion` entries to
-      exact-pin bracket syntax (`[3.2.2]`, not bare `3.2.2`) — a bare
-      version is a NuGet minimum-inclusive floor, not a hard pin, so it
-      doesn't actually enforce ADR-0031's "install the version we tested
-      against" policy as written today; bracket syntax closes that gap.
-- [ ] Fix the same gap for the *internal* dependency: `Compono.XunitV3`/
+- [x] Per [ADR-0031 Amendment 1](../adr/0031-public-preview-release-and-versioning-policy.md#amendment-1-2026-08-04-third-party-dependencies-use-tested-ranges-not-exact-pins),
+      give `Directory.Packages.props`'s `PackageVersion` entries for the
+      three dependencies that flow into a publishable package's own
+      `.nuspec` a deliberate tested range instead of a bare (unbounded
+      floor) or exact-pin version: `NSubstitute` → `[6.0.0, 7.0.0)`,
+      `Bogus` → `[35.6.5, 36.0.0)`, `xunit.v3.extensibility.core` →
+      `[3.2.2, 4.0.0)`. Everything else in the file (Roslyn/Scriban/
+      polyfill build-time-only deps that never flow to a consumer's
+      `.nuspec`, and test-only tooling versions) stays as originally
+      declared — no blanket pin or range policy applies to those.
+- [x] Fix the same gap for the *internal* dependency: `Compono.XunitV3`/
       `Compono.NSubstitute`/`Compono.Bogus` each reference `Compono` via a
       plain `<ProjectReference>` (`PrivateAssets="none"`), which
       `dotnet pack` converts into a bare-version (minimum-inclusive)
@@ -117,7 +122,7 @@ acceptance test.
       switch to `PackageReference`. Verify by inspecting the packed
       `.nuspec`'s `<dependencies>` entry in the package-contents-inspection
       CI job below, not just its file listing.
-- [ ] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
+- [x] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
       not per-project — one shared, uniform value for all five packages
       (`PackageTags`: `testing;test-data;source-generator;dotnet`;
       `PackageReleaseNotes`: `$(PackageProjectUrl)/releases`, the repo's
@@ -132,7 +137,7 @@ acceptance test.
       from one place, not five copies that can drift. No per-package tag
       differentiation (e.g. `xunit`/`nsubstitute`/`bogus`) — the package
       name itself already carries that distinction.
-- [ ] Add a `<Title>` to each of the four publishable packages'
+- [x] Add a `<Title>` to each of the four publishable packages'
       `.csproj` files (none currently set one — `Directory.Build.props`
       only centralizes what's genuinely uniform; a human-friendly title
       is per-package, same as `Description` already is). A short,
@@ -142,7 +147,7 @@ acceptance test.
       nothing before this task actually added one. Verify via the
       package-contents-inspection CI job's manifest check, not just file
       listing.
-- [ ] Add `Microsoft.DotNet.PackageValidation`
+- [x] Add `Microsoft.DotNet.PackageValidation`
       (`EnablePackageValidation=true`) to `Directory.Build.props`'s
       packable `PropertyGroup`, with no static
       `PackageValidationBaselineVersion` value. **Do not try to inject
@@ -176,7 +181,7 @@ acceptance test.
       missing an unjustified break on the same commit). Read the current
       label state at the gate's own run time, never a cached value from
       an earlier trigger.
-- [ ] Reconfigure `.github/release-drafter.yml`'s `version-resolver` so
+- [x] Reconfigure `.github/release-drafter.yml`'s `version-resolver` so
       the `breaking-change` label maps to `minor`, not the file's current
       `major` — as configured today, a labeled breaking-change PR
       resolves the next version as `1.0.0`, silently exiting the `0.x`
@@ -184,7 +189,7 @@ acceptance test.
       deliberate `0.X+1.0` minor bump ADR-0031's compatibility policy
       requires. Leave `breaking-change` in `categories` unchanged — only
       its `version-resolver` bucket moves.
-- [ ] Add a new, locally-controlled CI job (a real job in this repo's own
+- [x] Add a new, locally-controlled CI job (a real job in this repo's own
       workflow, distinct from `publish-preview.yaml`/`publish-release.yaml`'s
       opaque `uses:` calls) that packs the four publishable packages and:
       asserts each `.nupkg`'s file listing matches the expected shape per
@@ -203,17 +208,38 @@ acceptance test.
       **pre-merge PR gate**, on the same trigger (see the trigger note
       above — must include `labeled`/`unlabeled`, not just
       `pr-build.yaml`'s default activity types).
-- [ ] Extend the local-feed packed-consumer pattern (already used by
+- [x] Extend the local-feed packed-consumer pattern (already used by
       `test/Compono.XunitV3.SampleTests`) to restore and smoke-test the
       four publishable packages together from one local feed, as a
-      standing CI gate — not ad hoc per milestone.
-- [ ] Verify (not redesign) `PrivateAssets`/analyzer-transitivity holds
-      for every package, not just `Compono`/`Compono.Generators`.
-- [ ] Spot-check of `Directory.Packages.props`'s current dependency
+      standing CI gate — not ad hoc per milestone. Reuses
+      `Compono.XunitV3.SampleTests`' own `PackToLocalFeed` restore
+      directly (`--filter-not-class` on the one deliberately-failing
+      class, MTP's actual filter syntax — `dotnet test`'s VSTest-style
+      `--filter` produced zero matched tests against an MTP host and was
+      corrected during verification) rather than inventing a second
+      project; the new `package-validation.yaml` CI job runs it as a
+      pre-merge gate. Verified locally: 16/16 tests pass against packages
+      restored from `.local-nuget-feed`.
+- [x] Verify (not redesign) `PrivateAssets`/analyzer-transitivity holds
+      for every package, not just `Compono`/`Compono.Generators`. Proven
+      by the local-feed smoke test above, not just static inspection: all
+      16 passing tests compose real generated plans reached only through
+      `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`'s
+      `PackageReference`s (never a `ProjectReference` to `Compono` or
+      `Compono.Generators` in `Compono.XunitV3.SampleTests`), so
+      `Compono.Generators`' analyzer packaging demonstrably flows
+      transitively through every integration package's own
+      `PrivateAssets="none"` reference to `Compono`.
+- [x] Spot-check of `Directory.Packages.props`'s current dependency
       licenses — self-contained to this phase, not dependent on
       `contributing.md` (which doesn't exist until Phase 6; see Phase 6's
       own Tasks for the standing review-habit note this spot-check feeds
-      into).
+      into). Findings: every dependency in the file is MIT, BSD-2/3-Clause,
+      or Apache-2.0 (xUnit v3 family, NSubstitute, AwesomeAssertions,
+      Bogus, Scriban, Meziantou.Polyfill, Microsoft.CodeAnalysis.*,
+      Microsoft.SourceLink.GitHub, BenchmarkDotNet, AutoFixture,
+      Basic.Reference.Assemblies, Verify.*) — no copyleft (GPL/AGPL/LGPL)
+      dependency, nothing incompatible with Compono's own MIT license.
 
 ## Phase 1: API reference toolchain evaluation and wiring
 
@@ -514,24 +540,28 @@ plus `Compono.Generators`, verified by content inspection inside
 `Compono.nupkg` rather than an independent pack (it's `IsPackable=false`,
 per ADR-0003). Phase 0's Tasks above are this checklist:
 
-- [ ] `publish-preview.yaml`'s `prereleaseIdentifier` renamed from
+- [x] `publish-preview.yaml`'s `prereleaseIdentifier` renamed from
       `alpha` to `preview`.
-- [ ] `Directory.Packages.props`'s `PackageVersion` entries use exact-pin
-      bracket syntax (`[3.2.2]`), not bare versions — bare versions are a
-      NuGet minimum floor, not a hard pin.
-- [ ] Each integration package's generated `Compono` dependency (from its
+- [x] `Directory.Packages.props`'s `PackageVersion` entries for
+      `NSubstitute`/`Bogus`/`xunit.v3.extensibility.core` (the three
+      third-party dependencies that flow into a publishable package's own
+      `.nuspec`) declare a deliberate tested range (tested minimum,
+      exclusive next-untested-major upper bound), per
+      [ADR-0031 Amendment 1](../adr/0031-public-preview-release-and-versioning-policy.md#amendment-1-2026-08-04-third-party-dependencies-use-tested-ranges-not-exact-pins) —
+      not a bare unbounded floor and not a blanket exact pin.
+- [x] Each integration package's generated `Compono` dependency (from its
       own `<ProjectReference>`) is exact-pinned in the packed `.nuspec`,
       not left at the same bare-version minimum floor.
-- [ ] `PackageTags`/`PackageReleaseNotes` set once in
+- [x] `PackageTags`/`PackageReleaseNotes` set once in
       `Directory.Build.props` (one uniform value for all five packages,
       not per-project) — `PackageReleaseNotes` points at the repo's
       stable releases index (`$(PackageProjectUrl)/releases`), not a
       per-version tag URL, since most published preview versions have no
       matching GitHub Release/tag to link to (see Phase 0's Tasks above).
-- [ ] Each of the four publishable packages has a per-package `<Title>`
+- [x] Each of the four publishable packages has a per-package `<Title>`
       (human-friendly, distinct from the raw package ID) — not
       centralized, since it's genuinely per-package like `Description`.
-- [ ] `Microsoft.DotNet.PackageValidation` enabled
+- [x] `Microsoft.DotNet.PackageValidation` enabled
       (`EnablePackageValidation=true`), with no static baseline value —
       instead, a **locally-controlled CI job in this repo** (not inside
       `publish-preview.yaml`/`publish-release.yaml`, which are opaque
@@ -540,20 +570,20 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       published version and runs
       `dotnet pack -p:PackageValidationBaselineVersion=<prior-version>`
       as a pre-merge PR gate, skipped on `breaking-change`-labeled PRs.
-- [ ] `.github/release-drafter.yml`'s `version-resolver` remaps
+- [x] `.github/release-drafter.yml`'s `version-resolver` remaps
       `breaking-change` from `major` to `minor` (its `categories` entry
       is unchanged) — otherwise a labeled breaking-change PR would
       silently resolve to `1.0.0`, exiting `0.x` by accident.
-- [ ] The same locally-controlled CI job asserts each publishable
+- [x] The same locally-controlled CI job asserts each publishable
       `.nupkg`'s file listing matches the expected per-TFM shape (lib,
       README, icon, no stray build artifacts; `analyzers/dotnet/cs` for
       `Compono` specifically, containing `Compono.Generators.dll` — this
       is `Compono.Generators`' own verification, not a separate pack of
       it).
-- [ ] Local-feed packed-consumer smoke test covers the four publishable
+- [x] Local-feed packed-consumer smoke test covers the four publishable
       packages together, as a standing CI gate.
-- [ ] `PrivateAssets`/analyzer transitivity verified for every package.
-- [ ] Dependency license spot-check against `Directory.Packages.props`'s
+- [x] `PrivateAssets`/analyzer transitivity verified for every package.
+- [x] Dependency license spot-check against `Directory.Packages.props`'s
       current set (Phase 0) — the standing review-habit note for *future*
       dependency changes lives in Phase 6's `contributing.md`, not here.
 
@@ -754,3 +784,29 @@ discovered while actually executing a phase that suggests the
 *architecture* (not just this plan's task list) needs to change is
 recorded here, then routed to `tasks/design.md` for an ADR-0030 Amendment
 — per this plan's own Scope section above.
+
+### Phase 0 (2026-08-04)
+
+Mid-implementation correction: ADR-0031's original "Exact, tested
+dependency pins during `0.x`" bullet applied one blanket exact-pin rule to
+both the internal Compono-family lockstep dependency *and* Compono's
+external third-party dependencies (Bogus, NSubstitute, xUnit). Caught
+before either shipped to a real consumer — the internal case (lockstep
+`Compono` pin inside each integration package's `.nuspec`) is correct and
+unchanged; the external case was wrong and is corrected in
+[ADR-0031 Amendment 1](../adr/0031-public-preview-release-and-versioning-policy.md#amendment-1-2026-08-04-third-party-dependencies-use-tested-ranges-not-exact-pins):
+third-party dependencies that flow into a publishable package's own
+`.nuspec` now get a deliberate tested range (tested minimum, exclusive
+next-untested-major upper bound) instead of a blanket exact pin or an
+unbounded bare-version floor. `Directory.Packages.props` and this phase's
+Tasks/Package-readiness checklist above reflect the corrected policy, not
+the original text.
+
+Also caught during verification: `dotnet test`'s VSTest-style `--filter`
+flag produces zero matched tests against an MTP v2 host (exit code 5,
+"Zero tests ran") — MTP's actual simple-filter syntax is
+`--filter-not-class`/`--filter-class`/etc., passed after a `--` separator.
+The local-feed packed-consumer smoke test task above (and
+`package-validation.yaml`) uses `-- --filter-not-class
+"Compono.XunitV3.SampleTests.FailingCompositionTests"`, verified locally
+(16/16 tests pass).
