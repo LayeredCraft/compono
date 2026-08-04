@@ -77,10 +77,13 @@ predominantly architecture-pattern scaffolding (CQRS, Clean Architecture,
 Minimal APIs, MediatR, EF Core) with Compono usage as a minority of each
 file, multiplying CI/maintenance surface five-fold for marginal
 additional proof of Compono itself. The remaining five stay recorded as
-future candidates in `docs/documentation-architecture.md`'s tree, added
-only once they'd demonstrate a materially different Compono pattern the
-two launch samples don't already cover — not merely a different host
-framework.
+future candidates in prose (`docs/documentation-architecture.md`'s
+Samples section and PLAN-0008 Phase 4's Tasks) — **not** as entries in
+the canonical documentation tree or `mkdocs.yml` nav, which carry only
+the two launch samples; a deferred candidate graduates to a real tree
+entry and nav row only once it ships, added only once it'd demonstrate a
+materially different Compono pattern the two launch samples don't
+already cover — not merely a different host framework.
 
 **Basic Usage** — a small project demonstrating `Composer.Create()`,
 `Create<T>()`, `CreateMany<T>()`, a reusable profile, registrations and

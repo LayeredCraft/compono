@@ -249,7 +249,8 @@ duplicate it.
   the packages distribute as one coherent set (this ADR's lockstep
   versioning above), so their shared metadata comes from one place, not
   five copies that can quietly drift apart. Only genuinely per-package
-  content (the ID itself, the description) lives in each project.
+  content (the ID itself, the title, and the description) lives in each
+  project.
 - **Debuggable and verifiable provenance.** Source Link, deterministic
   builds, and embedded symbols (a portable PDB embedded in the primary
   DLL is Compono's chosen shape — see PLAN-0008 for why this doesn't need
