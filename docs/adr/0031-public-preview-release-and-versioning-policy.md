@@ -94,9 +94,18 @@ stability-guaranteed; stacking `-alpha` on top of every `0.x` version
 communicates nothing a consumer doesn't already know from the major
 version being `0`, and it's what currently makes `cosmere-tracker`'s
 `Directory.Packages.props` pin an alpha-suffixed version instead of a
-plain one. After this change, every push to `main` that isn't docs-only
-still publishes automatically (via the existing, unchanged
-`publish-preview.yaml` trigger and gates) — just as a plain `0.x.y`
+plain one. **The removal itself is sequenced at
+[PLAN-0008](../plans/0008-milestone-8-public-preview.md)'s Phase 8
+release checkpoint, not Phase 0** — `publish-preview.yaml` runs
+automatically on every non-docs `main` push, so flipping the identifier
+as soon as Phase 0 merges would start publishing plain, official-looking
+`0.x.y` versions to the public feed while Phases 1-7's docs, samples, and
+API reference are still incomplete; keeping `alpha` through those phases
+and dropping it only once Phase 8 confirms the milestone is genuinely
+ready to publish avoids a version number implying "done" before it is.
+Once dropped, every push to `main` that isn't docs-only still publishes
+automatically (via the existing, unchanged `publish-preview.yaml` trigger
+and gates) — just as a plain `0.x.y`
 instead of `0.x.y-alpha.N`.
 
 ### Package set for the first preview
@@ -244,8 +253,15 @@ duplicate it.
   dependencies stay pinned to exact versions (not ranges) while the
   ecosystem is young — "install the version we tested against," matching
   this ADR's own "install matching Compono versions" compatibility
-  philosophy. Version ranges are a post-1.0 concern, once real
-  consumer version-conflict evidence exists to justify them.
+  philosophy. **`Directory.Packages.props`'s current bare-version syntax
+  (e.g. `3.2.2`) doesn't actually enforce this** — NuGet treats a bare
+  version as a minimum-inclusive floor, not a hard pin, so a transitive
+  requirement elsewhere in a consumer's graph can still resolve something
+  newer than what Compono tested against. Exact-pin syntax
+  (`[3.2.2]`) is required to make this bullet true rather than aspirational
+  — see [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0.
+  Version ranges are a post-1.0 concern, once real consumer
+  version-conflict evidence exists to justify them.
 - **Automated package and API-compatibility validation** before every
   publish, once a second real version exists to validate against. This
   cannot be a manually-set property: `publish-preview.yaml` publishes
@@ -274,10 +290,18 @@ duplicate it.
   (`IsPackable=false` — it's embedded inside `Compono`'s own package, per
   ADR-0003); it's verified by inspecting `Compono.nupkg`'s
   `analyzers/dotnet/cs` contents directly, not by a separate restore.
-- **No known vulnerability or license conflict** in the dependency tree —
-  covered by the existing Dependabot security-update flow
-  (`dependabot-auto-merge.yml`); no new tool required for a dependency set
-  this small.
+- **No known vulnerability, and no unreviewed license, in the dependency
+  tree.** These are two different checks, not one — Dependabot's existing
+  security-update flow (`dependabot-auto-merge.yml`) genuinely covers
+  vulnerability alerts, but Dependabot never inspects a dependency's
+  *license*; nothing in this repo's tooling does. Rather than claim
+  license risk is "covered" by infrastructure that doesn't check it, the
+  actual policy is a manual review step: any PR that adds a new
+  dependency or changes a `PackageVersion` (Dependabot-authored or not)
+  gets its target package's license checked as part of normal PR review,
+  not a one-time snapshot at launch and never again. No new automated
+  tool is introduced for a dependency set this small — this is a review
+  habit, not a gate.
 
 Provenance/signing and trusted publishing are already handled by the
 existing pipeline (NuGet.org's own signing infrastructure via the OIDC
@@ -327,9 +351,12 @@ substitute for one.
   exists (e.g. packages actually needing different release cadences).
 - Treating every `0.x` minor bump as a potential breaking-change boundary
   (rather than only communicating breaks "when they happen," at whatever
-  version level) means the release notes have to consistently include a
-  Breaking Changes section even when a given minor bump happens not to
-  break anything — a small, ongoing release-drafter discipline cost.
+  version level) means a reader can never assume a minor bump is safe
+  just from its version number alone — they have to check whether that
+  specific release's notes carry a "⚠️ Breaking Changes" section (present
+  only when a `breaking-change`-labeled PR is actually included, per
+  "How a breaking change is communicated" above) rather than relying on
+  SemVer's own past-1.0 convention that only a major bump can break.
   Accepted: the alternative (inconsistent signaling of which bumps might
   break) is worse for a preview trying to earn trust.
 

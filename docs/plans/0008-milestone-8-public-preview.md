@@ -51,9 +51,16 @@ pass surfaced:
   decision (this plan's design conversation) settled that the pipeline
   itself needs no redesign — only the `alpha`-identifier removal
   ([ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)).
-  That one-line change is folded into Phase 0 (package readiness) since
-  it's mechanically trivial and has no dependency on anything else in
-  this plan; a whole phase for it would be ceremony.
+  That change is mechanically trivial and has no dependency on anything
+  else in this plan, so it doesn't get a whole phase to itself — but it
+  **stays in Phase 8, not Phase 0**: `publish-preview.yaml` runs
+  automatically on every non-docs `main` push, so dropping `alpha` as
+  soon as Phase 0 merges would start publishing plain, official-looking
+  `0.x.y` versions while Phases 1-7's docs/samples/API reference are
+  still incomplete — exactly the "shipped before it's ready" problem
+  Phase 8's own checkpoint exists to prevent. Phase 0 hardens everything
+  *except* that one identifier; Phase 8 flips it once the milestone is
+  actually ready to be seen as done.
 - **Package-readiness hardening moves before documentation writing, not
   after.** Package Guides, Samples, and the acceptance test all need real,
   installable packages to write accurate content against and verify
@@ -81,8 +88,13 @@ being novel — it hardens what already ships — but Phases 3/4/8 depend on
 it being *done* before writing package-specific content or running the
 acceptance test.
 
-- [ ] Remove `alpha` from `publish-preview.yaml`'s `prereleaseIdentifier`
-      input (ADR-0031) — `main` starts publishing plain `0.x.y`.
+- [ ] Convert `Directory.Packages.props`'s `PackageVersion` entries to
+      exact-pin bracket syntax (`[3.2.2]`, not bare `3.2.2`) — a bare
+      version is a NuGet minimum-inclusive floor, not a hard pin, so it
+      doesn't actually enforce ADR-0031's "install the version we tested
+      against" policy as written today; bracket syntax closes that gap.
+      (**Not** the `alpha` identifier removal — that stays in Phase 8,
+      see "Phase ordering rationale" above.)
 - [ ] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
       not per-project — one shared, uniform value for all five packages
       (`PackageTags`: `testing;test-data;source-generator;dotnet`;
@@ -134,9 +146,13 @@ acceptance test.
       standing CI gate — not ad hoc per milestone.
 - [ ] Verify (not redesign) `PrivateAssets`/analyzer-transitivity holds
       for every package, not just `Compono`/`Compono.Generators`.
-- [ ] Manual spot-check of `Directory.Packages.props`'s dependency
-      licenses (per ADR-0031, a one-time check, not a new automated gate
-      for this package count).
+- [ ] Spot-check of `Directory.Packages.props`'s current dependency
+      licenses, plus a note in `contributing.md` (Phase 6) that any PR
+      adding or bumping a dependency version — Dependabot-authored or
+      not — gets its target package's license checked as part of normal
+      review, per ADR-0031: Dependabot's own flow catches vulnerabilities,
+      not licenses, so this is an ongoing review habit, not a one-time
+      task that's done after Phase 0.
 
 ## Phase 1: API reference toolchain evaluation and wiring
 
@@ -343,9 +359,18 @@ package-readiness phase above being done.
       Package Guide's "when to install" decision, one Troubleshooting
       lookup, all followed literally as written, no ADR/internal-repo
       knowledge assumed. See "Public-preview acceptance checklist" below
-      for the full list.
+      for the full list. Runs against local-feed packages (or the
+      still-`alpha`-tagged continuous preview stream) — this happens
+      *before* the next task removes the `alpha` identifier, so a failed
+      acceptance pass never has to be walked back from a plain,
+      already-public `0.x.y` version.
+- [ ] Remove `alpha` from `publish-preview.yaml`'s `prereleaseIdentifier`
+      input (ADR-0031) — only now, once the acceptance test above has
+      passed, does `main` start publishing plain `0.x.y` on every push.
 - [ ] Cut the first real `0.x` release: tag, publish via
-      `publish-release.yaml` (unmodified pipeline, ADR-0031's policy).
+      `publish-release.yaml` (unmodified pipeline, ADR-0031's policy —
+      this workflow was never `alpha`-tagged; only the continuous
+      preview stream was).
 - [ ] Verify all four publishable packages installable from nuget.org
       post-publish (not just the local-feed pre-check); verify
       `Compono.Generators` is present inside the installed `Compono`
@@ -379,9 +404,14 @@ be true of a package before release), this plan owns *how* it gets
 verified. Applied to all five packages — four independently published,
 plus `Compono.Generators`, verified by content inspection inside
 `Compono.nupkg` rather than an independent pack (it's `IsPackable=false`,
-per ADR-0003). Phase 0's Tasks above are this checklist:
+per ADR-0003). Phase 0's Tasks above are this checklist, **except the
+`alpha` identifier, which stays in place through Phase 0 and is only
+removed at Phase 8's release checkpoint** (see "Phase ordering
+rationale"):
 
-- [ ] `alpha` identifier removed from `publish-preview.yaml`.
+- [ ] `Directory.Packages.props`'s `PackageVersion` entries use exact-pin
+      bracket syntax (`[3.2.2]`), not bare versions — bare versions are a
+      NuGet minimum floor, not a hard pin.
 - [ ] `PackageTags`/`PackageReleaseNotes` set once in
       `Directory.Build.props` (one uniform value for all five packages,
       not per-project) — `PackageReleaseNotes` points at the repo's
@@ -407,11 +437,15 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
 - [ ] Local-feed packed-consumer smoke test covers the four publishable
       packages together, as a standing CI gate.
 - [ ] `PrivateAssets`/analyzer transitivity verified for every package.
-- [ ] Dependency license spot-check against `Directory.Packages.props`.
+- [ ] Dependency license spot-check against `Directory.Packages.props`'s
+      current set, plus a `contributing.md` note (Phase 6) making license
+      review part of reviewing any future dependency-version-change PR.
 
 ## Release-readiness checklist
 
-- [ ] `alpha` identifier removed from `publish-preview.yaml` (Phase 0).
+- [ ] `alpha` identifier removed from `publish-preview.yaml` — only as
+      part of Phase 8's release checkpoint, after the clean-room
+      acceptance test passes, never earlier (Phase 8, not Phase 0).
 - [ ] All four publishable packages pass
       `Microsoft.DotNet.PackageValidation`; the CI-automated baseline
       lookup (Phase 0) actually resolved a real prior version for this
@@ -523,13 +557,15 @@ individually resolved, not left ambiguous):
   (Phase 3).
 - `mkdocs.yml` — nav updated per phase as content lands; final pass in
   Phase 7.
-- `.github/workflows/publish-preview.yaml`/`publish-release.yaml` —
-  `alpha` identifier removed, plus a new step querying nuget.org for each
-  package's prior version and passing
-  `-p:PackageValidationBaselineVersion=<prior-version>` at pack time
-  (Phase 0).
+- `.github/workflows/publish-preview.yaml`/`publish-release.yaml` — a
+  new step querying nuget.org for each package's prior version and
+  passing `-p:PackageValidationBaselineVersion=<prior-version>` at pack
+  time (Phase 0); `publish-preview.yaml`'s `alpha` identifier removed
+  separately, at Phase 8's release checkpoint, not Phase 0.
 - `.github/release-drafter.yml` — `breaking-change` remapped from
   `major` to `minor` in `version-resolver` (Phase 0).
+- `Directory.Packages.props` — `PackageVersion` entries converted to
+  exact-pin bracket syntax (Phase 0).
 - `Directory.Build.props` — package-validation and tags/release-notes
   properties added, shared across all five packages (Phase 0).
 - `Compono.slnx` — both new sample projects added (Phase 4).
