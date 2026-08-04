@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Asserts the packed .nupkg contents for all four publishable Compono packages
 # match ADR-0031's package-readiness bar (PLAN-0008 Phase 0's package-contents-
-# inspection CI job): lib/README/icon per TFM, no stray build artifacts,
-# analyzers/dotnet/cs containing Compono.Generators.dll for Compono
-# specifically (this is Compono.Generators' own verification - it's
-# IsPackable=false per ADR-0003 and never gets an independent pack), and an
-# exact-pin (bracketed) <dependency> version on Compono for each integration
-# package's .nuspec, and (per ADR-0031 Amendment 1) a deliberate tested range
-# - not a bare unbounded floor, not a blanket exact pin - on each integration
+# inspection CI job): the .nupkg's file listing matches the expected shape
+# exactly (an allowlist, not a denylist - nothing unexpected snuck in, not just
+# "no known-bad pattern"), analyzers/dotnet/cs containing Compono.Generators.dll
+# for Compono specifically (this is Compono.Generators' own verification - it's
+# IsPackable=false per ADR-0003 and never gets an independent pack), an
+# exact-pin <dependency> version on Compono for each integration package's
+# .nuspec that matches that package's own version (not merely "some bracketed
+# string"), and (per ADR-0031 Amendment 1) a deliberate tested range - not a
+# bare unbounded floor, not a blanket exact pin - on each integration
 # package's third-party dependency.
 set -euo pipefail
 
@@ -35,18 +37,46 @@ assert_exists() {
     fi
 }
 
-assert_no_stray_artifacts() {
-    local extracted_dir="$1"
+assert_exact_file_listing() {
+    local nupkg="$1"
     local pkg_name="$2"
-    # DebugType=embedded (Directory.Build.props) means no standalone .pdb should ship.
-    local strays
-    strays=$(find "$extracted_dir" -iname "*.pdb" -o -ipath "*/obj/*")
-    if [ -n "$strays" ]; then
-        echo "FAIL: $pkg_name contains stray build artifacts:" >&2
-        echo "$strays" >&2
-        fail=1
+    local extra_paths="$3"
+    # An allowlist, not a denylist of known-bad patterns (*.pdb/obj/) - the prior
+    # denylist would stay green if packing accidentally included something that
+    # isn't a .pdb or under obj/ at all (a stray test DLL, a .deps.json, a leaked
+    # runtime folder). DebugType=embedded (Directory.Build.props) means no
+    # standalone .pdb ships; GenerateDocumentationFile=true means each TFM's .xml
+    # doc file does. _rels/.rels, [Content_Types].xml, and
+    # package/services/metadata/core-properties/nuget.psmdcp are NuGet's own
+    # required OPC-package plumbing, present in every .nupkg regardless of content.
+    local expected
+    expected=$(cat <<EOF
+_rels/.rels
+${pkg_name}.nuspec
+README.md
+icon.png
+lib/net10.0/${pkg_name}.dll
+lib/net10.0/${pkg_name}.xml
+lib/net11.0/${pkg_name}.dll
+lib/net11.0/${pkg_name}.xml
+[Content_Types].xml
+package/services/metadata/core-properties/nuget.psmdcp
+EOF
+)
+    if [ -n "$extra_paths" ]; then
+        expected="${expected}"$'\n'"${extra_paths}"
+    fi
+    expected=$(echo "$expected" | sort)
+
+    local actual
+    actual=$(unzip -Z1 "$nupkg" | sort)
+
+    if [ "$actual" = "$expected" ]; then
+        echo "OK: $pkg_name's .nupkg file listing matches the expected shape exactly"
     else
-        echo "OK: $pkg_name has no stray build artifacts"
+        echo "FAIL: $pkg_name's .nupkg file listing doesn't match the expected shape:" >&2
+        diff <(echo "$expected") <(echo "$actual") | sed 's/^/  /' >&2 || true
+        fail=1
     fi
 }
 
@@ -54,12 +84,19 @@ assert_exact_pin_dependency() {
     local nuspec="$1"
     local pkg_name="$2"
     local dep_id="$3"
+    # Lockstep (ADR-0031) means the Compono dependency must equal this integration
+    # package's *own* packed version exactly - not merely "some bracketed string" (a
+    # regex like ^\[.*\]$ would wrongly accept a stale pin, e.g. [0.9.0] inside a
+    # 1.0.0 package, or an inclusive range like [0.9.0,1.0.0]).
+    local own_version
+    own_version=$(sed -n 's#.*<version>\(.*\)</version>.*#\1#p' "$nuspec" | head -1)
+    local expected="[${own_version}]"
     local version
     version=$(grep -o "id=\"${dep_id}\" version=\"[^\"]*\"" "$nuspec" | head -1 | sed -E 's/.*version="([^"]*)".*/\1/')
-    if [[ "$version" =~ ^\[.*\]$ ]]; then
-        echo "OK: $pkg_name's .nuspec pins $dep_id at exact version $version"
+    if [ "$version" = "$expected" ]; then
+        echo "OK: $pkg_name's .nuspec pins $dep_id at exact version $version, matching its own package version"
     else
-        echo "FAIL: $pkg_name's .nuspec dependency on $dep_id is '$version', not an exact-pin bracket like [x.y.z]" >&2
+        echo "FAIL: $pkg_name's .nuspec dependency on $dep_id is '$version', expected an exact pin matching its own package version: '$expected'" >&2
         fail=1
     fi
 }
@@ -105,11 +142,11 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
     extract_dir="$work_dir/$pkg"
     extract "$nupkg" "$extract_dir"
 
-    assert_exists "$extract_dir/lib/net10.0/${pkg}.dll" "$pkg lib/net10.0"
-    assert_exists "$extract_dir/lib/net11.0/${pkg}.dll" "$pkg lib/net11.0"
-    assert_exists "$extract_dir/README.md" "$pkg README.md"
-    assert_exists "$extract_dir/icon.png" "$pkg icon.png"
-    assert_no_stray_artifacts "$extract_dir" "$pkg"
+    extra_paths=""
+    if [ "$pkg" = "Compono" ]; then
+        extra_paths="analyzers/dotnet/cs/Compono.Generators.dll"
+    fi
+    assert_exact_file_listing "$nupkg" "$pkg" "$extra_paths"
 
     nuspec=$(find "$extract_dir" -maxdepth 1 -iname "*.nuspec" | head -1)
     assert_exists "${nuspec:-__missing__}" "$pkg .nuspec"
