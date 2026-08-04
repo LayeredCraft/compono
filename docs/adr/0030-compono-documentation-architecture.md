@@ -546,14 +546,23 @@ intent, ADRs describe the decision" split.
 ## Amendment 2 (2026-08-04): resolving Milestone 8's remaining Open Items
 
 Milestone 8's deep-design pass ([PLAN-0008](../plans/0008-milestone-8-public-preview.md))
-resolves four of this ADR's own listed Open Items — API reference
-toolchain and Samples strategy got their own ADRs
-([ADR-0032](0032-api-reference-documentation-toolchain.md),
-[ADR-0033](0033-public-preview-samples-strategy.md), since both are
-substantial enough to warrant independent decision records with their own
-Considered Options — the remaining four are recorded here as an
-Amendment, since each is an extension/resolution of a question this ADR
-already posed, not a reversal of anything already decided.
+resolves all six of this ADR's original Open Items, plus one additional
+decision the same design pass surfaced. Three Open Items — API reference
+toolchain, Samples strategy, and versioning policy — were substantial
+enough to warrant their own independent decision records with their own
+Considered Options: [ADR-0032](0032-api-reference-documentation-toolchain.md)
+(API reference toolchain), [ADR-0033](0033-public-preview-samples-strategy.md)
+(Samples strategy), and [ADR-0031](0031-public-preview-release-and-versioning-policy.md)
+(versioning/release policy). The remaining three Open Items — Cookbook
+navigation/tagging, issue templates (folded into point 4's broader
+contributor-governance scope below), and `public-api.md`/`manifesto.md`'s
+disposition — are recorded here as this Amendment, since each is an
+extension/resolution of a question this ADR already posed, not a
+reversal of anything already decided. This Amendment's point 3
+(benchmark/performance-claims policy) is a fourth, additional decision
+the same design pass surfaced — not one of this ADR's original six Open
+Items, but adjacent enough to this ADR's documentation-content scope to
+record here rather than opening a narrower ADR for one policy paragraph.
 
 1. **Cookbook navigation/tagging at scale — deferred, not decided now.**
    The first preview launches Cookbook with a flat, alphabetically-ordered
@@ -638,10 +647,15 @@ already posed, not a reversal of anything already decided.
    multi-maintainer community this project isn't yet, added later from
    real experience if that ever changes, not speculatively now.
 
-None of these four resolutions changes this ADR's hierarchy, section
-purposes, or audiences — each fills in a gap this ADR's own Open Items
-section already flagged as deliberately left open, per this repo's
-"amendment extends, doesn't reverse" convention.
+None of these four points changes this ADR's hierarchy, section purposes,
+or audiences — the three that resolve an original Open Item (points 1,
+2, and 4's issue-templates component) each fill in a gap this ADR's own
+Open Items section already flagged as deliberately left open, per this
+repo's "amendment extends, doesn't reverse" convention; point 3 is
+additional scope, not a reversal of anything either.
 `docs/documentation-architecture.md`'s Open Items section is updated to
-reflect all six resolutions (four here, two in ADR-0032/ADR-0033) as part
-of [PLAN-0008](../plans/0008-milestone-8-public-preview.md).
+reflect all six original resolutions — three here (Cookbook navigation,
+issue templates, `public-api.md`/`manifesto.md` disposition) and three
+via dedicated ADRs (API reference toolchain via ADR-0032, Samples
+strategy via ADR-0033, versioning policy via ADR-0031) — as part of
+[PLAN-0008](../plans/0008-milestone-8-public-preview.md).
