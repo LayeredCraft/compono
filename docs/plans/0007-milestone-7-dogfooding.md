@@ -391,16 +391,16 @@ chronology here that would only go stale as further rounds land.
 
 ## Phase 3: Classify findings and produce the roadmap
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] Finalize `docs/research/0001-autofixture-comparison.md` (created in
+- [x] Finalize `docs/research/0001-autofixture-comparison.md` (created in
       Phase 0 with its baseline section filled in; Phase 2 has since filled
       in post-migration metrics, the concepts-removed inventory, and the
       full ten-entry per-finding evidence dossier with first-pass
       classification leans) — fill in the dogfooding narrative and
       finalize every finding's classification (below), turning Phase 2's
       leans into final verdicts.
-- [ ] Classify every finding per ADR-0029's five-way taxonomy and record
+- [x] Classify every finding per ADR-0029's five-way taxonomy and record
       its outcome:
       - **Bug** — fixed via its own scoped compono PR (if not already done
         during Phase 1), documented here, no new capability ADR, linked
@@ -414,14 +414,33 @@ chronology here that would only go stale as further rounds land.
         for gap 2, or whichever ADR governs a newly-discovered gap).
       - **Migration-only friction** — documented here and, where useful, as
         a migration-guide tip; no ADR/Amendment.
-- [ ] Close `docs/research/0001-autofixture-comparison.md` with a
+- [x] Close `docs/research/0001-autofixture-comparison.md` with a
       `## Decisions` section listing exactly which ADR(s)/Amendment(s)/
       bug-fix PR(s) each finding fed into.
-- [ ] Create `docs/roadmap/post-mvp.md` from only the "roadmap candidate"
+- [x] Create `docs/roadmap/post-mvp.md` from only the "roadmap candidate"
       findings — per finding: capability, why it matters, observed
       frequency, readability/maintainability impact, and a relative
       priority (high/medium/low confidence) — each entry tracing back to
       the migration guide, the research findings, and its `Proposed` ADR.
+
+Every Phase 2 lean was adopted as the final verdict, unchanged — no
+finding was reclassified during Phase 3. Final split: 0 bug, 0 roadmap
+candidate, 4 acceptable Compono-native alternative (gap 1, `Compono.Bogus`
+mandatory dogfooding, Finding 5, Finding 8), 4 intentional design
+difference (gap 2, gap 3, Finding 4, Finding 7), 2 migration-only friction
+(Finding 6, Finding 9). Four dated Amendments recorded the "no change"
+verdicts and their evidence: [ADR-0025 Amendment 2](../adr/0025-compono-nsubstitute-package-design.md#amendment-2-2026-08-04-dogfooding-confirms-the-no-member-auto-configuration-non-goal-at-a-real-material-cost)
+(gap 2), [ADR-0011 Amendment 3](../adr/0011-composition-scope-shared-values-and-recursion-detection.md#amendment-3-2026-08-04-dogfooding-confirms-fail-fast-recursion-detection-zero-real-world-exercise-either-way)
+(gap 3), [ADR-0022 Amendment 7](../adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found)
+(Finding 4), and [ADR-0002 Amendment 1](../adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made)
+(Finding 7, `CMP0001`). `docs/roadmap/post-mvp.md` documents the
+zero-roadmap-candidate outcome explicitly, with the evidence for why, plus
+two findings (`CMP0001`, Compose-family stacking) worth tracking as
+plausible future improvements without a `Proposed` ADR yet — ADR-0029's
+evidence-driven restraint means neither a synthetic exercise nor a
+zero-frequency finding earns one on its own. `docs/documentation-architecture.md`
+and `mkdocs.yml` updated now that `docs/roadmap/post-mvp.md` is real
+content, not a skeleton stub.
 
 ## Phase 4: Final conclusion, docs, and cleanup
 
@@ -467,10 +486,12 @@ In `compono` (this repo):
 - `docs/research/0001-autofixture-comparison.md` — created Phase 0 (baseline
   section), the evidence record; finalized (post-migration metrics,
   classifications, `## Decisions`) in Phases 2-3
-- `docs/roadmap/post-mvp.md` — new, the evidence-backed roadmap (Phase 3)
-- New `docs/adr/00NN-*.md` for any "roadmap candidate" finding
-- `docs/adr/0011-...md`/`docs/adr/0022-...md`/`docs/adr/0025-...md` — gain
-  dated Amendments for any "intentional design difference" finding
+- `docs/roadmap/post-mvp.md` — new, the evidence-backed roadmap (Phase 3);
+  zero roadmap-candidate findings, so no new `docs/adr/00NN-*.md` needed
+- `docs/adr/0002-...md`/`docs/adr/0011-...md`/`docs/adr/0022-...md`/
+  `docs/adr/0025-...md` — each gained one dated Amendment (Phase 3) for
+  an "intentional design difference" finding (Finding 7/gap 3/Finding
+  4/gap 2 respectively)
 - Any scoped bug-fix PR's changed files in this repo, if a blocking bug is
   found (per ADR-0029's "Bug handling") — linked from this plan's Notes,
   not enumerated here in advance since it isn't known yet

@@ -304,3 +304,29 @@ previously left implicit.
 - [ADR-0004](0004-composition-plan-discovery-and-dispatch.md) —
   `PlanCache<T>` dispatch, the structural-construction operation this
   ADR's frame check gates.
+
+## Amendment 3 (2026-08-04): dogfooding confirms fail-fast recursion detection, zero real-world exercise either way
+
+Milestone 7's dogfooding pass (`ncipollina/cosmere-tracker`, per
+[ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
+[PLAN-0007](../plans/0007-milestone-7-dogfooding.md), gap 3 of
+[RESEARCH-0001](../research/0001-autofixture-comparison.md)) compared this
+ADR's fail-fast construction-cycle detection against AutoFixture's
+`OmitOnRecursionBehavior` (silently omit a value on a cycle rather than
+failing) — the migrated project's own `BaseFixtureFactory` had opted into
+that AutoFixture behavior. **No construction-cycle failure was ever
+triggered during the migration**, in either direction: none of
+`cosmere-tracker`'s composed types form a self-referencing object graph
+(edge entities reference other entities by string id, not by object
+reference), so this ADR's fail-fast diagnostic was never exercised,
+positively or negatively, by real test code.
+
+**No change to this ADR's decision.** Per ADR-0029's evidence-driven
+restraint, an unexercised gap isn't grounds for revisiting a design
+decision — this migration produced no case where AutoFixture's
+silent-omission alternative would have been needed or missed, so there's
+no evidence pointing toward reintroducing an opt-in recursion-behavior
+switch. This Amendment exists to record that absence as real evidence
+(a genuine "not exercised" result, not a gap this ADR failed to
+consider), per the dossier's `Compono.Bogus` precedent that a
+negative/neutral finding is itself a valid, recorded outcome.

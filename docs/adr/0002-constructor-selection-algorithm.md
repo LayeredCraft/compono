@@ -146,3 +146,39 @@ constructors otherwise.
   product feature" principles.
 - `docs/mvp.md`'s Milestone 1 scope ("Constructor selection prototype",
   "Compile-time diagnostics for unsupported or ambiguous construction").
+
+## Amendment 1 (2026-08-04): `CMP0001` observed against a real ambiguous BCL type, no change made
+
+Milestone 7's dogfooding pass (`ncipollina/cosmere-tracker`, per
+[ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
+[PLAN-0007](../plans/0007-milestone-7-dogfooding.md), Finding 7 of
+[RESEARCH-0001](../research/0001-autofixture-comparison.md)) hit
+`CMP0001` composing `HttpClient` directly (3 accessible constructors,
+`ConstructorSelector.Select` correctly reports `AmbiguousConstructor` per
+this ADR's own rule) — this ADR's "explicit disambiguation mechanism...
+left to be designed when Milestone 1 actually needs it" is still
+undesigned, and this is the first real evidence of a project needing it.
+
+The evidence doesn't actually support designing that mechanism yet,
+though. `HttpClient` is a BCL type `cosmere-tracker` doesn't own, so this
+ADR's originally-anticipated `[CompositionConstructor]` attribute — an
+attribute the type's *author* applies to a constructor — was never going
+to close this specific case regardless of whether it ships; the real
+candidate is generic disambiguation support for a *registered/external*
+ambiguous type, a materially different (and undesigned) mechanism this
+ADR never actually committed to. And the diagnostic itself only fired
+while porting a capability (`ClientTestProfile`) that has zero real
+pre-migration call sites in `cosmere-tracker` — no test needed to compose
+`HttpClient` before this migration; the interface-wrapper workaround
+(`IHttpClientProvider`, treated as a provider-resolved leaf, bypassing
+constructor-selection entirely) already closes the one real case this
+migration produced, at the cost that migration actually paid.
+
+**No change to this ADR's decision.** Per ADR-0029's evidence-driven
+restraint, a synthetic exercise (a capability preserved for hypothetical
+future tests, not a real pre-existing call site hitting a wall) doesn't
+justify designing a new disambiguation mechanism now. This is recorded
+here as the evidence trail for a plausible future roadmap item — generic
+support for disambiguating construction of a registered/external
+ambiguous type — should a real pre-existing call site surface it later,
+not as a decision to build that mechanism today.

@@ -436,3 +436,37 @@ returns does not change an already-registered `NSubstituteProvider`'s behavior.
 - [ADR-0024](0024-public-provider-extensibility-model.md) — the public provider
   contract, registration surface, and provider-failure-semantics rule this ADR
   implements against
+
+## Amendment 2 (2026-08-04): dogfooding confirms the no-member-auto-configuration non-goal, at a real material cost
+
+Milestone 7's dogfooding pass (`ncipollina/cosmere-tracker`, per
+[ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
+[PLAN-0007](../plans/0007-milestone-7-dogfooding.md), gap 2 of
+[RESEARCH-0001](../research/0001-autofixture-comparison.md)) tested this
+ADR's "recursive auto-configuration of substitute members" non-goal
+against a real project that had relied on AutoFixture's equivalent
+(`AutoNSubstituteCustomization { ConfigureMembers = true }`). Two tests
+(`ListWorldsAsync_WhenSortEmpty_DefaultsToName`,
+`ListCharactersAsync_WhenSortEmpty_DefaultsToName`) failed on first
+migration attempt: each called a `Task<PartiqlPage>`-returning substitute
+member with no explicit stub, relying on AutoFixture's auto-configuration
+to produce a non-null result; under `Compono.NSubstitute`'s bare
+`Substitute.For<T>()`, the unstubbed call returned NSubstitute's own
+default for that shape (a non-null `Task` whose `Result` was `null`), and
+the repository's own code threw `NullReferenceException` dereferencing
+it.
+
+**This is a real, material workaround cost** — an explicit
+`.ReturnsForAnyArgs(...)` stub each test previously didn't need to write
+— not a low or zero one. It's also, per this dossier's principle-alignment
+analysis, exactly the case this ADR's non-goal exists to prevent:
+restoring `ConfigureMembers`-style auto-configuration would silently hide
+a test's actual dependency on a substitute member's return shape again —
+the same invisibility that let these two tests pass without ever
+verifying `ExecuteAsync`'s return value in the first place.
+
+**No change to this ADR's decision.** The material cost is the accepted
+price of a deliberate principle (explicit-over-implicit), not evidence
+Compono.NSubstitute is missing a capability it genuinely needs — recorded
+here as the first real-project evidence this non-goal's tradeoff was
+actually exercised, not merely anticipated.
