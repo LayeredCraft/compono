@@ -67,9 +67,16 @@ clear before it's included.
 
 1. **Keep the `alpha` prerelease identifier** — `main` continues
    publishing `0.x.y-alpha.N`.
-2. **Drop the prerelease identifier** — `main` publishes plain `0.x.y`
-   directly; `0.x` itself is the preview signal per SemVer convention, so
-   a separate `-alpha` suffix is redundant noise on top of it.
+2. **Rename it to `preview`** — `main` publishes `0.x.y-preview.N`
+   instead. `publish-preview.yaml`'s `prereleaseIdentifier` input always
+   produces a SemVer prerelease version (nuget.org and `dotnet add
+   package` both treat any `-`-suffixed version as prerelease, excluded
+   from a default, non-`--prerelease` install) — there is no pipeline
+   path from this input to a bare, non-prerelease `0.x.y`. Only a
+   manually-published GitHub Release (`publish-release.yaml`, triggered
+   by `release: types: [published]` — a human moving a draft release to
+   live) produces a real, non-prerelease version; the identifier input
+   has no bearing on that gate at all.
 
 ## Decision Outcome
 
@@ -86,27 +93,32 @@ though it's never independently referenced by a consumer — see
 are one coherent release," which is exactly what the ecosystem actually
 is during preview.
 
-**Drop the `alpha` identifier (Option 2), by explicit decision.** The
+**Rename `alpha` to `preview` (Option 2), by explicit decision.** The
 release pipeline itself is unchanged — this is a one-line change to
-`publish-preview.yaml`'s `prereleaseIdentifier` input. `0.x` is already
-the correct, conventional SemVer signal that the API isn't yet
-stability-guaranteed; stacking `-alpha` on top of every `0.x` version
-communicates nothing a consumer doesn't already know from the major
-version being `0`, and it's what currently makes `cosmere-tracker`'s
-`Directory.Packages.props` pin an alpha-suffixed version instead of a
-plain one. **The removal itself is sequenced at
-[PLAN-0008](../plans/0008-milestone-8-public-preview.md)'s Phase 8
-release checkpoint, not Phase 0** — `publish-preview.yaml` runs
-automatically on every non-docs `main` push, so flipping the identifier
-as soon as Phase 0 merges would start publishing plain, official-looking
-`0.x.y` versions to the public feed while Phases 1-7's docs, samples, and
-API reference are still incomplete; keeping `alpha` through those phases
-and dropping it only once Phase 8 confirms the milestone is genuinely
-ready to publish avoids a version number implying "done" before it is.
-Once dropped, every push to `main` that isn't docs-only still publishes
-automatically (via the existing, unchanged `publish-preview.yaml` trigger
-and gates) — just as a plain `0.x.y`
-instead of `0.x.y-alpha.N`.
+`publish-preview.yaml`'s `prereleaseIdentifier` input, from `alpha` to
+`preview`. `0.x` is already the correct, conventional SemVer signal that
+the API isn't yet stability-guaranteed; a separate `-alpha` suffix on top
+of it communicates nothing a consumer doesn't already know from the
+major version being `0`, and it's what currently makes
+`cosmere-tracker`'s `Directory.Packages.props` pin an alpha-suffixed
+version. `preview` is the more conventional label for a continuously-
+published prerelease stream and matches the workflow's own name
+(`publish-preview.yaml`). **This belongs in Phase 0, not a later
+checkpoint** — an earlier draft of this ADR mistakenly assumed dropping
+the identifier entirely would produce a bare, non-prerelease `0.x.y` and
+sequenced the change at a release checkpoint to avoid publishing
+something that looked "done" too early. That assumption was wrong: every
+version `publish-preview.yaml` produces is a SemVer prerelease regardless
+of what the identifier string is (`-alpha.N` or `-preview.N` are both
+still prereleases, both still excluded from a plain `dotnet add package`
+install and both still visibly flagged as prerelease on nuget.org) —
+renaming the label carries no risk of a half-finished milestone looking
+publicly "done," so there's no reason to defer it. The actual "does this
+look done" gate is entirely separate: a human manually publishing a
+GitHub Release (`publish-release.yaml`, `release: types: [published]`),
+which this rename has no effect on either way — see
+[PLAN-0008](../plans/0008-milestone-8-public-preview.md)'s Phase 8 for
+that gate.
 
 ### Package set for the first preview
 
@@ -313,7 +325,7 @@ re-decided by this ADR.
 Not redesigned — the existing two-workflow split
 (`publish-preview.yaml`/`publish-release.yaml`, both delegating to
 `LayeredCraft/devops-templates`) stays exactly as-is beyond the
-`alpha`-identifier removal above. Policy, recorded here because it
+`alpha`→`preview` identifier rename above. Policy, recorded here because it
 governs what "safe to retry" means rather than describing a CI step: all
 four publishable packages are built and pushed from one coordinated
 lockstep version (`Compono.Generators` builds alongside them but has
@@ -336,7 +348,7 @@ substitute for one.
   compatibility matrix.
 - The existing, working release pipeline and the existing `cosmere-tracker`
   consumption pattern both continue to work unmodified beyond the
-  `alpha`-identifier change.
+  `alpha`→`preview` identifier rename.
 - The package-readiness checklist gives Phase 0 of PLAN-0008 a concrete,
   verifiable bar instead of an open-ended "make packages good" task.
 
@@ -381,20 +393,21 @@ substitute for one.
 ### Keep the `alpha` identifier
 
 - Good, because it requires no pipeline change at all.
-- Bad, because it's redundant with `0.x`'s own SemVer meaning and is the
-  reason `cosmere-tracker`'s `Directory.Packages.props` currently pins an
-  alpha-suffixed version instead of a plain preview one.
+- Bad, because it's a less conventional label than `preview` for a
+  continuously-published prerelease stream, and is the reason
+  `cosmere-tracker`'s `Directory.Packages.props` currently pins an
+  alpha-suffixed version.
 
-### Drop the `alpha` identifier (chosen)
+### Rename to `preview` (chosen)
 
-- Good, because `0.x` already communicates "preview" per SemVer
-  convention without an extra suffix.
+- Good, because `preview` is the more conventional label for this
+  publishing stream, and matches the workflow's own name.
 - Good, because it's a one-line pipeline change, not a redesign.
-- Bad, because every `main` push still auto-publishes a real, public
-  version number — slightly less "obviously a throwaway build" than an
-  alpha-suffixed one at a glance. Accepted: this is exactly the point —
-  the milestone's goal is packages a stranger can trust enough to adopt,
-  not permanently-flagged-experimental ones.
+- Good, because it carries no sequencing risk — every version this
+  workflow produces stays a SemVer prerelease either way, so there's no
+  reason to delay it behind a later checkpoint.
+- Bad, because it still requires bumping `cosmere-tracker`'s pinned
+  version once this ships, same as any other identifier change would.
 
 ## Links
 

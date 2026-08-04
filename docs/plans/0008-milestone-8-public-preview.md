@@ -49,18 +49,20 @@ pass surfaced:
 
 - **Release pipeline moves out of its own phase.** The user's own
   decision (this plan's design conversation) settled that the pipeline
-  itself needs no redesign — only the `alpha`-identifier removal
+  itself needs no redesign — only the `alpha`→`preview` identifier rename
   ([ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)).
   That change is mechanically trivial and has no dependency on anything
-  else in this plan, so it doesn't get a whole phase to itself — but it
-  **stays in Phase 8, not Phase 0**: `publish-preview.yaml` runs
-  automatically on every non-docs `main` push, so dropping `alpha` as
-  soon as Phase 0 merges would start publishing plain, official-looking
-  `0.x.y` versions while Phases 1-7's docs/samples/API reference are
-  still incomplete — exactly the "shipped before it's ready" problem
-  Phase 8's own checkpoint exists to prevent. Phase 0 hardens everything
-  *except* that one identifier; Phase 8 flips it once the milestone is
-  actually ready to be seen as done.
+  else in this plan, so it's folded into Phase 0 rather than getting a
+  whole phase to itself. It belongs in Phase 0, not a later checkpoint —
+  every version `publish-preview.yaml` produces is a SemVer prerelease
+  regardless of the identifier string (`-alpha.N` and `-preview.N` are
+  both still prereleases, both still excluded from a plain `dotnet add
+  package` install), so renaming it carries no risk of a still-in-progress
+  milestone looking publicly "done." The actual "does this look done"
+  gate is Phase 8's manual GitHub Release publish
+  (`publish-release.yaml`), which this rename has no effect on either
+  way — see ADR-0031's "Preview publishing identifier" Decision Outcome
+  for the full mechanics.
 - **Package-readiness hardening moves before documentation writing, not
   after.** Package Guides, Samples, and the acceptance test all need real,
   installable packages to write accurate content against and verify
@@ -88,13 +90,16 @@ being novel — it hardens what already ships — but Phases 3/4/8 depend on
 it being *done* before writing package-specific content or running the
 acceptance test.
 
+- [ ] Rename `publish-preview.yaml`'s `prereleaseIdentifier` input from
+      `alpha` to `preview` (ADR-0031) — `main` starts publishing
+      `0.x.y-preview.N` instead of `0.x.y-alpha.N`. Still a real SemVer
+      prerelease either way, so this carries no sequencing risk and
+      belongs here, not at a later checkpoint.
 - [ ] Convert `Directory.Packages.props`'s `PackageVersion` entries to
       exact-pin bracket syntax (`[3.2.2]`, not bare `3.2.2`) — a bare
       version is a NuGet minimum-inclusive floor, not a hard pin, so it
       doesn't actually enforce ADR-0031's "install the version we tested
       against" policy as written today; bracket syntax closes that gap.
-      (**Not** the `alpha` identifier removal — that stays in Phase 8,
-      see "Phase ordering rationale" above.)
 - [ ] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
       not per-project — one shared, uniform value for all five packages
       (`PackageTags`: `testing;test-data;source-generator;dotnet`;
@@ -359,18 +364,13 @@ package-readiness phase above being done.
       Package Guide's "when to install" decision, one Troubleshooting
       lookup, all followed literally as written, no ADR/internal-repo
       knowledge assumed. See "Public-preview acceptance checklist" below
-      for the full list. Runs against local-feed packages (or the
-      still-`alpha`-tagged continuous preview stream) — this happens
-      *before* the next task removes the `alpha` identifier, so a failed
-      acceptance pass never has to be walked back from a plain,
-      already-public `0.x.y` version.
-- [ ] Remove `alpha` from `publish-preview.yaml`'s `prereleaseIdentifier`
-      input (ADR-0031) — only now, once the acceptance test above has
-      passed, does `main` start publishing plain `0.x.y` on every push.
-- [ ] Cut the first real `0.x` release: tag, publish via
-      `publish-release.yaml` (unmodified pipeline, ADR-0031's policy —
-      this workflow was never `alpha`-tagged; only the continuous
-      preview stream was).
+      for the full list.
+- [ ] Cut the first real `0.x` release: publish a GitHub Release and mark
+      it published (not draft) — this is the actual "does this look
+      done" gate (`publish-release.yaml`, triggered by
+      `release: types: [published]`), completely independent of
+      `publish-preview.yaml`'s `preview` identifier (renamed in Phase 0,
+      unrelated to this step).
 - [ ] Verify all four publishable packages installable from nuget.org
       post-publish (not just the local-feed pre-check); verify
       `Compono.Generators` is present inside the installed `Compono`
@@ -404,11 +404,10 @@ be true of a package before release), this plan owns *how* it gets
 verified. Applied to all five packages — four independently published,
 plus `Compono.Generators`, verified by content inspection inside
 `Compono.nupkg` rather than an independent pack (it's `IsPackable=false`,
-per ADR-0003). Phase 0's Tasks above are this checklist, **except the
-`alpha` identifier, which stays in place through Phase 0 and is only
-removed at Phase 8's release checkpoint** (see "Phase ordering
-rationale"):
+per ADR-0003). Phase 0's Tasks above are this checklist:
 
+- [ ] `publish-preview.yaml`'s `prereleaseIdentifier` renamed from
+      `alpha` to `preview`.
 - [ ] `Directory.Packages.props`'s `PackageVersion` entries use exact-pin
       bracket syntax (`[3.2.2]`), not bare versions — bare versions are a
       NuGet minimum floor, not a hard pin.
@@ -443,9 +442,9 @@ rationale"):
 
 ## Release-readiness checklist
 
-- [ ] `alpha` identifier removed from `publish-preview.yaml` — only as
-      part of Phase 8's release checkpoint, after the clean-room
-      acceptance test passes, never earlier (Phase 8, not Phase 0).
+- [ ] `publish-preview.yaml`'s identifier renamed from `alpha` to
+      `preview` (Phase 0) — the actual "does this look done" gate is the
+      manually-published GitHub Release below, not this rename.
 - [ ] All four publishable packages pass
       `Microsoft.DotNet.PackageValidation`; the CI-automated baseline
       lookup (Phase 0) actually resolved a real prior version for this
@@ -560,8 +559,8 @@ individually resolved, not left ambiguous):
 - `.github/workflows/publish-preview.yaml`/`publish-release.yaml` — a
   new step querying nuget.org for each package's prior version and
   passing `-p:PackageValidationBaselineVersion=<prior-version>` at pack
-  time (Phase 0); `publish-preview.yaml`'s `alpha` identifier removed
-  separately, at Phase 8's release checkpoint, not Phase 0.
+  time; `publish-preview.yaml`'s `prereleaseIdentifier` renamed from
+  `alpha` to `preview` (Phase 0, both changes).
 - `.github/release-drafter.yml` — `breaking-change` remapped from
   `major` to `minor` in `version-resolver` (Phase 0).
 - `Directory.Packages.props` — `PackageVersion` entries converted to
