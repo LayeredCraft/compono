@@ -1196,3 +1196,29 @@ Notes for the full blow-by-blow of all four fix attempts.
   `AddProfile`, reused unmodified for `[Compose<TProfile>]`.
 - [ADR-0003](0003-generator-package-distribution.md) — why `Compono.Xunit`
   needs no direct dependency on `Compono.Generators`.
+
+## Amendment 7 (2026-08-04): stacking distinct Compose-family attributes stays unsupported, no real call site found
+
+Milestone 7's dogfooding pass (`ncipollina/cosmere-tracker`, per
+[ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
+[PLAN-0007](../plans/0007-milestone-7-dogfooding.md), Finding 4 of
+[RESEARCH-0001](../research/0001-autofixture-comparison.md)) surfaced a
+constraint this ADR never explicitly called out: two *different*
+Compose-family attribute types on one method (e.g. `[Compose]` plus
+`[Compose<MyProfile>]`) compile without complaint — `AllowMultiple =
+false` only blocks two instances of the *exact same* closed type — but
+`BindingPlan.ValidateSignature` throws a `CompositionException` at
+data-binding time as soon as more than one Compose-family attribute is
+actually present, regardless of closed type. AutoFixture's own idiom
+(stacking multiple `[InlineAutoData(...)]` rows, each mixing inline
+values with composed parameters) has no direct equivalent here.
+
+`cosmere-tracker`'s migration never hit a real test needing this
+combination — every real theory was either fully inline or fully
+composed. **No change to this ADR's binding behavior.** Per ADR-0029's
+evidence-driven restraint, a discovered-but-unexercised constraint isn't
+grounds for redesigning `BindingPlan`'s one-Compose-family-attribute
+rule; this Amendment records the constraint and its rationale (the same
+data-binding-time validation this ADR already documents for other
+signature errors) so a future project's dogfooding has somewhere to point
+if it does hit a real call site.

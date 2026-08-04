@@ -1,9 +1,11 @@
 # [RESEARCH-0001] AutoFixture vs. Compono: `cosmere-tracker` Dogfooding
 
-**Status:** In Progress (Phase 0 baseline, Phase 1 migration, and Phase 2
-evidence collection complete, all 73 `cosmere-tracker` tests passing under
-Compono (72 migrated plus one new capability test); Phase 3's
-classification and Phase 4's final conclusion still to come — see
+**Status:** In Progress (Phase 0 baseline, Phase 1 migration, Phase 2
+evidence collection, and Phase 3 classification complete, all 73
+`cosmere-tracker` tests passing under Compono (72 migrated plus one new
+capability test); zero findings classified bug or roadmap candidate — see
+`docs/roadmap/post-mvp.md` for why; Phase 4's final architectural
+conclusion still to come — see
 [the migration guide](../migrating-from-autofixture.md) for Phase
 1's real before/after findings in the meantime)
 
@@ -858,14 +860,76 @@ call.
 
 ## Classifications (Phase 3)
 
-_To be filled in per ADR-0029's five-way taxonomy (bug / roadmap candidate
-/ acceptable Compono-native alternative / intentional design difference /
-migration-only friction)._
+Every Phase 2 lean is adopted here as the final verdict — none were
+revised during Phase 3. Each lean already reasoned explicitly through
+ADR-0029's workaround-cost/principle-alignment rubric (and, for PR #42's
+review rounds, was independently challenged and re-verified against that
+rubric multiple times before this phase started), so Phase 3's job was to
+execute each verdict's recording mechanism, not to re-derive the
+classification itself. No finding was classified **bug** — Phase 1's two
+`NullReferenceException` failures (gap 2) were real migration-time
+failures, but they reflect Compono.NSubstitute's own documented non-goal
+working as designed, not a defect against any `Accepted` ADR's claimed
+behavior. No finding was classified **roadmap candidate** — every
+capability-gap finding either had a low-cost native alternative, was
+never materially exercised by a real pre-existing call site, or turned
+out to be project-local cleanup rather than a framework capability
+question; see `docs/roadmap/post-mvp.md` for why that's a real,
+evidence-backed outcome rather than a skipped step.
+
+| Finding | Classification | Recorded via |
+|---|---|---|
+| Gap 1 — frozen shared values (`Freeze<T>()`/`[Frozen]` → `[Shared]`) | Acceptable Compono-native alternative | This doc + migration guide; no ADR/Amendment |
+| Gap 2 — NSubstitute `ConfigureMembers` | Intentional design difference | [ADR-0025 Amendment 2](../adr/0025-compono-nsubstitute-package-design.md#amendment-2-2026-08-04-dogfooding-confirms-the-no-member-auto-configuration-non-goal-at-a-real-material-cost) |
+| Gap 3 — recursion behavior | Intentional design difference | [ADR-0011 Amendment 3](../adr/0011-composition-scope-shared-values-and-recursion-detection.md#amendment-3-2026-08-04-dogfooding-confirms-fail-fast-recursion-detection-zero-real-world-exercise-either-way) |
+| `Compono.Bogus` mandatory dogfooding | Acceptable Compono-native alternative (verging on improvement) | This doc + [ADR-0029 Amendment 1](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-1-2026-08-02-the-componobogus-experiment-is-mandatory-not-its-conclusion)'s recommendation; no further ADR/Amendment |
+| Finding 4 — Compose-family stacking constraint | Intentional design difference (unexercised, no change) | [ADR-0022 Amendment 7](../adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found) |
+| Finding 5 — `Compono.Bogus` exact member-name matching | Acceptable Compono-native alternative | This doc + migration guide; no ADR/Amendment |
+| Finding 6 — `DynamoDbResponseSpecimenBuilder` zero call sites | Migration-only friction | This doc + migration guide; no ADR/Amendment |
+| Finding 7 — `CMP0001` (`HttpClient` construction) | Intentional design difference (unexercised, no change) | [ADR-0002 Amendment 1](../adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made) |
+| Finding 8 — three-tier fixture stack structural finding | Acceptable Compono-native alternative | This doc; no ADR/Amendment |
+| Finding 9 — pure-inline `[Theory]` cleanup | Migration-only friction | This doc + migration guide; no ADR/Amendment |
 
 ## Decisions
 
-_To be filled in — lists exactly which ADR(s)/Amendment(s)/bug-fix PR(s)
-each finding fed into, per ADR-0029's "Recorded via existing mechanics."_
+- **Gap 1** — no ADR/Amendment (acceptable alternative, nothing to
+  decide). Documented in this doc's Gap 1 dossier entry and the migration
+  guide's "NSubstitute `ConfigureMembers`" section (the `[Frozen]`→
+  `[Shared]` before/after this finding's evidence is drawn from).
+- **Gap 2** — [ADR-0025 Amendment 2](../adr/0025-compono-nsubstitute-package-design.md#amendment-2-2026-08-04-dogfooding-confirms-the-no-member-auto-configuration-non-goal-at-a-real-material-cost),
+  recording the "no change" verdict against ADR-0025's existing
+  no-member-auto-configuration non-goal, at a confirmed real cost.
+- **Gap 3** — [ADR-0011 Amendment 3](../adr/0011-composition-scope-shared-values-and-recursion-detection.md#amendment-3-2026-08-04-dogfooding-confirms-fail-fast-recursion-detection-zero-real-world-exercise-either-way),
+  recording zero real-world exercise of the fail-fast/silent-omission
+  question either direction.
+- **`Compono.Bogus` mandatory dogfooding** — no new ADR/Amendment;
+  [ADR-0029 Amendment 1](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-1-2026-08-02-the-componobogus-experiment-is-mandatory-not-its-conclusion)
+  already required this dossier to end in a stated recommendation, and
+  this doc's `Compono.Bogus` entry supplies it (continue using
+  `UseBogus<T>()`). The two real bugs this dogfooding pass caught and
+  fixed (the bypassed-`UseBogus<T>()` hand-roll, the clock-dependent
+  `PastOffset` default) were fixed directly in compono PR #40's review
+  rounds, in `cosmere-tracker`'s own `SharedTestKitProfile.cs` — a
+  migration-time correction, not a Compono-side bug (Compono's own
+  `UseBogus<T>()`/`DeriveSeed()` behaved exactly as ADR-0026 documents
+  throughout).
+- **Finding 4** — [ADR-0022 Amendment 7](../adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found),
+  recording the constraint and the "no change" verdict against
+  `BindingPlan`'s existing one-Compose-family-attribute rule.
+- **Finding 5** — no ADR/Amendment; documented in this doc's Finding 5
+  entry and the migration guide's Compono.Bogus section.
+- **Finding 6** — no ADR/Amendment; documented in this doc's Finding 6
+  entry and the migration guide's specimen-builders section.
+- **Finding 7** — [ADR-0002 Amendment 1](../adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
+  recording `CMP0001`'s real trigger, why the originally-anticipated
+  `[CompositionConstructor]` attribute wouldn't have closed this specific
+  case, and the "no change for now" verdict pending a real (not
+  synthetic) pre-existing call site.
+- **Finding 8** — no ADR/Amendment; documented in this doc's Finding 8
+  entry (the "Broader maintainability dimensions" sections above are the
+  underlying evidence).
+- **Finding 9** — no ADR/Amendment; documented in this doc's Finding 9
+  entry and the migration guide's "pure-inline `[Theory]`" note.
 
 ## Final architectural conclusion and recommendation (Phase 4)
 

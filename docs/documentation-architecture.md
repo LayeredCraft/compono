@@ -12,9 +12,12 @@ user should move through it. It describes **intended** state: most of the
 pages named below exist today as placeholder skeletons (a "Status:
 Skeleton" banner and a one-paragraph purpose statement, no real content —
 see "Status" per section for exactly which). A handful of real exceptions
-don't exist at all yet, notably `docs/roadmap/post-mvp.md` (Phase 3's own
-output), `contributing.md`, and `reference/api/` (depends on a toolchain
-decision). ADR-0030 records *why* this shape was chosen; this document is
+don't exist at all yet: `contributing.md` and `reference/api/` (depends on
+a toolchain decision). `docs/roadmap/post-mvp.md` was one of these
+exceptions until [PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3
+produced it — real content, not a skeleton, since Milestone 7's dogfooding
+pass surfaced zero roadmap-candidate findings. ADR-0030 records *why*
+this shape was chosen; this document is
 *what* it is, kept current as Milestone 8 replaces each skeleton with real
 content.
 
@@ -164,7 +167,7 @@ docs/
 │   └── glossary.md
 ├── roadmap/
 │   ├── index.md                              # today / experimental / planned
-│   ├── post-mvp.md                           # not yet created (PLAN-0007 Phase 3)
+│   ├── post-mvp.md                           # real content (PLAN-0007 Phase 3, done)
 │   ├── proposed-adrs.md                      # status-filtered ADR index
 │   └── future-packages.md
 ├── contributing.md                           # not yet created (Milestone 8 scope)
@@ -497,19 +500,24 @@ sections, not a job Reference should grow into filling.
 
 **Audience:** anyone asking "is X available, experimental, or planned?"
 **Status:** skeleton exists for `index.md`/`proposed-adrs.md`/
-`future-packages.md` (placeholder only). `docs/roadmap/post-mvp.md` does
-**not** exist yet — it's [PLAN-0007](plans/0007-milestone-7-dogfooding.md)
-Phase 3's own required output, and Phase 3 is `Not Started` as of this
-writing.
+`future-packages.md` (placeholder only). `docs/roadmap/post-mvp.md` is
+real content, produced by
+[PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3 — currently
+stating a zero-roadmap-candidate outcome and pointing to
+`docs/research/0001-autofixture-comparison.md` for the full per-finding
+reasoning, since Milestone 7's dogfooding pass didn't surface any
+candidates itself.
 **Purpose:** the single, indexed home for everything not fully available
 today — never a prerequisite for anything in sections 1-11.
 **Contents:**
 - `index.md` — the today/experimental/planned framing itself, and a map of
   the other three pages.
-- `post-mvp.md` — not yet created; when Phase 3 produces it, this holds
-  evidence-backed roadmap candidates, each tracing to a migration-guide
-  entry, a research finding, and a `Proposed` ADR (ADR-0029's own required
-  shape).
+- `post-mvp.md` — evidence-backed roadmap candidates *only*, each tracing
+  to a migration-guide entry, a research finding, and a `Proposed` ADR
+  (ADR-0029's own required shape); non-candidate findings stay in the
+  research record and their governing ADR's Amendments, never listed
+  here — currently empty of actual candidates, itself documented as a
+  real finding rather than left ambiguous.
 - `proposed-adrs.md` — a status-filtered view of `docs/adr/README.md`:
   every ADR that's `Proposed`, or `Accepted` but not yet implemented,
   answering "is X planned" directly.

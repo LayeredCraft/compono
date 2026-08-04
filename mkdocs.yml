@@ -175,6 +175,7 @@ nav:
     - Glossary: reference/glossary.md
   - Roadmap:
     - Overview: roadmap/index.md
+    - Post-MVP: roadmap/post-mvp.md
     - Proposed ADRs: roadmap/proposed-adrs.md
     - Future Packages: roadmap/future-packages.md
   - Documentation Architecture: documentation-architecture.md
