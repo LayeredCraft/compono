@@ -405,14 +405,28 @@ the documentation content phases above — could run in parallel with
 Phases 2-5 in principle, sequenced here mainly for reviewability (one
 focused PR, not interleaved with doc-content PRs).
 
-- [ ] `contributing.md` — build/test/PR expectations, cross-linking this
-      skill's public-facing equivalents. Include the license-review note
-      Phase 0's dependency spot-check feeds into: any PR adding or
-      bumping a dependency version — Dependabot-authored or not — gets
-      its target package's license checked as part of normal review, per
-      ADR-0031 (Dependabot's own flow catches vulnerabilities, not
-      licenses, so this is an ongoing review habit, not a one-time task
-      that was already "done" after Phase 0).
+- [ ] **Two files, not one.** `docs/contributing.md` — the full docs-site
+      page: build/test/PR expectations, cross-linking this skill's
+      public-facing equivalents, plus the license-review note Phase 0's
+      dependency spot-check feeds into (any PR adding or bumping a
+      dependency version — Dependabot-authored or not — gets its target
+      package's license checked as part of normal review, per ADR-0031:
+      Dependabot's own flow catches vulnerabilities, not licenses, so
+      this is an ongoing review habit, not a one-time task that was
+      already "done" after Phase 0). **Separately, a root-level
+      `CONTRIBUTING.md`** — this repo's own `contributing.md` reference
+      (`.claude/skills/engineering-workflow/references/contributing.md`)
+      already states the requirement: "if this project opens to outside
+      contributors, split this section out into a real `CONTRIBUTING.md`
+      at repo root and link it from `README.md`" — exactly what this
+      milestone does. `CONTRIBUTING.md` at repo root is what GitHub
+      actually surfaces (the "Contributing" prompt on a new issue/PR,
+      the community-standards checklist) — a docs-site page alone is
+      invisible to that flow. Keep it short: a few sentences plus a link
+      to `docs/contributing.md` for the full detail, not a duplicate.
+      Also add the link from repository-root `README.md` (a small
+      addition to Phase 2's README review/update, done here since
+      `CONTRIBUTING.md` doesn't exist until this phase).
 - [ ] `SECURITY.md` — vulnerability reporting process.
 - [ ] `CODE_OF_CONDUCT.md` — standard, uncustomized Contributor Covenant.
 - [ ] GitHub issue templates: bug report, feature/roadmap proposal.
@@ -653,9 +667,10 @@ individually resolved, not left ambiguous):
 - [ ] Known limitations and the `0.x` compatibility policy are explicit
       and discoverable from multiple entry points, not one obscure page
       (Phase 3, per ADR-0031).
-- [ ] Contribution, security, and release guidance exist
-      (`contributing.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue/PR
-      templates — Phase 6).
+- [ ] Contribution, security, and release guidance exist — both
+      root `CONTRIBUTING.md` (linked from `README.md`) and
+      `docs/contributing.md`, plus `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+      issue/PR templates (Phase 6).
 - [ ] The AutoFixture migration guide is publication-ready (Phase 3).
 - [ ] Every package and documentation link is valid (Phase 7).
 - [ ] The public-preview acceptance test (above) passes end to end using
@@ -671,10 +686,10 @@ individually resolved, not left ambiguous):
   content with real content, not new files, **except**: `docs/index.md`
   and repository-root `README.md` (pre-existing real pages this plan
   corrects); `samples/*`'s real runnable projects (new, Phase 4);
-  `contributing.md`/`SECURITY.md`/`CODE_OF_CONDUCT.md`/issue-template/
-  PR-template content (new, Phase 6); `reference/api/` (new, Phase 1,
-  generated); `docs/reference/diagnostics.md`/`glossary.md` content
-  (Phase 3).
+  root `CONTRIBUTING.md`/`docs/contributing.md`/`SECURITY.md`/
+  `CODE_OF_CONDUCT.md`/issue-template/PR-template content (new, Phase 6);
+  `reference/api/` (new, Phase 1, generated);
+  `docs/reference/diagnostics.md`/`glossary.md` content (Phase 3).
 - `mkdocs.yml` — nav updated per phase as content lands; final pass in
   Phase 7.
 - `.github/workflows/publish-preview.yaml` — `prereleaseIdentifier`
