@@ -81,8 +81,14 @@ real API immediately with nothing to catch it.
    (already set repo-wide, `Directory.Build.props`) — XML doc comments on
    every public member is a pre-existing hard requirement
    (`documentation.md`), not new work this ADR introduces.
-2. A .NET documentation generator runs against each package's compiled
-   assembly + XML doc file as a CI step.
+2. A .NET documentation generator runs against **each of the four
+   publishable packages'** (`Compono`, `Compono.XunitV3`,
+   `Compono.NSubstitute`, `Compono.Bogus`) compiled assembly + XML doc
+   file as a CI step — not `Compono.Generators`, which is
+   `IsPackable=false` and an internal analyzer implementation embedded in
+   `Compono.nupkg`, not a consumer-referenceable library; it's verified
+   as package content ([ADR-0031](0031-public-preview-release-and-versioning-policy.md)'s
+   package-readiness checklist), not documented as public API here.
 3. The generator emits deterministic Markdown under
    `docs/reference/api/<package>/`.
 4. MkDocs Material builds those pages through the exact same

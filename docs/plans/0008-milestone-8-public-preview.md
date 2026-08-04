@@ -234,7 +234,15 @@ Package Guides, Cookbook) that are expected to point into it.
       deterministic output, maintenance/TFM compatibility). Record the
       result in this plan's Notes.
 - [ ] Wire the winning tool into CI: generates `docs/reference/api/`
-      Markdown from each package's compiled DLL + XML doc file.
+      Markdown from **the four publishable packages'** (`Compono`,
+      `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`) compiled
+      DLL + XML doc file — not `Compono.Generators`, which
+      `IsPackable=false` and is an internal analyzer implementation
+      embedded in `Compono.nupkg`, not a consumer-referenceable library;
+      generating a `reference/api/Compono.Generators` section for it
+      would be empty or misleading. `Compono.Generators` is verified as
+      package content (Phase 0's `.nuspec` inspection), not documented as
+      public API here.
 - [ ] Add the drift-detection CI gate (regeneration produces no
       uncommitted diff) and the missing-XML-doc-comment gate where the
       tool supports it.
