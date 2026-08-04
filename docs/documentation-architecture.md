@@ -166,12 +166,18 @@ docs/
 │   ├── post-mvp.md                           # real content (PLAN-0007 Phase 3, done)
 │   ├── proposed-adrs.md                      # status-filtered ADR index
 │   └── future-packages.md
-├── contributing.md                           # not yet created (Milestone 8 scope)
-├── manifesto.md                              # exists; content folds into
-│                                              # architecture/design-principles.md over time
-└── public-api.md                             # exists; content folds into
-                                               # architecture/ + reference/ over time
+└── contributing.md                           # not yet created (Milestone 8 scope)
 ```
+
+`docs/manifesto.md` and `docs/public-api.md` exist today but are **not**
+part of this canonical tree — per
+[ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items),
+both are retired once their content is fully redistributed into
+`architecture/design-principles.md`/`architecture/` + `reference/`
+(Milestone 8 Phase 5), not kept as a permanent third location for the
+same material. Shown struck through in the Open Items list below rather
+than left in the tree, so this diagram matches what Phase 7's
+`mkdocs.yml` nav check actually verifies against.
 
 Internal, non-public artifacts that stay exactly where they are and do
 **not** join the site nav: `docs/adr/` (source of truth
