@@ -550,31 +550,36 @@ not by requiring a reader to have gone through 1-9 first.
 
 ## Open Items
 
-Tracked here rather than silently deferred — these are real decisions
-Milestone 8 (or a later design pass) still needs to make, not gaps in this
-architecture itself:
+All six items originally tracked here are now resolved by Milestone 8's
+deep-design pass — kept below (struck through, not deleted) as the record
+of what was open and where each resolution lives, per this repo's
+"docs/*.md describes current intent, link to the ADR that shaped it"
+convention:
 
-- **API reference generation toolchain** — this architecture assumes an
-  `reference/api/` exists but doesn't pick the tool (DocFX, a
-  Roslyn-based custom generator, etc.) — a light-dive ADR of its own once
-  Milestone 8 reaches that work.
-- **Cookbook navigation/tagging at scale** — with an expected 50-100+
-  (eventually possibly several hundred) recipes, flat alphabetical listing
-  won't stay usable; Milestone 8 (or a later pass) needs to decide
-  subcategorization (by package? by problem domain?) and/or tagging, and
-  whether search alone is sufficient in the interim.
-- **Where Sample applications physically live** — this architecture assumes
-  a top-level `samples/` directory of real, runnable projects with
-  `docs/samples/*.md` as their documentation-facing summary, but doesn't
-  decide the exact build/CI story for keeping N sample apps compiling
-  against current Compono — a question for whoever executes this section
-  in Milestone 8 (or later).
-- **Versioning policy, issue templates** (also original Milestone 8 scope
-  items) — repository-process content, not part of the developer-journey
-  hierarchy above; likely `contributing.md` or its own page linked from
-  there, decided when Milestone 8 actually writes it.
-- **`docs/public-api.md`/`docs/manifesto.md`'s eventual disposition** —
-  their content overlaps Architecture's Design Principles and Reference;
-  decide during Milestone 8 whether they're retired (content redistributed
-  into `architecture/design-principles.md`) or kept as internal
-  cross-references for maintainers.
+- ~~**API reference generation toolchain**~~ — resolved by
+  [ADR-0032](adr/0032-api-reference-documentation-toolchain.md): a
+  Markdown generator (tool picked via a time-boxed bake-off,
+  `DefaultDocumentation` the leading candidate) producing pages inside
+  the existing MkDocs Material site, not a separate DocFX site.
+- ~~**Cookbook navigation/tagging at scale**~~ — resolved by
+  [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items):
+  deferred, not decided now — launch flat + search-only, revisit at
+  ~20-25 recipes or real search-insufficiency evidence.
+- ~~**Where Sample applications physically live**~~ — resolved by
+  [ADR-0033](adr/0033-public-preview-samples-strategy.md): top-level
+  `samples/` directory, in-solution CI build, project references for
+  development plus packed-package verification for acceptance.
+- ~~**Versioning policy**~~ — resolved by
+  [ADR-0031](adr/0031-public-preview-release-and-versioning-policy.md):
+  lockstep versioning across all five packages, `0.x` compatibility
+  policy, package-readiness checklist.
+- ~~**Issue templates**~~ — resolved by
+  [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items):
+  minimal practical contributor set (`contributing.md`, `SECURITY.md`,
+  `CODE_OF_CONDUCT.md`, bug-report/feature-request issue templates, one
+  PR template) — no governance ceremony beyond that.
+- ~~**`docs/public-api.md`/`docs/manifesto.md`'s eventual disposition**~~ —
+  resolved by
+  [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items):
+  retired, content redistributed, generalized into a standing "every
+  concept has exactly one canonical home" documentation principle.

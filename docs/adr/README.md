@@ -92,3 +92,6 @@ the mechanics: numbering, status, and the index.
 | [0028](0028-configurable-bogus-member-name-conventions.md) | Configurable Bogus Member-Name Conventions | Accepted |
 | [0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md) | Milestone 7 Dogfooding Strategy and Capability-Gap Decision Framework | Accepted |
 | [0030](0030-compono-documentation-architecture.md) | Compono Documentation Architecture | Accepted |
+| [0031](0031-public-preview-release-and-versioning-policy.md) | Public Preview Release and Versioning Policy | Accepted |
+| [0032](0032-api-reference-documentation-toolchain.md) | API Reference Documentation Toolchain | Accepted |
+| [0033](0033-public-preview-samples-strategy.md) | Public Preview Samples Strategy | Accepted |
