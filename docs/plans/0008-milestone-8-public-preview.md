@@ -568,9 +568,18 @@ needed to author the fresh test project):
 - [ ] The relevant Package Guide's "when to install" section is
       sufficient to decide whether to add `Compono.NSubstitute`/
       `Compono.Bogus` without reading any other page.
-- [ ] A deliberately-triggered composition failure produces a readable
-      error and a reproducible seed, and Troubleshooting's
-      `common-errors.md` resolves it by diagnostic code.
+- [ ] A deliberately-triggered **compile-time** failure (e.g. an
+      ambiguous-constructor type composed directly, `CMP0001`) produces a
+      `CMP`-coded build error, and Troubleshooting's `common-errors.md`
+      resolves it by that code.
+- [ ] A deliberately-triggered **runtime** composition failure (e.g. a
+      genuine construction cycle) produces a readable, path-annotated
+      error and a reproducible seed via `CompositionDiagnostic`
+      (`src/Compono/CompositionDiagnostic.cs` — no diagnostic-code field,
+      unlike the compile-time case above), and Troubleshooting's
+      `common-errors.md`/`faq.md` resolves it **by symptom**, not by
+      code — these are two different failure modes with two different
+      resolution paths, not one combined check.
 - [ ] The API reference (`reference/api/`) answers at least one "what
       does this method do / what does it throw" question the guides
       don't already answer inline.
