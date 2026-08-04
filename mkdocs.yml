@@ -171,6 +171,11 @@ nav:
     - FAQ: troubleshooting/faq.md
   - Reference:
     - Overview: reference/index.md
+    - API Reference:
+      - Compono: reference/api/Compono/index.md
+      - Compono.XunitV3: reference/api/Compono.XunitV3/index.md
+      - Compono.NSubstitute: reference/api/Compono.NSubstitute/index.md
+      - Compono.Bogus: reference/api/Compono.Bogus/index.md
     - Diagnostics: reference/diagnostics.md
     - Glossary: reference/glossary.md
   - Roadmap:

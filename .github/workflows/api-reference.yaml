@@ -1,0 +1,79 @@
+name: API Reference
+
+# Drift-detection gate for docs/reference/api/ (ADR-0032, PLAN-0008 Phase 1):
+# regenerates the four publishable packages' generated Markdown from their
+# current compiled net10.0 assembly + XML doc file, and fails if that
+# regeneration produces an uncommitted diff against what's checked in - the
+# same "generated file, don't hand-patch it, CI catches drift" discipline
+# this repo already applies to Compono.Generators' own output. A missing
+# public-member XML doc comment is already a hard build failure via
+# package-validation.yaml's CS1591 gate (Phase 0) before this workflow ever
+# runs - DefaultDocumentation has no independent "missing doc" detection of
+# its own to add on top of that (it silently omits an undocumented public
+# member rather than failing), so CS1591 is the actual enforcement here, not
+# a gap this workflow needs to fill.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/Compono/**'
+      - 'src/Compono.XunitV3/**'
+      - 'src/Compono.NSubstitute/**'
+      - 'src/Compono.Bogus/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'docs/reference/api/**'
+      - '.config/dotnet-tools.json'
+      - '.github/scripts/generate-api-reference.sh'
+      - '.github/workflows/api-reference.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/Compono/**'
+      - 'src/Compono.XunitV3/**'
+      - 'src/Compono.NSubstitute/**'
+      - 'src/Compono.Bogus/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'docs/reference/api/**'
+      - '.config/dotnet-tools.json'
+      - '.github/scripts/generate-api-reference.sh'
+      - '.github/workflows/api-reference.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  api-reference-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Restore
+        run: dotnet restore Compono.slnx
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Build publishable packages (net10.0)
+        run: |
+          set -euo pipefail
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
+            dotnet build "src/${pkg}/${pkg}.csproj" -c Release -f net10.0
+          done
+
+      - name: Regenerate API reference
+        run: .github/scripts/generate-api-reference.sh
+
+      - name: Fail on drift
+        run: |
+          if ! git diff --exit-code -- docs/reference/api; then
+            echo "::error::docs/reference/api is out of date. Run '.github/scripts/generate-api-reference.sh' (after building the four publishable packages for net10.0 Release) and commit the result." >&2
+            exit 1
+          fi

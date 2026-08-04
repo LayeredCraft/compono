@@ -243,7 +243,7 @@ acceptance test.
 
 ## Phase 1: API reference toolchain evaluation and wiring
 
-**Status:** Not Started
+**Status:** Done
 
 Executes [ADR-0032](../adr/0032-api-reference-documentation-toolchain.md).
 Depends on Phase 0 only loosely (needs real packages to generate against,
@@ -251,7 +251,7 @@ but can run against `main`'s current build) — sequenced early because
 `reference/api/` is a dependency for later cross-links (Concepts,
 Package Guides, Cookbook) that are expected to point into it.
 
-- [ ] Time-boxed bake-off: `DefaultDocumentation` vs. `xmldocmd` (plus any
+- [x] Time-boxed bake-off: `DefaultDocumentation` vs. `xmldocmd` (plus any
       other maintained candidate surfaced) against a representative slice
       of Compono's real public API, scored against ADR-0032's evaluation
       criteria (generics, overloads, inheritance, extension methods,
@@ -259,7 +259,7 @@ Package Guides, Cookbook) that are expected to point into it.
       coverage, stable filenames/anchors, MkDocs Material readability,
       deterministic output, maintenance/TFM compatibility). Record the
       result in this plan's Notes.
-- [ ] Wire the winning tool into CI: generates `docs/reference/api/`
+- [x] Wire the winning tool into CI: generates `docs/reference/api/`
       Markdown from **the four publishable packages'** (`Compono`,
       `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`) compiled
       DLL + XML doc file — not `Compono.Generators`, which
@@ -269,10 +269,10 @@ Package Guides, Cookbook) that are expected to point into it.
       would be empty or misleading. `Compono.Generators` is verified as
       package content (Phase 0's `.nuspec` inspection), not documented as
       public API here.
-- [ ] Add the drift-detection CI gate (regeneration produces no
+- [x] Add the drift-detection CI gate (regeneration produces no
       uncommitted diff) and the missing-XML-doc-comment gate where the
       tool supports it.
-- [ ] `reference/index.md` states the "supplements, never replaces"
+- [x] `reference/index.md` states the "supplements, never replaces"
       philosophy (already drafted per ADR-0030 Amendment 1's framing).
 
 ## Phase 2: Core documentation and README
@@ -721,7 +721,21 @@ individually resolved, not left ambiguous):
   `reference/api/` (new, Phase 1, generated);
   `docs/reference/diagnostics.md`/`glossary.md` content (Phase 3).
 - `mkdocs.yml` — nav updated per phase as content lands; final pass in
-  Phase 7.
+  Phase 7. Phase 1 adds the "API Reference" sub-section under "Reference"
+  (one entry per package's `index.md` landing page; the ~150 generated
+  member/type pages per package are reachable through cross-links, not
+  individually listed in nav).
+- `.config/dotnet-tools.json` — new local tool manifest (Phase 1), pinning
+  `defaultdocumentation.console` 1.2.5.
+- `.github/scripts/generate-api-reference.sh` — new (Phase 1): regenerates
+  `docs/reference/api/<package>/` for the four publishable packages from
+  their compiled net10.0 assembly + XML doc file, core-first so the three
+  integration packages' cross-package `<see cref>`s resolve locally, plus
+  the `#ctor`-filename post-processing fix described in this phase's Notes.
+- `.github/workflows/api-reference.yaml` — new (Phase 1): pre-merge/push
+  drift-detection gate, triggered on the four publishable packages' `src/`
+  paths plus `docs/reference/api/**` — regenerates and fails the build on
+  any uncommitted diff.
 - `.github/workflows/publish-preview.yaml` — `prereleaseIdentifier`
   renamed from `alpha` to `preview` (Phase 0). No other change to either
   publish workflow — the API-compatibility baseline check lives in a new,
@@ -810,3 +824,82 @@ The local-feed packed-consumer smoke test task above (and
 `package-validation.yaml`) uses `-- --filter-not-class
 "Compono.XunitV3.SampleTests.FailingCompositionTests"`, verified locally
 (16/16 tests pass).
+
+### Phase 1 (2026-08-04)
+
+**Bake-off result: `DefaultDocumentation` (`DefaultDocumentation.Console`
+1.2.5) wins**, run against a representative slice — all four publishable
+packages' real net10.0 assemblies + XML doc files, not a synthetic sample —
+scored against every ADR-0032 criterion:
+
+- **`xmldocmd` (2.9.0) eliminated outright on maintenance/TFM compatibility**,
+  the first criterion it failed: its own package ships host builds only for
+  `net6.0`/`net7.0`, and running it (via `dotnet tool run`, any host) against
+  `net10.0`-targeted assemblies throws
+  `FileNotFoundException: Could not load file or assembly 'System.Runtime,
+  Version=10.0.0.0...'` — a hard failure, not a degraded-output case. No
+  amount of further evaluation on the other criteria was relevant once this
+  failed.
+- **`DefaultDocumentation` passed every other criterion** against the real
+  API surface: generics (`CollectionPlanCache<T>`, `ICompositionPlan<T>`),
+  overloads (`Register<T>`'s two overloads got distinct, correctly
+  cross-linked pages), inheritance (`ComposableAttribute : Attribute`
+  rendered with the full chain), attributes, nullable signatures
+  (`Nullability` enum's doc came through verbatim), `<exception>`/`<returns>`/
+  `<remarks>`/`<typeparam>` all rendered correctly (verified against
+  `Composer.CreateMany<T>(int)` and `CompositionBuilder`'s real doc
+  comments). Ships a `net10.0` host build already (current, not lagging the
+  repo's own TFMs) and is under active release (39 published versions,
+  1.2.5 current). Deterministic: two consecutive runs against the same
+  input produced byte-identical output, verified both for a single package
+  and for the full four-package generation run.
+- **Two real defects found and fixed during wiring, not left as accepted
+  gaps:**
+  1. **Cross-package `<see cref>` resolution.** Generating each package
+     standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
+     XML docs fell back to `DotnetApiFactory`, which treats any type it
+     doesn't recognize as a BCL type and links to a fabricated
+     `learn.microsoft.com/en-us/dotnet/api/compono.composer` URL (404).
+     Fixed by generating `Compono` first with
+     `--LinksOutputFilePath`/`--LinksBaseUrl`, then feeding that links file
+     to each integration package's `--ExternLinksFilePaths` — verified: the
+     rendered link becomes `[Composer](../Compono/Compono.Composer.md
+     ...)`, a real local page.
+  2. **`#` in generated filenames.** `DefaultDocumentation` names a
+     parameterless constructor's page after the raw CLR metadata name
+     (`Compono.ComposableAttribute.#ctor.md`) — `#` is the URL fragment
+     delimiter, so a real `mkdocs build` (not just eyeballing the Markdown)
+     parsed links into that filename as truncated-path-plus-fragment and
+     reported it as a broken link. `.github/scripts/generate-api-reference.sh`
+     renames every such file to `.ctor` post-generation and rewrites the
+     handful of other generated pages that link to it, confined to
+     `Compono` core in practice (the only package with a documented
+     parameterless constructor).
+- **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
+  carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
+  MkDocs/python-markdown doesn't re-process escapes inside a link's title
+  string — visible only on hover, never in link text or navigation, and
+  consistent with ADR-0032's already-accepted "less polished... in some
+  edge cases" Negative Consequence. Not fixed; recorded here rather than
+  silently absorbed.
+- **Verified with a real `mkdocs build`**, not just inspecting generated
+  Markdown (`documentation.md`'s "do real manual verification" bar, applied
+  here even though this isn't source-generator-facing — same principle,
+  generated content the tests don't otherwise exercise): `uv run mkdocs
+  build --clean` against the full site including all four packages'
+  generated `reference/api/` content builds clean (the only `WARNING`s are
+  four pre-existing, unrelated broken links to `.claude/skills/`/
+  `.agents/skills/` paths from ADR pages, not touched by this phase).
+- **Missing-XML-doc-comment gate**: `DefaultDocumentation` has no
+  independent detection of its own (`--IncludeUndocumentedItems=False`
+  just silently omits an undocumented public member from output, it
+  doesn't fail). The actual enforcement is Phase 0's pre-existing
+  `dotnet build -p:WarningsAsErrors=CS1591` gate in
+  `package-validation.yaml`, which already blocks a missing doc comment on
+  any public member before this workflow's regeneration step ever runs —
+  satisfies ADR-0032's "where the tool supports it" qualifier rather than
+  leaving a real gap.
+- Net10.0 build output only (not net11.0) — the two TFMs share the same
+  public API surface, and generating from both would either double the
+  work for no additional coverage or require picking one to diff against
+  anyway.
