@@ -123,4 +123,51 @@ for path in pathlib.Path("docs/reference/api").rglob("*.md"):
         path.write_text(new_text)
 PYEOF
 
+# A <paramref>/<typeparamref> self-reference (e.g. a constructor's own
+# "diagnostic is null" exception doc, or Register<T>'s own "T" typeparam
+# doc) always links back to its containing *type's* page
+# (Compono.CompositionException.md#...diagnostic), but the anchor itself
+# lives wherever OverloadsGenerator actually placed that overload
+# (Compono.CompositionException..ctor.md, Compono.CompositionBuilder.Register.md,
+# ...) whenever the member has more than one overload and got split onto its
+# own page - flagged by PR #47 review on the constructor case specifically,
+# confirmed to be the general OverloadsGenerator interaction (92 mismatched
+# fragment links across all four packages, not just constructors). Fixed by
+# building an anchor-id -> actual-file map per package directory and
+# rewriting any same-package link whose target file doesn't actually contain
+# that anchor.
+python3 - <<'PYEOF'
+import pathlib
+import re
+
+link_re = re.compile(r"(\[[^\]]*\]\()(\S+?\.md)(#\S+? ')")
+anchor_re = re.compile(r"<a name='([^']+)'>")
+
+for pkg_dir in pathlib.Path("docs/reference/api").iterdir():
+    if not pkg_dir.is_dir():
+        continue
+
+    anchor_to_file: dict[str, set[str]] = {}
+    for f in pkg_dir.glob("*.md"):
+        for m in anchor_re.finditer(f.read_text()):
+            anchor_to_file.setdefault(m.group(1), set()).add(f.name)
+
+    for f in pkg_dir.glob("*.md"):
+        text = f.read_text()
+
+        def fix(m: re.Match) -> str:
+            prefix, href_file, suffix = m.group(1), m.group(2), m.group(3)
+            if href_file.startswith(".."):
+                return m.group(0)
+            anchor_id = suffix[1:-2]  # strip leading '#' and trailing " '"
+            actual_files = anchor_to_file.get(anchor_id)
+            if actual_files and len(actual_files) == 1 and href_file not in actual_files:
+                href_file = next(iter(actual_files))
+            return f"{prefix}{href_file}{suffix}"
+
+        new_text = link_re.sub(fix, text)
+        if new_text != text:
+            f.write_text(new_text)
+PYEOF
+
 echo "API reference generation complete."

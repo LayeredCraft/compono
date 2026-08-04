@@ -5,14 +5,14 @@
 
 | Overloads | |
 | :--- | :--- |
-| [Use\(Func&lt;ICompositionContext,TMember&gt;\)](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_) 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(System\.Func\<Compono\.ICompositionContext,TMember\>\)') | Registers a member rule whose value is produced by [factory](Compono.CompositionMemberRuleBuilder_TParent,TMember_.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_).factory 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(System\.Func\<Compono\.ICompositionContext,TMember\>\)\.factory') for this member\. |
-| [Use\(TMember\)](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(TMember) 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\)') | Registers a member rule that always produces [value](Compono.CompositionMemberRuleBuilder_TParent,TMember_.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(TMember).value 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\)\.value') for this member\. |
+| [Use\(Func&lt;ICompositionContext,TMember&gt;\)](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_) 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(System\.Func\<Compono\.ICompositionContext,TMember\>\)') | Registers a member rule whose value is produced by [factory](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_).factory 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(System\.Func\<Compono\.ICompositionContext,TMember\>\)\.factory') for this member\. |
+| [Use\(TMember\)](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(TMember) 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\)') | Registers a member rule that always produces [value](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(TMember).value 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\)\.value') for this member\. |
 
 <a name='Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_)'></a>
 
 ## CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(Func\<ICompositionContext,TMember\>\) Method
 
-Registers a member rule whose value is produced by [factory](Compono.CompositionMemberRuleBuilder_TParent,TMember_.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_).factory 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(System\.Func\<Compono\.ICompositionContext,TMember\>\)\.factory') for this member\.
+Registers a member rule whose value is produced by [factory](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(System.Func_Compono.ICompositionContext,TMember_).factory 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(System\.Func\<Compono\.ICompositionContext,TMember\>\)\.factory') for this member\.
 
 ```csharp
 public Compono.CompositionBuilder Use(System.Func<Compono.ICompositionContext,TMember> factory);
@@ -32,7 +32,7 @@ Produces the rule's value, given the resolving context\.
 
 ## CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\) Method
 
-Registers a member rule that always produces [value](Compono.CompositionMemberRuleBuilder_TParent,TMember_.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(TMember).value 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\)\.value') for this member\.
+Registers a member rule that always produces [value](Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use.md#Compono.CompositionMemberRuleBuilder_TParent,TMember_.Use(TMember).value 'Compono\.CompositionMemberRuleBuilder\<TParent,TMember\>\.Use\(TMember\)\.value') for this member\.
 
 ```csharp
 public Compono.CompositionBuilder Use(TMember value);

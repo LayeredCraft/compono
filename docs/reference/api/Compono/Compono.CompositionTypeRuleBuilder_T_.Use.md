@@ -5,14 +5,14 @@
 
 | Overloads | |
 | :--- | :--- |
-| [Use\(Func&lt;ICompositionContext,T&gt;\)](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_) 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(System\.Func\<Compono\.ICompositionContext,T\>\)') | Registers a type rule whose value is produced by [factory](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_).factory 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(System\.Func\<Compono\.ICompositionContext,T\>\)\.factory') \- matches any stage\-4 request for exactly [T](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.T 'Compono\.CompositionTypeRuleBuilder\<T\>\.T'), regardless of which member/position requested it\. |
-| [Use\(T\)](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(T) 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(T\)') | Registers a type rule that always produces [value](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.Use(T).value 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(T\)\.value') \- matches any stage\-4 request for exactly [T](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.T 'Compono\.CompositionTypeRuleBuilder\<T\>\.T'), regardless of which member/position requested it\. |
+| [Use\(Func&lt;ICompositionContext,T&gt;\)](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_) 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(System\.Func\<Compono\.ICompositionContext,T\>\)') | Registers a type rule whose value is produced by [factory](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_).factory 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(System\.Func\<Compono\.ICompositionContext,T\>\)\.factory') \- matches any stage\-4 request for exactly [T](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.T 'Compono\.CompositionTypeRuleBuilder\<T\>\.T'), regardless of which member/position requested it\. |
+| [Use\(T\)](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(T) 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(T\)') | Registers a type rule that always produces [value](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(T).value 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(T\)\.value') \- matches any stage\-4 request for exactly [T](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.T 'Compono\.CompositionTypeRuleBuilder\<T\>\.T'), regardless of which member/position requested it\. |
 
 <a name='Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_)'></a>
 
 ## CompositionTypeRuleBuilder\<T\>\.Use\(Func\<ICompositionContext,T\>\) Method
 
-Registers a type rule whose value is produced by [factory](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_).factory 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(System\.Func\<Compono\.ICompositionContext,T\>\)\.factory') \- matches any
+Registers a type rule whose value is produced by [factory](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(System.Func_Compono.ICompositionContext,T_).factory 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(System\.Func\<Compono\.ICompositionContext,T\>\)\.factory') \- matches any
 stage\-4 request for exactly [T](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.T 'Compono\.CompositionTypeRuleBuilder\<T\>\.T'), regardless of which member/position
 requested it\.
 
@@ -34,7 +34,7 @@ Produces the rule's value, given the resolving context\.
 
 ## CompositionTypeRuleBuilder\<T\>\.Use\(T\) Method
 
-Registers a type rule that always produces [value](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.Use(T).value 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(T\)\.value') \- matches any stage\-4
+Registers a type rule that always produces [value](Compono.CompositionTypeRuleBuilder_T_.Use.md#Compono.CompositionTypeRuleBuilder_T_.Use(T).value 'Compono\.CompositionTypeRuleBuilder\<T\>\.Use\(T\)\.value') \- matches any stage\-4
 request for exactly [T](Compono.CompositionTypeRuleBuilder_T_.md#Compono.CompositionTypeRuleBuilder_T_.T 'Compono\.CompositionTypeRuleBuilder\<T\>\.T'), regardless of which member/position requested it\.
 
 ```csharp

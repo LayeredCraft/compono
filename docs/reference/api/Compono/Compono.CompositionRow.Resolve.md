@@ -5,14 +5,14 @@
 
 | Overloads | |
 | :--- | :--- |
-| [Resolve&lt;TValue&gt;\(\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_() 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)') | Resolves a value of type [TValue](Compono.CompositionRow.md#Compono.CompositionRow.Resolve_TValue_().TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)\.TValue') from inside a registration or configuration\-rule factory, or a public [TryProvide\(CompositionProviderRequest, ICompositionContext\)](Compono.ICompositionValueProvider.TryProvide(Compono.CompositionProviderRequest,Compono.ICompositionContext).md 'Compono\.ICompositionValueProvider\.TryProvide\(Compono\.CompositionProviderRequest, Compono\.ICompositionContext\)') invocation \- the hand\-written counterpart to [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)'), which only generated code calls\. Only valid while one of those three is actively being invoked\. |
-| [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)') | Resolves a value of type [TValue](Compono.CompositionRow.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue') for one constructor parameter or required member\. |
+| [Resolve&lt;TValue&gt;\(\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_() 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)') | Resolves a value of type [TValue](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_().TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)\.TValue') from inside a registration or configuration\-rule factory, or a public [TryProvide\(CompositionProviderRequest, ICompositionContext\)](Compono.ICompositionValueProvider.TryProvide(Compono.CompositionProviderRequest,Compono.ICompositionContext).md 'Compono\.ICompositionValueProvider\.TryProvide\(Compono\.CompositionProviderRequest, Compono\.ICompositionContext\)') invocation \- the hand\-written counterpart to [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)'), which only generated code calls\. Only valid while one of those three is actively being invoked\. |
+| [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)') | Resolves a value of type [TValue](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue') for one constructor parameter or required member\. |
 
 <a name='Compono.CompositionRow.Resolve_TValue_()'></a>
 
 ## CompositionRow\.Resolve\<TValue\>\(\) Method
 
-Resolves a value of type [TValue](Compono.CompositionRow.md#Compono.CompositionRow.Resolve_TValue_().TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)\.TValue') from inside a registration or
+Resolves a value of type [TValue](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_().TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)\.TValue') from inside a registration or
 configuration\-rule factory, or a public [TryProvide\(CompositionProviderRequest, ICompositionContext\)](Compono.ICompositionValueProvider.TryProvide(Compono.CompositionProviderRequest,Compono.ICompositionContext).md 'Compono\.ICompositionValueProvider\.TryProvide\(Compono\.CompositionProviderRequest, Compono\.ICompositionContext\)')
 invocation \- the hand\-written counterpart to
 [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)'), which only generated code
@@ -32,7 +32,7 @@ The requested value's type\.
 Implements [Resolve&lt;TValue&gt;\(\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_() 'Compono\.ICompositionContext\.Resolve\<TValue\>\(\)')
 
 #### Returns
-[TValue](Compono.CompositionRow.md#Compono.CompositionRow.Resolve_TValue_().TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)\.TValue')
+[TValue](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_().TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(\)\.TValue')
 
 #### Exceptions
 
@@ -48,7 +48,7 @@ request\.
 
 ## CompositionRow\.Resolve\<TValue\>\(CompositionRequestDescriptor\) Method
 
-Resolves a value of type [TValue](Compono.CompositionRow.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue') for one constructor parameter or
+Resolves a value of type [TValue](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue') for one constructor parameter or
 required member\.
 
 ```csharp
@@ -72,7 +72,7 @@ The compact, compile\-time\-constructed request metadata\.
 Implements [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)')
 
 #### Returns
-[TValue](Compono.CompositionRow.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue')
+[TValue](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue')
 
 #### Exceptions
 

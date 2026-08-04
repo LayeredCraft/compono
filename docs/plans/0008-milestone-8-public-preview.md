@@ -853,10 +853,10 @@ scored against every ADR-0032 criterion:
   1.2.5 current). Deterministic: two consecutive runs against the same
   input produced byte-identical output, verified both for a single package
   and for the full four-package generation run.
-- **Four real defects found and fixed during wiring, not left as accepted
-  gaps** — the first two caught before the PR opened, the other two by PR
-  #47's automated review (`chatgpt-codex-connector`), addressed in the same
-  PR rather than deferred:
+- **Five real defects found and fixed during wiring, not left as accepted
+  gaps** — the first two caught before the PR opened, the other three by PR
+  #47's automated review (`chatgpt-codex-connector`, across two review
+  passes), addressed in the same PR rather than deferred:
   1. **Cross-package `<see cref>` resolution.** Generating each package
      standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
      XML docs fell back to `DotnetApiFactory`, which treats any type it
@@ -907,6 +907,24 @@ scored against every ADR-0032 criterion:
      into a specific overload landed at the top of the page instead of
      that overload's section. Fixed by stripping the stale prefix from the
      renamed page's own anchors in the same post-processing pass.
+  5. **`<paramref>`/`<typeparamref>` self-references target the wrong page
+     (PR #47 second review pass).** A member's own parameter/type-parameter
+     doc (e.g. a constructor's "`diagnostic` is null" exception doc, or
+     `Register<T>`'s own `T` typeparam doc) always links back to its
+     *containing type's* page, but the anchor lives wherever
+     `OverloadsGenerator` actually placed that specific overload once a
+     member has more than one (its own dedicated page, not the type's).
+     Flagged on the `Compono.CompositionException` constructor case
+     specifically; verified to be the general `OverloadsGenerator`
+     interaction, not constructor-specific — **92 mismatched fragment
+     links across all four packages** (69 in `Compono` alone, e.g.
+     `Compono.CompositionBuilder.Register`'s own `T`/`factory` parameter
+     docs). Fixed generally, not with another special case: the generation
+     script now builds an anchor-id → actual-file map per package
+     directory (from every `<a name='...'>` in that directory) and
+     rewrites any same-package link whose target file doesn't actually
+     contain the anchor it points at. 0 mismatches remain after the fix,
+     confirmed by the same scan that found the original 92.
 - **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
   carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
   MkDocs/python-markdown doesn't re-process escapes inside a link's title
