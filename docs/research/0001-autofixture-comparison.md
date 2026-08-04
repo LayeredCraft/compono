@@ -1,8 +1,9 @@
 # [RESEARCH-0001] AutoFixture vs. Compono: `cosmere-tracker` Dogfooding
 
-**Status:** Done (all four PLAN-0007 phases complete — Phase 0 baseline,
-Phase 1 migration, Phase 2 evidence collection, Phase 3 classification,
-Phase 4 final conclusion — all 73 `cosmere-tracker` tests passing under
+**Status:** Done (all six PLAN-0007 phases complete — Phase 0 baseline,
+Phase 1 migration, Phase 5 documentation architecture, Phase 2 evidence
+collection, Phase 3 classification, Phase 4 final conclusion — all 73
+`cosmere-tracker` tests passing under
 Compono (72 migrated plus one new capability test); zero findings
 classified bug or roadmap candidate; recommendation: Compono is the
 default for all `cosmere-tracker` test code effective immediately — see
@@ -1002,7 +1003,10 @@ way, since nothing forced a project to write its own provider.
 
 **Should any MVP success criterion (`docs/mvp.md`) be revised in light of
 real evidence?** No revision needed; every stated Milestone 7 success
-measure was met by real evidence, not just judgment calls:
+measure was assessed against real evidence, not just judgment calls, and
+most were met — "failures are reproducible" was not directly exercised
+(see below) rather than confirmed met, which doesn't itself call for
+revising the criterion, just for recording the assessment honestly:
 - *Tests are at least as readable as before* — per-file readability notes
   throughout this document (post-migration section) found every migrated
   file readable top-to-bottom, several strictly more so than their
@@ -1050,6 +1054,14 @@ measure was met by real evidence, not just judgment calls:
   ADR-0029's own rule that non-candidate findings don't belong there.
 - *Phase 4's final architectural conclusion answers the default-replacement
   question* — this section, directly below.
+- *`docs/documentation-architecture.md` exists, covers every section
+  named in ADR-0030, and Milestone 8 has a scoped backlog to execute
+  against rather than its own design phase* — met: Phase 5 produced
+  `docs/documentation-architecture.md` (all 12 ADR-0030 sections),
+  ADR-0030 itself, a 58-page documentation skeleton matching that
+  architecture, the migration guide's promotion into the primary
+  hierarchy, and `docs/plans/0008-milestone-8-public-preview.md` as the
+  scoped work-item backlog — see PLAN-0007's Phase 5 for the full record.
 
 **Is Compono now suitable as the default AutoFixture replacement for new
 tests in `cosmere-tracker` specifically?** Yes. Every AutoFixture package
