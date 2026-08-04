@@ -366,19 +366,24 @@ consume and then retire them.
       per ADR-0030 Amendment 2's benchmark-claims policy).
 - [ ] `architecture/decision-log.md` (public-facing index into
       `docs/adr/`).
-- [ ] Retire `docs/public-api.md`/`docs/manifesto.md` from navigation and
-      canonical-content ownership once every cross-reference has a new
-      home, and delete their `mkdocs.yml` "(legacy)" nav entries — but
-      **do not delete the files themselves**. 17 `Accepted` ADRs
-      (`docs/adr/0001-...md` through `0029-...md`) link to one or both by
+- [ ] Retire **all five** pre-existing legacy pages this phase
+      consolidates — `docs/public-api.md`, `docs/manifesto.md`,
+      `docs/architecture.md`, `docs/design-principles.md`, and
+      `docs/performance.md` — from navigation and canonical-content
+      ownership once every cross-reference has a new home in
+      `architecture/`/`reference/`, and delete all five `mkdocs.yml`
+      "(legacy)" nav entries. **Do not delete any of the five files
+      themselves.** 24+ `Accepted` ADRs link to one or more of them by
       path, and this repo's own ADR-immutability rule means none of that
       historical text can be rewritten to point elsewhere. Replace each
       file's content with a short redirect/tombstone stub ("this content
-      moved to `architecture/design-principles.md`/`architecture/` +
-      `reference/`, see there") instead — satisfies "retired, not part of
-      the public nav" while keeping every existing ADR link resolvable,
-      which Phase 7's site-wide broken-link check would otherwise fail
-      against 17 files this plan can't touch.
+      moved to `architecture/...`, see there") instead — satisfies
+      "retired, not part of the public nav, one canonical home" while
+      keeping every existing ADR link resolvable, which Phase 7's
+      site-wide broken-link check would otherwise fail against files this
+      plan can't touch. (An earlier version of this task only tombstoned
+      the first two — the same problem applies identically to the other
+      three, since they're excluded from the canonical tree the same way.)
 - [ ] `roadmap/index.md`, `roadmap/proposed-adrs.md`,
       `roadmap/future-packages.md` (`roadmap/post-mvp.md` already real
       content from PLAN-0007 Phase 3 — just needs its nav confirmed).
