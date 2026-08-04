@@ -100,13 +100,28 @@ acceptance test.
       name itself already carries that distinction.
 - [ ] Add `Microsoft.DotNet.PackageValidation`
       (`EnablePackageValidation=true`) to `Directory.Build.props`'s
-      packable `PropertyGroup`; leave `PackageValidationBaselineVersion`
-      unset for the very first release (nothing to compare against yet).
-      **From the second release onward, this is not automatic** — add a
-      step to the release procedure (Phase 8 onward) that sets
-      `PackageValidationBaselineVersion` to the immediately-prior
-      published version before packing, every release, or the
-      API-compatibility gate silently stays inert forever.
+      packable `PropertyGroup`, with **no static
+      `PackageValidationBaselineVersion` value** — `publish-preview.yaml`
+      publishes automatically on every non-docs `main` push with no human
+      release step in between, so a baseline only a person sets when
+      "cutting a release" would never apply to that continuous stream,
+      which is most of what actually publishes. Instead, add a step to
+      **both** `publish-preview.yaml` and `publish-release.yaml` that
+      queries nuget.org for each package's currently-latest published
+      version before packing and passes it as an MSBuild property
+      override (`-p:PackageValidationBaselineVersion=<prior-version>`).
+      The very first-ever publish has nothing to query and validation
+      stays inert for exactly that one case; every publish after it —
+      preview or production — gets a real baseline automatically, with no
+      manual step.
+- [ ] Reconfigure `.github/release-drafter.yml`'s `version-resolver` so
+      the `breaking-change` label maps to `minor`, not the file's current
+      `major` — as configured today, a labeled breaking-change PR
+      resolves the next version as `1.0.0`, silently exiting the `0.x`
+      preview line the first time anyone uses the label, rather than the
+      deliberate `0.X+1.0` minor bump ADR-0031's compatibility policy
+      requires. Leave `breaking-change` in `categories` unchanged — only
+      its `version-resolver` bucket moves.
 - [ ] Add a CI step that packs the four publishable packages and asserts
       each `.nupkg`'s file listing matches the expected shape per TFM
       (lib, README, icon, no stray build artifacts; `analyzers/dotnet/cs`
@@ -374,10 +389,16 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       per-version tag URL, since most published preview versions have no
       matching GitHub Release/tag to link to (see Phase 0's Tasks above).
 - [ ] `Microsoft.DotNet.PackageValidation` enabled
-      (`EnablePackageValidation=true`); baseline left unset for the first
-      release, then set to the immediately-prior published version as an
-      explicit step of every release from the second onward (Phase 8
-      onward) — this does not happen automatically.
+      (`EnablePackageValidation=true`), with no static baseline value; a
+      CI step in both `publish-preview.yaml` and `publish-release.yaml`
+      queries nuget.org for each package's latest published version and
+      passes it via `-p:PackageValidationBaselineVersion=<prior-version>`
+      at pack time — automatic on every publish (including the continuous
+      preview stream), not a manually-set property.
+- [ ] `.github/release-drafter.yml`'s `version-resolver` remaps
+      `breaking-change` from `major` to `minor` (its `categories` entry
+      is unchanged) — otherwise a labeled breaking-change PR would
+      silently resolve to `1.0.0`, exiting `0.x` by accident.
 - [ ] CI step asserting each publishable `.nupkg`'s file listing matches
       the expected per-TFM shape (lib, README, icon, no stray build
       artifacts; `analyzers/dotnet/cs` for `Compono` specifically,
@@ -392,9 +413,12 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
 
 - [ ] `alpha` identifier removed from `publish-preview.yaml` (Phase 0).
 - [ ] All four publishable packages pass
-      `Microsoft.DotNet.PackageValidation`; from the second release
-      onward, `PackageValidationBaselineVersion` is confirmed set to the
-      prior published version before packing, not left unset (Phase 0/8).
+      `Microsoft.DotNet.PackageValidation`; the CI-automated baseline
+      lookup (Phase 0) actually resolved a real prior version for this
+      publish, not a first-ever/inert run silently treated as normal.
+- [ ] `.github/release-drafter.yml`'s `breaking-change` label resolves to
+      a minor bump, confirmed against a real labeled PR before the first
+      one ships for real (Phase 0).
 - [ ] Local-feed packed-consumer smoke test passes for the four
       publishable packages together (Phase 0).
 - [ ] Package-contents inspection CI step passes for the four publishable
@@ -405,8 +429,11 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       Phase 1's reference-generation gate.
 - [ ] `docs/roadmap/index.md`'s compatibility framing and every affected
       Package Guide are current with the version about to publish.
-- [ ] Release notes carry a Breaking Changes section if applicable
-      (ADR-0031), even if empty/not-applicable for this specific release.
+- [ ] If this release includes a breaking-change-labeled PR, the
+      generated release notes carry the "⚠️ Breaking Changes" section
+      (release-drafter's `categories` grouping renders it automatically —
+      nothing to check if no such PR is included this time; the absence
+      of the section is itself the "nothing broke" signal, per ADR-0031).
 - [ ] Documentation site deploys successfully from the same `main` commit
       being released (verified via `docs.yml`, not a separate manual
       check).
@@ -496,9 +523,14 @@ individually resolved, not left ambiguous):
   (Phase 3).
 - `mkdocs.yml` — nav updated per phase as content lands; final pass in
   Phase 7.
-- `.github/workflows/publish-preview.yaml` — `alpha` identifier removed
+- `.github/workflows/publish-preview.yaml`/`publish-release.yaml` —
+  `alpha` identifier removed, plus a new step querying nuget.org for each
+  package's prior version and passing
+  `-p:PackageValidationBaselineVersion=<prior-version>` at pack time
   (Phase 0).
-- `Directory.Build.props` — package-validation, tags, and release-notes
+- `.github/release-drafter.yml` — `breaking-change` remapped from
+  `major` to `minor` in `version-resolver` (Phase 0).
+- `Directory.Build.props` — package-validation and tags/release-notes
   properties added, shared across all five packages (Phase 0).
 - `Compono.slnx` — both new sample projects added (Phase 4).
 - `docs/documentation-architecture.md` — Open Items section already

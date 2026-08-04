@@ -148,15 +148,27 @@ external).
 
 **How a breaking change is communicated**, per bump:
 
-1. The PR/commit introducing it is labeled for release-drafter as a
-   breaking change (the existing release-drafter pipeline's own label
-   taxonomy governs the exact label name — this ADR doesn't redefine
-   release-drafter's configuration, only requires that *some* breaking-
-   change label exists and is used).
-2. The generated GitHub Release notes carry an explicit "Breaking
-   Changes" section (release-drafter's category grouping, already
-   supported by the existing pipeline) — never silently folded into a
-   generic "Changes" list.
+1. The PR/commit introducing it carries `.github/release-drafter.yml`'s
+   `breaking-change` label. **That label's `version-resolver` mapping
+   must be `minor`, not release-drafter's configured `major`, while
+   Compono stays `0.x`** — this is a deliberate override of the file's
+   current mapping, not a restatement of it: today, a `breaking-change`-
+   labeled PR resolves the next version as `1.0.0`, which would exit the
+   `0.x` preview line by accident rather than by the deliberate decision
+   this ADR's own compatibility policy above requires. The label stays in
+   `categories` unchanged (see point 2) — only its `version-resolver`
+   bucket moves from `major` to `minor`; see
+   [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for
+   the actual config change.
+2. The generated GitHub Release notes carry an explicit "⚠️ Breaking
+   Changes" section whenever a `breaking-change`-labeled PR is included
+   (release-drafter's existing `categories` grouping already does this —
+   no template change needed). A release with no breaking-change-labeled
+   PR simply has no such section; that *absence* is itself the signal
+   that nothing broke, not a gap to fill with an empty section — release-
+   drafter's category rendering is inherently conditional on the labels
+   actually present, and this ADR doesn't ask for a template override to
+   force an unconditional heading.
 3. `docs/roadmap/index.md`'s "available today / experimental / planned"
    framing and the relevant Package Guide/Concepts page are updated in
    the same PR that ships the break, per this repo's existing "docs
@@ -236,14 +248,22 @@ duplicate it.
   consumer version-conflict evidence exists to justify them.
 - **Automated package and API-compatibility validation** before every
   publish, once a second real version exists to validate against. This
-  requires an explicit step, not just a one-time property setting: a
-  first-ever release has nothing to compare to
-  (`PackageValidationBaselineVersion` stays unset), but every release
-  from the second onward sets that property to the immediately-prior
-  published version as part of cutting that release — the gate is wired
-  up from day one (Phase 0), but stays inert until each release's own
-  procedure (Phase 8 onward) actually points it at a real baseline; it
-  does not activate on its own.
+  cannot be a manually-set property: `publish-preview.yaml` publishes
+  automatically on every non-docs `main` push with no human release step
+  in between, so a baseline that only a person sets "when cutting a
+  release" would never apply to the continuous preview stream — the
+  large majority of what actually gets published. The baseline lookup
+  must instead be a CI-automated step, in both `publish-preview.yaml` and
+  `publish-release.yaml`: before packing, query nuget.org for each
+  package's currently-latest published version and pass it at pack time
+  via an MSBuild property override (`-p:PackageValidationBaselineVersion=<prior-version>`),
+  rather than relying on a static value baked into `Directory.Build.props`.
+  A first-ever publish has nothing to query yet, so validation is
+  inert for exactly that one case; every publish after it — preview or
+  production — has a real prior version to compare against automatically,
+  with no manual step required. See
+  [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for
+  the CI implementation.
 - **Verified against the packed artifact, not just a project reference.**
   Every publishable package (`Compono`, `Compono.XunitV3`,
   `Compono.NSubstitute`, `Compono.Bogus`) is restored and smoke-tested
