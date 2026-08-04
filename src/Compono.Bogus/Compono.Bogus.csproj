@@ -5,6 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — Bogus Integration</Title>
         <Description>Bogus integration for Compono - a conservative member-name-convention semantic provider, plus explicit member-level and whole-object Faker sugar. See docs/adr/0026-deterministic-seed-derivation-for-providers.md and docs/adr/0027-compono-bogus-package-design.md.</Description>
     </PropertyGroup>
 
@@ -19,5 +20,15 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Compono.Bogus.Tests" />
     </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.XunitV3.csproj's identical target for the full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
 
 </Project>

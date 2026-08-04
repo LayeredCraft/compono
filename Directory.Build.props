@@ -8,6 +8,16 @@
     <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <!-- ADR-0031's discovery-metadata bar, centralized here rather than per-project since all five
+         packages distribute as one coherent set (same reasoning as PackageLicenseExpression/
+         RepositoryUrl/PackageIcon/PackageReadmeFile above) - no per-package tag differentiation
+         (e.g. xunit/nsubstitute/bogus), since the package name itself already carries that. -->
+    <PackageTags>testing;test-data;source-generator;dotnet</PackageTags>
+    <!-- Points at the repo's stable releases index, not a per-version tag URL - a per-version
+         .../releases/tag/v$(Version) link would 404 for every preview build publish-preview.yaml
+         pushes on a plain main push, since no GitHub Release/tag exists for those, only for
+         versions published through publish-release.yaml. -->
+    <PackageReleaseNotes>$(PackageProjectUrl)/releases</PackageReleaseNotes>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
@@ -44,6 +54,18 @@
     <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="" Visible="false" Condition="Exists('$(MSBuildThisFileDirectory)icon.png')" />
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="" Visible="false" Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
   </ItemGroup>
+
+  <!-- ADR-0031/PLAN-0008 Phase 0: API-compatibility baseline check for every publishable package.
+       Deliberately no static PackageValidationBaselineVersion here - publish-preview.yaml/
+       publish-release.yaml are opaque `uses:` calls to the shared devops-templates workflow with no
+       step-level hook to inject a "compute baseline, then pack" sequence into, so the baseline is
+       instead resolved and passed in (-p:PackageValidationBaselineVersion=<prior-version>) by this
+       repo's own locally-controlled pre-merge PR gate (see the new package-validation.yaml
+       workflow), not by either publish workflow. Validation is simply inert when no baseline is
+       supplied (the very first-ever publish of a package). -->
+  <PropertyGroup Condition="'$(IsPackable)' != 'false'">
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <PackageReference Include="Microsoft.SourceLink.GitHub">

@@ -4,11 +4,14 @@ commitish: main
 
 version-resolver:
   major:
-    labels:
-      - 'breaking-change'
+    labels: []
   minor:
     labels:
       - 'type: feat'
+      # ADR-0031's 0.X+1.0 compatibility policy for the 0.x preview line - a labeled
+      # breaking-change PR bumps minor, not major, so it never silently exits 0.x
+      # (PLAN-0008 Phase 0). categories' breaking-change entry below is unchanged.
+      - 'breaking-change'
   patch:
     labels:
       - 'type: fix'
