@@ -139,6 +139,16 @@ acceptance test.
       failing the same PR on the incompatibility the label declares would
       be a self-contradiction. The very first-ever publish has nothing to
       query yet, so validation is inert for exactly that one case.
+      **This new job's own trigger must include `labeled`/`unlabeled`
+      PR activity types, not just `pr-build.yaml`'s default
+      `opened`/`synchronize`/`reopened`** — `release-drafter.yaml` applies
+      the `breaking-change` autolabel in its own, separately-triggered
+      workflow run, so a gate that only reads labels at the PR's initial
+      push can run before the label exists (blocking a real, legitimate
+      break) or stay green after the label is later removed (silently
+      missing an unjustified break on the same commit). Read the current
+      label state at the gate's own run time, never a cached value from
+      an earlier trigger.
 - [ ] Reconfigure `.github/release-drafter.yml`'s `version-resolver` so
       the `breaking-change` label maps to `minor`, not the file's current
       `major` — as configured today, a labeled breaking-change PR
@@ -155,9 +165,17 @@ acceptance test.
       `analyzers/dotnet/cs` for `Compono` specifically, containing
       `Compono.Generators.dll` — this is also where `Compono.Generators`
       itself gets verified, by content inspection rather than an
-      independent pack); and runs the API-compatibility baseline check
-      from the task above (`-p:PackageValidationBaselineVersion=<prior-version>`,
-      skipped on `breaking-change`-labeled PRs) as a pre-merge PR gate.
+      independent pack); runs the API-compatibility baseline check from
+      the task above (`-p:PackageValidationBaselineVersion=<prior-version>`,
+      skipped on `breaking-change`-labeled PRs); and runs
+      `dotnet build -p:WarningsAsErrors=CS1591` for the four publishable
+      packages so a missing public-member doc comment actually fails CI
+      — `Directory.Build.props`' existing `GenerateDocumentationFile`
+      setting deliberately leaves `CS1591` a warning for ordinary builds,
+      which alone never fails `dotnet build`. All three checks run as a
+      **pre-merge PR gate**, on the same trigger (see the trigger note
+      above — must include `labeled`/`unlabeled`, not just
+      `pr-build.yaml`'s default activity types).
 - [ ] Extend the local-feed packed-consumer pattern (already used by
       `test/Compono.XunitV3.SampleTests`) to restore and smoke-test the
       four publishable packages together from one local feed, as a
@@ -487,9 +505,17 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
 - [ ] Package-contents inspection CI step passes for the four publishable
       packages, and separately confirms `Compono.Generators.dll` is
       present inside `Compono.nupkg`'s `analyzers/dotnet/cs` (Phase 0).
-- [ ] Every public member has an XML doc comment (no `CS1591` warnings) —
-      enforced by the existing `Directory.Build.props` setting plus
-      Phase 1's reference-generation gate.
+- [ ] Every public member has an XML doc comment — actually enforced as a
+      build failure (Phase 0's new CI job runs
+      `dotnet build -p:WarningsAsErrors=CS1591` for the four publishable
+      packages specifically), not merely assumed from
+      `GenerateDocumentationFile=true`. That existing `Directory.Build.props`
+      setting deliberately leaves `CS1591` a warning, not an error, for
+      normal local/CI builds (see its own comment there) — a warning
+      alone doesn't fail `dotnet build`, so nothing before Phase 0 was an
+      actual enforcement gate on its own. Phase 1's reference-generation
+      gate is a second, tool-dependent check, not a substitute for this
+      one.
 - [ ] `docs/roadmap/index.md`'s compatibility framing and every affected
       Package Guide are current with the version about to publish.
 - [ ] If this release includes a breaking-change-labeled PR, the
@@ -591,11 +617,14 @@ individually resolved, not left ambiguous):
   publish workflow — the API-compatibility baseline check lives in a new,
   separate, locally-controlled CI job instead (below), not inside either
   `uses:`-based publish workflow.
-- A new CI workflow/job (this repo's own, not `devops-templates`) —
-  packs the four publishable packages, runs the nuget.org baseline
-  lookup and `Microsoft.DotNet.PackageValidation` check (skipped on
-  `breaking-change`-labeled PRs), and asserts `.nupkg` contents, as a
-  pre-merge PR gate (Phase 0).
+- A new CI workflow/job (this repo's own, not `devops-templates`),
+  triggered on `pull_request` including `labeled`/`unlabeled` (not just
+  the default activity types) — packs the four publishable packages, runs
+  the nuget.org baseline lookup and `Microsoft.DotNet.PackageValidation`
+  check (skipped on `breaking-change`-labeled PRs, evaluated against the
+  label state current at its own run), asserts `.nupkg` contents, and
+  runs `dotnet build -p:WarningsAsErrors=CS1591` for the four publishable
+  packages, as a pre-merge PR gate (Phase 0).
 - `.github/release-drafter.yml` — `breaking-change` remapped from
   `major` to `minor` in `version-resolver` (Phase 0).
 - `Directory.Packages.props` — `PackageVersion` entries converted to

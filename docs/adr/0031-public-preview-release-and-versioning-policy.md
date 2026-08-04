@@ -300,7 +300,18 @@ duplicate it.
   own `0.X+1.0` policy above, and communicated through release notes and
   docs (see "How a breaking change is communicated"); failing the same PR
   on the incompatibility the label itself declares would be a
-  self-contradiction, not a real safety check. See
+  self-contradiction, not a real safety check. **This requires the gate's
+  own trigger to include label changes, not just `pr-build.yaml`'s
+  default `pull_request` activity types** (`opened`/`synchronize`/
+  `reopened`) — `.github/workflows/release-drafter.yaml` applies the
+  `breaking-change` autolabel in its own, separately-triggered workflow
+  run, so a gate that only reads the label at the PR's *initial* push can
+  evaluate before the label exists (blocking a legitimate break that
+  hasn't been auto-labeled yet) or stay green after the label is later
+  removed from the same commit (silently allowing a break whose "this is
+  intentional" justification no longer applies). The gate must trigger on
+  `labeled`/`unlabeled` as well and read the label state current at
+  *its own* run time, not a value cached from an earlier trigger. See
   [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for
   the CI implementation.
 - **Verified against the packed artifact, not just a project reference.**
