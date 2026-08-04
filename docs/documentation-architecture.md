@@ -121,15 +121,11 @@ docs/
 │   ├── index.md
 │   └── <one page per narrow, practical problem — expected to grow into the
 │        largest section on the site; see "Cookbook" below>
-├── samples/
-│   ├── index.md
-│   ├── basic-usage.md
-│   ├── aspnet-api.md
-│   ├── cqrs.md
-│   ├── clean-architecture.md
-│   ├── minimal-apis.md
-│   ├── mediatr.md
-│   └── ef-core.md
+├── samples/                                   # public-preview launch: index.md +
+│   ├── index.md                               # basic-usage.md + aspnet-api.md only —
+│   ├── basic-usage.md                         # ADR-0033 defers cqrs/clean-architecture/
+│   └── aspnet-api.md                          # minimal-apis/mediatr/ef-core as future
+│                                               # candidates, not stub nav pages (see "5. Samples")
 ├── migrating-from-autofixture.md             # promoted to top-level (Phase 5)
 ├── packages/
 │   ├── index.md
@@ -308,9 +304,15 @@ a recipe, and out to Samples for a reader whose "recipe" has grown into
 
 **Audience:** someone who wants to see multiple concepts working together
 in a realistic application, not a single isolated problem.
-**Status:** skeleton exists (all 8 documentation pages — placeholder
-summaries only; the actual runnable sample applications don't exist yet,
-see Open Items).
+**Status:** per [ADR-0033](adr/0033-public-preview-samples-strategy.md),
+the public-preview launch set is **two** runnable samples (Basic Usage,
+ASP.NET API) — not the eight originally sketched here. `docs/samples/`
+carries only those two real pages plus `index.md` at launch; the other
+five (CQRS, Clean Architecture, Minimal APIs, MediatR, EF Core) are
+recorded as future candidates (see Contents below), not published
+skeleton pages, and their `mkdocs.yml` nav entries are removed rather
+than shipped as placeholders — see
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 4.
 **Purpose:** complete, runnable applications — deliberately distinct from
 Cookbook, not a larger cookbook entry. Cookbook is one problem, one
 solution, copy/paste, short; Samples are full applications with realistic
@@ -318,14 +320,21 @@ architecture, demonstrating how Compono's pieces compose together in
 practice. Conflating the two would force Cookbook's recipes to bloat past
 "short and self-contained" or Samples to shrink past "a realistic,
 multi-concept setup" — they solve genuinely different reader needs.
-**Contents:** one runnable application per page/entry, at minimum: Basic
-Usage, ASP.NET API, CQRS, Clean Architecture, Minimal APIs, MediatR, EF
-Core. Each `docs/samples/*.md` page is a short overview (what the sample
-demonstrates, which concepts/packages it exercises) linking out to the
-actual runnable project — the sample *applications themselves* live as
-real, buildable code (e.g. a top-level `samples/` directory alongside
-`src/`/`test/`), not as documentation prose; `docs/samples/` is the
-documentation *about* them, not the code.
+**Contents:** at launch, exactly two runnable applications — Basic Usage
+(the core workflow, small and focused) and ASP.NET API (the full
+ecosystem — `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/
+`Compono.Bogus` — in one realistic application). CQRS, Clean
+Architecture, Minimal APIs, MediatR, and EF Core remain documented as
+future candidates in `docs/roadmap/future-packages.md`-style framing (not
+as their own nav entries or stub pages) — per ADR-0033, each graduates to
+a real page only once it would demonstrate a materially different
+Compono pattern the launch two don't already cover, not merely a
+different host framework. Each `docs/samples/*.md` page for a real
+sample is a short overview (what it demonstrates, which concepts/packages
+it exercises) linking out to the actual runnable project — the sample
+*applications themselves* live as real, buildable code (e.g. a top-level
+`samples/` directory alongside `src/`/`test/`), not as documentation
+prose; `docs/samples/` is the documentation *about* them, not the code.
 **Relates to:** assumes Concepts and, typically, Package Guides (a sample
 usually exercises more than one package together). Hands off to Best
 Practices for "why is this sample structured this way" and Architecture for

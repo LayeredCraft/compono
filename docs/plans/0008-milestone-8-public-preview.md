@@ -165,12 +165,10 @@ acceptance test.
 - [ ] Verify (not redesign) `PrivateAssets`/analyzer-transitivity holds
       for every package, not just `Compono`/`Compono.Generators`.
 - [ ] Spot-check of `Directory.Packages.props`'s current dependency
-      licenses, plus a note in `contributing.md` (Phase 6) that any PR
-      adding or bumping a dependency version — Dependabot-authored or
-      not — gets its target package's license checked as part of normal
-      review, per ADR-0031: Dependabot's own flow catches vulnerabilities,
-      not licenses, so this is an ongoing review habit, not a one-time
-      task that's done after Phase 0.
+      licenses — self-contained to this phase, not dependent on
+      `contributing.md` (which doesn't exist until Phase 6; see Phase 6's
+      own Tasks for the standing review-habit note this spot-check feeds
+      into).
 
 ## Phase 1: API reference toolchain evaluation and wiring
 
@@ -278,6 +276,15 @@ packages).
 - [ ] `docs/samples/index.md` overview; record the five deferred
       candidates (CQRS, Clean Architecture, Minimal APIs, MediatR, EF
       Core) as future candidates, not silently dropped.
+- [ ] **Remove, not just leave unbuilt:** delete the five deferred
+      samples' Phase 5 (PLAN-0007) stub pages
+      (`docs/samples/{cqrs,clean-architecture,minimal-apis,mediatr,ef-core}.md`)
+      and their five `mkdocs.yml` nav entries. Per ADR-0033/
+      `docs/documentation-architecture.md`'s "5. Samples" section, a
+      deferred sample is recorded as a future candidate in prose, not
+      published as a placeholder nav entry — leaving the existing
+      skeleton stubs in place would put five dead-end pages into the
+      live public-preview site.
 - [ ] Local-feed packed-package verification job for both samples
       (reuses Phase 0's local-feed infrastructure).
 - [ ] `cookbook/index.md` (flat, alphabetical, per ADR-0030 Amendment 2's
@@ -331,7 +338,13 @@ Phases 2-5 in principle, sequenced here mainly for reviewability (one
 focused PR, not interleaved with doc-content PRs).
 
 - [ ] `contributing.md` — build/test/PR expectations, cross-linking this
-      skill's public-facing equivalents.
+      skill's public-facing equivalents. Include the license-review note
+      Phase 0's dependency spot-check feeds into: any PR adding or
+      bumping a dependency version — Dependabot-authored or not — gets
+      its target package's license checked as part of normal review, per
+      ADR-0031 (Dependabot's own flow catches vulnerabilities, not
+      licenses, so this is an ongoing review habit, not a one-time task
+      that was already "done" after Phase 0).
 - [ ] `SECURITY.md` — vulnerability reporting process.
 - [ ] `CODE_OF_CONDUCT.md` — standard, uncustomized Contributor Covenant.
 - [ ] GitHub issue templates: bug report, feature/roadmap proposal.
@@ -453,8 +466,8 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       packages together, as a standing CI gate.
 - [ ] `PrivateAssets`/analyzer transitivity verified for every package.
 - [ ] Dependency license spot-check against `Directory.Packages.props`'s
-      current set, plus a `contributing.md` note (Phase 6) making license
-      review part of reviewing any future dependency-version-change PR.
+      current set (Phase 0) — the standing review-habit note for *future*
+      dependency changes lives in Phase 6's `contributing.md`, not here.
 
 ## Release-readiness checklist
 
