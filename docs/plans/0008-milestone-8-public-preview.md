@@ -100,6 +100,19 @@ acceptance test.
       version is a NuGet minimum-inclusive floor, not a hard pin, so it
       doesn't actually enforce ADR-0031's "install the version we tested
       against" policy as written today; bracket syntax closes that gap.
+- [ ] Fix the same gap for the *internal* dependency: `Compono.XunitV3`/
+      `Compono.NSubstitute`/`Compono.Bogus` each reference `Compono` via a
+      plain `<ProjectReference>` (`PrivateAssets="none"`), which
+      `dotnet pack` converts into a bare-version (minimum-inclusive)
+      dependency on `Compono`'s current version, not an exact match —
+      a consumer could install e.g. `Compono.XunitV3 0.3.0` alongside a
+      newer `Compono 0.5.0` and have it restore successfully, exactly the
+      cross-package version mismatch ADR-0031 declares unsupported.
+      Override the generated dependency range to exact-pin syntax
+      (`[$(Version)]`) for each integration package's `Compono` reference,
+      and verify it by inspecting the packed `.nuspec`'s `<dependencies>`
+      entry in the package-contents-inspection CI job below, not just its
+      file listing.
 - [ ] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
       not per-project — one shared, uniform value for all five packages
       (`PackageTags`: `testing;test-data;source-generator;dotnet`;
@@ -455,6 +468,9 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
 - [ ] `Directory.Packages.props`'s `PackageVersion` entries use exact-pin
       bracket syntax (`[3.2.2]`), not bare versions — bare versions are a
       NuGet minimum floor, not a hard pin.
+- [ ] Each integration package's generated `Compono` dependency (from its
+      own `<ProjectReference>`) is exact-pinned in the packed `.nuspec`,
+      not left at the same bare-version minimum floor.
 - [ ] `PackageTags`/`PackageReleaseNotes` set once in
       `Directory.Build.props` (one uniform value for all five packages,
       not per-project) — `PackageReleaseNotes` points at the repo's
@@ -629,6 +645,11 @@ individually resolved, not left ambiguous):
   `major` to `minor` in `version-resolver` (Phase 0).
 - `Directory.Packages.props` — `PackageVersion` entries converted to
   exact-pin bracket syntax (Phase 0).
+- `src/Compono.XunitV3/Compono.XunitV3.csproj`,
+  `src/Compono.NSubstitute/Compono.NSubstitute.csproj`,
+  `src/Compono.Bogus/Compono.Bogus.csproj` — each package's generated
+  `Compono` dependency overridden to exact-pin syntax at pack time
+  (Phase 0).
 - `Directory.Build.props` — package-validation and tags/release-notes
   properties added, shared across all five packages (Phase 0).
 - `Compono.slnx` — both new sample projects added (Phase 4).

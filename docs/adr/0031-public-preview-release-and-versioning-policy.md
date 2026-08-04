@@ -265,14 +265,28 @@ duplicate it.
   dependencies stay pinned to exact versions (not ranges) while the
   ecosystem is young — "install the version we tested against," matching
   this ADR's own "install matching Compono versions" compatibility
-  philosophy. **`Directory.Packages.props`'s current bare-version syntax
-  (e.g. `3.2.2`) doesn't actually enforce this** — NuGet treats a bare
-  version as a minimum-inclusive floor, not a hard pin, so a transitive
-  requirement elsewhere in a consumer's graph can still resolve something
-  newer than what Compono tested against. Exact-pin syntax
-  (`[3.2.2]`) is required to make this bullet true rather than aspirational
-  — see [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0.
-  Version ranges are a post-1.0 concern, once real consumer
+  philosophy. **This applies to two distinct dependency surfaces, both of
+  which need fixing, not just one:**
+  - `Directory.Packages.props`'s current bare-version syntax (e.g.
+    `3.2.2`) for Compono's own *external* dependencies (Bogus,
+    NSubstitute, xUnit) doesn't actually enforce this — NuGet treats a
+    bare version as a minimum-inclusive floor, not a hard pin.
+  - `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`'s own
+    dependency *on `Compono` itself* has the identical problem, from a
+    different source: each references `Compono` via a plain
+    `<ProjectReference>`, which `dotnet pack` converts into a bare-version
+    NuGet dependency on the referenced project's current version — the
+    same minimum-inclusive floor, not lockstep's intended exact match. A
+    consumer could install `Compono.XunitV3 0.3.0` alongside a newer
+    `Compono 0.5.0` and have it restore successfully, exactly the
+    "mixing version numbers across packages... is unsupported" scenario
+    this ADR's compatibility policy declares unsupported above.
+  Both need exact-pin syntax (`[3.2.2]` for the external case; an
+  explicit override of the `ProjectReference`-generated dependency range
+  for the internal case) to make this bullet true rather than
+  aspirational — see
+  [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for
+  both. Version ranges are a post-1.0 concern, once real consumer
   version-conflict evidence exists to justify them.
 - **Automated package and API-compatibility validation, as an
   independent, locally-controlled CI gate — not inside the publish
