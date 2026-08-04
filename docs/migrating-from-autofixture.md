@@ -1,12 +1,16 @@
 # Migrating from AutoFixture to Compono
 
-**Status:** Phase 1 and Phase 2 complete (test-kit migration done, all 73
+**Status:** Complete (Milestone 7's all six PLAN-0007 phases done, all 73
 `cosmere-tracker` tests passing under Compono — the 72 migrated tests plus
-one new capability test for the `ClientTestProfile`/`IHttpClientProvider`
-pattern; post-migration metrics and the full per-finding evidence dossier
+one new capability test for the
+`ClientTestProfile`/`IHttpClientProvider` pattern; post-migration metrics,
+the full per-finding evidence dossier, every finding's final
+classification, and the milestone's final architectural conclusion
 recorded in
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md));
-final classification still to come in Phase 3
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md);
+zero findings classified bug or roadmap candidate, four recorded as dated
+ADR Amendments — see that document's "Classifications"/"Decisions"
+sections)
 
 This guide is a living deliverable of Milestone 7's dogfooding pass
 ([ADR-0029](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
@@ -109,12 +113,12 @@ didn't hit a real test needing the multi-row-plus-composed-parameter
 combination (`TextNormalizerTests`' rows were pure-inline, per above), so
 this is recorded as a discovered constraint, not a blocking gap — but it is a
 real further finding for Milestone 7's evidence beyond the three named gaps.
-Phase 2's dossier
-([docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-4--compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes))
-leans this toward an unexercised constraint rather than a roadmap
-candidate — ADR-0029 requires real observed frequency and workaround cost
-before that promotion, and neither exists here; final classification is
-still Phase 3's call.
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-4--compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes)
+classifies this an unexercised constraint (intentional design difference,
+no change) rather than a roadmap candidate — ADR-0029 requires real
+observed frequency and workaround cost before that promotion, and neither
+exists here — recorded as
+[ADR-0022 Amendment 7](adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found).
 
 `cosmere-tracker`'s migration never actually needed a mixed "some inline,
 some composed" row — every real test was either fully composed
@@ -291,9 +295,12 @@ surfaced two distinct patterns:
   test previously didn't need to write) — but arguably a correctness
   improvement, not just friction: the test's true dependency on
   `ExecuteAsync`'s return shape was previously hidden by auto-configuration,
-  and is now visible in the test body. Full classification (acceptable
-  alternative vs. intentional design difference) is Phase 3's job; this
-  section records the evidence.
+  and is now visible in the test body. Classified intentional design
+  difference (no change): restoring AutoFixture's auto-configuration would
+  reintroduce exactly this hidden-dependency problem, conflicting with
+  Compono's explicit-over-implicit principle — see
+  [ADR-0025 Amendment 2](adr/0025-compono-nsubstitute-package-design.md#amendment-2-2026-08-04-dogfooding-confirms-the-no-member-auto-configuration-non-goal-at-a-real-material-cost)
+  for the full reasoning.
 
 ## Recursion behaviors (`OmitOnRecursionBehavior` vs. fail-fast) — gap 3
 
@@ -493,22 +500,23 @@ public async Task Client_UsesTheSharedHandlersConfiguredResponse(
 `Freeze<HttpMessageHandler>()` + `HttpClientSpecimenBuilder` let a test just
 ask for `HttpClient` directly; Compono needs an extra interface + wrapper
 class because of `CMP0001`'s compile-time-only view. This is itself
-Milestone 7 evidence beyond gap 1's original framing, tracked for Phase 3's
-classification. Phase 2's dossier
-([docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-7--cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation))
-leans this toward an unexercised constraint rather than a roadmap
-candidate: the diagnostic only fired while porting a capability
-(`ClientTestProfile`) with zero real pre-migration call sites, and
-ADR-0029 rejects a synthetic exercise as roadmap evidence on its own — the
-interface-wrapper workaround already closes this cleanly at the cost this
-migration actually paid. If a real roadmap candidate does emerge from
+Milestone 7 evidence beyond gap 1's original framing.
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-7--cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation)
+classifies this an unexercised constraint (intentional design difference,
+no change) rather than a roadmap candidate: the diagnostic only fired
+while porting a capability (`ClientTestProfile`) with zero real
+pre-migration call sites, and ADR-0029 rejects a synthetic exercise as
+roadmap evidence on its own — the interface-wrapper workaround already
+closes this cleanly at the cost this migration actually paid, recorded as
+[ADR-0002 Amendment 1](adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made).
+If a real roadmap candidate does emerge from
 this territory, per that dossier entry it's **support for disambiguating
 construction of a registered/external ambiguous type generically**, not
 specifically "ship the `[CompositionConstructor]`
 attribute ADR-0002 anticipated" — `HttpClient` is a BCL type `cosmere-tracker`
 doesn't own, so a source attribute on its constructor was never going to be
 the fix for *this* case regardless of whether that attribute ships; whatever
-mechanism Phase 3's own design pass picks has to work for a type the
+mechanism a future design pass picks has to work for a type the
 consumer can't annotate, which the originally-anticipated attribute
 mechanism doesn't cover on its own.
 
