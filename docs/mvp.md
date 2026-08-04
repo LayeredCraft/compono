@@ -476,16 +476,19 @@ Tracked by [PLAN-0007](plans/0007-milestone-7-dogfooding.md).
 
 ### Outcome
 
-Complete. All five [PLAN-0007](plans/0007-milestone-7-dogfooding.md)
-phases done; full evidence in
+Complete. All six [PLAN-0007](plans/0007-milestone-7-dogfooding.md)
+phases (0, 1, 2, 3, 4, 5) done; full evidence in
 [docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md),
 before/after detail in
 [docs/migrating-from-autofixture.md](migrating-from-autofixture.md),
 and the roadmap outcome in
 [docs/roadmap/post-mvp.md](roadmap/post-mvp.md). Every success measure
-above was met by real migration evidence, not judgment calls — see the
-research document's "Final architectural conclusion and recommendation"
-section for the full per-measure accounting.
+above was checked against real migration evidence, not judgment calls —
+most were met; "failures are reproducible" was not directly exercised
+(zero real construction-cycle failures occurred to reproduce) and is
+recorded as such rather than claimed met — see the research document's
+"Final architectural conclusion and recommendation" section for the full
+per-measure accounting.
 
 Ten findings surfaced, every one classified per ADR-0029's five-way
 taxonomy: zero bug, zero roadmap candidate, four acceptable

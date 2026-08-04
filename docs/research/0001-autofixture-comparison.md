@@ -961,10 +961,15 @@ one finding that tested this posture directly under real cost pressure
 came out in favor of explicit-over-implicit once principle alignment was
 actually reasoned through: restoring AutoFixture's hidden
 auto-configuration would have reintroduced the exact invisible-dependency
-problem the two failing tests demonstrated. `[Shared]` (gap 1) and
-`[Compose]`/`[Compose<TProfile>]` (Finding 9) both traded a small amount
-of signature verbosity for genuine visibility, with no case in this
-migration where the explicitness cost outweighed its value.
+problem the two failing tests demonstrated. `[Shared]` (gap 1's `[Shared] IDynamoPartiqlClient partiql`/
+`[Shared] HttpMessageHandler handler` parameters) and `[Compose<TProfile>]`
+(gap 1's `[Compose<ClientTestProfile>]`, making the profile choice
+explicit on the method where baseline's `[ClientAutoData]` hid it
+entirely) both traded a small amount of signature/method-attribute
+verbosity for genuine visibility, with no case in this migration where
+the explicitness cost outweighed its value. (Finding 9 is a different,
+narrower case — a fully inline `[Theory]` needing *no* Compose-family
+attribute at all — not an example of trading verbosity for visibility.)
 
 **Did profiles remain the right primary configuration mechanism for a
 real project's needs?** Yes, without qualification. All four
@@ -1013,13 +1018,18 @@ measure was met by real evidence, not just judgment calls:
   kit (Finding: the custom `AutoDataAttribute` subclasses, "Concepts
   removed entirely"); every reusable behavior lives in one of the four
   profiles.
-- *Failures are reproducible* — gap 3's fail-fast `CompositionException`
-  behavior was never exercised (zero real construction cycles), but
-  nothing in this migration surfaced a reproducibility regression either;
-  `Compono.Bogus`'s `context.DeriveSeed()` determinism contract held
-  throughout once actually used correctly (the two review-caught bugs
-  were migration-time mistakes bypassing that contract, not the contract
-  failing).
+- *Failures are reproducible* — **not directly exercised, not confirmed
+  met.** Gap 3's fail-fast `CompositionException` behavior was never
+  triggered by real `cosmere-tracker` code (zero construction cycles),
+  so no failing composition was actually reproduced from its seed during
+  this migration — observing no regression isn't the same as
+  demonstrating reproducibility. `Compono.Bogus`'s `context.DeriveSeed()`
+  determinism contract did hold throughout once actually used correctly
+  (the two review-caught bugs were migration-time mistakes bypassing that
+  contract, not the contract failing), which is real evidence for
+  *deterministic data generation* specifically, but that's narrower than
+  this success measure as stated. Recorded here as not directly assessed
+  by this migration, not as met.
 - *Performance does not regress unacceptably* — the one measured
   post-migration run was 54ms faster than the one measured baseline run;
   reported as an observation, not a statistical claim (single sample each
@@ -1067,10 +1077,19 @@ this migration has already moved past.
 
 For Compono itself, this milestone's evidence supports no MVP scope
 change and no urgent roadmap addition. The two findings worth tracking
-without a `Proposed` ADR yet (`CMP0001`'s registered/external-type
-disambiguation gap, the Compose-family stacking constraint — see
-`docs/roadmap/post-mvp.md`) are real but unexercised: if a future
-dogfooding pass (a different real project, or a future Compono package)
-produces a genuine pre-existing call site for either, that's new evidence
-a future milestone can act on then — not a reason to design either
-mechanism speculatively now, per ADR-0029's evidence-driven restraint.
+without a `Proposed` ADR yet — `CMP0001`'s registered/external-type
+disambiguation gap
+([Finding 7](#finding-7--cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation),
+recorded in
+[ADR-0002 Amendment 1](../adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made))
+and the Compose-family stacking constraint
+([Finding 4](#finding-4--compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes),
+recorded in
+[ADR-0022 Amendment 7](../adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found))
+— are real but unexercised: if a future dogfooding pass (a different real
+project, or a future Compono package) produces a genuine pre-existing
+call site for either, that's new evidence a future milestone can act on
+then — not a reason to design either mechanism speculatively now, per
+ADR-0029's evidence-driven restraint. Neither belongs in
+`docs/roadmap/post-mvp.md` itself, per ADR-0029's rule that page lists
+only roadmap-candidate findings backed by a `Proposed` ADR.

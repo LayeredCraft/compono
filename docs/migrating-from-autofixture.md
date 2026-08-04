@@ -1,15 +1,16 @@
 # Migrating from AutoFixture to Compono
 
-**Status:** Substantially complete (Phases 1-3 done: test-kit migration,
-all 73 `cosmere-tracker` tests passing under Compono — the 72 migrated
-tests plus one new capability test for the
+**Status:** Complete (Milestone 7's all six PLAN-0007 phases done, all 73
+`cosmere-tracker` tests passing under Compono — the 72 migrated tests plus
+one new capability test for the
 `ClientTestProfile`/`IHttpClientProvider` pattern; post-migration metrics,
-the full per-finding evidence dossier, and every finding's final
-classification recorded in
+the full per-finding evidence dossier, every finding's final
+classification, and the milestone's final architectural conclusion
+recorded in
 [docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md);
 zero findings classified bug or roadmap candidate, four recorded as dated
 ADR Amendments — see that document's "Classifications"/"Decisions"
-sections); only editorial cleanup remains for Phase 4
+sections)
 
 This guide is a living deliverable of Milestone 7's dogfooding pass
 ([ADR-0029](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
