@@ -20,7 +20,7 @@ public sealed class ComposeAttribute<TProfile> : Compono.XunitV3.ComposeAttribut
 
 The profile to apply\.
 
-Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → [System\.Attribute](https://learn.microsoft.com/en-us/dotnet/api/system.attribute 'System\.Attribute') → [Xunit\.v3\.DataAttribute](https://learn.microsoft.com/en-us/dotnet/api/xunit.v3.dataattribute 'Xunit\.v3\.DataAttribute') → [ComposeAttribute](Compono.XunitV3.ComposeAttribute.md 'Compono\.XunitV3\.ComposeAttribute') → ComposeAttribute\<TProfile\>
+Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → [System\.Attribute](https://learn.microsoft.com/en-us/dotnet/api/system.attribute 'System\.Attribute') → `Xunit.v3.DataAttribute` → [ComposeAttribute](Compono.XunitV3.ComposeAttribute.md 'Compono\.XunitV3\.ComposeAttribute') → ComposeAttribute\<TProfile\>
 
 ### Remarks
 A profile type that doesn't implement [ICompositionProfile](../Compono/Compono.ICompositionProfile.md 'Compono\.ICompositionProfile') or lacks a public

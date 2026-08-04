@@ -13,7 +13,7 @@ and diagnostics\.
 public class ComposeAttribute : Xunit.v3.DataAttribute
 ```
 
-Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → [System\.Attribute](https://learn.microsoft.com/en-us/dotnet/api/system.attribute 'System\.Attribute') → [Xunit\.v3\.DataAttribute](https://learn.microsoft.com/en-us/dotnet/api/xunit.v3.dataattribute 'Xunit\.v3\.DataAttribute') → ComposeAttribute
+Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → [System\.Attribute](https://learn.microsoft.com/en-us/dotnet/api/system.attribute 'System\.Attribute') → `Xunit.v3.DataAttribute` → ComposeAttribute
 
 Derived  
 ↳ [ComposeAttribute&lt;TProfile&gt;](Compono.XunitV3.ComposeAttribute_TProfile_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile\>')

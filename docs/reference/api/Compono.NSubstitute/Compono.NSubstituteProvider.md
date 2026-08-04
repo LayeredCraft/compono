@@ -5,7 +5,7 @@
 
 A stage\-6 test\-double provider that composes an interface, delegate, or \(when
 [SubstituteAbstractClasses](Compono.NSubstituteOptions.SubstituteAbstractClasses.md 'Compono\.NSubstituteOptions\.SubstituteAbstractClasses') allows it\) unsealed abstract\-class
-request as a real NSubstitute substitute, via [NSubstitute\.Substitute\.For\(System\.Type\[\],System\.Object\[\]\)](https://learn.microsoft.com/en-us/dotnet/api/nsubstitute.substitute.for#nsubstitute-substitute-for(system-type[]-system-object[]) 'NSubstitute\.Substitute\.For\(System\.Type\[\],System\.Object\[\]\)')\.
+request as a real NSubstitute substitute, via `NSubstitute.Substitute.For(System.Type[],System.Object[])`\.
 Registered via `CompositionBuilderExtensions.UseNSubstitute()`\. See
 `docs/adr/0025-compono-nsubstitute-package-design.md` \(Amendment 1 for the corrected shape
 below\)\.

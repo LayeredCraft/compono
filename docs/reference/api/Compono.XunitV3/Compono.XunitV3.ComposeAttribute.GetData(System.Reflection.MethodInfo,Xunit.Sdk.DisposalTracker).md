@@ -18,12 +18,12 @@ public override System.Threading.Tasks.ValueTask<System.Collections.Generic.IRea
 
 <a name='Compono.XunitV3.ComposeAttribute.GetData(System.Reflection.MethodInfo,Xunit.Sdk.DisposalTracker).disposalTracker'></a>
 
-`disposalTracker` [Xunit\.Sdk\.DisposalTracker](https://learn.microsoft.com/en-us/dotnet/api/xunit.sdk.disposaltracker 'Xunit\.Sdk\.DisposalTracker')
+`disposalTracker` `Xunit.Sdk.DisposalTracker`
 
-Implements [GetData\(MethodInfo, DisposalTracker\)](https://learn.microsoft.com/en-us/dotnet/api/xunit.v3.idataattribute.getdata#xunit-v3-idataattribute-getdata(system-reflection-methodinfo-xunit-sdk-disposaltracker) 'Xunit\.v3\.IDataAttribute\.GetData\(System\.Reflection\.MethodInfo,Xunit\.Sdk\.DisposalTracker\)')
+Implements `GetData(MethodInfo, DisposalTracker)`
 
 #### Returns
-[System\.Threading\.Tasks\.ValueTask&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask-1 'System\.Threading\.Tasks\.ValueTask\`1')[System\.Collections\.Generic\.IReadOnlyCollection&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ireadonlycollection-1 'System\.Collections\.Generic\.IReadOnlyCollection\`1')[Xunit\.ITheoryDataRow](https://learn.microsoft.com/en-us/dotnet/api/xunit.itheorydatarow 'Xunit\.ITheoryDataRow')[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ireadonlycollection-1 'System\.Collections\.Generic\.IReadOnlyCollection\`1')[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask-1 'System\.Threading\.Tasks\.ValueTask\`1')
+[System\.Threading\.Tasks\.ValueTask&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask-1 'System\.Threading\.Tasks\.ValueTask\`1')[System\.Collections\.Generic\.IReadOnlyCollection&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ireadonlycollection-1 'System\.Collections\.Generic\.IReadOnlyCollection\`1')`Xunit.ITheoryDataRow`[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ireadonlycollection-1 'System\.Collections\.Generic\.IReadOnlyCollection\`1')[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask-1 'System\.Threading\.Tasks\.ValueTask\`1')
 
 #### Exceptions
 
@@ -50,7 +50,7 @@ own thrown exception, one level deeper than the original throw\.
             returned by an exact registration or a configured `IServiceProvider`
             \(`docs/adr/0019-registrations-and-service-provider-injection.md`'s "the caller owns the
             provider and its entire lifetime; Compono is a pure consumer" contract\) \(PR \#24 review\)\. Handing
-            the latter to [Xunit\.Sdk\.DisposalTracker](https://learn.microsoft.com/en-us/dotnet/api/xunit.sdk.disposaltracker 'Xunit\.Sdk\.DisposalTracker') would dispose an externally\-owned instance \-
+            the latter to `Xunit.Sdk.DisposalTracker` would dispose an externally\-owned instance \-
             possibly a shared singleton reused across many tests \- which is a strictly worse failure mode
             than a consumer being responsible for disposing their own composed [System\.IDisposable](https://learn.microsoft.com/en-us/dotnet/api/system.idisposable 'System\.IDisposable')
             parameter themselves\. Automatic disposal tracking is deferred until `Compono`'s public

@@ -14,4 +14,4 @@ public BogusMemberNameProvider(string locale);
 
 `locale` [System\.String](https://learn.microsoft.com/en-us/dotnet/api/system.string 'System\.String')
 
-The Bogus locale each handled request's own [Bogus\.Faker](https://learn.microsoft.com/en-us/dotnet/api/bogus.faker 'Bogus\.Faker') uses\.
+The Bogus locale each handled request's own `Bogus.Faker` uses\.

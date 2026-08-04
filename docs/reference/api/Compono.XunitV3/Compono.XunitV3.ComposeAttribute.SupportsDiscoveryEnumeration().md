@@ -11,7 +11,7 @@ costs and/or randomized data sets should return [false](https://docs.microsoft.c
 public override bool SupportsDiscoveryEnumeration();
 ```
 
-Implements [SupportsDiscoveryEnumeration\(\)](https://learn.microsoft.com/en-us/dotnet/api/xunit.v3.idataattribute.supportsdiscoveryenumeration 'Xunit\.v3\.IDataAttribute\.SupportsDiscoveryEnumeration')
+Implements `SupportsDiscoveryEnumeration()`
 
 #### Returns
 [System\.Boolean](https://learn.microsoft.com/en-us/dotnet/api/system.boolean 'System\.Boolean')

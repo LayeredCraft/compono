@@ -5,7 +5,7 @@
 
 A stage\-5 semantic value provider that matches an exact, conservative allowlist of
 `string`\-typed member names \(`FirstName`, `Email`, etc\.\) against a real,
-deterministically\-seeded [Bogus\.Faker](https://learn.microsoft.com/en-us/dotnet/api/bogus.faker 'Bogus\.Faker') value\. Registered via
+deterministically\-seeded `Bogus.Faker` value\. Registered via
 `CompositionBuilderExtensions.UseBogus()`\. See
 `docs/adr/0027-compono-bogus-package-design.md`\.
 

@@ -96,23 +96,36 @@ while IFS= read -r -d '' old_path; do
     rm -f "${new_path}.bak"
 done < <(find docs/reference/api -name '*#ctor*.md' -print0)
 
-# A public member's XML docs can <see cref/> an internal Compono type (e.g. a
-# CompositionConfiguration mentioned from CompositionBuilder's public docs).
-# DocItemFactory can't resolve it locally (this run only generated Public
-# DocItems, and it isn't in any --ExternLinksFilePaths either), so it falls
-# through to DotnetApiFactory, which treats any unrecognized symbol as a BCL
-# type and fabricates a "learn.microsoft.com/en-us/dotnet/api/compono.*" URL
-# that 404s - flagged by PR #47 review (38 such dead links found). Rewrite
-# every such link to plain inline code instead of leaving a dead link -
-# there is no real page to point it at without publishing internal types,
-# which would contradict generating only the public surface in the first
-# place.
+# A public member's XML docs can <see cref/> a symbol DocItemFactory can't
+# resolve locally: an internal Compono type (e.g. CompositionConfiguration,
+# mentioned from CompositionBuilder's public docs - no local page under
+# Public-only generation, and never in --ExternLinksFilePaths either), or a
+# third-party dependency type with no DefaultDocumentation-generated pages at
+# all (Bogus.Faker, NSubstitute.Substitute.For, Xunit.v3.IDataAttribute).
+# DotnetApiFactory's fallback treats every one of these the same way: assume
+# it's a BCL type and fabricate a "learn.microsoft.com/en-us/dotnet/api/..."
+# URL - which only resolves for the real .NET BCL (System.*/Microsoft.*),
+# and 404s for anything else. Flagged by PR #47 review in two passes: first
+# 38 dead compono.* links, then dead bogus.*/nsubstitute.*/xunit.* links once
+# broadened past Compono specifically. Rewrite every non-BCL fallback link to
+# plain inline code instead of leaving a dead link - there's no real page to
+# point a Compono internal type at without publishing implementation detail
+# (contradicting Public-only generation), and no local page for a
+# third-party type at all (this toolchain never runs against Bogus/
+# NSubstitute/xUnit's own assemblies).
 python3 - <<'PYEOF'
 import pathlib
 import re
 
 pattern = re.compile(
-    r"\[([^\]]+)\]\(https://learn\.microsoft\.com/en-us/dotnet/api/compono\.[^\s)]+ '[^']*'\)"
+    # The link-text group must treat "\]" as a literal escaped bracket, not
+    # the closing delimiter - a signature like NSubstitute.Substitute.For's
+    # array parameters renders its text as "...\[\],System\.Object\[\]\)",
+    # and a naive [^\]]+ stops at the first literal ']' regardless of the
+    # preceding backslash, silently failing to match at all.
+    r"\[((?:[^\]\\]|\\.)+)\]\(https://learn\.microsoft\.com/en-us/dotnet/api/"
+    r"(?!system\.|microsoft\.)\S+? '[^']*'\)",
+    re.IGNORECASE,
 )
 unescape = re.compile(r"\\(.)")
 

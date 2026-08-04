@@ -732,10 +732,17 @@ individually resolved, not left ambiguous):
   their compiled net10.0 assembly + XML doc file, core-first so the three
   integration packages' cross-package `<see cref>`s resolve locally, plus
   the `#ctor`-filename post-processing fix described in this phase's Notes.
-- `.github/workflows/api-reference.yaml` — new (Phase 1): pre-merge/push
-  drift-detection gate, triggered on the four publishable packages' `src/`
-  paths plus `docs/reference/api/**` — regenerates and fails the build on
-  any uncommitted diff.
+- `.github/workflows/docs.yml` — the drift-detection gate was initially a
+  separate `api-reference.yaml` workflow, deleted during PR #47 review at
+  the user's direction: with no `needs`/`workflow_run` link between two
+  independently-triggered workflows, a failing drift check could never
+  actually stop `docs.yml` from deploying stale/incorrect content. The
+  regenerate-and-diff-check steps now run as `docs.yml`'s own first real
+  steps, sequentially before `mkdocs build` — the site only ever builds
+  from `docs/reference/api` content already confirmed fresh in the same
+  job. `docs.yml`'s trigger paths expanded to include the four publishable
+  packages' `src/` paths (previously `api-reference.yaml`-only) so a
+  source-only PR still runs the check.
 - `.github/workflows/publish-preview.yaml` — `prereleaseIdentifier`
   renamed from `alpha` to `preview` (Phase 0). No other change to either
   publish workflow — the API-compatibility baseline check lives in a new,
@@ -853,9 +860,9 @@ scored against every ADR-0032 criterion:
   1.2.5 current). Deterministic: two consecutive runs against the same
   input produced byte-identical output, verified both for a single package
   and for the full four-package generation run.
-- **Five real defects found and fixed during wiring, not left as accepted
-  gaps** — the first two caught before the PR opened, the other three by PR
-  #47's automated review (`chatgpt-codex-connector`, across two review
+- **Seven real defects found and fixed during wiring, not left as accepted
+  gaps** — the first two caught before the PR opened, the other five by PR
+  #47's automated review (`chatgpt-codex-connector`, across three review
   passes), addressed in the same PR rather than deferred:
   1. **Cross-package `<see cref>` resolution.** Generating each package
      standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
@@ -925,6 +932,42 @@ scored against every ADR-0032 criterion:
      rewrites any same-package link whose target file doesn't actually
      contain the anchor it points at. 0 mismatches remain after the fix,
      confirmed by the same scan that found the original 92.
+  6. **Bogus links for third-party dependency types (PR #47 third review
+     pass).** The same `DotnetApiFactory` fallback as (3), but for types
+     from `Bogus`/`NSubstitute`/`xUnit.v3` (e.g. `Bogus.Faker`,
+     `NSubstitute.Substitute.For`, `Xunit.v3.IDataAttribute`) — fix (3)'s
+     pattern only matched `compono.*`, so it left every non-Compono
+     fallback link untouched. Generalized fix (3)'s pattern from a
+     `compono.*` blocklist to a `system.*`/`microsoft.*` **allowlist** —
+     the only namespaces `learn.microsoft.com/en-us/dotnet/api/` ever
+     actually resolves — so it now catches every non-BCL fallback
+     regardless of which package the referenced type belongs to, current
+     or future.
+  7. **The generalized fix (6) itself had a link-text parsing bug**,
+     caught before pushing (own verification, not another review round):
+     `[^\]]+` for the link-text capture group stops at the first literal
+     `]`, but a signature like `NSubstitute.Substitute.For`'s array
+     parameters renders its display text with escaped brackets
+     (`...\[\],System\.Object\[\]\)`) — the regex silently failed to match
+     at all rather than matching wrong, so the fix from (6) missed exactly
+     the two links it was written to catch until this was found. Fixed by
+     changing the text-group pattern to `(?:[^\]\\]|\\.)+` (an unescaped
+     non-`]` character, or a backslash-escaped pair), which treats `\]` as
+     a literal character rather than a false terminator.
+- **CI architecture changed on user direction, mid-review**: the
+  drift-detection gate was originally a separate, independently-triggered
+  `api-reference.yaml` workflow with no `needs`/`workflow_run` link to
+  `docs.yml` — meaning a failing drift check could never actually stop
+  `docs.yml` from building and deploying stale/incorrect content, since
+  the two workflows had no ordering relationship at all. Per the user's
+  explicit preference (sequential dependency over two disconnected
+  workflows — the local-generation-only alternative was rejected since it
+  would reverse ADR-0032's explicit "CI must catch drift" Decision
+  Outcome without an ADR amendment), `api-reference.yaml` is deleted and
+  its regenerate-and-diff-check steps moved into `docs.yml`'s own `build`
+  job, as its first real steps, sequentially before `mkdocs build`.
+  `docs.yml`'s trigger paths expanded to include the four packages' `src/`
+  paths so a source-only PR (no `docs/` change) still runs the check.
 - **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
   carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
   MkDocs/python-markdown doesn't re-process escapes inside a link's title
