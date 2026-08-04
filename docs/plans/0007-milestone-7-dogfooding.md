@@ -1,6 +1,6 @@
 # [PLAN-0007] Milestone 7: Dogfooding
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
 (dogfooding strategy, migration-driven evidence, gap decision rubric and
@@ -447,36 +447,53 @@ not a skeleton stub.
 
 ## Phase 4: Final conclusion, docs, and cleanup
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] Answer ADR-0029's "Final architectural conclusion" questions in
+- [x] Answer ADR-0029's "Final architectural conclusion" questions in
       `docs/research/0001-autofixture-comparison.md` (or a dedicated
       closing section): manifesto/design-principle language changes,
       confidence in explicit-over-implicit, whether profiles remained the
       right primary mechanism, whether the public provider model was
       sufficient, any MVP success-criterion revisions, and whether Compono
       is now the default AutoFixture replacement for `cosmere-tracker`.
-- [ ] Synthesize the above into one explicit, evidence-backed recommendation
+- [x] Synthesize the above into one explicit, evidence-backed recommendation
       per Amendment 3 — a stated next action (e.g. Compono becomes the
       recommended default for new `cosmere-tracker` test code; existing
       tests migrate incrementally rather than in one pass; specific
       roadmap-candidate findings should land first; or the current MVP is
       already sufficient as-is), not just a capability statement that
       Compono *can* replace AutoFixture.
-- [ ] `docs/migrating-from-autofixture.md`: confirm it needs only
+- [x] `docs/migrating-from-autofixture.md`: confirm it needs only
       editorial cleanup at this point, not new content reconstruction — if
       it doesn't, that's a sign Phase 1's "update alongside the code" rule
       wasn't followed and should be fixed before closing the milestone.
-- [ ] `docs/mvp.md` Milestone 7 section: links ADR-0029, PLAN-0007,
+- [x] `docs/mvp.md` Milestone 7 section: links ADR-0029, PLAN-0007,
       `docs/research/0001-autofixture-comparison.md`,
       `docs/migrating-from-autofixture.md`, and
       `docs/roadmap/post-mvp.md`; states the outcome per finding; success
       measures checked against the real migration evidence (readability,
       understandability, profile-first setup, reproducible failures,
       performance); records the final architectural conclusion.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` index rows for any new
+- [x] `docs/adr/README.md`/`docs/plans/README.md` index rows for any new
       ADR(s) opened in Phase 3 (already added for ADR-0029/PLAN-0007
       during the design phase).
+
+No new ADR was opened in Phase 3 (only dated Amendments to four existing
+ADRs), so no new index rows were needed — confirmed both index files
+already carry accurate `Accepted` rows for every ADR this plan touched.
+`docs/migrating-from-autofixture.md` needed only editorial cleanup as
+predicted: several stale "Phase 3's call"/"tracked for Phase 3's
+classification" cross-references, now pointing at each finding's actual
+final classification and recorded ADR Amendment — no content
+reconstruction. `docs/research/0001-autofixture-comparison.md`'s
+"Final architectural conclusion and recommendation" section answers all
+six ADR-0029 questions and states the recommendation: Compono is the
+default for all `cosmere-tracker` test code effective immediately (every
+AutoFixture reference is already removed from that project's `test/`
+tree — nothing left to sequence incrementally, no roadmap-candidate
+finding to wait on).
+
+**Milestone 7 is complete — all six phases (0, 1, 2, 3, 4, 5) Done.**
 
 ## Critical Files
 

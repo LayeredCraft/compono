@@ -1,13 +1,14 @@
 # [RESEARCH-0001] AutoFixture vs. Compono: `cosmere-tracker` Dogfooding
 
-**Status:** In Progress (Phase 0 baseline, Phase 1 migration, Phase 2
-evidence collection, and Phase 3 classification complete, all 73
-`cosmere-tracker` tests passing under Compono (72 migrated plus one new
-capability test); zero findings classified bug or roadmap candidate — see
-`docs/roadmap/post-mvp.md` for why; Phase 4's final architectural
-conclusion still to come — see
-[the migration guide](../migrating-from-autofixture.md) for Phase
-1's real before/after findings in the meantime)
+**Status:** Done (all four PLAN-0007 phases complete — Phase 0 baseline,
+Phase 1 migration, Phase 2 evidence collection, Phase 3 classification,
+Phase 4 final conclusion — all 73 `cosmere-tracker` tests passing under
+Compono (72 migrated plus one new capability test); zero findings
+classified bug or roadmap candidate; recommendation: Compono is the
+default for all `cosmere-tracker` test code effective immediately — see
+"Final architectural conclusion and recommendation" below and
+[the migration guide](../migrating-from-autofixture.md) for the full
+before/after evidence)
 
 **Feeds:** [PLAN-0007](../plans/0007-milestone-7-dogfooding.md), per
 [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)
@@ -18,8 +19,11 @@ migrating `ncipollina/cosmere-tracker`'s AutoFixture-based test kit
 `design-decisions.md`'s `docs/research/` convention — baseline and
 post-migration metrics, per-finding evidence, and a closing `## Decisions`
 section mapping each finding to the ADR/Amendment/PR it fed into. Sections
-below are filled in as each PLAN-0007 phase completes; this is a living
-document through Phase 3, not a final write-up.
+below were filled in as each PLAN-0007 phase completed; with Phase 4 done,
+this document is a completed historical record, in the same spirit as an
+`Accepted` ADR — settled, not expected to change further, though a future
+milestone's own dogfooding pass would be recorded as its own new
+`docs/research/NNNN-*.md` document rather than reopening this one.
 
 ## Baseline (Phase 0)
 
@@ -933,9 +937,140 @@ evidence-backed outcome rather than a skipped step.
 
 ## Final architectural conclusion and recommendation (Phase 4)
 
-_To be filled in — answers ADR-0029's "Final architectural conclusion"
-questions and, per
-[Amendment 3](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-3-2026-08-02-the-final-architectural-conclusion-ends-with-an-explicit-recommendation),
-synthesizes them into one explicit, evidence-backed recommendation: a
-stated next action for `cosmere-tracker` and Compono, not just a capability
-statement._
+Answers to ADR-0029's six "Final architectural conclusion" questions,
+each grounded in this document's actual findings, followed by the single
+synthesized recommendation Amendment 3 requires.
+
+**Should any manifesto or design-principle language change?** No.
+`docs/manifesto.md`'s "Predictability over magic" and "A useful failure is
+better than a clever fallback," and `docs/design-principles.md`'s
+"Composition over object generation"/"Predictability over magic," each
+predicted this migration's actual outcomes rather than being contradicted
+by them: gap 2's material-cost-but-principle-aligned verdict is exactly
+what "predictability over magic" implies (an explicit stub instead of
+hidden auto-configuration), and Finding 9's redundant-wrapper removal is
+exactly what "composition over object generation" implies (no
+indirection where none is structurally needed). No finding surfaced a
+case where the existing language failed to explain or anticipate what
+actually happened.
+
+**Did the migration strengthen or weaken confidence in
+explicit-over-implicit as Compono's default posture?** Strengthened. The
+one finding that tested this posture directly under real cost pressure
+(gap 2 — a real, material workaround cost, not a hypothetical one) still
+came out in favor of explicit-over-implicit once principle alignment was
+actually reasoned through: restoring AutoFixture's hidden
+auto-configuration would have reintroduced the exact invisible-dependency
+problem the two failing tests demonstrated. `[Shared]` (gap 1) and
+`[Compose]`/`[Compose<TProfile>]` (Finding 9) both traded a small amount
+of signature verbosity for genuine visibility, with no case in this
+migration where the explicitness cost outweighed its value.
+
+**Did profiles remain the right primary configuration mechanism for a
+real project's needs?** Yes, without qualification. All four
+`ICompositionProfile` classes this migration produced
+(`ClientTestProfile`, `SharedTestKitProfile`, `EndpointTestProfile`,
+`PersistenceTestProfile`) map cleanly onto the project's existing
+three-tier reuse structure (base kit → shared kit → per-suite local kit,
+Finding 8) — the tier structure itself is a real, project-driven need
+that survived migration unchanged, while the mechanism connecting the
+tiers (profiles composed via `AddProfile<T>()`/selected via
+`[Compose<TProfile>]`) got measurably simpler than the baseline's
+customization/specimen-builder/attribute trio at every tier. Nothing in
+this migration needed a configuration mechanism profiles couldn't
+express.
+
+**Was the public provider model (ADR-0024) sufficient for real
+application-specific customization, or did it strain anywhere?**
+Sufficient, though not stress-tested as a design surface in its own
+right: this migration authored zero custom `ICompositionProvider`
+implementations. Every real customization went through Compono's
+existing built-in extension points —
+`Register<T>(Func<ICompositionContext, T>)`, `UseBogus<T>()`,
+`UseNSubstitute()` — which fully covered `cosmere-tracker`'s actual
+needs (9 `Register` calls, 3 `UseBogus<T>()` calls, 2 `UseNSubstitute()`
+calls across the four profiles). That's a genuine, positive data point
+(the built-in surface didn't need extending), but it means this
+migration is silent on whether the *provider-authoring* experience
+itself is well-designed — no finding here tests that question either
+way, since nothing forced a project to write its own provider.
+
+**Should any MVP success criterion (`docs/mvp.md`) be revised in light of
+real evidence?** No revision needed; every stated Milestone 7 success
+measure was met by real evidence, not just judgment calls:
+- *Tests are at least as readable as before* — per-file readability notes
+  throughout this document (post-migration section) found every migrated
+  file readable top-to-bottom, several strictly more so than their
+  baseline equivalent (e.g. `SharedTestKitProfile.cs` concentrating one
+  type's whole data shape in one place versus a separate specimen-builder
+  file per type at baseline).
+- *The composition model remains understandable* — zero findings surfaced
+  confusion about what the composition model itself does; every finding
+  was about a specific AutoFixture behavior's presence or absence, not
+  about profiles/providers/`[Compose]` being hard to reason about.
+- *Most setup belongs in profiles rather than custom attributes* — fully
+  achieved: zero custom attribute classes exist anywhere in the migrated
+  kit (Finding: the custom `AutoDataAttribute` subclasses, "Concepts
+  removed entirely"); every reusable behavior lives in one of the four
+  profiles.
+- *Failures are reproducible* — gap 3's fail-fast `CompositionException`
+  behavior was never exercised (zero real construction cycles), but
+  nothing in this migration surfaced a reproducibility regression either;
+  `Compono.Bogus`'s `context.DeriveSeed()` determinism contract held
+  throughout once actually used correctly (the two review-caught bugs
+  were migration-time mistakes bypassing that contract, not the contract
+  failing).
+- *Performance does not regress unacceptably* — the one measured
+  post-migration run was 54ms faster than the one measured baseline run;
+  reported as an observation, not a statistical claim (single sample each
+  side), but there is no evidence of regression.
+- *Every discovered finding has a recorded classification* — all ten,
+  per "Classifications (Phase 3)" above.
+- *The research findings are a balanced assessment* — four findings
+  classified acceptable Compono-native alternative (including one
+  "verging on a genuine improvement," `Compono.Bogus`), four intentional
+  design difference, two migration-only friction; the migration guide
+  records real workaround costs (gap 2's explicit stub, `CMP0001`'s
+  interface wrapper) alongside real wins, not a one-sided account.
+- *The migration guide is substantially complete by Phase 4, needing only
+  editorial cleanup* — confirmed above; this Phase 4 pass found only
+  stale Phase-number cross-references to correct, no content gaps.
+- *`docs/roadmap/post-mvp.md` exists and every entry traces to real
+  evidence* — it exists, and correctly contains zero entries, per
+  ADR-0029's own rule that non-candidate findings don't belong there.
+- *Phase 4's final architectural conclusion answers the default-replacement
+  question* — this section, directly below.
+
+**Is Compono now suitable as the default AutoFixture replacement for new
+tests in `cosmere-tracker` specifically?** Yes. Every AutoFixture package
+reference has already been removed from `cosmere-tracker`'s `test/`
+tree — `Directory.Build.props`' global usings and
+`Directory.Packages.props`' package references are Compono-only; the only
+remaining "AutoFixture" text anywhere in `test/` is documentation
+explaining what was migrated away from. This isn't a partial or
+incremental migration still in progress — it's complete, for the entire
+test suite, not just a representative sample.
+
+### Recommendation
+
+**Compono is the default for all `cosmere-tracker` test code, effective
+immediately — there is no remaining AutoFixture code to migrate
+incrementally, and no roadmap-candidate finding to wait on.** This follows
+directly from the evidence above: the migration is already 100% complete
+for `cosmere-tracker` (not partial), zero findings blocked classification
+as bug or roadmap candidate, and the one finding that tested
+explicit-over-implicit under real cost pressure (gap 2) still confirmed
+the posture rather than undermining it. There is nothing left to
+sequence — recommending "migrate incrementally" or "wait for a
+roadmap item to land" would both be responding to a state of affairs
+this migration has already moved past.
+
+For Compono itself, this milestone's evidence supports no MVP scope
+change and no urgent roadmap addition. The two findings worth tracking
+without a `Proposed` ADR yet (`CMP0001`'s registered/external-type
+disambiguation gap, the Compose-family stacking constraint — see
+`docs/roadmap/post-mvp.md`) are real but unexercised: if a future
+dogfooding pass (a different real project, or a future Compono package)
+produces a genuine pre-existing call site for either, that's new evidence
+a future milestone can act on then — not a reason to design either
+mechanism speculatively now, per ADR-0029's evidence-driven restraint.
