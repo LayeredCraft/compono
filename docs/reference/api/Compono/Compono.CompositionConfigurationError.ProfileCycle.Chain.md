@@ -5,7 +5,7 @@
 
 The full cycle, in application order, with the repeated profile type at both ends \(e\.g\.
 `[ProfileA, ProfileB, ProfileA]`\) \- always at least two entries\. A genuinely immutable
-snapshot \([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\), same guarantee as
+snapshot \(`Compono.ImmutableSnapshot`\), same guarantee as
 [Sources](Compono.CompositionConfigurationError.DuplicateRegistration.Sources.md 'Compono\.CompositionConfigurationError\.DuplicateRegistration\.Sources')\.
 
 ```csharp

@@ -4,7 +4,7 @@
 ## CompositionProviderRequest Struct
 
 A composition request, as seen by a public [ICompositionValueProvider](Compono.ICompositionValueProvider.md 'Compono\.ICompositionValueProvider') \- decoupled
-from the engine's own internal [Compono\.CompositionRequest](https://learn.microsoft.com/en-us/dotnet/api/compono.compositionrequest 'Compono\.CompositionRequest') \(no path, no shared\-scope flag,
+from the engine's own internal `Compono.CompositionRequest` \(no path, no shared\-scope flag,
 no pipeline plumbing a provider author has no legitimate use for\)\. See
 `docs/adr/0024-public-provider-extensibility-model.md`\.
 

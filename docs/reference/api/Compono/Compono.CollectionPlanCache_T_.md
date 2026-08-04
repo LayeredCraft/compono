@@ -22,7 +22,7 @@ Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system
 
 ### Remarks
 Mirrors [PlanCache&lt;T&gt;](Compono.PlanCache_T_.md 'Compono\.PlanCache\<T\>') exactly \- a closed generic static field is a direct field read
-on [Compono\.CompositionContext](https://learn.microsoft.com/en-us/dotnet/api/compono.compositioncontext 'Compono\.CompositionContext')'s hot path, not a `typeof(T)`\-keyed dictionary lookup and
+on `Compono.CompositionContext`'s hot path, not a `typeof(T)`\-keyed dictionary lookup and
 not runtime reflection\. Kept as a distinct cache from [PlanCache&lt;T&gt;](Compono.PlanCache_T_.md 'Compono\.PlanCache\<T\>') rather than reused
 for both: dispatch through this cache happens at stage 7 \(built\-in value providers\), after
 registrations/profile/semantic/test\-double providers have already had first refusal, whereas

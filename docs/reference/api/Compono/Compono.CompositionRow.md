@@ -16,7 +16,7 @@ Implements [ICompositionContext](Compono.ICompositionContext.md 'Compono\.ICompo
 
 ### Remarks
 Obtained via [CreateRow\(Type\)](Compono.Composer.CreateRow(System.Type).md 'Compono\.Composer\.CreateRow\(System\.Type\)'), never constructed directly\. Implements
-[ICompositionContext](Compono.ICompositionContext.md 'Compono\.ICompositionContext') by forwarding to the internal [Compono\.CompositionContext](https://learn.microsoft.com/en-us/dotnet/api/compono.compositioncontext 'Compono\.CompositionContext') it
+[ICompositionContext](Compono.ICompositionContext.md 'Compono\.ICompositionContext') by forwarding to the internal `Compono.CompositionContext` it
 wraps, so a value that itself needs further nested composition \(a generated plan's own
 `context.Resolve<T>(descriptor)` calls\) is unaffected \- generated code never sees this
 type, only the interface\. [ResolveShared&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.ResolveShared_TValue_(Compono.CompositionRequestDescriptor).md 'Compono\.CompositionRow\.ResolveShared\<TValue\>\(Compono\.CompositionRequestDescriptor\)')/[ShareExplicit&lt;TValue&gt;\(CompositionRequestDescriptor, TValue\)](Compono.CompositionRow.ShareExplicit_TValue_(Compono.CompositionRequestDescriptor,TValue).md 'Compono\.CompositionRow\.ShareExplicit\<TValue\>\(Compono\.CompositionRequestDescriptor, TValue\)')

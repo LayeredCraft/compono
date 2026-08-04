@@ -14,7 +14,7 @@ Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system
 ### Remarks
 `docs/architecture.md`'s builder configuration \(`Composer.Create(builder => ...)`\) is
             Milestone 3 scope; profiles, registrations, and configuration rules build on it as later Milestone 3
-            phases land\. [Create&lt;T&gt;\(\)](Compono.Composer.Create.md#Compono.Composer.Create_T_() 'Compono\.Composer\.Create\<T\>\(\)') resolves through the real [Compono\.CompositionContext](https://learn.microsoft.com/en-us/dotnet/api/compono.compositioncontext 'Compono\.CompositionContext')/
+            phases land\. [Create&lt;T&gt;\(\)](Compono.Composer.Create.md#Compono.Composer.Create_T_() 'Compono\.Composer\.Create\<T\>\(\)') resolves through the real `Compono.CompositionContext`/
             resolution pipeline \(Milestone 2\) rather than dispatching into a generated
             [ICompositionPlan&lt;T&gt;](Compono.ICompositionPlan_T_.md 'Compono\.ICompositionPlan\<T\>') directly\.
 

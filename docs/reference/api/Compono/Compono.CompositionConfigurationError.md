@@ -22,8 +22,8 @@ Derived
 Implements [System\.IEquatable&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.iequatable-1 'System\.IEquatable\`1')[CompositionConfigurationError](Compono.CompositionConfigurationError.md 'Compono\.CompositionConfigurationError')[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.iequatable-1 'System\.IEquatable\`1')
 
 ### Remarks
-A discriminated union \- the same shape this codebase already uses for [Compono\.PathSegment](https://learn.microsoft.com/en-us/dotnet/api/compono.pathsegment 'Compono\.PathSegment') and
-[Compono\.CompositionResult](https://learn.microsoft.com/en-us/dotnet/api/compono.compositionresult 'Compono\.CompositionResult') \- so each conflict kind carries only the fields relevant to it,
+A discriminated union \- the same shape this codebase already uses for `Compono.PathSegment` and
+`Compono.CompositionResult` \- so each conflict kind carries only the fields relevant to it,
 rather than one flat type with a `Kind` enum and fields only some kinds use\. New cases are
 added by whichever Milestone 3 phase introduces the conflict they describe; only
 [DuplicateConfigurationOption](Compono.CompositionConfigurationError.DuplicateConfigurationOption.md 'Compono\.CompositionConfigurationError\.DuplicateConfigurationOption') exists so far \(Phase 0\)\. See

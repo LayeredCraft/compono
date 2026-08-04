@@ -3,9 +3,9 @@
 
 ## ProviderAttempt\.Provider Property
 
-The concrete [Compono\.ICompositionProvider](https://learn.microsoft.com/en-us/dotnet/api/compono.icompositionprovider 'Compono\.ICompositionProvider') type that made this attempt, or
+The concrete `Compono.ICompositionProvider` type that made this attempt, or
 [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') for a context\-owned stage \(shared/scoped values, exact registrations,
-collection\-plan/generated\-plan dispatch\) \- those aren't [Compono\.ICompositionProvider](https://learn.microsoft.com/en-us/dotnet/api/compono.icompositionprovider 'Compono\.ICompositionProvider')
+collection\-plan/generated\-plan dispatch\) \- those aren't `Compono.ICompositionProvider`
 instances at all, per `docs/architecture.md`'s Resolution Pipeline table\.
 
 ```csharp

@@ -9,7 +9,7 @@
 | [CompositionException\(CompositionDiagnostic, Exception\)](Compono.CompositionException..ctor.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic,System.Exception) 'Compono\.CompositionException\.CompositionException\(Compono\.CompositionDiagnostic, System\.Exception\)') | Creates a [CompositionException](Compono.CompositionException.md 'Compono\.CompositionException') from a structured [CompositionDiagnostic](Compono.CompositionDiagnostic.md 'Compono\.CompositionDiagnostic'), preserving [innerException](Compono.CompositionException.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic,System.Exception).innerException 'Compono\.CompositionException\.CompositionException\(Compono\.CompositionDiagnostic, System\.Exception\)\.innerException') \- the shape a configured `IServiceProvider` throwing during stage 3's fallback sub\-step uses, per `docs/adr/0019-registrations-and-service-provider-injection.md` \("never `throw ex;`, the original exception is always preserved"\)\. |
 | [CompositionException\(string\)](Compono.CompositionException..ctor.md#Compono.CompositionException.CompositionException(string) 'Compono\.CompositionException\.CompositionException\(string\)') | Creates a [CompositionException](Compono.CompositionException.md 'Compono\.CompositionException') with no structured [Diagnostic](Compono.CompositionException.Diagnostic.md 'Compono\.CompositionException\.Diagnostic')\. |
 
-<a name='ctor.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic)'></a>
+<a name='Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic)'></a>
 
 ## CompositionException\(CompositionDiagnostic\) Constructor
 
@@ -33,7 +33,7 @@ The structured detail behind this failure\.
 [System\.ArgumentNullException](https://learn.microsoft.com/en-us/dotnet/api/system.argumentnullexception 'System\.ArgumentNullException')  
 [diagnostic](Compono.CompositionException.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic).diagnostic 'Compono\.CompositionException\.CompositionException\(Compono\.CompositionDiagnostic\)\.diagnostic') is [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null')\.
 
-<a name='ctor.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic,System.Exception)'></a>
+<a name='Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic,System.Exception)'></a>
 
 ## CompositionException\(CompositionDiagnostic, Exception\) Constructor
 
@@ -65,7 +65,7 @@ The exception that caused this failure\.
 [System\.ArgumentNullException](https://learn.microsoft.com/en-us/dotnet/api/system.argumentnullexception 'System\.ArgumentNullException')  
 [diagnostic](Compono.CompositionException.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic,System.Exception).diagnostic 'Compono\.CompositionException\.CompositionException\(Compono\.CompositionDiagnostic, System\.Exception\)\.diagnostic') or [innerException](Compono.CompositionException.md#Compono.CompositionException.CompositionException(Compono.CompositionDiagnostic,System.Exception).innerException 'Compono\.CompositionException\.CompositionException\(Compono\.CompositionDiagnostic, System\.Exception\)\.innerException') is [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null')\.
 
-<a name='ctor.md#Compono.CompositionException.CompositionException(string)'></a>
+<a name='Compono.CompositionException.CompositionException(string)'></a>
 
 ## CompositionException\(string\) Constructor
 

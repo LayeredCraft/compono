@@ -4,7 +4,7 @@
 ## CompositionConfigurationException\.Errors Property
 
 Every conflict found \- always at least one\. A genuinely immutable snapshot
-\([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\) taken at construction, never the caller\-supplied list itself
+\(`Compono.ImmutableSnapshot`\) taken at construction, never the caller\-supplied list itself
 and never a plain array a caller could cast back to and mutate \- it can never drift from the
 already\-rendered [System\.Exception\.Message](https://learn.microsoft.com/en-us/dotnet/api/system.exception.message 'System\.Exception\.Message'), which is derived from this exact same
 snapshot\.

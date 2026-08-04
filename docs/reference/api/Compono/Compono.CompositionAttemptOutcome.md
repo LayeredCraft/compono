@@ -38,5 +38,5 @@ recorded for a generated\-plan or collection\-plan dispatch immediately before i
 `Compose`, so an ancestor still in flight when a descendant fails isn't silently absent
 from the materialized trace\. Never survives a successful resolution \- the eventual
 [Success](Compono.CompositionAttemptOutcome.md#Compono.CompositionAttemptOutcome.Success 'Compono\.CompositionAttemptOutcome\.Success') entry recorded alongside it is what gets rewound away
-\([Compono\.CompositionTraceBuffer](https://learn.microsoft.com/en-us/dotnet/api/compono.compositiontracebuffer 'Compono\.CompositionTraceBuffer')'s remarks\); only on failure does this entry \(with no
+\(`Compono.CompositionTraceBuffer`'s remarks\); only on failure does this entry \(with no
 following [Success](Compono.CompositionAttemptOutcome.md#Compono.CompositionAttemptOutcome.Success 'Compono\.CompositionAttemptOutcome\.Success')/[Failure](Compono.CompositionAttemptOutcome.md#Compono.CompositionAttemptOutcome.Failure 'Compono\.CompositionAttemptOutcome\.Failure') at the same position\) stay in the trace\.

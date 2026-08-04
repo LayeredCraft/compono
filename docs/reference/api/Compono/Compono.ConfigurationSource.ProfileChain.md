@@ -20,4 +20,4 @@ Implements [System\.IEquatable&lt;](https://learn.microsoft.com/en-us/dotnet/api
 
 | Properties | |
 | :--- | :--- |
-| [Profiles](Compono.ConfigurationSource.ProfileChain.Profiles.md 'Compono\.ConfigurationSource\.ProfileChain\.Profiles') | The applied profile types, outermost first\. A genuinely immutable snapshot \([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\) taken at construction, never the caller\-supplied list itself \- the same mutation\-after\-construction concern [Errors](Compono.CompositionConfigurationException.Errors.md 'Compono\.CompositionConfigurationException\.Errors') guards against\. |
+| [Profiles](Compono.ConfigurationSource.ProfileChain.Profiles.md 'Compono\.ConfigurationSource\.ProfileChain\.Profiles') | The applied profile types, outermost first\. A genuinely immutable snapshot \(`Compono.ImmutableSnapshot`\) taken at construction, never the caller\-supplied list itself \- the same mutation\-after\-construction concern [Errors](Compono.CompositionConfigurationException.Errors.md 'Compono\.CompositionConfigurationException\.Errors') guards against\. |

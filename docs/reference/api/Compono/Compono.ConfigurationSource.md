@@ -19,8 +19,8 @@ Derived
 Implements [System\.IEquatable&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.iequatable-1 'System\.IEquatable\`1')[ConfigurationSource](Compono.ConfigurationSource.md 'Compono\.ConfigurationSource')[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.iequatable-1 'System\.IEquatable\`1')
 
 ### Remarks
-A discriminated union, matching this codebase's existing [Compono\.PathSegment](https://learn.microsoft.com/en-us/dotnet/api/compono.pathsegment 'Compono\.PathSegment')/
-[Compono\.CompositionResult](https://learn.microsoft.com/en-us/dotnet/api/compono.compositionresult 'Compono\.CompositionResult') shape\. Used only for diagnostics \- naming every contributing source
+A discriminated union, matching this codebase's existing `Compono.PathSegment`/
+`Compono.CompositionResult` shape\. Used only for diagnostics \- naming every contributing source
 of a [CompositionConfigurationError](Compono.CompositionConfigurationError.md 'Compono\.CompositionConfigurationError') \- never for resolution behavior\. `public`
 because [CompositionConfigurationError](Compono.CompositionConfigurationError.md 'Compono\.CompositionConfigurationError'), which exposes it, is `public`\. See
 `docs/adr/0018-composition-profiles.md`'s provenance decision\.

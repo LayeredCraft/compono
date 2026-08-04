@@ -16,7 +16,7 @@ public readonly struct CompositionRequestDescriptor
 A plain [struct](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/struct 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/struct'), not a `record struct` \- equality, `Deconstruct`, and
 record\-style formatting aren't part of this type's contract, per
 `docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md`'s second amendment\.
-[Ordinal](Compono.CompositionRequestDescriptor.Ordinal.md 'Compono\.CompositionRequestDescriptor\.Ordinal'), not [Name](Compono.CompositionRequestDescriptor.Name.md 'Compono\.CompositionRequestDescriptor\.Name'), is the identity [Compono\.CompositionContext](https://learn.microsoft.com/en-us/dotnet/api/compono.compositioncontext 'Compono\.CompositionContext')
+[Ordinal](Compono.CompositionRequestDescriptor.Ordinal.md 'Compono\.CompositionRequestDescriptor\.Ordinal'), not [Name](Compono.CompositionRequestDescriptor.Name.md 'Compono\.CompositionRequestDescriptor\.Name'), is the identity `Compono.CompositionContext`
 uses for path/random\-fork keys \- [Name](Compono.CompositionRequestDescriptor.Name.md 'Compono\.CompositionRequestDescriptor\.Name') exists for diagnostic display only, per
 `docs/adr/0012-composition-path-identity-and-deterministic-random-forking.md`'s second
 amendment\.

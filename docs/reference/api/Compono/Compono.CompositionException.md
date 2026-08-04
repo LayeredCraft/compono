@@ -18,7 +18,7 @@ This is the thrown\-exception boundary `docs/public-api.md`'s examples catch \-
 terminal non\-success pipeline outcome has no return\-value channel to report through and
 converts to this exception instead, per
 `docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md`\. The pipeline's own
-internal stages still communicate via [Compono\.CompositionResult](https://learn.microsoft.com/en-us/dotnet/api/compono.compositionresult 'Compono\.CompositionResult'), not exceptions \- only
+internal stages still communicate via `Compono.CompositionResult`, not exceptions \- only
 this outward\-facing boundary throws\.
 
 | Constructors | |

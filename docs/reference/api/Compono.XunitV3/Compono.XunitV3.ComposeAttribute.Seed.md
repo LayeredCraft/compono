@@ -14,7 +14,7 @@ seed instead, even though this property itself was never set \(ADR\-0022 Amendme
 pinning a seed is a deliberate reproducibility choice, honored the same way a value set here
 would be\)\. A plain [int](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/int 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/int'), not [int?](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/int? 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/int?') \- an attribute named
 argument cannot target a [System\.Nullable&lt;&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.nullable-1 'System\.Nullable\`1') property \(CS0655\); see
-[Compono\.XunitV3\.ComposeAttribute\.SeedAsNullable](https://learn.microsoft.com/en-us/dotnet/api/compono.xunitv3.composeattribute.seedasnullable 'Compono\.XunitV3\.ComposeAttribute\.SeedAsNullable') for the property the binding algorithm actually reads\.
+`Compono.XunitV3.ComposeAttribute.SeedAsNullable` for the property the binding algorithm actually reads\.
 
 ```csharp
 public int Seed { get; set; }

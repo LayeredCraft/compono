@@ -13,7 +13,7 @@ public sealed class CompositionBuilder
 Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → CompositionBuilder
 
 ### Remarks
-Every accumulated setting is validated and frozen into an immutable [Compono\.CompositionConfiguration](https://learn.microsoft.com/en-us/dotnet/api/compono.compositionconfiguration 'Compono\.CompositionConfiguration')
+Every accumulated setting is validated and frozen into an immutable `Compono.CompositionConfiguration`
 once the callback returns \- nothing about a later [Create&lt;T&gt;\(\)](Compono.Composer.Create.md#Compono.Composer.Create_T_() 'Compono\.Composer\.Create\<T\>\(\)')/
 [CreateMany&lt;T&gt;\(int\)](Compono.Composer.CreateMany_T_(int).md 'Compono\.Composer\.CreateMany\<T\>\(int\)') call can observe a mutation made after that point, since this
 instance is never reachable again\. See

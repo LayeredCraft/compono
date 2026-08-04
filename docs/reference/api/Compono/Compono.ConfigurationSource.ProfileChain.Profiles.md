@@ -4,7 +4,7 @@
 ## ConfigurationSource\.ProfileChain\.Profiles Property
 
 The applied profile types, outermost first\. A genuinely immutable snapshot
-\([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\) taken at construction, never the caller\-supplied list
+\(`Compono.ImmutableSnapshot`\) taken at construction, never the caller\-supplied list
 itself \- the same mutation\-after\-construction concern
 [Errors](Compono.CompositionConfigurationException.Errors.md 'Compono\.CompositionConfigurationException\.Errors') guards against\.
 

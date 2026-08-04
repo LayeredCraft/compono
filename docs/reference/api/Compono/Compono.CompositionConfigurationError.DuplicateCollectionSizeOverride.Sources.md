@@ -4,7 +4,7 @@
 ## CompositionConfigurationError\.DuplicateCollectionSizeOverride\.Sources Property
 
 Every call that set this override, in call order \- always at least two\. A genuinely
-immutable snapshot \([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\), same guarantee as
+immutable snapshot \(`Compono.ImmutableSnapshot`\), same guarantee as
 [Sources](Compono.CompositionConfigurationError.DuplicateRegistration.Sources.md 'Compono\.CompositionConfigurationError\.DuplicateRegistration\.Sources')\.
 
 ```csharp

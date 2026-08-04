@@ -70,6 +70,17 @@ done
 # of other generated pages that link to it - across all four packages' output,
 # since a future integration package could plausibly <see cref/> a core
 # constructor the same way.
+#
+# DefaultDocumentation's own same-page anchor names on a "#ctor"-named page
+# are built as "<part of the filename after its own last '#'>#<member id>"
+# (e.g. name='ctor.md#Compono.ComposableAttribute.ComposableAttribute()') -
+# internally consistent only because it assumes the filename still contains a
+# literal '#' acting as the real fragment delimiter. Renaming the file to
+# remove that '#' already fixes every *href* pointing at this page (the
+# substitution above), but leaves the page's own in-page anchor `name`
+# values carrying that now-stale "ctor.md#" prefix, so a deep link into a
+# specific overload lands at the top of the page instead - caught by PR #47
+# review. Strip that leftover prefix from the renamed file's own anchors.
 while IFS= read -r -d '' old_path; do
     new_path="${old_path//\#ctor/.ctor}"
     old_name="$(basename "$old_path")"
@@ -79,6 +90,37 @@ while IFS= read -r -d '' old_path; do
         sed -i.bak "s/${old_name//./\\.}/${new_name}/g" "$referencing_file"
         rm -f "${referencing_file}.bak"
     done
+
+    stale_anchor_prefix="${old_name##*#}#"
+    sed -i.bak "s/name='${stale_anchor_prefix//./\\.}/name='/g" "$new_path"
+    rm -f "${new_path}.bak"
 done < <(find docs/reference/api -name '*#ctor*.md' -print0)
+
+# A public member's XML docs can <see cref/> an internal Compono type (e.g. a
+# CompositionConfiguration mentioned from CompositionBuilder's public docs).
+# DocItemFactory can't resolve it locally (this run only generated Public
+# DocItems, and it isn't in any --ExternLinksFilePaths either), so it falls
+# through to DotnetApiFactory, which treats any unrecognized symbol as a BCL
+# type and fabricates a "learn.microsoft.com/en-us/dotnet/api/compono.*" URL
+# that 404s - flagged by PR #47 review (38 such dead links found). Rewrite
+# every such link to plain inline code instead of leaving a dead link -
+# there is no real page to point it at without publishing internal types,
+# which would contradict generating only the public surface in the first
+# place.
+python3 - <<'PYEOF'
+import pathlib
+import re
+
+pattern = re.compile(
+    r"\[([^\]]+)\]\(https://learn\.microsoft\.com/en-us/dotnet/api/compono\.[^\s)]+ '[^']*'\)"
+)
+unescape = re.compile(r"\\(.)")
+
+for path in pathlib.Path("docs/reference/api").rglob("*.md"):
+    text = path.read_text()
+    new_text = pattern.sub(lambda m: f"`{unescape.sub(r'\1', m.group(1))}`", text)
+    if new_text != text:
+        path.write_text(new_text)
+PYEOF
 
 echo "API reference generation complete."

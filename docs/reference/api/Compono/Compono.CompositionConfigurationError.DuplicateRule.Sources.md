@@ -4,7 +4,7 @@
 ## CompositionConfigurationError\.DuplicateRule\.Sources Property
 
 Every call that set this rule, in call order \- always at least two\. A genuinely immutable
-snapshot \([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\), same guarantee as
+snapshot \(`Compono.ImmutableSnapshot`\), same guarantee as
 [Sources](Compono.CompositionConfigurationError.DuplicateRegistration.Sources.md 'Compono\.CompositionConfigurationError\.DuplicateRegistration\.Sources')\.
 
 ```csharp

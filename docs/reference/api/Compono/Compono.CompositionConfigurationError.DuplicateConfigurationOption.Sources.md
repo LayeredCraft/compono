@@ -4,7 +4,7 @@
 ## CompositionConfigurationError\.DuplicateConfigurationOption\.Sources Property
 
 Every call that set this option, in call order \- always at least two\. A genuinely
-immutable snapshot \([Compono\.ImmutableSnapshot](https://learn.microsoft.com/en-us/dotnet/api/compono.immutablesnapshot 'Compono\.ImmutableSnapshot')\) taken at construction, never the
+immutable snapshot \(`Compono.ImmutableSnapshot`\) taken at construction, never the
 caller\-supplied list itself and never a plain array a caller could cast back to and
 mutate \- the same mutation\-after\-construction concern
 [Errors](Compono.CompositionConfigurationException.Errors.md 'Compono\.CompositionConfigurationException\.Errors') guards against, one level deeper\.

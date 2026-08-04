@@ -853,8 +853,10 @@ scored against every ADR-0032 criterion:
   1.2.5 current). Deterministic: two consecutive runs against the same
   input produced byte-identical output, verified both for a single package
   and for the full four-package generation run.
-- **Two real defects found and fixed during wiring, not left as accepted
-  gaps:**
+- **Four real defects found and fixed during wiring, not left as accepted
+  gaps** — the first two caught before the PR opened, the other two by PR
+  #47's automated review (`chatgpt-codex-connector`), addressed in the same
+  PR rather than deferred:
   1. **Cross-package `<see cref>` resolution.** Generating each package
      standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
      XML docs fell back to `DotnetApiFactory`, which treats any type it
@@ -875,6 +877,36 @@ scored against every ADR-0032 criterion:
      handful of other generated pages that link to it, confined to
      `Compono` core in practice (the only package with a documented
      parameterless constructor).
+  3. **Bogus links for internal Compono types (PR #47 review).** The same
+     `DotnetApiFactory` fallback as (1) fires for any `<see cref>` on a
+     *public* member's XML docs that names an *internal* Compono type (e.g.
+     `CompositionBuilder`'s docs mention `CompositionConfiguration`) — no
+     local page exists for it (Public-only generation) and it's never in
+     `--ExternLinksFilePaths` either, so it falls to the same fabricated,
+     dead `learn.microsoft.com/en-us/dotnet/api/compono.*` URL as (1). 38
+     such dead links across 29 files, not the single isolated instance
+     (`SeedAsNullable`) originally noticed and wrongly framed as a
+     hover-only cosmetic quirk during initial verification — the scale
+     only became clear from PR review's exhaustive scan. Fixed by
+     post-processing every generated page: a link whose target matches
+     that URL pattern is rewritten to plain inline code of its (unescaped)
+     type name instead of a dead link, since there is no real page to
+     point it at without publishing internal implementation types, which
+     would contradict generating only the public surface in the first
+     place.
+  4. **Stale in-page anchor names on renamed `#ctor` pages (PR #47
+     review).** Fix (2)'s filename rename corrected every *href* pointing
+     at a constructor-overload page, but `DefaultDocumentation`'s own
+     same-page anchor `name` values on that page are built as "the part of
+     the filename after its own last `#`, `#`, member id"
+     (`name='ctor.md#Compono.ComposableAttribute.ComposableAttribute()'`)
+     — internally consistent only on the assumption the filename still
+     contains a literal `#` acting as the real fragment delimiter. Once
+     that `#` is renamed away, the anchor's stale `ctor.md#` prefix no
+     longer matches the (already-correct) href fragment, so a deep link
+     into a specific overload landed at the top of the page instead of
+     that overload's section. Fixed by stripping the stale prefix from the
+     renamed page's own anchors in the same post-processing pass.
 - **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
   carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
   MkDocs/python-markdown doesn't re-process escapes inside a link's title
