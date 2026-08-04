@@ -108,11 +108,15 @@ acceptance test.
       a consumer could install e.g. `Compono.XunitV3 0.3.0` alongside a
       newer `Compono 0.5.0` and have it restore successfully, exactly the
       cross-package version mismatch ADR-0031 declares unsupported.
-      Override the generated dependency range to exact-pin syntax
-      (`[$(Version)]`) for each integration package's `Compono` reference,
-      and verify it by inspecting the packed `.nuspec`'s `<dependencies>`
-      entry in the package-contents-inspection CI job below, not just its
-      file listing.
+      **Keep `<ProjectReference>` — it stays the mechanism for local
+      development** (fast inner loop, no local-feed round-trip needed to
+      iterate on an integration package against core changes in the same
+      repo); this task only overrides the NuGet dependency *version
+      range* that `dotnet pack` writes into the `.nuspec` at pack time
+      (`[$(Version)]` instead of the default bare version), it does not
+      switch to `PackageReference`. Verify by inspecting the packed
+      `.nuspec`'s `<dependencies>` entry in the package-contents-inspection
+      CI job below, not just its file listing.
 - [ ] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
       not per-project — one shared, uniform value for all five packages
       (`PackageTags`: `testing;test-data;source-generator;dotnet`;

@@ -286,7 +286,14 @@ duplicate it.
   for the internal case) to make this bullet true rather than
   aspirational — see
   [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for
-  both. Version ranges are a post-1.0 concern, once real consumer
+  both. **`<ProjectReference>` itself stays** — by explicit decision, the
+  fix for the internal case only overrides the *version range NuGet
+  writes into the `.nuspec` at pack time*, not the reference mechanism;
+  each integration package keeps building against `Compono`'s live
+  source for local development (fast inner loop, no local-feed
+  round-trip to iterate on an integration package against a core
+  change in the same repo) rather than switching to a `PackageReference`.
+  Version ranges are a post-1.0 concern, once real consumer
   version-conflict evidence exists to justify them.
 - **Automated package and API-compatibility validation, as an
   independent, locally-controlled CI gate — not inside the publish
