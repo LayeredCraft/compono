@@ -577,11 +577,15 @@ already posed, not a reversal of anything already decided.
    principle.** Both are retired: their content is redistributed into
    `architecture/` (mostly `design-principles.md`) and `reference/` as
    each replacement page is written during
-   [PLAN-0008](../plans/0008-milestone-8-public-preview.md), and the
-   originals plus their `mkdocs.yml` "(legacy)" nav entries are deleted
-   once every cross-reference has a new home — not kept as a parallel
-   internal-only copy, which would risk exactly the two-documents-
-   describing-the-same-thing drift this decision exists to prevent. This
+   [PLAN-0008](../plans/0008-milestone-8-public-preview.md), their
+   `mkdocs.yml` "(legacy)" nav entries removed, and each original
+   replaced with a short redirect/tombstone stub — not deleted outright
+   and not kept as a parallel internal-only copy either, which would risk
+   exactly the two-documents-describing-the-same-thing drift this
+   decision exists to prevent. A tombstone, not a deletion, because 17
+   `Accepted` ADRs already link to one or both by path and this repo's
+   own ADR-immutability rule means that historical text can never be
+   rewritten to point elsewhere. This
    generalizes into a standing principle for all of Compono's public
    documentation, not just these two pages: **every concept has exactly
    one canonical home** — conceptual guidance lives in the relevant
