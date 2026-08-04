@@ -542,3 +542,120 @@ and the rest are cross-cutting standards or internal refinements to
 existing areas. `docs/documentation-architecture.md` is updated in full to
 reflect all ten points, per this repo's "docs/*.md describes current
 intent, ADRs describe the decision" split.
+
+## Amendment 2 (2026-08-04): resolving Milestone 8's remaining Open Items
+
+Milestone 8's deep-design pass ([PLAN-0008](../plans/0008-milestone-8-public-preview.md))
+resolves all six of this ADR's original Open Items, plus one additional
+decision the same design pass surfaced. Three Open Items — API reference
+toolchain, Samples strategy, and versioning policy — were substantial
+enough to warrant their own independent decision records with their own
+Considered Options: [ADR-0032](0032-api-reference-documentation-toolchain.md)
+(API reference toolchain), [ADR-0033](0033-public-preview-samples-strategy.md)
+(Samples strategy), and [ADR-0031](0031-public-preview-release-and-versioning-policy.md)
+(versioning/release policy). The remaining three Open Items — Cookbook
+navigation/tagging, issue templates (folded into point 4's broader
+contributor-governance scope below), and `public-api.md`/`manifesto.md`'s
+disposition — are recorded here as this Amendment, since each is an
+extension/resolution of a question this ADR already posed, not a
+reversal of anything already decided. This Amendment's point 3
+(benchmark/performance-claims policy) is a fourth, additional decision
+the same design pass surfaced — not one of this ADR's original six Open
+Items, but adjacent enough to this ADR's documentation-content scope to
+record here rather than opening a narrower ADR for one policy paragraph.
+
+1. **Cookbook navigation/tagging at scale — deferred, not decided now.**
+   The first preview launches Cookbook with a flat, alphabetically-ordered
+   `cookbook/index.md` and relies on MkDocs Material's built-in search as
+   the primary discovery mechanism — the launch batch (5-10 recipes, per
+   [PLAN-0008](../plans/0008-milestone-8-public-preview.md)) is far too
+   small to design a taxonomy against with any real evidence. Every recipe
+   page still captures stable front matter from the start (`title`, a
+   short description, `packages` used, `concepts` involved) even though
+   nothing consumes it for navigation yet — preserving the option to
+   generate categories/tags later without rewriting every existing page.
+   Revisit once either threshold is crossed: the Cookbook exceeds ~20-25
+   recipes, or real usage/search evidence shows alphabetical browsing plus
+   search is no longer sufficient — at that point, design the taxonomy
+   from the actual recipe set and real usage patterns, per this repo's
+   standing evidence-over-prediction bias
+   ([ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)),
+   rather than guessing now.
+2. **`docs/public-api.md`/`docs/manifesto.md`'s disposition — retire,
+   redistribute, and generalize into a standing documentation
+   principle.** Both are retired: their content is redistributed into
+   `architecture/` (mostly `design-principles.md`) and `reference/` as
+   each replacement page is written during
+   [PLAN-0008](../plans/0008-milestone-8-public-preview.md), their
+   `mkdocs.yml` "(legacy)" nav entries removed, and each original
+   replaced with a short redirect/tombstone stub — not deleted outright
+   and not kept as a parallel internal-only copy either, which would risk
+   exactly the two-documents-describing-the-same-thing drift this
+   decision exists to prevent. A tombstone, not a deletion, because 17
+   `Accepted` ADRs already link to one or both by path and this repo's
+   own ADR-immutability rule means that historical text can never be
+   rewritten to point elsewhere. This
+   generalizes into a standing principle for all of Compono's public
+   documentation, not just these two pages: **every concept has exactly
+   one canonical home** — conceptual guidance lives in the relevant
+   Concepts/Architecture page, API behavior lives in generated/maintained
+   Reference, design philosophy lives in `architecture/design-
+   principles.md`, migration guidance lives in the migration guide,
+   package-specific behavior lives in the relevant Package Guide — and
+   every other page *links* to that home rather than re-explaining it.
+   This restates and sharpens `documentation.md`'s existing "avoid
+   duplicating content between concept guides and reference material"
+   principle into an explicit, project-wide rule, matching this
+   amendment's own "extends without reversing" character. If retiring
+   `public-api.md`/`manifesto.md` would lose historical context worth
+   keeping (not current guidance, but *why* a decision was made), that
+   context belongs in the relevant ADR, not in a second documentation
+   page kept alive solely to preserve it.
+3. **Benchmark/performance claims policy.** The published benchmark
+   (methodology, environment disclosure, generated-vs-reflection and the
+   AutoFixture reference-point comparison) stays fully published and
+   reproducible in `architecture/current/performance.md` and
+   `best-practices/performance-recommendations.md` — but the
+   root `README.md` and every package's `PackageDescription`/`Description`
+   make claims only about Compono itself (source-generated composition,
+   deterministic object creation, explicit customization, reproducible
+   failures, discoverable APIs, predictable/generated-path performance,
+   minimal allocations, benchmark methodology available on request) and
+   never a comparative phrase like "faster than AutoFixture," "Nx faster
+   than AutoFixture," or "replaces AutoFixture because it's faster." The
+   AutoFixture benchmark exists as an objective, reproducible data point
+   a reader can independently evaluate, not a marketing headline this
+   project leads with — a reader who independently concludes Compono is
+   faster for their scenario from the published methodology is a more
+   credible outcome than a headline claim asserting it. This applies
+   project-wide, not just to `README.md` — any future page making a
+   performance claim is held to the same "about Compono itself, not a
+   comparison" bar.
+4. **Contributor-governance scope for the first preview.** Milestone 8
+   stands up `contributing.md` (build/test/PR expectations, cross-linking
+   this skill's public-facing equivalents), `SECURITY.md` (vulnerability
+   reporting — required for GitHub's own security-advisory flow), a
+   standard, uncustomized `CODE_OF_CONDUCT.md` (Contributor Covenant),
+   lightweight GitHub issue templates (bug report, feature/roadmap
+   proposal), and a lightweight PR template — the set GitHub and outside
+   contributors already expect, each with near-zero ongoing maintenance
+   cost. Explicitly out of scope, per this ADR's and the milestone
+   brief's shared "don't add governance ceremony a small project can't
+   maintain" instruction: a standalone governance document, defined
+   maintainer roles, a steering committee, a voting procedure, an RFC
+   process, or a contributor ladder — organizational process sized for a
+   multi-maintainer community this project isn't yet, added later from
+   real experience if that ever changes, not speculatively now.
+
+None of these four points changes this ADR's hierarchy, section purposes,
+or audiences — the three that resolve an original Open Item (points 1,
+2, and 4's issue-templates component) each fill in a gap this ADR's own
+Open Items section already flagged as deliberately left open, per this
+repo's "amendment extends, doesn't reverse" convention; point 3 is
+additional scope, not a reversal of anything either.
+`docs/documentation-architecture.md`'s Open Items section is updated to
+reflect all six original resolutions — three here (Cookbook navigation,
+issue templates, `public-api.md`/`manifesto.md` disposition) and three
+via dedicated ADRs (API reference toolchain via ADR-0032, Samples
+strategy via ADR-0033, versioning policy via ADR-0031) — as part of
+[PLAN-0008](../plans/0008-milestone-8-public-preview.md).

@@ -518,13 +518,26 @@ finding to wait on.
 ## Milestone 8: Public Preview
 
 Per [ADR-0029 Amendment 4](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-4-2026-08-03-documentation-architecture-becomes-a-required-milestone-7-deliverable)/
-[ADR-0030](adr/0030-compono-documentation-architecture.md), this milestone
-executes against Milestone 7's documentation architecture
-(`docs/documentation-architecture.md`) and its Phase 5 work-item backlog,
-rather than designing the documentation from scratch — the hierarchy,
-section purposes/audiences/ordering, and migration-guide placement are
-already decided; this milestone writes, refines, polishes, reviews, and
-publishes the content.
+[ADR-0030](adr/0030-compono-documentation-architecture.md) (including
+Amendment 2), this milestone executes against Milestone 7's documentation
+architecture (`docs/documentation-architecture.md`) and its Phase 5
+work-item backlog, rather than designing the documentation from scratch —
+the hierarchy, section purposes/audiences/ordering, and migration-guide
+placement are already decided; this milestone writes, refines, polishes,
+reviews, and publishes the content. A dedicated deep-design pass beyond
+Phase 5's backlog settled the remaining cross-cutting decisions the
+backlog itself couldn't answer just by listing pages: release/versioning
+policy ([ADR-0031](adr/0031-public-preview-release-and-versioning-policy.md)),
+the API reference toolchain ([ADR-0032](adr/0032-api-reference-documentation-toolchain.md)),
+the samples strategy ([ADR-0033](adr/0033-public-preview-samples-strategy.md)),
+and `docs/documentation-architecture.md`'s remaining Open Items (Cookbook
+navigation deferral, `public-api.md`/`manifesto.md` retirement, benchmark-
+claims policy, contributor-governance scope — all recorded in
+[ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items)).
+Tracked by [PLAN-0008](plans/0008-milestone-8-public-preview.md), phased
+0-9; see that plan for the full package-readiness checklist,
+release-readiness checklist, public-preview acceptance checklist, and
+exit criteria.
 
 ### Scope
 

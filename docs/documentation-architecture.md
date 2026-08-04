@@ -121,15 +121,11 @@ docs/
 │   ├── index.md
 │   └── <one page per narrow, practical problem — expected to grow into the
 │        largest section on the site; see "Cookbook" below>
-├── samples/
-│   ├── index.md
-│   ├── basic-usage.md
-│   ├── aspnet-api.md
-│   ├── cqrs.md
-│   ├── clean-architecture.md
-│   ├── minimal-apis.md
-│   ├── mediatr.md
-│   └── ef-core.md
+├── samples/                                   # public-preview launch: index.md +
+│   ├── index.md                               # basic-usage.md + aspnet-api.md only —
+│   ├── basic-usage.md                         # ADR-0033 defers cqrs/clean-architecture/
+│   └── aspnet-api.md                          # minimal-apis/mediatr/ef-core as future
+│                                               # candidates, not stub nav pages (see "5. Samples")
 ├── migrating-from-autofixture.md             # promoted to top-level (Phase 5)
 ├── packages/
 │   ├── index.md
@@ -170,12 +166,18 @@ docs/
 │   ├── post-mvp.md                           # real content (PLAN-0007 Phase 3, done)
 │   ├── proposed-adrs.md                      # status-filtered ADR index
 │   └── future-packages.md
-├── contributing.md                           # not yet created (Milestone 8 scope)
-├── manifesto.md                              # exists; content folds into
-│                                              # architecture/design-principles.md over time
-└── public-api.md                             # exists; content folds into
-                                               # architecture/ + reference/ over time
+└── contributing.md                           # not yet created (Milestone 8 scope)
 ```
+
+`docs/manifesto.md` and `docs/public-api.md` exist today but are **not**
+part of this canonical tree — per
+[ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items),
+both are retired once their content is fully redistributed into
+`architecture/design-principles.md`/`architecture/` + `reference/`
+(Milestone 8 Phase 5), not kept as a permanent third location for the
+same material. Shown struck through in the Open Items list below rather
+than left in the tree, so this diagram matches what Phase 7's
+`mkdocs.yml` nav check actually verifies against.
 
 Internal, non-public artifacts that stay exactly where they are and do
 **not** join the site nav: `docs/adr/` (source of truth
@@ -308,9 +310,15 @@ a recipe, and out to Samples for a reader whose "recipe" has grown into
 
 **Audience:** someone who wants to see multiple concepts working together
 in a realistic application, not a single isolated problem.
-**Status:** skeleton exists (all 8 documentation pages — placeholder
-summaries only; the actual runnable sample applications don't exist yet,
-see Open Items).
+**Status:** per [ADR-0033](adr/0033-public-preview-samples-strategy.md),
+the public-preview launch set is **two** runnable samples (Basic Usage,
+ASP.NET API) — not the eight originally sketched here. `docs/samples/`
+carries only those two real pages plus `index.md` at launch; the other
+five (CQRS, Clean Architecture, Minimal APIs, MediatR, EF Core) are
+recorded as future candidates (see Contents below), not published
+skeleton pages, and their `mkdocs.yml` nav entries are removed rather
+than shipped as placeholders — see
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 4.
 **Purpose:** complete, runnable applications — deliberately distinct from
 Cookbook, not a larger cookbook entry. Cookbook is one problem, one
 solution, copy/paste, short; Samples are full applications with realistic
@@ -318,14 +326,21 @@ architecture, demonstrating how Compono's pieces compose together in
 practice. Conflating the two would force Cookbook's recipes to bloat past
 "short and self-contained" or Samples to shrink past "a realistic,
 multi-concept setup" — they solve genuinely different reader needs.
-**Contents:** one runnable application per page/entry, at minimum: Basic
-Usage, ASP.NET API, CQRS, Clean Architecture, Minimal APIs, MediatR, EF
-Core. Each `docs/samples/*.md` page is a short overview (what the sample
-demonstrates, which concepts/packages it exercises) linking out to the
-actual runnable project — the sample *applications themselves* live as
-real, buildable code (e.g. a top-level `samples/` directory alongside
-`src/`/`test/`), not as documentation prose; `docs/samples/` is the
-documentation *about* them, not the code.
+**Contents:** at launch, exactly two runnable applications — Basic Usage
+(the core workflow, small and focused) and ASP.NET API (the full
+ecosystem — `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/
+`Compono.Bogus` — in one realistic application). CQRS, Clean
+Architecture, Minimal APIs, MediatR, and EF Core remain documented as
+future candidates in `docs/roadmap/future-packages.md`-style framing (not
+as their own nav entries or stub pages) — per ADR-0033, each graduates to
+a real page only once it would demonstrate a materially different
+Compono pattern the launch two don't already cover, not merely a
+different host framework. Each `docs/samples/*.md` page for a real
+sample is a short overview (what it demonstrates, which concepts/packages
+it exercises) linking out to the actual runnable project — the sample
+*applications themselves* live as real, buildable code (e.g. a top-level
+`samples/` directory alongside `src/`/`test/`), not as documentation
+prose; `docs/samples/` is the documentation *about* them, not the code.
 **Relates to:** assumes Concepts and, typically, Package Guides (a sample
 usually exercises more than one package together). Hands off to Best
 Practices for "why is this sample structured this way" and Architecture for
@@ -550,31 +565,36 @@ not by requiring a reader to have gone through 1-9 first.
 
 ## Open Items
 
-Tracked here rather than silently deferred — these are real decisions
-Milestone 8 (or a later design pass) still needs to make, not gaps in this
-architecture itself:
+All six items originally tracked here are now resolved by Milestone 8's
+deep-design pass — kept below (struck through, not deleted) as the record
+of what was open and where each resolution lives, per this repo's
+"docs/*.md describes current intent, link to the ADR that shaped it"
+convention:
 
-- **API reference generation toolchain** — this architecture assumes an
-  `reference/api/` exists but doesn't pick the tool (DocFX, a
-  Roslyn-based custom generator, etc.) — a light-dive ADR of its own once
-  Milestone 8 reaches that work.
-- **Cookbook navigation/tagging at scale** — with an expected 50-100+
-  (eventually possibly several hundred) recipes, flat alphabetical listing
-  won't stay usable; Milestone 8 (or a later pass) needs to decide
-  subcategorization (by package? by problem domain?) and/or tagging, and
-  whether search alone is sufficient in the interim.
-- **Where Sample applications physically live** — this architecture assumes
-  a top-level `samples/` directory of real, runnable projects with
-  `docs/samples/*.md` as their documentation-facing summary, but doesn't
-  decide the exact build/CI story for keeping N sample apps compiling
-  against current Compono — a question for whoever executes this section
-  in Milestone 8 (or later).
-- **Versioning policy, issue templates** (also original Milestone 8 scope
-  items) — repository-process content, not part of the developer-journey
-  hierarchy above; likely `contributing.md` or its own page linked from
-  there, decided when Milestone 8 actually writes it.
-- **`docs/public-api.md`/`docs/manifesto.md`'s eventual disposition** —
-  their content overlaps Architecture's Design Principles and Reference;
-  decide during Milestone 8 whether they're retired (content redistributed
-  into `architecture/design-principles.md`) or kept as internal
-  cross-references for maintainers.
+- ~~**API reference generation toolchain**~~ — resolved by
+  [ADR-0032](adr/0032-api-reference-documentation-toolchain.md): a
+  Markdown generator (tool picked via a time-boxed bake-off,
+  `DefaultDocumentation` the leading candidate) producing pages inside
+  the existing MkDocs Material site, not a separate DocFX site.
+- ~~**Cookbook navigation/tagging at scale**~~ — resolved by
+  [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items):
+  deferred, not decided now — launch flat + search-only, revisit at
+  ~20-25 recipes or real search-insufficiency evidence.
+- ~~**Where Sample applications physically live**~~ — resolved by
+  [ADR-0033](adr/0033-public-preview-samples-strategy.md): top-level
+  `samples/` directory, in-solution CI build, project references for
+  development plus packed-package verification for acceptance.
+- ~~**Versioning policy**~~ — resolved by
+  [ADR-0031](adr/0031-public-preview-release-and-versioning-policy.md):
+  lockstep versioning across all five packages, `0.x` compatibility
+  policy, package-readiness checklist.
+- ~~**Issue templates**~~ — resolved by
+  [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items):
+  minimal practical contributor set (`contributing.md`, `SECURITY.md`,
+  `CODE_OF_CONDUCT.md`, bug-report/feature-request issue templates, one
+  PR template) — no governance ceremony beyond that.
+- ~~**`docs/public-api.md`/`docs/manifesto.md`'s eventual disposition**~~ —
+  resolved by
+  [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items):
+  retired, content redistributed, generalized into a standing "every
+  concept has exactly one canonical home" documentation principle.
