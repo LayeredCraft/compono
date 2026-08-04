@@ -132,6 +132,16 @@ acceptance test.
       from one place, not five copies that can drift. No per-package tag
       differentiation (e.g. `xunit`/`nsubstitute`/`bogus`) — the package
       name itself already carries that distinction.
+- [ ] Add a `<Title>` to each of the four publishable packages'
+      `.csproj` files (none currently set one — `Directory.Build.props`
+      only centralizes what's genuinely uniform; a human-friendly title
+      is per-package, same as `Description` already is). A short,
+      human-friendly name distinct from the raw package ID (e.g. "Compono
+      — Core Composition Engine," not just "Compono") — ADR-0031's
+      discovery-metadata bar names title alongside tags/description, and
+      nothing before this task actually added one. Verify via the
+      package-contents-inspection CI job's manifest check, not just file
+      listing.
 - [ ] Add `Microsoft.DotNet.PackageValidation`
       (`EnablePackageValidation=true`) to `Directory.Build.props`'s
       packable `PropertyGroup`, with no static
@@ -481,6 +491,9 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       stable releases index (`$(PackageProjectUrl)/releases`), not a
       per-version tag URL, since most published preview versions have no
       matching GitHub Release/tag to link to (see Phase 0's Tasks above).
+- [ ] Each of the four publishable packages has a per-package `<Title>`
+      (human-friendly, distinct from the raw package ID) — not
+      centralized, since it's genuinely per-package like `Description`.
 - [ ] `Microsoft.DotNet.PackageValidation` enabled
       (`EnablePackageValidation=true`), with no static baseline value —
       instead, a **locally-controlled CI job in this repo** (not inside
