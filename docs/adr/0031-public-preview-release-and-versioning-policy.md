@@ -274,22 +274,33 @@ duplicate it.
   — see [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0.
   Version ranges are a post-1.0 concern, once real consumer
   version-conflict evidence exists to justify them.
-- **Automated package and API-compatibility validation** before every
-  publish, once a second real version exists to validate against. This
-  cannot be a manually-set property: `publish-preview.yaml` publishes
-  automatically on every non-docs `main` push with no human release step
-  in between, so a baseline that only a person sets "when cutting a
-  release" would never apply to the continuous preview stream — the
-  large majority of what actually gets published. The baseline lookup
-  must instead be a CI-automated step, in both `publish-preview.yaml` and
-  `publish-release.yaml`: before packing, query nuget.org for each
-  package's currently-latest published version and pass it at pack time
-  via an MSBuild property override (`-p:PackageValidationBaselineVersion=<prior-version>`),
-  rather than relying on a static value baked into `Directory.Build.props`.
-  A first-ever publish has nothing to query yet, so validation is
-  inert for exactly that one case; every publish after it — preview or
-  production — has a real prior version to compare against automatically,
-  with no manual step required. See
+- **Automated package and API-compatibility validation, as an
+  independent, locally-controlled CI gate — not inside the publish
+  workflows.** Both `publish-preview.yaml` and `publish-release.yaml` are
+  a single job each, calling `uses:
+  LayeredCraft/devops-templates/.github/workflows/publish-*.yml` — there
+  is no step-level hook inside a reusable-workflow job for this repo to
+  insert a "compute the baseline, then pack" sequence into, and there's
+  no reason to ask the shared `devops-templates` workflow to grow a new
+  input just for this (that's a cross-repo change this ADR doesn't
+  control and isn't asking for). Instead, package/API-compatibility
+  validation runs as its own CI job in this repo — the same one Phase 0
+  already adds for pack/contents-inspection/local-feed verification,
+  which this repo fully controls — as a **pre-merge gate on every PR**,
+  not a step folded into either publish workflow: query nuget.org for
+  each package's currently-latest published version, then run
+  `dotnet pack -p:PackageValidationBaselineVersion=<prior-version>`
+  for each of the four publishable packages and fail CI on an
+  unreviewed incompatibility. Catching an accidental break before it
+  merges to `main` is strictly better than catching it after either
+  workflow has already published it. A first-ever publish has nothing to
+  query yet, so validation is inert for exactly that one case.
+  **A PR carrying the `breaking-change` label skips this gate** — that
+  label already means the break is deliberate, permitted by this ADR's
+  own `0.X+1.0` policy above, and communicated through release notes and
+  docs (see "How a breaking change is communicated"); failing the same PR
+  on the incompatibility the label itself declares would be a
+  self-contradiction, not a real safety check. See
   [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for
   the CI implementation.
 - **Verified against the packed artifact, not just a project reference.**

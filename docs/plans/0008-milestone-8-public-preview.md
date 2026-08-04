@@ -117,20 +117,28 @@ acceptance test.
       name itself already carries that distinction.
 - [ ] Add `Microsoft.DotNet.PackageValidation`
       (`EnablePackageValidation=true`) to `Directory.Build.props`'s
-      packable `PropertyGroup`, with **no static
-      `PackageValidationBaselineVersion` value** — `publish-preview.yaml`
-      publishes automatically on every non-docs `main` push with no human
-      release step in between, so a baseline only a person sets when
-      "cutting a release" would never apply to that continuous stream,
-      which is most of what actually publishes. Instead, add a step to
-      **both** `publish-preview.yaml` and `publish-release.yaml` that
-      queries nuget.org for each package's currently-latest published
-      version before packing and passes it as an MSBuild property
-      override (`-p:PackageValidationBaselineVersion=<prior-version>`).
-      The very first-ever publish has nothing to query and validation
-      stays inert for exactly that one case; every publish after it —
-      preview or production — gets a real baseline automatically, with no
-      manual step.
+      packable `PropertyGroup`, with no static
+      `PackageValidationBaselineVersion` value. **Do not try to inject
+      this into `publish-preview.yaml`/`publish-release.yaml`** — both
+      are a single job each calling `uses:
+      LayeredCraft/devops-templates/.github/workflows/publish-*.yml`,
+      with no step-level hook inside a reusable-workflow job to insert a
+      "compute baseline, then pack" sequence into, and extending the
+      shared `devops-templates` workflow with a new input is a
+      cross-repo change out of scope here. Instead, fold this into the
+      **locally-controlled pack/contents-inspection CI job** below (this
+      repo fully controls it): query nuget.org for each package's
+      currently-latest published version, then run
+      `dotnet pack -p:PackageValidationBaselineVersion=<prior-version>`
+      for each of the four publishable packages, as a **pre-merge PR
+      gate** — catching an accidental break before it reaches `main` is
+      strictly better than catching it after either publish workflow has
+      already run. **Skip this gate on any PR carrying the
+      `breaking-change` label** — that label already means the break is
+      deliberate and permitted by ADR-0031's own `0.X+1.0` policy, so
+      failing the same PR on the incompatibility the label declares would
+      be a self-contradiction. The very first-ever publish has nothing to
+      query yet, so validation is inert for exactly that one case.
 - [ ] Reconfigure `.github/release-drafter.yml`'s `version-resolver` so
       the `breaking-change` label maps to `minor`, not the file's current
       `major` — as configured today, a labeled breaking-change PR
@@ -139,12 +147,17 @@ acceptance test.
       deliberate `0.X+1.0` minor bump ADR-0031's compatibility policy
       requires. Leave `breaking-change` in `categories` unchanged — only
       its `version-resolver` bucket moves.
-- [ ] Add a CI step that packs the four publishable packages and asserts
-      each `.nupkg`'s file listing matches the expected shape per TFM
-      (lib, README, icon, no stray build artifacts; `analyzers/dotnet/cs`
-      for `Compono` specifically, containing `Compono.Generators.dll` —
-      this is also where `Compono.Generators` itself gets verified, by
-      content inspection rather than an independent pack).
+- [ ] Add a new, locally-controlled CI job (a real job in this repo's own
+      workflow, distinct from `publish-preview.yaml`/`publish-release.yaml`'s
+      opaque `uses:` calls) that packs the four publishable packages and:
+      asserts each `.nupkg`'s file listing matches the expected shape per
+      TFM (lib, README, icon, no stray build artifacts;
+      `analyzers/dotnet/cs` for `Compono` specifically, containing
+      `Compono.Generators.dll` — this is also where `Compono.Generators`
+      itself gets verified, by content inspection rather than an
+      independent pack); and runs the API-compatibility baseline check
+      from the task above (`-p:PackageValidationBaselineVersion=<prior-version>`,
+      skipped on `breaking-change`-labeled PRs) as a pre-merge PR gate.
 - [ ] Extend the local-feed packed-consumer pattern (already used by
       `test/Compono.XunitV3.SampleTests`) to restore and smoke-test the
       four publishable packages together from one local feed, as a
@@ -418,21 +431,24 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       per-version tag URL, since most published preview versions have no
       matching GitHub Release/tag to link to (see Phase 0's Tasks above).
 - [ ] `Microsoft.DotNet.PackageValidation` enabled
-      (`EnablePackageValidation=true`), with no static baseline value; a
-      CI step in both `publish-preview.yaml` and `publish-release.yaml`
-      queries nuget.org for each package's latest published version and
-      passes it via `-p:PackageValidationBaselineVersion=<prior-version>`
-      at pack time — automatic on every publish (including the continuous
-      preview stream), not a manually-set property.
+      (`EnablePackageValidation=true`), with no static baseline value —
+      instead, a **locally-controlled CI job in this repo** (not inside
+      `publish-preview.yaml`/`publish-release.yaml`, which are opaque
+      `uses:` calls to the shared `devops-templates` workflow with no
+      hook point for this) queries nuget.org for each package's latest
+      published version and runs
+      `dotnet pack -p:PackageValidationBaselineVersion=<prior-version>`
+      as a pre-merge PR gate, skipped on `breaking-change`-labeled PRs.
 - [ ] `.github/release-drafter.yml`'s `version-resolver` remaps
       `breaking-change` from `major` to `minor` (its `categories` entry
       is unchanged) — otherwise a labeled breaking-change PR would
       silently resolve to `1.0.0`, exiting `0.x` by accident.
-- [ ] CI step asserting each publishable `.nupkg`'s file listing matches
-      the expected per-TFM shape (lib, README, icon, no stray build
-      artifacts; `analyzers/dotnet/cs` for `Compono` specifically,
-      containing `Compono.Generators.dll` — this is `Compono.Generators`'
-      own verification, not a separate pack of it).
+- [ ] The same locally-controlled CI job asserts each publishable
+      `.nupkg`'s file listing matches the expected per-TFM shape (lib,
+      README, icon, no stray build artifacts; `analyzers/dotnet/cs` for
+      `Compono` specifically, containing `Compono.Generators.dll` — this
+      is `Compono.Generators`' own verification, not a separate pack of
+      it).
 - [ ] Local-feed packed-consumer smoke test covers the four publishable
       packages together, as a standing CI gate.
 - [ ] `PrivateAssets`/analyzer transitivity verified for every package.
@@ -445,10 +461,11 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
 - [ ] `publish-preview.yaml`'s identifier renamed from `alpha` to
       `preview` (Phase 0) — the actual "does this look done" gate is the
       manually-published GitHub Release below, not this rename.
-- [ ] All four publishable packages pass
-      `Microsoft.DotNet.PackageValidation`; the CI-automated baseline
-      lookup (Phase 0) actually resolved a real prior version for this
-      publish, not a first-ever/inert run silently treated as normal.
+- [ ] All four publishable packages passed the locally-controlled
+      `Microsoft.DotNet.PackageValidation` PR gate (Phase 0) before this
+      version merged to `main` — a real baseline was resolved (not a
+      first-ever/inert run silently treated as normal), or the merged PR
+      legitimately carried the `breaking-change` label.
 - [ ] `.github/release-drafter.yml`'s `breaking-change` label resolves to
       a minor bump, confirmed against a real labeled PR before the first
       one ships for real (Phase 0).
@@ -556,11 +573,16 @@ individually resolved, not left ambiguous):
   (Phase 3).
 - `mkdocs.yml` — nav updated per phase as content lands; final pass in
   Phase 7.
-- `.github/workflows/publish-preview.yaml`/`publish-release.yaml` — a
-  new step querying nuget.org for each package's prior version and
-  passing `-p:PackageValidationBaselineVersion=<prior-version>` at pack
-  time; `publish-preview.yaml`'s `prereleaseIdentifier` renamed from
-  `alpha` to `preview` (Phase 0, both changes).
+- `.github/workflows/publish-preview.yaml` — `prereleaseIdentifier`
+  renamed from `alpha` to `preview` (Phase 0). No other change to either
+  publish workflow — the API-compatibility baseline check lives in a new,
+  separate, locally-controlled CI job instead (below), not inside either
+  `uses:`-based publish workflow.
+- A new CI workflow/job (this repo's own, not `devops-templates`) —
+  packs the four publishable packages, runs the nuget.org baseline
+  lookup and `Microsoft.DotNet.PackageValidation` check (skipped on
+  `breaking-change`-labeled PRs), and asserts `.nupkg` contents, as a
+  pre-merge PR gate (Phase 0).
 - `.github/release-drafter.yml` — `breaking-change` remapped from
   `major` to `minor` in `version-resolver` (Phase 0).
 - `Directory.Packages.props` — `PackageVersion` entries converted to
