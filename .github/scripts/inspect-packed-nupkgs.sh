@@ -64,6 +64,21 @@ assert_exact_pin_dependency() {
     fi
 }
 
+assert_manifest_field() {
+    local nuspec="$1"
+    local pkg_name="$2"
+    local field="$3"
+    local expected="$4"
+    local actual
+    actual=$(sed -n "s#.*<${field}>\(.*\)</${field}>.*#\1#p" "$nuspec" | head -1)
+    if [ "$actual" = "$expected" ]; then
+        echo "OK: $pkg_name's .nuspec <$field> is '$actual'"
+    else
+        echo "FAIL: $pkg_name's .nuspec <$field> is '$actual', expected '$expected'" >&2
+        fail=1
+    fi
+}
+
 assert_dependency_range() {
     local nuspec="$1"
     local pkg_name="$2"
@@ -99,19 +114,30 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
     nuspec=$(find "$extract_dir" -maxdepth 1 -iname "*.nuspec" | head -1)
     assert_exists "${nuspec:-__missing__}" "$pkg .nuspec"
 
+    # Directory.Build.props' centralized discovery metadata (ADR-0031) - shared across
+    # all five packages, so checked once per package here rather than only trusting the
+    # .nuspec exists. PackageTags' semicolon-separated MSBuild value becomes
+    # space-separated in the packed .nuspec's <tags>.
+    assert_manifest_field "$nuspec" "$pkg" "tags" "testing test-data source-generator dotnet"
+    assert_manifest_field "$nuspec" "$pkg" "releaseNotes" "https://github.com/LayeredCraft/compono/releases"
+
     case "$pkg" in
         Compono)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Core Composition Engine"
             assert_exists "$extract_dir/analyzers/dotnet/cs/Compono.Generators.dll" "Compono.Generators.dll embedded in Compono's analyzers/dotnet/cs"
             ;;
         Compono.XunitV3)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — xUnit v3 Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "xunit.v3.extensibility.core" "[3.2.2, 4.0.0)"
             ;;
         Compono.NSubstitute)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — NSubstitute Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "NSubstitute" "[6.0.0, 7.0.0)"
             ;;
         Compono.Bogus)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Bogus Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "Bogus" "[35.6.5, 36.0.0)"
             ;;

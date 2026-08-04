@@ -47,10 +47,16 @@ jobs:
           set -euo pipefail
           for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
             id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
-            # nuget.org's flatcontainer index 404s for a package that has never been
-            # published - exactly the very-first-ever-publish case, where validation
-            # is correctly inert (nothing to compare against yet).
-            response=$(curl -sf -w '\n%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id_lower}/index.json" || echo -e "\n000")
+            # No -f here: a non-2xx response must still reach the status-code branch
+            # below (curl -f suppresses the body/short-circuits on HTTP errors), and
+            # only a *confirmed* 404 means "never published" - a transport-level
+            # failure (DNS, timeout, connection refused) is the one case that should
+            # still hard-fail the job rather than silently disabling the compatibility
+            # gate below.
+            response=$(curl -s -w '\n%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id_lower}/index.json") || {
+              echo "::error::Failed to reach nuget.org for ${pkg}'s baseline lookup (network/transport failure) - failing rather than silently treating this as a first publish." >&2
+              exit 1
+            }
             status="${response##*$'\n'}"
             body="${response%$'\n'*}"
             if [ "$status" = "200" ]; then
@@ -58,8 +64,13 @@ jobs:
               # still 0.x/prerelease-only today, and that's genuinely what's "currently
               # published" to diff a compatibility baseline against.
               version=$(echo "$body" | jq -r '.versions | last // empty')
-            else
+            elif [ "$status" = "404" ]; then
+              # The only legitimate "nothing to compare against yet" case: this
+              # package has genuinely never been published.
               version=""
+            else
+              echo "::error::nuget.org baseline lookup for ${pkg} returned HTTP ${status}, not 200 or a confirmed 404 (e.g. rate-limited or a transient 5xx) - failing rather than silently skipping the API-compatibility gate." >&2
+              exit 1
             fi
             env_name="BASELINE_$(echo "$pkg" | tr '.' '_')"
             echo "${env_name}=${version}" >> "$GITHUB_ENV"

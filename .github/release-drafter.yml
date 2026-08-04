@@ -3,7 +3,8 @@ tag-template: 'v$RESOLVED_VERSION'
 commitish: main
 
 version-resolver:
-  major: []
+  major:
+    labels: []
   minor:
     labels:
       - 'type: feat'
