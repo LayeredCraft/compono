@@ -503,17 +503,21 @@ sections, not a job Reference should grow into filling.
 `future-packages.md` (placeholder only). `docs/roadmap/post-mvp.md` is
 real content, produced by
 [PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3 — currently
-documenting zero roadmap-candidate findings (with the evidence for why),
-since Milestone 7's dogfooding pass didn't surface any.
+stating a zero-roadmap-candidate outcome and pointing to
+`docs/research/0001-autofixture-comparison.md` for the full per-finding
+reasoning, since Milestone 7's dogfooding pass didn't surface any
+candidates itself.
 **Purpose:** the single, indexed home for everything not fully available
 today — never a prerequisite for anything in sections 1-11.
 **Contents:**
 - `index.md` — the today/experimental/planned framing itself, and a map of
   the other three pages.
-- `post-mvp.md` — evidence-backed roadmap candidates, each tracing to a
-  migration-guide entry, a research finding, and a `Proposed` ADR
-  (ADR-0029's own required shape) — currently empty of actual candidates,
-  documented as a real finding in its own right.
+- `post-mvp.md` — evidence-backed roadmap candidates *only*, each tracing
+  to a migration-guide entry, a research finding, and a `Proposed` ADR
+  (ADR-0029's own required shape); non-candidate findings stay in the
+  research record and their governing ADR's Amendments, never listed
+  here — currently empty of actual candidates, itself documented as a
+  real finding rather than left ambiguous.
 - `proposed-adrs.md` — a status-filtered view of `docs/adr/README.md`:
   every ADR that's `Proposed`, or `Accepted` but not yet implemented,
   answering "is X planned" directly.

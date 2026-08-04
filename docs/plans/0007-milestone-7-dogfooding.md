@@ -434,13 +434,16 @@ verdicts and their evidence: [ADR-0025 Amendment 2](../adr/0025-compono-nsubstit
 (gap 3), [ADR-0022 Amendment 7](../adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found)
 (Finding 4), and [ADR-0002 Amendment 1](../adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made)
 (Finding 7, `CMP0001`). `docs/roadmap/post-mvp.md` documents the
-zero-roadmap-candidate outcome explicitly, with the evidence for why, plus
-two findings (`CMP0001`, Compose-family stacking) worth tracking as
-plausible future improvements without a `Proposed` ADR yet — ADR-0029's
-evidence-driven restraint means neither a synthetic exercise nor a
-zero-frequency finding earns one on its own. `docs/documentation-architecture.md`
-and `mkdocs.yml` updated now that `docs/roadmap/post-mvp.md` is real
-content, not a skeleton stub.
+zero-roadmap-candidate outcome explicitly and points to
+`docs/research/0001-autofixture-comparison.md` for the full per-finding
+reasoning — per ADR-0029, that page lists *only* roadmap-candidate
+findings backed by a `Proposed` ADR, so the non-candidate findings
+(including `CMP0001` and the Compose-family stacking constraint, both
+plausible future improvements without the evidence to justify a
+`Proposed` ADR yet) stay in the research record and their ADR Amendments,
+not in the roadmap page itself. `docs/documentation-architecture.md` and
+`mkdocs.yml` updated now that `docs/roadmap/post-mvp.md` is real content,
+not a skeleton stub.
 
 ## Phase 4: Final conclusion, docs, and cleanup
 
