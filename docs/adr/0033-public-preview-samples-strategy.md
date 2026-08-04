@@ -150,7 +150,9 @@ fixed here.
   framing (a stated future candidate, not silently dropped) keeps this
   discoverable without inflating the first preview's scope.
 - The packed-package verification step is one more CI job to maintain
-  (packing five packages to a local feed, restoring samples against it)
+  (packing the four publishable packages to a local feed — `Compono.Generators`
+  comes along embedded inside `Compono`'s own package, not as a separate
+  restore — and restoring samples against it)
   on top of the project-reference build. Accepted: this repo already
   pays this cost for `Compono.XunitV3.SampleTests`; extending it to the
   two new samples is marginal, not new infrastructure.

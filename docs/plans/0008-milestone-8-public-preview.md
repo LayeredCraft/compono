@@ -70,19 +70,29 @@ pass surfaced:
 readiness bar and can be safely built against by every later phase.
 
 Executes [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)'s
-package-readiness bar against all five packages. No documentation
-content depends on this phase's *outcome* being novel — it hardens what
-already ships — but Phases 3/4/8 depend on it being *done* before writing
-package-specific content or running the acceptance test.
+package-readiness bar against all five packages — four independently
+published (`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`,
+`Compono.Bogus`), plus `Compono.Generators`, which never gets its own
+`.nupkg` (`IsPackable=false`, embedded inside `Compono.nupkg`'s
+`analyzers/dotnet/cs`, per [ADR-0003](../adr/0003-generator-package-distribution.md))
+and is verified by inspecting that embedded content, not by packing it
+independently. No documentation content depends on this phase's *outcome*
+being novel — it hardens what already ships — but Phases 3/4/8 depend on
+it being *done* before writing package-specific content or running the
+acceptance test.
 
 - [ ] Remove `alpha` from `publish-preview.yaml`'s `prereleaseIdentifier`
       input (ADR-0031) — `main` starts publishing plain `0.x.y`.
 - [ ] Add `PackageTags` and `PackageReleaseNotes` to `Directory.Build.props`,
       not per-project — one shared, uniform value for all five packages
       (`PackageTags`: `testing;test-data;source-generator;dotnet`;
-      `PackageReleaseNotes`: a URL formula pointing at the GitHub Release
-      for `$(Version)`, e.g. `$(RepositoryUrl)/releases/tag/v$(Version)`).
-      Matches how `PackageLicenseExpression`/`RepositoryUrl`/`PackageIcon`/
+      `PackageReleaseNotes`: `$(PackageProjectUrl)/releases`, the repo's
+      stable releases index rather than a specific version tag — a
+      per-version `.../releases/tag/v$(Version)` link would 404 for every
+      preview build `publish-preview.yaml` pushes on a plain `main` push,
+      since no GitHub Release or tag exists for those, only for versions
+      published through `publish-release.yaml`). Matches how
+      `PackageLicenseExpression`/`RepositoryUrl`/`PackageIcon`/
       `PackageReadmeFile` are already centralized — the five packages
       distribute as one coherent set, so their discovery metadata comes
       from one place, not five copies that can drift. No per-package tag
@@ -91,15 +101,22 @@ package-specific content or running the acceptance test.
 - [ ] Add `Microsoft.DotNet.PackageValidation`
       (`EnablePackageValidation=true`) to `Directory.Build.props`'s
       packable `PropertyGroup`; leave `PackageValidationBaselineVersion`
-      unset until a second real preview version exists.
-- [ ] Add a CI step that packs all five packages and asserts each
-      `.nupkg`'s file listing matches the expected shape per TFM (lib,
-      `analyzers/dotnet/cs` for `Compono` only, README, icon, no stray
-      build artifacts).
+      unset for the very first release (nothing to compare against yet).
+      **From the second release onward, this is not automatic** — add a
+      step to the release procedure (Phase 8 onward) that sets
+      `PackageValidationBaselineVersion` to the immediately-prior
+      published version before packing, every release, or the
+      API-compatibility gate silently stays inert forever.
+- [ ] Add a CI step that packs the four publishable packages and asserts
+      each `.nupkg`'s file listing matches the expected shape per TFM
+      (lib, README, icon, no stray build artifacts; `analyzers/dotnet/cs`
+      for `Compono` specifically, containing `Compono.Generators.dll` —
+      this is also where `Compono.Generators` itself gets verified, by
+      content inspection rather than an independent pack).
 - [ ] Extend the local-feed packed-consumer pattern (already used by
-      `test/Compono.XunitV3.SampleTests`) to restore and smoke-test all
-      five packages together from one local feed, as a standing CI gate
-      — not ad hoc per milestone.
+      `test/Compono.XunitV3.SampleTests`) to restore and smoke-test the
+      four publishable packages together from one local feed, as a
+      standing CI gate — not ad hoc per milestone.
 - [ ] Verify (not redesign) `PrivateAssets`/analyzer-transitivity holds
       for every package, not just `Compono`/`Compono.Generators`.
 - [ ] Manual spot-check of `Directory.Packages.props`'s dependency
@@ -314,8 +331,10 @@ package-readiness phase above being done.
       for the full list.
 - [ ] Cut the first real `0.x` release: tag, publish via
       `publish-release.yaml` (unmodified pipeline, ADR-0031's policy).
-- [ ] Verify all five packages installable from nuget.org post-publish
-      (not just the local-feed pre-check).
+- [ ] Verify all four publishable packages installable from nuget.org
+      post-publish (not just the local-feed pre-check); verify
+      `Compono.Generators` is present inside the installed `Compono`
+      package's `analyzers/dotnet/cs` and actually runs.
 - [ ] Verify the documentation site is live at its public URL with the
       final nav.
 
@@ -342,33 +361,45 @@ The concrete, executable form of
 [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)'s
 package-readiness bar — that ADR states the long-lived policy (what must
 be true of a package before release), this plan owns *how* it gets
-verified. Applied to all five packages; Phase 0's Tasks above are this
-checklist:
+verified. Applied to all five packages — four independently published,
+plus `Compono.Generators`, verified by content inspection inside
+`Compono.nupkg` rather than an independent pack (it's `IsPackable=false`,
+per ADR-0003). Phase 0's Tasks above are this checklist:
 
 - [ ] `alpha` identifier removed from `publish-preview.yaml`.
 - [ ] `PackageTags`/`PackageReleaseNotes` set once in
       `Directory.Build.props` (one uniform value for all five packages,
-      not per-project) — release notes point at the GitHub Release, not
-      duplicated inline.
+      not per-project) — `PackageReleaseNotes` points at the repo's
+      stable releases index (`$(PackageProjectUrl)/releases`), not a
+      per-version tag URL, since most published preview versions have no
+      matching GitHub Release/tag to link to (see Phase 0's Tasks above).
 - [ ] `Microsoft.DotNet.PackageValidation` enabled
-      (`EnablePackageValidation=true`), baseline left unset until a
-      second real version exists.
-- [ ] CI step asserting each `.nupkg`'s file listing matches the expected
-      per-TFM shape (lib, `analyzers/dotnet/cs` for `Compono` only,
-      README, icon, no stray build artifacts).
-- [ ] Local-feed packed-consumer smoke test covers all five packages
-      together, as a standing CI gate.
+      (`EnablePackageValidation=true`); baseline left unset for the first
+      release, then set to the immediately-prior published version as an
+      explicit step of every release from the second onward (Phase 8
+      onward) — this does not happen automatically.
+- [ ] CI step asserting each publishable `.nupkg`'s file listing matches
+      the expected per-TFM shape (lib, README, icon, no stray build
+      artifacts; `analyzers/dotnet/cs` for `Compono` specifically,
+      containing `Compono.Generators.dll` — this is `Compono.Generators`'
+      own verification, not a separate pack of it).
+- [ ] Local-feed packed-consumer smoke test covers the four publishable
+      packages together, as a standing CI gate.
 - [ ] `PrivateAssets`/analyzer transitivity verified for every package.
 - [ ] Dependency license spot-check against `Directory.Packages.props`.
 
 ## Release-readiness checklist
 
 - [ ] `alpha` identifier removed from `publish-preview.yaml` (Phase 0).
-- [ ] All five packages pass `Microsoft.DotNet.PackageValidation` (Phase 0).
-- [ ] Local-feed packed-consumer smoke test passes for all five packages
-      together (Phase 0).
-- [ ] Package-contents inspection CI step passes for all five packages
-      (Phase 0).
+- [ ] All four publishable packages pass
+      `Microsoft.DotNet.PackageValidation`; from the second release
+      onward, `PackageValidationBaselineVersion` is confirmed set to the
+      prior published version before packing, not left unset (Phase 0/8).
+- [ ] Local-feed packed-consumer smoke test passes for the four
+      publishable packages together (Phase 0).
+- [ ] Package-contents inspection CI step passes for the four publishable
+      packages, and separately confirms `Compono.Generators.dll` is
+      present inside `Compono.nupkg`'s `analyzers/dotnet/cs` (Phase 0).
 - [ ] Every public member has an XML doc comment (no `CS1591` warnings) —
       enforced by the existing `Directory.Build.props` setting plus
       Phase 1's reference-generation gate.
@@ -420,8 +451,9 @@ is true, checked honestly (met / partially met / unmet is an acceptable
 outcome for the final MVP review in Phase 9, but every item here must be
 individually resolved, not left ambiguous):
 
-- [ ] All five `0.x` packages are publicly available on nuget.org and
-      installable in a clean project.
+- [ ] All four publishable `0.x` packages are available on nuget.org and
+      installable in a clean project; `Compono.Generators` is present and
+      running inside the installed `Compono` package.
 - [ ] Packed-package consumer verification passes (Phase 0's local-feed
       gate, plus Phase 8's post-publish nuget.org verification).
 - [ ] The documentation site is publicly deployed and live at its stated

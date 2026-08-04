@@ -179,14 +179,21 @@ a capability doesn't need to re-litigate it.
 
 **Support policy for target frameworks and compiler/SDK versions.**
 Compono targets `net10.0;net11.0` today (`Directory.Build.props`/each
-package's `.csproj`) — both actively supported .NET releases at time of
-writing. Policy: Compono supports the current and immediately-prior .NET
-release (a rolling two-TFM window), dropped only on a minor-version bump
-(never silently in a patch), and stated explicitly in each Package
-Guide's metadata. `Compono.Generators` targets `netstandard2.0`
-(required for Roslyn analyzer/source-generator compatibility across host
-SDKs) — a separate, wider constraint, unrelated to the two-TFM consumer
-policy above, and already correct as shipped.
+package's `.csproj`) — `net10.0` is the current GA release; `net11.0` is
+the *next* release, tracked ahead of its own GA (`global.json` pins the
+`11.0.100-preview.6` SDK at time of writing, not a GA SDK). Policy:
+Compono supports the current GA .NET release plus the next release in
+development, tracked continuously through its preview SDKs into its own
+eventual GA — a rolling two-TFM window one release *ahead*, not one
+release behind. This is a deliberate choice to stay current with the
+platform, not a claim that `net11.0` is itself GA-supported today; each
+Package Guide's metadata states plainly which of its two TFMs is GA and
+which is a preview build at the time a given version ships. The oldest
+TFM is dropped only on a minor-version bump (never silently in a patch).
+`Compono.Generators` targets `netstandard2.0` (required for Roslyn
+analyzer/source-generator compatibility across host SDKs) — a separate,
+wider constraint, unrelated to the two-TFM consumer policy above, and
+already correct as shipped.
 
 ## Package-readiness policy
 
@@ -228,15 +235,25 @@ duplicate it.
   philosophy. Version ranges are a post-1.0 concern, once real
   consumer version-conflict evidence exists to justify them.
 - **Automated package and API-compatibility validation** before every
-  publish, once a second real version exists to validate against (a
-  first-ever release has nothing to compare to yet, but the gate is wired
-  up from day one so it activates automatically starting with the
-  second).
+  publish, once a second real version exists to validate against. This
+  requires an explicit step, not just a one-time property setting: a
+  first-ever release has nothing to compare to
+  (`PackageValidationBaselineVersion` stays unset), but every release
+  from the second onward sets that property to the immediately-prior
+  published version as part of cutting that release — the gate is wired
+  up from day one (Phase 0), but stays inert until each release's own
+  procedure (Phase 8 onward) actually points it at a real baseline; it
+  does not activate on its own.
 - **Verified against the packed artifact, not just a project reference.**
-  Every package is restored and smoke-tested from a real local feed
-  before it's trusted to publish — this repo's own
+  Every publishable package (`Compono`, `Compono.XunitV3`,
+  `Compono.NSubstitute`, `Compono.Bogus`) is restored and smoke-tested
+  from a real local feed before it's trusted to publish — this repo's own
   `test/Compono.XunitV3.SampleTests` precedent (PLAN-0004/0005/0006),
-  extended to cover all five packages together as a standing gate.
+  extended to cover all four together as a standing gate.
+  `Compono.Generators` has no independent `.nupkg` to restore
+  (`IsPackable=false` — it's embedded inside `Compono`'s own package, per
+  ADR-0003); it's verified by inspecting `Compono.nupkg`'s
+  `analyzers/dotnet/cs` contents directly, not by a separate restore.
 - **No known vulnerability or license conflict** in the dependency tree —
   covered by the existing Dependabot security-update flow
   (`dependabot-auto-merge.yml`); no new tool required for a dependency set
@@ -254,7 +271,9 @@ Not redesigned — the existing two-workflow split
 `LayeredCraft/devops-templates`) stays exactly as-is beyond the
 `alpha`-identifier removal above. Policy, recorded here because it
 governs what "safe to retry" means rather than describing a CI step: all
-five packages are built and pushed from one coordinated lockstep version,
+four publishable packages are built and pushed from one coordinated
+lockstep version (`Compono.Generators` builds alongside them but has
+nothing of its own to push — it ships embedded inside `Compono.nupkg`),
 so a partial publish failure means a transient push error, not a version
 mismatch — the recovery procedure is simply re-running the push, and
 NuGet's own idempotent-upload behavior (same content, same version →
