@@ -111,13 +111,28 @@ supported collection root shapes instead — see
 **Message:** `{Type} has required member '{name}' {kind}, which Compono
 cannot compose a value for`
 
-**Cause:** A `required` member (property or field) has a kind the
-generator can't produce a composed value for — the same category of
-restriction as CMP0004, but for `required` member initialization rather
-than a constructor parameter.
+**Cause:** Either of two distinct problems with a `required` member
+(property or field):
 
-**Fix:** Change the required member's kind to a supported shape, or make
-it non-required and set it via a `Register<T>` factory instead.
+- **Unsupported type**, the same category of restriction as CMP0004 — a
+  ref struct (ref-like) or pointer/function-pointer member type, which
+  can't be used as `Resolve<T>()`'s generic type argument.
+- **Not assignable from generated code** — a required property with no
+  accessible `init`/`set` accessor, or a required field that's `readonly`
+  or itself inaccessible. The C# compiler never lets a C#-authored type
+  declare a required member in this shape, but `required` is ultimately
+  just metadata Roslyn reads off any assembly — a non-C# or hand-authored
+  assembly can expose one anyway. Generated code assigning to it would
+  fail to compile (`CS0272`/`CS0191`), so it's reported here instead.
+
+**Fix:** For an unsupported type, change the member's type to a supported
+shape, or make it non-required and set it via a `Register<T>` factory
+instead. For an inaccessible/unassignable member, give it an accessible
+`init`/`set` accessor (or make the field non-`readonly` and accessible),
+or satisfy it from a `[SetsRequiredMembers]`-annotated constructor
+instead — a constructor with that attribute is treated as already
+satisfying every required member itself, so none of them reach this
+check.
 
 ## CMP0008 — Assembly-level `[Composable]` has no target type
 

@@ -17,7 +17,8 @@ dotnet add package Compono.XunitV3 --prerelease
 `Compono.XunitV3` doesn't add an xUnit v3 test host for you — it integrates
 with an existing one. If your project targets NUnit, MSTest, or plain
 xUnit v3 without composed data, you don't need this package; core `Compono`
-still works standalone via `Composer.Create<T>()`.
+still works standalone via `Composer.Create()` and the resulting
+composer's own `Create<T>()`.
 
 ## What it gives you
 
