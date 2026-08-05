@@ -324,14 +324,30 @@ final-shaped to describe accurately) and Phase 1 (`reference/diagnostics.md`/
 - [x] `packages/index.md` (ecosystem map table), `packages/compono.md`,
       `packages/compono-xunitv3.md`, `packages/compono-nsubstitute.md`,
       `packages/compono-bogus.md`.
-- [x] Polish `docs/migrating-from-autofixture.md` to publication-ready
-      (content refinement only, per ADR-0030's "content-stable" framing —
-      no structural change). Reviewed against real headers/anchors; no
-      content changes needed beyond fixing 3 pre-existing broken same-file
-      anchor links into `research/0001-autofixture-comparison.md` (Findings
-      4/7/9 — a double-hyphen left over from the source em dash, not
-      collapsed to the single hyphen `toc`'s slugifier actually produces),
-      caught by this phase's own `mkdocs build --strict` verification.
+- [x] Polish `docs/migrating-from-autofixture.md` to publication-ready.
+      **Superseded the original plan's "content refinement only, no
+      structural change" framing mid-phase, on direct user feedback**: the
+      first pass (content-stable, per ADR-0030) left the doc reading as an
+      internal Milestone 7 research artifact — a `cosmere-tracker`-named
+      status block citing PLAN-0007 phase counts/classification totals, a
+      repository-specific package-referencing/CI section, and
+      "Finding N"/"gap N"/"Phase N" narration threaded through every
+      section — not a public migration guide. Rewritten around the
+      reader's migration journey instead: a task-oriented structure (who
+      it's for, migration mindset, install, a quick concept map,
+      per-concept migration sections, a specimen-builder decision table, a
+      known-limitations section linking out to Troubleshooting/Reference
+      for full mechanics rather than re-deriving them inline, a migration
+      checklist, and a closing evidence-trail section), with every
+      before/after example re-expressed in generic domain terms
+      (`Order`/`Customer`/`IOrderRepository`, consistent with the rest of
+      the site's Concepts examples) instead of the source repository's own
+      type names — real evidence, credible patterns, no repository name in
+      the published page. `docs/research/0001-autofixture-comparison.md`
+      (the internal research dossier, not a public docs-site page) is
+      unaffected and keeps its full `cosmere-tracker`-specific detail;
+      this guide links out to it for readers who want the complete
+      evidence record instead of duplicating it.
 - [x] `troubleshooting/index.md`, `troubleshooting/common-errors.md`
       (start from the real `CMP0001` finding), `troubleshooting/faq.md`
       (start from the real gap-3 "why fail-fast" finding).
@@ -1114,3 +1130,27 @@ Phase 5 section, and two research-doc-internal Finding cross-references) —
 all `INFO`-level, not `WARNING`, so `--strict` doesn't fail the build on
 them; left for Phase 7's dedicated site-wide link pass rather than fixed
 here, since none are in a file this phase's Tasks own.
+
+**Migration guide rewrite, same day, on direct user feedback.** The
+verification pass above shipped a `docs/migrating-from-autofixture.md`
+that was still, structurally, an internal Milestone 7 artifact wearing a
+public-docs skin — accurate per the original "content-stable" framing (no
+prose was wrong), but the wrong bar for a public-facing migration guide.
+User feedback, in two rounds, redirected this task's own scope:
+"shouldn't mention [the source repository] by name at all... should read
+like the rest of the completed docs... pure documentation on how to do
+something with good examples" first, then a full structural spec (title,
+section ordering, a migration-mindset section, a quick concept map, a
+specimen-builder decision table, a migration checklist, and where to move
+versus summarize the heaviest implementation detail). Rewritten per that
+spec — see the Phase 3 Tasks entry above for the shape. Verified again
+with a fresh `uv run mkdocs build --clean --strict`: exit 0, and the one
+new anchor this rewrite introduced (`reference/diagnostics.md#cmp0001-...`)
+had the same double-hyphen mistake as before, caught the same way and
+fixed before commit. Confirmed no literal mention of the source
+repository's name survives anywhere in the published page
+(`grep -i` across the file); `docs/research/0001-autofixture-comparison.md`
+is explicitly out of scope for this anonymization — it's the internal
+research dossier this guide now links out to for readers who want the
+full evidence trail, and keeping its detail complete there is what makes
+summarizing safe here.

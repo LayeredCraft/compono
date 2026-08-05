@@ -1,467 +1,428 @@
 # Migrating from AutoFixture to Compono
 
-**Status:** Complete (Milestone 7's all six PLAN-0007 phases done, all 73
-`cosmere-tracker` tests passing under Compono — the 72 migrated tests plus
-one new capability test for the
-`ClientTestProfile`/`IHttpClientProvider` pattern; post-migration metrics,
-the full per-finding evidence dossier, every finding's final
-classification, and the milestone's final architectural conclusion
-recorded in
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md);
-zero findings classified bug or roadmap candidate, four recorded as dated
-ADR Amendments — see that document's "Classifications"/"Decisions"
-sections)
+This guide is based on migrating a real, multi-project .NET test suite
+from AutoFixture, AutoFixture.Xunit3, and AutoFixture.AutoNSubstitute to
+Compono. The before/after examples throughout are drawn from real
+patterns encountered during that migration, not synthetic ones — see
+[Real-World Migration Evidence](#real-world-migration-evidence) at the end
+for the full evidence record, if you want it. You don't need to read that
+record to complete your own migration; this guide is self-contained.
 
-This guide is a living deliverable of Milestone 7's dogfooding pass
-([ADR-0029](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md),
-[PLAN-0007](plans/0007-milestone-7-dogfooding.md)) — it exists to help a
-real AutoFixture user move to Compono, drawn from an actual migration
-(`ncipollina/cosmere-tracker`'s `test/Cosmere.Tracker.TestKit` and its three
-consuming test projects), not synthetic examples.
+## Who this guide is for
 
-For each concept, an entry covers: the AutoFixture approach, the Compono
-approach, why the Compono approach was chosen, a better/equivalent/tradeoff
-verdict, links to the relevant ADR(s)/research findings, and a real
-before/after code example.
+You have an existing AutoFixture-based test suite — `[AutoData]`/
+`[InlineAutoData]`, one or more `ICustomization`/`ISpecimenBuilder`
+implementations, possibly `AutoNSubstituteCustomization` — and you want to
+move it to Compono. This guide assumes you're already comfortable with
+AutoFixture and want the fastest path to idiomatic Compono, not an
+introduction to Compono from scratch (start with
+[Getting Started](getting-started/index.md) for that).
 
-## Referencing Compono packages from a separate repository
+## Migration mindset
 
-`cosmere-tracker` is a sibling repo to `compono`, not part of this monorepo,
-with its own GitHub-hosted CI that has no access to a local `compono`
-checkout to pack from. A local NuGet feed (packing `compono`'s source
-on-demand, mirroring `test/Compono.XunitV3.SampleTests`' own pattern) was
-tried first and rejected — it only works on a machine that happens to have
-both repos checked out side by side, and silently breaks the moment this
-work is pushed and CI tries to restore it. Instead, `cosmere-tracker`'s
-`Directory.Packages.props` pins `Compono`/`Compono.XunitV3`/
-`Compono.NSubstitute`/`Compono.Bogus` to a real published prerelease from
-nuget.org (`0.1.0-alpha.33` at time of writing) — `compono`'s own
-`publish-preview.yaml` publishes a fresh `alpha` prerelease on every
-non-docs-only push to its `main` branch (it has `paths-ignore: docs/**,
-README.md`, so a docs-only PR merge — like this one — does *not* trigger a
-new publish), so a recent one is available whenever `main`'s actual source
-changes. Bump all four versions together when a newer alpha is needed; there
-is no local feed or pack step to run.
+The goal isn't a mechanical, one-for-one API translation. AutoFixture is
+**specimen-oriented** — a pipeline of request-matching builders that can
+intercept and reshape almost any request. Compono is
+**composition-oriented** — a fixed, ordered pipeline of exact
+registrations, type/member rules, and providers, with generated
+construction underneath. Some AutoFixture infrastructure has no Compono
+counterpart because it solved a problem Compono's design doesn't have in
+the first place. Let obsolete fixture infrastructure disappear rather than
+recreating it under a new name.
 
-## `AutoDataAttribute`/`InlineAutoDataAttribute` and customizations
+A few principles to migrate by:
 
-AutoFixture's `[AutoData]`/`[InlineAutoData]` pair, wrapped in
-`cosmere-tracker`-specific subclasses that baked in an `IFixture` factory
-(`CosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`,
-`EndpointAutoDataAttribute`, `PersistenceAutoDataAttribute` — one per test
-project, each combining `BaseFixtureFactory` with its own customization).
-Compono's idiomatic shape is a single `[Compose<TProfile>]` attribute per
-test method, with the profile doing what the custom `AutoDataAttribute`
-subclass used to do implicitly
-([ADR-0022](adr/0022-compono-xunit-package-design.md)).
+- **Prefer profiles over custom data-attribute subclasses.** A profile
+  (`ICompositionProfile`) replaces the pattern of subclassing
+  `AutoDataAttribute` to bake in a fixture factory.
+- **Prefer exact registrations for exact-type creation.** If an
+  AutoFixture customization only ever built one specific type, it's a
+  `Register<T>` call, not a general-purpose builder.
+- **Prefer member/type rules for scoped customization.** If a
+  customization only overrode one member of one type, reach for
+  `.For<T>().Member(...)` instead of a full specimen builder.
+- **Use providers only for genuinely pattern-based behavior.** Reserve a
+  custom `ICompositionValueProvider` for the rare case that really needs
+  to match on request *shape*, not a fixed type — most AutoFixture
+  specimen builders don't actually need this.
+- **Use `[Shared]` only when object identity actually matters.** Don't
+  reach for it just because AutoFixture's `[Frozen]` was on the parameter
+  before — audit whether the test actually depends on the same instance.
+- **Don't recreate hidden AutoFixture behavior unless the test genuinely
+  needs it.** `ConfigureMembers`-style auto-configuration and
+  recursion-omission are common examples — see below.
+- **Prefer explicit substitute setup over recursive member
+  auto-configuration.** A test that depends on a substitute's return value
+  should stub it, not rely on an implicit default.
 
-**Better** — every one of the four custom `AutoDataAttribute` subclasses was
-removed entirely; nothing replaced them as a named type, since
-`[Compose<TProfile>]` is Compono.XunitV3's own attribute, applied directly.
-The four wrapper classes existed purely to bind a specific `IFixture` factory
-to an attribute; Compono has no equivalent indirection to wrap.
+## Install Compono
 
-**Project-local cleanup — a pure-inline `[Theory]` needs no Compono
-attribute at all.** `TextNormalizerTests` had 7
-`[InlineCosmereTrackerAutoData(...)]` rows where every parameter was
-supplied inline (no AutoFixture-composed value was ever used).
-`InlineCosmereTrackerAutoDataAttribute` was `cosmere-tracker`'s own
-wrapper, though, not something AutoFixture required — plain xUnit
-`[InlineData]` was already available and would have worked identically
-before this migration too; nothing about AutoFixture forced routing
-through the custom subclass for a row with no composed parameter at all
-(per
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-9-pure-inline-theory-rows-needed-no-autodataattribute-wrapper-even-before-migration-project-local-cleanup)'s
-Finding 9, migration-only friction, not a framework capability
-difference). What migration did do here is remove that redundant
-project-local wrapper: `[Compose]` is method-scoped
-(`AttributeTargets.Method`), not parameter-scoped, so a fully inline row
-with no parameter left to compose needs no Compose-family attribute at
-all — plain `[InlineData]` is correct and simpler:
+See [Package Guides](packages/index.md) for the full ecosystem map. Most
+AutoFixture users migrating xUnit tests need:
 
-```csharp
-// Before (AutoFixture)
-[Theory]
-[InlineCosmereTrackerAutoData(null!, "")]
-[InlineCosmereTrackerAutoData("Kaladin Stormblessed", "kaladin-stormblessed")]
-public void Normalize_ProducesExpected(string? input, string expected) { ... }
+- **`Compono`** — the core package, always required.
+- **`Compono.XunitV3`** — if you use `[AutoData]`/`[InlineAutoData]` today.
+- **`Compono.NSubstitute`** — if you use `AutoNSubstituteCustomization`.
+- **`Compono.Bogus`** — if you want realistic fake data instead of
+  anonymous values.
 
-// After (Compono) — no Compono attribute needed at all
-[Theory]
-[InlineData(null, "")]
-[InlineData("Kaladin Stormblessed", "kaladin-stormblessed")]
-public void Normalize_ProducesExpected(string? input, string expected) { ... }
+```bash
+dotnet add package Compono --prerelease
+dotnet add package Compono.XunitV3 --prerelease
+dotnet add package Compono.NSubstitute --prerelease
+dotnet add package Compono.Bogus --prerelease
 ```
 
-**Real limitation found — stacking more than one Compose-family attribute on
-one method has no direct Compono equivalent.** A test that needs *both*
-several distinct inline rows *and* one or more genuinely composed parameters
-in each row (AutoFixture handles this by stacking `[InlineAutoData(...)]`
-instances) can't be expressed this way in Compono today. The failure mode is
-more specific than "fails to compile," though: `[AttributeUsage(AllowMultiple
-= false)]` is enforced by the compiler per *exact* attribute type, so two
-*different* Compose-family types (e.g. `[Compose]` plus `[Compose<MyProfile>]`,
-or two differently-closed `[Compose<TProfile>]` forms) compile without
-complaint — nothing at the type-attribute level stops stacking them. Compono.
-XunitV3's own `BindingPlan.ValidateSignature` (`src/Compono.XunitV3/Binding/BindingPlan.cs`)
-explicitly counts the whole Compose-family regardless of closed type and
-throws a `CompositionException` at data-binding time (when the test's data is
-actually generated), not at compile time. Only two instances of the *exact
-same* closed attribute type are a genuine compiler error, via
-`AllowMultiple = false` on that one type. `cosmere-tracker`'s migration
-didn't hit a real test needing the multi-row-plus-composed-parameter
-combination (`TextNormalizerTests`' rows were pure-inline, per above), so
-this is recorded as a discovered constraint, not a blocking gap — but it is a
-real further finding for Milestone 7's evidence beyond the three named gaps.
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-4-compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes)
-classifies this an unexercised constraint (intentional design difference,
-no change) rather than a roadmap candidate — ADR-0029 requires real
-observed frequency and workaround cost before that promotion, and neither
-exists here — recorded as
-[ADR-0022 Amendment 7](adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found).
+Install matching versions of every Compono package you add — mixing
+versions across packages isn't supported; see
+[Package Guides: Version Compatibility](packages/index.md#version-compatibility).
+See [Installation](getting-started/installation.md) for the full setup,
+including why `--prerelease` is required during public preview.
 
-`cosmere-tracker`'s migration never actually needed a mixed "some inline,
-some composed" row — every real test was either fully composed
-(`CursorEncoderTests`, below) or, per the finding above, fully inline
-(`TextNormalizerTests`). `CursorEncoderTests` shows the fully-composed case
-— the direct replacement for AutoFixture's non-inline `[AutoData]`:
+## Quick concept map
+
+An orientation aid, not a claim that the two frameworks are identical —
+each row is expanded into its own section below.
+
+| AutoFixture usage | Compono approach |
+|---|---|
+| `fixture.Create<T>()` | `composer.Create<T>()` |
+| `[AutoData]` | `[Compose]` |
+| Custom `AutoDataAttribute` subclass | `[Compose<TProfile>]` |
+| `ICustomization` | `ICompositionProfile` |
+| Exact-type specimen customization | `Register<T>()` |
+| Exact-type `ISpecimenBuilder` | `Register<T>()` |
+| Type/member customization | `.For<T>()` / `.Member(...)` |
+| Pattern-based specimen builder | `ICompositionValueProvider` |
+| `[Frozen]` | `[Shared]`, when identity is genuinely required |
+| `AutoNSubstituteCustomization` | `UseNSubstitute()` |
+| Semantic/realistic data | `UseBogus()` / `UseBogus<T>()` |
+| `OmitOnRecursionBehavior` | No equivalent — Compono fails clearly instead |
+
+## Migrate object creation
+
+The baseline call maps directly:
+
+```csharp
+// Before
+var order = fixture.Create<Order>();
+
+// After
+var order = composer.Create<Order>();
+```
+
+`composer` comes from `Composer.Create(builder => ...)`, built once and
+reused — see [The Composition Model](concepts/composition-model.md) if
+you haven't read it yet.
+
+## Migrate `[AutoData]` and `[InlineAutoData]`
+
+A project-specific `AutoDataAttribute` subclass that bakes in an
+`IFixture` factory:
+
+```csharp
+// Before
+public sealed class ProjectAutoDataAttribute() : AutoDataAttribute(CreateFixture)
+{
+    internal static IFixture CreateFixture() =>
+        new Fixture().Customize(new ProjectCustomization());
+}
+
+[Theory]
+[ProjectAutoData]
+public void Handles_Order(Order order) { }
+```
+
+becomes `[Compose<TProfile>]` applied directly — no wrapper attribute
+subclass, since the profile does what the custom subclass used to do
+implicitly:
+
+```csharp
+// After
+[Theory]
+[Compose<ProjectTestProfile>]
+public void Handles_Order(Order order) { }
+```
+
+See [Migrate `ICustomization`](#migrate-icustomization) below for what
+`ProjectTestProfile` looks like.
+
+**A row where every value is supplied inline needs no Compono attribute at
+all.** If a `[Theory]` row supplies every parameter inline, plain xUnit
+`[InlineData]` already works and is simpler than routing it through a
+Compose-family attribute:
 
 ```csharp
 // Before
 [Theory]
-[CosmereTrackerAutoData]
-public void EncodeDecode_RoundTrips(Guid id) { ... }
+[InlineProjectAutoData(null!, "")]
+[InlineProjectAutoData("Kaladin", "kaladin")]
+public void Normalizes(string? input, string expected) { }
 
+// After — no Compono attribute needed
+[Theory]
+[InlineData(null, "")]
+[InlineData("Kaladin", "kaladin")]
+public void Normalizes(string? input, string expected) { }
+```
+
+`[Compose]` is method-scoped, not parameter-scoped — a row with nothing
+left to compose doesn't need it. For a row that mixes inline values with
+composed ones, `[Compose(...)]` binds the inline values positionally and
+composes the rest — see
+[How Do I Write a Composed Theory?](how-to/write-a-composed-theory.md).
+
+**Only one Compose-family attribute per test method is supported.**
+AutoFixture's idiom of stacking multiple `[InlineAutoData(...)]` instances
+for several rows, each with its own composed parameters, has no direct
+Compono equivalent — pick one Compose-family attribute per method and
+cover the rest with a separate `[Theory]`/`[InlineData]` method instead.
+See [`Compono.XunitV3`'s Package Guide](packages/compono-xunitv3.md#what-it-deliberately-doesnt-do)
+for the full mechanics of why stacking isn't supported.
+
+## Migrate `ICustomization`
+
+```csharp
+// Before
+public sealed class ProjectCustomization : ICustomization
+{
+    public void Customize(IFixture fixture)
+    {
+        fixture.Customizations.Add(new OrderSpecimenBuilder());
+    }
+}
+```
+
+```csharp
 // After
-[Theory]
-[Compose]
-public void EncodeDecode_RoundTrips(Guid id) { ... }
-```
-
-For the actual mixed shape — some parameters supplied inline, the rest
-composed — no real `cosmere-tracker` test needed it, so there's no real
-before/after to show here. Compono.XunitV3's own sample tests demonstrate
-the mechanism (not part of this migration, shown for completeness only):
-
-```csharp
-// test/Compono.XunitV3.SampleTests/InlineAndComposedTests.cs
-[Theory]
-[Compose(42)]                            // quantity supplied inline; productName composed
-public void MixesInlineAndComposedValues(int quantity, string productName) { ... }
-```
-
-## `ICustomization` and composition profiles
-
-AutoFixture's `ICustomization` versus Compono's `ICompositionProfile`
-([ADR-0018](adr/0018-composition-profiles.md)). `cosmere-tracker`'s
-`CosmereTrackerCustomization` turned out to be an empty stub (commented-out
-examples only, never actually customized anything) — there was no real
-intent to port:
-
-```csharp
-// Before — CosmereTrackerCustomization.cs, entirely commented-out
-public sealed class CosmereTrackerCustomization : ICustomization
-{
-    public void Customize(IFixture fixture)
-    {
-        // Add specimen builders for domain objects as needed
-        // Example:
-        // fixture.Customizations.Add(new QuestionSpecimenBuilder());
-
-        // Freeze common dependencies
-        // Example:
-        // fixture.Freeze<ILogger>();
-    }
-}
-
-// After — deleted outright, nothing replaced it (there was no real
-// customization to carry forward)
-```
-
-It was deleted outright rather than migrated to a profile; `SharedCustomization`
-(in `Cosmere.Tracker.Shared.TestKit`), by contrast, did real work (registered
-four domain-item specimen builders) and became `SharedTestKitProfile :
-ICompositionProfile`, composed into each consuming project's own profile via
-`builder.AddProfile<SharedTestKitProfile>()`:
-
-```csharp
-// Before — SharedCustomization.cs
-public sealed class SharedCustomization : ICustomization
-{
-    public void Customize(IFixture fixture)
-    {
-        fixture.Customizations.Add(new CharacterItemSpecimenBuilder());
-        fixture.Customizations.Add(new BookItemSpecimenBuilder());
-        fixture.Customizations.Add(new WorldItemSpecimenBuilder());
-        fixture.Customizations.Add(new EdgeItemSpecimenBuilder());
-    }
-}
-
-// After — SharedTestKitProfile.cs (see the specimen-builder section below
-// for what each Register<T> call itself became)
-public sealed class SharedTestKitProfile : ICompositionProfile
+public sealed class ProjectTestProfile : ICompositionProfile
 {
     public void Configure(CompositionBuilder builder)
     {
-        builder.UseBogus<BookItem>(ConfigureBookItem);
-        builder.UseBogus<CharacterItem>(ConfigureCharacterItem);
-        builder.UseBogus<WorldItem>(ConfigureWorldItem);
-        builder.Register(CreateBookCharacterEdge);
-        // ...remaining edge-item registrations
+        builder.Register(CreateOrder);
     }
+
+    private static Order CreateOrder(ICompositionContext context) =>
+        new(context.Resolve<string>());
 }
 ```
 
-## `AutoNSubstituteCustomization` (`ConfigureMembers`) — gap 2
+**Simpler:** an empty or commented-out `ICustomization` with no real
+customization logic doesn't need porting at all — delete it. A
+customization that did real work becomes a profile of equivalent
+`Register<T>`/rule calls, as above. A profile shared across projects can
+be composed into another via `builder.AddProfile<TProfile>()` — see
+[Profiles](concepts/profiles.md) for when a separate, composed-in profile
+is worth it versus configuring everything in one place.
 
-`BaseFixtureFactory` applied `AutoNSubstituteCustomization { ConfigureMembers
-= true }` — every generated substitute had its members auto-configured
-(sensible return values, including a recursively-constructed object for a
-`Task<T>`-returning member) rather than returning `default`. Compono's
-`Compono.NSubstitute` ([ADR-0025](adr/0025-compono-nsubstitute-package-design.md))
-deliberately returns a bare `Substitute.For<T>()` — no auto-configuration.
+## Migrate `[Frozen]` and shared dependencies
 
-**Real evidence, both directions.** Migrating away from `ConfigureMembers`
-surfaced two distinct patterns:
+By default, Compono composes each parameter independently — two
+parameters of the same type get two separate instances, same as
+unfrozen AutoFixture. `[Shared]` is the direct equivalent of `[Frozen]`,
+but audit each real `[Frozen]` usage rather than translating it
+mechanically: many turn out not to need it at all.
 
-- **Zero workaround cost, most call sites.** ~30 endpoint tests
-  (`ListWorldsEndpointTests`, etc.) took `[Frozen] ICosmereTrackerRepository
-  repo` purely to get "a substitute for this interface" — the repo was passed
-  explicitly to `Factory.Create<TEndpoint>(repo)` and never reused elsewhere
-  in the same composition. Compono composes an interface parameter to a
-  substitute automatically once `UseNSubstitute()` is active — no annotation
-  needed at all:
-  ```csharp
-  // Before
-  public async Task HandleAsync_WhenSortInvalid_DoesNotCallRepo(
-      [Frozen] ICosmereTrackerRepository repo) { ... }
-
-  // After — [Frozen] wasn't sharing anything; plain composition suffices
-  public async Task HandleAsync_WhenSortInvalid_DoesNotCallRepo(
-      ICosmereTrackerRepository repo) { ... }
-  ```
-  This is a genuinely simpler result than AutoFixture's own idiom, not just an
-  equivalent one — `[Frozen]` read as "this is shared," which was never true
-  here.
-- **Real sharing, `CosmereTrackerRepository` persistence tests.** Here
-  `[Frozen] IDynamoPartiqlClient partiql` genuinely mattered: `sut` (a
-  concrete `CosmereTrackerRepository`, constructor-injecting
-  `IDynamoPartiqlClient`) is auto-constructed by the fixture/composition, and
-  the same substitute instance needs to be visible as a test parameter for
-  stubbing. Compono's explicit `[Shared] IDynamoPartiqlClient partiql`
-  parameter is the direct, low-cost equivalent — same shape, same intent,
-  just spelled out:
-  ```csharp
-  // Before
-  public async Task GetWorldByIdAsync_UsesPkSkPartiql(
-      [Frozen] IDynamoPartiqlClient partiql,
-      CosmereTrackerRepository sut,
-      WorldItem world) { ... }
-
-  // After
-  public async Task GetWorldByIdAsync_UsesPkSkPartiql(
-      [Shared] IDynamoPartiqlClient partiql,
-      CosmereTrackerRepository sut,
-      WorldItem world) { ... }
-  ```
-- **Where `ConfigureMembers` silently mattered — a real regression caught by
-  the test suite itself.** Two tests
-  (`ListWorldsAsync_WhenSortEmpty_DefaultsToName`,
-  `ListCharactersAsync_WhenSortEmpty_DefaultsToName`) called
-  `sut.ListWorldsAsync(...)`/`sut.ListCharactersAsync(...)` and asserted
-  `NotThrowAsync()`, with **no explicit stub at all** on
-  `partiql.ExecuteAsync(...)`. Under AutoFixture's `ConfigureMembers = true`,
-  the auto-configured substitute recursively produced a non-null `PartiqlPage`
-  for any unstubbed call, so the repository's internal use of the result never
-  threw. Under Compono's bare `Substitute.For<T>()`, the same unstubbed call
-  returns `Task.FromResult<PartiqlPage>(null)` (NSubstitute's own default for
-  an unconfigured `Task<T>`-returning member), and the repository's own code
-  throws `NullReferenceException` dereferencing it. This is exactly the gap-2
-  evidence ADR-0029 asked for — a call site that genuinely relied on
-  AutoFixture's auto-configuration — fixed by adding the explicit stub the
-  test always should have had:
-  ```csharp
-  public async Task ListWorldsAsync_WhenSortEmpty_DefaultsToName(
-      [Shared] IDynamoPartiqlClient partiql,
-      CosmereTrackerRepository sut)
-  {
-      partiql
-          .ExecuteAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<AttributeValue>>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-          .ReturnsForAnyArgs(new PartiqlPage([], null));
-      // ...
-  }
-  ```
-  **Verdict:** this is a real, material workaround cost (an explicit stub a
-  test previously didn't need to write) — but arguably a correctness
-  improvement, not just friction: the test's true dependency on
-  `ExecuteAsync`'s return shape was previously hidden by auto-configuration,
-  and is now visible in the test body. Classified intentional design
-  difference (no change): restoring AutoFixture's auto-configuration would
-  reintroduce exactly this hidden-dependency problem, conflicting with
-  Compono's explicit-over-implicit principle — see
-  [ADR-0025 Amendment 2](adr/0025-compono-nsubstitute-package-design.md#amendment-2-2026-08-04-dogfooding-confirms-the-no-member-auto-configuration-non-goal-at-a-real-material-cost)
-  for the full reasoning.
-
-## Recursion behaviors (`OmitOnRecursionBehavior` vs. fail-fast) — gap 3
-
-`BaseFixtureFactory` (`cosmere-tracker`'s own factory class) swapped
-AutoFixture's default `ThrowingRecursionBehavior` for the AutoFixture-library
-`OmitOnRecursionBehavior`:
+**Equivalent — real sharing.** Where a dependency composed as a test
+parameter is also depended on by another composed parameter, and the test
+needs to assert against or configure that exact instance, `[Shared]`
+preserves the behavior directly:
 
 ```csharp
-// Before — BaseFixtureFactory.cs
-var fixture = new Fixture();
+// Before
+public async Task Repository_UsesTheConfiguredClient(
+    [Frozen] IHttpClient client,
+    OrderRepository sut) { }
 
-// Prevent infinite recursion for self-referencing types
-fixture.Behaviors.OfType<ThrowingRecursionBehavior>().ToList()
-    .ForEach(b => fixture.Behaviors.Remove(b));
-fixture.Behaviors.Add(new OmitOnRecursionBehavior());
-
-// After — nothing. Compono has no per-composition recursion-behavior
-// configuration to opt into at all; a genuine construction cycle always
-// fails fast with a path-annotated CompositionException
-// (ADR-0011) — there's no equivalent call to make, replaced or otherwise.
+// After
+public async Task Repository_UsesTheConfiguredClient(
+    [Shared] IHttpClient client,
+    OrderRepository sut) { }
 ```
 
-**No construction-cycle failure was ever triggered during this migration** —
-none of `cosmere-tracker`'s composed types (`BookItem`/`CharacterItem`/
-`WorldItem`/edge items, `CosmereTrackerRepository`) form a self-referencing
-graph; edges reference other entities by string id, not by object reference.
-This is itself the gap-3 finding for Phase 1: **zero observed frequency**
-for this migration. Compono's fail-fast `CompositionException` with a
-path-annotated message
-([ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md))
-was never exercised, positively or negatively, by this codebase.
-
-## Specimen builders and registrations
-
-AutoFixture's `ISpecimenBuilder`/`IRequestSpecification` pattern versus
-Compono's `CompositionBuilder.Register<T>(Func<ICompositionContext, T>)`
-([ADR-0024](adr/0024-public-provider-extensibility-model.md)). Every
-domain-item specimen builder in `Cosmere.Tracker.Shared.TestKit`
-(`BookItemSpecimenBuilder`, `CharacterItemSpecimenBuilder`,
-`WorldItemSpecimenBuilder`, `EdgeItemSpecimenBuilder`) became a
-`Register<T>` call inside `SharedTestKitProfile`, one per type — direct,
-equivalent translation, no `NamedRequest`/`ParameterInfo` pattern-matching
-needed since Compono's registration is keyed by exact type, not by
-inspecting the request shape by hand. `BookItem`/`CharacterItem`/`WorldItem`
-went through `UseBogus<T>()` instead (see the `Compono.Bogus` section
-below); edge items have no semantic string fields, so they stay a plain
-`Register<T>` factory — `EdgeItemSpecimenBuilder`'s `BookCharacterEdgeItem`
-case is representative of all six:
+**Simpler — `[Frozen]` wasn't sharing anything.** A very common pattern is
+`[Frozen]` used purely to obtain a substitute for an interface, with the
+substitute never reused elsewhere in the same test. This needs no
+annotation under Compono at all — composing an interface parameter
+already produces a substitute automatically once `UseNSubstitute()` is
+active:
 
 ```csharp
-// Before — EdgeItemSpecimenBuilder.cs (one case of a six-way switch handling
-// all edge-item types plus their Type/ParameterInfo/NamedRequest shapes)
-public sealed class EdgeItemSpecimenBuilder : ISpecimenBuilder
+// Before
+public async Task Handle_WhenInvalid_DoesNotCallRepository(
+    [Frozen] IOrderRepository repository) { }
+
+// After — [Frozen] wasn't sharing anything
+public async Task Handle_WhenInvalid_DoesNotCallRepository(
+    IOrderRepository repository) { }
+```
+
+Auditing every `[Frozen]` usage this way — rather than converting each one
+to `[Shared]` by rote — is usually the single biggest simplification a
+migration finds. See [Shared Values](concepts/shared-values.md) for the
+full model.
+
+## Migrate AutoNSubstitute
+
+`AutoNSubstituteCustomization` becomes `builder.UseNSubstitute()`:
+
+```csharp
+public void Configure(CompositionBuilder builder)
+{
+    builder.UseNSubstitute();
+}
+```
+
+**Tradeoff:** `AutoNSubstituteCustomization { ConfigureMembers = true }`
+auto-configures every generated substitute's members with sensible return
+values, including recursively-constructed objects for `Task<T>`-returning
+members. `Compono.NSubstitute` has no equivalent — every substitute is a
+bare `Substitute.For<T>()`. Most call sites that never depended on a
+specific return value need no change at all. But watch for a test that
+never stubs a substitute's member yet asserts the code under test doesn't
+throw — it may have been passing only because auto-configuration supplied
+a non-null value. Under Compono's bare substitute, the same unstubbed call
+returns NSubstitute's own default (`null`/`default`, or
+`Task.FromResult<T>(default)` for an async member); if your code
+dereferences that result, you'll see a `NullReferenceException` where the
+test previously passed silently:
+
+```csharp
+client.SendAsync(Arg.Any<HttpRequestMessage>())
+    .Returns(new HttpResponseMessage(HttpStatusCode.OK));
+```
+
+This is a real, one-time migration cost for a suite that leaned on
+auto-configuration — but it also makes a previously-hidden dependency
+visible in the test body, which is the point: Compono favors explicit
+setup over implicit magic throughout. See
+[`Compono.NSubstitute`'s Package Guide](packages/compono-nsubstitute.md#what-it-deliberately-doesnt-do)
+for the full rationale.
+
+## Migrate specimen builders
+
+`ISpecimenBuilder` served several distinct purposes in AutoFixture, and
+doesn't map to one single Compono extension point — which one you need
+depends on what the original builder actually did:
+
+| What the specimen builder does | Compono mechanism |
+|---|---|
+| Creates one exact type | `Register<T>()` |
+| Overrides one type or member | `.For<T>()` / `.Member(...)` |
+| Matches open-ended request shapes | `ICompositionValueProvider` |
+| Creates a complete, realistic object | `UseBogus<T>()` |
+
+Most real specimen builders fall into the first case — dispatching on a
+fixed `Type`/`ParameterInfo`/`NamedRequest` to build one specific type:
+
+```csharp
+// Before
+public sealed class OrderSpecimenBuilder : ISpecimenBuilder
 {
     public object Create(object request, ISpecimenContext context)
     {
         return request switch
         {
-            Type t when t == typeof(BookCharacterEdgeItem) => CreateBookCharacterEdge(null, context),
-            ParameterInfo p when p.ParameterType == typeof(BookCharacterEdgeItem) => CreateBookCharacterEdge(p.Name, context),
-            NamedRequest { InnerRequest: Type t } nr when t == typeof(BookCharacterEdgeItem) => CreateBookCharacterEdge(nr.Name, context),
-            // ...five more cases, one per remaining edge-item type
+            Type t when t == typeof(Order) => CreateOrder(context),
+            ParameterInfo p when p.ParameterType == typeof(Order) => CreateOrder(context),
+            NamedRequest { InnerRequest: Type t } nr when t == typeof(Order) => CreateOrder(context),
             _ => new NoSpecimen(),
         };
     }
 
-    private static BookCharacterEdgeItem CreateBookCharacterEdge(string? name, ISpecimenContext context)
-    {
-        var seed = name ?? context.Create<string>();
-        return new BookCharacterEdgeItem
-        {
-            Id = Guid.NewGuid().ToString("D").ToLowerInvariant(),
-            BookId = DeterministicGuid.CreateBookId($"testkit:{seed}:book"),
-            CharacterId = DeterministicGuid.CreateCharacterId($"testkit:{seed}:char"),
-            CreatedAt = DateTimeOffset.UtcNow.ToString("O"),
-            UpdatedAt = DateTimeOffset.UtcNow.ToString("O"),
-        };
-    }
-}
-
-// After — SharedTestKitProfile.cs (one Register<T> call per edge type, no
-// request-shape pattern-matching needed at all)
-private static BookCharacterEdgeItem CreateBookCharacterEdge(ICompositionContext context) => new()
-{
-    Id = NewId(context),
-    BookId = NewId(context),
-    CharacterId = NewId(context),
-    CreatedAt = Timestamp(context),
-    UpdatedAt = Timestamp(context),
-};
-```
-
-**One AutoFixture-era specimen builder had zero real call sites, but was
-migrated anyway.** `HttpClientSpecimenBuilder`/`HttpClientSpecification`
-(gap 1's original named case) — `ClientAutoDataAttribute`/
-`InlineClientAutoDataAttribute` were never used by any of the three
-consuming test projects; a repo-wide search found call sites only inside
-`Cosmere.Tracker.TestKit`'s own definition files. "Zero observed frequency"
-is still real gap-1 evidence (the rubric's question 1), but this specific
-capability (a frozen, substitute `HttpMessageHandler` behind a configured
-`HttpClient`) is one the repo owner explicitly wants preserved for future
-HTTP-client tests, not dropped just because nothing uses it *yet* — so it
-was ported, not deleted, and is documented here as a real, working pattern.
-Here is gap 1's original AutoFixture-side code — the frozen-`HttpMessageHandler`
-concept the rest of this section replaces:
-
-```csharp
-// Before — Attributes/ClientAutoDataAttribute.cs
-public sealed class ClientAutoDataAttribute() : AutoDataAttribute(CreateFixture)
-{
-    internal static IFixture CreateFixture()
-    {
-        return BaseFixtureFactory.CreateFixture(fixture =>
-        {
-            fixture.Freeze<HttpMessageHandler>();
-            fixture.Customizations.Add(new HttpClientSpecimenBuilder());
-        });
-    }
-}
-
-// Before — SpecimenBuilders/HttpClientSpecimenBuilder.cs
-public sealed class HttpClientSpecimenBuilder(IRequestSpecification requestSpecification) : ISpecimenBuilder
-{
-    public HttpClientSpecimenBuilder() : this(new HttpClientSpecification()) { }
-
-    public object Create(object request, ISpecimenContext context)
-    {
-        if (!requestSpecification.IsSatisfiedBy(request))
-            return new NoSpecimen();
-
-        var handler = context.Resolve(typeof(HttpMessageHandler)) as HttpMessageHandler;
-        return new HttpClient(handler!) { BaseAddress = new Uri("https://localhost/") };
-    }
+    private static Order CreateOrder(ISpecimenContext context) =>
+        new(context.Create<string>());
 }
 ```
 
-`fixture.Freeze<HttpMessageHandler>()` is exactly ADR-0029's "hidden shared
-values" framing: the frozen handler never appears as a parameter anywhere a
-test can see — `HttpClientSpecimenBuilder` resolves it by type from
-`ISpecimenContext` behind the scenes. Compono's replacement (below) makes
-the sharing explicit via `[Shared] HttpMessageHandler`.
+```csharp
+// After — no request-shape pattern-matching needed
+builder.Register<Order>(context => new Order(context.Resolve<string>()));
+```
 
-**Real limitation found: `HttpClient` can't be composed directly as a test
-parameter at all**, regardless of any registration. `Compono.Generators`'
-constructor-selection validation (diagnostic `CMP0001`,
-[ADR-0002](adr/0002-constructor-selection-algorithm.md)) inspects a
-composed parameter's type at *compile time*, purely from its constructor
-count on the Roslyn symbol — it has no visibility into any *runtime*
-`CompositionBuilder.For<T>().Use(...)` rule that would actually construct
-the type. `HttpClient` has 3 accessible constructors, so composing it
-directly fails with `CMP0001: 'System.Net.Http.HttpClient' has 3 accessible
-constructors and no way to disambiguate them`, even with an explicit rule
-registered for it. ADR-0002 anticipated needing a `[CompositionConstructor]`
-disambiguation attribute for exactly this case but never shipped one — this
-is a genuine, currently-unfilled gap in Compono itself, not a migration
-mistake. The workaround: compose an interface instead of `HttpClient`
-directly — an interface is always treated as a provider-resolved leaf, so it
-never reaches constructor-selection:
+Compono's registration is keyed by exact type, so there's no
+`Type`/`ParameterInfo`/`NamedRequest` matching to write by hand for this
+case. Reach for a custom `ICompositionValueProvider` only for the rarer
+case that genuinely needs to match on request shape rather than a fixed
+type — see [Providers](concepts/providers.md).
+
+## Handle recursion behavior
+
+**Intentional difference:** AutoFixture's default `ThrowingRecursionBehavior`
+can be swapped for `OmitOnRecursionBehavior`, which silently omits a
+member that would cause infinite recursion instead of throwing. Compono
+has no equivalent to opt into — a genuine construction cycle always fails
+fast with a path-annotated `CompositionException`
+([ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md)),
+the same way any other unsatisfiable composition does. If your object
+graph is genuinely self-referencing, break the cycle explicitly with a
+`Register<T>` factory that supplies the recursive member directly, rather
+than relying on generated default construction. See
+[Troubleshooting: Common Errors](troubleshooting/common-errors.md#runtime-composition-failures)
+if you hit this during migration.
+
+## Add realistic data with Bogus
+
+Where AutoFixture only produces anonymous specimens,
+`Compono.Bogus`'s `UseBogus<T>(Action<Faker<T>>)` builds a `Faker<T>`
+already seeded from the current composition's own deterministic seed
+before invoking your configuration callback — every `RuleFor` inside it is
+automatically seed-consistent with the rest of the composition, with no
+manual seeding required:
 
 ```csharp
-// Cosmere.Tracker.TestKit/Http/IHttpClientProvider.cs
+public void Configure(CompositionBuilder builder)
+{
+    builder.UseBogus<Customer>(ConfigureCustomer);
+}
+
+private static void ConfigureCustomer(Faker<Customer> faker)
+{
+    faker.RuleFor(c => c.FullName, f => f.Name.FullName());
+    faker.RuleFor(c => c.Email, f => f.Internet.Email());
+}
+```
+
+For members that follow a common naming convention (`FirstName`, `Email`,
+`PhoneNumber`, and similar), plain `UseBogus()` matches them automatically
+with no per-type configuration — see
+[`Compono.Bogus`'s Package Guide](packages/compono-bogus.md) for the full
+built-in list and its member-name-matching limits.
+
+## Concepts that disappear entirely
+
+**Removed entirely — no replacement concept exists:**
+
+| AutoFixture concept | Why nothing replaced it |
+|---|---|
+| `IFixture` | Composition is per-test-method via `[Compose<TProfile>]` — there's no fixture object, configured or otherwise |
+| `IRequestSpecification`/`NamedRequest` | Registration is keyed by exact type; no separate request-matching type is needed |
+| `AutoNSubstituteCustomization`'s member auto-configuration | Compono never auto-configures a substitute's members |
+| `OmitOnRecursionBehavior` | A construction cycle always fails fast |
+
+**Replaced one-for-one with a Compono equivalent:**
+
+| AutoFixture concept | Compono equivalent |
+|---|---|
+| `ICustomization` | `ICompositionProfile` |
+| `ISpecimenBuilder` (exact-type case) | `CompositionBuilder.Register<T>(...)` |
+| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses | `[Compose]`/`[Compose<TProfile>]`, applied directly |
+| `AutoNSubstituteCustomization`'s substitute creation itself | `builder.UseNSubstitute()` |
+| `Freeze<T>()`/`[Frozen]` | `[Shared]` |
+
+## Known differences and limitations
+
+**Composing an external or BCL type with ambiguous constructors fails.**
+Compono's constructor-selection validation runs entirely at compile time,
+from a type's constructor count — it has no visibility into a runtime
+registration that might construct the type, so a type like `HttpClient`
+(three accessible constructors) always fails with
+[`CMP0001`](reference/diagnostics.md#cmp0001-ambiguous-construction-path),
+even with an explicit registration for it. For an external or BCL type
+with ambiguous constructors, compose an application-owned abstraction or
+provider instead of the concrete type directly:
+
+```csharp
 public interface IHttpClientProvider
 {
     HttpClient Create();
@@ -472,7 +433,6 @@ internal sealed class HttpClientProvider(HttpMessageHandler handler) : IHttpClie
     public HttpClient Create() => new(handler) { BaseAddress = new Uri("https://localhost/") };
 }
 
-// Cosmere.Tracker.TestKit/Profiles/ClientTestProfile.cs
 public sealed class ClientTestProfile : ICompositionProfile
 {
     public void Configure(CompositionBuilder builder)
@@ -481,269 +441,66 @@ public sealed class ClientTestProfile : ICompositionProfile
         builder.Register<IHttpClientProvider>(context => new HttpClientProvider(context.Resolve<HttpMessageHandler>()));
     }
 }
+```
 
-// usage
+```csharp
 [Theory]
 [Compose<ClientTestProfile>]
-public async Task Client_UsesTheSharedHandlersConfiguredResponse(
+public async Task UsesTheConfiguredResponse(
     [Shared] HttpMessageHandler handler,
     IHttpClientProvider clientProvider)
 {
-    handler.ReturnsResponse(HttpStatusCode.OK, new { ok = true });
+    // configure `handler` to return the response you want, then:
     var client = clientProvider.Create();
-    var response = await client.GetAsync("/ping", TestContext.Current.CancellationToken);
-    response.StatusCode.Should().Be(HttpStatusCode.OK);
 }
 ```
 
-**Verdict: a real workaround cost, not a clean equivalent.** AutoFixture's
-`Freeze<HttpMessageHandler>()` + `HttpClientSpecimenBuilder` let a test just
-ask for `HttpClient` directly; Compono needs an extra interface + wrapper
-class because of `CMP0001`'s compile-time-only view. This is itself
-Milestone 7 evidence beyond gap 1's original framing.
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-7-cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation)
-classifies this an unexercised constraint (intentional design difference,
-no change) rather than a roadmap candidate: the diagnostic only fired
-while porting a capability (`ClientTestProfile`) with zero real
-pre-migration call sites, and ADR-0029 rejects a synthetic exercise as
-roadmap evidence on its own — the interface-wrapper workaround already
-closes this cleanly at the cost this migration actually paid, recorded as
-[ADR-0002 Amendment 1](adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made).
-If a real roadmap candidate does emerge from
-this territory, per that dossier entry it's **support for disambiguating
-construction of a registered/external ambiguous type generically**, not
-specifically "ship the `[CompositionConstructor]`
-attribute ADR-0002 anticipated" — `HttpClient` is a BCL type `cosmere-tracker`
-doesn't own, so a source attribute on its constructor was never going to be
-the fix for *this* case regardless of whether that attribute ships; whatever
-mechanism a future design pass picks has to work for a type the
-consumer can't annotate, which the originally-anticipated attribute
-mechanism doesn't cover on its own.
+An interface is always resolved by a provider, never by constructor
+selection, so it never reaches ambiguous-constructor validation. See
+[Reference: Diagnostics](reference/diagnostics.md#cmp0001-ambiguous-construction-path)
+for the full cause/fix detail.
 
-- `DynamoDbResponseSpecimenBuilder` — composed a `PartiqlPage` as a test
-  parameter, matching a naming convention (`"empty"`/`"multiple"`/`"paged"`
-  substrings in the requesting parameter's name) to decide its shape. No test
-  in `Cosmere.Tracker.Shared.Tests` ever requested a `PartiqlPage` this way;
-  every real usage constructs `PartiqlPage` directly in the test body and
-  stubs `IDynamoPartiqlClient.ExecuteAsync` explicitly. Dropped entirely.
+For the rest of Compono's `0.x` known limitations (Compose-family
+stacking, Bogus's member-name-matching limits, and more), see each
+Package Guide's own "What it deliberately doesn't do" section, aggregated
+in [Troubleshooting](troubleshooting/index.md#known-limitations).
 
-`DynamoDbOptionsSpecimenBuilder`, by contrast, had a real, load-bearing call
-site — `CosmereTrackerRepository`'s constructor requires `IOptions<DynamoDbOptions>`
-whenever `sut` is composed — and became a straightforward
-`builder.Register<IOptions<DynamoDbOptions>>(() => ...)` call in
-`PersistenceTestProfile`.
+## Migration checklist
 
-## `Compono.Bogus`: realistic domain data
+- [ ] Remove AutoFixture package references.
+- [ ] Add the required Compono packages at matching versions.
+- [ ] Replace custom AutoData attributes with `[Compose]` or `[Compose<TProfile>]`.
+- [ ] Convert real customizations into profiles.
+- [ ] Delete empty or obsolete fixture abstractions.
+- [ ] Audit every `[Frozen]` usage to determine whether identity is
+      actually required before converting it to `[Shared]`.
+- [ ] Add `UseNSubstitute()` to profiles that need substitutes.
+- [ ] Add explicit stubs where tests relied on `ConfigureMembers`.
+- [ ] Convert exact-type specimen builders to registrations.
+- [ ] Use rules or providers only where their matching behavior is
+      actually needed.
+- [ ] Remove recursion-behavior configuration and run the suite.
+- [ ] Introduce `Compono.Bogus` where semantic data improves readability.
+- [ ] Run the complete test suite and inspect failures for hidden
+      dependencies (most commonly, `ConfigureMembers`-shaped ones).
+- [ ] Remove unused fixture infrastructure after migration.
 
-`cosmere-tracker`'s AutoFixture kit had no equivalent concept — it only ever
-produced anonymous specimens. Phase 0 identified the candidate members:
-`BookItem.Title`/`BookDto.Title`, `CharacterItem.Name`/`CharacterDto.Name`,
-`WorldItem.Name`/`WorldDto.Name`, `WorldItem.SystemName`/`WorldDto.SystemName`
-— both the domain-model side and the API-response DTO side of each pair.
+## Real-world migration evidence
 
-**The DTO side of each pair had no real adoption opportunity.** Confirmed
-during Phase 1: no `Cosmere.Tracker.Api.Dtos` type (`BookDto`, `CharacterDto`,
-`WorldDto`) is ever composed as a test parameter anywhere in
-`cosmere-tracker` — they're production API-response types, built by mapping
-code from the already-adopted `*Item` types (`BookItem` → `BookDto`, etc.),
-not independently generated or composed in any test. This is the same
-zero-real-call-site pattern as `HttpClientSpecimenBuilder`/
-`DynamoDbResponseSpecimenBuilder` above: there was no separate composition
-call site for `Compono.Bogus` to be wired into on the DTO side, so the rest
-of this section covers only the `*Item` side, where real adoption happened.
+This guide's patterns were validated against a real migration of a
+multi-project .NET test suite — not invented to illustrate a point in the
+abstract. If you want the full evidence record — post-migration metrics,
+every finding's classification, and the design decisions it fed into —
+it's available, but not required reading to complete your own migration:
 
-**Real limitation found: exact member-name matching can't disambiguate two
-types that share a member name with different semantics.**
-`BogusMemberNameProvider` matches purely on `request.Name` (the member/
-parameter name), regardless of the requesting type
-(`src/Compono.Bogus/BogusMemberNameProvider.cs`). `CharacterItem.Name` (a
-person's name) and `WorldItem.Name` (a place name) share the literal member
-name `"Name"` but need different generators — a single package-wide
-`BogusOptions.AddAlias("Name", ...)`/`AddConvention("Name", ...)` cannot
-serve both correctly. This is exactly the kind of domain `Compono.Bogus`'s
-built-in allowlist wasn't designed around (ADR-0029's own framing), and a
-genuine finding from dogfooding it against a non-person-centric domain.
-
-**Resolution used: `UseBogus<T>()`, Compono.Bogus's real whole-object
-sugar — an earlier attempt at this section wrongly bypassed it.** The first
-version of this migration hand-rolled `Register<T>(context => { var faker =
-new Faker<T>().UseSeed(context.DeriveSeed()); ...; return faker.Generate();
-})` per type, on the claim that `UseBogus<T>(Action<Faker<T>>)`'s
-`configureFaker` callback has no access to the resolving
-`ICompositionContext`. That claim was **wrong**, caught in PR review:
-`CompositionBuilderExtensions.UseBogus<T>` already does exactly
-`new Faker<T>(locale).UseSeed(context.DeriveSeed())` internally, *before*
-invoking `configureFaker` — so every `RuleFor` inside the callback already
-runs against a `Faker<T>` seeded from the composition's own context. There
-was never a reason to bypass the package's own integration point; doing so
-meant Phase 1 recorded "successful dogfooding" without ever calling a
-`Compono.Bogus` API. Corrected to use `builder.UseBogus<T>(...)` directly:
-
-```csharp
-public void Configure(CompositionBuilder builder)
-{
-    builder.UseBogus<BookItem>(ConfigureBookItem);
-    // ...
-}
-
-private static void ConfigureBookItem(Faker<BookItem> faker)
-{
-    faker.RuleFor(b => b.Id, f => f.Random.Uuid().ToString());
-    faker.RuleFor(b => b.Title, f => f.Commerce.ProductName());
-    faker.RuleFor(b => b.TitleNormalized, (_, b) => TextNormalizer.Normalize(b.Title));
-    faker.RuleFor(b => b.CreatedAt, f => f.Date.PastOffset(2, ReferenceDate).ToString("O"));
-    faker.RuleFor(b => b.UpdatedAt, (f, b) => DateTimeOffset.Parse(b.CreatedAt!).AddMinutes(f.Random.Int(0, 1440)).ToString("O"));
-}
-
-// Bogus's Date.PastOffset defaults its refDate to the current system clock, which would make
-// CreatedAt depend on when the test actually runs rather than just the seed - a fixed reference
-// date keeps it fully seed-deterministic (compono PR #40 review).
-private static readonly DateTimeOffset ReferenceDate = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
-```
-
-`TitleNormalized`/`UpdatedAt` both use Bogus's own sibling-property access
-(the `(f, instance)` `RuleFor` overload) to stay consistent with `Title`/
-`CreatedAt` — no direct `ICompositionContext` access needed anywhere in the
-callback, since the seeded `Faker<T>` instance (`f`) is already enough for
-every value these types need, including `Id` (`f.Random.Uuid()`) and the
-timestamps (`f.Date.PastOffset(2, ReferenceDate)`, pinned to a fixed
-reference date rather than `Date.PastOffset`'s own current-clock default).
-This exercises Compono.Bogus's actual public API and its determinism
-contract ([ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md))
-exactly as designed — no workaround needed at all, once the (incorrect)
-assumption about context access was dropped. Edge items (`BookCharacterEdgeItem`
-etc.) have no semantic string fields, so they stay a plain `Register<T>`
-factory — `Compono.Bogus` has nothing to add there.
-
-**Recommendation:** `Compono.Bogus`'s `UseBogus<T>(Action<Faker<T>>)` sugar
-is a clean fit for `cosmere-tracker`'s semantic string fields (`Title`,
-`Name`, `SystemName`) — a genuine win over the AutoFixture-era specimen
-builders, not just a tradeoff: fewer lines, no hand-rolled seeding, and
-Bogus's own realistic generators (`Commerce.ProductName()`, `Name.FullName()`,
-`Address.Country()`) read better than the old `"book-{hash}"`-style
-placeholder strings. Recommend `UseBogus<T>()` as the default for any new
-domain type with a semantic string field.
-
-## Reflection-based NSubstitute stubbing (`HttpMessageHandlerExtensions`)
-
-Not an AutoFixture concept — a plain NSubstitute extension method
-(`ReturnsResponse`, using `BindingFlags.NonPublic` reflection to stub
-`HttpMessageHandler`'s protected `SendAsync`), unrelated to the AutoFixture→
-Compono migration. Left unchanged: it has no AutoFixture dependency to
-migrate away from. Noted during Phase 1's initial call-site audit as having
-zero real callers at that point; now exercised by `ClientTestProfileTests`
-(see the `HttpClient`/`CMP0001` discussion above) alongside the newly-ported
-`ClientTestProfile`.
-
-## What disappeared entirely vs. what was merely replaced
-
-Per [ADR-0029 Amendment 2](adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md#amendment-2-2026-08-02-removed-concepts-get-their-own-explicit-inventory-not-just-a-count),
-these are two distinct categories, not one — a concept that disappeared with
-*nothing* taking its place represents a real drop in conceptual complexity;
-a concept replaced one-for-one by a Compono equivalent does not, even though
-the AutoFixture-era name is gone either way.
-
-**Removed entirely — no replacement concept exists:**
-
-| Concept | Why nothing replaced it |
-|---|---|
-| `IFixture` | Composition is per-test-method via `[Compose<TProfile>]` — there's no fixture object at all, configured or otherwise |
-| `IRequestSpecification` | Compono's registration is keyed by exact type; no separate request-matching type is needed |
-| `NamedRequest` | `Register<T>` factories don't need to pattern-match the requesting parameter's shape |
-| `DynamoDbResponseSpecimenBuilder` | Zero real call sites (see above) — dropped, not ported |
-| `BaseFixtureFactory` *(the factory class itself — this was `cosmere-tracker`'s own code, not an AutoFixture API; it just wired together three real AutoFixture-library behaviors, each tracked separately below/above)* | Nothing — there's no single place bundling multiple fixture behaviors together anymore |
-| `AutoNSubstituteCustomization { ConfigureMembers = true }`'s member auto-configuration | Nothing — Compono never auto-configures a substitute's members; the ~30 call sites that didn't actually need this had zero workaround cost, and the two call sites that did (gap 2's `ListWorldsAsync_WhenSortEmpty_DefaultsToName`/`ListCharactersAsync_WhenSortEmpty_DefaultsToName`) now write an explicit NSubstitute stub instead — that's ordinary per-test code, not a Compono-provided replacement concept |
-| `OmitOnRecursionBehavior` | Nothing — gap 3 found zero construction-cycle failures during this migration, so there was no real workaround to replace it with; see the recursion-behaviors section above |
-
-**Replaced one-for-one with a Compono equivalent:**
-
-| Concept | Compono equivalent |
-|---|---|
-| `ICustomization` | `ICompositionProfile` (only one project actually had real customization logic to carry over) |
-| `ISpecimenBuilder` | `CompositionBuilder.Register<T>(...)` inside a profile |
-| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses — four pairs, eight classes total (`CosmereTrackerAutoDataAttribute`/`InlineCosmereTrackerAutoDataAttribute`, `ClientAutoDataAttribute`/`InlineClientAutoDataAttribute`, `EndpointAutoDataAttribute`/`InlineEndpointAutoDataAttribute`, `PersistenceAutoDataAttribute`/`InlinePersistenceAutoDataAttribute`) | `[Compose]`/`[Compose<TProfile>]` (Compono.XunitV3's own attribute, used directly — no per-project wrapper) |
-| `AutoNSubstituteCustomization`'s substitute creation itself (not its member auto-configuration — see the removed-entirely table above) | `builder.UseNSubstitute()` (one line in each profile) — see gap 2 above |
-| `HttpClientSpecimenBuilder`/`HttpClientSpecification`/`ClientAutoDataAttribute` | `ClientTestProfile` + `IHttpClientProvider` (ported despite zero real call sites at migration time — an explicit request to keep this capability for future tests; see above) |
-| `SpecimenBuilderHash` | `Bogus.Randomizer`/`Faker<T>.UseSeed` (Compono.Bogus's own deterministic-seed mechanism replaces the hand-rolled SHA256 hash-prefix helper) |
-
-`BaseFixtureFactory` (`cosmere-tracker`'s own class) wired together three
-real AutoFixture-library behaviors, each with its own, different fate:
-substitute creation itself → replaced by `UseNSubstitute()`; member
-auto-configuration → removed, no replacement concept (explicit per-test
-stubs where actually needed); `OmitOnRecursionBehavior` → also removed, no
-replacement at all, since gap 3 (above) found zero construction-cycle
-failures during this migration and so had nothing to port. Splitting the
-factory's own removal from each of the AutoFixture behaviors it configured
-— rather than treating the whole thing as "replaced by `UseNSubstitute()`"
-— is the accurate accounting per Amendment 2.
-
-## Multi-tier fixture stacks
-
-`cosmere-tracker`'s AutoFixture setup was layered across three tiers
-(`Cosmere.Tracker.TestKit` → `Cosmere.Tracker.Shared.TestKit` → per-suite
-local kits). The migrated Compono setup keeps the same three tiers, but each
-tier is now a much thinner layer: `Cosmere.Tracker.TestKit` contributes far
-less composition code after migration (`BaseFixtureFactory` and the
-AutoFixture-era attributes were all deleted; the HTTP-client capability was
-ported forward, not deleted, as `ClientTestProfile`/`IHttpClientProvider`
-alongside the unrelated `HttpMessageHandlerExtensions` helper),
-`Cosmere.Tracker.Shared.TestKit` is one profile (`SharedTestKitProfile`)
-registering nine exact types — `BookItem`/`CharacterItem`/`WorldItem` via
-`UseBogus<T>()` plus all six edge-item types via `Register<T>` — and each
-consuming project's local profile (`EndpointTestProfile`,
-`PersistenceTestProfile`) composes the shared profile plus its own
-project-specific registration via `builder.AddProfile<SharedTestKitProfile>()`.
-The tier count didn't collapse, but the amount of code living in the
-lowest tier (`Cosmere.Tracker.TestKit`) dropped from ~185 AutoFixture-specific
-lines to zero:
-
-```csharp
-// Before — three tiers of AutoFixture chaining
-// Cosmere.Tracker.TestKit/BaseFixtureFactory.cs
-public static IFixture CreateFixture(Action<IFixture>? customizeAction = null)
-{
-    var fixture = new Fixture();
-    fixture.Behaviors.OfType<ThrowingRecursionBehavior>().ToList()
-        .ForEach(b => fixture.Behaviors.Remove(b));
-    fixture.Behaviors.Add(new OmitOnRecursionBehavior());
-    fixture.Customize(new AutoNSubstituteCustomization { ConfigureMembers = true });
-    customizeAction?.Invoke(fixture);
-    return fixture;
-}
-
-// Cosmere.Tracker.Shared.Tests/TestKit/Attributes/PersistenceAutoDataAttribute.cs
-public sealed class PersistenceAutoDataAttribute() : AutoDataAttribute(CreateFixture)
-{
-    internal static IFixture CreateFixture() => BaseFixtureFactory.CreateFixture(fixture =>
-    {
-        fixture.Customize(new SharedCustomization());          // Cosmere.Tracker.Shared.TestKit tier
-        fixture.Customizations.Add(new DynamoDbOptionsSpecimenBuilder());
-        fixture.Customizations.Add(new DynamoDbResponseSpecimenBuilder());
-    });
-}
-
-// After — one profile per tier, composed via AddProfile
-// Cosmere.Tracker.Shared.TestKit/Profiles/SharedTestKitProfile.cs
-public sealed class SharedTestKitProfile : ICompositionProfile
-{
-    public void Configure(CompositionBuilder builder)
-    {
-        builder.UseBogus<BookItem>(ConfigureBookItem);
-        builder.UseBogus<CharacterItem>(ConfigureCharacterItem);
-        builder.UseBogus<WorldItem>(ConfigureWorldItem);
-        builder.Register(CreateBookCharacterEdge);
-        // ...five more edge-item registrations
-    }
-}
-
-// Cosmere.Tracker.Shared.Tests/TestKit/Profiles/PersistenceTestProfile.cs
-public sealed class PersistenceTestProfile : ICompositionProfile
-{
-    public void Configure(CompositionBuilder builder)
-    {
-        builder.AddProfile<SharedTestKitProfile>();
-        builder.UseNSubstitute();
-        builder.Register<IOptions<DynamoDbOptions>>(() => Options.Create(new DynamoDbOptions { /* ... */ }));
-    }
-}
-```
+- [Research: AutoFixture vs. Compono Dogfooding](research/0001-autofixture-comparison.md) —
+  the complete evidence dossier.
+- [ADR-0002](adr/0002-constructor-selection-algorithm.md),
+  [ADR-0011](adr/0011-composition-scope-shared-values-and-recursion-detection.md),
+  [ADR-0018](adr/0018-composition-profiles.md),
+  [ADR-0025](adr/0025-compono-nsubstitute-package-design.md),
+  [ADR-0026](adr/0026-deterministic-seed-derivation-for-providers.md) —
+  the design decisions this guide's equivalents are drawn from.
+- [Samples](samples/index.md) — complete, runnable projects.
+- [Troubleshooting](troubleshooting/index.md) — if something in your own
+  migrated tests doesn't behave the way you expect.
