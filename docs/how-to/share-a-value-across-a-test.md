@@ -1,10 +1,59 @@
 # How Do I Share a Value Across a Test?
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+Use `[Shared]` when a composed parameter and a value used *inside* another
+composed parameter need to be the exact same instance, not two
+independently-composed look-alikes.
 
-Using `[Shared]` for genuine cross-object sharing.
+## Basic case
 
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+```csharp
+[Theory]
+[Compose]
+public void ServiceUsesTheSharedRepository([Shared] Repository repository, OrderService service)
+{
+    service.Repository.Should().BeSameAs(repository);
+}
+```
+
+`[Shared] Repository repository` composes `Repository` first; when
+`OrderService`'s constructor needs a `Repository`, it reuses that exact
+instance instead of composing a new one.
+
+## Sharing a substitute so you can assert on it
+
+The most common real use — compose a substitute, hand it to a dependent
+service, and assert against it directly:
+
+```csharp
+[Theory]
+[Compose<NSubstituteTestProfile>]
+public async Task Saves_order([Shared] IOrderRepository repository, CreateOrderHandler handler, PlaceOrder command)
+{
+    await handler.Handle(command);
+    await repository.Received(1).SaveAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
+}
+```
+
+Without `[Shared]`, `repository` and the `IOrderRepository` composed inside
+`handler` would be two separate substitutes — asserting `Received(1)` on
+`repository` would fail even though `handler` genuinely called *a*
+repository, just not this one.
+
+## Common mistakes
+
+- Expecting `[Shared]` to match by parameter name — sharing is type-keyed;
+  every parameter or nested dependency requesting exactly that type in the
+  same row reuses the value, regardless of name.
+- Declaring two `[Shared]` parameters of the same type on one method —
+  there's no way to tell which is "the" shared instance, so this is a
+  signature error.
+- Reaching for `[Shared]` on a core (non-`Compono.XunitV3`) `Composer` —
+  `[Shared]` is scoped to a `Compono.XunitV3` `[Compose]` row; programmatic
+  composition doesn't have this concept.
+
+## Next
+
+- Why sharing isn't the default → [Shared Values](../concepts/shared-values.md).
+- Composing a substitute in the first place →
+  [`Compono.NSubstitute` Package Guide](../packages/compono-nsubstitute.md).
+- Narrower recipes → [Cookbook](../cookbook/index.md).

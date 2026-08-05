@@ -44,13 +44,13 @@ Compono determines **how** those requirements are satisfied.
 ## Example
 
 ``` csharp
-var composition = Compono.Create(builder =>
+var composer = Composer.Create(builder =>
 {
     builder.UseNSubstitute();
     builder.UseBogus();
 });
 
-var customer = composition.Create<Customer>();
+var customer = composer.Create<Customer>();
 ```
 
 ## Source Generation First
@@ -73,8 +73,21 @@ replaces it. See
 `docs/performance.md`) for methodology, caveats, and how to reproduce -
 `benchmarks/Compono.Benchmarks`.
 
+## Getting Started
+
+New to Compono? Start at the
+[Getting Started guide](https://layeredcraft.github.io/compono/getting-started/) —
+installation, a first composed test, and curated learning paths for
+different starting points (new to Compono, migrating from AutoFixture,
+using xUnit, using NSubstitute).
+
+Migrating from AutoFixture? See the
+[AutoFixture migration guide](https://layeredcraft.github.io/compono/migrating-from-autofixture/).
+
 ## Documentation
 
+The full documentation site is at
+[layeredcraft.github.io/compono](https://layeredcraft.github.io/compono/).
 See the `/docs` directory for the manifesto, architecture, public API,
 performance, MVP roadmap, design principles, and ADRs.
 

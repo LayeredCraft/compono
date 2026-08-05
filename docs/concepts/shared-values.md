@@ -1,10 +1,76 @@
 # Shared Values
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+## The problem this solves
 
-`[Shared]` - why and when a value needs to be the same instance across a composition.
+By default, each composed parameter is independent — two parameters of the
+same type in the same test get two separate composed instances, even
+though they look identical. Usually that's fine. Sometimes it isn't: a test
+that composes both a repository *and* a service that internally depends on
+"the same" repository needs to assert against the actual instance the
+service used, not a look-alike.
 
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+## `[Shared]`
+
+`Compono.XunitV3`'s `[Shared]` attribute marks a `[Compose]` theory
+parameter whose value is reused by name-of-type for every other composed
+parameter (or nested dependency) in that same test row that structurally
+requests the same type:
+
+```csharp
+[Theory]
+[Compose]
+public void ServiceUsesTheSharedRepository([Shared] Repository repository, OrderService service)
+{
+    service.Repository.Should().BeSameAs(repository);
+}
+```
+
+Without `[Shared]`, `repository` and the `Repository` inside `service`
+would be two different composed instances. With it, every other
+composition of `Repository` in this row reuses the exact instance bound to
+the `[Shared]` parameter.
+
+`[Shared]` parameters resolve first, in declaration order, before any
+non-shared parameter composes — so a later parameter that structurally
+needs a `Repository` always finds the shared one already available, never
+a race against composition order.
+
+## When to reach for it
+
+Reach for `[Shared]` when a test needs to assert against, or configure, the
+*same instance* a composed dependency received — most commonly a
+substitute (`Compono.NSubstitute`) you want to both compose into a
+dependent service and set expectations on directly:
+
+```csharp
+[Theory]
+[Compose<NSubstituteTestProfile>]
+public async Task SavesTheOrder([Shared] IOrderRepository repository, CreateOrderHandler handler, PlaceOrder command)
+{
+    await handler.Handle(command);
+    await repository.Received(1).SaveAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
+}
+```
+
+Don't reach for it when two composed values of the same type are supposed
+to be independent — that's the default, and it's correct far more often
+than not (two composed `Customer`s in the same test usually should be two
+different customers).
+
+## Scope and limits
+
+Sharing is type-keyed, not name-keyed — every parameter/nested dependency
+requesting exactly that type in the row shares the value, regardless of
+what it's called. A method can't declare two `[Shared]` parameters of the
+same type (there'd be no way to tell which one "the" shared value is), and
+`[Shared]` only applies within `Compono.XunitV3`'s `[Compose]` row — it's
+not a core-`Compono` concept, since a plain `Composer.Create<T>()` call has
+no notion of "this test's row" to scope a shared value to.
+
+## Next
+
+- Where sharing fits among `Compono.XunitV3`'s other attributes →
+  [`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md).
+- Apply it to a real test → [Share a Value Across a Test](../how-to/share-a-value-across-a-test.md).
+- The independent-by-default composition each shared value overrides →
+  [The Composition Model](composition-model.md).

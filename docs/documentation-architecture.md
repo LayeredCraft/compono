@@ -191,8 +191,8 @@ learning path.
 ## 1. Getting Started
 
 **Audience:** someone who has never used Compono.
-**Status:** skeleton exists (all 5 pages — a "Status: Skeleton" placeholder
-banner, one purpose paragraph, and a link back here; no real content yet).
+**Status:** real content (all 5 pages, written in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 2).
 `docs/index.md` covers a subset of this today.
 **Purpose:** answer "what is this, and can I get something working in the
 next five minutes," and point every kind of newcomer toward the right next
@@ -226,8 +226,8 @@ through everything else).
 
 **Audience:** someone actively writing tests with Compono who needs the
 mental model, not yet a specific task.
-**Status:** skeleton exists (all 8 pages — placeholder only, no real
-content yet).
+**Status:** real content (all 8 pages, written in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 2).
 **Purpose:** teach *what things are and when to reach for them* — the
 vocabulary every later section assumes.
 **Contents:** one page per concept, each answering "what is this / when do
@@ -258,8 +258,8 @@ API entry) — per "Every page leads somewhere" above.
 
 **Audience:** someone with a specific, moderately-scoped task, who already
 has the Concepts model.
-**Status:** skeleton exists (all 7 pages — placeholder only, no real
-content yet).
+**Status:** real content (all 7 pages, written in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 2).
 **Purpose:** task-oriented instructions — assumes prerequisite concepts,
 links back to them instead of re-teaching.
 **Contents:** directly covers the concrete question list ADR-0030's
