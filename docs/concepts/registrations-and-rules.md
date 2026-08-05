@@ -12,8 +12,18 @@ specific way to say "whenever anything needs a `T`, build it like this."
 
 ```csharp
 builder.Register<IClock>(_ => new FakeClock());
+```
+
+Or, when the registered value itself needs a composed dependency:
+
+```csharp
 builder.Register<IClock>(context => new FakeClock(context.Resolve<DateTimeOffset>()));
 ```
+
+(Shown here as two separate examples, not one combined snippet — both
+register the same `IClock` type, and a real `Composer.Create(...)` call
+only ever takes one `Register<T>` per type; a second one for the same type
+is a configuration conflict, not an override.)
 
 The `ICompositionContext` overload lets a registration resolve its own
 nested dependencies through the same composer, rather than constructing

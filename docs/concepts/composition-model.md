@@ -8,9 +8,13 @@ resolution pipeline that tries, in order: an explicit
 [registration](registrations-and-rules.md) (falling back to a configured
 `IServiceProvider` on a miss — the same stage, not a separate one), a
 type/member rule, a semantic provider (e.g. `Compono.Bogus`'s member-name
-matching), a test-double provider (e.g. `Compono.NSubstitute`), and finally
-the source-generated default construction plan for the type itself.
-"Composing" is this whole walk, not just constructing one object —
+matching), a test-double provider (e.g. `Compono.NSubstitute`), a built-in
+provider for primitives/enums/nullable value types and built-in collection
+shapes (`List<T>`, arrays, and similar — what actually satisfies a bare
+`Create<int>()` or a composed type's generated `List<T>` member when
+nothing more specific claimed it), and finally the source-generated default
+construction plan for the type itself. "Composing" is this whole walk, not
+just constructing one object —
 the same term covers producing a `Customer`, the `IEmailSender` substitute
 `Customer` depends on, and the `Faker`-generated email string that
 substitute's method returns.
