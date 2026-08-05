@@ -2,9 +2,10 @@
 
 The core composition engine — `Composer`, the resolution pipeline, and the
 source generator. Every other Compono package depends on this one; this one
-depends on nothing else in the ecosystem
-([`design-decisions.md`](../documentation-architecture.md) rule 3: the core
-package never references or knows about an integration package).
+depends on nothing else in the ecosystem — the core package never
+references or knows about an integration package (see
+[Public API: Configuration](../public-api.md#configuration), "the core
+package must not know those methods exist").
 
 ## When to install
 

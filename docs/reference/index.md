@@ -1,10 +1,5 @@
 # Reference
 
-> **Status:** `api/` generated per [ADR-0032](../adr/0032-api-reference-documentation-toolchain.md)
-> ([PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 1);
-> `diagnostics.md`/`glossary.md` remain Milestone 7 Phase 5 placeholders,
-> filled in by Phase 3.
-
 Authoritative, exhaustive, not meant to be read start to end. **API reference
 supplements the documentation — it never replaces it.** If a reader can only
 find the answer to "how do I use this" here and nowhere else, that's a gap in
@@ -21,6 +16,3 @@ Reference should grow into filling.
   to `Compono.Generators`' own output; CI fails on drift.
 - [Diagnostics](diagnostics.md) — every `CMP` code.
 - [Glossary](glossary.md).
-
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
