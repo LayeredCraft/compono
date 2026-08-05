@@ -860,9 +860,9 @@ scored against every ADR-0032 criterion:
   1.2.5 current). Deterministic: two consecutive runs against the same
   input produced byte-identical output, verified both for a single package
   and for the full four-package generation run.
-- **Eight real defects found and fixed during wiring, not left as accepted
-  gaps** — the first two caught before the PR opened, the other six by PR
-  #47's automated review (`chatgpt-codex-connector`, across four review
+- **Nine real defects found and fixed during wiring, not left as accepted
+  gaps** — the first two caught before the PR opened, the other seven by PR
+  #47's automated review (`chatgpt-codex-connector`, across five review
   passes), addressed in the same PR rather than deferred:
   1. **Cross-package `<see cref>` resolution.** Generating each package
      standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
@@ -991,6 +991,17 @@ scored against every ADR-0032 criterion:
      with `design-decisions.md`'s own ADR-immutability rule. Verified:
      `mkdocs build --clean --strict` now exits 0 (previously aborted with
      exactly those 4 warnings).
+  9. **`docs.yml`'s trigger paths missed `Directory.Build.targets` (PR #47
+     fifth review pass).** `Directory.Build.targets` is auto-imported into
+     every project the same way `Directory.Build.props` is (just after the
+     project body instead of before) — including the four publishable
+     packages this workflow's own drift-check step builds — but only
+     `Directory.Build.props` was in the trigger `paths` lists. A PR
+     touching only `Directory.Build.targets` (e.g. changing the
+     test-project `CS1591` `NoWarn` scoping, or a future rule that does
+     affect the publishable packages) would silently skip both the drift
+     check and the site rebuild. Added `Directory.Build.targets` to both
+     `pull_request` and `push` path lists, alongside `Directory.Build.props`.
 - **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
   carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
   MkDocs/python-markdown doesn't re-process escapes inside a link's title
