@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.Samples.AspNetApi.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest - matches every other test/sample host
+         in this repo (see test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj). -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="NSubstitute" />
+    <Using Include="AwesomeAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <!-- ProjectReference to Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus source and to
+       the API app under test, matching every other test project in this repo (e.g.
+       test/Compono.XunitV3.Tests). Compono.Generators itself is referenced separately, Analyzer-only,
+       exactly like Compono.csproj references it for its own compilation
+       (docs/adr/0003-generator-package-distribution.md) - a plain ProjectReference chain doesn't
+       flow an upstream project's own Analyzer-only ProjectReference transitively (only a packed
+       .nupkg's analyzers/dotnet/cs folder does that), so without this the generator would never run
+       against this sample's own composed types. -->
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Compono.Samples.AspNetApi/Compono.Samples.AspNetApi.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Generators/Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

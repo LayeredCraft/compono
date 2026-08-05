@@ -282,8 +282,11 @@ package-specific context this section doesn't assume).
 
 **Audience:** someone who wants a fast, copy/paste answer to one narrow
 problem, without reading a full guide.
-**Status:** skeleton exists (`index.md` only — placeholder, no real
-recipes yet).
+**Status:** real content as of Milestone 8 Phase 4
+([PLAN-0008](plans/0008-milestone-8-public-preview.md)) — `index.md`'s
+flat alphabetical listing plus a first batch of five recipes. Expected to
+keep growing well past this initial batch (see Contents below for the
+scale expectation).
 **Purpose:** recipes, not lessons. See ADR-0030's "Cookbook" section for
 the exact scope/depth distinction from How-to Guides, and "Samples" below
 for the distinction from complete applications.
@@ -401,8 +404,8 @@ Roadmap's "future integration packages").
 
 **Audience:** someone who already knows how to use Compono and is now
 asking "what's the recommended way to do this at scale?"
-**Status:** skeleton exists (all 7 pages — placeholder only, no real
-content yet).
+**Status:** real content as of Milestone 8 Phase 4
+([PLAN-0008](plans/0008-milestone-8-public-preview.md)) — all 7 pages.
 **Purpose:** accumulated experience and guidance — distinct from Concepts
 (what things are) and Cookbook (how to solve one narrow problem right
 now). This is where "the recommended way" lives once there is one.
