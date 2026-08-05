@@ -444,28 +444,33 @@ packages).
       `reusing-configuration.md`, `performance-recommendations.md`,
       `deterministic-and-non-brittle-tests.md`.
 
-## Phase 5: Architecture consolidation and legacy retirement
+## Phase 5: Architecture consolidation, legacy retirement, and benchmark suite redesign
 
-**Status:** Not Started
+**Status:** In Progress
 
-Executes ADR-0030 Amendment 2's "one canonical home" principle. Sequenced
-after Phase 2 (Concepts must exist for Architecture pages to cross-link
-back to) — the last phase touching `docs/architecture.md`/
-`docs/performance.md`/`docs/design-principles.md`/`docs/manifesto.md`/
-`docs/public-api.md`'s real pre-existing content, so it can safely
-consume and then retire them.
+Executes ADR-0030 Amendment 2's "one canonical home" principle for the
+architecture/roadmap documentation, and — added after this phase's
+doc-consolidation work was already done, per direct review of the
+existing benchmark suite — [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)'s
+full benchmark-suite redesign. Sequenced after Phase 2 (Concepts must
+exist for Architecture pages to cross-link back to) — the last phase
+touching `docs/architecture.md`/`docs/performance.md`/
+`docs/design-principles.md`/`docs/manifesto.md`/`docs/public-api.md`'s
+real pre-existing content, so it can safely consume and then retire
+them.
 
-- [ ] `architecture/index.md`, `architecture/design-principles.md`
+### Part A: Architecture and roadmap documentation (done)
+
+- [x] `architecture/index.md`, `architecture/design-principles.md`
       (absorbs `docs/design-principles.md`/`docs/manifesto.md`'s
       content).
-- [ ] `architecture/current/source-generation.md`,
+- [x] `architecture/current/source-generation.md`,
       `generated-plans-and-discovery.md`, `provider-pipeline.md`,
-      `deterministic-seeding.md`, `performance.md` (moves
-      `docs/performance.md`'s real methodology/results, publishing them
-      per ADR-0030 Amendment 2's benchmark-claims policy).
-- [ ] `architecture/decision-log.md` (public-facing index into
-      `docs/adr/`).
-- [ ] Retire **all five** pre-existing legacy pages this phase
+      `deterministic-seeding.md` (real content, migrated from
+      `docs/architecture.md`).
+- [x] `architecture/decision-log.md` (public-facing index into
+      `docs/adr/`, including [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)).
+- [x] Retire **all five** pre-existing legacy pages this phase
       consolidates — `docs/public-api.md`, `docs/manifesto.md`,
       `docs/architecture.md`, `docs/design-principles.md`, and
       `docs/performance.md` — from navigation and canonical-content
@@ -483,9 +488,88 @@ consume and then retire them.
       plan can't touch. (An earlier version of this task only tombstoned
       the first two — the same problem applies identically to the other
       three, since they're excluded from the canonical tree the same way.)
-- [ ] `roadmap/index.md`, `roadmap/proposed-adrs.md`,
+- [x] `roadmap/index.md`, `roadmap/proposed-adrs.md`,
       `roadmap/future-packages.md` (`roadmap/post-mvp.md` already real
       content from PLAN-0007 Phase 3 — just needs its nav confirmed).
+
+### Part B: Benchmark suite redesign (per ADR-0034 — not started)
+
+`architecture/current/performance.md` currently still documents the
+**old** benchmark suite (migrated as-is from `docs/performance.md` during
+Part A, before the redesign decision below was made) — it gets
+overwritten by this Part's last task, not before. Sequencing matters:
+design and implement the new suite first, produce real results from it,
+*then* write the page — this phase does not narrate a redesign still in
+progress.
+
+- [ ] Design the benchmark strategy from first principles: the question
+      set, audiences, and category taxonomy — done as
+      [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)
+      (`Accepted`). No further design task here; this line just records
+      that the ADR is this sub-phase's starting point, not a step still
+      to do.
+- [ ] Define and implement the reused `Models/` set (`SimplePoco`,
+      `MediumAggregate`, `DeepGraph`, `LargeCollection`,
+      `SharedValueGraph`, `ProviderBackedModel`) and `Baselines/`
+      (`HandwrittenComposer`, `CachedReflectionComposer`,
+      `UncachedReflectionComposer`, `AutoFixtureComposer`) — replacing
+      `BenchmarkTypes.cs`, `ResolutionBenchmarkTypes.cs`,
+      `ReflectionComposer.cs`, `AutoFixtureComposer.cs`.
+- [ ] Implement `ImplementationStrategies/` (construction-technique
+      benchmarks: handwritten construction as the theoretical ceiling,
+      generated composition, cached reflection, uncached reflection —
+      in that order, parameterized across the model set) — replaces
+      `ArchitectureBenchmarks.cs` and `ResolutionArchitectureBenchmarks.cs`.
+- [ ] Implement `ConsumerScenarios/` (simple POCO, medium aggregate, deep
+      graph, large collection, shared value, Bogus-enabled,
+      NSubstitute-enabled) — new; no prior equivalent existed.
+- [ ] Implement `ExternalComparison/` (AutoFixture, equivalent work
+      across the same model set, both-directions honest reporting) —
+      replaces `EcosystemBenchmarks.cs` and
+      `ResolutionEcosystemBenchmarks.cs`.
+- [ ] Implement `FeatureOverhead/` (additive layering: generated only →
+      + shared values → + member rules → + type rules → + providers →
+      + `UseBogus()` → + `UseNSubstitute()`) — new; no prior equivalent
+      existed.
+- [ ] Implement `Scalability/` (`CreateMany` at 1/10/100/1000, shallow
+      vs. deep graphs, growing collection sizes) — replaces
+      `ResolutionBenchmarks.cs` and `DeepGraphBenchmarks.cs`'s
+      construction, generalizing the latter's one-off trace-buffer-resize
+      question into a real shallow-vs-deep comparison.
+- [ ] Implement `SourceGeneration/` (in-process `GeneratorDriver`
+      benchmarks: clean vs. incremental generation, across a
+      composable-type-count matrix) — new; no prior equivalent existed.
+      Requires `Compono.Generators` as an ordinary (non-analyzer)
+      `ProjectReference` in addition to its existing analyzer reference,
+      so benchmark code can drive it directly.
+- [ ] Add `Compono.NSubstitute`/`Compono.Bogus` `ProjectReference`s to
+      `Compono.Benchmarks.csproj` (needed by `ConsumerScenarios/` and
+      `FeatureOverhead/`'s provider-enabled cases; not needed previously
+      since no prior benchmark exercised either package).
+- [ ] Delete `ArchitectureBenchmarks.cs`, `EcosystemBenchmarks.cs`,
+      `ResolutionArchitectureBenchmarks.cs`,
+      `ResolutionEcosystemBenchmarks.cs`, `ResolutionBenchmarks.cs`,
+      `DeepGraphBenchmarks.cs`, `BenchmarkTypes.cs`,
+      `ResolutionBenchmarkTypes.cs` once every question they answered has
+      a home in the categories above — no benchmark class straddles the
+      old and new structure once this task is done.
+- [ ] Run the full redesigned suite (`dotnet run -c Release --project
+      benchmarks/Compono.Benchmarks -f net10.0`), Release, and record
+      real results — replacing every number currently in
+      `architecture/current/performance.md`, not narrating the old
+      suite's history.
+- [ ] Rewrite `architecture/current/performance.md` as capability-
+      oriented public documentation per ADR-0034's public-documentation
+      direction: what Compono optimizes for, what the benchmarks measure,
+      methodology, representative Consumer Scenario/External Comparison
+      results, memory/allocation characteristics, scaling behavior,
+      reproducibility, and a link to the full BenchmarkDotNet artifacts —
+      not a historical narrative of Milestone 1/2/PR-review optimization
+      work. Implementation Strategies/Feature Overhead/Source Generation
+      results stay primarily engineering documentation (linked, not
+      necessarily reproduced in full on this page) per ADR-0034's "mostly
+      engineering documentation rather than front-page marketing"
+      direction for implementation-strategy benchmarks.
 
 ## Phase 6: Contributor and repository readiness
 
@@ -833,6 +917,15 @@ individually resolved, not left ambiguous):
 - `Directory.Build.props` — package-validation and tags/release-notes
   properties added, shared across all five packages (Phase 0).
 - `Compono.slnx` — both new sample projects added (Phase 4).
+- `docs/adr/0034-benchmark-suite-strategy-and-redesign.md` — new (Phase
+  5 Part B): the benchmark-suite redesign decision.
+- `benchmarks/Compono.Benchmarks/` — fully restructured (Phase 5 Part
+  B) into `Models/`, `Baselines/`, `ImplementationStrategies/`,
+  `ConsumerScenarios/`, `ExternalComparison/`, `FeatureOverhead/`,
+  `Scalability/`, `SourceGeneration/`, replacing all 8 existing
+  benchmark files per ADR-0034. `Compono.Benchmarks.csproj` gains
+  `ProjectReference`s to `Compono.NSubstitute`/`Compono.Bogus` and a
+  non-analyzer `ProjectReference` to `Compono.Generators`.
 - `docs/documentation-architecture.md` — Open Items section already
   updated to reflect all six resolutions as part of this design pass;
   further updated in place as content lands and stub statuses flip to
@@ -848,8 +941,15 @@ buildable projects with, where practical, their own tests demonstrating
 the pattern they showcase, matching `testing.md`'s bar for any real code
 this plan produces. Package-readiness changes (Phase 0) are verified by
 the new CI gates themselves (package validation, contents inspection,
-local-feed restore) rather than a separate hand-run test plan. Phase 8's
-acceptance checklist is this plan's actual end-to-end verification.
+local-feed restore) rather than a separate hand-run test plan. The
+redesigned benchmark suite (Phase 5 Part B) is verified by actually
+running it (`dotnet run -c Release`) and confirming every category
+produces real, sane results before `architecture/current/performance.md`
+is rewritten from them — a `BenchmarkDotNet` project has no pass/fail
+test suite of its own; its correctness is verified by inspection of its
+results, not by `testing.md`'s xUnit-based test conventions, which don't
+apply to `benchmarks/`. Phase 8's acceptance checklist is this plan's
+actual end-to-end verification.
 
 ## Notes
 

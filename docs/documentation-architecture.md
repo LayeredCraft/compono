@@ -171,15 +171,18 @@ docs/
 └── contributing.md                           # not yet created (Milestone 8 scope)
 ```
 
-`docs/manifesto.md` and `docs/public-api.md` exist today but are **not**
-part of this canonical tree — per
+`docs/manifesto.md`, `docs/public-api.md`, `docs/architecture.md`,
+`docs/design-principles.md`, and `docs/performance.md` existed before
+this hierarchy but are **not** part of this canonical tree — per
 [ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items),
-both are retired once their content is fully redistributed into
-`architecture/design-principles.md`/`architecture/` + `reference/`
-(Milestone 8 Phase 5), not kept as a permanent third location for the
-same material. Shown struck through in the Open Items list below rather
-than left in the tree, so this diagram matches what Phase 7's
-`mkdocs.yml` nav check actually verifies against.
+all five are retired as of Milestone 8 Phase 5: their content is fully
+redistributed into `architecture/` (mostly `design-principles.md` and
+`current/`) and their `mkdocs.yml` "(legacy)" nav entries removed, each
+original replaced with a short redirect/tombstone stub rather than kept
+as a permanent third location for the same material. Shown struck
+through in the Open Items list below rather than left in the tree, so
+this diagram matches what Phase 7's `mkdocs.yml` nav check actually
+verifies against.
 
 Internal, non-public artifacts that stay exactly where they are and do
 **not** join the site nav: `docs/adr/` (source of truth
@@ -436,11 +439,14 @@ rather than merged into one undifferentiated "Architecture" page (Amendment
 1): most users only need **Current Architecture**; contributors
 additionally want the **Historical Decision Log**; anyone evaluating
 Compono's philosophy wants **Design Principles**.
-**Status:** skeleton exists for all 8 pages in the structure below
-(placeholder only); separately, `docs/architecture.md`, `docs/performance.md`,
-`docs/design-principles.md`, `docs/manifesto.md`, `docs/public-api.md`
-have real content today but pre-date this hierarchy — consolidating that
-real content into the skeleton below is Milestone 8 work.
+**Status:** real content for all 8 pages, written in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 5 —
+`docs/architecture.md`, `docs/performance.md`, `docs/design-principles.md`,
+and `docs/manifesto.md`'s pre-hierarchy content is now consolidated here;
+those originals (plus `docs/public-api.md`, whose content was already
+redistributed into Concepts/How-to Guides/Package Guides/Reference during
+Phases 2-3) are short tombstone stubs, per
+[ADR-0030 Amendment 2](adr/0030-compono-documentation-architecture.md#amendment-2-2026-08-04-resolving-milestone-8s-remaining-open-items).
 **Purpose:** why Compono exists and how it works internally — tradeoffs and
 rejected alternatives, not just a description of the current shape.
 **Contents:** three explicitly separate parts:
@@ -520,9 +526,10 @@ sections, not a job Reference should grow into filling.
 ## 12. Roadmap
 
 **Audience:** anyone asking "is X available, experimental, or planned?"
-**Status:** skeleton exists for `index.md`/`proposed-adrs.md`/
-`future-packages.md` (placeholder only). `docs/roadmap/post-mvp.md` is
-real content, produced by
+**Status:** real content for `index.md`/`proposed-adrs.md`/
+`future-packages.md`, written in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 5.
+`docs/roadmap/post-mvp.md` is real content, produced earlier by
 [PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3 — currently
 stating a zero-roadmap-candidate outcome and pointing to
 `docs/research/0001-autofixture-comparison.md` for the full per-finding

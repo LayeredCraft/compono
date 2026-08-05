@@ -179,11 +179,6 @@ nav:
     - Proposed ADRs: roadmap/proposed-adrs.md
     - Future Packages: roadmap/future-packages.md
   - Documentation Architecture: documentation-architecture.md
-  - Manifesto (legacy): manifesto.md
-  - Architecture Overview (legacy): architecture.md
-  - Design Principles (legacy): design-principles.md
-  - Public API (legacy): public-api.md
-  - Performance (legacy): performance.md
 
 # Social links
 extra:

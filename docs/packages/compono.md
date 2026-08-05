@@ -4,8 +4,8 @@ The core composition engine — `Composer`, the resolution pipeline, and the
 source generator. Every other Compono package depends on this one; this one
 depends on nothing else in the ecosystem — the core package never
 references or knows about an integration package (see
-[Public API: Configuration](../public-api.md#configuration), "the core
-package must not know those methods exist").
+[Design Principles](../architecture/design-principles.md#guiding-principles),
+"modular architecture").
 
 ## When to install
 

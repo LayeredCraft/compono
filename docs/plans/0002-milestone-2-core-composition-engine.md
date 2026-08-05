@@ -1370,9 +1370,9 @@ ADR-0014. The task list below reflects the corrected shape.
   class' XML doc `<remarks>` and `docs/performance.md`, the mirror image
   of the AutoFixture caveat. Full tables and reproduction steps recorded
   permanently in
-  [`docs/performance.md`](../performance.md#milestone-2-phase-4-resolution-pipeline-result)
-  (`docs/architecture.md`'s Diagnostics section links there too, rather
-  than duplicating the table).
+  [`architecture/current/performance.md`](../architecture/current/performance.md#milestone-2-phase-4-resolution-pipeline-result)
+  (`architecture/current/provider-pipeline.md`'s Diagnostics section links
+  there too, rather than duplicating the table).
 - A PR #13 review round (Codex) found three real issues, all fixed in the
   same PR. **Trace buffer's own allocation was asserted, not measured
   (P1).** The Phase 4 benchmark result above reported total allocation
