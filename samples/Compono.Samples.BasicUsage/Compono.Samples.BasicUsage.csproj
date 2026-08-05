@@ -52,12 +52,17 @@
     <PackageReference Include="Compono.XunitV3" />
   </ItemGroup>
 
-  <!-- Only packs/restores from the local feed in packed-verification mode - reuses
-       Compono.XunitV3.SampleTests' own pack-to-local-feed.sh rather than a second copy of the same
-       script, per ADR-0033's "reused here, not reinvented" build-story rationale. -->
-  <Target Name="PackToLocalFeed" BeforeTargets="Restore" Condition="'$(UsePackedPackages)' == 'true'">
+  <!-- This project's own nuget.config lists the local feed as a package source unconditionally
+       (restore fails with NU1301 "local source doesn't exist" if the directory is simply absent,
+       even when nothing actually needs to resolve from it) - so the directory must exist before
+       every restore, dev mode or not. Only the actual pack-and-populate step is gated to
+       packed-verification mode; reuses Compono.XunitV3.SampleTests' own pack-to-local-feed.sh
+       rather than a second copy of the same script, per ADR-0033's "reused here, not reinvented"
+       build-story rationale. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
     <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
-    <Exec Command="&quot;$(MSBuildThisFileDirectory)../../test/Compono.XunitV3.SampleTests/pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+    <Exec Condition="'$(UsePackedPackages)' == 'true'"
+          Command="&quot;$(MSBuildThisFileDirectory)../../test/Compono.XunitV3.SampleTests/pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
   </Target>
 
 </Project>
