@@ -14,10 +14,12 @@ shapes (`List<T>`, arrays, and similar — what actually satisfies a bare
 `Create<int>()` or a composed type's generated `List<T>` member when
 nothing more specific claimed it), and finally the source-generated default
 construction plan for the type itself. "Composing" is this whole walk, not
-just constructing one object —
-the same term covers producing a `Customer`, the `IEmailSender` substitute
-`Customer` depends on, and the `Faker`-generated email string that
-substitute's method returns.
+just constructing one object — the same term covers producing a
+`Customer`, the `IEmailSender` substitute `Customer` depends on (an
+NSubstitute-provided value, not a Faker-generated one — `Compono.Bogus` and
+`Compono.NSubstitute` are separate pipeline stages, and neither configures
+what a substitute's own methods return), and the `Faker`-generated email
+string `Customer.Email` itself gets.
 
 Two types stand at the center of this:
 

@@ -35,23 +35,34 @@ details can shift between versions).
 ## Reproducing a failure
 
 A composition failure — not a failed assertion, a failure to *build* the
-requested graph at all — includes the seed that produced it directly in
-its message, and (where available) a `CompositionDiagnostic` with a
-tree-rendered path to exactly where the composition couldn't proceed:
+requested graph at all — always makes the seed that produced it available,
+though exactly where depends on how you're composing:
 
-```csharp
-catch (CompositionException exception)
-{
-    Console.WriteLine(exception.Diagnostic);
-    // Unable to compose Order.
-    //
-    // Order -> IShippingCalculator
-    //
-    // No provider could satisfy IShippingCalculator.
-    //
-    // Seed: 24601
-}
-```
+- **Programmatic `Composer.Create<T>()`** — `CompositionException.Message`
+  itself doesn't include the seed; inspect the exception's
+  `Diagnostic` property instead (nullable — not every failure produces one,
+  e.g. `HashSet<T>`/`Dictionary` unique-value-exhaustion failures don't). Its
+  rendered form includes a tree-rendered path to exactly where composition
+  couldn't proceed, and the seed:
+
+  ```csharp
+  catch (CompositionException exception)
+  {
+      Console.WriteLine(exception.Diagnostic);
+      // Unable to compose Order.
+      //
+      // Order -> IShippingCalculator
+      //
+      // No provider could satisfy IShippingCalculator.
+      //
+      // Seed: 24601
+  }
+  ```
+
+- **A composed `Compono.XunitV3` theory row** — `[Compose]` rewrites the
+  thrown exception's own `Message` to append `Seed: ...` regardless of
+  whether a `Diagnostic` is present, so a failing test's output always ends
+  with a pasteable seed without needing to inspect `Diagnostic` separately.
 
 Paste that seed back into `[Compose(Seed = 24601)]` (or
 `builder.WithSeed(24601)` for programmatic composition) to reproduce the

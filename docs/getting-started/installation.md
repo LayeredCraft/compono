@@ -10,6 +10,15 @@ dotnet add package Compono --prerelease
 dotnet add package Compono.XunitV3 --prerelease
 ```
 
+This tutorial's assertions (`.Should()`, throughout this site's own
+examples) come from [AwesomeAssertions](https://github.com/AwesomeAssertions/AwesomeAssertions),
+not Compono itself — add it too if your project doesn't already reference
+an assertion library:
+
+```bash
+dotnet add package AwesomeAssertions
+```
+
 Add the rest of the ecosystem as your tests need it:
 
 ```bash
@@ -45,9 +54,19 @@ A minimal smoke check once the packages are added:
 ```csharp
 using Compono;
 
+public sealed class InstallationCheck;
+
 var composer = Composer.Create();
-var value = composer.Create<int>();
+var value = composer.Create<InstallationCheck>();
 ```
+
+Use a plain user-defined type here, not a built-in one like `int` — a
+built-in type is satisfied by Compono's own built-in value provider without
+ever reaching generated construction, so it would compile and run even if
+the source generator/analyzer wasn't actually wired up. A custom type like
+`InstallationCheck` only composes successfully through a real
+generator-produced construction plan, so this check genuinely exercises the
+generator, not just the core package.
 
 If this compiles and runs, the source generator is wired up correctly. Next,
 [write your first composed theory](first-test.md).

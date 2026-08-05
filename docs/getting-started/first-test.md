@@ -25,6 +25,7 @@ the types it builds.
 ## The test
 
 ```csharp
+using AwesomeAssertions;
 using Compono.XunitV3;
 
 public sealed class OrderServiceTests
