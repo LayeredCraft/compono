@@ -26,7 +26,7 @@ public interface IOrderRepository
 ```csharp
 [Theory]
 [Compose<ApplicationTestProfile>] // a profile that calls builder.UseNSubstitute()
-public async Task Handle_ReturnsTheRepositorysSavedOrder(
+public async Task Handle_ReturnsTheOrderTheRepositoryReturned(
     [Shared] IOrderRepository repository, OrderHandler handler, PlaceOrder command, Order savedOrder)
 {
     repository.SaveAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>()).Returns(savedOrder);

@@ -11,7 +11,7 @@ public sealed class OrderServiceTests
     // docs/packages/compono-nsubstitute.md covers.
     [Theory]
     [Compose<ApiTestProfile>]
-    public async Task PlaceAsync_PersistsTheOrderAndReturnsTheRepositorysResult(
+    public async Task PlaceAsync_PersistsTheOrderAndReturnsWhatTheRepositoryReturned(
         [Shared] IOrderRepository repository, OrderService service, PlaceOrder command, Order savedOrder)
     {
         repository.SaveAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>()).Returns(savedOrder);
