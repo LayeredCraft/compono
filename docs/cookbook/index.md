@@ -1,10 +1,30 @@
 # Cookbook
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+Recipes, not lessons — a fast, copy/paste answer to one narrow problem,
+without reading a full guide. Each page below is short and self-contained:
+working code first, minimal surrounding context. If you want the *why*
+behind a recipe's pattern, every page links back to the relevant Concept
+or How-to Guide.
 
-One page per narrow, practical problem - short, self-contained, copy/paste friendly. Expected to become one of the largest sections on the site over time; see `docs/documentation-architecture.md` for the scale expectation and the navigation-at-scale Open Item.
+This section is expected to become one of the largest on the site over
+time — plausibly 50-100+ recipes in the near term. At this size, a flat
+alphabetical list is the whole navigation; tagging/subcategorization is a
+deliberately deferred decision (see
+`docs/adr/0030-compono-documentation-architecture.md`'s Amendment 2) to be
+made once the list is actually large enough to need it, not guessed at now.
 
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+## Recipes
+
+- [Compose a Substitute With One Method Stubbed](compose-a-substitute-with-one-method-stubbed.md)
+- [Freeze a Shared HttpMessageHandler](freeze-a-shared-httpmessagehandler.md)
+- [Generate a Realistic Email](generate-a-realistic-email.md)
+- [Override One Field Only for One Test](override-one-field-only-for-one-test.md)
+- [Seed a Specific Failing Case for Reproduction](seed-a-specific-failing-case-for-reproduction.md)
+
+## Next
+
+- Never used Compono before? Start with [Getting Started](../getting-started/index.md)
+  — recipes assume you've already seen a composed theory once, not that
+  you've read Concepts.
+- Want a full, realistic application instead of one narrow answer? →
+  [Samples](../samples/index.md).

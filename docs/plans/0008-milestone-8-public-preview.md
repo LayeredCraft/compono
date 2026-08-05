@@ -367,7 +367,7 @@ final-shaped to describe accurately) and Phase 1 (`reference/diagnostics.md`/
 
 ## Phase 4: Samples, cookbook, best practices
 
-**Status:** Not Started
+**Status:** Done
 
 **Checkpoint: Public Documentation Feature Complete** — every
 `docs/documentation-architecture.md` section that depends on real,
@@ -379,34 +379,59 @@ samples. Sequenced after Phase 2 (Concepts/Package Guides content to link
 back to) and Phase 0 (packed-package verification needs hardened
 packages).
 
-- [ ] `samples/Compono.Samples.BasicUsage/` — real project, added to
+- [x] `samples/Compono.Samples.BasicUsage/` — real project, added to
       `Compono.slnx`, `ProjectReference`s during authoring.
-      `docs/samples/basic-usage.md` overview page.
-- [ ] `samples/Compono.Samples.AspNetApi/` — real project, added to
+      `docs/samples/basic-usage.md` overview page. Demonstrates
+      `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a reusable
+      profile (registration + member rule), `[Compose<TProfile>]`, and
+      both seed-reproduction paths. `Compono.Generators` is referenced as
+      a separate Analyzer-only `ProjectReference` (matching how
+      `Compono.csproj` itself references it) — a plain `ProjectReference`
+      chain doesn't flow an upstream project's own analyzer-only
+      reference transitively, only a packed `.nupkg`'s
+      `analyzers/dotnet/cs` folder does. 6/6 tests pass.
+- [x] `samples/Compono.Samples.AspNetApi/` — real project, added to
       `Compono.slnx`. `docs/samples/aspnet-api.md` overview page.
-- [ ] `docs/samples/index.md` overview; record the five deferred
+      Implemented as two projects (the minimal-API app itself, and
+      `Compono.Samples.AspNetApi.Tests` for the composed test suite) — a
+      top-level-statements minimal API can't also host the MTP test
+      runner's own generated entry point in the same project, and a real
+      ASP.NET Core sample conventionally ships its tests separately
+      anyway. Demonstrates `UseNSubstitute()`/`UseBogus()` together, a
+      `[Shared]` substitute with explicit `Returns(...)` setup verified
+      via `Received(...)`, a `Compono.Bogus`-generated `Customer`, inline
+      + composed theory values, and one real `WebApplicationFactory<Program>`
+      endpoint integration test. 5/5 tests pass.
+- [x] `docs/samples/index.md` overview; records the five deferred
       candidates (CQRS, Clean Architecture, Minimal APIs, MediatR, EF
       Core) as future candidates, not silently dropped.
-- [ ] **Remove, not just leave unbuilt:** delete the five deferred
+- [x] **Removed, not just left unbuilt:** deleted the five deferred
       samples' Phase 5 (PLAN-0007) stub pages
       (`docs/samples/{cqrs,clean-architecture,minimal-apis,mediatr,ef-core}.md`)
-      and their five `mkdocs.yml` nav entries. Per ADR-0033/
-      `docs/documentation-architecture.md`'s "5. Samples" section, a
-      deferred sample is recorded as a future candidate in prose, not
-      published as a placeholder nav entry — leaving the existing
-      skeleton stubs in place would put five dead-end pages into the
-      live public-preview site.
-- [ ] Local-feed packed-package verification job for both samples
-      (reuses Phase 0's local-feed infrastructure).
-- [ ] `cookbook/index.md` (flat, alphabetical, per ADR-0030 Amendment 2's
-      deferred-navigation decision) plus the first recipe batch (5-10
-      pages): generate a realistic email, freeze a shared
-      `HttpMessageHandler`, override one field only for one test, seed a
-      specific failing case for reproduction, compose a substitute with
-      one method stubbed. Each recipe captures the stable front matter
-      (`title`, description, `packages`, `concepts`) ADR-0030 Amendment 2
-      requires even though nothing consumes it for navigation yet.
-- [ ] `best-practices/index.md`, `organizing-profiles.md`,
+      and their five `mkdocs.yml` nav entries.
+- [x] Local-feed packed-package verification job for both samples
+      (`package-validation.yaml`'s new "Local-feed packed-consumer smoke
+      test - samples" step) — reuses Phase 0's local-feed infrastructure
+      via each sample's own `PackToLocalFeed` target
+      (`-p:UsePackedPackages=true` switches its `ProjectReference`s to
+      the four publishable packages over to `PackageReference` from the
+      local feed). Verified locally against both samples: passes with
+      `-p:UsePackedPackages=true`.
+- [x] `cookbook/index.md` (flat, alphabetical, per ADR-0030 Amendment 2's
+      deferred-navigation decision — recipes deliberately have no
+      `mkdocs.yml` nav entries) plus a first batch of five recipes:
+      generate a realistic email, freeze a shared `HttpMessageHandler`,
+      override one field only for one test, seed a specific failing case
+      for reproduction, compose a substitute with one method stubbed.
+      Each recipe carries the stable front matter (`title`, description,
+      `packages`, `concepts`) ADR-0030 Amendment 2 requires. Every code
+      sample verified to actually compile and pass against real Compono
+      source before publishing (the freeze-a-shared-handler recipe's
+      first draft composed `HttpMessageHandler`/`HttpResponseMessage`
+      directly, which turned out to be an ambiguous-constructor compile
+      error — `CMP0001` — for both types; corrected to a
+      single-constructor `StubHttpMessageHandler` wrapper).
+- [x] `best-practices/index.md`, `organizing-profiles.md`,
       `large-test-suites.md`, `naming-conventions.md`,
       `reusing-configuration.md`, `performance-recommendations.md`,
       `deterministic-and-non-brittle-tests.md`.
@@ -1154,3 +1179,56 @@ is explicitly out of scope for this anonymization — it's the internal
 research dossier this guide now links out to for readers who want the
 full evidence trail, and keeping its detail complete there is what makes
 summarizing safe here.
+
+### Phase 4 (2026-08-05)
+
+Both samples designed and built directly against ADR-0033's Decision
+Outcome. One real gap surfaced during implementation, not anticipated by
+the ADR's "ProjectReference during authoring" build story: a plain
+`ProjectReference` chain (sample → `Compono.XunitV3` → `Compono`) does
+**not** flow `Compono`'s own Analyzer-only `ProjectReference` to
+`Compono.Generators` transitively — only a packed `.nupkg`'s
+`analyzers/dotnet/cs` folder does that. Without a fix, every composed
+type in both samples failed at test-run time with `CompositionException:
+No ... generated plan could satisfy '<Type>'`, even though the build
+itself succeeded silently (the generator just never ran). Fixed by adding
+a second, separate Analyzer-only `ProjectReference` to
+`Compono.Generators` in each sample's dev-mode `ItemGroup` — the same
+mechanism `Compono.csproj` already uses for its own compilation. This is
+now the documented pattern for any future project that references Compono
+packages via `ProjectReference` rather than `PackageReference`.
+
+`Compono.Samples.AspNetApi` is two projects, not one — see the Tasks entry
+above for why (an MTP test host's own generated entry point and a
+top-level-statements minimal API's `Main` can't coexist in the same
+project). `WebApplicationFactory<Program>` needed `Program` exposed via
+`public partial class Program;` after the top-level statements, the
+standard ASP.NET Core minimal-API testing pattern.
+
+**Verified for real, not just "tests pass":** `dotnet build Compono.slnx`
+and `dotnet test Compono.slnx` both run clean — 865 tests total, 0
+failures, 0 warnings, across every project including both new samples.
+Each sample additionally verified against `-p:UsePackedPackages=true`
+(restoring the four publishable packages from a real packed local feed
+instead of `ProjectReference`, per ADR-0033's acceptance-verification
+half) — both pass. The ASP.NET API sample's endpoint test was watched
+running a real HTTP request through real minimal-API routing (visible
+`Microsoft.AspNetCore.Hosting.Diagnostics`/`EndpointMiddleware` log output
+in the test run), not just asserted against.
+
+Every Cookbook code sample was compile-and-run verified against real
+Compono source before publishing, not merely reviewed for plausibility —
+`documentation.md`'s "prefer real examples" bar. This caught a real defect
+in the Freeze a Shared HttpMessageHandler recipe's first draft: composing
+`HttpMessageHandler`/`HttpResponseMessage` directly both hit `CMP0001`
+(each has more than one accessible constructor) — the recipe was rewritten
+around a single-constructor `StubHttpMessageHandler` wrapper instead,
+which is also the more broadly correct pattern (an ambiguous BCL type
+should be wrapped, not composed directly) rather than a workaround
+specific to this one recipe.
+
+`uv run mkdocs build --clean --strict`: exit 0 after every new page
+(3 samples pages, 5 cookbook recipes + index, 7 best-practices pages) —
+zero new broken-link/anchor warnings. The five deferred sample stub pages'
+removal and their `mkdocs.yml` nav-entry removal were confirmed not to
+orphan any existing cross-reference into them.

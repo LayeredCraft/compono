@@ -16,4 +16,9 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Compono.Samples.BasicUsage/Compono.Samples.BasicUsage.csproj" />
+    <Project Path="samples/Compono.Samples.AspNetApi/Compono.Samples.AspNetApi.csproj" />
+    <Project Path="samples/Compono.Samples.AspNetApi.Tests/Compono.Samples.AspNetApi.Tests.csproj" />
+  </Folder>
 </Solution>
