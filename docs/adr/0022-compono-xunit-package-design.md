@@ -1011,7 +1011,7 @@ the original leak.
 heuristic.** `Composer`/`CompositionBuilder` expose no public way for
 `Compono.Xunit` to ask "was a service provider or registration involved
 in producing this value" - the write-only builder API
-([design-decisions.md](../../.claude/skills/engineering-workflow/references/design-decisions.md)
+(the engineering-workflow skill's `design-decisions.md` reference,
 rule 3: `Compono.Xunit` may only reach the engine through `Compono`'s
 public surface) has no such query, and inventing one only for this
 purpose, without a real design dive weighing what "provenance" should

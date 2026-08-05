@@ -1,0 +1,28 @@
+#### [Compono](index.md 'index')
+### [Compono](Compono.md 'Compono')
+
+## ICompositionContext Interface
+
+Resolves a value a generated [ICompositionPlan&lt;T&gt;](Compono.ICompositionPlan_T_.md 'Compono\.ICompositionPlan\<T\>') needs while it composes an
+instance\.
+
+```csharp
+public interface ICompositionContext
+```
+
+Derived  
+↳ [CompositionRow](Compono.CompositionRow.md 'Compono\.CompositionRow')
+
+### Remarks
+[Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)') and [Resolve&lt;TValue&gt;\(\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_() 'Compono\.ICompositionContext\.Resolve\<TValue\>\(\)') are the only public members \- everything the implementation owns
+            \(seed, scope, path, active construction frames, the provider pipeline\) is deliberately not
+            exposed here\. Generated code never touches any of that state directly; it only ever calls
+            [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)') per member\. See
+            `docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md`\.
+
+| Methods | |
+| :--- | :--- |
+| [DeriveSeed\(\)](Compono.ICompositionContext.DeriveSeed().md 'Compono\.ICompositionContext\.DeriveSeed\(\)') | Derives a deterministic [System\.Int32](https://learn.microsoft.com/en-us/dotnet/api/system.int32 'System\.Int32') seed from this context's root seed and the request currently being resolved \- usable to seed a caller\-owned PRNG \(e\.g\. a `Bogus.Randomizer`\) without exposing the engine's own internal random source or path representation\. The same root seed and the same request path always derive the same value; a different path \(a different member, a different constructor parameter, a different element of a collection\) always derives independently\. Calling this method repeatedly for the same active request returns the same value every time \- it does not advance any stream, and does not perturb any other value's own derivation\. Valid in the same scope as [Resolve&lt;TValue&gt;\(\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_() 'Compono\.ICompositionContext\.Resolve\<TValue\>\(\)'): from inside a registration or configuration\-rule factory, or a public [TryProvide\(CompositionProviderRequest, ICompositionContext\)](Compono.ICompositionValueProvider.TryProvide(Compono.CompositionProviderRequest,Compono.ICompositionContext).md 'Compono\.ICompositionValueProvider\.TryProvide\(Compono\.CompositionProviderRequest, Compono\.ICompositionContext\)') invocation\. See `docs/adr/0026-deterministic-seed-derivation-for-providers.md`\. |
+| [Resolve&lt;TValue&gt;\(\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_() 'Compono\.ICompositionContext\.Resolve\<TValue\>\(\)') | Resolves a value of type [TValue](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_().TValue 'Compono\.ICompositionContext\.Resolve\<TValue\>\(\)\.TValue') from inside a registration or configuration\-rule factory, or a public [TryProvide\(CompositionProviderRequest, ICompositionContext\)](Compono.ICompositionValueProvider.TryProvide(Compono.CompositionProviderRequest,Compono.ICompositionContext).md 'Compono\.ICompositionValueProvider\.TryProvide\(Compono\.CompositionProviderRequest, Compono\.ICompositionContext\)') invocation \- the hand\-written counterpart to [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)'), which only generated code calls\. Only valid while one of those three is actively being invoked\. |
+| [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)') | Resolves a value of type [TValue](Compono.ICompositionContext.Resolve.md#Compono.ICompositionContext.Resolve_TValue_(Compono.CompositionRequestDescriptor).TValue 'Compono\.ICompositionContext\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)\.TValue') for one constructor parameter or required member\. |
+| [ResolveCollectionSize\(\)](Compono.ICompositionContext.ResolveCollectionSize().md 'Compono\.ICompositionContext\.ResolveCollectionSize\(\)') | Resolves the collection size a generated collection plan should build \- the size a member\-scoped `WithCollectionSize` override configures for the collection member currently being resolved, falling back to the global default, then the built\-in size of `3`\. Parameterless: the context already knows the current request's declaring type/member name \(the same identity `.For<T>().Member(...)` rule matching uses\), since a collection plan's [Compose\(ICompositionContext\)](Compono.ICompositionPlan_T_.Compose(Compono.ICompositionContext).md 'Compono\.ICompositionPlan\<T\>\.Compose\(Compono\.ICompositionContext\)') has no descriptor to pass\. See `docs/adr/0020-composition-configuration-rules.md`\. |

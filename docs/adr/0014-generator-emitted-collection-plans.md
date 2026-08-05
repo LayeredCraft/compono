@@ -23,9 +23,9 @@ ADR-0001 rules out.
 A review before any Milestone 2 Phase 2 implementation had been written
 against that design caught that this reasoning doesn't hold: a fixed,
 bounded set of reflected shapes is still reflection introduced into
-Compono's default runtime architecture, which
-[design-decisions.md](../../.agents/skills/engineering-workflow/references/design-decisions.md)
-rule 4 (derived from ADR-0001) doesn't carve an exception for. This ADR
+Compono's default runtime architecture, which the engineering-workflow
+skill's `design-decisions.md` reference rule 4 (derived from ADR-0001)
+doesn't carve an exception for. This ADR
 retracts the collection-dispatch-bridge design and replaces it with a
 generator-emitted mechanism instead — the same fix ADR-0001's own
 Consequences section already named as the correct path for a shape the

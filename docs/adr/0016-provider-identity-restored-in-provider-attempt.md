@@ -29,7 +29,7 @@ three is only half of what ADR-0010's original Diagnostics tracing design
 asked for ("a compact `ProviderAttempt` struct: stage id, **provider
 id**, outcome enum").
 
-Per [design-decisions.md](../../.claude/skills/engineering-workflow/references/design-decisions.md)'s
+Per the engineering-workflow skill's `design-decisions.md` reference's
 ADR-immutability rule, ADR-0015 is not edited - its Status changes to
 "Superseded by ADR-0016" and its Decision/Rationale/Consequences text
 stays exactly as written, an accurate record of the reasoning *at the

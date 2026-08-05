@@ -1,5 +1,12 @@
 name: Deploy Documentation
 
+# The API reference drift check (ADR-0032, PLAN-0008 Phase 1) runs as this
+# workflow's own first real step, sequentially before `mkdocs build` - not a
+# separate workflow with no ordering relationship to this one. Previously a
+# standalone api-reference.yaml had no `needs`/`workflow_run` link to this
+# workflow, so a failing drift check could never actually stop a bad deploy;
+# folding it in here means the site build step below only ever runs against
+# docs/reference/api content already confirmed fresh in the same job.
 on:
   push:
     branches: [ main ]
@@ -8,6 +15,15 @@ on:
       - 'mkdocs.yml'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'src/Compono/**'
+      - 'src/Compono.XunitV3/**'
+      - 'src/Compono.NSubstitute/**'
+      - 'src/Compono.Bogus/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - '.config/dotnet-tools.json'
+      - '.github/scripts/generate-api-reference.sh'
       - '.github/workflows/docs.yml'
   pull_request:
     branches: [ main ]
@@ -16,6 +32,15 @@ on:
       - 'mkdocs.yml'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'src/Compono/**'
+      - 'src/Compono.XunitV3/**'
+      - 'src/Compono.NSubstitute/**'
+      - 'src/Compono.Bogus/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - '.config/dotnet-tools.json'
+      - '.github/scripts/generate-api-reference.sh'
       - '.github/workflows/docs.yml'
 
 permissions:
@@ -36,6 +61,36 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Restore
+        run: dotnet restore Compono.slnx
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Build publishable packages (net10.0)
+        run: |
+          set -euo pipefail
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
+            dotnet build "src/${pkg}/${pkg}.csproj" -c Release -f net10.0
+          done
+
+      - name: Regenerate API reference
+        run: .github/scripts/generate-api-reference.sh
+
+      - name: Fail on API reference drift
+        run: |
+          if ! git diff --exit-code -- docs/reference/api; then
+            echo "::error::docs/reference/api is out of date. Run '.github/scripts/generate-api-reference.sh' (after building the four publishable packages for net10.0 Release) and commit the result." >&2
+            exit 1
+          fi
+
       - name: Setup Python
         uses: actions/setup-python@v7.0.0
         with:
@@ -54,7 +109,7 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Build documentation
-        run: uv run mkdocs build --clean
+        run: uv run mkdocs build --clean --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

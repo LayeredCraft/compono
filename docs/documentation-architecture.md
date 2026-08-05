@@ -12,8 +12,10 @@ user should move through it. It describes **intended** state: most of the
 pages named below exist today as placeholder skeletons (a "Status:
 Skeleton" banner and a one-paragraph purpose statement, no real content —
 see "Status" per section for exactly which). A handful of real exceptions
-don't exist at all yet: `contributing.md` and `reference/api/` (depends on
-a toolchain decision). `docs/roadmap/post-mvp.md` was one of these
+don't exist purely as skeletons: `contributing.md` doesn't exist at all yet
+(Milestone 8 Phase 6); `reference/api/` is real, generated content as of
+[ADR-0032](adr/0032-api-reference-documentation-toolchain.md)/PLAN-0008
+Phase 1, not a placeholder. `docs/roadmap/post-mvp.md` was one of these
 exceptions until [PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3
 produced it — real content, not a skeleton, since Milestone 7's dogfooding
 pass surfaced zero roadmap-candidate findings. ADR-0030 records *why*
@@ -488,10 +490,11 @@ not just how to fix it.
 ## 11. Reference
 
 **Audience:** anyone who already knows what they're looking for.
-**Status:** skeleton exists for `index.md`/`diagnostics.md`/`glossary.md`
-(placeholder only); `api/` itself doesn't exist yet — it depends on a
-generation toolchain decision, out of scope for this architecture (see
-Open Items).
+**Status:** `api/` generated for all four publishable packages, per
+[ADR-0032](adr/0032-api-reference-documentation-toolchain.md)
+([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 1);
+`index.md` written; `diagnostics.md`/`glossary.md` remain Milestone 7
+Phase 5 placeholders, filled in by Phase 3.
 **Purpose:** authoritative, exhaustive, not meant to be read start to end.
 **API reference supplements the documentation — it never replaces it.** A
 reader should be able to learn Compono entirely through Getting Started,

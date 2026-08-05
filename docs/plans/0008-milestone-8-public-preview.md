@@ -243,7 +243,7 @@ acceptance test.
 
 ## Phase 1: API reference toolchain evaluation and wiring
 
-**Status:** Not Started
+**Status:** Done
 
 Executes [ADR-0032](../adr/0032-api-reference-documentation-toolchain.md).
 Depends on Phase 0 only loosely (needs real packages to generate against,
@@ -251,7 +251,7 @@ but can run against `main`'s current build) — sequenced early because
 `reference/api/` is a dependency for later cross-links (Concepts,
 Package Guides, Cookbook) that are expected to point into it.
 
-- [ ] Time-boxed bake-off: `DefaultDocumentation` vs. `xmldocmd` (plus any
+- [x] Time-boxed bake-off: `DefaultDocumentation` vs. `xmldocmd` (plus any
       other maintained candidate surfaced) against a representative slice
       of Compono's real public API, scored against ADR-0032's evaluation
       criteria (generics, overloads, inheritance, extension methods,
@@ -259,7 +259,7 @@ Package Guides, Cookbook) that are expected to point into it.
       coverage, stable filenames/anchors, MkDocs Material readability,
       deterministic output, maintenance/TFM compatibility). Record the
       result in this plan's Notes.
-- [ ] Wire the winning tool into CI: generates `docs/reference/api/`
+- [x] Wire the winning tool into CI: generates `docs/reference/api/`
       Markdown from **the four publishable packages'** (`Compono`,
       `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`) compiled
       DLL + XML doc file — not `Compono.Generators`, which
@@ -269,10 +269,10 @@ Package Guides, Cookbook) that are expected to point into it.
       would be empty or misleading. `Compono.Generators` is verified as
       package content (Phase 0's `.nuspec` inspection), not documented as
       public API here.
-- [ ] Add the drift-detection CI gate (regeneration produces no
+- [x] Add the drift-detection CI gate (regeneration produces no
       uncommitted diff) and the missing-XML-doc-comment gate where the
       tool supports it.
-- [ ] `reference/index.md` states the "supplements, never replaces"
+- [x] `reference/index.md` states the "supplements, never replaces"
       philosophy (already drafted per ADR-0030 Amendment 1's framing).
 
 ## Phase 2: Core documentation and README
@@ -721,7 +721,28 @@ individually resolved, not left ambiguous):
   `reference/api/` (new, Phase 1, generated);
   `docs/reference/diagnostics.md`/`glossary.md` content (Phase 3).
 - `mkdocs.yml` — nav updated per phase as content lands; final pass in
-  Phase 7.
+  Phase 7. Phase 1 adds the "API Reference" sub-section under "Reference"
+  (one entry per package's `index.md` landing page; the ~150 generated
+  member/type pages per package are reachable through cross-links, not
+  individually listed in nav).
+- `.config/dotnet-tools.json` — new local tool manifest (Phase 1), pinning
+  `defaultdocumentation.console` 1.2.5.
+- `.github/scripts/generate-api-reference.sh` — new (Phase 1): regenerates
+  `docs/reference/api/<package>/` for the four publishable packages from
+  their compiled net10.0 assembly + XML doc file, core-first so the three
+  integration packages' cross-package `<see cref>`s resolve locally, plus
+  the `#ctor`-filename post-processing fix described in this phase's Notes.
+- `.github/workflows/docs.yml` — the drift-detection gate was initially a
+  separate `api-reference.yaml` workflow, deleted during PR #47 review at
+  the user's direction: with no `needs`/`workflow_run` link between two
+  independently-triggered workflows, a failing drift check could never
+  actually stop `docs.yml` from deploying stale/incorrect content. The
+  regenerate-and-diff-check steps now run as `docs.yml`'s own first real
+  steps, sequentially before `mkdocs build` — the site only ever builds
+  from `docs/reference/api` content already confirmed fresh in the same
+  job. `docs.yml`'s trigger paths expanded to include the four publishable
+  packages' `src/` paths (previously `api-reference.yaml`-only) so a
+  source-only PR still runs the check.
 - `.github/workflows/publish-preview.yaml` — `prereleaseIdentifier`
   renamed from `alpha` to `preview` (Phase 0). No other change to either
   publish workflow — the API-compatibility baseline check lives in a new,
@@ -810,3 +831,205 @@ The local-feed packed-consumer smoke test task above (and
 `package-validation.yaml`) uses `-- --filter-not-class
 "Compono.XunitV3.SampleTests.FailingCompositionTests"`, verified locally
 (16/16 tests pass).
+
+### Phase 1 (2026-08-04)
+
+**Bake-off result: `DefaultDocumentation` (`DefaultDocumentation.Console`
+1.2.5) wins**, run against a representative slice — all four publishable
+packages' real net10.0 assemblies + XML doc files, not a synthetic sample —
+scored against every ADR-0032 criterion:
+
+- **`xmldocmd` (2.9.0) eliminated outright on maintenance/TFM compatibility**,
+  the first criterion it failed: its own package ships host builds only for
+  `net6.0`/`net7.0`, and running it (via `dotnet tool run`, any host) against
+  `net10.0`-targeted assemblies throws
+  `FileNotFoundException: Could not load file or assembly 'System.Runtime,
+  Version=10.0.0.0...'` — a hard failure, not a degraded-output case. No
+  amount of further evaluation on the other criteria was relevant once this
+  failed.
+- **`DefaultDocumentation` passed every other criterion** against the real
+  API surface: generics (`CollectionPlanCache<T>`, `ICompositionPlan<T>`),
+  overloads (`Register<T>`'s two overloads got distinct, correctly
+  cross-linked pages), inheritance (`ComposableAttribute : Attribute`
+  rendered with the full chain), attributes, nullable signatures
+  (`Nullability` enum's doc came through verbatim), `<exception>`/`<returns>`/
+  `<remarks>`/`<typeparam>` all rendered correctly (verified against
+  `Composer.CreateMany<T>(int)` and `CompositionBuilder`'s real doc
+  comments). Ships a `net10.0` host build already (current, not lagging the
+  repo's own TFMs) and is under active release (39 published versions,
+  1.2.5 current). Deterministic: two consecutive runs against the same
+  input produced byte-identical output, verified both for a single package
+  and for the full four-package generation run.
+- **Nine real defects found and fixed during wiring, not left as accepted
+  gaps** — the first two caught before the PR opened, the other seven by PR
+  #47's automated review (`chatgpt-codex-connector`, across five review
+  passes), addressed in the same PR rather than deferred:
+  1. **Cross-package `<see cref>` resolution.** Generating each package
+     standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
+     XML docs fell back to `DotnetApiFactory`, which treats any type it
+     doesn't recognize as a BCL type and links to a fabricated
+     `learn.microsoft.com/en-us/dotnet/api/compono.composer` URL (404).
+     Fixed by generating `Compono` first with
+     `--LinksOutputFilePath`/`--LinksBaseUrl`, then feeding that links file
+     to each integration package's `--ExternLinksFilePaths` — verified: the
+     rendered link becomes `[Composer](../Compono/Compono.Composer.md
+     ...)`, a real local page.
+  2. **`#` in generated filenames.** `DefaultDocumentation` names a
+     parameterless constructor's page after the raw CLR metadata name
+     (`Compono.ComposableAttribute.#ctor.md`) — `#` is the URL fragment
+     delimiter, so a real `mkdocs build` (not just eyeballing the Markdown)
+     parsed links into that filename as truncated-path-plus-fragment and
+     reported it as a broken link. `.github/scripts/generate-api-reference.sh`
+     renames every such file to `.ctor` post-generation and rewrites the
+     handful of other generated pages that link to it, confined to
+     `Compono` core in practice (the only package with a documented
+     parameterless constructor).
+  3. **Bogus links for internal Compono types (PR #47 review).** The same
+     `DotnetApiFactory` fallback as (1) fires for any `<see cref>` on a
+     *public* member's XML docs that names an *internal* Compono type (e.g.
+     `CompositionBuilder`'s docs mention `CompositionConfiguration`) — no
+     local page exists for it (Public-only generation) and it's never in
+     `--ExternLinksFilePaths` either, so it falls to the same fabricated,
+     dead `learn.microsoft.com/en-us/dotnet/api/compono.*` URL as (1). 38
+     such dead links across 29 files, not the single isolated instance
+     (`SeedAsNullable`) originally noticed and wrongly framed as a
+     hover-only cosmetic quirk during initial verification — the scale
+     only became clear from PR review's exhaustive scan. Fixed by
+     post-processing every generated page: a link whose target matches
+     that URL pattern is rewritten to plain inline code of its (unescaped)
+     type name instead of a dead link, since there is no real page to
+     point it at without publishing internal implementation types, which
+     would contradict generating only the public surface in the first
+     place.
+  4. **Stale in-page anchor names on renamed `#ctor` pages (PR #47
+     review).** Fix (2)'s filename rename corrected every *href* pointing
+     at a constructor-overload page, but `DefaultDocumentation`'s own
+     same-page anchor `name` values on that page are built as "the part of
+     the filename after its own last `#`, `#`, member id"
+     (`name='ctor.md#Compono.ComposableAttribute.ComposableAttribute()'`)
+     — internally consistent only on the assumption the filename still
+     contains a literal `#` acting as the real fragment delimiter. Once
+     that `#` is renamed away, the anchor's stale `ctor.md#` prefix no
+     longer matches the (already-correct) href fragment, so a deep link
+     into a specific overload landed at the top of the page instead of
+     that overload's section. Fixed by stripping the stale prefix from the
+     renamed page's own anchors in the same post-processing pass.
+  5. **`<paramref>`/`<typeparamref>` self-references target the wrong page
+     (PR #47 second review pass).** A member's own parameter/type-parameter
+     doc (e.g. a constructor's "`diagnostic` is null" exception doc, or
+     `Register<T>`'s own `T` typeparam doc) always links back to its
+     *containing type's* page, but the anchor lives wherever
+     `OverloadsGenerator` actually placed that specific overload once a
+     member has more than one (its own dedicated page, not the type's).
+     Flagged on the `Compono.CompositionException` constructor case
+     specifically; verified to be the general `OverloadsGenerator`
+     interaction, not constructor-specific — **92 mismatched fragment
+     links across all four packages** (69 in `Compono` alone, e.g.
+     `Compono.CompositionBuilder.Register`'s own `T`/`factory` parameter
+     docs). Fixed generally, not with another special case: the generation
+     script now builds an anchor-id → actual-file map per package
+     directory (from every `<a name='...'>` in that directory) and
+     rewrites any same-package link whose target file doesn't actually
+     contain the anchor it points at. 0 mismatches remain after the fix,
+     confirmed by the same scan that found the original 92.
+  6. **Bogus links for third-party dependency types (PR #47 third review
+     pass).** The same `DotnetApiFactory` fallback as (3), but for types
+     from `Bogus`/`NSubstitute`/`xUnit.v3` (e.g. `Bogus.Faker`,
+     `NSubstitute.Substitute.For`, `Xunit.v3.IDataAttribute`) — fix (3)'s
+     pattern only matched `compono.*`, so it left every non-Compono
+     fallback link untouched. Generalized fix (3)'s pattern from a
+     `compono.*` blocklist to a `system.*`/`microsoft.*` **allowlist** —
+     the only namespaces `learn.microsoft.com/en-us/dotnet/api/` ever
+     actually resolves — so it now catches every non-BCL fallback
+     regardless of which package the referenced type belongs to, current
+     or future.
+  7. **The generalized fix (6) itself had a link-text parsing bug**,
+     caught before pushing (own verification, not another review round):
+     `[^\]]+` for the link-text capture group stops at the first literal
+     `]`, but a signature like `NSubstitute.Substitute.For`'s array
+     parameters renders its display text with escaped brackets
+     (`...\[\],System\.Object\[\]\)`) — the regex silently failed to match
+     at all rather than matching wrong, so the fix from (6) missed exactly
+     the two links it was written to catch until this was found. Fixed by
+     changing the text-group pattern to `(?:[^\]\\]|\\.)+` (an unescaped
+     non-`]` character, or a backslash-escaped pair), which treats `\]` as
+     a literal character rather than a false terminator.
+- **CI architecture changed on user direction, mid-review**: the
+  drift-detection gate was originally a separate, independently-triggered
+  `api-reference.yaml` workflow with no `needs`/`workflow_run` link to
+  `docs.yml` — meaning a failing drift check could never actually stop
+  `docs.yml` from building and deploying stale/incorrect content, since
+  the two workflows had no ordering relationship at all. Per the user's
+  explicit preference (sequential dependency over two disconnected
+  workflows — the local-generation-only alternative was rejected since it
+  would reverse ADR-0032's explicit "CI must catch drift" Decision
+  Outcome without an ADR amendment), `api-reference.yaml` is deleted and
+  its regenerate-and-diff-check steps moved into `docs.yml`'s own `build`
+  job, as its first real steps, sequentially before `mkdocs build`.
+  `docs.yml`'s trigger paths expanded to include the four packages' `src/`
+  paths so a source-only PR (no `docs/` change) still runs the check.
+  8. **`mkdocs build` never actually enforced ADR-0032's broken-link
+     requirement (PR #47 fourth review pass).** `docs.yml` ran `mkdocs
+     build --clean` with no `--strict`, and `mkdocs.yml` doesn't enable
+     strict validation either, so ADR-0032's "CI fails the build when...
+     broken internal links" bullet was unenforced by anything — a warning
+     never fails a plain `mkdocs build`. Enabling `--strict` surfaced
+     exactly 4 pre-existing `WARNING`-level broken links (the
+     `.claude/skills/`/`.agents/skills/` cross-references from ADR-0014/
+     0015/0016/0022, already visible as noise in every earlier verification
+     pass in this Notes section) — not a path-depth bug: `.claude/skills/`
+     is outside `docs_dir` entirely, so no relative-path correction could
+     ever make these resolve inside the built site. Per the user's explicit
+     direction (weighed against deferring to Phase 7, which already owns a
+     "site-wide broken-link check" as its own task — enabling `--strict`
+     now doesn't preclude that later, more comprehensive pass), fixed both
+     at once: `docs.yml` now runs `mkdocs build --clean --strict`, and the
+     4 ADR cross-references were converted from a dead hyperlink to plain,
+     unlinked text (`` the engineering-workflow skill's `design-decisions.md`
+     reference ``) — a mechanical fix to link *syntax* only, the
+     Decision/Rationale/Consequences prose itself is untouched, consistent
+     with `design-decisions.md`'s own ADR-immutability rule. Verified:
+     `mkdocs build --clean --strict` now exits 0 (previously aborted with
+     exactly those 4 warnings).
+  9. **`docs.yml`'s trigger paths missed `Directory.Build.targets` (PR #47
+     fifth review pass).** `Directory.Build.targets` is auto-imported into
+     every project the same way `Directory.Build.props` is (just after the
+     project body instead of before) — including the four publishable
+     packages this workflow's own drift-check step builds — but only
+     `Directory.Build.props` was in the trigger `paths` lists. A PR
+     touching only `Directory.Build.targets` (e.g. changing the
+     test-project `CS1591` `NoWarn` scoping, or a future rule that does
+     affect the publishable packages) would silently skip both the drift
+     check and the site rebuild. Added `Directory.Build.targets` to both
+     `pull_request` and `push` path lists, alongside `Directory.Build.props`.
+- **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
+  carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
+  MkDocs/python-markdown doesn't re-process escapes inside a link's title
+  string — visible only on hover, never in link text or navigation, and
+  consistent with ADR-0032's already-accepted "less polished... in some
+  edge cases" Negative Consequence. Not fixed; recorded here rather than
+  silently absorbed.
+- **Verified with a real `mkdocs build`**, not just inspecting generated
+  Markdown (`documentation.md`'s "do real manual verification" bar, applied
+  here even though this isn't source-generator-facing — same principle,
+  generated content the tests don't otherwise exercise): initially
+  verified non-strict (`uv run mkdocs build --clean`) against the full
+  site including all four packages' generated `reference/api/` content,
+  which built clean apart from four pre-existing, unrelated broken links
+  to `.claude/skills/`/`.agents/skills/` paths from ADR pages. Defect 8
+  below then enabled `--strict` and fixed those same four links — the
+  current, final state is `uv run mkdocs build --clean --strict` exiting
+  0 with zero `WARNING`s, not the earlier non-strict result.
+- **Missing-XML-doc-comment gate**: `DefaultDocumentation` has no
+  independent detection of its own (`--IncludeUndocumentedItems=False`
+  just silently omits an undocumented public member from output, it
+  doesn't fail). The actual enforcement is Phase 0's pre-existing
+  `dotnet build -p:WarningsAsErrors=CS1591` gate in
+  `package-validation.yaml`, which already blocks a missing doc comment on
+  any public member before this workflow's regeneration step ever runs —
+  satisfies ADR-0032's "where the tool supports it" qualifier rather than
+  leaving a real gap.
+- Net10.0 build output only (not net11.0) — the two TFMs share the same
+  public API surface, and generating from both would either double the
+  work for no additional coverage or require picking one to diff against
+  anyway.
