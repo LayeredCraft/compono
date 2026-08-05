@@ -44,13 +44,13 @@ Compono determines **how** those requirements are satisfied.
 ## Example
 
 ```csharp
-var composition = Compono.Create(builder =>
+var composer = Composer.Create(builder =>
 {
     builder.UseNSubstitute();
     builder.UseBogus();
 });
 
-var customer = composition.Create<Customer>();
+var customer = composer.Create<Customer>();
 ```
 
 ## Source Generation First

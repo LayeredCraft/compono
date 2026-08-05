@@ -1,10 +1,22 @@
 # Next Steps
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+You've installed Compono and run a first composed test. Where next depends
+on what you want to do now:
 
-Branches the reader outward toward Concepts, Cookbook, or a Learning Path.
-
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+- **Want the mental model next?** → [Concepts](../concepts/index.md) —
+  what composition, profiles, registrations, shared values, providers,
+  determinism, and collections mean in Compono's terms.
+- **Have an immediate problem to solve?** → [Cookbook](../cookbook/index.md) —
+  short, copy/paste recipes for one narrow problem at a time (generate a
+  realistic email, freeze a shared value, override one field for one test).
+- **Have a specific, moderately-scoped task in mind?** →
+  [How-to Guides](../how-to/index.md) — create an object, write a composed
+  theory, customize a member, register a type, use profiles, share a value.
+- **Want a curated path instead of picking pages yourself?** →
+  [Learning Paths](learning-paths.md).
+- **Deciding which package(s) you actually need?** →
+  [Package Guides](../packages/index.md).
+- **Migrating an existing AutoFixture-based test suite?** →
+  [Migrating from AutoFixture](../migrating-from-autofixture.md).
+- **Something didn't work as expected?** →
+  [Troubleshooting](../troubleshooting/index.md).

@@ -1,10 +1,71 @@
 # How Do I Use Profiles?
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+## Define one
 
-Applying an `ICompositionProfile` to a test via `[Compose<TProfile>]`.
+```csharp
+public sealed class ApplicationTestProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder
+            .UseNSubstitute()
+            .UseBogus()
+            .Register<IClock>(_ => new FakeClock());
+}
+```
 
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+## Apply it programmatically
+
+```csharp
+var composer = Composer.Create(builder => builder.AddProfile<ApplicationTestProfile>());
+```
+
+## Apply it to a composed xUnit theory
+
+```csharp
+[Theory]
+[Compose<ApplicationTestProfile>]
+public void ComposesTheProfileConfiguredValue(NotificationSettings settings) { }
+```
+
+`TProfile` must implement `ICompositionProfile` and have a public
+parameterless constructor — `[Compose<TProfile>]` enforces this at compile
+time via a generic constraint.
+
+## Combining more than one profile
+
+```csharp
+var composer = Composer.Create(builder => builder
+    .AddProfile<DomainProfile>()
+    .AddProfile<InfrastructureProfile>());
+```
+
+Profiles apply in the order added. Build up project-wide configuration
+from a few small, focused profiles rather than one large one — it's easier
+to reuse a `DomainProfile` on its own in a test that doesn't need
+`InfrastructureProfile`'s configuration.
+
+## Applying an already-built instance instead of a type
+
+```csharp
+builder.AddProfile(new ApplicationTestProfile());
+```
+
+Use this over `AddProfile<TProfile>()` only when the profile itself needs
+constructor arguments — most profiles don't, and `AddProfile<TProfile>()`
+is the more common form.
+
+## Common mistakes
+
+- A profile that applies itself again while already applying (directly, or
+  through a nested profile) — this is a cycle, raised immediately as
+  `CompositionConfigurationException`, not a silently-ignored no-op.
+- Putting per-test assertions or mutable state inside a profile — a
+  profile is pure `Composer` configuration, applied once, synchronously.
+
+## Next
+
+- What a profile is and when to reach for one →
+  [Profiles](../concepts/profiles.md).
+- Using a profile from `Compono.XunitV3` specifically →
+  [`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md).
+- Registering an individual type instead → [Register a Type](register-a-type.md).

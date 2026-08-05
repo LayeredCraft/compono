@@ -1,10 +1,76 @@
 # Determinism and Seeding
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+## What "deterministic by design" means for you
 
-What "deterministic by design" means for a test author - reproducible failures, not the derivation algorithm itself.
+Every composed value Compono produces — a generated default construction,
+a `Compono.Bogus` fake, anything derived from randomness anywhere in the
+pipeline — comes from a seed. Given the same seed and the same
+configuration, a composition produces the same values every time. In
+practice, that means a *test author* never has to reconstruct "what values
+did it use when this failed" by guesswork — the seed that produced a
+failure is always available, and reusing it reproduces that exact failure
+again.
 
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+You don't manage this by hand for the common case — a `Composer` picks a
+fresh seed automatically unless you set one. Setting a seed is something
+you reach for deliberately, not something every test needs to do.
+
+## Setting a seed explicitly
+
+```csharp
+var composer = Composer.Create(builder => builder.WithSeed(4219));
+```
+
+```csharp
+[Theory]
+[Compose(Seed = 4219)]
+public void ReproducesTheSameComposedValues(Order order) { }
+```
+
+The same seed produces the same output for a given version of Compono
+(not guaranteed across versions — a new release can change generated
+values for the same seed, the same way any library's internal generation
+details can shift between versions).
+
+## Reproducing a failure
+
+A composition failure — not a failed assertion, a failure to *build* the
+requested graph at all — includes the seed that produced it directly in
+its message, and (where available) a `CompositionDiagnostic` with a
+tree-rendered path to exactly where the composition couldn't proceed:
+
+```csharp
+catch (CompositionException exception)
+{
+    Console.WriteLine(exception.Diagnostic);
+    // Unable to compose Order.
+    //
+    // Order -> IShippingCalculator
+    //
+    // No provider could satisfy IShippingCalculator.
+    //
+    // Seed: 24601
+}
+```
+
+Paste that seed back into `[Compose(Seed = 24601)]` (or
+`builder.WithSeed(24601)` for programmatic composition) to reproduce the
+exact same composed values on a subsequent run — the same mechanism whether
+you're debugging locally or looking at a CI failure someone else reported.
+
+## Why this matters more than it sounds like it should
+
+A flaky-looking test failure that only reproduces "sometimes" is one of
+the more expensive categories of bug to chase down, because the input that
+triggered it is usually gone by the time anyone looks. Compono treats every
+composed value as reproducible by construction, so a composition-related
+failure is never a "works on my machine, can't repro" report — the seed
+*is* the repro.
+
+## Next
+
+- The pipeline stage that actually derives per-value randomness from a
+  seed → [Architecture](../architecture.md).
+- Reproduce a specific failing xUnit theory row →
+  [`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md).
+- Diagnostic codes and messages → [Diagnostics Reference](../reference/diagnostics.md).

@@ -1,10 +1,63 @@
 # Learning Paths
 
-> **Status:** Skeleton — placeholder created by Milestone 7 Phase 5's
-> documentation skeleton (`docs/documentation-architecture.md`). Written in
-> Milestone 8 ([PLAN-0008](../plans/0008-milestone-8-public-preview.md)).
+Every page linked below already exists somewhere else in this site — this
+page is pure navigation, a curated order through material that's organized
+elsewhere by topic rather than by starting point. Pick the path that
+matches why you're here.
 
-Curated, ordered reading lists for a specific starting point (new to Compono, migrating from AutoFixture, using xUnit/NSubstitute, wanting realistic data, wanting to extend Compono). Pure navigation - every linked page already exists elsewhere in this hierarchy.
+## I'm new to Compono
 
-See [Documentation Architecture](../documentation-architecture.md) for this page's full audience,
-contents, and relationship to the rest of the site.
+1. [What is Compono?](index.md)
+2. [Installation](installation.md)
+3. [Your First Composed Theory](first-test.md)
+4. [The Composition Model](../concepts/composition-model.md)
+5. [Registrations and Rules](../concepts/registrations-and-rules.md)
+6. [How-to Guides](../how-to/index.md) — pick the task closest to what
+   you're building.
+
+## I'm migrating from AutoFixture
+
+1. [Migrating from AutoFixture](../migrating-from-autofixture.md)
+2. [The Composition Model](../concepts/composition-model.md)
+3. [Shared Values](../concepts/shared-values.md) — the `[Shared]` alternative
+   to `Freeze<T>()`.
+4. [Profiles](../concepts/profiles.md) — the alternative to
+   `AutoDataAttribute` customizations.
+5. [Determinism and Seeding](../concepts/determinism-and-seeding.md) — how
+   reproducing a failure differs from AutoFixture's approach.
+
+## I use xUnit
+
+1. [Your First Composed Theory](first-test.md)
+2. [`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md)
+3. [Write a Composed Theory](../how-to/write-a-composed-theory.md)
+4. [Share a Value Across a Test](../how-to/share-a-value-across-a-test.md)
+5. [Use Profiles](../how-to/use-profiles.md)
+
+## I use NSubstitute
+
+1. [Providers](../concepts/providers.md)
+2. [`Compono.NSubstitute` Package Guide](../packages/compono-nsubstitute.md)
+3. [Share a Value Across a Test](../how-to/share-a-value-across-a-test.md) —
+   sharing a composed substitute across several parameters.
+
+## I want realistic data
+
+1. [`Compono.Bogus` Package Guide](../packages/compono-bogus.md)
+2. [Customize a Member](../how-to/customize-a-member.md) — combining a
+   `Compono.Bogus` convention with an explicit member rule.
+3. [Cookbook](../cookbook/index.md) — narrow recipes like "generate a
+   realistic email."
+
+## I want to extend Compono
+
+1. [Providers](../concepts/providers.md)
+2. [Public API](../public-api.md) — the `ICompositionValueProvider`
+   extensibility contract.
+3. [Architecture](../architecture.md) — the resolution pipeline a custom
+   provider participates in.
+
+## Next
+
+Not sure which path fits? [Next Steps](next-steps.md) branches out by what
+you want to do next, rather than by who you already are.

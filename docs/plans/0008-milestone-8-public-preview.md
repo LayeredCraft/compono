@@ -277,7 +277,7 @@ Package Guides, Cookbook) that are expected to point into it.
 
 ## Phase 2: Core documentation and README
 
-**Status:** Not Started
+**Status:** Done
 
 **Checkpoint: Documentation Foundation Complete** — a newcomer has a
 complete, real (non-stub) linear path from zero knowledge to productive
@@ -289,19 +289,24 @@ package-specific or task-specific makes sense — sequenced before Phases
 Concepts, and Samples/Migration Guide pages link back into Getting
 Started.
 
-- [ ] `docs/index.md` — fix the `Compono.Create(builder => ...)` example
+- [x] `docs/index.md` — fix the `Compono.Create(builder => ...)` example
       to the real `Composer.Create(builder => ...)` API
       (`src/Compono/Composer.cs`).
-- [ ] Repository-root `README.md` — review and update (distinct artifact
+- [x] Repository-root `README.md` — review and update (distinct artifact
       from `docs/getting-started/*`, per `docs/mvp.md`'s Milestone 8
       scope). Apply ADR-0030 Amendment 2's benchmark-claims policy: no
-      comparative AutoFixture performance claims.
-- [ ] `getting-started/index.md`, `installation.md`, `first-test.md`,
+      comparative AutoFixture performance claims. Fixed the same stale
+      `Compono.Create(...)` example as `docs/index.md`; added a "Getting
+      Started" section linking the docs site's Getting Started and AutoFixture
+      migration guide (no `CONTRIBUTING.md` link yet — that file doesn't
+      exist until Phase 6, which owns adding it here per that phase's own
+      Tasks).
+- [x] `getting-started/index.md`, `installation.md`, `first-test.md`,
       `learning-paths.md`, `next-steps.md`.
-- [ ] `concepts/index.md`, `composition-model.md`, `profiles.md`,
+- [x] `concepts/index.md`, `composition-model.md`, `profiles.md`,
       `registrations-and-rules.md`, `shared-values.md`, `providers.md`,
       `determinism-and-seeding.md`, `collections.md`.
-- [ ] `how-to/index.md`, `create-an-object.md`,
+- [x] `how-to/index.md`, `create-an-object.md`,
       `write-a-composed-theory.md`, `customize-a-member.md`,
       `register-a-type.md`, `use-profiles.md`,
       `share-a-value-across-a-test.md`.
@@ -831,6 +836,34 @@ The local-feed packed-consumer smoke test task above (and
 `package-validation.yaml`) uses `-- --filter-not-class
 "Compono.XunitV3.SampleTests.FailingCompositionTests"`, verified locally
 (16/16 tests pass).
+
+### Phase 2 (2026-08-04)
+
+All 19 skeleton pages across Getting Started, Concepts, and How-to Guides
+replaced with real content, verified against the actual public API
+(`Composer`, `CompositionBuilder`, `ICompositionProfile`,
+`ICompositionValueProvider`, `[Shared]`, `[Compose]`/`[Compose<TProfile>]`)
+rather than the design-target examples in `docs/public-api.md` alone — code
+snippets are drawn from or cross-checked against real test files
+(`test/Compono.Tests/*`, `test/Compono.XunitV3.SampleTests/*`). `docs/index.md`'s
+and `README.md`'s stale `Compono.Create(builder => ...)` example both fixed
+to the real `Composer.Create(builder => ...)` API. `README.md` also gets a
+new "Getting Started" section (links to the docs site's Getting Started and
+the AutoFixture migration guide) — no `CONTRIBUTING.md` link added yet,
+since that file doesn't exist until Phase 6, which owns adding this link
+per its own Tasks list. `README.md`'s existing Performance section already
+complied with ADR-0030 Amendment 2's benchmark-claims policy (no
+comparative "Nx faster than AutoFixture" phrasing) — left as-is.
+
+Verified with a real `uv run mkdocs build --clean --strict`: exits 0, no
+new warnings introduced by this phase's pages (one dangling internal link
+this phase itself introduced — `../reference/api/index.md` in
+`concepts/profiles.md` — was caught by this same build and corrected to
+`../reference/api/Compono/index.md`, the real landing page Phase 1
+generated). The handful of remaining `INFO`-level anchor mismatches in
+`migrating-from-autofixture.md`/`research/0001-autofixture-comparison.md`/
+`plans/0007-milestone-7-dogfooding.md` predate this phase and are
+out of scope here.
 
 ### Phase 1 (2026-08-04)
 
