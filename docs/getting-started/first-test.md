@@ -31,7 +31,7 @@ public sealed class OrderServiceTests
 {
     [Theory]
     [Compose]
-    public void ServiceUsesTheComposedRepository(Repository repository, OrderService service, CreateOrder command)
+    public void ServiceUsesTheSharedRepository([Shared] Repository repository, OrderService service, CreateOrder command)
     {
         service.Repository.Should().BeSameAs(repository);
         command.Should().NotBeNull();
@@ -46,32 +46,40 @@ Line by line:
 - `[Compose]` — every theory parameter that isn't covered by an inline value
   gets composed. There are no inline values here, so all three parameters
   are composed.
-- `Repository repository` — `Repository` has a parameterless constructor, so
-  Compono constructs one directly.
-- `OrderService service` — `OrderService`'s constructor needs a `Repository`.
-  Compono resolves it the same way it resolved the `repository` parameter
-  above — but as separate, independently-composed parameters, `repository`
-  and the `Repository` inside `service` are two *different* instances by
-  default (see [Shared Values](../concepts/shared-values.md) for how to make
-  them the same one).
+- `[Shared] Repository repository` — composed parameters are independent by
+  default: without `[Shared]`, `repository` and the `Repository` inside
+  `service` below would be two different composed instances, and the
+  assertion below would fail. `[Shared]` marks this parameter so any other
+  composed value in the same row that needs a `Repository` reuses this
+  exact instance instead (see [Shared Values](../concepts/shared-values.md)).
+- `OrderService service` — `OrderService`'s constructor needs a
+  `Repository`. Because `repository` above is `[Shared]`, this is the same
+  instance, not a look-alike — that's what the assertion checks.
 - `CreateOrder command` — a record with two constructor parameters
   (`string`, `int`); Compono composes both and constructs the record.
 - The test body just asserts on the composed values — nothing about the
-  arrange step differs from a hand-written `new OrderService(new Repository())`
+  arrange step differs from a hand-written `new OrderService(repository)`
   call, other than who wrote the `new` calls.
 
 ## Run it, then break it
 
-Change the assertion to something that can't pass —
-`service.Repository.Should().NotBeSameAs(repository)` — and run the test.
-Compono doesn't produce a bare `NullReferenceException` or an unreadable
-reflection stack trace on a composition failure; a failed *composition*
-(not a failed assertion, which is ordinary xUnit output) reports a
-tree-rendered path to the problem and a `Seed: <value>` you can paste back
-into `[Compose(Seed = <value>)]` to reproduce the exact same composed values
-again. See [Determinism and Seeding](../concepts/determinism-and-seeding.md)
-for the full mechanics — this is why "deterministic by design" is one of
-Compono's core goals, not an afterthought.
+Remove `[Shared]` from `repository` and rerun. `repository` and the
+`Repository` inside `service` go back to being two independently-composed
+instances, and `service.Repository.Should().BeSameAs(repository)` fails —
+an ordinary xUnit *assertion* failure (normal xUnit output), since Compono
+composed both values successfully, they just aren't the same instance
+without `[Shared]`.
+
+A composition *failure* looks different — that's what happens when Compono
+can't satisfy a requested type at all, not when an assertion on an
+otherwise-successful composition fails. Compono doesn't produce a bare
+`NullReferenceException` or an unreadable reflection stack trace for that
+case; it reports a tree-rendered path to the problem and a `Seed: <value>`
+you can paste back into `[Compose(Seed = <value>)]` to reproduce the exact
+same composed values again. See
+[Determinism and Seeding](../concepts/determinism-and-seeding.md) for the
+full mechanics — this is why "deterministic by design" is one of Compono's
+core goals, not an afterthought.
 
 ## Next
 

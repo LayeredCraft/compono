@@ -5,11 +5,12 @@
 Given a root type, Compono constructs its full object graph — the root
 type's constructor dependencies, and theirs, and so on — by walking a
 resolution pipeline that tries, in order: an explicit
-[registration](registrations-and-rules.md), a type/member rule, a
-configured `IServiceProvider`, a semantic provider (e.g. `Compono.Bogus`'s
-member-name matching), a test-double provider (e.g. `Compono.NSubstitute`),
-and finally the source-generated default construction plan for the type
-itself. "Composing" is this whole walk, not just constructing one object —
+[registration](registrations-and-rules.md) (falling back to a configured
+`IServiceProvider` on a miss — the same stage, not a separate one), a
+type/member rule, a semantic provider (e.g. `Compono.Bogus`'s member-name
+matching), a test-double provider (e.g. `Compono.NSubstitute`), and finally
+the source-generated default construction plan for the type itself.
+"Composing" is this whole walk, not just constructing one object —
 the same term covers producing a `Customer`, the `IEmailSender` substitute
 `Customer` depends on, and the `Faker`-generated email string that
 substitute's method returns.
