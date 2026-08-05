@@ -49,8 +49,8 @@ dependency failed, not just the top-level type you asked for.
 **Reproducing the failure depends on where the seed came from.** An xUnit
 theory row's seed (from a `[Compose]`/`[Compose<TProfile>]` row) is always
 in the pasteable `int` range — copy it straight into `[Compose(Seed = ...)]`
-to get the same row again. A plain, unseeded `Composer.Create<T>()` call
-outside a test framework generates a full 64-bit seed on its own, which
+to get the same row again. A plain, unseeded `Composer.Create().Create<T>()`
+call outside a test framework generates a full 64-bit seed on its own, which
 won't fit `[Compose(Seed = ...)]`/`builder.WithSeed(int)`'s `int`
 parameter — for a programmatic composition you want to reproduce later,
 call `builder.WithSeed(...)` with an `int` you choose yourself up front,

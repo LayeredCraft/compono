@@ -5,7 +5,7 @@ entry each. All are compile-time errors raised by `Compono.Generators`
 during a normal build — they appear in your IDE's error list and fail
 `dotnet build`, the same as any other compiler error. For a *runtime*
 composition failure (a `CompositionException` thrown from
-`Composer.Create<T>()`), see
+`composer.Create<T>()`), see
 [Troubleshooting: Common Errors](../troubleshooting/common-errors.md#runtime-composition-failures)
 instead — runtime failures have no diagnostic code, only a path-annotated
 message.
