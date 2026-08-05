@@ -860,9 +860,9 @@ scored against every ADR-0032 criterion:
   1.2.5 current). Deterministic: two consecutive runs against the same
   input produced byte-identical output, verified both for a single package
   and for the full four-package generation run.
-- **Seven real defects found and fixed during wiring, not left as accepted
-  gaps** — the first two caught before the PR opened, the other five by PR
-  #47's automated review (`chatgpt-codex-connector`, across three review
+- **Eight real defects found and fixed during wiring, not left as accepted
+  gaps** — the first two caught before the PR opened, the other six by PR
+  #47's automated review (`chatgpt-codex-connector`, across four review
   passes), addressed in the same PR rather than deferred:
   1. **Cross-package `<see cref>` resolution.** Generating each package
      standalone, a `<see cref="Compono.Composer"/>` in `Compono.XunitV3`'s
@@ -968,6 +968,29 @@ scored against every ADR-0032 criterion:
   job, as its first real steps, sequentially before `mkdocs build`.
   `docs.yml`'s trigger paths expanded to include the four packages' `src/`
   paths so a source-only PR (no `docs/` change) still runs the check.
+  8. **`mkdocs build` never actually enforced ADR-0032's broken-link
+     requirement (PR #47 fourth review pass).** `docs.yml` ran `mkdocs
+     build --clean` with no `--strict`, and `mkdocs.yml` doesn't enable
+     strict validation either, so ADR-0032's "CI fails the build when...
+     broken internal links" bullet was unenforced by anything — a warning
+     never fails a plain `mkdocs build`. Enabling `--strict` surfaced
+     exactly 4 pre-existing `WARNING`-level broken links (the
+     `.claude/skills/`/`.agents/skills/` cross-references from ADR-0014/
+     0015/0016/0022, already visible as noise in every earlier verification
+     pass in this Notes section) — not a path-depth bug: `.claude/skills/`
+     is outside `docs_dir` entirely, so no relative-path correction could
+     ever make these resolve inside the built site. Per the user's explicit
+     direction (weighed against deferring to Phase 7, which already owns a
+     "site-wide broken-link check" as its own task — enabling `--strict`
+     now doesn't preclude that later, more comprehensive pass), fixed both
+     at once: `docs.yml` now runs `mkdocs build --clean --strict`, and the
+     4 ADR cross-references were converted from a dead hyperlink to plain,
+     unlinked text (`` the engineering-workflow skill's `design-decisions.md`
+     reference ``) — a mechanical fix to link *syntax* only, the
+     Decision/Rationale/Consequences prose itself is untouched, consistent
+     with `design-decisions.md`'s own ADR-immutability rule. Verified:
+     `mkdocs build --clean --strict` now exits 0 (previously aborted with
+     exactly those 4 warnings).
 - **One cosmetic, accepted gap**: link `title` attributes (hover tooltips)
   carry `DefaultDocumentation`'s markdown-escaped `\<`/`\>` verbatim, since
   MkDocs/python-markdown doesn't re-process escapes inside a link's title

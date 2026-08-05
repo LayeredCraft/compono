@@ -28,8 +28,8 @@ free option to defer indefinitely.
 This ADR exists because that specific concern — should `ProviderAttempt`
 carry provider identity now — is itself a decision `docs/adr/README.md`'s
 own numbering/status rules say belongs in its own record, not folded back
-into ADR-0010's text. [Design-decisions.md](../../.claude/skills/engineering-workflow/references/design-decisions.md)
-is explicit that an accepted ADR's Decision/Rationale/Consequences don't
+into ADR-0010's text. The engineering-workflow skill's `design-decisions.md`
+reference is explicit that an accepted ADR's Decision/Rationale/Consequences don't
 get edited in place, even for a narrow sub-decision — a rule this same
 plan's Phase 2 work (see [ADR-0014](0014-generator-emitted-collection-plans.md)'s
 own Context) already established a house pattern for: extract the
