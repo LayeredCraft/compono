@@ -4,7 +4,7 @@
 
 Every `CMP0001`–`CMP0012` error is a compile-time diagnostic from
 `Compono.Generators` — see [Reference: Diagnostics](../reference/diagnostics.md)
-for the full message/cause/fix for each code. The two you'll hit most
+for the full message/cause/fix for each code. The one you'll hit most
 often in practice:
 
 - **`CMP0001` (ambiguous construction path)** — the type you're composing
@@ -14,10 +14,10 @@ often in practice:
   it instead — see
   [Migrating from AutoFixture](../migrating-from-autofixture.md) for a
   real worked example of exactly this.
-- **`CMP0003` (type cannot be constructed)** — usually means an interface
-  parameter with no provider configured for it. Fix: add
-  `builder.UseNSubstitute()` if you want an automatic substitute, or
-  register the type explicitly with `Register<T>`.
+
+A missing provider for an interface, abstract class, or delegate is
+**not** a `CMP` code at all — it always surfaces as a runtime
+`CompositionException` instead, covered next.
 
 ## By symptom (runtime)
 
@@ -44,17 +44,29 @@ Seed: 8451203967726193045
 ```
 
 Read the tree from the root down — it shows exactly which nested
-dependency failed, not just the top-level type you asked for. To
-reproduce the exact same composed values while debugging, copy the printed
-seed into `[Compose(Seed = ...)]` (or `builder.WithSeed(...)` outside
-xUnit) — see
+dependency failed, not just the top-level type you asked for.
+
+**Reproducing the failure depends on where the seed came from.** An xUnit
+theory row's seed (from a `[Compose]`/`[Compose<TProfile>]` row) is always
+in the pasteable `int` range — copy it straight into `[Compose(Seed = ...)]`
+to get the same row again. A plain, unseeded `Composer.Create<T>()` call
+outside a test framework generates a full 64-bit seed on its own, which
+won't fit `[Compose(Seed = ...)]`/`builder.WithSeed(int)`'s `int`
+parameter — for a programmatic composition you want to reproduce later,
+call `builder.WithSeed(...)` with an `int` you choose yourself up front,
+rather than trying to replay a printed value after the fact. See
 [Determinism and Seeding](../concepts/determinism-and-seeding.md).
 
-The most common cause is a missing provider for an interface — the same
-underlying issue as `CMP0003` above, except discovered at a call site the
-generator couldn't statically prove would fail (e.g. a registration that
-only conditionally applies). Add the missing registration, or install the
-package (`Compono.NSubstitute`/`Compono.Bogus`) that supplies it.
+The most common cause is a missing provider for an interface, abstract
+class, or delegate — this is always a runtime failure, never a `CMP` code
+(interfaces/abstract classes/delegates are always provider-resolved, not
+routed through constructor selection), and can also be discovered at a
+call site the generator couldn't statically prove would fail (e.g. a
+registration that only conditionally applies). Add the missing
+registration, or install `Compono.NSubstitute` and call `UseNSubstitute()`
+if you want an automatic substitute. `Compono.Bogus` doesn't supply
+interface providers — it only matches `string`-typed members by name, so
+it won't resolve this.
 
 **A genuine construction cycle always fails this way too, immediately** —
 Compono has no `OmitOnRecursionBehavior`-style opt-out; a self-referencing

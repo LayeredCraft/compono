@@ -35,8 +35,11 @@ var handler = composer.Create<CreateOrderHandler>();
 - **`SubstituteAbstractClasses`** (`NSubstituteOptions`, default `true`) —
   also substitutes unsealed abstract classes, not just interfaces and
   delegates. Set to `false` via `UseNSubstitute(o => o.SubstituteAbstractClasses = false)`
-  if you want abstract classes to compose through ordinary constructor
-  selection instead.
+  if you want the provider to decline abstract-class requests instead.
+  Abstract types are always provider-resolved — an abstract class never
+  falls back to ordinary constructor selection even when the provider
+  declines it — so composing an abstract class with this option off
+  throws `CompositionException` rather than constructing it directly.
 - **Combine with `[Shared]`** (`Compono.XunitV3`) to assert against, or
   configure, the exact substitute instance a composed dependency received
   — see [Shared Values](../concepts/shared-values.md).

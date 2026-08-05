@@ -48,15 +48,18 @@ type/interface that Compono can actually construct.
 
 **Message:** `{Type} is {reason} and cannot be constructed directly`
 
-**Cause:** The type is abstract, an interface with no provider configured
-for it, or another shape that can't be directly instantiated by generated
-construction code.
+**Cause:** Historically reported for an abstract type or delegate the
+generator couldn't construct directly. Interfaces, abstract classes, and
+delegates are now always classified as provider-resolved instead — at
+both root and member position — so this specific compile-time failure
+isn't reachable through ordinary composition. A missing provider for one
+of them surfaces as a *runtime* `CompositionException` instead — see
+[Troubleshooting: Common Errors](../troubleshooting/common-errors.md#runtime-composition-failures).
 
-**Fix:** For an interface, install/configure a provider that can supply it
+**Fix:** Install/configure a provider that can supply the type
 (`Compono.NSubstitute`'s `UseNSubstitute()`, or an explicit
-`Register<T>`/`For<T>()` rule). For an abstract class, either register a
-concrete implementation or, if you specifically want a substitute, use
-`Compono.NSubstitute`'s `SubstituteAbstractClasses` option.
+`Register<T>`/`For<T>()` rule) at runtime — there's no compile-time fix to
+make here, since this diagnostic doesn't fire for that scenario.
 
 ## CMP0004 — Unsupported constructor parameter kind
 
@@ -64,8 +67,11 @@ concrete implementation or, if you specifically want a substitute, use
 compose a value for`
 
 **Cause:** A constructor parameter has a kind Compono's generator doesn't
-support composing a value for (e.g. `ref`/`out`/`in` parameters, pointer
-types).
+support composing a value for — a `ref`, `out`, or `ref readonly`
+parameter (no argument expression can be written for them), a ref struct
+(ref-like) parameter type, or a pointer/function-pointer parameter type.
+`in` parameters are supported and don't trigger this — Compono can pass an
+ordinary value to them with no modifier.
 
 **Fix:** Remove or change the unsupported parameter kind, or register an
 explicit factory (`Register<T>`) that constructs the type by hand instead
@@ -88,15 +94,17 @@ there's no configuration that makes an open type composable.
 
 **Message:** `'{Type}' is not a type Compono can compose`
 
-**Cause:** The type argument is an array, pointer, or other shape that
-isn't a named type (class, struct, record, or interface) — e.g.
-`Create<int[]>()` called directly at the root, rather than as a member of
-a composed type where a built-in collection provider would handle it.
+**Cause:** The type argument isn't a named type (class, struct, record, or
+interface) and isn't one of the supported collection root shapes either.
+A rank-1 array (`Create<int[]>()`) and the other built-in collection
+shapes (`List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`, and similar)
+are all valid composition roots on their own — this diagnostic is for
+what's left over: a pointer/function-pointer type, or an unsupported array
+rank (e.g. `Create<int[,]>()`).
 
-**Fix:** Compose a named type. For a collection, compose the type that
-*contains* the collection member instead of the bare array/collection type
-directly, or use `CreateMany<T>()` for repeated independent instances of a
-named type — see [Collections](../concepts/collections.md).
+**Fix:** Compose a named type, a rank-1 array, or one of the other
+supported collection root shapes instead — see
+[Collections](../concepts/collections.md).
 
 ## CMP0007 — Unsupported required member kind
 
