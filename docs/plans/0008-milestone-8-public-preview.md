@@ -313,7 +313,7 @@ Started.
 
 ## Phase 3: Package guides, migration guide, troubleshooting, reference
 
-**Status:** Not Started
+**Status:** Done
 
 Content with the most existing raw material to draw from (Milestone 7's
 research/migration-guide evidence, real diagnostics already shipped) —
@@ -321,22 +321,49 @@ sequenced after Phase 2 (assumes Concepts) and Phase 0 (packages must be
 final-shaped to describe accurately) and Phase 1 (`reference/diagnostics.md`/
 `glossary.md` complete the Reference section Phase 1 started).
 
-- [ ] `packages/index.md` (ecosystem map table), `packages/compono.md`,
+- [x] `packages/index.md` (ecosystem map table), `packages/compono.md`,
       `packages/compono-xunitv3.md`, `packages/compono-nsubstitute.md`,
       `packages/compono-bogus.md`.
-- [ ] Polish `docs/migrating-from-autofixture.md` to publication-ready
-      (content refinement only, per ADR-0030's "content-stable" framing —
-      no structural change).
-- [ ] `troubleshooting/index.md`, `troubleshooting/common-errors.md`
+- [x] Polish `docs/migrating-from-autofixture.md` to publication-ready.
+      **Superseded the original plan's "content refinement only, no
+      structural change" framing mid-phase, on direct user feedback**: the
+      first pass (content-stable, per ADR-0030) left the doc reading as an
+      internal Milestone 7 research artifact — a `cosmere-tracker`-named
+      status block citing PLAN-0007 phase counts/classification totals, a
+      repository-specific package-referencing/CI section, and
+      "Finding N"/"gap N"/"Phase N" narration threaded through every
+      section — not a public migration guide. Rewritten around the
+      reader's migration journey instead: a task-oriented structure (who
+      it's for, migration mindset, install, a quick concept map,
+      per-concept migration sections, a specimen-builder decision table, a
+      known-limitations section linking out to Troubleshooting/Reference
+      for full mechanics rather than re-deriving them inline, a migration
+      checklist, and a closing evidence-trail section), with every
+      before/after example re-expressed in generic domain terms
+      (`Order`/`Customer`/`IOrderRepository`, consistent with the rest of
+      the site's Concepts examples) instead of the source repository's own
+      type names — real evidence, credible patterns, no repository name in
+      the published page. `docs/research/0001-autofixture-comparison.md`
+      (the internal research dossier, not a public docs-site page) is
+      unaffected and keeps its full `cosmere-tracker`-specific detail;
+      this guide links out to it for readers who want the complete
+      evidence record instead of duplicating it.
+- [x] `troubleshooting/index.md`, `troubleshooting/common-errors.md`
       (start from the real `CMP0001` finding), `troubleshooting/faq.md`
       (start from the real gap-3 "why fail-fast" finding).
-- [ ] `reference/diagnostics.md` (every `CMP` code), `reference/glossary.md`.
-- [ ] Explicit known-limitations content, surfaced from Getting Started,
+- [x] `reference/diagnostics.md` (every `CMP` code), `reference/glossary.md`.
+- [x] Explicit known-limitations content, surfaced from Getting Started,
       Package Guides, Troubleshooting, and release notes (not one
       obscure page) — sourced from `docs/research/0001-autofixture-comparison.md`'s
       recorded findings (`CMP0001`, fail-fast recursion vs. omission, the
       Compose-family stacking constraint, `Compono.Bogus`'s exact
       member-name-matching limits) plus `docs/mvp.md`'s Non-goals list.
+      Each Package Guide carries its own "What it deliberately doesn't do"
+      section; `troubleshooting/index.md` aggregates a "Known limitations"
+      pointer to all four plus `mvp.md`'s Non-goals; Getting Started's
+      `next-steps.md` already linked to Troubleshooting, so no separate
+      edit was needed there to make the content reachable from that entry
+      point too.
 
 ## Phase 4: Samples, cookbook, best practices
 
@@ -1066,3 +1093,64 @@ scored against every ADR-0032 criterion:
   public API surface, and generating from both would either double the
   work for no additional coverage or require picking one to diff against
   anyway.
+
+### Phase 3 (2026-08-05)
+
+Package Guides written directly against each package's real public API
+(`.csproj` `Description`, `NSubstituteOptions`, `BogusConventions`' ten-name
+allowlist) and cross-linked into the existing Concepts pages rather than
+re-explaining them. `troubleshooting/common-errors.md` splits into two
+index dimensions per its own skeleton brief: by `CMP` diagnostic code
+(compile-time, linking into `reference/diagnostics.md`) and by symptom
+(runtime `CompositionException`/`CompositionConfigurationException`, which
+carry no diagnostic code at all — only a path-annotated message and a
+reproducible seed via `CompositionDiagnostic`). `reference/diagnostics.md`
+covers all twelve `CMP0001`-`CMP0012` codes from
+`src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` directly (message,
+cause, fix each), not a partial set.
+
+**Verified with a real `uv run mkdocs build --clean --strict`** (this
+phase isn't source-generator-facing, but the same "do real manual
+verification" bar applies to generated/cross-linked documentation content
+per `documentation.md`): exit 0, zero new broken-link warnings introduced
+by this phase's own new pages. Caught and fixed one real defect during
+this verification: `troubleshooting/faq.md`'s new link into
+`reference/diagnostics.md#cmp0001-...` used a double hyphen where the
+source heading's em dash (`CMP0001 — Ambiguous construction path`) needed
+to collapse to a single hyphen — confirmed against the actual generated
+`id` attribute in the built HTML, not guessed. The same double-hyphen
+mistake turned out to already exist in `docs/migrating-from-autofixture.md`
+from before this phase (three links into
+`research/0001-autofixture-comparison.md`'s Finding 4/7/9 anchors) — fixed
+in the same pass as this phase's "polish the migration guide" task, since
+it's a real dead link the same verification step surfaced, not a
+structural change to the guide's content. Three pre-existing, unrelated
+anchor mismatches remain (a `plans/0008` self-link into `plans/0007`'s
+Phase 5 section, and two research-doc-internal Finding cross-references) —
+all `INFO`-level, not `WARNING`, so `--strict` doesn't fail the build on
+them; left for Phase 7's dedicated site-wide link pass rather than fixed
+here, since none are in a file this phase's Tasks own.
+
+**Migration guide rewrite, same day, on direct user feedback.** The
+verification pass above shipped a `docs/migrating-from-autofixture.md`
+that was still, structurally, an internal Milestone 7 artifact wearing a
+public-docs skin — accurate per the original "content-stable" framing (no
+prose was wrong), but the wrong bar for a public-facing migration guide.
+User feedback, in two rounds, redirected this task's own scope:
+"shouldn't mention [the source repository] by name at all... should read
+like the rest of the completed docs... pure documentation on how to do
+something with good examples" first, then a full structural spec (title,
+section ordering, a migration-mindset section, a quick concept map, a
+specimen-builder decision table, a migration checklist, and where to move
+versus summarize the heaviest implementation detail). Rewritten per that
+spec — see the Phase 3 Tasks entry above for the shape. Verified again
+with a fresh `uv run mkdocs build --clean --strict`: exit 0, and the one
+new anchor this rewrite introduced (`reference/diagnostics.md#cmp0001-...`)
+had the same double-hyphen mistake as before, caught the same way and
+fixed before commit. Confirmed no literal mention of the source
+repository's name survives anywhere in the published page
+(`grep -i` across the file); `docs/research/0001-autofixture-comparison.md`
+is explicitly out of scope for this anonymization — it's the internal
+research dossier this guide now links out to for readers who want the
+full evidence trail, and keeping its detail complete there is what makes
+summarizing safe here.
