@@ -201,6 +201,54 @@ fixed here.
 - Bad, because it slows the sample's own development loop for no benefit
   — samples live in this repo, unlike `cosmere-tracker`.
 
+## Amendment 1 (2026-08-05): Samples use ProjectReference only, no packed-verification mode
+
+Discovered during PLAN-0008 Phase 4 implementation: the hybrid
+build/verification story this ADR chose above (Option 2 — `ProjectReference`
+for development, an additional packed-`.nupkg` restore mode for
+acceptance) requires each sample's own `nuget.config` to list the local
+feed as a package source unconditionally, since MSBuild/NuGet can't
+conditionally include a package source the way an `ItemGroup` can be
+conditioned. That unconditional source reference makes `dotnet restore`
+hard-fail with `NU1301` ("the local source ... doesn't exist") the moment
+the local feed directory is simply absent — true on **every** fresh
+checkout, including this repo's own CI, since the directory is
+git-ignored and this ADR's own packed-verification mode was the only thing
+that ever created it. This is not the specific `TargetFramework`-scoping
+or process-isolation problem `test/Compono.XunitV3.SampleTests` already
+solved (see that project's own `pack-to-local-feed.sh` history) — it's a
+different failure mode, triggered by restore's own source-validation step
+running before any package resolution happens at all, and it broke `dotnet
+restore Compono.slnx` for every project in the solution, not just the two
+samples.
+
+**Decision: both samples use a plain, unconditional `ProjectReference`
+to `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`
+source — the same shape as every other test project in this repo (e.g.
+`test/Compono.XunitV3.Tests`) — with no packed-`.nupkg` verification mode
+of their own.** `Compono.Generators` is still referenced as a second,
+separate Analyzer-only `ProjectReference` (matching how `Compono.csproj`
+references it for its own compilation), since a plain `ProjectReference`
+chain doesn't flow an upstream project's own Analyzer-only reference
+transitively — without it, the generator silently never runs against a
+sample's own composed types, and every composition throws
+`CompositionException` with no compile-time signal at all.
+
+This narrows this ADR's original build-story decision (Option 2, chosen
+above) for the two samples specifically down to Option 1 (project
+references only) — the packed-artifact-divergence risk that motivated
+Option 2 is still covered, just by a mechanism this ADR didn't originally
+name: [ADR-0031](0031-public-preview-release-and-versioning-policy.md)'s
+package-readiness checklist already runs a real packed-consumer smoke test
+(`test/Compono.XunitV3.SampleTests`, in `package-validation.yaml`) against
+the same four publishable packages the samples themselves reference, so
+the "does this build against what actually ships" question is answered
+once, centrally, rather than duplicated per downstream consumer. Extending
+that same packed-verification mode to each sample individually remains
+possible later if real evidence shows it's needed (e.g. a packaging defect
+that only reproduces through a sample's specific dependency shape) — this
+amendment narrows the *current* decision, it doesn't rule that out.
+
 ## Links
 
 - [ADR-0030](0030-compono-documentation-architecture.md) — Amendment 1's

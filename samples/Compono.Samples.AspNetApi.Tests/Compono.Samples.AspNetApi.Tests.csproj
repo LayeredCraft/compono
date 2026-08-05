@@ -12,9 +12,6 @@
          in this repo (see test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj). -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
-    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
-    <RestorePackagesPath Condition="'$(UsePackedPackages)' == 'true'">$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,21 +29,16 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
 
-  <!-- The API app under test is always a ProjectReference - it's this sample's own code, never a
-       published package. -->
-  <ItemGroup>
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../Compono.Samples.AspNetApi/Compono.Samples.AspNetApi.csproj" />
-  </ItemGroup>
-
-  <!-- Dev inner loop (default, per ADR-0033's chosen build story): ProjectReference to
-       Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus source, fast iteration without a
-       local-feed round-trip. Compono.Generators itself is referenced separately, Analyzer-only,
+  <!-- ProjectReference to Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus source and to
+       the API app under test, matching every other test project in this repo (e.g.
+       test/Compono.XunitV3.Tests). Compono.Generators itself is referenced separately, Analyzer-only,
        exactly like Compono.csproj references it for its own compilation
        (docs/adr/0003-generator-package-distribution.md) - a plain ProjectReference chain doesn't
        flow an upstream project's own Analyzer-only ProjectReference transitively (only a packed
        .nupkg's analyzers/dotnet/cs folder does that), so without this the generator would never run
-       against this sample's own composed types in dev mode. -->
-  <ItemGroup Condition="'$(UsePackedPackages)' != 'true'">
+       against this sample's own composed types. -->
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Compono.Samples.AspNetApi/Compono.Samples.AspNetApi.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
@@ -55,28 +47,5 @@
                        OutputItemType="Analyzer"
                        ReferenceOutputAssembly="false" />
   </ItemGroup>
-
-  <!-- Acceptance verification (dotnet test -p:UsePackedPackages=true): restores the real packed
-       .nupkgs from the local feed instead of source, proving this sample builds against what an
-       external consumer actually installs - ADR-0033's "packed-package verification for
-       acceptance" half of its chosen build story. -->
-  <ItemGroup Condition="'$(UsePackedPackages)' == 'true'">
-    <PackageReference Include="Compono.XunitV3" />
-    <PackageReference Include="Compono.NSubstitute" />
-    <PackageReference Include="Compono.Bogus" />
-  </ItemGroup>
-
-  <!-- This project's own nuget.config lists the local feed as a package source unconditionally
-       (restore fails with NU1301 "local source doesn't exist" if the directory is simply absent,
-       even when nothing actually needs to resolve from it) - so the directory must exist before
-       every restore, dev mode or not. Only the actual pack-and-populate step is gated to
-       packed-verification mode; reuses Compono.XunitV3.SampleTests' own pack-to-local-feed.sh
-       rather than a second copy of the same script, per ADR-0033's "reused here, not reinvented"
-       build-story rationale. -->
-  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
-    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
-    <Exec Condition="'$(UsePackedPackages)' == 'true'"
-          Command="&quot;$(MSBuildThisFileDirectory)../../test/Compono.XunitV3.SampleTests/pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
-  </Target>
 
 </Project>

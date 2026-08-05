@@ -126,15 +126,3 @@ jobs:
           dotnet test test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj \
             -c Release \
             -- --filter-not-class "Compono.XunitV3.SampleTests.FailingCompositionTests"
-
-      - name: Local-feed packed-consumer smoke test - samples
-        # ADR-0033's build story: both launch samples use ProjectReference day to day (Compono.slnx's
-        # own build/test above already covers that), and are additionally verified once against the
-        # real packed .nupkgs here - the same local-feed pattern as the smoke test above, reused via
-        # each sample's own PackToLocalFeed target (-p:UsePackedPackages=true switches its
-        # ProjectReferences to the four publishable packages over to PackageReference).
-        run: |
-          dotnet test samples/Compono.Samples.BasicUsage/Compono.Samples.BasicUsage.csproj \
-            -c Release -p:UsePackedPackages=true
-          dotnet test samples/Compono.Samples.AspNetApi.Tests/Compono.Samples.AspNetApi.Tests.csproj \
-            -c Release -p:UsePackedPackages=true

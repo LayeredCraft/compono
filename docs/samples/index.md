@@ -16,13 +16,14 @@ short overview linking out to it, not the code itself.
 | [ASP.NET API](aspnet-api.md) | The full ecosystem in one realistic API: a `[Shared]` NSubstitute substitute injected into the system under test, `Compono.Bogus`-generated request data, inline plus composed theory values, and one integration-style endpoint test. | `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus` |
 
 Both samples restore against `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/
-`Compono.Bogus` via a `ProjectReference` day to day (this repository's own
-fast inner loop), and are additionally verified once against the real
-packed `.nupkg`s as a standing CI gate — proving the samples build against
-what an external consumer actually installs, not only against source. See
-[ADR-0033](../adr/0033-public-preview-samples-strategy.md) for the full
-build/verification story and why these two, specifically, are the launch
-set.
+`Compono.Bogus` via a `ProjectReference`, matching every other project in
+this repository — the same package-readiness CI gates that already verify
+the four publishable packages against a real packed consumer (Phase 0's
+`Compono.XunitV3.SampleTests`) cover the packed-artifact risk without
+needing every downstream project, including these two samples, to
+duplicate that verification itself. See
+[ADR-0033](../adr/0033-public-preview-samples-strategy.md) for why these
+two, specifically, are the launch set.
 
 ## Future candidates
 

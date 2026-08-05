@@ -380,12 +380,14 @@ back to) and Phase 0 (packed-package verification needs hardened
 packages).
 
 - [x] `samples/Compono.Samples.BasicUsage/` — real project, added to
-      `Compono.slnx`, `ProjectReference`s during authoring.
-      `docs/samples/basic-usage.md` overview page. Demonstrates
-      `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a reusable
-      profile (registration + member rule), `[Compose<TProfile>]`, and
-      both seed-reproduction paths. `Compono.Generators` is referenced as
-      a separate Analyzer-only `ProjectReference` (matching how
+      `Compono.slnx`, plain `ProjectReference`s (see
+      [ADR-0033 Amendment 1](../adr/0033-public-preview-samples-strategy.md#amendment-1-2026-08-05-samples-use-projectreference-only-no-packed-verification-mode)
+      for why the packed-verification mode this task originally scoped
+      was dropped). `docs/samples/basic-usage.md` overview page.
+      Demonstrates `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a
+      reusable profile (registration + member rule), `[Compose<TProfile>]`,
+      and both seed-reproduction paths. `Compono.Generators` is referenced
+      as a separate Analyzer-only `ProjectReference` (matching how
       `Compono.csproj` itself references it) — a plain `ProjectReference`
       chain doesn't flow an upstream project's own analyzer-only
       reference transitively, only a packed `.nupkg`'s
@@ -409,14 +411,20 @@ packages).
       samples' Phase 5 (PLAN-0007) stub pages
       (`docs/samples/{cqrs,clean-architecture,minimal-apis,mediatr,ef-core}.md`)
       and their five `mkdocs.yml` nav entries.
-- [x] Local-feed packed-package verification job for both samples
-      (`package-validation.yaml`'s new "Local-feed packed-consumer smoke
-      test - samples" step) — reuses Phase 0's local-feed infrastructure
-      via each sample's own `PackToLocalFeed` target
-      (`-p:UsePackedPackages=true` switches its `ProjectReference`s to
-      the four publishable packages over to `PackageReference` from the
-      local feed). Verified locally against both samples: passes with
-      `-p:UsePackedPackages=true`.
+- [x] **Dropped, not shipped**: a local-feed packed-package verification
+      job for both samples. Both samples' own `nuget.config` would need
+      to list the local feed as an unconditional package source (NuGet
+      has no way to condition a source the way an `ItemGroup` can be
+      conditioned), which made `dotnet restore Compono.slnx` hard-fail
+      with `NU1301` the moment that git-ignored directory was simply
+      absent — true on every fresh checkout, including this repo's own
+      CI, and it broke restore for the *entire* solution, not just the
+      two samples. See
+      [ADR-0033 Amendment 1](../adr/0033-public-preview-samples-strategy.md#amendment-1-2026-08-05-samples-use-projectreference-only-no-packed-verification-mode)
+      for the full account and why the packed-artifact-divergence risk
+      this task was meant to cover is still handled centrally by
+      Phase 0's existing `Compono.XunitV3.SampleTests` packed-consumer
+      smoke test.
 - [x] `cookbook/index.md` (flat, alphabetical, per ADR-0030 Amendment 2's
       deferred-navigation decision — recipes deliberately have no
       `mkdocs.yml` nav entries) plus a first batch of five recipes:
@@ -1208,13 +1216,42 @@ standard ASP.NET Core minimal-API testing pattern.
 **Verified for real, not just "tests pass":** `dotnet build Compono.slnx`
 and `dotnet test Compono.slnx` both run clean — 865 tests total, 0
 failures, 0 warnings, across every project including both new samples.
-Each sample additionally verified against `-p:UsePackedPackages=true`
-(restoring the four publishable packages from a real packed local feed
-instead of `ProjectReference`, per ADR-0033's acceptance-verification
-half) — both pass. The ASP.NET API sample's endpoint test was watched
-running a real HTTP request through real minimal-API routing (visible
+The ASP.NET API sample's endpoint test was watched running a real HTTP
+request through real minimal-API routing (visible
 `Microsoft.AspNetCore.Hosting.Diagnostics`/`EndpointMiddleware` log output
 in the test run), not just asserted against.
+
+**Post-PR correction, same day (PR #52 CI):** the original implementation
+gave each sample a packed-`.nupkg` verification mode
+(`-p:UsePackedPackages=true`, switching its `ProjectReference`s to the
+four publishable packages over to `PackageReference` from a local feed,
+per ADR-0033's originally-chosen build story) — this passed every local
+check, including a manual `rm -rf .local-nuget-feed` re-test, because the
+directory had already been created by an earlier local run and every
+local verification pass silently reused it. CI's genuinely fresh
+checkout had no such directory, and both samples' `nuget.config` files
+listed the local feed as an unconditional package source — NuGet
+validates that a configured source directory exists at restore time
+*before* resolving any package, regardless of whether anything actually
+needs it, so this failed `dotnet restore Compono.slnx` with `NU1301`
+for the **entire solution**, not just the two samples (`build`,
+`build / build`, and `package-validation` all failed identically). A
+first fix (always `MakeDir` the feed directory before restore, gate only
+the actual pack-and-populate step behind `UsePackedPackages`) resolved
+the immediate CI failure and was verified against a genuinely clean
+tree (`rm -rf .local-nuget-feed samples/*/obj samples/*/bin` before
+restoring) — but on direct user feedback ("simplify this and just
+reference the projects directly"), replaced entirely instead: both
+samples now use a plain, unconditional `ProjectReference` with no
+packed-verification mode of their own, no `nuget.config`, and no
+`PackToLocalFeed` target — see
+[ADR-0033 Amendment 1](../adr/0033-public-preview-samples-strategy.md#amendment-1-2026-08-05-samples-use-projectreference-only-no-packed-verification-mode)
+for the full account of what changed and why. Re-verified clean on a
+fresh tree after the simplification: `dotnet build`/`dotnet test`
+`Compono.slnx` both pass (865/865), and `package-validation.yaml`'s new
+"Local-feed packed-consumer smoke test - samples" step was removed
+entirely rather than left referencing a build property that no longer
+exists.
 
 Every Cookbook code sample was compile-and-run verified against real
 Compono source before publishing, not merely reviewed for plausibility —
