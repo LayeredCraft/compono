@@ -24,7 +24,11 @@ public sealed class BasicUsageTests
         var orders = composer.CreateMany<CreateOrder>(3);
 
         orders.Should().HaveCount(3);
-        orders.Should().OnlyHaveUniqueItems();
+        // Reference-distinctness, not OnlyHaveUniqueItems() - CreateOrder is a record, so
+        // value-equal-but-independently-composed instances would pass a value-equality uniqueness
+        // check anyway, which doesn't actually verify the "independent instances" claim CreateMany's
+        // own contract makes.
+        orders.Distinct(ReferenceEqualityComparer.Instance).Should().HaveCount(3);
     }
 
     [Fact]

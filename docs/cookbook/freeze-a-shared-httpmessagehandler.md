@@ -1,7 +1,7 @@
 ---
 title: Freeze a Shared HttpMessageHandler
-description: Compose one HttpMessageHandler substitute and reuse it everywhere a composed row needs it.
-packages: [Compono, Compono.XunitV3, Compono.NSubstitute]
+description: Compose one HttpMessageHandler stub and reuse it everywhere a composed row needs it.
+packages: [Compono, Compono.XunitV3]
 concepts: [shared-values]
 ---
 
