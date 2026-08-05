@@ -1012,11 +1012,14 @@ scored against every ADR-0032 criterion:
 - **Verified with a real `mkdocs build`**, not just inspecting generated
   Markdown (`documentation.md`'s "do real manual verification" bar, applied
   here even though this isn't source-generator-facing — same principle,
-  generated content the tests don't otherwise exercise): `uv run mkdocs
-  build --clean` against the full site including all four packages'
-  generated `reference/api/` content builds clean (the only `WARNING`s are
-  four pre-existing, unrelated broken links to `.claude/skills/`/
-  `.agents/skills/` paths from ADR pages, not touched by this phase).
+  generated content the tests don't otherwise exercise): initially
+  verified non-strict (`uv run mkdocs build --clean`) against the full
+  site including all four packages' generated `reference/api/` content,
+  which built clean apart from four pre-existing, unrelated broken links
+  to `.claude/skills/`/`.agents/skills/` paths from ADR pages. Defect 8
+  below then enabled `--strict` and fixed those same four links — the
+  current, final state is `uv run mkdocs build --clean --strict` exiting
+  0 with zero `WARNING`s, not the earlier non-strict result.
 - **Missing-XML-doc-comment gate**: `DefaultDocumentation` has no
   independent detection of its own (`--IncludeUndocumentedItems=False`
   just silently omits an undocumented public member from output, it
