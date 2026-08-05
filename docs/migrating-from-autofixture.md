@@ -71,7 +71,7 @@ wrapper, though, not something AutoFixture required — plain xUnit
 before this migration too; nothing about AutoFixture forced routing
 through the custom subclass for a row with no composed parameter at all
 (per
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-9--pure-inline-theory-rows-needed-no-autodataattribute-wrapper-even-before-migration-project-local-cleanup)'s
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-9-pure-inline-theory-rows-needed-no-autodataattribute-wrapper-even-before-migration-project-local-cleanup)'s
 Finding 9, migration-only friction, not a framework capability
 difference). What migration did do here is remove that redundant
 project-local wrapper: `[Compose]` is method-scoped
@@ -113,7 +113,7 @@ didn't hit a real test needing the multi-row-plus-composed-parameter
 combination (`TextNormalizerTests`' rows were pure-inline, per above), so
 this is recorded as a discovered constraint, not a blocking gap — but it is a
 real further finding for Milestone 7's evidence beyond the three named gaps.
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-4--compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes)
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-4-compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes)
 classifies this an unexercised constraint (intentional design difference,
 no change) rather than a roadmap candidate — ADR-0029 requires real
 observed frequency and workaround cost before that promotion, and neither
@@ -501,7 +501,7 @@ public async Task Client_UsesTheSharedHandlersConfiguredResponse(
 ask for `HttpClient` directly; Compono needs an extra interface + wrapper
 class because of `CMP0001`'s compile-time-only view. This is itself
 Milestone 7 evidence beyond gap 1's original framing.
-[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-7--cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation)
+[docs/research/0001-autofixture-comparison.md](research/0001-autofixture-comparison.md#finding-7-cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation)
 classifies this an unexercised constraint (intentional design difference,
 no change) rather than a roadmap candidate: the diagnostic only fired
 while porting a capability (`ClientTestProfile`) with zero real

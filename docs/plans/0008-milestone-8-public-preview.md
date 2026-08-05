@@ -313,7 +313,7 @@ Started.
 
 ## Phase 3: Package guides, migration guide, troubleshooting, reference
 
-**Status:** Not Started
+**Status:** Done
 
 Content with the most existing raw material to draw from (Milestone 7's
 research/migration-guide evidence, real diagnostics already shipped) —
@@ -321,22 +321,33 @@ sequenced after Phase 2 (assumes Concepts) and Phase 0 (packages must be
 final-shaped to describe accurately) and Phase 1 (`reference/diagnostics.md`/
 `glossary.md` complete the Reference section Phase 1 started).
 
-- [ ] `packages/index.md` (ecosystem map table), `packages/compono.md`,
+- [x] `packages/index.md` (ecosystem map table), `packages/compono.md`,
       `packages/compono-xunitv3.md`, `packages/compono-nsubstitute.md`,
       `packages/compono-bogus.md`.
-- [ ] Polish `docs/migrating-from-autofixture.md` to publication-ready
+- [x] Polish `docs/migrating-from-autofixture.md` to publication-ready
       (content refinement only, per ADR-0030's "content-stable" framing —
-      no structural change).
-- [ ] `troubleshooting/index.md`, `troubleshooting/common-errors.md`
+      no structural change). Reviewed against real headers/anchors; no
+      content changes needed beyond fixing 3 pre-existing broken same-file
+      anchor links into `research/0001-autofixture-comparison.md` (Findings
+      4/7/9 — a double-hyphen left over from the source em dash, not
+      collapsed to the single hyphen `toc`'s slugifier actually produces),
+      caught by this phase's own `mkdocs build --strict` verification.
+- [x] `troubleshooting/index.md`, `troubleshooting/common-errors.md`
       (start from the real `CMP0001` finding), `troubleshooting/faq.md`
       (start from the real gap-3 "why fail-fast" finding).
-- [ ] `reference/diagnostics.md` (every `CMP` code), `reference/glossary.md`.
-- [ ] Explicit known-limitations content, surfaced from Getting Started,
+- [x] `reference/diagnostics.md` (every `CMP` code), `reference/glossary.md`.
+- [x] Explicit known-limitations content, surfaced from Getting Started,
       Package Guides, Troubleshooting, and release notes (not one
       obscure page) — sourced from `docs/research/0001-autofixture-comparison.md`'s
       recorded findings (`CMP0001`, fail-fast recursion vs. omission, the
       Compose-family stacking constraint, `Compono.Bogus`'s exact
       member-name-matching limits) plus `docs/mvp.md`'s Non-goals list.
+      Each Package Guide carries its own "What it deliberately doesn't do"
+      section; `troubleshooting/index.md` aggregates a "Known limitations"
+      pointer to all four plus `mvp.md`'s Non-goals; Getting Started's
+      `next-steps.md` already linked to Troubleshooting, so no separate
+      edit was needed there to make the content reachable from that entry
+      point too.
 
 ## Phase 4: Samples, cookbook, best practices
 
@@ -1066,3 +1077,40 @@ scored against every ADR-0032 criterion:
   public API surface, and generating from both would either double the
   work for no additional coverage or require picking one to diff against
   anyway.
+
+### Phase 3 (2026-08-05)
+
+Package Guides written directly against each package's real public API
+(`.csproj` `Description`, `NSubstituteOptions`, `BogusConventions`' ten-name
+allowlist) and cross-linked into the existing Concepts pages rather than
+re-explaining them. `troubleshooting/common-errors.md` splits into two
+index dimensions per its own skeleton brief: by `CMP` diagnostic code
+(compile-time, linking into `reference/diagnostics.md`) and by symptom
+(runtime `CompositionException`/`CompositionConfigurationException`, which
+carry no diagnostic code at all — only a path-annotated message and a
+reproducible seed via `CompositionDiagnostic`). `reference/diagnostics.md`
+covers all twelve `CMP0001`-`CMP0012` codes from
+`src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` directly (message,
+cause, fix each), not a partial set.
+
+**Verified with a real `uv run mkdocs build --clean --strict`** (this
+phase isn't source-generator-facing, but the same "do real manual
+verification" bar applies to generated/cross-linked documentation content
+per `documentation.md`): exit 0, zero new broken-link warnings introduced
+by this phase's own new pages. Caught and fixed one real defect during
+this verification: `troubleshooting/faq.md`'s new link into
+`reference/diagnostics.md#cmp0001-...` used a double hyphen where the
+source heading's em dash (`CMP0001 — Ambiguous construction path`) needed
+to collapse to a single hyphen — confirmed against the actual generated
+`id` attribute in the built HTML, not guessed. The same double-hyphen
+mistake turned out to already exist in `docs/migrating-from-autofixture.md`
+from before this phase (three links into
+`research/0001-autofixture-comparison.md`'s Finding 4/7/9 anchors) — fixed
+in the same pass as this phase's "polish the migration guide" task, since
+it's a real dead link the same verification step surfaced, not a
+structural change to the guide's content. Three pre-existing, unrelated
+anchor mismatches remain (a `plans/0008` self-link into `plans/0007`'s
+Phase 5 section, and two research-doc-internal Finding cross-references) —
+all `INFO`-level, not `WARNING`, so `--strict` doesn't fail the build on
+them; left for Phase 7's dedicated site-wide link pass rather than fixed
+here, since none are in a file this phase's Tasks own.
