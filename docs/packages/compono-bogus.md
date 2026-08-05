@@ -36,8 +36,12 @@ var customer = composer.Create<Customer>();
   instead of an anonymous one. This is a conservative, fixed allowlist —
   not a general NLP/fuzzy match — deliberately, so a member's generated
   value is predictable from its name.
-- **`BogusOptions.AddAlias`/`AddConvention`** — extend the allowlist with
-  your own member names, mapped to one of the built-in generators.
+- **`BogusOptions.AddAlias(name, BogusConvention)`** — an additional exact
+  member name that reuses one of the *built-in* generators (e.g.
+  `AddAlias("GivenName", BogusConvention.FirstName)`).
+- **`BogusOptions.AddConvention(name, Func<Faker, string>)`** — an
+  additional exact member name with your own *custom* generator delegate,
+  for a value the built-in list has no equivalent for at all.
 - **`UseBogus<T>(Action<Faker<T>> configureFaker)`** — whole-object sugar:
   builds a `Faker<T>` seeded from the current composition's own
   deterministic seed (`context.DeriveSeed()`) before invoking your

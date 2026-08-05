@@ -33,8 +33,11 @@ composer's own `Create<T>()`.
   nested dependency) in the same row that requests the same type. See
   [Shared Values](../concepts/shared-values.md).
 - **`Compose(Seed = ...)`** — reproduce a specific composed row exactly;
-  every row is also tagged with a `Compono.Seed` trait, and a failure's
-  message includes the seed that produced it. See
+  every row is also tagged with a `Compono.Seed` trait, and a *composition*
+  failure's message includes the seed that produced it. For an assertion
+  failure in the test body — composition succeeded, but the test itself
+  failed — the message won't have it; use the `Compono.Seed` trait
+  instead. See
   [Determinism and Seeding](../concepts/determinism-and-seeding.md).
 
 ## What it deliberately doesn't do
