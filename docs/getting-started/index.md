@@ -16,12 +16,15 @@ do all of those pieces fit together into one deterministic result?
 
 A `Composer` is built once per test (or once per profile, reused across
 tests) from a declarative configuration: registrations, type/member rules,
-profiles, and provider extensions like `UseNSubstitute()`/`UseBogus()`. From
-that configuration, Compono's source generator produces the actual
-construction code at compile time — there's no reflection-based fallback in
-the default path, so what runs in your test is regular, debuggable,
-AOT-friendly C#, not a runtime specimen builder walking your type via
-`Activator.CreateInstance`.
+profiles, and provider extensions like `UseNSubstitute()`/`UseBogus()`.
+Compono's source generator doesn't read that configuration directly — at
+compile time, from each composed type's own shape (constructor, required
+members), it emits a structural construction plan; that plan runs at
+runtime and is *that* runtime execution which consults your configuration
+(registrations, rules, providers) for each value it needs. There's no
+reflection-based fallback in the default path, so what actually runs in
+your test is regular, debuggable, AOT-friendly C#, not a runtime specimen
+builder walking your type via `Activator.CreateInstance`.
 
 ```csharp
 var composer = Composer.Create(builder =>

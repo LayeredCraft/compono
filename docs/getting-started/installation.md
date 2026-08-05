@@ -54,10 +54,10 @@ A minimal smoke check once the packages are added:
 ```csharp
 using Compono;
 
-public sealed class InstallationCheck;
-
 var composer = Composer.Create();
 var value = composer.Create<InstallationCheck>();
+
+public sealed class InstallationCheck;
 ```
 
 Use a plain user-defined type here, not a built-in one like `int` — a
