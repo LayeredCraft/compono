@@ -377,8 +377,8 @@ Package Guides once the reader has decided what to adopt.
 ## 7. Package Guides
 
 **Audience:** someone deciding whether/how to adopt a specific package.
-**Status:** skeleton exists (all 5 pages — placeholder only, no real
-content yet).
+**Status:** real content, all 5 pages
+([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 3).
 **Purpose:** the ecosystem-level "what is this package for" question, one
 page per package.
 **Contents:** per package (`compono.md`, `compono-xunitv3.md`,
@@ -472,8 +472,8 @@ re-deriving the reasoning.
 
 **Audience:** anyone stuck, at any point — reachable from anywhere, not a
 step in the linear reading order.
-**Status:** skeleton exists (all 3 pages — placeholder only, no real
-content yet).
+**Status:** real content, all 3 pages
+([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 3).
 **Purpose:** fast path from "something's wrong" to a fix.
 **Contents:**
 - `common-errors.md` — indexed by diagnostic code (e.g. `CMP0001`, the
@@ -493,8 +493,8 @@ not just how to fix it.
 **Status:** `api/` generated for all four publishable packages, per
 [ADR-0032](adr/0032-api-reference-documentation-toolchain.md)
 ([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 1);
-`index.md` written; `diagnostics.md`/`glossary.md` remain Milestone 7
-Phase 5 placeholders, filled in by Phase 3.
+`index.md`/`diagnostics.md`/`glossary.md` all real content
+([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 3).
 **Purpose:** authoritative, exhaustive, not meant to be read start to end.
 **API reference supplements the documentation — it never replaces it.** A
 reader should be able to learn Compono entirely through Getting Started,

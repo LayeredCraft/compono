@@ -9,7 +9,7 @@
          xunit.v3.core.mtp-v1, whose Microsoft.Testing.Platform version is incompatible with
          a directly-referenced/newer Microsoft.Testing.Platform and throws TypeLoadException
          (IDataConsumer) at test-host startup. -->
-    <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.2" />
+    <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
@@ -68,10 +68,10 @@
          of taking a package dependency on that one - see the attribution comment on the vendored
          file. Its GetHashCode() uses System.HashCode, provided for netstandard2.0 by
          Meziantou.Polyfill below, rather than a second vendored HashCode polyfill. -->
-    <PackageVersion Include="Scriban" Version="7.2.5" />
+    <PackageVersion Include="Scriban" Version="7.2.6" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.157" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.158" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
