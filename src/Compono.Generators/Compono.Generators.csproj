@@ -45,6 +45,9 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Compono.Generators.Tests" />
+        <!-- SourceGeneration/GeneratorDriverBenchmarks.cs (ADR-0034) constructs
+             ComponoIncrementalGenerator directly, the same way Compono.Generators.Tests does. -->
+        <InternalsVisibleTo Include="Compono.Benchmarks" />
     </ItemGroup>
 
 </Project>

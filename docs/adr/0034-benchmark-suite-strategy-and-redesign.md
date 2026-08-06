@@ -365,3 +365,81 @@ this gets tracked once there's real evidence it's needed).
   implement.
 - `benchmarks/Compono.Benchmarks/` — the existing suite this ADR
   replaces.
+
+## Amendment (2026-08-05): Implementation Strategies removed — it compares different systems, not one variable
+
+Implemented, then reconsidered after direct review of the actual
+published results (see
+[architecture/current/performance.md](../architecture/current/performance.md)'s
+history): the Implementation Strategies category (Handwritten/Generated/
+Cached-Reflection/Uncached-Reflection) is **removed**, not just
+re-framed. This is a correction to this ADR's original category
+taxonomy, not a reversal of the suite redesign itself — the reused
+model set, the remaining five categories, the fair comparison rules, and
+the reporting rules all stand exactly as originally decided.
+
+**Why removal, not better framing.** A prior documentation pass already
+tried reframing this category's results (explaining that `Generated`
+measures the whole pipeline, not construction) rather than removing it.
+That reframing was accurate but didn't fix the underlying problem: the
+category still doesn't isolate one variable. `Handwritten`, `Cached`/
+`UncachedReflection`, and `Generated` are not three implementations of
+the same job — they're three systems doing different, non-comparable
+amounts of work (bare construction; construction plus real value
+generation; a full multi-stage resolution pipeline with provider
+dispatch, diagnostics tracing, deterministic random forking, and an
+extensibility surface that in an unconfigured `Composer` is guaranteed
+to miss on every stage before the one that actually produces a value).
+A result like "reflection is 3x faster than generated" doesn't identify
+*why* — the gap could be diagnostics, provider dispatch, deterministic
+randomness, the trace buffer, or any other pipeline behavior, and the
+benchmark itself gives no way to attribute it to one of those. It's
+interesting, but it doesn't guide an engineering decision, which this
+ADR's own Decision Drivers already required ("every benchmark must have
+a stated purpose; a benchmark that no longer answers a meaningful
+question should be deleted").
+
+**Revised philosophy.** Every benchmark in this suite must now satisfy
+at least one of four concrete goals:
+
+1. It measures the runtime cost of a specific Compono feature.
+2. It measures Compono's scalability.
+3. It measures Compono's build-time (source-generation) cost.
+4. It measures the migration experience from AutoFixture.
+
+A benchmark that can't be tied to one of these shouldn't exist. This
+sharpens (not reverses) the original "engineering questions first,
+marketing second" philosophy: "engineering question" now means one of
+the four goals above, not any comparison between implementations that
+happens to be interesting.
+
+**AutoFixture is the only remaining external comparison, and stays for a
+different reason than Implementation Strategies did.** External
+Comparison survives this amendment because it satisfies goal 4 directly:
+AutoFixture solves the same problem Compono does (composing object
+graphs, generating values, handling nested objects, extensibility), so
+"what happens if I replace AutoFixture with Compono" is a real adoption
+question with an actionable answer, not an unattributable one — unlike
+Handwritten/reflection, which were never alternatives a real consumer
+chooses between.
+
+**What's removed:**
+- The `ImplementationStrategies/` benchmark category (`SimplePocoConstructionBenchmarks.cs`,
+  `MediumAggregateConstructionBenchmarks.cs`).
+- `Baselines/HandwrittenComposer.cs`, `Baselines/CachedReflectionComposer.cs`,
+  `Baselines/UncachedReflectionComposer.cs` — dead once
+  `ImplementationStrategies/` is gone; no other category ever referenced
+  them. `Baselines/AutoFixtureComposer.cs` stays (External Comparison's
+  only remaining consumer).
+- The "Implementation strategies" section of
+  `architecture/current/performance.md`, and every rule text above that
+  named it specifically (the rules themselves — baseline parity, honest
+  publication, full environment disclosure, etc. — still apply to every
+  remaining category; only the Implementation-Strategies-specific
+  wording is superseded by this Amendment).
+
+**What's unchanged**: `Models/`, `Baselines/AutoFixtureComposer.cs`,
+`ConsumerScenarios/`, `ExternalComparison/`, `FeatureOverhead/`,
+`Scalability/`, `SourceGeneration/`, every fair comparison and reporting
+rule not specific to Implementation Strategies, and the regression-
+detection-readiness decision. Five categories remain, not six.

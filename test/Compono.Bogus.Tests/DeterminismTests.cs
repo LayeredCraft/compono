@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Compono.Bogus.Tests;
 
 /// <summary>
@@ -85,6 +87,43 @@ public sealed class DeterminismTests
 
         five.Should().OnlyHaveUniqueItems();
         five.Take(3).Should().Equal(three);
+    }
+
+    [Fact]
+    public async Task TryProvide_ProducesCorrectValues_WhenCalledConcurrently_OnOneSharedProviderInstance()
+    {
+        // BogusMemberNameProvider caches one Faker per thread (ADR-0027's Amendment) instead of
+        // constructing one per request - this proves that reuse is actually safe under real
+        // concurrent access, not just assumed safe because no test caught a problem. One provider
+        // instance, shared across every concurrent composition below (the scenario ADR-0027's
+        // original "package-lifetime-shared instance" concern is about), driven by
+        // Parallel.ForEachAsync so calls genuinely overlap across the thread pool rather than
+        // running sequentially one at a time.
+        var provider = new BogusMemberNameProvider("en");
+        var results = new ConcurrentBag<(int Seed, string Value)>();
+
+        await Parallel.ForEachAsync(Enumerable.Range(0, 200), async (seed, _) =>
+        {
+            var value = Composer.Create(builder => builder.WithSeed(seed).AddSemanticProvider(provider))
+                .CreateRow(typeof(DeterminismTests))
+                .Resolve<string>(EmailDescriptor);
+
+            results.Add((seed, value));
+            await Task.CompletedTask;
+        });
+
+        // Each seed's concurrently-produced value must match what a fresh, independent,
+        // single-threaded resolution for that same seed produces - proving no cross-call state
+        // leaked between threads sharing the reused Faker, not just that nothing threw.
+        results.Should().HaveCount(200);
+        foreach (var (seed, value) in results)
+        {
+            var expected = Composer.Create(builder => builder.WithSeed(seed).AddSemanticProvider(new BogusMemberNameProvider("en")))
+                .CreateRow(typeof(DeterminismTests))
+                .Resolve<string>(EmailDescriptor);
+
+            value.Should().Be(expected);
+        }
     }
 
     private static CompositionRequestDescriptor EmailDescriptor =>

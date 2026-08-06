@@ -62,14 +62,21 @@ public sealed class BogusOptions
 
     /// <summary>
     /// Adds a custom exact-name convention: a member named exactly <paramref name="memberName"/>
-    /// resolves to <paramref name="generate"/>'s result, called against a request-local,
+    /// resolves to <paramref name="generate"/>'s result, called against a
     /// <c>context.DeriveSeed()</c>-seeded <see cref="Faker"/> - the same determinism contract every
     /// other value in this package follows. Validated and applied eagerly, immediately, against this
     /// <see cref="BogusOptions"/> instance's own accumulated state - not deferred to
     /// <c>UseBogus(...)</c> returning, and not detected across separate <c>UseBogus(...)</c> calls.
     /// </summary>
     /// <param name="memberName">The exact member name to match.</param>
-    /// <param name="generate">Produces this member's value from a seeded <see cref="Faker"/>.</param>
+    /// <param name="generate">
+    /// Produces this member's value from a seeded <see cref="Faker"/>. The <see cref="Faker"/>
+    /// instance is reused across later, unrelated requests on the same thread (per
+    /// <see cref="BogusMemberNameProvider"/>'s own performance design) - always freshly reseeded
+    /// before <paramref name="generate"/> is called, so read its randomness normally, but never
+    /// retain the instance past this call or rely on any state it carries beyond
+    /// <c>Faker.Random</c>.
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="memberName"/> or <paramref name="generate"/> is <see langword="null"/>.
     /// </exception>

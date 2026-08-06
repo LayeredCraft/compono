@@ -28,14 +28,32 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     </ItemGroup>
 
+    <!-- ADR-0034's SourceGeneration category drives ComponoIncrementalGenerator directly via
+         CSharpGeneratorDriver (not through an analyzer build reference), the same way
+         test/Compono.Generators.Tests does - needs a real compilation reference set to build
+         against, matching that project's own pattern exactly. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+        <PackageReference Include="Basic.Reference.Assemblies.Net110" />
+    </ItemGroup>
+
     <ItemGroup>
         <!-- Referenced normally so benchmark code compiles against Composer/ICompositionPlan<T>. -->
         <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
-        <!-- Analyzer-only, so the generator actually runs against the types declared in this
-             project - matching how test/Compono.Generators.Tests and Compono.csproj itself
-             both reference Compono.Generators. -->
+        <!-- Both an analyzer (so the generator runs against this project's own composable types,
+             matching Compono.csproj's pattern) and a normal compile reference (so
+             SourceGeneration/GeneratorDriverBenchmarks.cs can drive ComponoIncrementalGenerator
+             directly in-process, matching Compono.Generators.Tests' pattern) - ADR-0034 needs
+             both from the same project, not two separate references to it. -->
         <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
-                           OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+                           OutputItemType="Analyzer" />
+        <!-- ConsumerScenarios/ProviderEnabledBenchmarks and FeatureOverhead/ProviderOverheadBenchmarks
+             exercise UseNSubstitute()/UseBogus() (ADR-0034) - no prior benchmark referenced either
+             package. -->
+        <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
+        <ProjectReference Include="..\..\src\Compono.Bogus\Compono.Bogus.csproj" />
     </ItemGroup>
 
 </Project>

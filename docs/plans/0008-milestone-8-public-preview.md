@@ -446,7 +446,7 @@ packages).
 
 ## Phase 5: Architecture consolidation, legacy retirement, and benchmark suite redesign
 
-**Status:** In Progress
+**Status:** Done
 
 Executes ADR-0030 Amendment 2's "one canonical home" principle for the
 architecture/roadmap documentation, and — added after this phase's
@@ -502,74 +502,163 @@ design and implement the new suite first, produce real results from it,
 *then* write the page — this phase does not narrate a redesign still in
 progress.
 
-- [ ] Design the benchmark strategy from first principles: the question
+- [x] Design the benchmark strategy from first principles: the question
       set, audiences, and category taxonomy — done as
       [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)
-      (`Accepted`). No further design task here; this line just records
-      that the ADR is this sub-phase's starting point, not a step still
-      to do.
-- [ ] Define and implement the reused `Models/` set (`SimplePoco`,
-      `MediumAggregate`, `DeepGraph`, `LargeCollection`,
-      `SharedValueGraph`, `ProviderBackedModel`) and `Baselines/`
-      (`HandwrittenComposer`, `CachedReflectionComposer`,
-      `UncachedReflectionComposer`, `AutoFixtureComposer`) — replacing
+      (`Accepted`).
+- [x] Define and implement the reused `Models/` set (`SimplePoco`,
+      `MediumAggregate`/`Address`, `DeepGraph` (`DeepLevel2`-`8`),
+      `LargeCollection`, `SharedValueGraph` (`SharedContext`/
+      `ConsumerOne`/`ConsumerTwo`), `ProviderBackedModel` (`IClock`/
+      `FixedClock`)) and `Baselines/` (`AutoFixtureComposer`) — replaced
       `BenchmarkTypes.cs`, `ResolutionBenchmarkTypes.cs`,
       `ReflectionComposer.cs`, `AutoFixtureComposer.cs`.
-- [ ] Implement `ImplementationStrategies/` (construction-technique
-      benchmarks: handwritten construction as the theoretical ceiling,
-      generated composition, cached reflection, uncached reflection —
-      in that order, parameterized across the model set) — replaces
-      `ArchitectureBenchmarks.cs` and `ResolutionArchitectureBenchmarks.cs`.
-- [ ] Implement `ConsumerScenarios/` (simple POCO, medium aggregate, deep
-      graph, large collection, shared value, Bogus-enabled,
-      NSubstitute-enabled) — new; no prior equivalent existed.
-- [ ] Implement `ExternalComparison/` (AutoFixture, equivalent work
-      across the same model set, both-directions honest reporting) —
-      replaces `EcosystemBenchmarks.cs` and
-      `ResolutionEcosystemBenchmarks.cs`.
-- [ ] Implement `FeatureOverhead/` (additive layering: generated only →
-      + shared values → + member rules → + type rules → + providers →
-      + `UseBogus()` → + `UseNSubstitute()`) — new; no prior equivalent
-      existed.
-- [ ] Implement `Scalability/` (`CreateMany` at 1/10/100/1000, shallow
-      vs. deep graphs, growing collection sizes) — replaces
-      `ResolutionBenchmarks.cs` and `DeepGraphBenchmarks.cs`'s
-      construction, generalizing the latter's one-off trace-buffer-resize
-      question into a real shallow-vs-deep comparison.
-- [ ] Implement `SourceGeneration/` (in-process `GeneratorDriver`
-      benchmarks: clean vs. incremental generation, across a
-      composable-type-count matrix) — new; no prior equivalent existed.
-      Requires `Compono.Generators` as an ordinary (non-analyzer)
-      `ProjectReference` in addition to its existing analyzer reference,
-      so benchmark code can drive it directly.
-- [ ] Add `Compono.NSubstitute`/`Compono.Bogus` `ProjectReference`s to
+- [x] ~~Implement `ImplementationStrategies/`~~ — implemented
+      (`SimplePocoConstructionBenchmarks.cs`/
+      `MediumAggregateConstructionBenchmarks.cs`, handwritten-as-ceiling/
+      generated/cached-reflection/uncached-reflection), then **removed**
+      per [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed--it-compares-different-systems-not-one-variable):
+      the category compared different systems doing different amounts of
+      work (bare construction vs. a full resolution pipeline), not one
+      isolated variable, so a result from it couldn't be attributed to a
+      specific cause or guide an optimization decision. Its `Baselines/`
+      (`HandwrittenComposer`, `CachedReflectionComposer`,
+      `UncachedReflectionComposer`) were deleted alongside it — no other
+      category referenced them. `ArchitectureBenchmarks.cs`/
+      `ResolutionArchitectureBenchmarks.cs` (the old files this category
+      was meant to replace) are still correctly deleted below; their
+      question just doesn't get a new home.
+- [x] Implement `ConsumerScenarios/` — `RepresentativeModelBenchmarks.cs`
+      (simple POCO, medium aggregate, deep graph, large collection),
+      `SharedValueBenchmarks.cs` (`CreateRow`/`ResolveShared`),
+      `ProviderEnabledBenchmarks.cs` (Bogus-enabled, NSubstitute-enabled)
+      — new; no prior equivalent existed.
+- [x] Implement `ExternalComparison/` — split into
+      `SimplePocoComparisonBenchmarks.cs`/
+      `MediumAggregateComparisonBenchmarks.cs` (one file per model, so
+      each class's `[Benchmark(Baseline = true)]` ratio stays meaningful
+      — a single class covering both models would compute every ratio
+      against one model's baseline) — replaces `EcosystemBenchmarks.cs`
+      and `ResolutionEcosystemBenchmarks.cs`.
+- [x] Implement `FeatureOverhead/` — diverged from the plan's literal
+      additive chain (a single `Composer` can't coherently stack a
+      `CreateRow`-based sharing step onto a `Create<T>()`-based rule
+      step): `ConfigurationOverheadBenchmarks.cs` (generated-only vs.
+      +member-rule vs. +type-rule vs. +custom-provider, all on
+      `MediumAggregate`), `SharingOverheadBenchmarks.cs` (row without
+      sharing vs. with sharing, both via `CreateRow`),
+      `BogusOverheadBenchmarks.cs`/`NSubstituteOverheadBenchmarks.cs`
+      (pairwise: the cheapest alternative mechanism vs. the package
+      provider, isolating exactly one member's resolution) — new; no
+      prior equivalent existed.
+- [x] Implement `Scalability/` — `BatchScalingBenchmarks.cs`
+      (`CreateMany` at 1/10/100/1000), `GraphDepthScalingBenchmarks.cs`
+      (shallow `MediumAggregate` vs. deep `DeepGraph`),
+      `CollectionSizeScalingBenchmarks.cs` (3/10/50/200-element
+      collections) — replaces `ResolutionBenchmarks.cs` and
+      `DeepGraphBenchmarks.cs`'s construction, generalizing the latter's
+      one-off trace-buffer-resize question into a real shallow-vs-deep
+      comparison.
+- [x] Implement `SourceGeneration/` — `GeneratorDriverBenchmarks.cs`
+      (in-process `GeneratorDriver`, clean vs. incremental generation
+      across a 1/10/50 composable-type-count matrix) — new; no prior
+      equivalent existed. The incremental compilation is derived from
+      the clean one via `Compilation.ReplaceSyntaxTree` (not built as an
+      independently-parsed `CSharpCompilation`), since Roslyn's
+      incremental-generator cache is keyed on compilation/tree identity
+      — two separately-constructed compilations look entirely unrelated
+      to the driver even with near-identical source text, which would
+      silently defeat the whole point of the incremental-vs-clean
+      comparison. `Compono.Generators` changed from analyzer-only
+      (`ReferenceOutputAssembly="false"`) to *also* a normal compile
+      reference on the same `ProjectReference` item (not a second,
+      separate reference to the same project), plus
+      `InternalsVisibleTo="Compono.Benchmarks"` added to
+      `Compono.Generators.csproj` so this class can construct
+      `ComponoIncrementalGenerator` directly, matching
+      `Compono.Generators.Tests`' own pattern.
+- [x] Add `Compono.NSubstitute`/`Compono.Bogus` `ProjectReference`s to
       `Compono.Benchmarks.csproj` (needed by `ConsumerScenarios/` and
       `FeatureOverhead/`'s provider-enabled cases; not needed previously
-      since no prior benchmark exercised either package).
-- [ ] Delete `ArchitectureBenchmarks.cs`, `EcosystemBenchmarks.cs`,
+      since no prior benchmark exercised either package). Also added
+      `Basic.Reference.Assemblies.Net100`/`Net110` (conditional on
+      `$(TargetFramework)`), needed to build a real reference-assembly
+      set for `SourceGeneration/`'s in-process compilations, matching
+      `Compono.Generators.Tests`' own pattern.
+- [x] Delete `ArchitectureBenchmarks.cs`, `EcosystemBenchmarks.cs`,
       `ResolutionArchitectureBenchmarks.cs`,
       `ResolutionEcosystemBenchmarks.cs`, `ResolutionBenchmarks.cs`,
       `DeepGraphBenchmarks.cs`, `BenchmarkTypes.cs`,
       `ResolutionBenchmarkTypes.cs` once every question they answered has
       a home in the categories above — no benchmark class straddles the
       old and new structure once this task is done.
-- [ ] Run the full redesigned suite (`dotnet run -c Release --project
-      benchmarks/Compono.Benchmarks -f net10.0`), Release, and record
-      real results — replacing every number currently in
-      `architecture/current/performance.md`, not narrating the old
-      suite's history.
-- [ ] Rewrite `architecture/current/performance.md` as capability-
+- [x] Build and smoke-test the redesigned suite: `dotnet build
+      Compono.slnx -c Release` (0 warnings, 0 errors) and `dotnet run -c
+      Release --project benchmarks/Compono.Benchmarks -f net10.0 --
+      --job Dry --filter '*'` (all 49 benchmarks executed without
+      throwing) — confirms the suite is structurally correct. This is
+      not the statistically real run the next task produces; `--job Dry`
+      is one cold iteration per benchmark, fast enough to smoke-test but
+      not meant to be reported as a real result.
+- [x] Run the full redesigned suite (`dotnet run -c Release --project
+      benchmarks/Compono.Benchmarks -f net10.0 -- --filter '*'`),
+      `DefaultJob` (not `--job Dry`), and record real results — all 15
+      classes produced real Mean/Error/StdDev/Allocated/`Gen0`/`Gen1`
+      results (Apple M3 Max, macOS Tahoe 26.6, .NET 10.0.3 arm64 RyuJIT,
+      `BenchmarkDotNet` v0.15.8; total run ~15 minutes). One real,
+      published finding the run surfaced: `UseBogus()` costs ~865x a
+      plain member rule (291.5 μs vs. 337 ns, isolated) because
+      `BogusMemberNameProvider` constructs a new `Bogus.Faker` per
+      resolution — root-caused, not investigated further or fixed here,
+      per ADR-0034's "publish an unfavorable result, don't hide it" rule.
+- [x] Rewrite `architecture/current/performance.md` as capability-
       oriented public documentation per ADR-0034's public-documentation
-      direction: what Compono optimizes for, what the benchmarks measure,
-      methodology, representative Consumer Scenario/External Comparison
-      results, memory/allocation characteristics, scaling behavior,
-      reproducibility, and a link to the full BenchmarkDotNet artifacts —
-      not a historical narrative of Milestone 1/2/PR-review optimization
-      work. Implementation Strategies/Feature Overhead/Source Generation
-      results stay primarily engineering documentation (linked, not
-      necessarily reproduced in full on this page) per ADR-0034's "mostly
-      engineering documentation rather than front-page marketing"
-      direction for implementation-strategy benchmarks.
+      direction: what Compono optimizes for, what the benchmarks measure
+      (and don't), methodology, representative Consumer Scenario/External
+      Comparison results, the `UseBogus()` finding above, scaling
+      behavior, reproducibility, and how to get the full per-category
+      artifacts — not a historical narrative of Milestone 1/2/PR-review
+      optimization work. Implementation Strategies/Feature Overhead/
+      Source Generation results are summarized (not every parameter
+      value reproduced) per ADR-0034's "mostly engineering documentation
+      rather than front-page marketing" direction for implementation-
+      strategy benchmarks. Also fixed
+      `best-practices/performance-recommendations.md`'s two links, which
+      pointed at the now-tombstoned `docs/performance.md` instead of this
+      page.
+- [x] Removed the Implementation Strategies category entirely, per
+      [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed--it-compares-different-systems-not-one-variable) —
+      deleted `ImplementationStrategies/` and its dedicated `Baselines/`
+      classes (`HandwrittenComposer`, `CachedReflectionComposer`,
+      `UncachedReflectionComposer`), removed the "Implementation
+      strategies" section from `architecture/current/performance.md`,
+      and updated its category-count/overview text (six categories → five).
+      The five remaining categories, the reused model set, and every
+      fair-comparison/reporting rule not specific to Implementation
+      Strategies are unchanged.
+- [x] Fixed the `UseBogus()` finding above, per
+      [ADR-0027's Amendment](../adr/0027-compono-bogus-package-design.md#amendment-2026-08-05-bogusmembernameprovider-reuses-a-per-thread-faker-not-a-fresh-one-per-request):
+      `BogusMemberNameProvider` now caches one `Faker` per thread
+      (`ThreadLocal<Faker>`, `trackAllValues: false`) instead of
+      constructing one per request, reseeding `Random` immediately before
+      every use — safe under concurrent access because a thread-local
+      instance is never touched by more than one thread, distinct from
+      the shared-`Faker<T>` alternative ADR-0027 already considered and
+      rejected. New regression coverage: a concurrency test (200
+      concurrent resolutions on one shared provider instance, each
+      checked against an independent single-threaded reference value)
+      and a "convention throws mid-generate" test. Re-ran the full suite
+      afterward (`--filter '*'`, `DefaultJob`, same environment) and
+      rewrote `architecture/current/performance.md` from that single
+      fresh run — `UseBogus()`'s isolated overhead dropped from ~865× to
+      ~6.31×, and the full-profile Consumer Scenario cost from
+      903.4 μs / 2,229.31 KB to 5.481 μs / 7.04 KB. The page also picked
+      up a clarity pass: explicit AutoFixture-relative-to-Compono ratio
+      direction, precise `DefaultJob` methodology wording (pilot/warmup/
+      measured iterations, not "statistically significant"), an explicit
+      "equivalent work" definition, a note connecting the Consumer
+      Scenario and Feature Overhead `UseBogus()` numbers' different
+      scope, and consistent `×` formatting throughout.
 
 ## Phase 6: Contributor and repository readiness
 
@@ -920,12 +1009,21 @@ individually resolved, not left ambiguous):
 - `docs/adr/0034-benchmark-suite-strategy-and-redesign.md` — new (Phase
   5 Part B): the benchmark-suite redesign decision.
 - `benchmarks/Compono.Benchmarks/` — fully restructured (Phase 5 Part
-  B) into `Models/`, `Baselines/`, `ImplementationStrategies/`,
-  `ConsumerScenarios/`, `ExternalComparison/`, `FeatureOverhead/`,
-  `Scalability/`, `SourceGeneration/`, replacing all 8 existing
-  benchmark files per ADR-0034. `Compono.Benchmarks.csproj` gains
-  `ProjectReference`s to `Compono.NSubstitute`/`Compono.Bogus` and a
-  non-analyzer `ProjectReference` to `Compono.Generators`.
+  B, done) into `Models/`, `Baselines/`, `ConsumerScenarios/`,
+  `ExternalComparison/`, `FeatureOverhead/`, `Scalability/`,
+  `SourceGeneration/` (five categories — `ImplementationStrategies/` was
+  implemented, then removed per
+  [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed--it-compares-different-systems-not-one-variable)),
+  replacing all 8 existing benchmark files per ADR-0034.
+  `Compono.Benchmarks.csproj` gains
+  `ProjectReference`s to `Compono.NSubstitute`/`Compono.Bogus`, its
+  existing `Compono.Generators` reference is now also a normal compile
+  reference (not analyzer-only), and it gains conditional
+  `Basic.Reference.Assemblies.Net100`/`Net110` package references.
+- `src/Compono.Generators/Compono.Generators.csproj` — gains
+  `InternalsVisibleTo="Compono.Benchmarks"` (Phase 5 Part B, done), so
+  `SourceGeneration/GeneratorDriverBenchmarks.cs` can construct
+  `ComponoIncrementalGenerator` directly.
 - `docs/documentation-architecture.md` — Open Items section already
   updated to reflect all six resolutions as part of this design pass;
   further updated in place as content lands and stub statuses flip to
