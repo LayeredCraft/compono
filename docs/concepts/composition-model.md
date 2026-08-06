@@ -47,7 +47,8 @@ var customers = composer.CreateMany<Customer>(3);
 A `Composer`'s configuration is fixed at `Create` time — there's no method
 to mutate an already-built `Composer`'s rules afterward. This is a
 deliberate consequence of Compono's immutable-by-design goal (no mutable
-global state, per `docs/public-api.md`'s API goals): the composer you get
+global state, per [Design Principles](../architecture/design-principles.md)'s
+guiding principles): the composer you get
 back from `Composer.Create(...)` behaves the same way on every call, for
 every test that reuses it, with nothing to accidentally leak between tests
 via shared mutable state.
@@ -78,4 +79,4 @@ reflection exception.
   [Shared Values](shared-values.md).
 - Group configuration into a reusable unit → [Profiles](profiles.md).
 - The deeper "how" behind the resolution pipeline →
-  [Architecture](../architecture.md).
+  [The Provider Pipeline](../architecture/current/provider-pipeline.md).

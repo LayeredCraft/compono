@@ -517,7 +517,7 @@ progress.
       (`SimplePocoConstructionBenchmarks.cs`/
       `MediumAggregateConstructionBenchmarks.cs`, handwritten-as-ceiling/
       generated/cached-reflection/uncached-reflection), then **removed**
-      per [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed--it-compares-different-systems-not-one-variable):
+      per [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed-it-compares-different-systems-not-one-variable):
       the category compared different systems doing different amounts of
       work (bare construction vs. a full resolution pipeline), not one
       isolated variable, so a result from it couldn't be attributed to a
@@ -595,15 +595,20 @@ progress.
 - [x] Build and smoke-test the redesigned suite: `dotnet build
       Compono.slnx -c Release` (0 warnings, 0 errors) and `dotnet run -c
       Release --project benchmarks/Compono.Benchmarks -f net10.0 --
-      --job Dry --filter '*'` (all 49 benchmarks executed without
-      throwing) — confirms the suite is structurally correct. This is
-      not the statistically real run the next task produces; `--job Dry`
-      is one cold iteration per benchmark, fast enough to smoke-test but
-      not meant to be reported as a real result.
+      --job Dry --filter '*'` (all 49 benchmarks, across the 15 classes
+      that existed at that point in this task list — before
+      Implementation Strategies was implemented-then-removed later in
+      this same Part, which brought the suite down to 41 benchmarks
+      across 13 classes — executed without throwing) — confirms the
+      suite is structurally correct. This is not the statistically real
+      run the next task produces; `--job Dry` is one cold iteration per
+      benchmark, fast enough to smoke-test but not meant to be reported
+      as a real result.
 - [x] Run the full redesigned suite (`dotnet run -c Release --project
       benchmarks/Compono.Benchmarks -f net10.0 -- --filter '*'`),
       `DefaultJob` (not `--job Dry`), and record real results — all 15
-      classes produced real Mean/Error/StdDev/Allocated/`Gen0`/`Gen1`
+      classes (at the time; 13 after Implementation Strategies' later
+      removal) produced real Mean/Error/StdDev/Allocated/`Gen0`/`Gen1`
       results (Apple M3 Max, macOS Tahoe 26.6, .NET 10.0.3 arm64 RyuJIT,
       `BenchmarkDotNet` v0.15.8; total run ~15 minutes). One real,
       published finding the run surfaced: `UseBogus()` costs ~865x a
@@ -627,7 +632,7 @@ progress.
       pointed at the now-tombstoned `docs/performance.md` instead of this
       page.
 - [x] Removed the Implementation Strategies category entirely, per
-      [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed--it-compares-different-systems-not-one-variable) —
+      [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed-it-compares-different-systems-not-one-variable) —
       deleted `ImplementationStrategies/` and its dedicated `Baselines/`
       classes (`HandwrittenComposer`, `CachedReflectionComposer`,
       `UncachedReflectionComposer`), removed the "Implementation
@@ -659,6 +664,63 @@ progress.
       "equivalent work" definition, a note connecting the Consumer
       Scenario and Feature Overhead `UseBogus()` numbers' different
       scope, and consistent `×` formatting throughout.
+- [x] Addressed a real adversarial PR review of this phase's work
+      (PR #53): **`BogusMemberNameProvider`'s thread-local reuse was
+      real but incomplete** — a custom `AddConvention` delegate could
+      mutate `Faker` state (`DateTimeReference`, a sub-generator, any of
+      `Faker`'s ~20 other public settable properties) that would then
+      leak into a later, unrelated built-in-convention request on the
+      same thread; reseeding `Random` alone didn't restore isolation.
+      Fixed by reusing the per-thread `Faker` only for built-in/alias
+      conventions (`BogusConventions.IsBuiltIn`, a reference-equality
+      check against the ten built-in delegates) and giving every custom
+      `AddConvention` delegate its own single-use `Faker`, with a new
+      regression test mutating `DateTimeReference` in a custom
+      convention and proving it doesn't perturb a later built-in
+      request. **The concurrency test didn't force genuine thread
+      overlap** — `Parallel.ForEachAsync` over a fully-synchronous body
+      could pass serially by scheduler luck; replaced with real
+      `Thread` + `Barrier` so all workers release simultaneously.
+      **`GeneratorDriverBenchmarks`' incremental tree was still built
+      via a fresh `ParseText` call** (given a different constructor
+      argument than the base tree, but not derived from it) rather than
+      `SyntaxTree.WithChangedText`, so it measured a wholesale reparse
+      under an "incremental" label; fixed to derive the touched tree via
+      an append-only `WithChangedText` edit so unaffected nodes keep
+      their base-tree identity. **`GraphDepthScalingBenchmarks` didn't
+      isolate depth** — its `MediumAggregate` shallow arm resolved seven
+      strings and a collection against `DeepGraph`'s single string,
+      conflating depth with total value-generation work; fixed to
+      compare `DeepLevel8` (depth 1, one string) against `DeepGraph`
+      (depth 8, same one-string leaf shape) — the real, isolated result
+      is 4.47× the mean and 2.65× the allocation for 8× the depth, a
+      much more meaningful number than the original 1.03×/1.23×.
+      **`architecture/current/performance.md` violated ADR-0034's own
+      Reporting Rules** by omitting Error/StdDev/Gen0/Gen1 from most
+      tables despite the page's own Methodology section claiming full
+      columns; rewritten with the complete mandatory column set on every
+      table. Also fixed: several broken/stale doc links and anchors
+      (a `removed--it` double-hyphen anchor MkDocs never generates;
+      `docs/plans/0002-...`'s link to a heading removed from the
+      rewritten performance page; `docs/index.md`/
+      `docs/getting-started/learning-paths.md`/`docs/concepts/providers.md`/
+      `docs/concepts/composition-model.md`/`docs/concepts/index.md`/
+      `docs/concepts/determinism-and-seeding.md`/
+      `docs/concepts/registrations-and-rules.md`/`docs/concepts/collections.md`/
+      `docs/how-to/register-a-type.md` still linking to tombstoned legacy
+      pages instead of their canonical replacements, including
+      `docs/index.md`'s stale "~6.1× faster" claim tied to a benchmark
+      class that no longer exists); a stale "49 benchmarks/15 classes"
+      verification-record bullet earlier in this list, now annotated with
+      the post-removal counts; and `docs/roadmap/future-packages.md`
+      wording that implied `Compono.Generators` was a fifth installable
+      package rather than an embedded analyzer. One reviewer claim
+      (returning `GeneratorDriver` from a benchmark method breaks
+      standard `net10` dry runs via missing `Compono.Generators` restore
+      assets) was investigated directly — reproduced from a fully clean
+      `bin`/`obj` state, `--job Dry` and `DefaultJob`, both TypeCount
+      matrices — and did not reproduce; left as-is, noted in the PR
+      reply.
 
 ## Phase 6: Contributor and repository readiness
 
@@ -1013,7 +1075,7 @@ individually resolved, not left ambiguous):
   `ExternalComparison/`, `FeatureOverhead/`, `Scalability/`,
   `SourceGeneration/` (five categories — `ImplementationStrategies/` was
   implemented, then removed per
-  [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed--it-compares-different-systems-not-one-variable)),
+  [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed-it-compares-different-systems-not-one-variable)),
   replacing all 8 existing benchmark files per ADR-0034.
   `Compono.Benchmarks.csproj` gains
   `ProjectReference`s to `Compono.NSubstitute`/`Compono.Bogus`, its

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Bogus;
 
 namespace Compono.Bogus.Tests;
 
@@ -90,40 +91,95 @@ public sealed class DeterminismTests
     }
 
     [Fact]
-    public async Task TryProvide_ProducesCorrectValues_WhenCalledConcurrently_OnOneSharedProviderInstance()
+    public void TryProvide_ProducesCorrectValues_WhenCalledConcurrently_OnOneSharedProviderInstance()
     {
         // BogusMemberNameProvider caches one Faker per thread (ADR-0027's Amendment) instead of
         // constructing one per request - this proves that reuse is actually safe under real
-        // concurrent access, not just assumed safe because no test caught a problem. One provider
-        // instance, shared across every concurrent composition below (the scenario ADR-0027's
-        // original "package-lifetime-shared instance" concern is about), driven by
-        // Parallel.ForEachAsync so calls genuinely overlap across the thread pool rather than
-        // running sequentially one at a time.
+        // concurrent access, not just assumed safe because no test caught a problem.
+        //
+        // A Parallel.ForEachAsync-driven version of this test was tried first, but its per-item
+        // body had no genuine await point (the composition call is fully synchronous), so nothing
+        // guaranteed the runtime actually dispatched work across multiple threads at the same
+        // instant rather than running items back-to-back - a shared-Faker race could pass this
+        // test serially, purely by luck of the scheduler. Real System.Threading.Thread instances
+        // plus a Barrier remove that luck entirely: every worker blocks at the barrier until all
+        // of them have arrived, then releases simultaneously, so the composition calls below are
+        // guaranteed to genuinely overlap in wall-clock time on one shared provider instance.
+        const int workerCount = 16;
         var provider = new BogusMemberNameProvider("en");
+        var barrier = new Barrier(workerCount);
         var results = new ConcurrentBag<(int Seed, string Value)>();
 
-        await Parallel.ForEachAsync(Enumerable.Range(0, 200), async (seed, _) =>
-        {
-            var value = Composer.Create(builder => builder.WithSeed(seed).AddSemanticProvider(provider))
-                .CreateRow(typeof(DeterminismTests))
-                .Resolve<string>(EmailDescriptor);
+        var workers = Enumerable.Range(0, workerCount)
+            .Select(seed => new Thread(() =>
+            {
+                barrier.SignalAndWait();
+                var value = Composer.Create(b => b.WithSeed(seed).AddSemanticProvider(provider))
+                    .CreateRow(typeof(DeterminismTests))
+                    .Resolve<string>(EmailDescriptor);
 
-            results.Add((seed, value));
-            await Task.CompletedTask;
-        });
+                results.Add((seed, value));
+            }))
+            .ToArray();
+
+        foreach (var worker in workers)
+            worker.Start();
+        foreach (var worker in workers)
+            worker.Join();
 
         // Each seed's concurrently-produced value must match what a fresh, independent,
         // single-threaded resolution for that same seed produces - proving no cross-call state
         // leaked between threads sharing the reused Faker, not just that nothing threw.
-        results.Should().HaveCount(200);
+        results.Should().HaveCount(workerCount);
         foreach (var (seed, value) in results)
         {
-            var expected = Composer.Create(builder => builder.WithSeed(seed).AddSemanticProvider(new BogusMemberNameProvider("en")))
+            var expected = Composer.Create(b => b.WithSeed(seed).AddSemanticProvider(new BogusMemberNameProvider("en")))
                 .CreateRow(typeof(DeterminismTests))
                 .Resolve<string>(EmailDescriptor);
 
             value.Should().Be(expected);
         }
+    }
+
+    [Fact]
+    public void CustomConventionMutatingFakerState_DoesNotPerturbALaterBuiltInRequestOnTheSameThread()
+    {
+        // A custom AddConvention delegate that reassigns Faker.DateTimeReference (a completely
+        // ordinary thing to do - not a hostile/adversarial delegate) must not leave that mutation
+        // behind for a later, unrelated built-in-convention request to observe. Built-in
+        // conventions reuse the thread's cached Faker (BogusConventions.IsBuiltIn); custom
+        // conventions get their own single-use Faker instead, specifically so this can't happen -
+        // see ADR-0027's Amendment.
+        var conventions = new Dictionary<string, Func<Faker, string>>
+        {
+            ["Custom"] = faker =>
+            {
+                faker.DateTimeReference = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                return faker.Date.Recent().ToString("O");
+            },
+            ["Email"] = f => f.Internet.Email(),
+        };
+        var provider = new BogusMemberNameProvider("en", conventions);
+
+        var customDescriptor = new CompositionRequestDescriptor(
+            CompositionRequestKind.ConstructorParameter, ordinal: 0, "Custom", declaringType: null, Nullability.NotNullable);
+
+        Composer.Create(b => b.WithSeed(4219).AddSemanticProvider(provider))
+            .CreateRow(typeof(DeterminismTests))
+            .Resolve<string>(customDescriptor);
+
+        // Same provider instance (so the same thread's cached Faker, if a built-in request were
+        // ever to touch the same instance the custom one just mutated) resolves Email afterward -
+        // must match an independently-computed reference value exactly, proving the custom
+        // convention's DateTimeReference mutation never reached the built-in convention's Faker.
+        var afterCustom = Composer.Create(b => b.WithSeed(4219).AddSemanticProvider(provider))
+            .CreateRow(typeof(DeterminismTests))
+            .Resolve<string>(EmailDescriptor);
+        var expected = Composer.Create(b => b.WithSeed(4219).AddSemanticProvider(new BogusMemberNameProvider("en", conventions)))
+            .CreateRow(typeof(DeterminismTests))
+            .Resolve<string>(EmailDescriptor);
+
+        afterCustom.Should().Be(expected);
     }
 
     private static CompositionRequestDescriptor EmailDescriptor =>

@@ -44,7 +44,8 @@ two logically distinct stages precisely so that ordering between
 `UseBogus()`/`UseNSubstitute()` calls never matters — a provider only
 influences the stage it's registered into. The exact stage order relative
 to registrations, rules, and generated default construction is
-[Architecture](../architecture.md)'s concern, not this page's — what
+[The Provider Pipeline](../architecture/current/provider-pipeline.md)'s
+concern, not this page's — what
 matters here is that a provider is always a fallback, tried only once
 nothing more specific (an exact registration, a type/member rule) already
 claimed the value.
@@ -53,6 +54,6 @@ claimed the value.
 
 - Providers that ship today → [`Compono.NSubstitute`](../packages/compono-nsubstitute.md),
   [`Compono.Bogus`](../packages/compono-bogus.md) Package Guides.
-- Write your own → [Public API](../public-api.md)'s provider extensibility
-  contract.
-- The full pipeline a provider participates in → [Architecture](../architecture.md).
+- Write your own → [The Provider Pipeline](../architecture/current/provider-pipeline.md)'s
+  provider extensibility contract.
+- The full pipeline a provider participates in → [The Provider Pipeline](../architecture/current/provider-pipeline.md).

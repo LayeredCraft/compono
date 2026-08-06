@@ -1,9 +1,15 @@
 # Future Packages
 
-Compono's MVP package set — `Compono`, `Compono.Generators`,
-`Compono.XunitV3`, `Compono.NSubstitute`, and `Compono.Bogus` — is fully
-shipped as of this milestone (see [Package Guides](../packages/index.md)).
-No additional package is currently committed via an `Accepted` ADR.
+Compono's MVP package set is fully shipped as of this milestone (see
+[Package Guides](../packages/index.md)): four independently installable
+packages — `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, and
+`Compono.Bogus` — plus `Compono.Generators`, which is not a fifth
+installable package at all. It's `IsPackable=false`
+([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
+embedded inside `Compono`'s own `.nupkg` as an analyzer
+(`analyzers/dotnet/cs`) — a consumer never references it directly, and
+it never appears on nuget.org on its own. No additional package is
+currently committed via an `Accepted` ADR.
 
 ## Natural candidates, not yet designed
 

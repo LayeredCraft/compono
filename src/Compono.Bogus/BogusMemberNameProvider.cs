@@ -12,6 +12,8 @@ namespace Compono;
 /// </summary>
 public sealed class BogusMemberNameProvider : ICompositionValueProvider
 {
+    private readonly string _locale;
+
     // Immutable, built once - a FrozenDictionary, not a plain Dictionary, since this is a fixed,
     // read-only lookup for the lifetime of this provider instance. Exact match, case-sensitive,
     // against CompositionProviderRequest.Name only - no substring/prefix/fuzzy matching, and no
@@ -19,16 +21,19 @@ public sealed class BogusMemberNameProvider : ICompositionValueProvider
     // callout) is deliberately absent from the built-in allowlist this always contains at minimum.
     private readonly FrozenDictionary<string, Func<Faker, string>> _conventions;
 
-    // One Faker per thread, reused across every request that thread handles, reseeded immediately
-    // before each use - never a request-lifetime instance (constructing Faker's full set of
-    // category generators is genuinely expensive, per ADR-0034's benchmark suite), and never a
-    // single instance shared across threads (the exact hazard ADR-0027's Amendment distinguishes
-    // this from - see that Amendment for why per-thread reuse doesn't reintroduce the
-    // shared-mutable-state race a package-lifetime-shared Faker would).
+    // One Faker per thread, reused only for built-in/alias conventions (ADR-0027's Amendment) -
+    // never for a custom AddConvention delegate, which gets its own single-use Faker instead (see
+    // TryProvide). Built-in conventions are Compono-authored and never touch Faker state beyond
+    // Random, so reuse is safe; an arbitrary custom delegate could reassign DateTimeReference, a
+    // sub-generator (Faker.Name, Faker.Address, ...), or any of Faker's other public settable
+    // properties, and that mutation would otherwise leak into every later request on the same
+    // thread if it shared this instance. Never shared across threads either - a thread-local
+    // instance is never touched by more than one thread, which is what makes reuse safe under
+    // concurrent composition in the first place.
     private readonly ThreadLocal<Faker> _threadFaker;
 
     /// <summary>Creates a <see cref="BogusMemberNameProvider"/> using <paramref name="locale"/>.</summary>
-    /// <param name="locale">The Bogus locale each handled request's own <see cref="Faker"/> uses.</param>
+    /// <param name="locale">The Bogus locale each handled request's <see cref="Faker"/> uses.</param>
     public BogusMemberNameProvider(string locale)
         : this(locale, BogusConventions.ByName)
     {
@@ -45,6 +50,7 @@ public sealed class BogusMemberNameProvider : ICompositionValueProvider
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
         ArgumentNullException.ThrowIfNull(conventions);
+        _locale = locale;
         _conventions = conventions as FrozenDictionary<string, Func<Faker, string>>
             ?? conventions.ToFrozenDictionary();
         // trackAllValues: false - nothing here ever enumerates ThreadLocal<T>.Values across
@@ -66,12 +72,15 @@ public sealed class BogusMemberNameProvider : ICompositionValueProvider
         if (!_conventions.TryGetValue(name, out var generate))
             return CompositionProviderResult.NotHandled;
 
-        // This thread's own Faker, reseeded from context.DeriveSeed() before every use - see
-        // _threadFaker's declaration comment and ADR-0027's Amendment for why reuse is safe here.
-        // ThreadLocal<T>.Value is annotated T? in the BCL, but _threadFaker was constructed with a
-        // valueFactory (never the parameterless constructor), so every access - first or
-        // subsequent, on any thread - is guaranteed non-null by ThreadLocal<T>'s own contract.
-        var faker = _threadFaker.Value!;
+        // Built-in/alias conventions reuse this thread's cached Faker (fast path); an arbitrary
+        // custom AddConvention delegate gets a fresh, single-use Faker instead, since we can't
+        // guarantee it won't mutate state that would otherwise leak into a later, unrelated
+        // request on the same thread - see _threadFaker's declaration comment and ADR-0027's
+        // Amendment. ThreadLocal<T>.Value is annotated T? in the BCL, but _threadFaker was
+        // constructed with a valueFactory (never the parameterless constructor), so every access -
+        // first or subsequent, on any thread - is guaranteed non-null by ThreadLocal<T>'s own
+        // contract.
+        var faker = BogusConventions.IsBuiltIn(generate) ? _threadFaker.Value! : new Faker(_locale);
         faker.Random = new Randomizer(context.DeriveSeed());
         return CompositionProviderResult.Handled(generate(faker));
     }

@@ -4,6 +4,7 @@ using Basic.Reference.Assemblies;
 using Compono.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Compono.Benchmarks.SourceGeneration;
 
@@ -35,15 +36,26 @@ public class GeneratorDriverBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _baseCompilation = BuildCompilation(TypeCount, touched: false);
+        _baseCompilation = BuildCompilation(TypeCount);
 
-        // Derived from _baseCompilation via ReplaceSyntaxTree, not built as an independent
-        // CSharpCompilation.Create(...) call - Roslyn's incremental generator cache is keyed off
-        // compilation/tree identity, so two separately-constructed compilations look entirely
-        // unrelated to the driver (forcing a full recompute, not a real incremental diff) even if
-        // their source text is nearly identical.
-        var touchedTree = BuildSyntaxTree(TypeCount, touched: true);
-        _touchedCompilation = _baseCompilation.ReplaceSyntaxTree(_baseCompilation.SyntaxTrees.Single(), touchedTree);
+        // Derived from the base tree via WithChangedText - not a second independently-parsed
+        // SyntaxTree swapped in via ReplaceSyntaxTree, even though both approaches produce a
+        // Compilation the driver considers "related" to the base one. WithChangedText performs a
+        // real incremental re-lex/re-parse that reuses the unaffected internal (green) nodes for
+        // every untouched region of text, so nodes before the appended text keep the same
+        // identity they had in the base tree - which is what actually lets the generator's
+        // incremental pipeline (keyed on node identity/equivalence, not just textual content) skip
+        // recomputing work for call sites nothing here changed. A tree built from scratch via
+        // ParseText has no such relationship to the base tree's nodes at all, even if the two
+        // trees' text is nearly identical - every node in it is new, so incremental work gets
+        // rerun for the whole tree, silently measuring a wholesale reparse instead of a real
+        // small-edit scenario.
+        var baseTree = _baseCompilation.SyntaxTrees.Single();
+        var baseText = baseTree.GetText();
+        var appended = baseText.WithChanges(new TextChange(
+            new TextSpan(baseText.Length, 0), "\n// incremental-touch marker - no call site changed\n"));
+        var touchedTree = baseTree.WithChangedText(appended);
+        _touchedCompilation = _baseCompilation.ReplaceSyntaxTree(baseTree, touchedTree);
 
         var driver = CSharpGeneratorDriver.Create(new ComponoIncrementalGenerator().AsSourceGenerator());
         _warmDriver = driver.RunGenerators(_baseCompilation);
@@ -61,9 +73,9 @@ public class GeneratorDriverBenchmarks
     [Benchmark]
     public GeneratorDriver IncrementalGeneration() => _warmDriver.RunGenerators(_touchedCompilation);
 
-    private static Compilation BuildCompilation(int typeCount, bool touched)
+    private static Compilation BuildCompilation(int typeCount)
     {
-        var syntaxTree = BuildSyntaxTree(typeCount, touched);
+        var syntaxTree = BuildSyntaxTree(typeCount);
 
         List<MetadataReference> references =
         [
@@ -82,13 +94,13 @@ public class GeneratorDriverBenchmarks
         return CSharpCompilation.Create("SourceGenerationBenchmarkAssembly", [syntaxTree], references, compilationOptions);
     }
 
-    private static SyntaxTree BuildSyntaxTree(int typeCount, bool touched)
+    private static SyntaxTree BuildSyntaxTree(int typeCount)
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
-        return CSharpSyntaxTree.ParseText(BuildSource(typeCount, touched), parseOptions, "GeneratedTypes.cs");
+        return CSharpSyntaxTree.ParseText(BuildSource(typeCount), parseOptions, "GeneratedTypes.cs");
     }
 
-    private static string BuildSource(int typeCount, bool touched)
+    private static string BuildSource(int typeCount)
     {
         var source = new StringBuilder();
         source.AppendLine("namespace Compono.Benchmarks.SourceGeneration.Generated;");
@@ -106,9 +118,6 @@ public class GeneratorDriverBenchmarks
             source.AppendLine($"        composer.Create<GeneratedType{i}>();");
         source.AppendLine("    }");
         source.AppendLine("}");
-
-        if (touched)
-            source.AppendLine("// incremental-touch marker - no call site changed");
 
         return source.ToString();
     }

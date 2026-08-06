@@ -67,7 +67,7 @@ builder.For<Order>().Member(x => x.PlacedAt).Use(context => context.Resolve<IClo
 
 Registrations and rules are two of several stages Compono tries in order
 before falling back to generated default construction — a configured
-`IServiceProvider` ([`UseServiceProvider`](../public-api.md)), semantic
+`IServiceProvider` ([`UseServiceProvider`](../reference/api/Compono/Compono.CompositionBuilder.UseServiceProvider(System.IServiceProvider).md)), semantic
 providers, and test-double providers ([Providers](providers.md)) also
 participate. Registrations and type/member rules are the ones you reach for
 directly, most often; the rest are usually wired in through a package
@@ -81,4 +81,4 @@ extension (`UseNSubstitute()`, `UseBogus()`) rather than called by hand.
   [Shared Values](shared-values.md).
 - Apply this to a real task → [Register a Type](../how-to/register-a-type.md),
   [Customize a Member](../how-to/customize-a-member.md).
-- Precise API contract → [Public API](../public-api.md).
+- Precise API contract → [Reference](../reference/index.md).

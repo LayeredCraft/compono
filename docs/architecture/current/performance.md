@@ -67,40 +67,43 @@ Recorded with `BenchmarkDotNet` v0.15.8, Apple M3 Max, macOS Tahoe 26.6,
 `DefaultJob` means: a pilot stage that determines how many iterations a
 run needs, a warmup phase, then a set of measured iterations — each
 launched in its own isolated, managed process, not measured in-process
-alongside the benchmark harness. Every table below reports Mean, Error,
-and StdDev at minimum, plus Allocated wherever `[MemoryDiagnoser]`
-reports it (every benchmark class in the suite); a Ratio column is
-included wherever the category has a designated baseline. Full detail —
-every category's complete result set, `Gen0`/`Gen1` collection counts,
-raw CSV/HTML exports — is in `benchmarks/Compono.Benchmarks`'s
-`BenchmarkDotNet.Artifacts/results/` after a real run (see Reproducing,
-below); this page reproduces the results most relevant to a consumer,
-not every number.
+alongside the benchmark harness. Per
+[ADR-0034](../../adr/0034-benchmark-suite-strategy-and-redesign.md)'s
+Reporting Rules, every table below reports the full mandatory column set:
+Mean, Error, StdDev, Allocated, and `Gen0`/`Gen1` wherever BenchmarkDotNet
+reports them as nonzero, plus a Ratio column wherever the category has a
+designated baseline. A page that reported Mean alone, or Mean and
+Allocated alone, would not meet that bar — this page doesn't. Full
+detail — every category's complete result set, raw CSV/HTML exports — is
+in `benchmarks/Compono.Benchmarks`'s `BenchmarkDotNet.Artifacts/results/`
+after a real run (see Reproducing, below).
 
 ## Consumer-facing results
 
 **Representative models** (`Composer.Create<T>()`, no comparison
 baseline — the absolute cost a consumer actually pays):
 
-| Model | Mean | Allocated |
-|---|---:|---:|
-| `SimplePoco` (flat, no dependencies) | 377.6 ns | 1.70 KB |
-| `MediumAggregate` (nested dependency + collection) | 991.6 ns | 2.88 KB |
-| `DeepGraph` (8-level chain) | 1,046.3 ns | 3.54 KB |
-| `LargeCollection` (100-element collection) | 8,780.9 ns | 20.86 KB |
+| Model | Mean | Error | StdDev | Gen0 | Gen1 | Allocated |
+|---|---:|---:|---:|---:|---:|---:|
+| `SimplePoco` (flat, no dependencies) | 368.3 ns | 3.17 ns | 2.65 ns | 0.2084 | 0.0005 | 1.70 KB |
+| `MediumAggregate` (nested dependency + collection) | 981.1 ns | 8.21 ns | 6.86 ns | 0.3529 | - | 2.88 KB |
+| `DeepGraph` (8-level chain) | 1,016.2 ns | 10.46 ns | 8.73 ns | 0.4330 | 0.0019 | 3.54 KB |
+| `LargeCollection` (100-element collection) | 8,615.9 ns | 50.54 ns | 44.80 ns | 2.5482 | 0.0458 | 20.86 KB |
 
 **Migrating from AutoFixture.** "Equivalent work" means both frameworks
 compose the same object graph shape, fill the same number of fields, and
 (for Compono's side) use its own real default value-generation cost — an
 8-character string, a 3-element collection — not a stripped-down or
-otherwise favorable graph for either side. Every ratio below is
-**AutoFixture relative to Compono** (Compono is always the baseline,
-`1.00×`):
+otherwise favorable graph for either side. Every Ratio/Alloc Ratio value
+below is **AutoFixture relative to Compono** (Compono is always the
+baseline, `1.00×`):
 
-| Model | Compono (baseline) | AutoFixture | AutoFixture vs. Compono |
-|---|---:|---:|---:|
-| `SimplePoco` | 374.8 ns / 1.70 KB | 23,122.4 ns / 29.95 KB | 61.7× slower, 17.6× more allocation |
-| `MediumAggregate` | 980.9 ns / 2.88 KB | 74,677.7 ns / 99.21 KB | 76.1× slower, 34.4× more allocation |
+| Model | Method | Mean | Error | StdDev | Ratio | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `SimplePoco` | Compono (baseline) | 378.2 ns | 6.30 ns | 8.83 ns | 1.00× | 0.2084 | 0.0005 | 1.70 KB | 1.00× |
+| `SimplePoco` | AutoFixture | 24,036.9 ns | 466.53 ns | 572.94 ns | 63.6× | 3.6621 | - | 29.96 KB | 17.6× |
+| `MediumAggregate` | Compono (baseline) | 962.0 ns | 15.68 ns | 13.90 ns | 1.00× | 0.3529 | 0.0010 | 2.88 KB | 1.00× |
+| `MediumAggregate` | AutoFixture | 77,990.7 ns | 1,543.97 ns | 3,389.05 ns | 81.1× | 11.7188 | - | 99.21 KB | 34.4× |
 
 AutoFixture is doing substantially more runtime work here (reflection-
 based construction plus its own randomized-value-generation pipeline) —
@@ -110,10 +113,10 @@ target Compono is trying to "beat."
 **Provider-enabled profiles** (`Composer.Create<T>()` with a package's
 provider active):
 
-| Scenario | Mean | Allocated |
-|---|---:|---:|
-| `UseNSubstitute()` (composing an interface member) | 1.266 μs | 7.05 KB |
-| `UseBogus()` (composing two convention-matching `string` members) | 5.481 μs | 7.04 KB |
+| Scenario | Mean | Error | StdDev | Gen0 | Gen1 | Allocated |
+|---|---:|---:|---:|---:|---:|---:|
+| `UseNSubstitute()` (composing an interface member) | 1.235 μs | 0.0178 μs | 0.0166 μs | 0.8621 | 0.0114 | 7.05 KB |
+| `UseBogus()` (composing two convention-matching `string` members) | 5.870 μs | 0.1104 μs | 0.1033 μs | 0.8545 | 0.0076 | 7.04 KB |
 
 `UseBogus()`'s cost here reflects a fix applied after an earlier run of
 this suite found it substantially higher — see Feature Overhead below
@@ -121,83 +124,124 @@ for the full account. The two numbers aren't measuring the same scope:
 this row is the full profile (two Bogus-backed members plus the rest of
 the `MediumAggregate` graph); Feature Overhead's `UseBogus()` row below
 isolates a single member's marginal cost against its cheapest
-alternative. Same underlying mechanism, different scope.
+alternative. Same underlying mechanism, different scope — expect the
+per-member number below to be smaller than this full-profile one.
 
 ## Feature overhead
 
 Isolates one mechanism's marginal cost at a time (full detail: [ADR-0034](../../adr/0034-benchmark-suite-strategy-and-redesign.md)):
 
-| Mechanism | Baseline | With feature | Ratio |
-|---|---:|---:|---:|
-| Member rule (vs. generated-only) | 985.4 ns | 1,305.3 ns | 1.33× |
-| Type rule (vs. generated-only) | 985.4 ns | 968.7 ns | 0.98× (noise) |
-| Custom `ICompositionValueProvider` (vs. generated-only) | 985.4 ns | 1,324.7 ns | 1.34× |
-| `[Shared]`'s row-sharing mechanism (vs. no sharing) | 830.5 ns | 746.7 ns | 0.90× (sharing is cheaper — avoids composing a second independent value) |
-| `UseNSubstitute()` (vs. a plain registration) | 325.7 ns | 1,194.1 ns | 3.67× |
-| `UseBogus()` (vs. a plain member rule) | 342.0 ns | 2,156.5 ns | 6.31× |
+| Mechanism | Method | Mean | Error | StdDev | Ratio | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Configuration rules | GeneratedOnly (baseline) | 962.2 ns | 10.61 ns | 9.40 ns | 1.00× | 0.3529 | - | 2.88 KB | 1.00× |
+| Configuration rules | + member rule | 1,208.9 ns | 17.65 ns | 15.65 ns | 1.26× | 0.4082 | 0.0019 | 3.34 KB | 1.16× |
+| Configuration rules | + type rule | 956.4 ns | 6.82 ns | 6.38 ns | 0.99× (noise) | 0.3586 | - | 2.93 KB | 1.02× |
+| Configuration rules | + custom `ICompositionValueProvider` | 1,312.8 ns | 12.24 ns | 10.85 ns | 1.36× | 0.4368 | 0.0019 | 3.58 KB | 1.24× |
+| `[Shared]` row-sharing | Without sharing (baseline) | 805.5 ns | 5.05 ns | 4.48 ns | 1.00× | 0.3042 | 0.0010 | 2.49 KB | 1.00× |
+| `[Shared]` row-sharing | With sharing | 742.7 ns | 6.20 ns | 5.80 ns | 0.92× (sharing is cheaper — avoids composing a second independent value) | 0.3109 | 0.0010 | 2.55 KB | 1.02× |
+| `UseNSubstitute()` | Registration (baseline) | 332.0 ns | 2.58 ns | 2.42 ns | 1.00× | 0.2027 | 0.0010 | 1.66 KB | 1.00× |
+| `UseNSubstitute()` | NSubstitute provider | 1,206.9 ns | 12.61 ns | 11.79 ns | 3.64× | 0.8698 | 0.0114 | 7.12 KB | 4.30× |
+| `UseBogus()` | Member rule (baseline) | 333.4 ns | 4.51 ns | 4.22 ns | 1.00× | 0.2027 | 0.0010 | 1.66 KB | 1.00× |
+| `UseBogus()` | Bogus convention provider | 2,254.2 ns | 15.50 ns | 13.74 ns | 6.76× | 0.4425 | - | 3.62 KB | 2.18× |
 
 **`UseBogus()`: a finding, a root cause, a fix, a confirmation.** An
 earlier run of this benchmark measured `UseBogus()` at ~865× a plain
-member rule (291.5 μs, isolated single-member measurement) — reported in
-full per
+member rule (291.5 μs, isolated single-member measurement). That result
+was published in full, per
 [ADR-0034](../../adr/0034-benchmark-suite-strategy-and-redesign.md)'s
-publication rule, since an unfavorable result gets published exactly
-like a favorable one. Investigation traced the cost to
-`BogusMemberNameProvider` constructing a new `Bogus.Faker` instance on
-every resolution (`src/Compono.Bogus/BogusMemberNameProvider.cs`) —
-`Faker` construction, which builds out its full set of category
-generators, is genuinely expensive. The implementation was changed to
-cache one `Faker` per thread instead of constructing one per request,
-reseeding its `Random` immediately before every use — see
+publication rule — an unfavorable result is reported exactly like a
+favorable one. Investigation traced the cost to `BogusMemberNameProvider`
+constructing a new `Bogus.Faker` instance on every resolution
+(`src/Compono.Bogus/BogusMemberNameProvider.cs`); `Faker` construction,
+which builds out its full set of category generators, is genuinely
+expensive. The implementation was changed to cache one `Faker` per
+thread for built-in conventions, reseeding its `Random` immediately
+before every use, while a custom `AddConvention` delegate still gets its
+own single-use `Faker` (it could mutate state a shared instance
+shouldn't carry between requests) — see
 [ADR-0027's Amendment](../../adr/0027-compono-bogus-package-design.md#amendment-2026-08-05-bogusmembernameprovider-reuses-a-per-thread-faker-not-a-fresh-one-per-request)
-for why per-thread reuse doesn't reintroduce the concurrent-access hazard
-a shared instance would, and what regression coverage backs it. The
-benchmark above, rerun after the fix, confirms the result: ~865×
-dropped to ~6.31× (this table), and the full-profile Consumer Scenario
-cost dropped from 903.4 μs / 2,229.31 KB to 5.481 μs / 7.04 KB (Consumer-
-facing results, above).
+for the full account and the regression coverage backing it. Rerun after
+the fix, the benchmark confirms the result: ~865× dropped to ~6.76×
+(this table), and the full-profile Consumer Scenario cost dropped from
+903.4 μs / 2,229.31 KB to 5.870 μs / 7.04 KB (Consumer-facing results,
+above).
 
 ## Scalability
 
 **Batch scaling** (`CreateMany<T>(count)` against its own `Create<T>()`
-baseline):
+baseline, per batch size):
 
-| Count | `CreateMany` Mean | Ratio vs. `Create` |
-|---:|---:|---:|
-| 1 | 1,045.3 ns | 1.06× |
-| 10 | 10,314.6 ns | 10.34× |
-| 100 | 102,902.9 ns | 101.96× |
-| 1,000 | 1,180,622.5 ns | 1,184.57× |
+| Count | Method | Mean | Error | StdDev | Ratio | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | Create (baseline) | 994.0 ns | 7.88 ns | 7.37 ns | 1.00× | 0.3529 | - | 2.88 KB | 1.00× |
+| 1 | CreateMany | 1,032.4 ns | 9.32 ns | 8.72 ns | 1.04× | 0.3681 | 0.0019 | 3.02 KB | 1.05× |
+| 10 | Create (baseline) | 994.0 ns | 8.53 ns | 7.56 ns | 1.00× | 0.3529 | - | 2.88 KB | 1.00× |
+| 10 | CreateMany | 10,329.1 ns | 126.09 ns | 117.94 ns | 10.39× | 3.5858 | 0.0610 | 29.31 KB | 10.17× |
+| 100 | Create (baseline) | 988.6 ns | 6.32 ns | 5.91 ns | 1.00× | 0.3529 | - | 2.88 KB | 1.00× |
+| 100 | CreateMany | 102,933.0 ns | 829.95 ns | 776.33 ns | 104.12× | 35.7666 | 4.7607 | 292.29 KB | 101.39× |
+| 1,000 | Create (baseline) | 994.4 ns | 10.48 ns | 9.81 ns | 1.00× | 0.3529 | - | 2.88 KB | 1.00× |
+| 1,000 | CreateMany | 1,180,425.4 ns | 7,238.77 ns | 6,771.15 ns | 1,187.19× | 359.3750 | 179.6875 | 2,943.90 KB | 1,021.19× |
 
-Scaling is linear through 100 items; at 1,000 items the ratio (1,184.57×
+Scaling is linear through 100 items; at 1,000 items the ratio (1,187.19×
 against a 1,000× input-size increase) shows a modest, real super-linear
 component — `Gen1` collections start appearing at this scale (0 at
 `count=10`, ~180 at `count=1,000`) where they don't at smaller batches,
 consistent with GC promotion pressure rather than an algorithmic
 regression in the composition pipeline itself.
 
-**Graph depth** (shallow `MediumAggregate` vs. deep, 8-level `DeepGraph`):
-1.008 μs vs. 1.040 μs (1.03×) — a real but modest cost from the deeper
-chain's diagnostics-trace-buffer growth (see
-[The Provider Pipeline](provider-pipeline.md#diagnostics)), not a
-concern at this depth.
+**Graph depth** (`DeepLevel8` at depth 1 vs. `DeepGraph`'s chain at depth
+8 — both resolve exactly one `string` leaf value, so depth is the only
+variable; an earlier version of this benchmark compared against
+`MediumAggregate` instead, which resolves seven strings and a collection
+on top of its own object graph, conflating depth with total
+value-generation work):
+
+| Method | Mean | Error | StdDev | Ratio | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Shallow (`DeepLevel8`, depth 1, baseline) | 240.4 ns | 4.79 ns | 4.00 ns | 1.00× | 0.1631 | 0.0005 | 1.34 KB | 1.00× |
+| Deep (`DeepGraph`, depth 8) | 1,074.5 ns | 12.74 ns | 11.29 ns | 4.47× | 0.4330 | 0.0019 | 3.54 KB | 2.65× |
+
+With depth isolated as the only variable, the real cost is clear: 4.47×
+the mean, 2.65× the allocation, for a chain 8× as deep — consistent with
+each additional level's own dispatch, path-segment, and diagnostics-
+trace-buffer bookkeeping (see
+[The Provider Pipeline](provider-pipeline.md#diagnostics)), including the
+real `Array.Resize` `DeepGraph`'s depth is enough to trigger in the trace
+buffer that `DeepLevel8` alone never reaches.
 
 **Collection size** (`WithCollectionSize(n)`, 3 to 200 elements):
-517.4 ns at 3 elements, 17,143.4 ns at 200 — sub-linear relative to the
-66.7× size increase (a ~33.1× time increase), since a fixed per-`Create`
-dispatch cost is amortized across more elements at larger sizes.
+
+| CollectionSize | Mean | Error | StdDev | Gen0 | Gen1 | Allocated |
+|---:|---:|---:|---:|---:|---:|---:|
+| 3 | 517.6 ns | 4.59 ns | 3.83 ns | 0.2337 | 0.0010 | 1.91 KB |
+| 10 | 1,116.5 ns | 9.41 ns | 8.34 ns | 0.4005 | 0.0019 | 3.28 KB |
+| 50 | 4,552.5 ns | 24.15 ns | 22.59 ns | 1.3580 | 0.0153 | 11.09 KB |
+| 200 | 17,247.1 ns | 261.28 ns | 218.18 ns | 4.9438 | 0.1831 | 40.39 KB |
+
+Sub-linear relative to the 66.7× size increase (a ~33.3× time increase
+from 3 to 200 elements), since a fixed per-`Create` dispatch cost is
+amortized across more elements at larger sizes.
 
 ## Source generation
 
 Clean vs. incremental generator cost, in-process via Roslyn's
 `GeneratorDriver` (a maintainer-facing, build-time concern, unrelated to
-every result above):
+every result above). The incremental compilation is derived from the
+clean one via `SyntaxTree.WithChangedText` with an append-only edit — not
+a second, independently-parsed tree swapped in — so unaffected nodes keep
+the identity they had in the base tree, which is what actually lets the
+generator's incremental pipeline skip recomputing work for call sites
+nothing changed, rather than measuring a wholesale reparse under an
+"incremental" label:
 
-| TypeCount | Clean Mean | Incremental Mean | Ratio |
-|---:|---:|---:|---:|
-| 1 | 55.92 μs | 25.48 μs | 0.46× |
-| 10 | 230.35 μs | 83.44 μs | 0.36× |
-| 50 | 1,065.10 μs | 350.55 μs | 0.33× |
+| TypeCount | Method | Mean | Error | StdDev | Ratio | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | CleanGeneration (baseline) | 55.58 μs | 0.156 μs | 0.122 μs | 1.00× | 12.2070 | 1.4648 | 103.46 KB | 1.00× |
+| 1 | IncrementalGeneration | 25.81 μs | 0.448 μs | 0.397 μs | 0.46× | 3.0518 | - | 25.88 KB | 0.25× |
+| 10 | CleanGeneration (baseline) | 230.53 μs | 1.614 μs | 1.431 μs | 1.00× | 72.2656 | 15.6250 | 600.10 KB | 1.00× |
+| 10 | IncrementalGeneration | 85.56 μs | 1.509 μs | 1.260 μs | 0.37× | 8.0566 | 0.3662 | 66.60 KB | 0.11× |
+| 50 | CleanGeneration (baseline) | 1,030.43 μs | 7.461 μs | 7.328 μs | 1.00× | 343.7500 | 109.3750 | 2,809.42 KB | 1.00× |
+| 50 | IncrementalGeneration | 364.52 μs | 7.273 μs | 8.084 μs | 0.35× | 29.2969 | 3.9063 | 247.04 KB | 0.09× |
 
 Incremental generation is consistently faster and allocates
 substantially less (0.09×–0.25× of clean generation's allocation) across
@@ -216,6 +260,5 @@ dotnet run -c Release --project benchmarks/Compono.Benchmarks -f net10.0
 build. Add `-- --filter "*ClassName*"` to run one category at a time (the
 full suite, across every category's parameter matrix, takes on the order
 of 15 minutes). Full per-category results (every method, every parameter
-value, `Gen0`/`Gen1`/`Gen2`, raw CSV/HTML) are written to
-`BenchmarkDotNet.Artifacts/results/` relative to the working directory
-`dotnet run` was invoked from.
+value, raw CSV/HTML) are written to `BenchmarkDotNet.Artifacts/results/`
+relative to the working directory `dotnet run` was invoked from.

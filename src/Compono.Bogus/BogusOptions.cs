@@ -70,12 +70,14 @@ public sealed class BogusOptions
     /// </summary>
     /// <param name="memberName">The exact member name to match.</param>
     /// <param name="generate">
-    /// Produces this member's value from a seeded <see cref="Faker"/>. The <see cref="Faker"/>
-    /// instance is reused across later, unrelated requests on the same thread (per
-    /// <see cref="BogusMemberNameProvider"/>'s own performance design) - always freshly reseeded
-    /// before <paramref name="generate"/> is called, so read its randomness normally, but never
-    /// retain the instance past this call or rely on any state it carries beyond
-    /// <c>Faker.Random</c>.
+    /// Produces this member's value from a seeded <see cref="Faker"/>. Unlike the built-in
+    /// conventions, this <see cref="Faker"/> instance is fresh and single-use - never reused
+    /// across requests, and never shared with any other convention - since
+    /// <see cref="BogusMemberNameProvider"/> can't guarantee an arbitrary delegate won't mutate
+    /// state (<c>DateTimeReference</c>, a sub-generator, or any other of <see cref="Faker"/>'s
+    /// public settable properties) that would otherwise leak into a later, unrelated request.
+    /// Still fine to read its randomness normally - it's freshly reseeded for this call - just
+    /// don't retain the instance past this call, since nothing else will ever see the same one.
     /// </param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="memberName"/> or <paramref name="generate"/> is <see langword="null"/>.

@@ -51,4 +51,4 @@ conflict (`CompositionConfigurationException`), not last-write-wins.
 - Apply this to a real task → [Create an Object](../how-to/create-an-object.md).
 - The configuration surface `WithCollectionSize` is part of →
   [Registrations and Rules](registrations-and-rules.md).
-- Precise API contract → [Public API](../public-api.md).
+- Precise API contract → [Reference](../reference/index.md).

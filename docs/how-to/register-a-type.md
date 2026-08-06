@@ -68,4 +68,4 @@ pipeline rather than failing outright.
 
 - The full configuration model → [Registrations and Rules](../concepts/registrations-and-rules.md).
 - Reuse this across every test → [Use Profiles](use-profiles.md).
-- Precise API contract → [Public API](../public-api.md).
+- Precise API contract → [Reference](../reference/index.md).
