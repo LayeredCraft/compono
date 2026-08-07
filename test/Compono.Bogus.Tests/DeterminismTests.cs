@@ -102,10 +102,14 @@ public sealed class DeterminismTests
         // guaranteed the runtime actually dispatched work across multiple threads at the same
         // instant rather than running items back-to-back - a shared-Faker race could pass this
         // test serially, purely by luck of the scheduler. Real System.Threading.Thread instances
-        // plus a Barrier remove that luck entirely: every worker blocks at the barrier until all
-        // of them have arrived, then releases simultaneously, so the composition calls below are
-        // guaranteed to genuinely overlap in wall-clock time on one shared provider instance.
+        // plus a Barrier fix that: every worker blocks until all of them have arrived, then all
+        // release together, so the workers start from a coordinated point instead of trickling in
+        // one by one at the scheduler's discretion. That's a stronger starting condition, not a
+        // guarantee that any two threads execute at the literal same instant thereafter - so each
+        // worker also does many resolutions back to back (not just one) to keep genuine contention
+        // on the shared provider's cached Faker for a sustained window, not one narrow instant.
         const int workerCount = 16;
+        const int iterationsPerWorker = 100;
         var provider = new BogusMemberNameProvider("en");
         var barrier = new Barrier(workerCount);
         var results = new ConcurrentBag<(int Seed, string Value)>();
@@ -114,9 +118,14 @@ public sealed class DeterminismTests
             .Select(seed => new Thread(() =>
             {
                 barrier.SignalAndWait();
-                var value = Composer.Create(b => b.WithSeed(seed).AddSemanticProvider(provider))
-                    .CreateRow(typeof(DeterminismTests))
-                    .Resolve<string>(EmailDescriptor);
+
+                string value = null!;
+                for (var i = 0; i < iterationsPerWorker; i++)
+                {
+                    value = Composer.Create(b => b.WithSeed(seed).AddSemanticProvider(provider))
+                        .CreateRow(typeof(DeterminismTests))
+                        .Resolve<string>(EmailDescriptor);
+                }
 
                 results.Add((seed, value));
             }))
