@@ -724,14 +724,14 @@ progress.
 
 ## Phase 6: Contributor and repository readiness
 
-**Status:** Not Started
+**Status:** Done
 
 Executes ADR-0030 Amendment 2's governance-scope decision. Independent of
 the documentation content phases above — could run in parallel with
 Phases 2-5 in principle, sequenced here mainly for reviewability (one
 focused PR, not interleaved with doc-content PRs).
 
-- [ ] **Two files, not one.** `docs/contributing.md` — the full docs-site
+- [x] **Two files, not one.** `docs/contributing.md` — the full docs-site
       page: build/test/PR expectations, cross-linking this skill's
       public-facing equivalents, plus the license-review note Phase 0's
       dependency spot-check feeds into (any PR adding or bumping a
@@ -752,14 +752,71 @@ focused PR, not interleaved with doc-content PRs).
       to `docs/contributing.md` for the full detail, not a duplicate.
       Also add the link from repository-root `README.md` (a small
       addition to Phase 2's README review/update, done here since
-      `CONTRIBUTING.md` doesn't exist until this phase).
-- [ ] `SECURITY.md` — vulnerability reporting process.
-- [ ] `CODE_OF_CONDUCT.md` — standard, uncustomized Contributor Covenant.
-- [ ] GitHub issue templates: bug report, feature/roadmap proposal.
-- [ ] One lightweight PR template.
-- [ ] "Good first issue" candidates identified from the Cookbook recipe
-      backlog (a natural first-PR shape, per ADR-0030 Amendment 1's own
-      framing of Cookbook recipes).
+      `CONTRIBUTING.md` doesn't exist until this phase). Added to
+      `mkdocs.yml`'s nav (a top-level "Contributing" entry, after
+      Roadmap) and `docs/documentation-architecture.md`'s tree updated
+      from "not yet created" to real content. `LayeredCraft/.github`
+      already supplies an org-wide `CONTRIBUTING.md` via GitHub's native
+      community-health-file inheritance, but it's generic across the
+      whole org (.NET 8/9, no mention of Compono's MTP runner or CI
+      gates); kept as a deliberate repo-local override (per direct user
+      decision) since it links straight to Compono-specific detail the
+      org default can't have.
+- [x] `SECURITY.md`/`CODE_OF_CONDUCT.md` — **not added to this repo,
+      after a reversal.** A first pass added repo-local copies (GitHub
+      Advisory-only reporting; standard, unmodified Contributor Covenant
+      v2.1) as deliberate overrides of `LayeredCraft/.github`'s weaker
+      org defaults (a published email address; a short custom paragraph
+      instead of the standard Covenant text). Per direct user request,
+      those two org-level files were then updated in place instead
+      ([LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4)) —
+      `SECURITY.md` now points to GitHub's private Security Advisory flow
+      org-wide, and `CODE_OF_CONDUCT.md` now carries the full,
+      unmodified Contributor Covenant v2.1 org-wide. With the org
+      defaults now matching what ADR-0030 Amendment 2 calls for, the
+      repo-local copies here were redundant (duplicate content that
+      could drift from the org original) and removed; both requirements
+      are satisfied via GitHub's native community-health-file
+      inheritance instead. `README.md` and `docs/contributing.md` link
+      directly to `LayeredCraft/.github`'s copies rather than a local
+      relative path, since no local file exists to resolve.
+- [x] GitHub issue templates — **not added to this repo.** A first pass
+      added `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md`
+      directly, before discovering (via direct user feedback) that
+      `LayeredCraft/.github` already provides `bug_report.yml`/
+      `feature_request.yml`/`config.yml` (GitHub issue-forms, a nicer
+      format than the `.md` templates first drafted) that apply to every
+      org repo automatically via GitHub's native community-health-file
+      inheritance — any repo-local `ISSUE_TEMPLATE/` directory shadows
+      the org's entirely (all-or-nothing per directory, not merged), so
+      adding repo-local `.md` templates here would have actively
+      *replaced* the org's better ones with worse ones for no compono-
+      specific benefit. Reverted; `docs/contributing.md`'s "Before you
+      start" and "Good first issue candidates" sections link to
+      `.../compono/issues/new/choose` generically instead of naming a
+      specific template file, since the actual templates now live and
+      evolve in `LayeredCraft/.github`, not here.
+- [x] PR template — **not added to this repo.** A first pass added
+      `.github/PULL_REQUEST_TEMPLATE.md` as a repo-local override (a
+      checklist naming compono's specific CI gates: Conventional-Commit
+      title, `CS1591` doc-comment gate, package-validation, dependency-
+      license check) since `LayeredCraft/.github`'s generic template
+      doesn't cover those. Per direct user decision, reverted in favor of
+      the org's existing template via inheritance — one fewer file to
+      keep in sync, and `docs/contributing.md`'s "Pull request
+      conventions" section already spells out the same CI-gate detail in
+      prose, so the checklist duplication wasn't pulling its weight.
+- [x] "Good first issue" candidates identified from the Cookbook recipe
+      backlog: six candidate recipes not yet written (collection with a
+      fixed size, sharing a value without `[Shared]` on the type, a
+      custom `Compono.Bogus` naming convention, verifying NSubstitute
+      call arguments, reproducing a `CreateMany<T>()` failure from a
+      seed, a required-member record with one member overridden), listed
+      in `docs/contributing.md`'s "Good first issue candidates" section
+      rather than as actual open GitHub issues — filing the issues
+      themselves is a repository-administration action, not a docs/code
+      change this plan's Tasks scope covers; the candidate list itself is
+      the artifact this task produces.
 
 ## Phase 7: Final navigation, link, and snippet validation pass
 

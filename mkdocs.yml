@@ -178,6 +178,7 @@ nav:
     - Post-MVP: roadmap/post-mvp.md
     - Proposed ADRs: roadmap/proposed-adrs.md
     - Future Packages: roadmap/future-packages.md
+  - Contributing: contributing.md
   - Documentation Architecture: documentation-architecture.md
 
 # Social links

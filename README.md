@@ -91,6 +91,19 @@ The full documentation site is at
 See the `/docs` directory for the manifesto, architecture, public API,
 performance, MVP roadmap, design principles, and ADRs.
 
+## Contributing
+
+Compono welcomes outside contributions. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for how to get started — build/test
+instructions, coding standards, PR conventions, and "good first issue"
+candidates live at
+[layeredcraft.github.io/compono/contributing](https://layeredcraft.github.io/compono/contributing/).
+Please also read the
+[Code of Conduct](https://github.com/LayeredCraft/.github/blob/main/.github/CODE_OF_CONDUCT.md).
+To report a security vulnerability, see the
+[Security Policy](https://github.com/LayeredCraft/.github/blob/main/.github/SECURITY.md)
+instead of opening a public issue.
+
 ## Status
 
 Compono is under active development. APIs are experimental until the
