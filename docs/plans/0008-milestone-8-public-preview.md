@@ -883,10 +883,7 @@ together, not just each page in isolation.
 
 ## Phase 8: Clean-room public-preview acceptance test and first publication
 
-**Status:** In Progress — acceptance test done (with real findings sent
-to their own fix, [PR #58](https://github.com/LayeredCraft/compono/pull/58));
-the first-release cut and its post-publish verification are the user's own
-action, not yet done.
+**Status:** Done
 
 **Checkpoint: Release Candidate** — every prior phase is done; this phase
 either confirms the milestone is genuinely ready to publish or sends
@@ -933,24 +930,41 @@ package-readiness phase above being done.
       (not just a local build) — every page touched during the walkthrough
       returns `200`, and the deployed nav reflects both post-Phase-7 fixes
       (#56/#57).
-- [ ] **User's own action, not automatable:** cut the first real `0.x`
-      release by publishing the existing `v0.1.0` draft GitHub Release
-      (reviewing/editing its release-drafter-generated notes first, as
-      desired) and marking it published, not draft — this is the actual
-      "does this look done" gate (`publish-release.yaml`, triggered by
-      `release: types: [published]`), completely independent of
-      `publish-preview.yaml`'s `preview` identifier (renamed in Phase 0,
-      unrelated to this step). A real, public, hard-to-reverse action tied
-      to the user's own GitHub identity — deliberately not something this
-      plan's automation triggers on the user's behalf.
-- [ ] Verify all four publishable packages installable from nuget.org
-      post-publish (not just the local-feed pre-check); verify
-      `Compono.Generators` is present inside the installed `Compono`
-      package's `analyzers/dotnet/cs` and actually runs.
-- [ ] Verify the documentation site is live at its public URL with the
-      final nav. (Already spot-checked live and current as of the
-      acceptance-test task above — this remaining item is the *post-release*
-      re-confirmation once `publish-release.yaml` has run.)
+- [x] **User's own action, not automatable — done.** The user reviewed and
+      published the existing `v0.1.0` draft GitHub Release (not draft) on
+      2026-08-07 — this is the actual "does this look done" gate
+      (`publish-release.yaml`, triggered by `release: types: [published]`),
+      completely independent of `publish-preview.yaml`'s `preview`
+      identifier (renamed in Phase 0, unrelated to this step). The
+      workflow ran clean (`resolve` → `publish` → `push`, all green).
+- [x] Verified all four publishable packages installable from nuget.org
+      post-publish (not just the local-feed pre-check), in a fresh
+      project with no `nuget.config`, each pinned to the real, stable
+      `0.1.0` (not a `-preview.N` prerelease): `dotnet add package
+      Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus --version
+      0.1.0` all restored successfully. Ran a real composition smoke test
+      against the installed packages (plain `Create<T>()`, `UseBogus()`,
+      `UseNSubstitute()`, and a `[Compose]` xUnit v3 theory row) — 5/5
+      passed, confirming `Compono.Generators` is genuinely running (a
+      generated composition plan resolved `Customer`), not just that the
+      packages restored. Verified directly:
+      `~/.nuget/packages/compono/0.1.0/analyzers/dotnet/cs/Compono.Generators.dll`
+      is present in the installed package. (Along the way, found and
+      cleaned up a local-machine-only artifact: an earlier Phase 8
+      acceptance-test session had packed scratch test packages to a local
+      feed at a fabricated `1.0.0` version, which NuGet's global package
+      cache — shared across all restores on this machine — had retained;
+      it briefly caused a real restore to prefer that phantom `1.0.0`
+      over the real published `0.1.0` via `NU1605` version-downgrade
+      protection. Confirmed via nuget.org directly that no `1.0.0` was
+      ever actually published, removed the four stray cache entries, and
+      the real install then succeeded cleanly. Not a nuget.org or release
+      issue — a side effect of this plan's own earlier local testing on
+      this specific machine.)
+- [x] Verified the documentation site is live at its public URL with the
+      final nav: `https://layeredcraft.github.io/compono/` returns `200`,
+      and the deployed nav still reflects both post-Phase-7 fixes
+      (collapsible tree, no horizontal tabs — #56/#57).
 
 ## Phase 9: Final MVP documentation and closeout
 
