@@ -227,6 +227,20 @@ complete workflow) deliberately deferred as disproportionate for a v0.1
 skill pack; revisit if real-world usage surfaces triggering or accuracy
 problems the spot-checks didn't catch.
 
+**PR #63 Copilot review (post-merge-request)**: 5 inline findings, all
+confirmed real and fixed (commit `f0a368b`). Four were the same class of
+defect — `Composer.Create<T>()` written as if `Create<T>()`/`CreateMany<T>()`
+were static generics on `Composer`, when they're instance methods on the
+`Composer` the static, non-generic `Composer.Create(...)` returns
+(`SKILL.md`, `composition-model.md`, `registrations-profiles-and-scopes.md`,
+`evals/evals.json`) — notable for landing in a skill whose explicit point
+is teaching agents not to invent Compono APIs. The fifth was a real
+seed-type gap in `diagnostics.md`'s reproduce-a-failure step:
+`CompositionDiagnostic.Seed` is `ulong` (an unseeded composer draws a full
+random 64-bit value) and doesn't always fit the `int`-typed
+`WithSeed(int)`/`[Compose(Seed = ...)]` reproduction APIs the way a
+`Compono.XunitV3` row failure's seed always does.
+
 **Real defect found and fixed during Phase 4**: `references/xunit-v3.md`
 originally cited `BindingPlan.ValidateSignature` as the mechanism behind
 a runtime `CompositionException` for stacked Compose-family attributes.
