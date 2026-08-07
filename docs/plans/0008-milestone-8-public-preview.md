@@ -755,28 +755,56 @@ focused PR, not interleaved with doc-content PRs).
       `CONTRIBUTING.md` doesn't exist until this phase). Added to
       `mkdocs.yml`'s nav (a top-level "Contributing" entry, after
       Roadmap) and `docs/documentation-architecture.md`'s tree updated
-      from "not yet created" to real content.
+      from "not yet created" to real content. `LayeredCraft/.github`
+      already supplies an org-wide `CONTRIBUTING.md` via GitHub's native
+      community-health-file inheritance, but it's generic across the
+      whole org (.NET 8/9, no mention of Compono's MTP runner or CI
+      gates); kept as a deliberate repo-local override (per direct user
+      decision) since it links straight to Compono-specific detail the
+      org default can't have.
 - [x] `SECURITY.md` — vulnerability reporting via GitHub's private
       Security Advisory flow (`/security` → "Report a vulnerability"),
-      not a published email address — no maintainer contact email exists
-      in the repo's package metadata to publish, and GitHub's own flow is
-      what ADR-0030 Amendment 2 specifically names as the requirement
-      this file satisfies.
+      not a published email address. `LayeredCraft/.github` already
+      supplies an org-wide `SECURITY.md` (an email address plus "open a
+      private issue if enabled") that would otherwise apply here via
+      inheritance; kept as a deliberate repo-local override (per direct
+      user decision) since ADR-0030 Amendment 2 specifically names
+      GitHub's own advisory flow as the requirement, not the org
+      default's weaker guidance.
 - [x] `CODE_OF_CONDUCT.md` — standard Contributor Covenant v2.1 text,
       unmodified except filling in the template's required contact-method
       placeholder (GitHub Security Advisory report / maintainer GitHub
-      profile, consistent with `SECURITY.md`'s reporting channel, since no
-      other maintainer contact exists in this repo).
-- [x] GitHub issue templates: `.github/ISSUE_TEMPLATE/bug_report.md`,
-      `.github/ISSUE_TEMPLATE/feature_request.md` (titled "Feature /
-      Roadmap proposal" per the milestone brief's naming). Each
-      pre-applies its matching `type: fix`/`type: feat` label so
-      `release-drafter.yml`'s existing categorization picks up
-      issue-sourced PRs consistently with the PR-title-based autolabeler.
+      profile, consistent with `SECURITY.md`'s reporting channel).
+      `LayeredCraft/.github` already supplies an org-wide
+      `CODE_OF_CONDUCT.md`, but it's a short custom paragraph, not the
+      "standard, uncustomized Contributor Covenant" ADR-0030 Amendment 2
+      calls for; kept as a deliberate repo-local override (per direct
+      user decision) for that reason.
+- [x] GitHub issue templates — **not added to this repo.** A first pass
+      added `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md`
+      directly, before discovering (via direct user feedback) that
+      `LayeredCraft/.github` already provides `bug_report.yml`/
+      `feature_request.yml`/`config.yml` (GitHub issue-forms, a nicer
+      format than the `.md` templates first drafted) that apply to every
+      org repo automatically via GitHub's native community-health-file
+      inheritance — any repo-local `ISSUE_TEMPLATE/` directory shadows
+      the org's entirely (all-or-nothing per directory, not merged), so
+      adding repo-local `.md` templates here would have actively
+      *replaced* the org's better ones with worse ones for no compono-
+      specific benefit. Reverted; `docs/contributing.md`'s "Before you
+      start" and "Good first issue candidates" sections link to
+      `.../compono/issues/new/choose` generically instead of naming a
+      specific template file, since the actual templates now live and
+      evolve in `LayeredCraft/.github`, not here.
 - [x] `.github/PULL_REQUEST_TEMPLATE.md` — one lightweight template:
       summary, related issue, a short checklist (Conventional Commit
       title, build/test passed locally, test coverage, XML doc comments,
-      docs updated, dependency-license check), additional context.
+      docs updated, dependency-license check), additional context. Kept
+      as a repo-local override of `LayeredCraft/.github`'s generic PR
+      template (per direct user decision) — compono's CI gates
+      (Conventional-Commit title check, `CS1591` doc-comment gate,
+      package-validation) are specific enough that the org's generic
+      checklist doesn't cover them.
 - [x] "Good first issue" candidates identified from the Cookbook recipe
       backlog: six candidate recipes not yet written (collection with a
       fixed size, sharing a value without `[Shared]` on the type, a

@@ -16,11 +16,12 @@ instead of opening a public issue.
   [ADR](architecture/decision-log.md) may already record the decision
   you're about to re-derive.
 - For anything beyond a small fix (a new provider, a new registration
-  behavior, a new package), open an issue first using the "Feature /
-  Roadmap Proposal" template and let a maintainer weigh in before you
-  invest in an implementation — this repo intentionally has one way to do
-  each thing, and a design conversation up front is cheaper than a large
-  PR that has to change direction in review.
+  behavior, a new package), open a
+  [Feature Request](https://github.com/LayeredCraft/compono/issues/new/choose)
+  issue first and let a maintainer weigh in before you invest in an
+  implementation — this repo intentionally has one way to do each thing,
+  and a design conversation up front is cheaper than a large PR that has
+  to change direction in review.
 - Looking for a first contribution? A missing [Cookbook](cookbook/index.md)
   recipe is the easiest way in — narrow in scope, easy to review, and
   doesn't require touching the composition engine itself. See the
@@ -109,6 +110,6 @@ each following the same shape as the existing five:
 - Reproduce a `CreateMany<T>()` failure from a recorded seed
 - Compose a required-member record type with one member overridden
 
-Open an issue using the "Feature / Roadmap Proposal" template (or comment
-on an existing one) before starting, so two people don't write the same
-recipe at once.
+Open a [Feature Request](https://github.com/LayeredCraft/compono/issues/new/choose)
+issue (or comment on an existing one) before starting, so two people
+don't write the same recipe at once.
