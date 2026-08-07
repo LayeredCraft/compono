@@ -5,10 +5,10 @@
       "id": 1,
       "category": "activation",
       "prompt": "Use Compono to create the request model in this test. The project already references Compono and Compono.XunitV3.",
-      "expected_output": "Composes the request model via Composer.Create<T>()/CreateMany<T>() or a [Compose] theory parameter, without adding [Composable] unless a discovery gap is actually shown, and without introducing reflection.",
+      "expected_output": "Composes the request model via composer.Create<T>()/CreateMany<T>() (an instance method on the Composer returned by Composer.Create(...)) or a [Compose] theory parameter, without adding [Composable] unless a discovery gap is actually shown, and without introducing reflection.",
       "files": [],
       "expectations": [
-        "Uses only real Compono APIs (Composer.Create/CreateMany, [Compose], etc.), nothing invented",
+        "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
         "Does not add [Composable] unless there is a genuine discovery-gap reason",
         "Does not introduce Activator.CreateInstance or any reflection-based fallback"
       ]

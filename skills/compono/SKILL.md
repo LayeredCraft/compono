@@ -3,7 +3,7 @@ name: compono
 description: >-
   **WORKFLOW SKILL** - Compono test-composition guidance for .NET/C# unit
   test projects. Compono is a source-generated alternative to AutoFixture
-  ("compono" = to compose): `Composer.Create<T>()`/`CreateMany<T>()`,
+  ("compono" = to compose): `composer.Create<T>()`/`CreateMany<T>()`,
   `[Composable]`, registrations, profiles, `[Shared]`, and the optional
   `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus` packages.
   USE FOR: writing a new test that needs composed test data, modifying an

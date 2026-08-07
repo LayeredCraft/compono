@@ -1,6 +1,6 @@
 # Composition model
 
-How `Composer.Create<T>()` actually works, when `[Composable]` is (and
+How `composer.Create<T>()` actually works, when `[Composable]` is (and
 isn't) needed, and how determinism/seeding fits in. Read this before
 composing any type, and before telling a user their type "needs an
 attribute" — most don't.

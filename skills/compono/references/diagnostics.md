@@ -76,9 +76,20 @@ message with `Seed:` appended.
    package is referenced, or a `.For<T>()` rule. Don't work around the
    failure with reflection or a different fixture library (see the
    Guardrails in `SKILL.md`).
-5. To reproduce locally: the printed `Seed:` value plugs directly into
-   `[Compose(Seed = ...)]` (an `int`) or `builder.WithSeed(...)`
-   programmatically. Remove the pinned seed once the fix is verified —
-   don't leave it pinned as a permanent habit.
+5. To reproduce locally: for a `Compono.XunitV3` row failure, the printed
+   `Seed:` value plugs directly into `[Compose(Seed = ...)]` — that path
+   is always `int`-range by construction. For a plain programmatic
+   `composer.Create<T>()` failure, `CompositionDiagnostic.Seed` is a
+   `ulong` and can exceed `int.MaxValue` (an unseeded composer draws a
+   full random 64-bit value) — it won't always fit `builder.WithSeed(int
+   seed)` or `[Compose(Seed = ...)]` (also `int`) directly. If it
+   doesn't fit, reproduce by pointing `context.Resolve`/the failing
+   `Create<T>()` call at the same inputs another way (e.g. keep the
+   composer instance itself around, or narrow the seed by using
+   `WithSeed` from the start of the investigation instead of an
+   after-the-fact unseeded run) rather than assuming the printed value
+   always round-trips into the `int`-typed seed APIs. Remove any pinned
+   seed once the fix is verified — don't leave it pinned as a permanent
+   habit.
 6. A `CompositionException` is deterministic, not flaky. Don't wrap it in
    a retry; investigate.

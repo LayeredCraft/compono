@@ -107,7 +107,7 @@ public void ServiceUsesTheSharedRepository(
   always sees it already available.
 - Two `[Shared]` parameters of the same type on one method is an error —
   there's no way to know which one is "the" shared value.
-- **Not a core `Compono` concept** — plain `Composer.Create<T>()` has no
+- **Not a core `Compono` concept** — plain `composer.Create<T>()` has no
   notion of a "row" to scope sharing to. `[Shared]` only exists inside
   `Compono.XunitV3`'s `[Compose]` row. Don't suggest `[Shared]` for a
   programmatic (non-`[Compose]`) composition — use a `Register<T>()`
