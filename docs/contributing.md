@@ -2,10 +2,11 @@
 
 Compono welcomes outside contributions. This page covers what to expect
 day to day — build/test, PR conventions, and how dependency changes get
-reviewed. For the project's conduct expectations, see
-[`CODE_OF_CONDUCT.md`](https://github.com/LayeredCraft/compono/blob/main/CODE_OF_CONDUCT.md).
-For reporting a security vulnerability, see
-[`SECURITY.md`](https://github.com/LayeredCraft/compono/blob/main/SECURITY.md)
+reviewed. For the project's conduct expectations, see the
+[Code of Conduct](https://github.com/LayeredCraft/.github/blob/main/.github/CODE_OF_CONDUCT.md)
+(applies org-wide via GitHub's community-health-file inheritance — Compono
+doesn't keep its own copy). For reporting a security vulnerability, see
+the [Security Policy](https://github.com/LayeredCraft/.github/blob/main/.github/SECURITY.md)
 instead of opening a public issue.
 
 ## Before you start

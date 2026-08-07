@@ -98,9 +98,11 @@ Compono welcomes outside contributions. See
 instructions, coding standards, PR conventions, and "good first issue"
 candidates live at
 [layeredcraft.github.io/compono/contributing](https://layeredcraft.github.io/compono/contributing/).
-Please also read [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). To report a
-security vulnerability, see [`SECURITY.md`](SECURITY.md) instead of
-opening a public issue.
+Please also read the
+[Code of Conduct](https://github.com/LayeredCraft/.github/blob/main/.github/CODE_OF_CONDUCT.md).
+To report a security vulnerability, see the
+[Security Policy](https://github.com/LayeredCraft/.github/blob/main/.github/SECURITY.md)
+instead of opening a public issue.
 
 ## Status
 

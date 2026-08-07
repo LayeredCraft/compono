@@ -762,24 +762,24 @@ focused PR, not interleaved with doc-content PRs).
       gates); kept as a deliberate repo-local override (per direct user
       decision) since it links straight to Compono-specific detail the
       org default can't have.
-- [x] `SECURITY.md` — vulnerability reporting via GitHub's private
-      Security Advisory flow (`/security` → "Report a vulnerability"),
-      not a published email address. `LayeredCraft/.github` already
-      supplies an org-wide `SECURITY.md` (an email address plus "open a
-      private issue if enabled") that would otherwise apply here via
-      inheritance; kept as a deliberate repo-local override (per direct
-      user decision) since ADR-0030 Amendment 2 specifically names
-      GitHub's own advisory flow as the requirement, not the org
-      default's weaker guidance.
-- [x] `CODE_OF_CONDUCT.md` — standard Contributor Covenant v2.1 text,
-      unmodified except filling in the template's required contact-method
-      placeholder (GitHub Security Advisory report / maintainer GitHub
-      profile, consistent with `SECURITY.md`'s reporting channel).
-      `LayeredCraft/.github` already supplies an org-wide
-      `CODE_OF_CONDUCT.md`, but it's a short custom paragraph, not the
-      "standard, uncustomized Contributor Covenant" ADR-0030 Amendment 2
-      calls for; kept as a deliberate repo-local override (per direct
-      user decision) for that reason.
+- [x] `SECURITY.md`/`CODE_OF_CONDUCT.md` — **not added to this repo,
+      after a reversal.** A first pass added repo-local copies (GitHub
+      Advisory-only reporting; standard, unmodified Contributor Covenant
+      v2.1) as deliberate overrides of `LayeredCraft/.github`'s weaker
+      org defaults (a published email address; a short custom paragraph
+      instead of the standard Covenant text). Per direct user request,
+      those two org-level files were then updated in place instead
+      ([LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4)) —
+      `SECURITY.md` now points to GitHub's private Security Advisory flow
+      org-wide, and `CODE_OF_CONDUCT.md` now carries the full,
+      unmodified Contributor Covenant v2.1 org-wide. With the org
+      defaults now matching what ADR-0030 Amendment 2 calls for, the
+      repo-local copies here were redundant (duplicate content that
+      could drift from the org original) and removed; both requirements
+      are satisfied via GitHub's native community-health-file
+      inheritance instead. `README.md` and `docs/contributing.md` link
+      directly to `LayeredCraft/.github`'s copies rather than a local
+      relative path, since no local file exists to resolve.
 - [x] GitHub issue templates — **not added to this repo.** A first pass
       added `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md`
       directly, before discovering (via direct user feedback) that
@@ -796,15 +796,16 @@ focused PR, not interleaved with doc-content PRs).
       `.../compono/issues/new/choose` generically instead of naming a
       specific template file, since the actual templates now live and
       evolve in `LayeredCraft/.github`, not here.
-- [x] `.github/PULL_REQUEST_TEMPLATE.md` — one lightweight template:
-      summary, related issue, a short checklist (Conventional Commit
-      title, build/test passed locally, test coverage, XML doc comments,
-      docs updated, dependency-license check), additional context. Kept
-      as a repo-local override of `LayeredCraft/.github`'s generic PR
-      template (per direct user decision) — compono's CI gates
-      (Conventional-Commit title check, `CS1591` doc-comment gate,
-      package-validation) are specific enough that the org's generic
-      checklist doesn't cover them.
+- [x] PR template — **not added to this repo.** A first pass added
+      `.github/PULL_REQUEST_TEMPLATE.md` as a repo-local override (a
+      checklist naming compono's specific CI gates: Conventional-Commit
+      title, `CS1591` doc-comment gate, package-validation, dependency-
+      license check) since `LayeredCraft/.github`'s generic template
+      doesn't cover those. Per direct user decision, reverted in favor of
+      the org's existing template via inheritance — one fewer file to
+      keep in sync, and `docs/contributing.md`'s "Pull request
+      conventions" section already spells out the same CI-gate detail in
+      prose, so the checklist duplication wasn't pulling its weight.
 - [x] "Good first issue" candidates identified from the Cookbook recipe
       backlog: six candidate recipes not yet written (collection with a
       fixed size, sharing a value without `[Shared]` on the type, a
