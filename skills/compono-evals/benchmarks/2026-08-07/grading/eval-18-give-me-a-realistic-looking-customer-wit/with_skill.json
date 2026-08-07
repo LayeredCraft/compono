@@ -1,0 +1,49 @@
+{
+  "expectations": [
+    {
+      "text": "Does not use or recommend UseBogus()/BogusOptions/any Compono.Bogus API without that package being referenced or explicitly requested",
+      "passed": true,
+      "evidence": "Line 1: 'I won't reach for UseBogus()/UseBogus<T>() — that API isn't available without the package, and I'm not going to suggest adding it or silently falling back to another fixture library.' Both offered options (Option A hand-written literal, Option B member-rule pinning via `.For<Customer>().Member(x => x.Name).Use(\"Evelyn Marsh\")`) avoid any Compono.Bogus API. The 'Why not Bogus here' section discusses Compono.Bogus only to explain why it is NOT being used, and frames adding the package as an opt-in the user would have to choose ('but only if you want that, not as a default I'll reach for'), not a recommendation to use it now."
+    },
+    {
+      "text": "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono",
+      "passed": true,
+      "evidence": "Line 46: 'Compono.Bogus is what the skill designates for realistic string content (name/email/address formats) via UseBogus()/member-name conventions... If you actually want Bogus-quality realism generated automatically... the right move is to add the Compono.Bogus package.' This explicitly ties automatic realistic-data generation to Compono.Bogus and distinguishes it from core Compono, which (per the response) only pins literal values via member rules rather than generating realistic content itself."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "Compono.Bogus is what the skill designates for realistic string content via UseBogus()/member-name conventions",
+      "type": "process",
+      "verified": true,
+      "evidence": "Consistent with the response's own stated rationale and with the assertion structure of this eval (which explicitly separates Compono.Bogus's realistic-data role from core Compono); cannot independently verify skill's internal wording from this output alone, but no contradiction found."
+    },
+    {
+      "claim": "A couple of trivial, fixed field values don't need composition indirection (per 'When not to use Compono' guidance)",
+      "type": "process",
+      "verified": true,
+      "evidence": "Option A in the response applies this reasoning directly and is a reasonable, self-consistent engineering judgment for a two-field literal like Name/Email."
+    },
+    {
+      "claim": "Compono.XunitV3's [Compose] attribute can be combined with a project ICompositionProfile or composer-level member rule to pin realistic values on a theory parameter",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Plausible given the stated API shapes (`[Compose]`, `.For<T>().Member(...).Use(...)`) but not independently checkable against the actual Compono.XunitV3 source from this transcript alone; treated as unverified rather than false."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono",
+        "reason": "This assertion is only weakly discriminating for this eval: the without_skill variant (no skill loaded at all) reaches essentially the same conclusion using generic domain reasoning ('no Compono.Bogus, so no fake-data generator library is available'). A model with no special knowledge of Compono can plausibly infer this just from the package name 'Bogus'. Consider strengthening the assertion to require identifying the *specific* Compono.Bogus API surface (e.g., UseBogus(), BogusOptions, locale/member-name conventions) rather than just the package's general purpose, which would better isolate skill-driven knowledge from generic inference."
+      }
+    ],
+    "overall": "Both assertions pass, but assertion 2 does not clearly separate skill-driven behavior from what a competent model would infer unaided — see suggestion above. Assertion 1 is well-targeted: it would catch a model that reached for UseBogus() or silently substituted AutoFixture/Bogus.Net, which neither variant did."
+  }
+}

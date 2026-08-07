@@ -1,0 +1,24 @@
+{
+  "expectations": [
+    {
+      "text": "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition",
+      "passed": true,
+      "evidence": "The response searches the repo for a matching integration test, finds only `samples/Compono.Samples.AspNetApi.Tests/EndpointTests.cs` (which uses an in-memory substitute, not a real DB), and states: \"So there's nothing in this codebase matching what you're describing; the notes below are general guidance for `WebApplicationFactory` + real-test-database setups.\" The full seven-point breakdown (config precedence, `UseEnvironment`, hardcoded connection strings, DB readiness/retry, parallel-test isolation, secrets handling, connection pool exhaustion) is standard ASP.NET Core/xUnit guidance with zero mention of Compono, `[Composable]`, `Create<T>()`, or any object-composition concept."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "total": 1,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition",
+        "reason": "Same concern as the with_skill variant: this is a low bar that any reasonable general-purpose response would clear even without skill guidance, since connection-string/hosting issues are obviously outside Compono's domain. It doesn't distinguish skill-driven restraint from default good judgment. Consider adding an assertion that specifically checks whether the skill correctly identifies edge cases where Compono *would* be relevant (e.g., seed-data/request-payload construction) as a sharper test of the skill's scoping logic — the with_skill variant volunteers this distinction unprompted, while this variant does not, and no assertion currently rewards or penalizes that difference."
+      }
+    ],
+    "overall": "Assertion passes cleanly. Note that this eval, as written, cannot distinguish the with_skill and without_skill outputs from each other since both correctly stay out of Compono territory — the without_skill baseline already behaves well here, suggesting the assertion doesn't isolate any skill-specific value-add for this particular prompt."
+  }
+}

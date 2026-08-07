@@ -1,0 +1,44 @@
+{
+  "expectations": [
+    {
+      "text": "Explicitly discourages broadly applying [Composable] across a type hierarchy",
+      "passed": true,
+      "evidence": "Line 1: \"No — don't blanket-mark your domain model with [Composable]. That's explicitly called out as an anti-pattern in Compono...\" Line 12 quotes the skill's hard rule verbatim: \"Never mark broad swathes of a production model [Composable] 'to be safe.' It's a narrow discovery-gap opt-in, not a general 'make this type composable' marker.\""
+    },
+    {
+      "text": "Explains discovery already covers the common case without any attribute",
+      "passed": true,
+      "evidence": "Line 5: \"discovery works by the generator walking your actual Create<T>()/CreateMany<T>() call sites (directly, or transitively through constructor parameters) at compile time... If a type shows up in that walk — which almost everything does... it's already composable with zero attributes.\" Line 10: \"for the vast majority of your domain model, the attribute would be a no-op — the generator already sees those types via normal Create<T>() call graphs.\""
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "[Composable] is a narrow discovery-gap opt-in for types the generator's call-site walk can't reach (indirect [Compose] theory params, or types owned by referenced assemblies)",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Consistent with the quoted skill hard rule and the CMP0008/[assembly: Composable(typeof(X))] guidance given in the response; internally consistent and specific (mentions CMP0008 requiring typeof(...) at assembly scope), suggesting genuine grounding rather than guessing."
+    },
+    {
+      "claim": "AllowMultiple = true and duplicate requests dedupe, so over-applying [Composable] won't error",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Stated as a specific technical detail (line 16) consistent with the rest of the response's precise, skill-grounded tone; not contradicted elsewhere in the output."
+    },
+    {
+      "claim": "Blanket-marking muddies the signal for real discovery gaps",
+      "type": "quality",
+      "verified": true,
+      "evidence": "Reasonable and well-argued (line 17), follows logically from the stated mechanism."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Both assertions are meaningful and discriminating here: the without_skill variant passes assertion 1 (generic engineering judgment easily produces 'don't blanket-apply') but fails assertion 2, which requires specific knowledge of Compono's compile-time call-site discovery mechanism — knowledge only the skill-equipped variant demonstrates. This is a good pair of assertions since assertion 2 in particular is hard to satisfy without the skill's domain-specific facts."
+  }
+}

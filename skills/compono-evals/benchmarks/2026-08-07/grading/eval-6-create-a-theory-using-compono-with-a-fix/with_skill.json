@@ -1,0 +1,24 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly demonstrates positional (not named) inline binding in [Compose(...)]",
+      "passed": true,
+      "evidence": "Response shows `[Compose(42)]` with the comment 'quantity is fixed; productName is composed', and explicitly explains: 'Compono's `[Compose]` attribute supports exactly this: inline arguments bind **positionally** (left-to-right) to the leading parameters, and any parameter without a corresponding inline value is composed by the generator.' It also contrasts this with the rejected alternative `[Compose(42, \"widget\")]`, showing correct understanding that only the leading parameter needed to be pinned."
+    },
+    {
+      "text": "Does not use a nonexistent named-argument binding syntax",
+      "passed": true,
+      "evidence": "No named-argument syntax (e.g. `[Compose(quantity: 42)]`) appears anywhere in the response. The response uses only positional inline binding (`[Compose(42)]`) and, for the reusable case, a profile-based member rule (`builder.For<Order>().Member(x => x.Quantity).Use(42)`), both of which are consistent with documented Compono mechanisms rather than invented syntax."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Both assertions are met with genuine, substantive evidence — the response doesn't just use `[Compose(42)]` incidentally, it explains the positional-binding mechanism and explicitly reasons about why the named/fully-pinned alternative would be wrong. No issues to flag for this variant."
+  }
+}

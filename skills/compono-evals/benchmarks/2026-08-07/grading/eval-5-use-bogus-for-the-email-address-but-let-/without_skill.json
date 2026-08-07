@@ -1,0 +1,29 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly states BogusMemberNameProvider does exact-name, case-sensitive matching, not fuzzy",
+      "passed": false,
+      "evidence": "The response never mentions BogusMemberNameProvider, the member-name convention mechanism, or anything about exact/fuzzy/case-sensitive matching. It only discusses manual per-property overrides (`.With(x => x.Email, faker.Internet.Email())`) and, in passing, a hypothetical 'register a Bogus-backed generator for the Email property/type once ... via a Faker<Customer>().RuleFor(...) composed with Compono, or a Compono customization class that maps string Email -> Bogus' — this is vague/hedged ('I don't have that in front of me right now... adjust names to match your actual Customer builder') and does not describe the actual matching semantics at all, let alone correctly. No evidence to support the assertion."
+    },
+    {
+      "text": "Does not claim Bogus applies to non-string members",
+      "passed": true,
+      "evidence": "The response's only mention of non-string handling is advisory and correct: 'If Customer.Email is a value object/wrapper type rather than a plain string, wrap the Bogus output accordingly, e.g. .With(x => x.Email, new Email(faker.Internet.Email()))' — this describes manual wrapping, not an automatic Bogus-to-non-string-member mapping, so it does not violate the assertion."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not claim Bogus applies to non-string members",
+        "reason": "This assertion passes here largely because the response never engages with the member-name-convention mechanism at all (it doesn't know Compono's actual API surface — it hedges with 'I don't have that in front of me right now' and guesses at method names like Composer.Build<Customer>() / CustomerBuilder.Create()). A response that says nothing relevant trivially satisfies a 'does not claim X' assertion. Consider requiring the response to actually engage with BogusMemberNameProvider's string-only type gating for this assertion to be discriminating, otherwise it can't distinguish 'correctly silent' from 'silent because it doesn't know the API.'"
+      }
+    ],
+    "overall": "The without_skill response fabricates plausible-sounding but unverified Compono API names (Composer.Build<Customer>(), CustomerBuilder.Create()) and explicitly flags it doesn't know the real API shape, so it never engages with the actual routing question the eval is probing (member-rule sugar vs. global member-name convention vs. manual override). This is a meaningful failure mode the current two assertions only partially capture — an assertion checking that the response uses real Compono API (e.g. Composer.Create/For<T>().Member(...), or the actual generated builder pattern) rather than guessed/hedged names would better capture this gap."
+  }
+}

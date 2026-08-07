@@ -1,0 +1,29 @@
+{
+  "expectations": [
+    {
+      "text": "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+      "passed": false,
+      "evidence": "Response line 1 explicitly says: 'not pulling in Compono-specific conventions (`Compono.NSubstitute`'s `UseNSubstitute()`, etc.)' — this names both 'Compono' and 'UseNSubstitute()' verbatim. The word 'Compono' also reappears later: 'I'd only reach for it if you actually add the `Compono.NSubstitute` package and ask to migrate.' The user's prompt already stated the project has no Compono packages referenced anywhere, so there was no need to introduce Compono terminology at all; the ideal response would simply review the NSubstitute usage without raising Compono machinery."
+    },
+    {
+      "text": "Reviews the NSubstitute usage on its own terms",
+      "passed": true,
+      "evidence": "Although no test code was pasted into the prompt (so no line-by-line review of concrete code was possible), the response's 7-point checklist is framed entirely in vanilla NSubstitute/xUnit vocabulary — virtual/interface requirement for substitution, Arg.Any<T>() vs literal matchers, Returns vs Returns(callInfo => ...), Task-returning Returns(Task.FromResult(...)), Received()/DidNotReceive() overlap, unused stubs, and Substitute.For<T>() semantics. None of these criteria depend on or reference Compono-specific attributes, builders, or conventions — the substantive review content is genuinely NSubstitute-native."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+        "reason": "This assertion penalizes a response for explaining, in good faith, why it is *not* applying Compono conventions. The user's prompt already states the project has no Compono packages, so the discriminating failure mode this assertion should catch is the model incorrectly recommending or applying Compono conventions (e.g., telling the user to add [Shared] or call UseNSubstitute() as if it were needed) — not the mere appearance of the word 'Compono' in a disclaimer. As written, a response that says 'I'm deliberately not using Compono conventions here' fails the same as one that says 'you should call UseNSubstitute() to fix this,' even though only the latter is a real error. Consider rewording to something like 'Does not instruct the user to add/apply Compono-specific APIs (UseNSubstitute(), [Shared] attribute) as if they were required or missing' so the assertion targets the harmful behavior rather than the vocabulary."
+      }
+    ],
+    "overall": "Assertion 2 is reasonably discriminating given the constraint that no code was provided (it correctly rewards NSubstitute-native review criteria over Compono-flavored ones). Assertion 1 is weak as literally worded — it penalizes transparent, correct reasoning about why Compono doesn't apply, which is arguably better behavior than silently guessing. Also worth noting: since the prompt supplied no actual test code, neither variant could demonstrate a real correctness review — an eval intended to test 'reviews NSubstitute usage on its own terms' would be more discriminating if it included an actual (flawed) NSubstitute test snippet to review, rather than relying on a hypothetical checklist."
+      }
+}

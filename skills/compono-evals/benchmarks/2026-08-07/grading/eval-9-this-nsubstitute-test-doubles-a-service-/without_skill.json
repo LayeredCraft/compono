@@ -1,0 +1,29 @@
+{
+  "expectations": [
+    {
+      "text": "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+      "passed": false,
+      "evidence": "The response includes an entire '## Note on Compono' section (lines 29-31) stating: 'That's useful context: it means there's no `Compono.NSubstitute` (or similar) helper library... so I'll review this purely against vanilla NSubstitute/xUnit semantics, not against any Compono-specific test-double conventions. If you were expecting Compono conventions to apply (e.g., an `AutoNSubstituteCustomization` or similar builder pattern)...'. This mentions 'Compono' by name multiple times and references Compono-specific package/convention names, even though it does not use the literal string 'UseNSubstitute()' or '[Shared]'."
+    },
+    {
+      "text": "Reviews the NSubstitute usage on its own terms",
+      "passed": true,
+      "evidence": "No test code was included in the prompt, so no concrete line-by-line review occurred, but the 9-point checklist (substitute target virtual/interface requirement, argument matcher equality semantics, Task<T>/ValueTask<T> stubbing, Returns-ordering, dead-stub detection, Received()/DidNotReceive() matcher symmetry, ClearReceivedCalls() across shared substitutes, Substitute.For<T>() vs Substitute.ForPartsOf<T>()) is entirely vanilla NSubstitute/xUnit domain knowledge, not Compono-flavored. The review framework itself is on NSubstitute's own terms."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+        "reason": "Same concern as the with_skill variant: this response also devotes a dedicated section to explaining why Compono doesn't apply, which is transparent and arguably good practice, but it is scored the same as a response that misapplies Compono conventions. The assertion doesn't distinguish 'correctly explains why Compono is irrelevant' from 'incorrectly assumes/recommends Compono machinery' — both trip the literal-mention check. It's also notable that the *without_skill* variant — which per this benchmark's design should have no access to Compono-specific knowledge — independently produced detailed, accurate Compono terminology (`Compono.NSubstitute`, `AutoNSubstituteCustomization`). That suggests either the base model already has training-data knowledge of Compono, or ambient repo/CLAUDE.md context leaked into the 'without_skill' condition. Either way it undermines the with/without comparison for this eval and is worth flagging to the eval author independent of the assertion wording."
+      }
+    ],
+    "overall": "Identical assertion-1 concern as with_skill: the literal word-presence check fails a well-reasoned disclaimer as readily as a genuine error. More significant here: without_skill produced fluent, specific Compono knowledge despite supposedly not having the skill loaded, which is a bigger issue for eval validity than the assertion wording — it suggests the with/without comparison may not be clean for this eval."
+  }
+}

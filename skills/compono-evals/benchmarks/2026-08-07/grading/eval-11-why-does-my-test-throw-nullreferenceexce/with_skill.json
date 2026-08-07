@@ -1,0 +1,49 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly identifies the missing ConfigureMembers=true equivalent as the root cause",
+      "passed": true,
+      "evidence": "Response states: 'AutoNSubstituteCustomization { ConfigureMembers = true } ... Auto-configured every member on that substitute ... Compono.NSubstitute's UseNSubstitute() only does the first part ... There is no equivalent of ConfigureMembers = true, and no global switch to turn one on.' It then traces the exact mechanism: an unstubbed member returning Task<T> returns Task.FromResult<T>(null), which is awaited and dereferenced, causing the NullReferenceException."
+    },
+    {
+      "text": "Does not suggest a nonexistent Compono.NSubstitute auto-configure option",
+      "passed": true,
+      "evidence": "Response explicitly forecloses this: 'There is no equivalent of ConfigureMembers = true, and no global switch to turn one on' and later 'Don't try to recreate ConfigureMembers-style auto-configuration as a project-local helper or wrapper — it's explicitly removed with no replacement concept, by design.' The only fix offered is explicit per-test `.Returns(...)` stubbing plus correct use of `[Shared]`."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "Compono.NSubstitute's UseNSubstitute() only creates substitutes and does not auto-configure members (no ConfigureMembers equivalent)",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Stated confidently and specifically as 'documented explicitly as the #1 AutoFixture-habit trap for this package', suggesting grounding in skill reference material rather than speculation; internally consistent with the rest of the response."
+    },
+    {
+      "claim": "[Shared] from Compono.XunitV3 is needed to get the same substitute instance for stubbing and assertion",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Presented as specific guidance with a worked code example distinguishing [Shared] usage from default independent instantiation; internally coherent with the rest of the explanation and not contradicted elsewhere in the response."
+    },
+    {
+      "claim": "A second registration/customization for the same type would hit a build-time registration conflict rather than silently override, unlike an AutoFixture customization override",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Stated as a specific, falsifiable design detail, but there is no evidence in this transcript (no source inspection, no build output) to confirm the build-time conflict behavior. Plausible given the response's overall precision, but unverified from the available output alone."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not suggest a nonexistent Compono.NSubstitute auto-configure option",
+        "reason": "This assertion is easy to pass by omission — a vague or evasive answer that just says 'stub things manually' without ever engaging with the ConfigureMembers comparison would also pass. Consider strengthening it (or adding a companion assertion) that requires the response to explicitly state there is no ConfigureMembers-equivalent, not merely avoid mentioning one."
+      }
+    ],
+    "overall": "Both assertions are satisfied with strong, specific evidence. The with_skill response is notably more assertive and precise (naming the exact Task<T> default-return mechanism, citing [Shared] semantics, and explicitly warning against reflection-based workarounds), which is consistent with having drawn on grounded reference material rather than general reasoning."
+  }
+}

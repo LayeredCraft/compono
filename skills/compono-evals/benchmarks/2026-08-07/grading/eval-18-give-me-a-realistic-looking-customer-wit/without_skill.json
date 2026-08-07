@@ -1,0 +1,48 @@
+{
+  "expectations": [
+    {
+      "text": "Does not use or recommend UseBogus()/BogusOptions/any Compono.Bogus API without that package being referenced or explicitly requested",
+      "passed": true,
+      "evidence": "Response never mentions UseBogus(), BogusOptions, or any Compono.Bogus API surface at all. It hand-writes a literal `Customer` fixture with fixed values (Sarah Whitfield, sarah.whitfield@example.com, etc.) and explicitly states the reasoning: 'no Compono.Bogus, so no fake-data generator library is available) — I'll hand-write a realistic, deterministic customer fixture rather than pull in a faker.'"
+    },
+    {
+      "text": "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono",
+      "passed": true,
+      "evidence": "Line 1 parenthetical: '(no Compono.Bogus, so no fake-data generator library is available)' and the notes section: 'appropriate given there's no Compono.Bogus reference in this project to generate varied fake data.' This names Compono.Bogus specifically as the thing that would provide fake/realistic-data generation, and treats core Compono as not providing it — satisfying the assertion, though more tersely than a deeper explanation of the API surface would."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "example.com is the IANA-reserved domain for documentation/testing",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Correct — example.com/.net/.org are reserved by IANA under RFC 2606 for documentation and example use, a well-established fact independent of this codebase."
+    },
+    {
+      "claim": "The name, phone number, and timestamp are fixed literals, which keeps the test deterministic",
+      "type": "quality",
+      "verified": true,
+      "evidence": "The provided code sample does use fixed literal values throughout (Guid.Parse with a hardcoded GUID, fixed name/email/phone, fixed DateTimeOffset) — the claim matches the actual code shown."
+    },
+    {
+      "claim": "I don't have that type definition in front of me, so the shape above is illustrative",
+      "type": "process",
+      "verified": true,
+      "evidence": "Honest and accurate hedge — no Customer type was provided in the prompt, and the response correctly flags FirstName/LastName vs. Name as a guess, inviting correction rather than asserting a fabricated shape as fact."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "This variant received no skill guidance yet independently avoided the Compono.Bogus pitfall and correctly reasoned about the package boundary using only the prompt's own hint ('project only references Compono and Compono.XunitV3'). That weakens confidence that these two assertions isolate skill-specific value-add — see the matching note on the with_skill grading. A more discriminating assertion might check for skill-specific knowledge not derivable from the prompt text alone, e.g. correct naming of the actual Compono composition API (`Composer.Create`, `.For<T>().Member(...).Use(...)`, `[Compose]`) — which this without_skill response does not attempt at all, unlike with_skill."
+      }
+    ],
+    "overall": "Both assertions pass for this variant too. Notably, the real differentiator between the two variants isn't captured by either assertion: with_skill demonstrates concrete knowledge of Compono's actual composition API (Composer.Create, .For<T>().Member().Use(), [Compose] theory parameters) while without_skill produces a generic hand-rolled object literal with no Compono API usage at all, and even asks the user to paste the real Customer class. An assertion checking for correct use of Compono's actual composition surface would likely separate the variants better."
+  }
+}

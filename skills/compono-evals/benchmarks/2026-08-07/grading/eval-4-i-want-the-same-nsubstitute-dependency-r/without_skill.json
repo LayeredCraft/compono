@@ -1,0 +1,24 @@
+{
+  "expectations": [
+    {
+      "text": "Recommends [Shared], correctly describes it as Compono.XunitV3-only, not core Compono",
+      "passed": false,
+      "evidence": "The response never mentions Compono or its [Shared] attribute at all. It instead recommends the AutoFixture pattern: 'AutoNSubstituteCustomization', 'fixture.Freeze<T>()', and AutoFixture.Xunit's '[Frozen]' attribute (lines 5-45). This is a different library's mechanism entirely — the response treats the question as a generic AutoFixture+NSubstitute question rather than a Compono-specific one, so there is no [Shared] recommendation to evaluate as correct or incorrect."
+    },
+    {
+      "text": "Does not suggest [Shared] can be used outside a [Compose] row",
+      "passed": false,
+      "evidence": "Not applicable/unverifiable in the intended sense: the response never references [Shared] or [Compose] at all, so it cannot be said to correctly scope [Shared] to a [Compose] row. Per grading criteria, an expectation that cannot be verified as true from the available output should fail rather than pass by default. The response's actual mechanism ([Frozen] with AutoNSubstituteData, section 3, lines 28-45) does not correspond to Compono's model at all, meaning a user following this answer would not use Compono's [Shared] feature or know its scoping rules."
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 2,
+    "total": 2,
+    "pass_rate": 0.0
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "The without_skill baseline confirms both assertions are discriminating: absent the skill, the assistant defaults to generic AutoFixture/NSubstitute knowledge and never surfaces Compono's [Shared] attribute or its Compono.XunitV3 scoping at all, cleanly failing both expectations. No eval changes suggested."
+  }
+}

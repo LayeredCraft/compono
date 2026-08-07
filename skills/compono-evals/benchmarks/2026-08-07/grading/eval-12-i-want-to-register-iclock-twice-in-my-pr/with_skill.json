@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly identifies the duplicate Register<T>() as a build-time conflict, not an override",
+      "passed": true,
+      "evidence": "Response states: 'a **second** `Register<IClock>()` for the same type ... is a build-time `CompositionConfigurationException`, not last-write-wins.' It also shows the exact code with a comment '// conflict, throws' and explains 'Compono treats a duplicate as a configuration conflict and throws instead of silently picking one.'"
+    },
+    {
+      "text": "Does not imply Compono supports customization override semantics like AutoFixture",
+      "passed": true,
+      "evidence": "Response explicitly contrasts with AutoFixture: 'This is the single biggest AutoFixture-habit trap: AutoFixture customizations happily re-customize the same type (last one registered wins); Compono treats a duplicate as a configuration conflict and throws instead of silently picking one.' It also states directly: 'Compono doesn't have that semantic for `Register<T>()`.' No override semantics are implied anywhere in the response; instead it redirects to separate profiles applied via `[Compose<TProfile>]`."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "The with_skill response is strong and precise, but no assertion checks whether the suggested fix (separate profiles + `[Compose<TProfile>]`) is itself correct/idiomatic Compono usage. If the fix were subtly wrong (e.g. misusing `[Compose]` attribute rules), both assertions here would still pass despite the advice being unreliable. A follow-up assertion verifying the recommended remediation pattern would make this eval more discriminating."
+      }
+    ],
+    "overall": "Both assertions are clearly satisfied with strong, specific evidence (naming the actual exception type and explicitly contrasting with AutoFixture semantics). The assertions are appropriately discriminating: the without_skill response fails both, showing they distinguish genuine Compono knowledge from generic/hedged reasoning."
+  }
+}

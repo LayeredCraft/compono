@@ -1,0 +1,65 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly distinguishes compile-time CMP codes from runtime CompositionException",
+      "passed": true,
+      "evidence": "Response opens with an explicit split: 'Compile-time (CMP0001-CMP0012) — emitted by the Compono.Generators Roslyn analyzer, fails dotnet build' vs 'Runtime (CompositionException) — thrown from composer.Create<T>() or a [Compose] theory row when the code compiled fine but the pipeline couldn't satisfy a request at composition time.' It then correctly places the user's issue in the runtime bucket and explains why interfaces are never routed through CMP-code constructor-selection diagnostics ('interfaces/abstract classes/delegates are always classified as provider-resolved, never routed through constructor selection'). This matches the actual repo docs (docs/troubleshooting/common-errors.md: 'Every CMP0001-CMP0012 error is a compile-time diagnostic... A missing provider for an interface, abstract class, or delegate is not a CMP code at all — it always surfaces as a runtime CompositionException instead')."
+    },
+    {
+      "text": "Reads the tree path to the actual failing leaf type, not just the root type",
+      "passed": true,
+      "evidence": "Dedicated section '## Read the tree path, not the root type' reproduces the exact tree-shaped diagnostic format from the docs (CreateOrderHandler -> IOrderProcessor -> OrderValidator -> IRuleProvider) and explicitly instructs: 'Read it top-down. The leaf at the bottom (IRuleProvider in your case) is the thing that's actually missing — not CreateOrderHandler or whatever your root composed type is.' It also references the structured CompositionDiagnostic API (RootType, FailedType, Path, Trace, Seed, Message), which was verified against src/Compono/CompositionDiagnostic.cs and matches exactly, including Seed being ulong and Diagnostic being nullable on the exception."
+    },
+    {
+      "text": "Does not suggest retrying the test or wrapping in reflection",
+      "passed": true,
+      "evidence": "Explicit '## What not to do' section states: 'Don't reach for reflection (Activator.CreateInstance, manual constructor/property reflection) as a workaround — Compono has no reflection fallback by design (ADR-0001)'. On retrying, the 'Reproducing it deterministically' section states 'this isn't flaky — don't wrap it in a retry' and explains the failure is deterministic and will reproduce on essentially every seed. No suggestion anywhere to retry the test or add a reflection-based workaround."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "CMP0001-CMP0012 are compile-time diagnostics from Compono.Generators",
+      "type": "factual",
+      "verified": true,
+      "evidence": "docs/troubleshooting/common-errors.md confirms: 'Every CMP0001–CMP0012 error is a compile-time diagnostic from Compono.Generators'"
+    },
+    {
+      "claim": "CompositionDiagnostic exposes RootType, FailedType, Path, Trace, Seed, Message and is nullable on the exception",
+      "type": "factual",
+      "verified": true,
+      "evidence": "src/Compono/CompositionDiagnostic.cs defines exactly these six required members (Seed is ulong); src/Compono/CompositionException.cs declares `public CompositionDiagnostic? Diagnostic { get; }`, confirming nullability."
+    },
+    {
+      "claim": "A second Register<T>() for the same type is a build-time conflict (CompositionConfigurationException), not last-write-wins",
+      "type": "factual",
+      "verified": true,
+      "evidence": "docs/troubleshooting/common-errors.md: 'CompositionConfigurationException ... thrown when Composer.Create(...) returns ... two Register<T> calls for the same type ... there is no last-write-wins fallback to rely on instead.'"
+    },
+    {
+      "claim": "The printed Seed for a [Compose] row is int-range but a plain composer.Create<T>() seed is a full 64-bit (ulong) value that may exceed int.MaxValue and have no public API to replay exactly",
+      "type": "factual",
+      "verified": true,
+      "evidence": "docs/troubleshooting/common-errors.md corroborates the int-vs-ulong seed distinction and the guidance to call builder.WithSeed(...) with a chosen int up front rather than replay a printed value; this matches the response's nuance almost verbatim."
+    },
+    {
+      "claim": "Compono has no reflection fallback by design, per ADR-0001",
+      "type": "factual",
+      "verified": true,
+      "evidence": "docs/adr/0001*.md discusses 'Automatic reflection fallback' as a rejected option, stating reflection is 'intentionally excluded from the default architecture.'"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "This assertion set is fairly discriminating already (the without_skill variant clearly fails two of three), but none of the assertions check for a fabricated-mechanism failure mode — the without_skill response invents plausible-sounding but Compono-inapplicable causes (lifetime/scope mismatch, open-generic mismatch, assembly version skew) as if they were established parts of Compono's model. An assertion like 'does not invent composition-failure causes that aren't part of Compono's actual model (e.g. DI-container-style lifetime/scope rules, assembly skew)' would catch confident-sounding hallucination that a simple presence/absence check misses."
+      }
+    ],
+    "overall": "The three assertions are solid and clearly discriminating for this eval — with_skill passes all three with strong, verifiable evidence directly traceable to repo docs and source; without_skill fails two of three by treating this as a generic DI-container troubleshooting problem rather than Compono's specific model."
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "expectations": [
+    {
+      "text": "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition",
+      "passed": true,
+      "evidence": "Opening paragraph explicitly scopes Compono out: \"So this isn't actually a Compono question: Compono is a source-generated replacement for AutoFixture-style *test data composition* (`Create<T>()`, `[Composable]`, registrations/profiles). It has nothing to do with how a `WebApplicationFactory` wires up a database connection string — that's ASP.NET Core host/configuration plumbing.\" The remainder of the response (config layering, `UseEnvironment`, Testcontainers, xUnit collection isolation) is entirely generic ASP.NET Core / xUnit integration-testing advice with no Compono API, registration, or composition suggestion anywhere. It even proactively notes the one place Compono *could* be tangentially relevant (building request payloads/seed entities) and correctly separates that from the connection-string issue itself."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "total": 1,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition",
+        "reason": "This assertion is fairly easy to satisfy for any competent general-purpose answer (an executor with no skill at all would also naturally avoid injecting an unrelated library). It doesn't discriminate whether the skill is actively improving judgment vs. simply not being triggered. A more discriminating variant would also check that the response correctly identifies where Compono *would* apply if the test used object composition for seed data/request payloads (which this response does, unprompted) — that's the harder, more skill-specific behavior worth asserting on."
+      }
+    ],
+    "overall": "The single assertion passes cleanly for this variant, but it's a low bar (checking for an absence rather than presence of correct behavior). The with_skill response goes further than required by proactively drawing the boundary of where Compono *would* apply, which is the more interesting signal an eval author would want to capture."
+  }
+}

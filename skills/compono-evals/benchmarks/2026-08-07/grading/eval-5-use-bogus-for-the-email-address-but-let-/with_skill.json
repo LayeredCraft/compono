@@ -1,0 +1,29 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly states BogusMemberNameProvider does exact-name, case-sensitive matching, not fuzzy",
+      "passed": true,
+      "evidence": "Response says: 'bare UseBogus() would happen to catch Customer.Email, but it also silently starts generating Bogus values for FirstName/LastName/PhoneNumber/etc. on any type in the graph that matches those exact member names.' This correctly conveys exact-name matching against a fixed allowlist (and correctly notes it isn't scoped to a single type, i.e. no fuzzy/contextual narrowing). Verified against src/Compono.Bogus/BogusMemberNameProvider.cs, which is indeed 'Exact match, case-sensitive... no substring/prefix/fuzzy matching.' The response does not literally use the word 'case-sensitive', but it makes no claim contradicting it and the core exact-match/not-fuzzy behavior is correctly and clearly stated."
+    },
+    {
+      "text": "Does not claim Bogus applies to non-string members",
+      "passed": true,
+      "evidence": "The response never discusses non-string members or claims the member-name convention applies beyond string members; it only discusses Email (a string) via both the member-rule sugar and the global convention. No contradicting claim present."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Correctly states BogusMemberNameProvider does exact-name, case-sensitive matching, not fuzzy",
+        "reason": "This assertion passes here on the strength of the 'exact member names' phrasing, but the response never mentions case-sensitivity specifically. A response that got case-sensitivity wrong (e.g. implied case-insensitive matching) would likely still pass this assertion as currently graded, since nothing forces an explicit case-sensitivity statement. Consider splitting into two assertions (exact/not-fuzzy vs. case-sensitivity) or requiring the words 'case-sensitive' to make this more discriminating."
+      }
+    ],
+    "overall": "Both assertions are satisfied by the with_skill output, but assertion 1 is a fairly low bar as currently phrased — it would pass on a response that discusses exact matching without ever confirming case-sensitivity. The with_skill response earns its pass through substantively correct architectural reasoning (member-rule sugar vs. global convention scope), which the eval doesn't have a dedicated assertion for even though it's arguably the most skill-differentiating content in the response."
+  }
+}

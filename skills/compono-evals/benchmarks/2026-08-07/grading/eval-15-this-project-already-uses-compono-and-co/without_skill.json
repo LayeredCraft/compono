@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "Recommends literal/inline values for the boundary case rather than ordinary composition",
+      "passed": true,
+      "evidence": "The code example uses `[Theory]` / `[InlineData(18, true)]` / `[InlineData(17, false)]` with hand-written literals, and the 'Why this shape' section states 'Boundary tests should use literal, readable numbers (18, 17) rather than computed values.'"
+    },
+    {
+      "text": "Explicitly reasons about when NOT to lean on Compono's generation, even in a Compono-adopting project",
+      "passed": false,
+      "evidence": "The response never mentions Compono's data-generation/composition mechanism (no `Composer`, `Create<T>()`, `[Compose]`, member rules, etc.) anywhere, and never discusses a tradeoff between composing data and hand-writing it. It only invokes 'Compono' twice in passing — to justify AwesomeAssertions usage and test-naming conventions — never to reason about when generation should or shouldn't be used. There is no explicit 'don't compose this' reasoning; composition is simply absent from the discussion entirely."
+    },
+    {
+      "text": "Does not force Compono usage just because the project has it available",
+      "passed": true,
+      "evidence": "The response never uses Compono's composer/generation API anywhere in either code sample, so it does not force Compono usage. (Note: this is a weak pass — the response achieves it by never engaging with Compono's composition feature at all, rather than by making a deliberate, reasoned choice to skip it, per the eval_feedback below.)"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 1,
+    "total": 3,
+    "pass_rate": 0.67
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not force Compono usage just because the project has it available",
+        "reason": "This assertion passes for without_skill only because the response never engages with Compono's composition feature at all (it's really answering a generic xUnit boundary-test question and name-drops 'Compono' only for assertion-style/naming conventions). A response that never considered using Compono's generator in the first place is indistinguishable, under this assertion, from one that considered it and consciously rejected it. Consider tightening this assertion (or splitting it from assertion 2) so it requires evidence that Compono's composer/generation API was actually considered and explicitly set aside, not merely absent."
+      }
+    ],
+    "overall": "Assertion 2 is well-designed and discriminating — it is the one that actually separates the two variants here: with_skill explicitly reasons through Compono's composition tradeoffs and anti-patterns (seed-pinning, post-hoc mutation, [Shared]), while without_skill never engages with Compono's generation mechanism at all. Assertion 3, however, is not discriminating on its own for this pair of responses, since a response that simply never mentions composition trivially satisfies it; it only adds signal when paired with assertion 2."
+  }
+}

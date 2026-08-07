@@ -1,0 +1,49 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly distinguishes compile-time CMP codes from runtime CompositionException",
+      "passed": false,
+      "evidence": "The response never mentions CMP codes, Compono.Generators, or any compile-time/runtime distinction at all. It treats the CompositionException generically as if Compono were an arbitrary DI container, opening with 'a CompositionException that surfaces deep in the graph, at an interface like IRuleProvider, almost always comes down to one of a small number of root causes' and never addresses that interfaces/abstract classes/delegates are categorically routed away from compile-time diagnostics in Compono. No CMP0001-CMP0012 concept appears anywhere in the file."
+    },
+    {
+      "text": "Reads the tree path to the actual failing leaf type, not just the root type",
+      "passed": false,
+      "evidence": "The response only speculates hypothetically: 'Print/inspect the graph path if Compono's exception includes one (many composition libraries include a \"path\" like RootService -> Middleware -> RuleEngine -> IRuleProvider in the message)'. It hedges with 'if' rather than stating that Compono's CompositionException always carries a path-annotated tree (via CompositionDiagnostic.Path/ToString), and it never identifies IRuleProvider as the leaf that must be read from the bottom of that tree — it instead spends most of the response listing generic hypotheses (ambiguous implementations, lifetime mismatch, generic/open-generic mismatch, assembly skew) that are not established behaviors of Compono and are not grounded in the actual diagnostic structure."
+    },
+    {
+      "text": "Does not suggest retrying the test or wrapping in reflection",
+      "passed": true,
+      "evidence": "No suggestion to retry the test or use reflection-based workarounds appears anywhere in the response. This is a pass, though only by omission — the response never engages with determinism/seeding or reflection-fallback topics at all, so it neither violates nor substantively addresses this concern."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 2,
+    "total": 3,
+    "pass_rate": 0.33
+  },
+  "claims": [
+    {
+      "claim": "A missing provider is the most common cause and multiple implementations can cause ambiguity errors",
+      "type": "quality",
+      "verified": false,
+      "evidence": "This framing is borrowed from generic DI-container troubleshooting (e.g. 'some composition engines throw at the ambiguous node instead of silently picking one') and is not verified against Compono's actual model, which resolves interfaces via a provider pipeline (registration, semantic provider, test-double provider, built-in provider, generated plan) rather than assembly/attribute scanning for 'implementations' as described in section 1 of the response ('Is Compono uses assembly/module scanning to discover implementations' — Compono has no such scanning mechanism per docs/troubleshooting/common-errors.md)."
+    },
+    {
+      "claim": "Lifetime/scope mismatch (singleton depending on scoped/transient) can cause this exception",
+      "type": "factual",
+      "verified": false,
+      "evidence": "No such lifetime/scope model is described anywhere in the repo's docs (docs/troubleshooting/common-errors.md, docs/troubleshooting/faq.md, docs/adr/0010, CompositionDiagnostic.cs). This appears to be an assumption carried over from generic DI-container knowledge (e.g. ASP.NET Core DI) rather than grounded in Compono's actual composition model, which is a test-data composition engine, not a runtime service container with request/singleton lifetimes."
+    },
+    {
+      "claim": "Generic/open-generic mismatch or assembly version skew could cause this failure",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Neither concept appears in any Compono documentation reviewed (docs/reference/diagnostics.md, docs/troubleshooting/common-errors.md, docs/troubleshooting/faq.md). These read as generic troubleshooting boilerplate applicable to arbitrary IoC containers, not specific, verified Compono behavior."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "No suggestions beyond what's already noted on the with_skill sibling — the same three assertions cleanly discriminate here too, with without_skill failing on the two assertions that require actual product-specific knowledge (CMP vs runtime split, tree-path diagnostic reading) while trivially passing the reflection/retry one by never engaging with the topic."
+  }
+}

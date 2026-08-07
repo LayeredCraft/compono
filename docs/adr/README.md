@@ -96,3 +96,4 @@ the mechanics: numbering, status, and the index.
 | [0032](0032-api-reference-documentation-toolchain.md) | API Reference Documentation Toolchain | Accepted |
 | [0033](0033-public-preview-samples-strategy.md) | Public Preview Samples Strategy | Accepted |
 | [0034](0034-benchmark-suite-strategy-and-redesign.md) | Benchmark Suite Strategy and Redesign | Accepted |
+| [0035](0035-compono-agent-skill-pack.md) | Compono Agent Skill Pack | Accepted |

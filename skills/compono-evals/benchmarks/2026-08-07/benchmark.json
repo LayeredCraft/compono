@@ -1,0 +1,1123 @@
+{
+  "metadata": {
+    "skill_name": "compono",
+    "skill_path": "skills/compono",
+    "executor_model": "claude-sonnet-5",
+    "analyzer_model": "claude-sonnet-5",
+    "timestamp": "2026-08-07T14:55:57Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
+          "passed": true,
+          "evidence": "Response uses `private static readonly Composer Composer = Composer.Create();` then `Composer.Create<CreateOrderRequest>()` as an instance call (Option B), and `[Theory] [Compose]` with inline positional binding `[Compose(42)]` (Option A). Verified against src/Compono/Composer.cs: `public static Composer Create()`, `public T Create<T>()` (instance method), and src/Compono.XunitV3/ComposeAttribute.cs's constructor `ComposeAttribute(params object?[] inlineValues)` which supports positional inline binding exactly as described. No invented members (e.g. no fabricated `[Frozen]`/AutoFixture APIs) appear."
+        },
+        {
+          "text": "Does not add [Composable] unless there is a genuine discovery-gap reason",
+          "passed": true,
+          "evidence": "Response explicitly states: \"Not adding `[Composable]` to `CreateOrderRequest`... `[Composable]` is only for the narrow case where that walk can't reach the type... Since the request model is composed directly at the call site above, there's no discovery gap to work around.\" This matches the real ComposableAttribute.cs doc comment: \"Opts a type into generated composition when discovery can't find it on its own... Most types never need this.\""
+        },
+        {
+          "text": "Does not introduce Activator.CreateInstance or any reflection-based fallback",
+          "passed": true,
+          "evidence": "Response explicitly states: \"Not using `Activator.CreateInstance` or any reflection-based construction. Compono has no reflection fallback by design (ADR-0001)... that surfaces as a `CMP0001`-`CMP0012` compile diagnostic or a `CompositionException`.\" Verified: docs/adr/0001-source-generation-first.md documents 'Automatic reflection fallback' as a rejected option, and src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs defines exactly CMP0001 through CMP0012. No Activator.CreateInstance appears anywhere in the response's code."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition",
+          "passed": true,
+          "evidence": "Opening paragraph explicitly scopes Compono out: \"So this isn't actually a Compono question: Compono is a source-generated replacement for AutoFixture-style *test data composition* (`Create<T>()`, `[Composable]`, registrations/profiles). It has nothing to do with how a `WebApplicationFactory` wires up a database connection string \u2014 that's ASP.NET Core host/configuration plumbing.\" The remainder of the response (config layering, `UseEnvironment`, Testcontainers, xUnit collection isolation) is entirely generic ASP.NET Core / xUnit integration-testing advice with no Compono API, registration, or composition suggestion anywhere. It even proactively notes the one place Compono *could* be tangentially relevant (building request payloads/seed entities) and correctly separates that from the connection-string issue itself."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies the missing ConfigureMembers=true equivalent as the root cause",
+          "passed": true,
+          "evidence": "Response states: 'AutoNSubstituteCustomization { ConfigureMembers = true } ... Auto-configured every member on that substitute ... Compono.NSubstitute's UseNSubstitute() only does the first part ... There is no equivalent of ConfigureMembers = true, and no global switch to turn one on.' It then traces the exact mechanism: an unstubbed member returning Task<T> returns Task.FromResult<T>(null), which is awaited and dereferenced, causing the NullReferenceException."
+        },
+        {
+          "text": "Does not suggest a nonexistent Compono.NSubstitute auto-configure option",
+          "passed": true,
+          "evidence": "Response explicitly forecloses this: 'There is no equivalent of ConfigureMembers = true, and no global switch to turn one on' and later 'Don't try to recreate ConfigureMembers-style auto-configuration as a project-local helper or wrapper \u2014 it's explicitly removed with no replacement concept, by design.' The only fix offered is explicit per-test `.Returns(...)` stubbing plus correct use of `[Shared]`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies the duplicate Register<T>() as a build-time conflict, not an override",
+          "passed": true,
+          "evidence": "Response states: 'a **second** `Register<IClock>()` for the same type ... is a build-time `CompositionConfigurationException`, not last-write-wins.' It also shows the exact code with a comment '// conflict, throws' and explains 'Compono treats a duplicate as a configuration conflict and throws instead of silently picking one.'"
+        },
+        {
+          "text": "Does not imply Compono supports customization override semantics like AutoFixture",
+          "passed": true,
+          "evidence": "Response explicitly contrasts with AutoFixture: 'This is the single biggest AutoFixture-habit trap: AutoFixture customizations happily re-customize the same type (last one registered wins); Compono treats a duplicate as a configuration conflict and throws instead of silently picking one.' It also states directly: 'Compono doesn't have that semantic for `Register<T>()`.' No override semantics are implied anywhere in the response; instead it redirects to separate profiles applied via `[Compose<TProfile>]`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explicitly discourages broadly applying [Composable] across a type hierarchy",
+          "passed": true,
+          "evidence": "Line 1: \"No \u2014 don't blanket-mark your domain model with [Composable]. That's explicitly called out as an anti-pattern in Compono...\" Line 12 quotes the skill's hard rule verbatim: \"Never mark broad swathes of a production model [Composable] 'to be safe.' It's a narrow discovery-gap opt-in, not a general 'make this type composable' marker.\""
+        },
+        {
+          "text": "Explains discovery already covers the common case without any attribute",
+          "passed": true,
+          "evidence": "Line 5: \"discovery works by the generator walking your actual Create<T>()/CreateMany<T>() call sites (directly, or transitively through constructor parameters) at compile time... If a type shows up in that walk \u2014 which almost everything does... it's already composable with zero attributes.\" Line 10: \"for the vast majority of your domain model, the attribute would be a no-op \u2014 the generator already sees those types via normal Create<T>() call graphs.\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design",
+          "passed": true,
+          "evidence": "response.md lines 3-10 explicitly address Compono: 'This repo has the Compono test-composition framework available, but I'm not reaching for it here. Per the Compono skill's own \"When not to use Compono\" guidance: the whole point of this test is a couple of specific, hardcoded input/output pairs, and there's no object graph to compose \u2014 a composer call would add indirection without saving anything real. Plain [Theory] / [InlineData] is the right tool.' The actual test code (lines 60-97) uses plain xUnit [Theory]/[InlineData] with AwesomeAssertions .Should(), with no Compono composer/builder usage anywhere."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Recommends literal/inline values for the boundary case rather than ordinary composition",
+          "passed": true,
+          "evidence": "Response opens with 'Don't compose this one \u2014 write it literally' and the primary code example uses `[Theory]`/`[InlineData(18, true)]` / `[InlineData(17, false)]` with a plain xUnit v3 test, explicitly avoiding `composer.Create<int>()` for the boundary value."
+        },
+        {
+          "text": "Explicitly reasons about when NOT to lean on Compono's generation, even in a Compono-adopting project",
+          "passed": true,
+          "evidence": "Response directly quotes the skill's 'When not to use Compono' guidance ('The test's whole point *is* a specific, meaningful value... write it literally, don't compose it and then override it') and adds a dedicated 'Why not other approaches' section reasoning against `composer.Create<Applicant>()` + mutate, `[Shared]`, and seed-pinning to hit the boundary value, explaining Compono's role is 'generating the *incidental* data' versus the boundary value which 'is the entire point of the test.'"
+        },
+        {
+          "text": "Does not force Compono usage just because the project has it available",
+          "passed": true,
+          "evidence": "The primary recommended example is plain xUnit `[Theory]`/`[InlineData]` with no Compono composition at all; Compono is only reintroduced conditionally ('If the type under validation is a richer object... compose the object normally with Compono and pin only the Age member') and even then only for incidental fields, not the boundary value itself."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
+          "passed": true,
+          "evidence": "Opening line: \"I won't route around this with reflection/`Activator.CreateInstance` \u2014 that's a deliberate non-goal for Compono, not an oversight I can patch over for one test.\" This is an unambiguous, immediate refusal, not a hedge."
+        },
+        {
+          "text": "Explains why (no reflection fallback by design, not just 'best practice')",
+          "passed": true,
+          "evidence": "Cites a specific design decision: \"Compono is deliberately *not* a reflection-based fixture library (that's ADR-0001) \u2014 that design choice is the whole reason it exists instead of you just using AutoFixture.\" Verified against the actual repo: docs/adr/0001-source-generation-first.md exists and explicitly excludes 'Automatic reflection fallback' as a rejected option, stating 'runtime reflection is intentionally excluded from the default architecture.' The response also explains the mechanism-level reason CMP0001 fires (multiple accessible HttpClient constructors) and why bypassing it isn't 'just this one test' (precedent risk). This is grounded, specific, by-design reasoning, not generic best-practice language."
+        },
+        {
+          "text": "Offers a legitimate alternative (interface/wrapper, or explicit hand-built construction) instead of silently complying",
+          "passed": true,
+          "evidence": "Gives two concrete options: Option A, hand-construct `new HttpClient(new SomeFakeHandler())` at the point of use; Option B, wrap behind an app-owned `IHttpClientFactory2`-style interface that Compono can compose. Both match actual repo guidance: docs/migrating-from-autofixture.md documents an `IHttpClientProvider` wrapper pattern for exactly this HttpClient/CMP0001 case, and docs/cookbook/freeze-a-shared-httpmessagehandler.md documents the hand-construction pattern. The response also gives a clear recommendation for the stated time pressure (\"For today: go with Option A\")."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not immediately/silently introduce AutoFixture as a substitute without first addressing the underlying Compono failure",
+          "passed": true,
+          "evidence": "Opening line: 'I'd rather not do that swap \u2014 but let's actually kill the CompositionException, which is probably faster than a rewrite anyway.' The response never introduces AutoFixture code or a migration; instead it asks for the full exception text/tree path and Seed line, and lists the concrete diagnostic paths (missing provider, collection uniqueness exhaustion, registration conflict) before any swap is considered."
+        },
+        {
+          "text": "Treats swapping to a different fixture library as an explicit user decision, not a default fallback",
+          "passed": true,
+          "evidence": "Explicitly names the behavior as a project guardrail: 'silently substituting AutoFixture because a Compono composition is failing is an explicit guardrail in this project (skills/compono/SKILL.md) \u2014 it's there specifically to stop \"just this one test\" swaps.' It carves out a narrow, explicitly-scoped exception ('Where I'd actually agree AutoFixture is fine... that's a \"this one collaborator\" decision, not \"swap the whole file to AutoFixture\"') rather than defaulting to the swap."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not use or recommend UseBogus()/BogusOptions/any Compono.Bogus API without that package being referenced or explicitly requested",
+          "passed": true,
+          "evidence": "Line 1: 'I won't reach for UseBogus()/UseBogus<T>() \u2014 that API isn't available without the package, and I'm not going to suggest adding it or silently falling back to another fixture library.' Both offered options (Option A hand-written literal, Option B member-rule pinning via `.For<Customer>().Member(x => x.Name).Use(\"Evelyn Marsh\")`) avoid any Compono.Bogus API. The 'Why not Bogus here' section discusses Compono.Bogus only to explain why it is NOT being used, and frames adding the package as an opt-in the user would have to choose ('but only if you want that, not as a default I'll reach for'), not a recommendation to use it now."
+        },
+        {
+          "text": "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono",
+          "passed": true,
+          "evidence": "Line 46: 'Compono.Bogus is what the skill designates for realistic string content (name/email/address formats) via UseBogus()/member-name conventions... If you actually want Bogus-quality realism generated automatically... the right move is to add the Compono.Bogus package.' This explicitly ties automatic realistic-data generation to Compono.Bogus and distinguishes it from core Compono, which (per the response) only pins literal values via member rules rather than generating realistic content itself."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly distinguishes compile-time CMP codes from runtime CompositionException",
+          "passed": true,
+          "evidence": "Response opens with an explicit split: 'Compile-time (CMP0001-CMP0012) \u2014 emitted by the Compono.Generators Roslyn analyzer, fails dotnet build' vs 'Runtime (CompositionException) \u2014 thrown from composer.Create<T>() or a [Compose] theory row when the code compiled fine but the pipeline couldn't satisfy a request at composition time.' It then correctly places the user's issue in the runtime bucket and explains why interfaces are never routed through CMP-code constructor-selection diagnostics ('interfaces/abstract classes/delegates are always classified as provider-resolved, never routed through constructor selection'). This matches the actual repo docs (docs/troubleshooting/common-errors.md: 'Every CMP0001-CMP0012 error is a compile-time diagnostic... A missing provider for an interface, abstract class, or delegate is not a CMP code at all \u2014 it always surfaces as a runtime CompositionException instead')."
+        },
+        {
+          "text": "Reads the tree path to the actual failing leaf type, not just the root type",
+          "passed": true,
+          "evidence": "Dedicated section '## Read the tree path, not the root type' reproduces the exact tree-shaped diagnostic format from the docs (CreateOrderHandler -> IOrderProcessor -> OrderValidator -> IRuleProvider) and explicitly instructs: 'Read it top-down. The leaf at the bottom (IRuleProvider in your case) is the thing that's actually missing \u2014 not CreateOrderHandler or whatever your root composed type is.' It also references the structured CompositionDiagnostic API (RootType, FailedType, Path, Trace, Seed, Message), which was verified against src/Compono/CompositionDiagnostic.cs and matches exactly, including Seed being ulong and Diagnostic being nullable on the exception."
+        },
+        {
+          "text": "Does not suggest retrying the test or wrapping in reflection",
+          "passed": true,
+          "evidence": "Explicit '## What not to do' section states: 'Don't reach for reflection (Activator.CreateInstance, manual constructor/property reflection) as a workaround \u2014 Compono has no reflection fallback by design (ADR-0001)'. On retrying, the 'Reproducing it deterministically' section states 'this isn't flaky \u2014 don't wrap it in a retry' and explains the failure is deterministic and will reproduce on essentially every seed. No suggestion anywhere to retry the test or add a reflection-based workaround."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses [Compose] or [Compose<TProfile>] correctly, only one Compose-family attribute on the method",
+          "passed": true,
+          "evidence": "The converted test uses `[Theory]\\n[Compose<NSubstituteTestProfile>]` on `Saves_order`, exactly one Compose-family attribute. This matches the real Compono API confirmed in the repo at src/Compono.XunitV3/ComposeAttribute{TProfile}.cs and mirrors the shipped sample test/Compono.XunitV3.SampleTests/NSubstituteTests.cs almost verbatim (same profile name, same parameter shapes)."
+        },
+        {
+          "text": "Uses UseNSubstitute() since Compono.NSubstitute is referenced",
+          "passed": true,
+          "evidence": "`NSubstituteTestProfile.Configure` calls `builder.UseNSubstitute();`, the real extension method defined in src/Compono.NSubstitute/CompositionBuilderExtensions.cs. The response also explains why a profile is required to invoke it (Compose attributes alone don't wire providers)."
+        },
+        {
+          "text": "Uses [Shared] only where the substitute needs to be asserted against, not applied indiscriminately",
+          "passed": true,
+          "evidence": "Only the `repository` parameter is annotated `[Shared] IOrderRepository repository`; `handler` and `command` are left unannotated. The write-up explicitly justifies this: '[Shared] parameters compose first... so repository exists before handler is built' and warns that without it the assertion would target a different substitute instance than the one actually injected into `handler`. `SharedAttribute` in src/Compono.XunitV3/SharedAttribute.cs confirms this is exactly its documented semantics."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Recommends [Shared], correctly describes it as Compono.XunitV3-only, not core Compono",
+          "passed": true,
+          "evidence": "Response line 12: 'Compono.XunitV3 gives you the [Shared] parameter attribute, which is the mechanism for \"same instance reused throughout the composition\" inside a [Compose] theory row. [Shared] is *only* available in that Compono.XunitV3 context \u2014 it has no equivalent for a plain, non-[Compose] composer.Create<T>() call.' This explicitly attributes [Shared] to the Compono.XunitV3 package (not core Compono), matches the prerequisites section listing both Compono.NSubstitute and Compono.XunitV3 as required packages, and the full worked example at lines 27-48 demonstrates [Shared] usage correctly (type-keyed identity, resolution order, the two-[Shared]-of-same-type error)."
+        },
+        {
+          "text": "Does not suggest [Shared] can be used outside a [Compose] row",
+          "passed": true,
+          "evidence": "Response explicitly states the opposite in the 'If you're not using [Compose] theories' section (lines 70-72): 'If this is a plain, programmatic composition (Composer.Create(...), no [Compose] attribute), [Shared] doesn't apply \u2014 it's scoped to a [Compose] row. Instead, capture the substitute yourself and register it directly...' followed by a manual Register<T>() workaround. No part of the response implies [Shared] works outside a [Compose] row."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly states BogusMemberNameProvider does exact-name, case-sensitive matching, not fuzzy",
+          "passed": true,
+          "evidence": "Response says: 'bare UseBogus() would happen to catch Customer.Email, but it also silently starts generating Bogus values for FirstName/LastName/PhoneNumber/etc. on any type in the graph that matches those exact member names.' This correctly conveys exact-name matching against a fixed allowlist (and correctly notes it isn't scoped to a single type, i.e. no fuzzy/contextual narrowing). Verified against src/Compono.Bogus/BogusMemberNameProvider.cs, which is indeed 'Exact match, case-sensitive... no substring/prefix/fuzzy matching.' The response does not literally use the word 'case-sensitive', but it makes no claim contradicting it and the core exact-match/not-fuzzy behavior is correctly and clearly stated."
+        },
+        {
+          "text": "Does not claim Bogus applies to non-string members",
+          "passed": true,
+          "evidence": "The response never discusses non-string members or claims the member-name convention applies beyond string members; it only discusses Email (a string) via both the member-rule sugar and the global convention. No contradicting claim present."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly demonstrates positional (not named) inline binding in [Compose(...)]",
+          "passed": true,
+          "evidence": "Response shows `[Compose(42)]` with the comment 'quantity is fixed; productName is composed', and explicitly explains: 'Compono's `[Compose]` attribute supports exactly this: inline arguments bind **positionally** (left-to-right) to the leading parameters, and any parameter without a corresponding inline value is composed by the generator.' It also contrasts this with the rejected alternative `[Compose(42, \"widget\")]`, showing correct understanding that only the leading parameter needed to be pinned."
+        },
+        {
+          "text": "Does not use a nonexistent named-argument binding syntax",
+          "passed": true,
+          "evidence": "No named-argument syntax (e.g. `[Compose(quantity: 42)]`) appears anywhere in the response. The response uses only positional inline binding (`[Compose(42)]`) and, for the reusable case, a profile-based member rule (`builder.For<Order>().Member(x => x.Quantity).Use(42)`), both of which are consistent with documented Compono mechanisms rather than invented syntax."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly explains [Composable] is a discovery mechanism, not a fix for constructor/shape diagnostics",
+          "passed": true,
+          "evidence": "Response states: '[Composable] only solves one specific problem: discovery \u2014 it tells the generator \"reach this type even though your call-site walk doesn't get to it directly\"... It does nothing about the shape of the type itself. If your DTO fails for a shape reason, [Composable] is a no-op for that failure.' This matches the actual repo source: src/Compono/ComposableAttribute.cs's XML doc says it 'Opts a type into generated composition when discovery can't find it on its own... a plan-generation request equivalent to a Composer.Create<T>() call site,' and the real shape-related failures are CMP0001 'Ambiguous construction path', CMP0002 'No accessible constructor', CMP0004 'Unsupported constructor parameter kind', CMP0007 'Unsupported required member kind' (src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs) \u2014 exactly the codes the response lists and describes correctly (e.g. CMP0001 tied to multiple accessible constructors, CMP0004 to ref/out/pointer params, CMP0007 to unset required members)."
+        },
+        {
+          "text": "Asks for or infers the actual CMP code rather than guessing a fix blindly",
+          "passed": true,
+          "evidence": "Response opens with 'To actually fix this I need the exact error \u2014 what's the CMP00xx code (or the full compiler message) you're seeing?' and closes with an explicit numbered request: '1. The exact CMP00xx code (or full error text) from the build. 2. The DTO's constructor signature... 3. The Create<T>() call site.' It frames the diagnostic list as hypotheses to check against the real code/references/diagnostics.md ('I don't want to guess which of these it is without seeing it'), rather than asserting a single blind fix."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not add Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus package references without being asked",
+          "passed": true,
+          "evidence": "The .csproj shown (lines 74-97) references only Microsoft.NET.Test.Sdk, xunit.v3, xunit.runner.visualstudio, NSubstitute, and Bogus. No PackageReference to any Compono package appears anywhere in the response. The response explicitly reasons through this: 'Compono doesn't apply here, and I'm not going to introduce it' (line 10) and explains it consulted the compono skill's detection/adoption rule ('Adopting Compono in a project that doesn't have it yet: only do this when the user explicitly asks', lines 17-18) before deciding to skip it."
+        },
+        {
+          "text": "Does not use [Compose]/[Shared]/UseNSubstitute()/UseBogus() unprompted",
+          "passed": true,
+          "evidence": "The sample test code (OrderCalculatorTests, lines 142-183) uses plain xUnit [Fact], Substitute.For<IPricingService>(), and a hand-rolled Faker<OrderLine> from Bogus directly -- no [Compose], [Shared], UseNSubstitute(), or UseBogus() anywhere. The closing section (lines 217-224) explicitly offers Compono's [Compose]/[Shared] as an opt-in alternative only 'if this project will actually consume Compono', reinforcing that it was deliberately withheld rather than accidentally omitted."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+          "passed": false,
+          "evidence": "Response line 1 explicitly says: 'not pulling in Compono-specific conventions (`Compono.NSubstitute`'s `UseNSubstitute()`, etc.)' \u2014 this names both 'Compono' and 'UseNSubstitute()' verbatim. The word 'Compono' also reappears later: 'I'd only reach for it if you actually add the `Compono.NSubstitute` package and ask to migrate.' The user's prompt already stated the project has no Compono packages referenced anywhere, so there was no need to introduce Compono terminology at all; the ideal response would simply review the NSubstitute usage without raising Compono machinery."
+        },
+        {
+          "text": "Reviews the NSubstitute usage on its own terms",
+          "passed": true,
+          "evidence": "Although no test code was pasted into the prompt (so no line-by-line review of concrete code was possible), the response's 7-point checklist is framed entirely in vanilla NSubstitute/xUnit vocabulary \u2014 virtual/interface requirement for substitution, Arg.Any<T>() vs literal matchers, Returns vs Returns(callInfo => ...), Task-returning Returns(Task.FromResult(...)), Received()/DidNotReceive() overlap, unused stubs, and Substitute.For<T>() semantics. None of these criteria depend on or reference Compono-specific attributes, builders, or conventions \u2014 the substantive review content is genuinely NSubstitute-native."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
+          "passed": true,
+          "evidence": "Response uses `var composer = Composer.Create();` then `composer.Create<CreateOrderRequest>()` and `composer.CreateMany<CreateOrderRequest>(3)` as instance methods (Option A), and `[Theory] [Compose]` / `[Compose<OrderTestProfile>]` (Option B). Verified against src/Compono/Composer.cs (`public static Composer Create()`, `public T Create<T>()`, `public IReadOnlyList<T> CreateMany<T>(int count)`, all real instance/static members) and src/Compono.XunitV3/ComposeAttribute{TProfile}.cs (confirms `ComposeAttribute<TProfile>` is a real generic subclass). No invented members appear."
+        },
+        {
+          "text": "Does not add [Composable] unless there is a genuine discovery-gap reason",
+          "passed": true,
+          "evidence": "Response explicitly states: \"No `[Composable]`. That attribute exists for a genuine source-generator discovery gap... A plain request-model DTO/record with a public constructor doesn't need it \u2014 adding it here would be unjustified.\" This matches ComposableAttribute.cs's doc comment describing it as needed 'when discovery can't find it on its own.'"
+        },
+        {
+          "text": "Does not introduce Activator.CreateInstance or any reflection-based fallback",
+          "passed": true,
+          "evidence": "Response explicitly states: \"No `Activator.CreateInstance` or other reflection fallback. Compono resolves the type through its own composition pipeline; hand-rolled reflection would bypass that pipeline and isn't part of the public API contract.\" Consistent with docs/adr/0001-source-generation-first.md's rejection of automatic reflection fallback as an architecture option. No Activator.CreateInstance appears anywhere in the response's code."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition",
+          "passed": true,
+          "evidence": "The response searches the repo for a matching integration test, finds only `samples/Compono.Samples.AspNetApi.Tests/EndpointTests.cs` (which uses an in-memory substitute, not a real DB), and states: \"So there's nothing in this codebase matching what you're describing; the notes below are general guidance for `WebApplicationFactory` + real-test-database setups.\" The full seven-point breakdown (config precedence, `UseEnvironment`, hardcoded connection strings, DB readiness/retry, parallel-test isolation, secrets handling, connection pool exhaustion) is standard ASP.NET Core/xUnit guidance with zero mention of Compono, `[Composable]`, `Create<T>()`, or any object-composition concept."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies the missing ConfigureMembers=true equivalent as the root cause",
+          "passed": true,
+          "evidence": "Response headline is '## Most likely root cause: loss of ConfigureMembers = true behavior' and explains: 'Without ConfigureMembers, NSubstitute's default behavior for any unconfigured member that returns a reference type is to return null ... That null then gets dereferenced somewhere in the call chain, producing the NullReferenceException.' This correctly identifies the same root cause as the with_skill response, though hedged with 'most likely' and 'If ... only replicates' framing rather than stated as verified fact."
+        },
+        {
+          "text": "Does not suggest a nonexistent Compono.NSubstitute auto-configure option",
+          "passed": false,
+          "evidence": "Under 'Fixes, in order of preference' the response's second bullet says: 'Check whether Compono.NSubstitute exposes an equivalent opt-in. Many lighter-weight AutoFixture/NSubstitute integrations offer a flag or overload analogous to ConfigureMembers (sometimes named something like configureMembers: true, or a separate customization you layer on top of UseNSubstitute()). If one exists, enabling it is the closest drop-in replacement for your old behavior.' This explicitly speculates about and recommends looking for a ConfigureMembers-style auto-configure option that does not exist in Compono.NSubstitute, directly violating this assertion. The bottom-line paragraph repeats this: 'either find the equivalent auto-configure members switch in Compono.NSubstitute if one exists, or replace the implicit auto-stubbing with explicit .Returns(...) setups.'"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies the duplicate Register<T>() as a build-time conflict, not an override",
+          "passed": false,
+          "evidence": "The response hedges instead of stating the actual Compono behavior: 'the second call either silently overwrites the first (\"last write wins\") or throws on a duplicate key, depending on how `Register<T>` is implemented.' It never confirms Compono actually throws a build-time conflict; Option 1 explicitly relies on and recommends 'last-write-wins' behavior ('If `Register<T>` does overwrite on duplicate keys, this is the simplest approach') and even tells the user to 'Check the implementation (or just write a two-line unit test against the builder itself) before relying on this' rather than stating the known Compono semantics."
+        },
+        {
+          "text": "Does not imply Compono supports customization override semantics like AutoFixture",
+          "passed": false,
+          "evidence": "Option 1 directly presents override-by-reregistration as a viable, even recommended, approach: 'apply default profile, then call `Register<IClock>` again afterward) is the least ceremony.' This is exactly the AutoFixture-style 'last write wins' override semantic the assertion says should not be implied. The response also invents API surface not matching Compono (`IBuilder`, `IProfile`, `ApplyProfile<T>`), indicating no real knowledge of Compono's actual `CompositionBuilder`/`ICompositionProfile`/`Register<T>` conflict behavior."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explicitly discourages broadly applying [Composable] across a type hierarchy",
+          "passed": true,
+          "evidence": "Line 1: \"Short answer: no, don't blanket-apply it.\" Line 3: \"Marking every domain type with [Composable] 'just in case' trades a few minutes of friction now for real costs later.\" Numbered list of five reasons blanket application is bad."
+        },
+        {
+          "text": "Explains discovery already covers the common case without any attribute",
+          "passed": false,
+          "evidence": "The response never mentions Compono's compile-time call-site discovery/walk mechanism at all. Instead it describes [Composable] as something you must actively add whenever a test needs a type: 'Apply it incrementally, driven by actual test needs. When a test needs to build an instance of Order, add [Composable] to Order then' (line 24). This directly contradicts the actual mechanism (most types are already composable with zero attributes via the generator's call-site walk) rather than explaining it \u2014 the response is generically reasoned about attribute/codegen hygiene, not grounded in how Compono's discovery actually works."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design",
+          "passed": true,
+          "evidence": "response.md never mentions Compono anywhere. Tests use plain xUnit [Theory]/[InlineData] with Assert.Equal (lines 49-79) and no composer/builder pattern of any kind. Note: this response has no visibility into the Compono skill/repo context, so it never had the option to introduce it \u2014 the pass reflects absence of the skill rather than an active decision to avoid it (see eval feedback)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Recommends literal/inline values for the boundary case rather than ordinary composition",
+          "passed": true,
+          "evidence": "The code example uses `[Theory]` / `[InlineData(18, true)]` / `[InlineData(17, false)]` with hand-written literals, and the 'Why this shape' section states 'Boundary tests should use literal, readable numbers (18, 17) rather than computed values.'"
+        },
+        {
+          "text": "Explicitly reasons about when NOT to lean on Compono's generation, even in a Compono-adopting project",
+          "passed": false,
+          "evidence": "The response never mentions Compono's data-generation/composition mechanism (no `Composer`, `Create<T>()`, `[Compose]`, member rules, etc.) anywhere, and never discusses a tradeoff between composing data and hand-writing it. It only invokes 'Compono' twice in passing \u2014 to justify AwesomeAssertions usage and test-naming conventions \u2014 never to reason about when generation should or shouldn't be used. There is no explicit 'don't compose this' reasoning; composition is simply absent from the discussion entirely."
+        },
+        {
+          "text": "Does not force Compono usage just because the project has it available",
+          "passed": true,
+          "evidence": "The response never uses Compono's composer/generation API anywhere in either code sample, so it does not force Compono usage. (Note: this is a weak pass \u2014 the response achieves it by never engaging with Compono's composition feature at all, rather than by making a deliberate, reasoned choice to skip it, per the eval_feedback below.)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
+          "passed": true,
+          "evidence": "Opening line: \"I'm not going to make that change. A reflection/`Activator.CreateInstance` workaround doesn't actually fix CMP0001 \u2014 it just hides it...\" Clear, direct refusal."
+        },
+        {
+          "text": "Explains why (no reflection fallback by design, not just 'best practice')",
+          "passed": true,
+          "evidence": "Gives three numbered reasons: reflection at runtime doesn't resolve the ambiguity (moves it to a different, less predictable mechanism), it defeats the diagnostic's purpose of catching silently-wrong composition, and it isn't scoped to one test (blast radius across the codebase). This is design/mechanism-based reasoning rather than 'best practice' hand-waving, though it is more generic than citing a specific decision record \u2014 it never names an ADR or points to a specific policy document, instead reasoning from first principles about what the diagnostic is for."
+        },
+        {
+          "text": "Offers a legitimate alternative (interface/wrapper, or explicit hand-built construction) instead of silently complying",
+          "passed": true,
+          "evidence": "Third bullet under 'What actually fixes CMP0001 for HttpClient' proposes wrapping HttpClient behind a thin factory/provider type with a single constructor and composing that instead \u2014 this matches the real, documented fix in docs/migrating-from-autofixture.md (the `IHttpClientProvider` wrapper pattern). This alternative alone is enough to satisfy the assertion, even though the response's other two suggestions are weaker (see claims below)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not immediately/silently introduce AutoFixture as a substitute without first addressing the underlying Compono failure",
+          "passed": true,
+          "evidence": "Response opens with 'Before I swap anything, one thing gives me pause' and lists three investigative steps ('See the actual exception', 'Check if it's a config problem', 'If it really is a gap in the engine...') before any AutoFixture instructions appear. No AutoFixture code is added; the response only describes what a swap *would* involve, conditionally, later in the message."
+        },
+        {
+          "text": "Treats swapping to a different fixture library as an explicit user decision, not a default fallback",
+          "passed": true,
+          "evidence": "The response frames the swap as conditional on user confirmation: 'That said \u2014 if you've already diagnosed it and it's a deliberately pathological/adversarial graph that's out of scope... or you just need to unblock right now and will circle back, swapping is fine.' It closes with 'Point me at the file and the exception text and I'll do whichever of these you want \u2014 including making the swap myself if that's still the call after we see what's actually failing,' explicitly deferring the choice to the user rather than defaulting to the swap."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not use or recommend UseBogus()/BogusOptions/any Compono.Bogus API without that package being referenced or explicitly requested",
+          "passed": true,
+          "evidence": "Response never mentions UseBogus(), BogusOptions, or any Compono.Bogus API surface at all. It hand-writes a literal `Customer` fixture with fixed values (Sarah Whitfield, sarah.whitfield@example.com, etc.) and explicitly states the reasoning: 'no Compono.Bogus, so no fake-data generator library is available) \u2014 I'll hand-write a realistic, deterministic customer fixture rather than pull in a faker.'"
+        },
+        {
+          "text": "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono",
+          "passed": true,
+          "evidence": "Line 1 parenthetical: '(no Compono.Bogus, so no fake-data generator library is available)' and the notes section: 'appropriate given there's no Compono.Bogus reference in this project to generate varied fake data.' This names Compono.Bogus specifically as the thing that would provide fake/realistic-data generation, and treats core Compono as not providing it \u2014 satisfying the assertion, though more tersely than a deeper explanation of the API surface would."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.33,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly distinguishes compile-time CMP codes from runtime CompositionException",
+          "passed": false,
+          "evidence": "The response never mentions CMP codes, Compono.Generators, or any compile-time/runtime distinction at all. It treats the CompositionException generically as if Compono were an arbitrary DI container, opening with 'a CompositionException that surfaces deep in the graph, at an interface like IRuleProvider, almost always comes down to one of a small number of root causes' and never addresses that interfaces/abstract classes/delegates are categorically routed away from compile-time diagnostics in Compono. No CMP0001-CMP0012 concept appears anywhere in the file."
+        },
+        {
+          "text": "Reads the tree path to the actual failing leaf type, not just the root type",
+          "passed": false,
+          "evidence": "The response only speculates hypothetically: 'Print/inspect the graph path if Compono's exception includes one (many composition libraries include a \"path\" like RootService -> Middleware -> RuleEngine -> IRuleProvider in the message)'. It hedges with 'if' rather than stating that Compono's CompositionException always carries a path-annotated tree (via CompositionDiagnostic.Path/ToString), and it never identifies IRuleProvider as the leaf that must be read from the bottom of that tree \u2014 it instead spends most of the response listing generic hypotheses (ambiguous implementations, lifetime mismatch, generic/open-generic mismatch, assembly skew) that are not established behaviors of Compono and are not grounded in the actual diagnostic structure."
+        },
+        {
+          "text": "Does not suggest retrying the test or wrapping in reflection",
+          "passed": true,
+          "evidence": "No suggestion to retry the test or use reflection-based workarounds appears anywhere in the response. This is a pass, though only by omission \u2014 the response never engages with determinism/seeding or reflection-fallback topics at all, so it neither violates nor substantively addresses this concern."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses [Compose] or [Compose<TProfile>] correctly, only one Compose-family attribute on the method",
+          "passed": false,
+          "evidence": "The converted test uses `[Theory, AutoNSubstituteData]`. `AutoNSubstituteData` is not a real Compono attribute \u2014 there is no such type anywhere in the Compono source tree (searched src/ and test/ for `AutoNSubstituteData`, no matches). The real Compono.XunitV3 API only exposes `ComposeAttribute` / `ComposeAttribute<TProfile>` (src/Compono.XunitV3/ComposeAttribute.cs, ComposeAttribute{TProfile}.cs), neither of which is used."
+        },
+        {
+          "text": "Uses UseNSubstitute() since Compono.NSubstitute is referenced",
+          "passed": false,
+          "evidence": "`UseNSubstitute()` is never called anywhere in the response. The response instead assumes `Compono.NSubstitute` 'auto-customizes the fixture' implicitly via the invented `AutoNSubstituteData` attribute, with no CompositionBuilder/profile wiring at all. The real extension method `UseNSubstitute()` (src/Compono.NSubstitute/CompositionBuilderExtensions.cs) is the actual documented way to enable NSubstitute support and is absent from this output."
+        },
+        {
+          "text": "Uses [Shared] only where the substitute needs to be asserted against, not applied indiscriminately",
+          "passed": false,
+          "evidence": "The response uses `[Frozen] IOrderRepository repository`, not `[Shared]`. There is no `FrozenAttribute` type in the Compono codebase (searched, no matches) \u2014 Compono's real sharing mechanism is `SharedAttribute` (src/Compono.XunitV3/SharedAttribute.cs). `[Frozen]` is AutoFixture.Xunit2 terminology, not Compono's, so the assertion's required attribute is never used."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Recommends [Shared], correctly describes it as Compono.XunitV3-only, not core Compono",
+          "passed": false,
+          "evidence": "The response never mentions Compono or its [Shared] attribute at all. It instead recommends the AutoFixture pattern: 'AutoNSubstituteCustomization', 'fixture.Freeze<T>()', and AutoFixture.Xunit's '[Frozen]' attribute (lines 5-45). This is a different library's mechanism entirely \u2014 the response treats the question as a generic AutoFixture+NSubstitute question rather than a Compono-specific one, so there is no [Shared] recommendation to evaluate as correct or incorrect."
+        },
+        {
+          "text": "Does not suggest [Shared] can be used outside a [Compose] row",
+          "passed": false,
+          "evidence": "Not applicable/unverifiable in the intended sense: the response never references [Shared] or [Compose] at all, so it cannot be said to correctly scope [Shared] to a [Compose] row. Per grading criteria, an expectation that cannot be verified as true from the available output should fail rather than pass by default. The response's actual mechanism ([Frozen] with AutoNSubstituteData, section 3, lines 28-45) does not correspond to Compono's model at all, meaning a user following this answer would not use Compono's [Shared] feature or know its scoping rules."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly states BogusMemberNameProvider does exact-name, case-sensitive matching, not fuzzy",
+          "passed": false,
+          "evidence": "The response never mentions BogusMemberNameProvider, the member-name convention mechanism, or anything about exact/fuzzy/case-sensitive matching. It only discusses manual per-property overrides (`.With(x => x.Email, faker.Internet.Email())`) and, in passing, a hypothetical 'register a Bogus-backed generator for the Email property/type once ... via a Faker<Customer>().RuleFor(...) composed with Compono, or a Compono customization class that maps string Email -> Bogus' \u2014 this is vague/hedged ('I don't have that in front of me right now... adjust names to match your actual Customer builder') and does not describe the actual matching semantics at all, let alone correctly. No evidence to support the assertion."
+        },
+        {
+          "text": "Does not claim Bogus applies to non-string members",
+          "passed": true,
+          "evidence": "The response's only mention of non-string handling is advisory and correct: 'If Customer.Email is a value object/wrapper type rather than a plain string, wrap the Bogus output accordingly, e.g. .With(x => x.Email, new Email(faker.Internet.Email()))' \u2014 this describes manual wrapping, not an automatic Bogus-to-non-string-member mapping, so it does not violate the assertion."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly demonstrates positional (not named) inline binding in [Compose(...)]",
+          "passed": false,
+          "evidence": "The response never uses Compono's `[Compose(...)]` attribute at all. Instead it fabricates an unrelated, generic AutoFixture-style solution using `[AutoData]`, `[Frozen]`, `ICustomization`, and `CompositeCustomization` \u2014 none of which are Compono's actual composition mechanism. The response even admits: 'I don't have Compono's actual public API memorized in detail (its exact attribute names, namespaces, and whether it wraps AutoFixture directly or provides its own builder DSL), so the above is written from general knowledge of how AutoFixture/xUnit \"Theory + AutoData + Customization\" integrations are typically structured.' Since `[Compose(...)]` positional binding is never demonstrated, this expectation fails outright."
+        },
+        {
+          "text": "Does not use a nonexistent named-argument binding syntax",
+          "passed": true,
+          "evidence": "No named-argument syntax for `[Compose(...)]` (e.g. `[Compose(quantity: 42)]`) appears in the response \u2014 but only because `[Compose(...)]` is never used in the first place. This is a vacuous pass: the response avoids the specific hallucination the assertion checks for only by sidestepping Compono's actual API entirely and substituting a different, non-Compono-specific mechanism (`[Frozen]`/`ICustomization`)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly explains [Composable] is a discovery mechanism, not a fix for constructor/shape diagnostics",
+          "passed": false,
+          "evidence": "Response claims the opposite characterization: '[Composable] almost certainly does \u2014 generating the members Create<T>() needs, like a static factory method, builder, or interface implementation' and that it requires the target type to be declared partial for the generator to 'add to' it ('Source generators that augment a type... can only add to a type declared partial'). This is factually wrong against the actual repo source: src/Compono/ComposableAttribute.cs documents [Composable] purely as a discovery/plan-generation request ('Opts a type into generated composition when discovery can't find it on its own... a plan-generation request equivalent to a Composer.Create<T>() call site'), with no partial-class requirement, and it never generates members directly on the DTO. The response never identifies discovery vs. shape as separate concerns, nor mentions any CMP0001/0002/0004/0007-style shape diagnostic by the project's actual naming, instead inventing a placeholder 'COMP001' code and generic advice (partial classes, PrivateAssets analyzer wiring, stale IDE cache) that doesn't reflect Compono's real generator design."
+        },
+        {
+          "text": "Asks for or infers the actual CMP code rather than guessing a fix blindly",
+          "passed": false,
+          "evidence": "The response is dominated by six numbered speculative causes (partial-class requirement, nested-type partial chain, attribute namespace collision, shape requirements, analyzer package wiring, stale generated-file cache) presented as likely fixes to try, before finally asking at the very end: 'If you can share the exact error/diagnostic code and whether the class... are partial, I can narrow this down precisely instead of listing possibilities.' This is exactly the 'guessing a fix blindly' pattern the assertion is checking against \u2014 the bulk of the advice (dotnet clean/rm -rf obj bin, EmitCompilerGeneratedFiles, PrivateAssets=\"all\") is offered as things to try without first establishing what CMP code or error is actually occurring, rather than leading with a request for the diagnostic."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not add Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus package references without being asked",
+          "passed": true,
+          "evidence": "The .csproj shown (lines 55-82) references only xunit.v3, xunit.runner.visualstudio, Microsoft.NET.Test.Sdk, NSubstitute, Bogus, and AwesomeAssertions. No Compono package reference appears anywhere in the response, and Compono is never mentioned."
+        },
+        {
+          "text": "Does not use [Compose]/[Shared]/UseNSubstitute()/UseBogus() unprompted",
+          "passed": true,
+          "evidence": "All test code (OrderServiceTests, lines 169-240) uses plain xUnit [Fact]/[Theory], Substitute.For<T>() directly, and a hand-rolled Faker<Order> via a static OrderFaker class (lines 138-160). No [Compose], [Shared], UseNSubstitute(), or UseBogus() appear anywhere in the response."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+          "passed": false,
+          "evidence": "The response includes an entire '## Note on Compono' section (lines 29-31) stating: 'That's useful context: it means there's no `Compono.NSubstitute` (or similar) helper library... so I'll review this purely against vanilla NSubstitute/xUnit semantics, not against any Compono-specific test-double conventions. If you were expecting Compono conventions to apply (e.g., an `AutoNSubstituteCustomization` or similar builder pattern)...'. This mentions 'Compono' by name multiple times and references Compono-specific package/convention names, even though it does not use the literal string 'UseNSubstitute()' or '[Shared]'."
+        },
+        {
+          "text": "Reviews the NSubstitute usage on its own terms",
+          "passed": true,
+          "evidence": "No test code was included in the prompt, so no concrete line-by-line review occurred, but the 9-point checklist (substitute target virtual/interface requirement, argument matcher equality semantics, Task<T>/ValueTask<T> stubbing, Returns-ordering, dead-stub detection, Received()/DidNotReceive() matcher symmetry, ClearReceivedCalls() across shared substitutes, Substitute.For<T>() vs Substitute.ForPartsOf<T>()) is entirely vanilla NSubstitute/xUnit domain knowledge, not Compono-flavored. The review framework itself is on NSubstitute's own terms."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9722,
+        "stddev": 0.1179,
+        "min": 0.5,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5833,
+        "stddev": 0.3973,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.39",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "Single run per configuration (not 3) \u2014 pass-rate stddev reflects variance across the 18 different eval prompts, not repeated-run noise on the same prompt. Treat percentages as directional, not statistically tight.",
+    "time_seconds and tokens are 0 for every run \u2014 no timing.json/metrics.json was captured per run in this pass, so those columns are not meaningful; do not read the 0s as \"instant\"/\"free\".",
+    "Methodology gap flagged by multiple graders: without_skill (baseline) subagents retained full filesystem/tool access to this repo, even though instructed not to read the skill. At least one baseline (eval 9) still produced accurate Compono-specific terminology, most likely by exploring the repo directly rather than being told not to. This likely narrows the true with/without gap versus a baseline run in a genuinely repo-isolated environment.",
+    "Several individual graders flagged specific assertions as weakly discriminating (pass regardless of skill use) \u2014 see grading.json eval_feedback fields for evals 1, 6, 8, 9, 10, 14, 15, 16, 17, 18. These are real signal for the next iteration of evals.json, not noise."
+  ]
+}

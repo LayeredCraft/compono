@@ -1,0 +1,38 @@
+{
+  "expectations": [
+    {
+      "text": "Explicitly discourages broadly applying [Composable] across a type hierarchy",
+      "passed": true,
+      "evidence": "Line 1: \"Short answer: no, don't blanket-apply it.\" Line 3: \"Marking every domain type with [Composable] 'just in case' trades a few minutes of friction now for real costs later.\" Numbered list of five reasons blanket application is bad."
+    },
+    {
+      "text": "Explains discovery already covers the common case without any attribute",
+      "passed": false,
+      "evidence": "The response never mentions Compono's compile-time call-site discovery/walk mechanism at all. Instead it describes [Composable] as something you must actively add whenever a test needs a type: 'Apply it incrementally, driven by actual test needs. When a test needs to build an instance of Order, add [Composable] to Order then' (line 24). This directly contradicts the actual mechanism (most types are already composable with zero attributes via the generator's call-site walk) rather than explaining it — the response is generically reasoned about attribute/codegen hygiene, not grounded in how Compono's discovery actually works."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  },
+  "claims": [
+    {
+      "claim": "[Composable] triggers source-generated specimen-builder/customization code, so unnecessary marks have a real compile-time and generated-surface-area cost",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Hedged with 'If this is backed by a source generator (as [Composable]-style attributes usually are)' (line 13) — the response is speculating about the mechanism rather than stating it from known fact, which is the direct consequence of not having the skill's grounding."
+    },
+    {
+      "claim": "Add [Composable] to a type when a test needs to build an instance of it",
+      "type": "process",
+      "verified": false,
+      "evidence": "Contradicts the actual discovery model described correctly in the with_skill variant: types reachable via Create<T>()/CreateMany<T>() call-site walk are already composable without any attribute, so this advice would lead a user to add unnecessary attributes for the common case."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "No suggestions — this eval pair works as intended. Assertion 1 is satisfied by generic good-engineering-judgment reasoning (any competent response would discourage blanket attribution), while assertion 2 discriminates well: it requires specific, correct knowledge of the discovery mechanism that only the skill-equipped variant supplies, and the without_skill variant's speculative/incorrect substitute (attribute-per-test-need) is exactly the kind of plausible-sounding but wrong guidance the skill should prevent."
+  }
+}
