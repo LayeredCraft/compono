@@ -48,10 +48,16 @@ separate from installing the `Compono`/`Compono.XunitV3`/
 
 ## Update
 
-Re-run the same `npx skills add` command — it re-fetches the current
-`skills/compono` content from this repository and overwrites your local
-copy. There's no separate version pin to manage; you always get whatever
-is currently on this repository's default branch.
+```bash
+npx skills update compono
+```
+
+`npx skills` ships a dedicated `update` command for refreshing an
+already-installed skill (`-g`/`--global` or `-p`/`--project` to scope it,
+if you have the same skill installed at both levels) — use that rather
+than re-running `add`. There's no separate version pin to manage for this
+skill; an update always pulls whatever is currently on this repository's
+default branch.
 
 ## Which agents support it
 

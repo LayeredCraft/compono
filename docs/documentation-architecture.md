@@ -194,8 +194,10 @@ learning path.
 ## 1. Getting Started
 
 **Audience:** someone who has never used Compono.
-**Status:** real content (all 5 pages, written in
-[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 2).
+**Status:** real content (5 pages written in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 2, plus
+`ai-agent-skill.md` added in
+[PLAN-0035](plans/0035-compono-agent-skill-pack.md) — 6 pages total).
 `docs/index.md` covers a subset of this today.
 **Purpose:** answer "what is this, and can I get something working in the
 next five minutes," and point every kind of newcomer toward the right next
@@ -221,9 +223,19 @@ step.
 - `next-steps.md` — branches the reader outward: "want the mental model
   next? → Concepts. Have an immediate problem to solve? → Cookbook. Want a
   curated path instead of picking yourself? → Learning Paths."
+- `ai-agent-skill.md` — for a reader using an AI coding agent (Claude
+  Code or another `npx skills`-compatible host) to write Compono tests:
+  what the official `compono` agent skill is, how to install/update it,
+  which agents support it, and how it relates to (and stays independent
+  of) the NuGet packages. Tooling/workflow content, not part of the
+  Compono API itself — placed in Getting Started rather than its own
+  section because it's a one-time setup step for a specific class of
+  reader, the same shape as `installation.md`.
 **Relates to:** assumes nothing. Hands off to Concepts (for the model),
 Cookbook (for an immediate task), or Learning Paths (for a curated route
-through everything else).
+through everything else). `ai-agent-skill.md` additionally links back to
+[ADR-0035](adr/0035-compono-agent-skill-pack.md) for the skill's own
+design rationale.
 
 ## 2. Concepts
 

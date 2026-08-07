@@ -80,16 +80,19 @@ message with `Seed:` appended.
    `Seed:` value plugs directly into `[Compose(Seed = ...)]` — that path
    is always `int`-range by construction. For a plain programmatic
    `composer.Create<T>()` failure, `CompositionDiagnostic.Seed` is a
-   `ulong` and can exceed `int.MaxValue` (an unseeded composer draws a
-   full random 64-bit value) — it won't always fit `builder.WithSeed(int
-   seed)` or `[Compose(Seed = ...)]` (also `int`) directly. If it
-   doesn't fit, reproduce by pointing `context.Resolve`/the failing
-   `Create<T>()` call at the same inputs another way (e.g. keep the
-   composer instance itself around, or narrow the seed by using
-   `WithSeed` from the start of the investigation instead of an
-   after-the-fact unseeded run) rather than assuming the printed value
-   always round-trips into the `int`-typed seed APIs. Remove any pinned
-   seed once the fix is verified — don't leave it pinned as a permanent
-   habit.
+   `ulong` (an unseeded composer draws a full random 64-bit value) and
+   both `builder.WithSeed(int seed)` and `[Compose(Seed = ...)]` are
+   `int`-typed — **if the printed seed exceeds `int.MaxValue`, there is
+   currently no public API to paste it back in and get the exact same
+   failure again.** Don't claim otherwise. What actually works: switch to
+   an explicit `WithSeed(someChosenIntValue)` *before* re-running, so the
+   next occurrence of the failure (if it reproduces at all with a
+   different seed) is pinned and reproducible going forward — this finds
+   *a* reproduction of the same underlying bug, not a replay of that
+   exact original run. If the failure doesn't reproduce under a new seed,
+   treat that as a data point about the failure's cause (e.g. it may
+   depend on which specific random values were drawn) rather than
+   assuming the investigation is complete. Remove any pinned seed once
+   the fix is verified — don't leave it pinned as a permanent habit.
 6. A `CompositionException` is deterministic, not flaky. Don't wrap it in
    a retry; investigate.

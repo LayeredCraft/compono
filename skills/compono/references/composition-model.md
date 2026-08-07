@@ -22,8 +22,16 @@ var composer = Composer.Create(builder =>
 Config is validated and frozen at `Create()` time — a `Composer` is never
 reconfigured after that. **Build one `Composer` per test/suite and reuse
 it**; rebuilding it per assertion is a documented common mistake, not a
-style choice — it silently throws away the seed/config you thought you
-were testing against.
+style choice — two reasons why:
+- It rebuilds/revalidates the configuration on every call for no reason.
+- If the callback doesn't call `WithSeed(...)`, **each** `Composer.Create(...)`
+  call draws its own fresh random root seed — rebuilding an unseeded
+  composer per assertion means each rebuild's compositions are
+  unrelated to the others, not reproducible relative to each other,
+  even within the same test run. (A rebuild that *does* call
+  `WithSeed(sameValue)` every time stays reproducible across rebuilds —
+  it's specifically the unseeded case that loses reproducibility, not
+  rebuilding itself.)
 
 `ICompositionContext` is what a registration factory or custom provider
 uses to resolve *its own* nested dependencies:

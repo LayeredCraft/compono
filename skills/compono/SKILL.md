@@ -2,29 +2,20 @@
 name: compono
 description: >-
   **WORKFLOW SKILL** - Compono test-composition guidance for .NET/C# unit
-  test projects. Compono is a source-generated alternative to AutoFixture
-  ("compono" = to compose): `composer.Create<T>()`/`CreateMany<T>()`,
-  `[Composable]`, registrations, profiles, `[Shared]`, and the optional
-  `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus` packages.
-  USE FOR: writing a new test that needs composed test data, modifying an
-  existing test to use Compono, reviewing a diff/PR for Compono usage,
-  diagnosing a `CMP0001`-`CMP0012` build error or a runtime
-  `CompositionException`, deciding whether a type needs `[Composable]`,
-  choosing between `Register<T>()`/`.For<T>().Use()`/`[Shared]`, adding
-  Compono to a project that doesn't have it yet when the user asks,
-  migrating AutoFixture-based tests (`[Frozen]`, customizations,
-  `AutoData`) to Compono, any question mentioning Compono, `Composer`,
-  `[Compose]`, `UseNSubstitute()`, or `UseBogus()`.
-  DO NOT USE FOR: ordinary xUnit/NUnit/MSTest work with no Compono
-  involvement (use the test framework directly), ordinary NSubstitute or
-  Bogus usage in a project that doesn't reference `Compono.NSubstitute`/
-  `Compono.Bogus` (don't suggest adding Compono uninvited), generic
-  reflection/DI questions unrelated to test composition, production
-  (non-test) object construction.
-  SCOPES TO: only load `references/xunit-v3.md`,
-  `references/nsubstitute.md`, or `references/bogus.md` when the matching
-  package is actually referenced (or the user is explicitly asking to add
-  it) — see Detection below.
+  tests. Compono is a source-generated AutoFixture alternative
+  (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
+  registrations, profiles, `[Shared]`, plus optional
+  `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus` packages).
+  USE FOR: writing/modifying/reviewing Compono tests, diagnosing
+  `CMP0001`-`CMP0012` or `CompositionException` failures, deciding on
+  `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
+  when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
+  Compono/`Composer`/`[Compose]` question.
+  DO NOT USE FOR: ordinary xUnit/NUnit/MSTest, NSubstitute, or Bogus work
+  with no Compono package referenced; generic reflection/DI questions;
+  production object construction.
+  SCOPES TO: only load `xunit-v3.md`/`nsubstitute.md`/`bogus.md`
+  references when that package is referenced or requested.
 license: MIT
 metadata:
   author: LayeredCraft
@@ -59,8 +50,11 @@ some packages and not others.
 | `[Composable]` / `[assembly: Composable(` | `*.cs` | Medium | Discovery-gap workaround already in use somewhere in this codebase |
 | No `Compono*` package reference anywhere | `.csproj` | — | Not a Compono project. Don't suggest Compono unless the user explicitly asks to adopt it. |
 
-Package versions are `0.x.y-preview.N` during public preview — installing
-requires `--prerelease` or an explicit prerelease version.
+Don't hardcode an assumed version scheme or `--prerelease` requirement —
+it changes independently of this skill. Check
+`docs/getting-started/installation.md` (or the actual NuGet listing) for
+the current install command instead of guessing from a remembered
+version pattern.
 
 **Adopting Compono in a project that doesn't have it yet**: only do this
 when the user explicitly asks. Add the `Compono` package (plus
@@ -145,9 +139,15 @@ undermines the reason Compono exists in this project.
   "to be safe."** It's a narrow discovery-gap opt-in, not a general
   "make this type composable" marker — see Detection above and
   `references/composition-model.md`.
-- **Never treat a `CompositionException` as flaky-test noise to retry.**
-  It's deterministic and reproducible from its own seed. Investigate and
-  fix, or use the seed to reproduce locally — don't wrap it in a retry.
+- **Never treat a `CompositionException` as flaky-test noise to retry —
+  but check what's actually in the failing path first.** Compono's own
+  generated plans and built-in providers are deterministic and
+  reproducible from the seed. A consumer-supplied `Register<T>()`
+  factory, a custom provider, or a native `IServiceProvider` fallback can
+  still do non-deterministic things (clock/random reads, I/O, a
+  transient throw) — if the failing path runs through one of those,
+  inspect it before assuming the seed alone explains or reproduces the
+  failure.
 - **Never hardcode "seed X produces value Y" as a permanent assertion.**
   Determinism holds for a given Compono version, not across versions.
   Only assert on values you explicitly pinned (inline values, member
