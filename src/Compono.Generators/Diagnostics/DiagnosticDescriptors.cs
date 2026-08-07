@@ -8,8 +8,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor AmbiguousConstructor = new(
         "CMP0001",
         "Ambiguous construction path",
-        "{0} has {1} accessible constructors and no way to disambiguate them - Compono requires " +
-        "exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md",
+        "{0} has {1} accessible constructors and no way to disambiguate them",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

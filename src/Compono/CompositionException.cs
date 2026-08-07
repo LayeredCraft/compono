@@ -5,7 +5,7 @@ namespace Compono;
 /// explicit value, shared value, registration, provider, or generated plan could satisfy it.
 /// </summary>
 /// <remarks>
-/// This is the thrown-exception boundary <c>docs/public-api.md</c>'s examples catch -
+/// This is the thrown-exception boundary a composed test's <c>try</c>/<c>catch</c> examples catch -
 /// <see cref="ICompositionContext.Resolve{TValue}(in CompositionRequestDescriptor)"/> must return a plain <c>TValue</c>, so a
 /// terminal non-success pipeline outcome has no return-value channel to report through and
 /// converts to this exception instead, per
@@ -32,8 +32,7 @@ public sealed class CompositionException : Exception
 
     /// <summary>
     /// Creates a <see cref="CompositionException"/> from a structured <see cref="CompositionDiagnostic"/>
-    /// - the shape every pipeline-thrown instance uses, per <c>docs/public-api.md</c>'s Diagnostics
-    /// API.
+    /// - the shape every pipeline-thrown instance uses.
     /// </summary>
     /// <param name="diagnostic">The structured detail behind this failure.</param>
     /// <exception cref="ArgumentNullException"><paramref name="diagnostic"/> is <see langword="null"/>.</exception>

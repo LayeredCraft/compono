@@ -4,8 +4,9 @@
 ## CompositionDiagnostic Class
 
 The structured detail behind a thrown [CompositionException](Compono.CompositionException.md 'Compono\.CompositionException') \- what couldn't be
-composed, where in the graph, what was tried, and with which seed\. `docs/public-api.md`'s
-Diagnostics API \(`exception.Diagnostic`\)\.
+composed, where in the graph, what was tried, and with which seed\. Exposed via
+`exception.Diagnostic` \- see
+[Troubleshooting: Runtime composition failures](https://layeredcraft.github.io/compono/troubleshooting/common-errors/#runtime-composition-failures 'https://layeredcraft\.github\.io/compono/troubleshooting/common\-errors/\#runtime\-composition\-failures')\.
 
 ```csharp
 public sealed class CompositionDiagnostic
@@ -14,8 +15,9 @@ public sealed class CompositionDiagnostic
 Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → CompositionDiagnostic
 
 ### Remarks
-[ToString\(\)](Compono.CompositionDiagnostic.ToString().md 'Compono\.CompositionDiagnostic\.ToString\(\)') renders `docs/architecture.md`'s Diagnostics example format \- the
-            shape a consumer gets from `Console.WriteLine(exception.Diagnostic)`\.
+[ToString\(\)](Compono.CompositionDiagnostic.ToString().md 'Compono\.CompositionDiagnostic\.ToString\(\)') renders the tree\-shaped format documented in
+            [Troubleshooting: Runtime composition failures](https://layeredcraft.github.io/compono/troubleshooting/common-errors/#runtime-composition-failures 'https://layeredcraft\.github\.io/compono/troubleshooting/common\-errors/\#runtime\-composition\-failures') \-
+            the shape a consumer gets from `Console.WriteLine(exception.Diagnostic)`\.
 
 | Properties | |
 | :--- | :--- |
@@ -28,4 +30,4 @@ Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system
 
 | Methods | |
 | :--- | :--- |
-| [ToString\(\)](Compono.CompositionDiagnostic.ToString().md 'Compono\.CompositionDiagnostic\.ToString\(\)') | Renders this diagnostic in `docs/architecture.md`'s Diagnostics example format\. |
+| [ToString\(\)](Compono.CompositionDiagnostic.ToString().md 'Compono\.CompositionDiagnostic\.ToString\(\)') | Renders this diagnostic in Troubleshooting's tree\-shaped Diagnostics example format\. |

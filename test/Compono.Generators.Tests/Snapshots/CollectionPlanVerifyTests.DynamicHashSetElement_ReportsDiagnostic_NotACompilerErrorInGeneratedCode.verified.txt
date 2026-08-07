@@ -2,12 +2,12 @@
   Diagnostics: [
     {
       Location: Program.cs: (13,36)-(13,79),
-      Message: 'System.Collections.Generic.HashSet<dynamic>' has 6 accessible constructors and no way to disambiguate them - Compono requires exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md,
+      Message: 'System.Collections.Generic.HashSet<dynamic>' has 6 accessible constructors and no way to disambiguate them,
       Severity: Error,
       Descriptor: {
         Id: CMP0001,
         Title: Ambiguous construction path,
-        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them - Compono requires exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md,
+        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them,
         Category: Compono.Usage,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
