@@ -20,3 +20,6 @@ on what you want to do now:
   [Migrating from AutoFixture](../migrating-from-autofixture.md).
 - **Something didn't work as expected?** →
   [Troubleshooting](../troubleshooting/index.md).
+- **Using an AI coding agent to write these tests?** →
+  [AI Coding Agent Skill](ai-agent-skill.md) — install Compono-specific
+  guidance for Claude Code and other `npx skills`-compatible agents.

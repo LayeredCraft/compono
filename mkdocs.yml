@@ -113,6 +113,7 @@ nav:
     - Installation: getting-started/installation.md
     - Your First Composed Theory: getting-started/first-test.md
     - Learning Paths: getting-started/learning-paths.md
+    - AI Coding Agent Skill: getting-started/ai-agent-skill.md
     - Next Steps: getting-started/next-steps.md
   - Concepts:
     - Overview: concepts/index.md

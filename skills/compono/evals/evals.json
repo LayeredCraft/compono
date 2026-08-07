@@ -1,0 +1,206 @@
+{
+  "skill_name": "compono",
+  "evals": [
+    {
+      "id": 1,
+      "category": "activation",
+      "prompt": "Use Compono to create the request model in this test. The project already references Compono and Compono.XunitV3.",
+      "expected_output": "Composes the request model via Composer.Create<T>()/CreateMany<T>() or a [Compose] theory parameter, without adding [Composable] unless a discovery gap is actually shown, and without introducing reflection.",
+      "files": [],
+      "expectations": [
+        "Uses only real Compono APIs (Composer.Create/CreateMany, [Compose], etc.), nothing invented",
+        "Does not add [Composable] unless there is a genuine discovery-gap reason",
+        "Does not introduce Activator.CreateInstance or any reflection-based fallback"
+      ]
+    },
+    {
+      "id": 2,
+      "category": "behavioral-correctness",
+      "prompt": "Why is Compono failing to compose this type? I get CompositionException at runtime pointing at IRuleProvider deep in the graph.",
+      "expected_output": "Reads the tree-shaped path in the CompositionDiagnostic/exception message to find the exact failing nested type (IRuleProvider), explains it's a missing-provider runtime failure (not a CMP0001-0012 compile diagnostic), and proposes a registration/provider fix rather than reflection or a retry.",
+      "files": [],
+      "expectations": [
+        "Correctly distinguishes compile-time CMP codes from runtime CompositionException",
+        "Reads the tree path to the actual failing leaf type, not just the root type",
+        "Does not suggest retrying the test or wrapping in reflection"
+      ]
+    },
+    {
+      "id": 3,
+      "category": "routing",
+      "prompt": "Convert this xUnit test that manually builds an Order and a fake IOrderRepository into an xUnit v3 test that uses Compono. The project references Compono, Compono.XunitV3, and Compono.NSubstitute.",
+      "expected_output": "Uses [Theory]/[Compose] or [Compose<TProfile>], composes Order directly, and uses [Shared] IOrderRepository with UseNSubstitute() from a profile rather than a hand-rolled fake — because Compono.NSubstitute is referenced.",
+      "files": [],
+      "expectations": [
+        "Uses [Compose] or [Compose<TProfile>] correctly, only one Compose-family attribute on the method",
+        "Uses UseNSubstitute() since Compono.NSubstitute is referenced",
+        "Uses [Shared] only where the substitute needs to be asserted against, not applied indiscriminately"
+      ]
+    },
+    {
+      "id": 4,
+      "category": "behavioral-correctness",
+      "prompt": "I want the same NSubstitute dependency reused throughout this composition, and I need to assert calls against it after the system under test runs.",
+      "expected_output": "Recommends [Shared] on the interface-typed parameter (Compono.XunitV3), explains it's type-keyed and resolves first, and shows asserting against the same shared instance.",
+      "files": [],
+      "expectations": [
+        "Recommends [Shared], correctly describes it as Compono.XunitV3-only, not core Compono",
+        "Does not suggest [Shared] can be used outside a [Compose] row"
+      ]
+    },
+    {
+      "id": 5,
+      "category": "routing",
+      "prompt": "Use Bogus for the email address but let Compono generate the rest of the Customer fields. Compono.Bogus is already installed.",
+      "expected_output": "Uses UseBogus() member-name convention matching (Email is in the built-in allowlist) or the member-rule .UseBogus(...) sugar, without inventing a fuzzy-matching or NLP-based mechanism.",
+      "files": [],
+      "expectations": [
+        "Correctly states BogusMemberNameProvider does exact-name, case-sensitive matching, not fuzzy",
+        "Does not claim Bogus applies to non-string members"
+      ]
+    },
+    {
+      "id": 6,
+      "category": "behavioral-correctness",
+      "prompt": "Create a theory using Compono with a fixed quantity of 42 and a composed product name.",
+      "expected_output": "[Theory] [Compose(42)] with quantity as the first positional inline parameter and productName left uncomposed/generated, correctly noting inline binding is positional not by name.",
+      "files": [],
+      "expectations": [
+        "Correctly demonstrates positional (not named) inline binding in [Compose(...)]",
+        "Does not use a nonexistent named-argument binding syntax"
+      ]
+    },
+    {
+      "id": 7,
+      "category": "behavioral-correctness",
+      "prompt": "Why did adding [Composable] not fix this? I put it on my DTO but Create<T>() still won't build.",
+      "expected_output": "Explains [Composable] only affects discovery reachability, not construction eligibility - it doesn't fix CMP0001 (ambiguous constructor), CMP0002 (no accessible constructor), CMP0004, etc. Points at the actual CMP code as the real problem.",
+      "files": [],
+      "expectations": [
+        "Correctly explains [Composable] is a discovery mechanism, not a fix for constructor/shape diagnostics",
+        "Asks for or infers the actual CMP code rather than guessing a fix blindly"
+      ]
+    },
+    {
+      "id": 8,
+      "category": "activation",
+      "prompt": "Set up a test project from scratch using xUnit v3 with mocked dependencies and realistic fake data.",
+      "expected_output": "Should NOT assume Compono - the user hasn't mentioned it and no Compono package is referenced. May mention Compono as an option only if genuinely relevant, but should not unilaterally scaffold Compono.*, UseNSubstitute(), or UseBogus() into a project with no Compono reference.",
+      "files": [],
+      "expectations": [
+        "Does not add Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus package references without being asked",
+        "Does not use [Compose]/[Shared]/UseNSubstitute()/UseBogus() unprompted"
+      ]
+    },
+    {
+      "id": 9,
+      "category": "activation",
+      "prompt": "This NSubstitute test doubles a service and stubs three methods. Can you review it for correctness? The project has no Compono packages referenced anywhere.",
+      "expected_output": "Ordinary NSubstitute code review with no Compono involvement suggested or assumed - Compono guidance should not fire since there's no Compono usage or reference in the project.",
+      "files": [],
+      "expectations": [
+        "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
+        "Reviews the NSubstitute usage on its own terms"
+      ]
+    },
+    {
+      "id": 10,
+      "category": "activation",
+      "prompt": "My integration test spins up a WebApplicationFactory and hits a real test database. Something about the connection string setup seems fragile - can you take a look?",
+      "expected_output": "Ordinary integration-test-infrastructure review with no Compono relevance - should not suggest introducing Compono for connection-string/WebApplicationFactory concerns.",
+      "files": [],
+      "expectations": [
+        "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition"
+      ]
+    },
+    {
+      "id": 11,
+      "category": "behavioral-correctness",
+      "prompt": "Why does my test throw NullReferenceException now that I migrated from AutoNSubstituteCustomization { ConfigureMembers = true } to Compono.NSubstitute's UseNSubstitute()?",
+      "expected_output": "Correctly explains Compono.NSubstitute has no member auto-configuration equivalent - every substitute is a bare Substitute.For<T>(), unstubbed Task<T>-returning members return NSubstitute's own default rather than a recursively composed value. Recommends stubbing the specific members explicitly.",
+      "files": [],
+      "expectations": [
+        "Correctly identifies the missing ConfigureMembers=true equivalent as the root cause",
+        "Does not suggest a nonexistent Compono.NSubstitute auto-configure option"
+      ]
+    },
+    {
+      "id": 12,
+      "category": "behavioral-correctness",
+      "prompt": "I want to register IClock twice in my profile - once for the default case and once to override it for this specific test. Both use builder.Register<IClock>(...).",
+      "expected_output": "Explains this is a build-time CompositionConfigurationException (duplicate registration), not last-write-wins like AutoFixture customizations. Recommends consolidating into one registration or using a member/type rule instead.",
+      "files": [],
+      "expectations": [
+        "Correctly identifies the duplicate Register<T>() as a build-time conflict, not an override",
+        "Does not imply Compono supports customization override semantics like AutoFixture"
+      ]
+    },
+    {
+      "id": 13,
+      "category": "behavioral-correctness",
+      "prompt": "Should I mark my entire domain model with [Composable] so everything is available in tests?",
+      "expected_output": "Recommends against this - [Composable] is a narrow discovery-gap opt-in, not a general marker; most types don't need it since discovery walks Create<T>()/CreateMany<T>() call sites already. Explains the guardrail against broad application.",
+      "files": [],
+      "expectations": [
+        "Explicitly discourages broadly applying [Composable] across a type hierarchy",
+        "Explains discovery already covers the common case without any attribute"
+      ]
+    },
+    {
+      "id": 14,
+      "category": "activation",
+      "prompt": "Write a generic fibonacci function in C# and its unit test with a couple of hardcoded input/output pairs.",
+      "expected_output": "Ordinary hand-written test with literal inputs/outputs - no Compono involvement, since this is exactly the case where explicit hand-built test data is clearer (the test's whole point is specific meaningful values).",
+      "files": [],
+      "expectations": [
+        "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design"
+      ]
+    },
+    {
+      "id": 15,
+      "category": "behavioral-correctness",
+      "prompt": "This project already uses Compono and Compono.XunitV3 everywhere. I need one test that checks an age-validation boundary: exactly 18 should pass, 17 should fail. What's the idiomatic way to write it with Compono?",
+      "expected_output": "Recommends against composing the age value - the test's whole point is the specific boundary values 18 and 17, so they should be written literally (inline [Compose(18)]/[Compose(17)] at most, or plain hand-built values), not generated. Explains that composing a value only to override it for a boundary assertion adds indirection without benefit, even though the project uses Compono elsewhere.",
+      "files": [],
+      "expectations": [
+        "Recommends literal/inline values for the boundary case rather than ordinary composition",
+        "Explicitly reasons about when NOT to lean on Compono's generation, even in a Compono-adopting project",
+        "Does not force Compono usage just because the project has it available"
+      ]
+    },
+    {
+      "id": 16,
+      "category": "behavioral-correctness",
+      "prompt": "Compono can't compose HttpClient in my test and throws CMP0001 about an ambiguous constructor. Can you just have the agent construct it via reflection or Activator.CreateInstance to work around this, since I need this test passing today?",
+      "expected_output": "Refuses the reflection/Activator.CreateInstance workaround explicitly, explains Compono has no reflection fallback by design (ADR-0001) and that isn't a valid escape hatch even under time pressure, and instead recommends wrapping HttpClient in an app-owned interface/factory and composing that, or constructing it by hand in that one spot without pretending it's a Compono composition.",
+      "files": [],
+      "expectations": [
+        "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
+        "Explains why (no reflection fallback by design, not just 'best practice')",
+        "Offers a legitimate alternative (interface/wrapper, or explicit hand-built construction) instead of silently complying"
+      ]
+    },
+    {
+      "id": 17,
+      "category": "behavioral-correctness",
+      "prompt": "Compono keeps throwing CompositionException for this complex object graph and it's slowing me down. Can we just switch this test file over to AutoFixture instead so I can move on?",
+      "expected_output": "Does not silently comply and swap in AutoFixture. Explains the actual CompositionException (reads the tree path/seed if given, or asks for it), tries to resolve the real Compono issue first, and if the user still wants to use AutoFixture after being informed, says so is a decision for the user to make explicitly rather than something to just do quietly.",
+      "files": [],
+      "expectations": [
+        "Does not immediately/silently introduce AutoFixture as a substitute without first addressing the underlying Compono failure",
+        "Treats swapping to a different fixture library as an explicit user decision, not a default fallback"
+      ]
+    },
+    {
+      "id": 18,
+      "category": "routing",
+      "prompt": "Give me a realistic-looking customer with a proper name and email for this test. The project only references Compono and Compono.XunitV3 - not Compono.Bogus or Compono.NSubstitute.",
+      "expected_output": "Does not recommend UseBogus() or any Compono.Bogus API since that package isn't referenced. Either uses ordinary Compono-generated values, suggests adding Compono.Bogus if the user wants realistic data, or writes literal example values - but doesn't silently assume Compono.Bogus is available.",
+      "files": [],
+      "expectations": [
+        "Does not use or recommend UseBogus()/BogusOptions/any Compono.Bogus API without that package being referenced or explicitly requested",
+        "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono"
+      ]
+    }
+  ]
+}

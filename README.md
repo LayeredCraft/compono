@@ -84,6 +84,21 @@ using xUnit, using NSubstitute).
 Migrating from AutoFixture? See the
 [AutoFixture migration guide](https://layeredcraft.github.io/compono/migrating-from-autofixture/).
 
+## AI Coding Agent Skill
+
+Using Claude Code or another `npx skills`-compatible agent to write
+Compono tests? Install the official skill so it knows Compono's actual
+API and guardrails instead of guessing from AutoFixture-shaped habits:
+
+```bash
+npx skills add LayeredCraft/compono
+```
+
+See the
+[AI Coding Agent Skill guide](https://layeredcraft.github.io/compono/getting-started/ai-agent-skill/)
+for details, or the `skills/` directory in this repository for the
+canonical source.
+
 ## Documentation
 
 The full documentation site is at
