@@ -1091,11 +1091,11 @@ For Compono itself, this milestone's evidence supports no MVP scope
 change and no urgent roadmap addition. The two findings worth tracking
 without a `Proposed` ADR yet — `CMP0001`'s registered/external-type
 disambiguation gap
-([Finding 7](#finding-7--cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation),
+([Finding 7](#finding-7-cmp0001-httpclient-cant-be-composed-directly-compile-time-constructor-selection-limitation),
 recorded in
 [ADR-0002 Amendment 1](../adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made))
 and the Compose-family stacking constraint
-([Finding 4](#finding-4--compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes),
+([Finding 4](#finding-4-compose-family-binding-validation-blocks-stacking-distinct-compose-family-attributes),
 recorded in
 [ADR-0022 Amendment 7](../adr/0022-compono-xunit-package-design.md#amendment-7-2026-08-04-stacking-distinct-compose-family-attributes-stays-unsupported-no-real-call-site-found))
 — are real but unexercised: if a future dogfooding pass (a different real

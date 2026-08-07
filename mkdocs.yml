@@ -57,6 +57,13 @@ theme:
     text: Roboto
     code: Roboto Mono
 
+# Validation — elevate anchor checking so a broken internal `#anchor` link
+# fails `mkdocs build --strict` (already run in CI) instead of only logging
+# an INFO line that a strict build doesn't treat as an error.
+validation:
+  links:
+    anchors: warn
+
 # Plugins
 plugins:
   - search
