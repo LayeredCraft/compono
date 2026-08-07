@@ -3,7 +3,8 @@ using System.Globalization;
 namespace Compono;
 
 /// <summary>
-/// The public entry point for composing test data, per <c>docs/public-api.md</c>.
+/// The public entry point for composing test data - see
+/// <see href="https://layeredcraft.github.io/compono/concepts/composition-model/">The Composition Model</see>.
 /// </summary>
 /// <remarks>
 /// <c>docs/architecture.md</c>'s builder configuration (<c>Composer.Create(builder => ...)</c>) is

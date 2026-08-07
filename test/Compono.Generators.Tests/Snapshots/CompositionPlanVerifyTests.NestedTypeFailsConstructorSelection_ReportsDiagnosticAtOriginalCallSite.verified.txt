@@ -2,12 +2,12 @@
   Diagnostics: [
     {
       Location: Program.cs: (30,39)-(30,61),
-      Message: 'TestNamespace.Address' (reached via Customer.homeAddress) has 2 accessible constructors and no way to disambiguate them - Compono requires exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md,
+      Message: 'TestNamespace.Address' (reached via Customer.homeAddress) has 2 accessible constructors and no way to disambiguate them,
       Severity: Error,
       Descriptor: {
         Id: CMP0001,
         Title: Ambiguous construction path,
-        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them - Compono requires exactly one accessible constructor per docs/adr/0002-constructor-selection-algorithm.md,
+        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them,
         Category: Compono.Usage,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
