@@ -15,13 +15,18 @@ The MVP is not an AutoFixture migration layer and does not aim for feature parit
 
 The MVP succeeds when:
 
-1. A developer can compose typical modern .NET object graphs without runtime constructor reflection on the generated path.
-2. An xUnit v3 theory can declare composed parameters.
-3. A shared test-double parameter is injected into the system under test.
-4. Bogus can provide deterministic semantic values through an ancillary package.
-5. A failure produces a readable dependency path and reproducible seed.
-6. One real test project can be rewritten to use Compono and remains pleasant to maintain.
-7. The core package has no dependencies on test frameworks, mocking frameworks, or Bogus.
+1. **Met.** A developer can compose typical modern .NET object graphs without runtime constructor reflection on the generated path — Milestone 1's source generator (ADR-0001), verified continuously through `Compono.Generators.Tests` and the redesigned benchmark suite's `SourceGeneration/` category (Milestone 8 Phase 5).
+2. **Met.** An xUnit v3 theory can declare composed parameters — `[Compose]`/`[Compose<TProfile>]` (Milestone 4), re-verified verbatim in Milestone 8 Phase 8's clean-room acceptance test against the real published package.
+3. **Met.** A shared test-double parameter is injected into the system under test — `[Shared]` (Milestone 2) + `Compono.NSubstitute`'s `UseNSubstitute()` (Milestone 5), re-verified in Phase 8's release-verification smoke test against the real published packages.
+4. **Met.** Bogus can provide deterministic semantic values through an ancillary package — `Compono.Bogus`'s `UseBogus()` (Milestone 6); Milestone 8 Phase 5 additionally found and fixed a real determinism/performance defect (`BogusMemberNameProvider` constructing a fresh `Faker` per request) before publication, re-verified in Phase 8's acceptance test.
+5. **Met.** A failure produces a readable dependency path and reproducible seed — `CompositionDiagnostic` (Milestone 2), re-verified directly in Phase 8's acceptance test: a real missing-provider failure rendered the documented tree-shaped path and a working `Seed:` line.
+6. **Met.** One real test project can be rewritten to use Compono and remains pleasant to maintain — the `cosmere-tracker` migration (Milestone 7); see that milestone's own Outcome below for the full evidence trail. Compono has been the default for all `cosmere-tracker` test code since Milestone 7 concluded.
+7. **Met.** The core package has no dependencies on test frameworks, mocking frameworks, or Bogus — `src/Compono/Compono.csproj` carries no such reference; this remained true through the public-preview package-readiness hardening (Milestone 8 Phase 0).
+
+Reviewed one final time at Milestone 8's closeout (Phase 9, 2026-08-07) — all
+seven criteria honestly met, against real evidence gathered across
+Milestones 1-8, not assumed from having shipped code that plausibly
+satisfies them.
 
 ## MVP Package Set
 
@@ -562,6 +567,67 @@ exit criteria.
 - Explicit known limitations
 - Update `mkdocs.yml`'s nav to match the published hierarchy exactly, and
   publish the site
+
+### Outcome
+
+Complete. All ten [PLAN-0008](plans/0008-milestone-8-public-preview.md)
+phases (0-9) done; full detail in that plan's own Tasks, and its
+Release-readiness/Public-preview acceptance/Exit criteria checklists.
+Compono `0.1.0` — the first real, public `0.x` release — is live: all
+four publishable packages (`Compono`, `Compono.XunitV3`,
+`Compono.NSubstitute`, `Compono.Bogus`) install from nuget.org in a
+clean project, `Compono.Generators` runs from the installed `Compono`
+package, and the documentation site is live at
+`https://layeredcraft.github.io/compono/`. The clean-room acceptance test
+(Phase 8) passed end to end using only public artifacts — the
+five-minute Getting Started path, a How-to Guide task, a Cookbook recipe,
+a Package Guide install decision, both `CMP`-coded and by-symptom
+Troubleshooting lookups, an API reference lookup — with no ADR/internal-repo
+knowledge required at any point.
+
+Real findings surfaced along the way were fixed rather than silently
+absorbed or left unrecorded, each its own scoped PR per this repo's
+"blocking bug found along the way" precedent:
+[#56](https://github.com/LayeredCraft/compono/pull/56)/
+[#57](https://github.com/LayeredCraft/compono/pull/57) (docs-site
+navigation, reported directly by the user after Phase 7 shipped),
+[#58](https://github.com/LayeredCraft/compono/pull/58) (`CMP0001`'s
+message and three flagship types' doc comments citing an internal,
+already-retired page), and
+[#61](https://github.com/LayeredCraft/compono/pull/61) (the same defect
+class in all four packages' NuGet `Description` metadata — the literal
+first-impression text a stranger sees on nuget.org search, found during
+this milestone's own closeout). A further ~85 stale
+`docs/architecture.md`/`docs/performance.md` references remain across
+the core package's XML doc comments — confirmed to render as inert
+code-styled text rather than actual broken links (lower severity than
+the fixed defects above), deliberately deferred rather than folded into
+a scoped fix; a real, recorded gap for a future pass, not silently
+dropped. Milestone 8's own closeout review also caught a second,
+unrelated real gap: Phase 6's record claimed
+[LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4)
+(the org-level `SECURITY.md`/`CODE_OF_CONDUCT.md` fix) had already landed
+when it was still open — the user merged it during this closeout, and the
+live org defaults now genuinely match what ADR-0030 Amendment 2 requires.
+
+One release-readiness item remains honestly unexercised, not silently
+checked off: `.github/release-drafter.yml`'s `breaking-change` label has
+never been applied to a real PR in this repo's history, so its
+`major`→`minor` remap (Phase 0) has no end-to-end confirmation yet — it
+will get its first real test whenever the first genuine breaking-change
+PR lands.
+
+**Recommendation:** the public preview is genuinely ready and live.
+Remaining post-MVP work (a `1.0.0` graduation decision, the deferred
+doc-comment sweep, the breaking-change-label's first real test) is future
+milestone work, not this one — none of the three currently fit
+`docs/roadmap/post-mvp.md`'s own, deliberately narrow scope (ADR-0029
+"roadmap candidate" findings from dogfooding specifically, not a general
+findings log), so they're recorded here and in
+[PLAN-0008](plans/0008-milestone-8-public-preview.md)'s own Phase 8/
+closeout notes instead — a `Done` plan is this repo's standing historical
+record of how the work actually happened, which is exactly what these
+are.
 
 ## MVP Non-goals
 

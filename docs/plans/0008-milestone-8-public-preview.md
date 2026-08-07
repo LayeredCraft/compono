@@ -1,6 +1,6 @@
 # [PLAN-0008] Milestone 8: Public Preview
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0030](../adr/0030-compono-documentation-architecture.md)
 (including Amendments 1-2), [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)
@@ -768,18 +768,22 @@ focused PR, not interleaved with doc-content PRs).
       v2.1) as deliberate overrides of `LayeredCraft/.github`'s weaker
       org defaults (a published email address; a short custom paragraph
       instead of the standard Covenant text). Per direct user request,
-      those two org-level files were then updated in place instead
-      ([LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4)) —
-      `SECURITY.md` now points to GitHub's private Security Advisory flow
-      org-wide, and `CODE_OF_CONDUCT.md` now carries the full,
-      unmodified Contributor Covenant v2.1 org-wide. With the org
-      defaults now matching what ADR-0030 Amendment 2 calls for, the
-      repo-local copies here were redundant (duplicate content that
-      could drift from the org original) and removed; both requirements
-      are satisfied via GitHub's native community-health-file
-      inheritance instead. `README.md` and `docs/contributing.md` link
-      directly to `LayeredCraft/.github`'s copies rather than a local
-      relative path, since no local file exists to resolve.
+      the repo-local copies were removed on the expectation that
+      [LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4)
+      would update those two org-level files in place instead. **Amendment
+      (Milestone 8 closeout, 2026-08-07): that PR was still open at the
+      time this task's own text above was written**, verified directly
+      against the live `LayeredCraft/.github` repo — the org defaults
+      were still serving the original weaker content (the published email
+      address; the short custom paragraph) even though this task claimed
+      the fix already landed. Found during Milestone 8's own closeout
+      review; the user merged
+      [LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4)
+      the same day (2026-08-07), and the org defaults now genuinely serve
+      the corrected content (GitHub's private Security Advisory flow;
+      the full, unmodified Contributor Covenant) — re-verified directly
+      against the live files post-merge. `README.md`/`docs/contributing.md`'s
+      links to `LayeredCraft/.github`'s copies are accurate as of now.
 - [x] GitHub issue templates — **not added to this repo.** A first pass
       added `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md`
       directly, before discovering (via direct user feedback) that
@@ -968,19 +972,28 @@ package-readiness phase above being done.
 
 ## Phase 9: Final MVP documentation and closeout
 
-**Status:** Not Started
+**Status:** Done
 
 **Checkpoint: Milestone 8 / MVP Complete** — `docs/mvp.md` reflects the
 real, final outcome and every MVP success criterion has an honest
 verdict.
 
-- [ ] `docs/mvp.md`'s Milestone 8 section: outcome, links to all four
-      ADRs and this plan, exit-criteria results.
-- [ ] Final MVP success-criteria review (`docs/mvp.md`'s "Success
+- [x] `docs/mvp.md`'s Milestone 8 section: outcome, links to all four
+      ADRs and this plan, exit-criteria results. Added a full Outcome
+      subsection recording the real `0.1.0` release, every scoped
+      bug-fix PR found along the way (#56-#58, #61), the deliberately
+      deferred doc-comment sweep, and the `LayeredCraft/.github#4` gap
+      found and resolved during this same closeout.
+- [x] Final MVP success-criteria review (`docs/mvp.md`'s "Success
       Criteria" list) — each marked met/partially met/unmet, honestly,
-      against real evidence from this milestone and Milestone 7's.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` — confirm all rows
-      accurate (already updated for ADR-0031/0032/0033 during this
+      against real evidence from this milestone and Milestone 7's. All
+      seven marked **Met**, each with its own real evidence citation, not
+      a blanket claim.
+- [x] `docs/adr/README.md`/`docs/plans/README.md` — confirm all rows
+      accurate. `docs/adr/README.md` was already accurate (ADR-0030-0034
+      all `Accepted`). **`docs/plans/README.md` was stale** — PLAN-0008
+      still showed `Not Started` despite being `In Progress`/`Done`
+      throughout this entire milestone; fixed to `Done`.
       design pass).
 
 ## Package-readiness checklist
@@ -1043,23 +1056,36 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
 
 ## Release-readiness checklist
 
-- [ ] `publish-preview.yaml`'s identifier renamed from `alpha` to
+- [x] `publish-preview.yaml`'s identifier renamed from `alpha` to
       `preview` (Phase 0) — the actual "does this look done" gate is the
       manually-published GitHub Release below, not this rename.
-- [ ] All four publishable packages passed the locally-controlled
+- [x] All four publishable packages passed the locally-controlled
       `Microsoft.DotNet.PackageValidation` PR gate (Phase 0) before this
-      version merged to `main` — a real baseline was resolved (not a
-      first-ever/inert run silently treated as normal), or the merged PR
-      legitimately carried the `breaking-change` label.
-- [ ] `.github/release-drafter.yml`'s `breaking-change` label resolves to
-      a minor bump, confirmed against a real labeled PR before the first
-      one ships for real (Phase 0).
-- [ ] Local-feed packed-consumer smoke test passes for the four
-      publishable packages together (Phase 0).
-- [ ] Package-contents inspection CI step passes for the four publishable
+      version merged to `main` — verified against a real CI run
+      immediately before `v0.1.0` was cut: `package-validation.yaml`'s
+      "Resolve nuget.org baseline versions" step resolved a real prior
+      version (`0.1.0-preview.45`) for all four packages, not a
+      first-ever/inert `<none, first publish>` run.
+- [x] `.github/release-drafter.yml`'s `breaking-change` label resolves to
+      a minor bump (Phase 0's static config change) — **not yet confirmed
+      against a real labeled PR**: no PR in this repo's history has ever
+      carried the `breaking-change` label
+      (`gh pr list --state all --label breaking-change` returns none), so
+      this specific mechanic was never actually exercised end-to-end
+      before `v0.1.0` shipped (which itself carried no breaking-change
+      PR). Recorded honestly as an unexercised gate, not silently checked
+      off — it'll get its first real test whenever the first genuine
+      breaking-change PR lands, per ADR-0031's `0.X+1.0` policy.
+- [x] Local-feed packed-consumer smoke test passes for the four
+      publishable packages together (Phase 0) — confirmed passing on the
+      same pre-release CI run referenced above.
+- [x] Package-contents inspection CI step passes for the four publishable
       packages, and separately confirms `Compono.Generators.dll` is
-      present inside `Compono.nupkg`'s `analyzers/dotnet/cs` (Phase 0).
-- [ ] Every public member has an XML doc comment — actually enforced as a
+      present inside `Compono.nupkg`'s `analyzers/dotnet/cs` (Phase 0) —
+      same pre-release CI run; also independently re-verified post-publish
+      in Phase 8's own task by inspecting the actual installed package
+      from nuget.org.
+- [x] Every public member has an XML doc comment — actually enforced as a
       build failure (Phase 0's new CI job runs
       `dotnet build -p:WarningsAsErrors=CS1591` for the four publishable
       packages specifically), not merely assumed from
@@ -1069,17 +1095,24 @@ per ADR-0003). Phase 0's Tasks above are this checklist:
       alone doesn't fail `dotnet build`, so nothing before Phase 0 was an
       actual enforcement gate on its own. Phase 1's reference-generation
       gate is a second, tool-dependent check, not a substitute for this
-      one.
-- [ ] `docs/roadmap/index.md`'s compatibility framing and every affected
-      Package Guide are current with the version about to publish.
-- [ ] If this release includes a breaking-change-labeled PR, the
+      one. Confirmed passing on the same pre-release CI run.
+- [x] `docs/roadmap/index.md`'s compatibility framing and every affected
+      Package Guide are current with the version about to publish —
+      `docs/roadmap/index.md` doesn't hardcode a version number (states
+      "Compono's shipped package set" generically), so nothing there goes
+      stale per release.
+- [x] If this release includes a breaking-change-labeled PR, the
       generated release notes carry the "⚠️ Breaking Changes" section
       (release-drafter's `categories` grouping renders it automatically —
       nothing to check if no such PR is included this time; the absence
       of the section is itself the "nothing broke" signal, per ADR-0031).
-- [ ] Documentation site deploys successfully from the same `main` commit
+      Confirmed: `v0.1.0`'s actual published release notes have no such
+      section, correctly, since no breaking-change PR was included.
+- [x] Documentation site deploys successfully from the same `main` commit
       being released (verified via `docs.yml`, not a separate manual
-      check).
+      check) — confirmed: `docs.yml` ran and succeeded on commit `821527d`
+      (the `main` commit `v0.1.0` was tagged from, right after PR #59
+      merged), before the release was published.
 
 ## Public-preview acceptance checklist
 
@@ -1087,41 +1120,80 @@ Run during Phase 8, using only public artifacts (no internal-repo
 knowledge, no ADR references, no local source checkout beyond what's
 needed to author the fresh test project):
 
-- [ ] A stranger can find Compono via GitHub search or nuget.org search
+- [x] A stranger can find Compono via GitHub search or nuget.org search
       (package tags/description, Phase 0) and land on a README that
       states what it is, why it exists, and what to do next within
-      seconds of scrolling.
-- [ ] `dotnet add package Compono`/`Compono.XunitV3` (the common-case
+      seconds of scrolling. Nuget.org's own search index confirmed
+      returning `Compono` for a plain `compono` query, title "Compono —
+      Core Composition Engine," tags `testing`/`test-data`/
+      `source-generator`/`dotnet`. **One real gap found and fixed
+      separately**: the search result's own description text cited two
+      internal-only paths (`docs/manifesto.md`, retired to a tombstone in
+      Phase 5; `design-decisions.md`, an internal engineering-workflow
+      skill file never public at all) — the literal first thing a
+      stranger sees before ever reaching the README. Fixed in
+      [PR #61](https://github.com/LayeredCraft/compono/pull/61) for all
+      four packages' `Description` fields, same bug class PR #58 already
+      fixed once elsewhere. Ships in the next published version, not
+      `v0.1.0` itself.
+- [x] `dotnet add package Compono`/`Compono.XunitV3` (the common-case
       pair, per Getting Started) succeeds from a clean project against
-      published nuget.org packages.
-- [ ] The five-minute Getting Started path succeeds verbatim, start to
-      finish, with no undocumented step.
-- [ ] At least one How-to Guide task, followed literally, succeeds.
-- [ ] At least one Cookbook recipe, copy-pasted, works without
-      modification.
-- [ ] The relevant Package Guide's "when to install" section is
+      published nuget.org packages — verified twice: once pre-publish
+      against `0.1.0-preview.45`, once post-publish against the real
+      stable `0.1.0`.
+- [x] The five-minute Getting Started path succeeds verbatim, start to
+      finish, with no undocumented step — including the "remove
+      `[Shared]` and rerun" step, which correctly produces an ordinary
+      xUnit assertion failure, not a composition crash, exactly as
+      documented.
+- [x] At least one How-to Guide task, followed literally, succeeds —
+      `register-a-type.md`'s three examples (direct registration, nested
+      dependency resolution, profile-wired registration), 3/3 passed.
+- [x] At least one Cookbook recipe, copy-pasted, works without
+      modification — `generate-a-realistic-email.md`, verbatim.
+- [x] The relevant Package Guide's "when to install" section is
       sufficient to decide whether to add `Compono.NSubstitute`/
-      `Compono.Bogus` without reading any other page.
-- [ ] A deliberately-triggered **compile-time** failure (e.g. an
+      `Compono.Bogus` without reading any other page — confirmed against
+      `packages/compono-bogus.md`, which states the decision criterion
+      and exact install command with nothing else to look up.
+- [x] A deliberately-triggered **compile-time** failure (e.g. an
       ambiguous-constructor type composed directly, `CMP0001`) produces a
       `CMP`-coded build error, and Troubleshooting's `common-errors.md`
-      resolves it by that code.
-- [ ] A deliberately-triggered **runtime** composition failure (e.g. a
+      resolves it by that code — reproduced with `HttpClient` composed
+      directly, exactly the doc's own example. **One real bug found and
+      fixed separately**: the actual shipped message carried a trailing
+      internal-path clause not present in what `reference/diagnostics.md`
+      documents; the checklist item itself still passed (the code lookup
+      resolves it regardless), the message defect was fixed in
+      [PR #58](https://github.com/LayeredCraft/compono/pull/58).
+- [x] A deliberately-triggered **runtime** composition failure (e.g. a
       genuine construction cycle) produces a readable, path-annotated
       error and a reproducible seed via `CompositionDiagnostic`
       (`src/Compono/CompositionDiagnostic.cs` — no diagnostic-code field,
       unlike the compile-time case above), and Troubleshooting's
       `common-errors.md`/`faq.md` resolves it **by symptom**, not by
       code — these are two different failure modes with two different
-      resolution paths, not one combined check.
-- [ ] The API reference (`reference/api/`) answers at least one "what
+      resolution paths, not one combined check. Reproduced with a missing
+      `IRuleProvider` registration: `Console.WriteLine(exception.Diagnostic)`
+      rendered the exact tree-shaped format `common-errors.md` documents,
+      including a working `Seed:` line.
+- [x] The API reference (`reference/api/`) answers at least one "what
       does this method do / what does it throw" question the guides
-      don't already answer inline.
-- [ ] Every link followed during the acceptance pass resolves (no 404s,
-      no dead cross-references).
-- [ ] Nothing in the acceptance pass required reading `docs/adr/`,
-      `docs/plans/`, or `docs/research/` — confirming those stay
-      internal engineering artifacts, not a hidden prerequisite.
+      don't already answer inline — `CompositionException`/
+      `CompositionDiagnostic`'s reference pages document the precise
+      constructor/exception contract at a level of detail no Concepts or
+      How-to page repeats.
+- [x] Every link followed during the acceptance pass resolves (no 404s,
+      no dead cross-references) — every page touched (Getting Started,
+      the How-to page, the Cookbook recipe, the Package Guide,
+      Troubleshooting) spot-checked live at
+      `https://layeredcraft.github.io/compono/`, all `200`.
+- [x] Nothing in the acceptance pass required reading `docs/adr/`,
+      `docs/plans/`, or `docs/research/` — confirmed; the only place ADR/
+      internal-repo knowledge entered this milestone's work was
+      *investigating* the `CMP0001`/`public-api.md`/package-`Description`
+      bugs above, which is root-cause debugging of a defect, not a step
+      the acceptance walkthrough itself required.
 
 ## Exit criteria
 
@@ -1130,38 +1202,65 @@ is true, checked honestly (met / partially met / unmet is an acceptable
 outcome for the final MVP review in Phase 9, but every item here must be
 individually resolved, not left ambiguous):
 
-- [ ] All four publishable `0.x` packages are available on nuget.org and
+- [x] All four publishable `0.x` packages are available on nuget.org and
       installable in a clean project; `Compono.Generators` is present and
-      running inside the installed `Compono` package.
-- [ ] Packed-package consumer verification passes (Phase 0's local-feed
-      gate, plus Phase 8's post-publish nuget.org verification).
-- [ ] The documentation site is publicly deployed and live at its stated
-      URL.
-- [ ] The root `README.md` accurately directs each audience (newcomer,
-      AutoFixture migrator, contributor) to its right next step.
-- [ ] The five-minute Getting Started flow succeeds from a clean project
-      (Phase 8's acceptance test).
-- [ ] All public APIs have useful XML documentation (Phase 0/1's gates).
-- [ ] API reference (`reference/api/`) and diagnostics reference
+      running inside the installed `Compono` package. Verified
+      post-publish against real `0.1.0`, including a real composition
+      smoke test (Phase 8).
+- [x] Packed-package consumer verification passes (Phase 0's local-feed
+      gate, plus Phase 8's post-publish nuget.org verification). Both
+      confirmed.
+- [x] The documentation site is publicly deployed and live at its stated
+      URL. `https://layeredcraft.github.io/compono/` returns `200`,
+      current nav confirmed.
+- [x] The root `README.md` accurately directs each audience (newcomer,
+      AutoFixture migrator, contributor) to its right next step (Phase 2
+      README review, Phase 6's `CONTRIBUTING.md` link addition).
+- [x] The five-minute Getting Started flow succeeds from a clean project
+      (Phase 8's acceptance test) — verified verbatim, including the
+      "break it" step.
+- [x] All public APIs have useful XML documentation (Phase 0/1's gates —
+      `CS1591`-as-error enforced in CI). **Two real content-quality gaps
+      found and fixed, not just presence-checked**: `CMP0001`'s message
+      and three flagship types' doc comments citing an internal, retired
+      page ([PR #58](https://github.com/LayeredCraft/compono/pull/58)).
+      A further ~85 stale `docs/architecture.md`/`docs/performance.md`
+      references remain across the core package's doc comments — inert
+      code-styled text, not broken links, deliberately deferred (see
+      Phase 8's own notes) rather than silently left unrecorded.
+- [x] API reference (`reference/api/`) and diagnostics reference
       (`reference/diagnostics.md`) are published (Phase 1/3).
-- [ ] Both required samples (Basic Usage, ASP.NET API) build in CI
+- [x] Both required samples (Basic Usage, ASP.NET API) build in CI
       (Phase 4).
-- [ ] Benchmark methodology and results are published, without
+- [x] Benchmark methodology and results are published, without
       unsupported comparative claims (Phase 5, per ADR-0030 Amendment 2).
-- [ ] Known limitations and the `0.x` compatibility policy are explicit
+- [x] Known limitations and the `0.x` compatibility policy are explicit
       and discoverable from multiple entry points, not one obscure page
       (Phase 3, per ADR-0031).
-- [ ] Contribution, security, and release guidance exist — both
+- [x] Contribution, security, and release guidance exist — both
       root `CONTRIBUTING.md` (linked from `README.md`) and
       `docs/contributing.md`, plus `SECURITY.md`, `CODE_OF_CONDUCT.md`,
-      issue/PR templates (Phase 6).
-- [ ] The AutoFixture migration guide is publication-ready (Phase 3).
-- [ ] Every package and documentation link is valid (Phase 7).
-- [ ] The public-preview acceptance test (above) passes end to end using
-      only public-facing instructions (Phase 8).
-- [ ] `docs/mvp.md`'s MVP-wide Success Criteria are reviewed one final
+      issue/PR templates (Phase 6, via `LayeredCraft/.github` inheritance
+      for the latter three). **Found genuinely unmet during this
+      milestone's own closeout review** — Phase 6's record claimed the
+      org-level `SECURITY.md`/`CODE_OF_CONDUCT.md` fix
+      ([LayeredCraft/.github#4](https://github.com/LayeredCraft/.github/pull/4))
+      had already landed; it was still open, so the live inherited files
+      were still the original weaker versions. The user merged that PR
+      during this closeout (2026-08-07); re-verified directly against the
+      live org repo afterward — genuinely met now.
+- [x] The AutoFixture migration guide is publication-ready (Phase 3).
+- [x] Every package and documentation link is valid (Phase 7's
+      `mkdocs build --strict` gate, now enforced going forward via
+      `validation.links.anchors: warn`).
+- [x] The public-preview acceptance test (above) passes end to end using
+      only public-facing instructions (Phase 8) — every item passed; two
+      real bugs found along the way were fixed in their own scoped PRs
+      (#58, #61) rather than silently absorbed.
+- [x] `docs/mvp.md`'s MVP-wide Success Criteria are reviewed one final
       time and each honestly marked met, partially met, or unmet
-      (Phase 9).
+      (Phase 9) — see `docs/mvp.md`'s Success Criteria section and
+      Milestone 8's own Outcome subsection.
 
 ## Critical Files
 
