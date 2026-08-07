@@ -24,6 +24,8 @@ description: >
   comments", "what's next on the roadmap", or any request to add a
   feature to `Compono` / `Compono.XunitV3` / `Compono.NSubstitute` /
   `Compono.Bogus` / `Compono.Generators`.
+metadata:
+  internal: true
 ---
 
 # Compono Engineering Workflow
