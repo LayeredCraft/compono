@@ -12,8 +12,8 @@ user should move through it. It describes **intended** state: most of the
 pages named below exist today as placeholder skeletons (a "Status:
 Skeleton" banner and a one-paragraph purpose statement, no real content —
 see "Status" per section for exactly which). A handful of real exceptions
-don't exist purely as skeletons: `contributing.md` doesn't exist at all yet
-(Milestone 8 Phase 6); `reference/api/` is real, generated content as of
+don't exist purely as skeletons: `contributing.md` is real content as of
+Milestone 8 Phase 6; `reference/api/` is real, generated content as of
 [ADR-0032](adr/0032-api-reference-documentation-toolchain.md)/PLAN-0008
 Phase 1, not a placeholder. `docs/roadmap/post-mvp.md` was one of these
 exceptions until [PLAN-0007](plans/0007-milestone-7-dogfooding.md) Phase 3
@@ -168,7 +168,7 @@ docs/
 │   ├── post-mvp.md                           # real content (PLAN-0007 Phase 3, done)
 │   ├── proposed-adrs.md                      # status-filtered ADR index
 │   └── future-packages.md
-└── contributing.md                           # not yet created (Milestone 8 scope)
+└── contributing.md                           # real content (Milestone 8 Phase 6, done)
 ```
 
 `docs/manifesto.md`, `docs/public-api.md`, `docs/architecture.md`,

@@ -724,14 +724,14 @@ progress.
 
 ## Phase 6: Contributor and repository readiness
 
-**Status:** Not Started
+**Status:** Done
 
 Executes ADR-0030 Amendment 2's governance-scope decision. Independent of
 the documentation content phases above — could run in parallel with
 Phases 2-5 in principle, sequenced here mainly for reviewability (one
 focused PR, not interleaved with doc-content PRs).
 
-- [ ] **Two files, not one.** `docs/contributing.md` — the full docs-site
+- [x] **Two files, not one.** `docs/contributing.md` — the full docs-site
       page: build/test/PR expectations, cross-linking this skill's
       public-facing equivalents, plus the license-review note Phase 0's
       dependency spot-check feeds into (any PR adding or bumping a
@@ -752,14 +752,42 @@ focused PR, not interleaved with doc-content PRs).
       to `docs/contributing.md` for the full detail, not a duplicate.
       Also add the link from repository-root `README.md` (a small
       addition to Phase 2's README review/update, done here since
-      `CONTRIBUTING.md` doesn't exist until this phase).
-- [ ] `SECURITY.md` — vulnerability reporting process.
-- [ ] `CODE_OF_CONDUCT.md` — standard, uncustomized Contributor Covenant.
-- [ ] GitHub issue templates: bug report, feature/roadmap proposal.
-- [ ] One lightweight PR template.
-- [ ] "Good first issue" candidates identified from the Cookbook recipe
-      backlog (a natural first-PR shape, per ADR-0030 Amendment 1's own
-      framing of Cookbook recipes).
+      `CONTRIBUTING.md` doesn't exist until this phase). Added to
+      `mkdocs.yml`'s nav (a top-level "Contributing" entry, after
+      Roadmap) and `docs/documentation-architecture.md`'s tree updated
+      from "not yet created" to real content.
+- [x] `SECURITY.md` — vulnerability reporting via GitHub's private
+      Security Advisory flow (`/security` → "Report a vulnerability"),
+      not a published email address — no maintainer contact email exists
+      in the repo's package metadata to publish, and GitHub's own flow is
+      what ADR-0030 Amendment 2 specifically names as the requirement
+      this file satisfies.
+- [x] `CODE_OF_CONDUCT.md` — standard Contributor Covenant v2.1 text,
+      unmodified except filling in the template's required contact-method
+      placeholder (GitHub Security Advisory report / maintainer GitHub
+      profile, consistent with `SECURITY.md`'s reporting channel, since no
+      other maintainer contact exists in this repo).
+- [x] GitHub issue templates: `.github/ISSUE_TEMPLATE/bug_report.md`,
+      `.github/ISSUE_TEMPLATE/feature_request.md` (titled "Feature /
+      Roadmap proposal" per the milestone brief's naming). Each
+      pre-applies its matching `type: fix`/`type: feat` label so
+      `release-drafter.yml`'s existing categorization picks up
+      issue-sourced PRs consistently with the PR-title-based autolabeler.
+- [x] `.github/PULL_REQUEST_TEMPLATE.md` — one lightweight template:
+      summary, related issue, a short checklist (Conventional Commit
+      title, build/test passed locally, test coverage, XML doc comments,
+      docs updated, dependency-license check), additional context.
+- [x] "Good first issue" candidates identified from the Cookbook recipe
+      backlog: six candidate recipes not yet written (collection with a
+      fixed size, sharing a value without `[Shared]` on the type, a
+      custom `Compono.Bogus` naming convention, verifying NSubstitute
+      call arguments, reproducing a `CreateMany<T>()` failure from a
+      seed, a required-member record with one member overridden), listed
+      in `docs/contributing.md`'s "Good first issue candidates" section
+      rather than as actual open GitHub issues — filing the issues
+      themselves is a repository-administration action, not a docs/code
+      change this plan's Tasks scope covers; the candidate list itself is
+      the artifact this task produces.
 
 ## Phase 7: Final navigation, link, and snippet validation pass
 
