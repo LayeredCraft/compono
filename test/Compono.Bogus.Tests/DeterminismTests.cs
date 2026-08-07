@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using Bogus;
+
 namespace Compono.Bogus.Tests;
 
 /// <summary>
@@ -85,6 +88,107 @@ public sealed class DeterminismTests
 
         five.Should().OnlyHaveUniqueItems();
         five.Take(3).Should().Equal(three);
+    }
+
+    [Fact]
+    public void TryProvide_ProducesCorrectValues_WhenCalledConcurrently_OnOneSharedProviderInstance()
+    {
+        // BogusMemberNameProvider caches one Faker per thread (ADR-0027's Amendment) instead of
+        // constructing one per request - this proves that reuse is actually safe under real
+        // concurrent access, not just assumed safe because no test caught a problem.
+        //
+        // A Parallel.ForEachAsync-driven version of this test was tried first, but its per-item
+        // body had no genuine await point (the composition call is fully synchronous), so nothing
+        // guaranteed the runtime actually dispatched work across multiple threads at the same
+        // instant rather than running items back-to-back - a shared-Faker race could pass this
+        // test serially, purely by luck of the scheduler. Real System.Threading.Thread instances
+        // plus a Barrier fix that: every worker blocks until all of them have arrived, then all
+        // release together, so the workers start from a coordinated point instead of trickling in
+        // one by one at the scheduler's discretion. That's a stronger starting condition, not a
+        // guarantee that any two threads execute at the literal same instant thereafter - so each
+        // worker also does many resolutions back to back (not just one) to keep genuine contention
+        // on the shared provider's cached Faker for a sustained window, not one narrow instant.
+        const int workerCount = 16;
+        const int iterationsPerWorker = 100;
+        var provider = new BogusMemberNameProvider("en");
+        var barrier = new Barrier(workerCount);
+        var results = new ConcurrentBag<(int Seed, string Value)>();
+
+        var workers = Enumerable.Range(0, workerCount)
+            .Select(seed => new Thread(() =>
+            {
+                barrier.SignalAndWait();
+
+                string value = null!;
+                for (var i = 0; i < iterationsPerWorker; i++)
+                {
+                    value = Composer.Create(b => b.WithSeed(seed).AddSemanticProvider(provider))
+                        .CreateRow(typeof(DeterminismTests))
+                        .Resolve<string>(EmailDescriptor);
+                }
+
+                results.Add((seed, value));
+            }))
+            .ToArray();
+
+        foreach (var worker in workers)
+            worker.Start();
+        foreach (var worker in workers)
+            worker.Join();
+
+        // Each seed's concurrently-produced value must match what a fresh, independent,
+        // single-threaded resolution for that same seed produces - proving no cross-call state
+        // leaked between threads sharing the reused Faker, not just that nothing threw.
+        results.Should().HaveCount(workerCount);
+        foreach (var (seed, value) in results)
+        {
+            var expected = Composer.Create(b => b.WithSeed(seed).AddSemanticProvider(new BogusMemberNameProvider("en")))
+                .CreateRow(typeof(DeterminismTests))
+                .Resolve<string>(EmailDescriptor);
+
+            value.Should().Be(expected);
+        }
+    }
+
+    [Fact]
+    public void CustomConventionMutatingFakerState_DoesNotPerturbALaterBuiltInRequestOnTheSameThread()
+    {
+        // A custom AddConvention delegate that reassigns Faker.DateTimeReference (a completely
+        // ordinary thing to do - not a hostile/adversarial delegate) must not leave that mutation
+        // behind for a later, unrelated built-in-convention request to observe. Built-in
+        // conventions reuse the thread's cached Faker (BogusConventions.IsBuiltIn); custom
+        // conventions get their own single-use Faker instead, specifically so this can't happen -
+        // see ADR-0027's Amendment.
+        var conventions = new Dictionary<string, Func<Faker, string>>
+        {
+            ["Custom"] = faker =>
+            {
+                faker.DateTimeReference = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                return faker.Date.Recent().ToString("O");
+            },
+            ["Email"] = f => f.Internet.Email(),
+        };
+        var provider = new BogusMemberNameProvider("en", conventions);
+
+        var customDescriptor = new CompositionRequestDescriptor(
+            CompositionRequestKind.ConstructorParameter, ordinal: 0, "Custom", declaringType: null, Nullability.NotNullable);
+
+        Composer.Create(b => b.WithSeed(4219).AddSemanticProvider(provider))
+            .CreateRow(typeof(DeterminismTests))
+            .Resolve<string>(customDescriptor);
+
+        // Same provider instance (so the same thread's cached Faker, if a built-in request were
+        // ever to touch the same instance the custom one just mutated) resolves Email afterward -
+        // must match an independently-computed reference value exactly, proving the custom
+        // convention's DateTimeReference mutation never reached the built-in convention's Faker.
+        var afterCustom = Composer.Create(b => b.WithSeed(4219).AddSemanticProvider(provider))
+            .CreateRow(typeof(DeterminismTests))
+            .Resolve<string>(EmailDescriptor);
+        var expected = Composer.Create(b => b.WithSeed(4219).AddSemanticProvider(new BogusMemberNameProvider("en", conventions)))
+            .CreateRow(typeof(DeterminismTests))
+            .Resolve<string>(EmailDescriptor);
+
+        afterCustom.Should().Be(expected);
     }
 
     private static CompositionRequestDescriptor EmailDescriptor =>

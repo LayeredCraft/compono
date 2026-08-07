@@ -1,3 +1,5 @@
+using Bogus;
+
 namespace Compono.Bogus.Tests;
 
 /// <summary>
@@ -76,6 +78,45 @@ public sealed class BogusMemberNameProviderTests
         var withProvider = Resolve<string>(descriptor, addProvider: true);
 
         withProvider.Should().Be(withoutProvider);
+    }
+
+    [Fact]
+    public void ConventionThrows_DoesNotCorruptASubsequentRequestOnTheSameThread()
+    {
+        // A custom convention that throws, injected via the internal (locale, conventions)
+        // overload - BogusMemberNameProvider now reuses one Faker per thread across requests
+        // (ADR-0027's Amendment), so this is new to worry about: does an exception mid-generate
+        // leave that shared Faker in a state that corrupts the *next* request on the same
+        // thread/provider instance? faker.Random is reset unconditionally before every generate(...)
+        // call, so it shouldn't - this proves that, rather than assuming it.
+        var conventions = new Dictionary<string, Func<Faker, string>>
+        {
+            ["Broken"] = _ => throw new InvalidOperationException("Custom convention failure."),
+            ["Email"] = f => f.Internet.Email(),
+        };
+        var provider = new BogusMemberNameProvider("en", conventions);
+
+        var brokenDescriptor = new CompositionRequestDescriptor(
+            CompositionRequestKind.ConstructorParameter, ordinal: 0, "Broken", declaringType: null, Nullability.NotNullable);
+        var emailDescriptor = new CompositionRequestDescriptor(
+            CompositionRequestKind.ConstructorParameter, ordinal: 1, "Email", declaringType: null, Nullability.NotNullable);
+
+        var act = () => Composer.Create(builder => builder.WithSeed(4219).AddSemanticProvider(provider))
+            .CreateRow(typeof(BogusMemberNameProviderTests))
+            .Resolve<string>(brokenDescriptor);
+        act.Should().Throw<InvalidOperationException>();
+
+        // Same provider instance (so the same thread's cached Faker) resolves a later, unrelated
+        // request after the throw - must match an independently-computed reference value exactly,
+        // not throw again or silently return a corrupted/reused draw.
+        var afterThrow = Composer.Create(builder => builder.WithSeed(4219).AddSemanticProvider(provider))
+            .CreateRow(typeof(BogusMemberNameProviderTests))
+            .Resolve<string>(emailDescriptor);
+        var expected = Composer.Create(builder => builder.WithSeed(4219).AddSemanticProvider(new BogusMemberNameProvider("en", conventions)))
+            .CreateRow(typeof(BogusMemberNameProviderTests))
+            .Resolve<string>(emailDescriptor);
+
+        afterThrow.Should().Be(expected);
     }
 
     private static TValue Resolve<TValue>(in CompositionRequestDescriptor descriptor, bool addProvider)

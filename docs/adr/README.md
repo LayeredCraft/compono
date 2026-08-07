@@ -95,3 +95,4 @@ the mechanics: numbering, status, and the index.
 | [0031](0031-public-preview-release-and-versioning-policy.md) | Public Preview Release and Versioning Policy | Accepted |
 | [0032](0032-api-reference-documentation-toolchain.md) | API Reference Documentation Toolchain | Accepted |
 | [0033](0033-public-preview-samples-strategy.md) | Public Preview Samples Strategy | Accepted |
+| [0034](0034-benchmark-suite-strategy-and-redesign.md) | Benchmark Suite Strategy and Redesign | Accepted |

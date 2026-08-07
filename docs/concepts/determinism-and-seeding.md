@@ -81,7 +81,7 @@ failure is never a "works on my machine, can't repro" report — the seed
 ## Next
 
 - The pipeline stage that actually derives per-value randomness from a
-  seed → [Architecture](../architecture.md).
+  seed → [Deterministic Seeding](../architecture/current/deterministic-seeding.md).
 - Reproduce a specific failing xUnit theory row →
   [`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md).
 - Diagnostic codes and messages → [Diagnostics Reference](../reference/diagnostics.md).

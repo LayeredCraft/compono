@@ -62,14 +62,23 @@ public sealed class BogusOptions
 
     /// <summary>
     /// Adds a custom exact-name convention: a member named exactly <paramref name="memberName"/>
-    /// resolves to <paramref name="generate"/>'s result, called against a request-local,
+    /// resolves to <paramref name="generate"/>'s result, called against a
     /// <c>context.DeriveSeed()</c>-seeded <see cref="Faker"/> - the same determinism contract every
     /// other value in this package follows. Validated and applied eagerly, immediately, against this
     /// <see cref="BogusOptions"/> instance's own accumulated state - not deferred to
     /// <c>UseBogus(...)</c> returning, and not detected across separate <c>UseBogus(...)</c> calls.
     /// </summary>
     /// <param name="memberName">The exact member name to match.</param>
-    /// <param name="generate">Produces this member's value from a seeded <see cref="Faker"/>.</param>
+    /// <param name="generate">
+    /// Produces this member's value from a seeded <see cref="Faker"/>. Unlike the built-in
+    /// conventions, this <see cref="Faker"/> instance is fresh and single-use - never reused
+    /// across requests, and never shared with any other convention - since
+    /// <see cref="BogusMemberNameProvider"/> can't guarantee an arbitrary delegate won't mutate
+    /// state (<c>DateTimeReference</c>, a sub-generator, or any other of <see cref="Faker"/>'s
+    /// public settable properties) that would otherwise leak into a later, unrelated request.
+    /// Still fine to read its randomness normally - it's freshly reseeded for this call - just
+    /// don't retain the instance past this call, since nothing else will ever see the same one.
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="memberName"/> or <paramref name="generate"/> is <see langword="null"/>.
     /// </exception>

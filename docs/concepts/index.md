@@ -2,7 +2,7 @@
 
 This section builds the mental model Compono's other sections assume —
 what each piece is and when to reach for it, not the implementation details
-behind it (that's [Architecture](../architecture.md)'s job).
+behind it (that's [Architecture](../architecture/index.md)'s job).
 
 - [The Composition Model](composition-model.md) — what "composing" a graph
   means in Compono's terms.

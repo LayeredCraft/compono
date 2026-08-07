@@ -52,10 +52,9 @@ matches why you're here.
 ## I want to extend Compono
 
 1. [Providers](../concepts/providers.md)
-2. [Public API](../public-api.md) — the `ICompositionValueProvider`
-   extensibility contract.
-3. [Architecture](../architecture.md) — the resolution pipeline a custom
-   provider participates in.
+2. [The Provider Pipeline](../architecture/current/provider-pipeline.md) —
+   the `ICompositionValueProvider` extensibility contract, and the
+   resolution pipeline a custom provider participates in.
 
 ## Next
 

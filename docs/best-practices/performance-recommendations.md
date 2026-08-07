@@ -1,7 +1,7 @@
 # Performance Recommendations
 
 Practical guidance — what to actually do. For the methodology and measured
-numbers behind these recommendations, see [Performance](../performance.md).
+numbers behind these recommendations, see [Performance](../architecture/current/performance.md).
 
 ## Let source generation do its job
 
@@ -48,6 +48,6 @@ applies to your own suite.
 ## Next
 
 - The measured numbers and methodology behind "generated construction
-  avoids reflection overhead" → [Performance](../performance.md).
+  avoids reflection overhead" → [Performance](../architecture/current/performance.md).
 - Collection composition in depth → [Collections](../concepts/collections.md).
 - Applies at scale → [Large Test Suites](large-test-suites.md).

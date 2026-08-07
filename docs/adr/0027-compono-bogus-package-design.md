@@ -552,3 +552,58 @@ callback, asserted deterministic for the same seed).
   shared in either direction
 - [ADR-0026](0026-deterministic-seed-derivation-for-providers.md) — the
   `DeriveSeed()` capability every model in this ADR builds its determinism on
+
+## Amendment (2026-08-05): `BogusMemberNameProvider` reuses a per-thread `Faker`, not a fresh one per request
+
+[ADR-0034](0034-benchmark-suite-strategy-and-redesign.md)'s benchmark
+suite measured `BogusMemberNameProvider`'s real cost: constructing a
+fresh `Faker` per handled request costs ~865x a plain member rule
+(291.5 μs vs. 337 ns, isolated single-member measurement) — Bogus's
+`Faker` constructor building out its full set of category generators
+(`Name`, `Internet`, `Address`, `Phone`, `Company`, ...) is genuinely
+expensive, independent of anything Compono does around it. Fixed by
+caching one `Faker` per thread (`ThreadLocal<Faker>`) instead of
+constructing one per request, reseeding its `Random` immediately before
+every use.
+
+**This is not the cached-`Faker<T>` alternative this ADR already
+considered and rejected** (see the "Caching a configured `Faker<T>`
+across requests was considered and deliberately rejected" paragraph
+above) — that paragraph is about `Faker<T>` (Model 3's whole-object
+`UseBogus<T>()` registration), a different, more stateful type
+(`RuleFor`/`RuleSets`/`FinishWith` bindings) than `BogusMemberNameProvider`'s
+plain, untyped `Faker`, and this Amendment doesn't touch `Faker<T>` or
+`UseBogus<T>()` at all — that code, and the rejection reasoning behind
+it, stand exactly as originally written. The rejected alternative was
+also a **globally shared** instance: one `Faker`/`Faker<T>` touched by
+every request, from every thread, with no guarantee Bogus tolerates
+concurrent `Generate()` calls on it — exactly the hazard this ADR's
+original text names. A `ThreadLocal<Faker>` is structurally different,
+not just a smaller version of the same risk: each thread gets its own
+private instance that no other thread can ever observe or mutate, so
+"does Bogus tolerate concurrent access to one instance" never becomes a
+question this code has to answer — concurrent access to a single
+instance is impossible by construction, not merely avoided by
+convention. Reuse *within* one thread is sequential by definition (a
+thread executes one call at a time), and `BogusMemberNameProvider`'s
+convention generators (`f => f.Name.FirstName()`, etc.) don't retain
+state across calls beyond what `.Random` drives — unlike `Faker<T>`,
+there's no `RuleFor` binding or generation-in-progress state for a
+later call to observe. `Compono.Bogus.Tests.DeterminismTests`'
+`AddingAnUnrelatedBogusBackedMember_DoesNotPerturbAnExistingOnesValue`
+already exercises two sequential resolutions against what the fix makes
+the same reused `Faker` instance and continues to pass unmodified — the
+existing regression coverage for this exact "does an unrelated resolve
+leak into a later one" question caught nothing, which is itself evidence
+the reuse is safe, not just an assumption. A new concurrency test
+(`DeterminismTests.TryProvide_ProducesCorrectValues_WhenCalledConcurrently_OnOneSharedProviderInstance`)
+adds coverage this ADR's original text never had: many concurrent
+resolutions against one shared `BogusMemberNameProvider` instance, each
+compared against an independently-computed single-threaded reference
+value for the same seed.
+
+A future contributor extending this same caching approach to `Faker<T>`
+(Model 3) should not assume this Amendment already clears the way — the
+original rejection paragraph's concern (shared mutable rule-evaluation
+state, not just constructor cost) is a different, harder problem than
+what this Amendment solves, and remains unaddressed.

@@ -444,28 +444,33 @@ packages).
       `reusing-configuration.md`, `performance-recommendations.md`,
       `deterministic-and-non-brittle-tests.md`.
 
-## Phase 5: Architecture consolidation and legacy retirement
+## Phase 5: Architecture consolidation, legacy retirement, and benchmark suite redesign
 
-**Status:** Not Started
+**Status:** Done
 
-Executes ADR-0030 Amendment 2's "one canonical home" principle. Sequenced
-after Phase 2 (Concepts must exist for Architecture pages to cross-link
-back to) — the last phase touching `docs/architecture.md`/
-`docs/performance.md`/`docs/design-principles.md`/`docs/manifesto.md`/
-`docs/public-api.md`'s real pre-existing content, so it can safely
-consume and then retire them.
+Executes ADR-0030 Amendment 2's "one canonical home" principle for the
+architecture/roadmap documentation, and — added after this phase's
+doc-consolidation work was already done, per direct review of the
+existing benchmark suite — [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)'s
+full benchmark-suite redesign. Sequenced after Phase 2 (Concepts must
+exist for Architecture pages to cross-link back to) — the last phase
+touching `docs/architecture.md`/`docs/performance.md`/
+`docs/design-principles.md`/`docs/manifesto.md`/`docs/public-api.md`'s
+real pre-existing content, so it can safely consume and then retire
+them.
 
-- [ ] `architecture/index.md`, `architecture/design-principles.md`
+### Part A: Architecture and roadmap documentation (done)
+
+- [x] `architecture/index.md`, `architecture/design-principles.md`
       (absorbs `docs/design-principles.md`/`docs/manifesto.md`'s
       content).
-- [ ] `architecture/current/source-generation.md`,
+- [x] `architecture/current/source-generation.md`,
       `generated-plans-and-discovery.md`, `provider-pipeline.md`,
-      `deterministic-seeding.md`, `performance.md` (moves
-      `docs/performance.md`'s real methodology/results, publishing them
-      per ADR-0030 Amendment 2's benchmark-claims policy).
-- [ ] `architecture/decision-log.md` (public-facing index into
-      `docs/adr/`).
-- [ ] Retire **all five** pre-existing legacy pages this phase
+      `deterministic-seeding.md` (real content, migrated from
+      `docs/architecture.md`).
+- [x] `architecture/decision-log.md` (public-facing index into
+      `docs/adr/`, including [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)).
+- [x] Retire **all five** pre-existing legacy pages this phase
       consolidates — `docs/public-api.md`, `docs/manifesto.md`,
       `docs/architecture.md`, `docs/design-principles.md`, and
       `docs/performance.md` — from navigation and canonical-content
@@ -483,9 +488,239 @@ consume and then retire them.
       plan can't touch. (An earlier version of this task only tombstoned
       the first two — the same problem applies identically to the other
       three, since they're excluded from the canonical tree the same way.)
-- [ ] `roadmap/index.md`, `roadmap/proposed-adrs.md`,
+- [x] `roadmap/index.md`, `roadmap/proposed-adrs.md`,
       `roadmap/future-packages.md` (`roadmap/post-mvp.md` already real
       content from PLAN-0007 Phase 3 — just needs its nav confirmed).
+
+### Part B: Benchmark suite redesign (per ADR-0034 — not started)
+
+`architecture/current/performance.md` currently still documents the
+**old** benchmark suite (migrated as-is from `docs/performance.md` during
+Part A, before the redesign decision below was made) — it gets
+overwritten by this Part's last task, not before. Sequencing matters:
+design and implement the new suite first, produce real results from it,
+*then* write the page — this phase does not narrate a redesign still in
+progress.
+
+- [x] Design the benchmark strategy from first principles: the question
+      set, audiences, and category taxonomy — done as
+      [ADR-0034](../adr/0034-benchmark-suite-strategy-and-redesign.md)
+      (`Accepted`).
+- [x] Define and implement the reused `Models/` set (`SimplePoco`,
+      `MediumAggregate`/`Address`, `DeepGraph` (`DeepLevel2`-`8`),
+      `LargeCollection`, `SharedValueGraph` (`SharedContext`/
+      `ConsumerOne`/`ConsumerTwo`), `ProviderBackedModel` (`IClock`/
+      `FixedClock`)) and `Baselines/` (`AutoFixtureComposer`) — replaced
+      `BenchmarkTypes.cs`, `ResolutionBenchmarkTypes.cs`,
+      `ReflectionComposer.cs`, `AutoFixtureComposer.cs`.
+- [x] ~~Implement `ImplementationStrategies/`~~ — implemented
+      (`SimplePocoConstructionBenchmarks.cs`/
+      `MediumAggregateConstructionBenchmarks.cs`, handwritten-as-ceiling/
+      generated/cached-reflection/uncached-reflection), then **removed**
+      per [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed-it-compares-different-systems-not-one-variable):
+      the category compared different systems doing different amounts of
+      work (bare construction vs. a full resolution pipeline), not one
+      isolated variable, so a result from it couldn't be attributed to a
+      specific cause or guide an optimization decision. Its `Baselines/`
+      (`HandwrittenComposer`, `CachedReflectionComposer`,
+      `UncachedReflectionComposer`) were deleted alongside it — no other
+      category referenced them. `ArchitectureBenchmarks.cs`/
+      `ResolutionArchitectureBenchmarks.cs` (the old files this category
+      was meant to replace) are still correctly deleted below; their
+      question just doesn't get a new home.
+- [x] Implement `ConsumerScenarios/` — `RepresentativeModelBenchmarks.cs`
+      (simple POCO, medium aggregate, deep graph, large collection),
+      `SharedValueBenchmarks.cs` (`CreateRow`/`ResolveShared`),
+      `ProviderEnabledBenchmarks.cs` (Bogus-enabled, NSubstitute-enabled)
+      — new; no prior equivalent existed.
+- [x] Implement `ExternalComparison/` — split into
+      `SimplePocoComparisonBenchmarks.cs`/
+      `MediumAggregateComparisonBenchmarks.cs` (one file per model, so
+      each class's `[Benchmark(Baseline = true)]` ratio stays meaningful
+      — a single class covering both models would compute every ratio
+      against one model's baseline) — replaces `EcosystemBenchmarks.cs`
+      and `ResolutionEcosystemBenchmarks.cs`.
+- [x] Implement `FeatureOverhead/` — diverged from the plan's literal
+      additive chain (a single `Composer` can't coherently stack a
+      `CreateRow`-based sharing step onto a `Create<T>()`-based rule
+      step): `ConfigurationOverheadBenchmarks.cs` (generated-only vs.
+      +member-rule vs. +type-rule vs. +custom-provider, all on
+      `MediumAggregate`), `SharingOverheadBenchmarks.cs` (row without
+      sharing vs. with sharing, both via `CreateRow`),
+      `BogusOverheadBenchmarks.cs`/`NSubstituteOverheadBenchmarks.cs`
+      (pairwise: the cheapest alternative mechanism vs. the package
+      provider, isolating exactly one member's resolution) — new; no
+      prior equivalent existed.
+- [x] Implement `Scalability/` — `BatchScalingBenchmarks.cs`
+      (`CreateMany` at 1/10/100/1000), `GraphDepthScalingBenchmarks.cs`
+      (shallow `MediumAggregate` vs. deep `DeepGraph`),
+      `CollectionSizeScalingBenchmarks.cs` (3/10/50/200-element
+      collections) — replaces `ResolutionBenchmarks.cs` and
+      `DeepGraphBenchmarks.cs`'s construction, generalizing the latter's
+      one-off trace-buffer-resize question into a real shallow-vs-deep
+      comparison.
+- [x] Implement `SourceGeneration/` — `GeneratorDriverBenchmarks.cs`
+      (in-process `GeneratorDriver`, clean vs. incremental generation
+      across a 1/10/50 composable-type-count matrix) — new; no prior
+      equivalent existed. The incremental compilation is derived from
+      the clean one via `Compilation.ReplaceSyntaxTree` (not built as an
+      independently-parsed `CSharpCompilation`), since Roslyn's
+      incremental-generator cache is keyed on compilation/tree identity
+      — two separately-constructed compilations look entirely unrelated
+      to the driver even with near-identical source text, which would
+      silently defeat the whole point of the incremental-vs-clean
+      comparison. `Compono.Generators` changed from analyzer-only
+      (`ReferenceOutputAssembly="false"`) to *also* a normal compile
+      reference on the same `ProjectReference` item (not a second,
+      separate reference to the same project), plus
+      `InternalsVisibleTo="Compono.Benchmarks"` added to
+      `Compono.Generators.csproj` so this class can construct
+      `ComponoIncrementalGenerator` directly, matching
+      `Compono.Generators.Tests`' own pattern.
+- [x] Add `Compono.NSubstitute`/`Compono.Bogus` `ProjectReference`s to
+      `Compono.Benchmarks.csproj` (needed by `ConsumerScenarios/` and
+      `FeatureOverhead/`'s provider-enabled cases; not needed previously
+      since no prior benchmark exercised either package). Also added
+      `Basic.Reference.Assemblies.Net100`/`Net110` (conditional on
+      `$(TargetFramework)`), needed to build a real reference-assembly
+      set for `SourceGeneration/`'s in-process compilations, matching
+      `Compono.Generators.Tests`' own pattern.
+- [x] Delete `ArchitectureBenchmarks.cs`, `EcosystemBenchmarks.cs`,
+      `ResolutionArchitectureBenchmarks.cs`,
+      `ResolutionEcosystemBenchmarks.cs`, `ResolutionBenchmarks.cs`,
+      `DeepGraphBenchmarks.cs`, `BenchmarkTypes.cs`,
+      `ResolutionBenchmarkTypes.cs` once every question they answered has
+      a home in the categories above — no benchmark class straddles the
+      old and new structure once this task is done.
+- [x] Build and smoke-test the redesigned suite: `dotnet build
+      Compono.slnx -c Release` (0 warnings, 0 errors) and `dotnet run -c
+      Release --project benchmarks/Compono.Benchmarks -f net10.0 --
+      --job Dry --filter '*'` (all 49 benchmarks, across the 15 classes
+      that existed at that point in this task list — before
+      Implementation Strategies was implemented-then-removed later in
+      this same Part, which brought the suite down to 41 benchmarks
+      across 13 classes — executed without throwing) — confirms the
+      suite is structurally correct. This is not the statistically real
+      run the next task produces; `--job Dry` is one cold iteration per
+      benchmark, fast enough to smoke-test but not meant to be reported
+      as a real result.
+- [x] Run the full redesigned suite (`dotnet run -c Release --project
+      benchmarks/Compono.Benchmarks -f net10.0 -- --filter '*'`),
+      `DefaultJob` (not `--job Dry`), and record real results — all 15
+      classes (at the time; 13 after Implementation Strategies' later
+      removal) produced real Mean/Error/StdDev/Allocated/`Gen0`/`Gen1`
+      results (Apple M3 Max, macOS Tahoe 26.6, .NET 10.0.3 arm64 RyuJIT,
+      `BenchmarkDotNet` v0.15.8; total run ~15 minutes). One real,
+      published finding the run surfaced: `UseBogus()` costs ~865x a
+      plain member rule (291.5 μs vs. 337 ns, isolated) because
+      `BogusMemberNameProvider` constructs a new `Bogus.Faker` per
+      resolution — root-caused, not investigated further or fixed here,
+      per ADR-0034's "publish an unfavorable result, don't hide it" rule.
+- [x] Rewrite `architecture/current/performance.md` as capability-
+      oriented public documentation per ADR-0034's public-documentation
+      direction: what Compono optimizes for, what the benchmarks measure
+      (and don't), methodology, representative Consumer Scenario/External
+      Comparison results, the `UseBogus()` finding above, scaling
+      behavior, reproducibility, and how to get the full per-category
+      artifacts — not a historical narrative of Milestone 1/2/PR-review
+      optimization work. Implementation Strategies/Feature Overhead/
+      Source Generation results are summarized (not every parameter
+      value reproduced) per ADR-0034's "mostly engineering documentation
+      rather than front-page marketing" direction for implementation-
+      strategy benchmarks. Also fixed
+      `best-practices/performance-recommendations.md`'s two links, which
+      pointed at the now-tombstoned `docs/performance.md` instead of this
+      page.
+- [x] Removed the Implementation Strategies category entirely, per
+      [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed-it-compares-different-systems-not-one-variable) —
+      deleted `ImplementationStrategies/` and its dedicated `Baselines/`
+      classes (`HandwrittenComposer`, `CachedReflectionComposer`,
+      `UncachedReflectionComposer`), removed the "Implementation
+      strategies" section from `architecture/current/performance.md`,
+      and updated its category-count/overview text (six categories → five).
+      The five remaining categories, the reused model set, and every
+      fair-comparison/reporting rule not specific to Implementation
+      Strategies are unchanged.
+- [x] Fixed the `UseBogus()` finding above, per
+      [ADR-0027's Amendment](../adr/0027-compono-bogus-package-design.md#amendment-2026-08-05-bogusmembernameprovider-reuses-a-per-thread-faker-not-a-fresh-one-per-request):
+      `BogusMemberNameProvider` now caches one `Faker` per thread
+      (`ThreadLocal<Faker>`, `trackAllValues: false`) instead of
+      constructing one per request, reseeding `Random` immediately before
+      every use — safe under concurrent access because a thread-local
+      instance is never touched by more than one thread, distinct from
+      the shared-`Faker<T>` alternative ADR-0027 already considered and
+      rejected. New regression coverage: a concurrency test (200
+      concurrent resolutions on one shared provider instance, each
+      checked against an independent single-threaded reference value)
+      and a "convention throws mid-generate" test. Re-ran the full suite
+      afterward (`--filter '*'`, `DefaultJob`, same environment) and
+      rewrote `architecture/current/performance.md` from that single
+      fresh run — `UseBogus()`'s isolated overhead dropped from ~865× to
+      ~6.31×, and the full-profile Consumer Scenario cost from
+      903.4 μs / 2,229.31 KB to 5.481 μs / 7.04 KB. The page also picked
+      up a clarity pass: explicit AutoFixture-relative-to-Compono ratio
+      direction, precise `DefaultJob` methodology wording (pilot/warmup/
+      measured iterations, not "statistically significant"), an explicit
+      "equivalent work" definition, a note connecting the Consumer
+      Scenario and Feature Overhead `UseBogus()` numbers' different
+      scope, and consistent `×` formatting throughout.
+- [x] Addressed a real adversarial PR review of this phase's work
+      (PR #53): **`BogusMemberNameProvider`'s thread-local reuse was
+      real but incomplete** — a custom `AddConvention` delegate could
+      mutate `Faker` state (`DateTimeReference`, a sub-generator, any of
+      `Faker`'s ~20 other public settable properties) that would then
+      leak into a later, unrelated built-in-convention request on the
+      same thread; reseeding `Random` alone didn't restore isolation.
+      Fixed by reusing the per-thread `Faker` only for built-in/alias
+      conventions (`BogusConventions.IsBuiltIn`, a reference-equality
+      check against the ten built-in delegates) and giving every custom
+      `AddConvention` delegate its own single-use `Faker`, with a new
+      regression test mutating `DateTimeReference` in a custom
+      convention and proving it doesn't perturb a later built-in
+      request. **The concurrency test didn't force genuine thread
+      overlap** — `Parallel.ForEachAsync` over a fully-synchronous body
+      could pass serially by scheduler luck; replaced with real
+      `Thread` + `Barrier` so all workers release simultaneously.
+      **`GeneratorDriverBenchmarks`' incremental tree was still built
+      via a fresh `ParseText` call** (given a different constructor
+      argument than the base tree, but not derived from it) rather than
+      `SyntaxTree.WithChangedText`, so it measured a wholesale reparse
+      under an "incremental" label; fixed to derive the touched tree via
+      an append-only `WithChangedText` edit so unaffected nodes keep
+      their base-tree identity. **`GraphDepthScalingBenchmarks` didn't
+      isolate depth** — its `MediumAggregate` shallow arm resolved seven
+      strings and a collection against `DeepGraph`'s single string,
+      conflating depth with total value-generation work; fixed to
+      compare `DeepLevel8` (depth 1, one string) against `DeepGraph`
+      (depth 8, same one-string leaf shape) — the real, isolated result
+      is 4.47× the mean and 2.65× the allocation for 8× the depth, a
+      much more meaningful number than the original 1.03×/1.23×.
+      **`architecture/current/performance.md` violated ADR-0034's own
+      Reporting Rules** by omitting Error/StdDev/Gen0/Gen1 from most
+      tables despite the page's own Methodology section claiming full
+      columns; rewritten with the complete mandatory column set on every
+      table. Also fixed: several broken/stale doc links and anchors
+      (a `removed--it` double-hyphen anchor MkDocs never generates;
+      `docs/plans/0002-...`'s link to a heading removed from the
+      rewritten performance page; `docs/index.md`/
+      `docs/getting-started/learning-paths.md`/`docs/concepts/providers.md`/
+      `docs/concepts/composition-model.md`/`docs/concepts/index.md`/
+      `docs/concepts/determinism-and-seeding.md`/
+      `docs/concepts/registrations-and-rules.md`/`docs/concepts/collections.md`/
+      `docs/how-to/register-a-type.md` still linking to tombstoned legacy
+      pages instead of their canonical replacements, including
+      `docs/index.md`'s stale "~6.1× faster" claim tied to a benchmark
+      class that no longer exists); a stale "49 benchmarks/15 classes"
+      verification-record bullet earlier in this list, now annotated with
+      the post-removal counts; and `docs/roadmap/future-packages.md`
+      wording that implied `Compono.Generators` was a fifth installable
+      package rather than an embedded analyzer. One reviewer claim
+      (returning `GeneratorDriver` from a benchmark method breaks
+      standard `net10` dry runs via missing `Compono.Generators` restore
+      assets) was investigated directly — reproduced from a fully clean
+      `bin`/`obj` state, `--job Dry` and `DefaultJob`, both TypeCount
+      matrices — and did not reproduce; left as-is, noted in the PR
+      reply.
 
 ## Phase 6: Contributor and repository readiness
 
@@ -833,6 +1068,24 @@ individually resolved, not left ambiguous):
 - `Directory.Build.props` — package-validation and tags/release-notes
   properties added, shared across all five packages (Phase 0).
 - `Compono.slnx` — both new sample projects added (Phase 4).
+- `docs/adr/0034-benchmark-suite-strategy-and-redesign.md` — new (Phase
+  5 Part B): the benchmark-suite redesign decision.
+- `benchmarks/Compono.Benchmarks/` — fully restructured (Phase 5 Part
+  B, done) into `Models/`, `Baselines/`, `ConsumerScenarios/`,
+  `ExternalComparison/`, `FeatureOverhead/`, `Scalability/`,
+  `SourceGeneration/` (five categories — `ImplementationStrategies/` was
+  implemented, then removed per
+  [ADR-0034's Amendment](../adr/0034-benchmark-suite-strategy-and-redesign.md#amendment-2026-08-05-implementation-strategies-removed-it-compares-different-systems-not-one-variable)),
+  replacing all 8 existing benchmark files per ADR-0034.
+  `Compono.Benchmarks.csproj` gains
+  `ProjectReference`s to `Compono.NSubstitute`/`Compono.Bogus`, its
+  existing `Compono.Generators` reference is now also a normal compile
+  reference (not analyzer-only), and it gains conditional
+  `Basic.Reference.Assemblies.Net100`/`Net110` package references.
+- `src/Compono.Generators/Compono.Generators.csproj` — gains
+  `InternalsVisibleTo="Compono.Benchmarks"` (Phase 5 Part B, done), so
+  `SourceGeneration/GeneratorDriverBenchmarks.cs` can construct
+  `ComponoIncrementalGenerator` directly.
 - `docs/documentation-architecture.md` — Open Items section already
   updated to reflect all six resolutions as part of this design pass;
   further updated in place as content lands and stub statuses flip to
@@ -848,8 +1101,15 @@ buildable projects with, where practical, their own tests demonstrating
 the pattern they showcase, matching `testing.md`'s bar for any real code
 this plan produces. Package-readiness changes (Phase 0) are verified by
 the new CI gates themselves (package validation, contents inspection,
-local-feed restore) rather than a separate hand-run test plan. Phase 8's
-acceptance checklist is this plan's actual end-to-end verification.
+local-feed restore) rather than a separate hand-run test plan. The
+redesigned benchmark suite (Phase 5 Part B) is verified by actually
+running it (`dotnet run -c Release`) and confirming every category
+produces real, sane results before `architecture/current/performance.md`
+is rewritten from them — a `BenchmarkDotNet` project has no pass/fail
+test suite of its own; its correctness is verified by inspection of its
+results, not by `testing.md`'s xUnit-based test conventions, which don't
+apply to `benchmarks/`. Phase 8's acceptance checklist is this plan's
+actual end-to-end verification.
 
 ## Notes
 
