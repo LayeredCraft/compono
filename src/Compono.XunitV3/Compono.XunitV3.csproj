@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <Title>Compono — xUnit v3 Integration</Title>
-        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;] theory data attributes and [Shared] parameter sharing. See docs/adr/0022-compono-xunit-package-design.md and docs/adr/0023-rename-compono-xunit-to-compono-xunitv3.md.</Description>
+        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;] theory data attributes and [Shared] parameter sharing.</Description>
     </PropertyGroup>
 
     <ItemGroup>
