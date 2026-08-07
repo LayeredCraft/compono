@@ -3,7 +3,8 @@
 
 ## Composer Class
 
-The public entry point for composing test data, per `docs/public-api.md`\.
+The public entry point for composing test data \- see
+[The Composition Model](https://layeredcraft.github.io/compono/concepts/composition-model/ 'https://layeredcraft\.github\.io/compono/concepts/composition\-model/')\.
 
 ```csharp
 public sealed class Composer

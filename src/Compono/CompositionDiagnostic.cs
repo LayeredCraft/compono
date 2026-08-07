@@ -2,12 +2,14 @@ namespace Compono;
 
 /// <summary>
 /// The structured detail behind a thrown <see cref="CompositionException"/> - what couldn't be
-/// composed, where in the graph, what was tried, and with which seed. <c>docs/public-api.md</c>'s
-/// Diagnostics API (<c>exception.Diagnostic</c>).
+/// composed, where in the graph, what was tried, and with which seed. Exposed via
+/// <c>exception.Diagnostic</c> - see
+/// <see href="https://layeredcraft.github.io/compono/troubleshooting/common-errors/#runtime-composition-failures">Troubleshooting: Runtime composition failures</see>.
 /// </summary>
 /// <remarks>
-/// <see cref="ToString"/> renders <c>docs/architecture.md</c>'s Diagnostics example format - the
-/// shape a consumer gets from <c>Console.WriteLine(exception.Diagnostic)</c>.
+/// <see cref="ToString"/> renders the tree-shaped format documented in
+/// <see href="https://layeredcraft.github.io/compono/troubleshooting/common-errors/#runtime-composition-failures">Troubleshooting: Runtime composition failures</see> -
+/// the shape a consumer gets from <c>Console.WriteLine(exception.Diagnostic)</c>.
 /// </remarks>
 public sealed class CompositionDiagnostic
 {
@@ -34,7 +36,7 @@ public sealed class CompositionDiagnostic
     /// <summary>A human-readable, remediation-oriented explanation of what went wrong.</summary>
     public required string Message { get; init; }
 
-    /// <summary>Renders this diagnostic in <c>docs/architecture.md</c>'s Diagnostics example format.</summary>
+    /// <summary>Renders this diagnostic in Troubleshooting's tree-shaped Diagnostics example format.</summary>
     public override string ToString() =>
         // CompositionPath.FriendlyTypeName, not RootType.Name directly - a closed generic root
         // (Create<List<Missing>>()) would otherwise render the raw CLR form ("List`1") here even

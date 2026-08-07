@@ -3,7 +3,7 @@
 
 ## CompositionDiagnostic\.ToString\(\) Method
 
-Renders this diagnostic in `docs/architecture.md`'s Diagnostics example format\.
+Renders this diagnostic in Troubleshooting's tree\-shaped Diagnostics example format\.
 
 ```csharp
 public override string ToString();
