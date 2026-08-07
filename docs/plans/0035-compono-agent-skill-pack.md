@@ -24,7 +24,7 @@ with package-conditional `references/`. In scope:
   diagnostics, xunit-v3, nsubstitute, bogus, patterns-and-antipatterns
   (file boundaries may be renamed/consolidated during Group 1 based on
   actual content density, per ADR-0035's explicit non-freeze on the list)
-- `evals/` — positive/negative activation + correct-behavior scenarios
+- `skills/compono-evals/` (was `skills/compono/evals/` — moved out so it never ships via `npx skills add`, see Notes) — positive/negative activation + correct-behavior scenarios
 - Root `README.md` update (Compono packages table area) documenting the
   skill's existence and install command
 - A `docs/*.md` page (or section) explaining what the skill is, how to
@@ -91,7 +91,7 @@ Evals must prove three independent things, not just "does it trigger":
 **activation** (fires on genuine Compono work, stays silent otherwise),
 **routing/reference selection** (loads only the reference files the
 detected packages warrant), and **behavioral correctness** (the guidance
-it gives is actually right). Each scenario in `evals/evals.json` is
+it gives is actually right). Each scenario in `skills/compono-evals/evals.json` is
 tagged with which of the three it targets.
 
 - [x] Activation scenarios — agent activates for genuine Compono work;
@@ -110,7 +110,7 @@ tagged with which of the three it targets.
       correctly (type-keyed, `Compono.XunitV3`-only, resolves first);
       agent knows when *not* to use Compono (a hand-built value is
       clearer than composing one, even in a Compono-using project)
-- [x] 18 scenarios total in `evals/evals.json`, each tagged
+- [x] 18 scenarios total in `skills/compono-evals/evals.json`, each tagged
       `activation` / `routing` / `behavioral-correctness`
 - [x] Manual spot-check pass — 6 of 18 scenarios (covering all three
       categories, including the AutoFixture-introduction,
@@ -125,13 +125,13 @@ tagged with which of the three it targets.
 - [x] Run the actual `/skill-creator` eval workflow across all 18
       scenarios — with-skill + baseline pairs (1 run each, not
       `/skill-creator`'s default 3, per the honest scope note in
-      `evals/benchmarks/2026-08-07/README.md`), independent grading
+      `skills/compono-evals/benchmarks/2026-08-07/README.md`), independent grading
       (separate grader subagent per scenario, not self-graded),
       `benchmark.json`/`benchmark.md` aggregated via
       `scripts.aggregate_benchmark`. **Result: 97.4% pass rate with the
       skill (38/39 assertions) vs. 56.4% without it (22/39)** — summary
       artifacts and per-scenario grading committed at
-      `evals/benchmarks/2026-08-07/`. See that directory's README for
+      `skills/compono-evals/benchmarks/2026-08-07/`. See that directory's README for
       known limitations (single run per config, baseline wasn't
       repo-isolated, no timing data) and eval-quality feedback the
       graders surfaced for a future `evals.json` revision.
@@ -221,7 +221,7 @@ tagged with which of the three it targets.
 
 - `skills/compono/SKILL.md` — new
 - `skills/compono/references/*.md` — new (7 files, subject to renaming)
-- `skills/compono/evals/*` — new
+- `skills/compono-evals/*` — new
 - `README.md` — updated (skill install mention)
 - `docs/*.md` — new or updated page documenting the skill pack
 - `docs/adr/0035-compono-agent-skill-pack.md`, `docs/adr/README.md`,
@@ -245,7 +245,7 @@ reviewed the ADR/plan and asked for five refinements, all incorporated
 before/during implementation:
 
 1. Evals must prove activation, routing, and behavioral correctness
-   independently, not just "does it trigger" — `evals/evals.json`'s 18
+   independently, not just "does it trigger" — `skills/compono-evals/evals.json`'s 18
    scenarios are now tagged by category, with explicit coverage for
    registration precedence, `[Shared]` semantics, never inventing an API,
    never introducing AutoFixture as a silent substitute, and never
@@ -281,7 +281,7 @@ defect — `Composer.Create<T>()` written as if `Create<T>()`/`CreateMany<T>()`
 were static generics on `Composer`, when they're instance methods on the
 `Composer` the static, non-generic `Composer.Create(...)` returns
 (`SKILL.md`, `composition-model.md`, `registrations-profiles-and-scopes.md`,
-`evals/evals.json`) — notable for landing in a skill whose explicit point
+`skills/compono-evals/evals.json`) — notable for landing in a skill whose explicit point
 is teaching agents not to invent Compono APIs. The fifth was a real
 seed-type gap in `diagnostics.md`'s reproduce-a-failure step:
 `CompositionDiagnostic.Seed` is `ulong` (an unseeded composer draws a full
@@ -350,7 +350,7 @@ gap Jonas flagged)**: ran the real workflow — 36 subagent runs (18 evals
 grading both variants against the eval's own `expectations`), aggregated
 via `scripts.aggregate_benchmark`. **97.4% pass rate with the skill
 (38/39) vs. 56.4% without (22/39)** — a real, evidence-backed gap.
-Artifacts committed at `skills/compono/evals/benchmarks/2026-08-07/`
+Artifacts committed at `skills/compono-evals/benchmarks/2026-08-07/`
 (summary + per-scenario grading, not raw transcripts, per the chosen
 scope). Honest limitations recorded in that directory's own README: one
 run per configuration rather than three, no timing/token capture, and a
@@ -364,3 +364,22 @@ surfaced concrete eval-quality feedback (several assertions pass
 regardless of skill use) — recorded as a follow-up, not acted on in this
 pass. The one remaining Group 3 item (a real `npx skills add` run against
 a merge-ready ref) is still outstanding, so `Status` stays `In Progress`.
+
+**Real defect: `evals/` was inside the installable skill directory**
+(caught by the user after reading `benchmark.md`, not by any review
+round). Checked `npx skills`' actual install behavior against its real
+source (`vercel-labs/skills`, `src/add.ts`): a disk-based install does a
+recursive `copyDirectory` of the whole skill folder, excluding only
+`.git` — no `.skillignore`/manifest mechanism exists to exclude files.
+`skills/compono/evals/` (18KB `evals.json` plus the 40-file
+`benchmarks/2026-08-07/` directory) would therefore have shipped into
+every consumer's `.claude/skills/compono/evals/` on `npx skills add` —
+pure internal-QA dead weight with no value to a consumer. Fixed by moving
+the whole directory to `skills/compono-evals/` (sibling to
+`skills/compono/`, no `SKILL.md` so `npx skills`' discovery never offers
+it as an installable skill, and it sits outside `skills/compono/`'s own
+copy scope). All path references in this plan updated accordingly. This
+is exactly the kind of installation-payload question Group 3's still-open
+real `npx skills add` run (above) would also have needed to catch —
+another reason that item stays open rather than being treated as
+optional polish.
