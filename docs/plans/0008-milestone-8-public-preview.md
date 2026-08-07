@@ -820,22 +820,66 @@ focused PR, not interleaved with doc-content PRs).
 
 ## Phase 7: Final navigation, link, and snippet validation pass
 
-**Status:** Not Started
+**Status:** Done
 
 A dedicated hardening phase before publication — every prior phase wrote
 content against its own section; this phase verifies the whole site holds
 together, not just each page in isolation.
 
-- [ ] `mkdocs.yml` final nav pass: every "(legacy)" entry retired or
+- [x] `mkdocs.yml` final nav pass: every "(legacy)" entry retired or
       resolved (Phase 5), nav matches `docs/documentation-architecture.md`'s
-      tree exactly.
-- [ ] Site-wide broken-link check (internal cross-links, per "every page
-      leads somewhere").
-- [ ] Code-snippet compilation check where practical (snippets drawn from
+      tree exactly. Verified programmatically: every file the nav
+      references exists on disk, nav order matches the documentation
+      tree's section order, and no "(legacy)" string remains anywhere in
+      `mkdocs.yml`.
+- [x] Site-wide broken-link check (internal cross-links, per "every page
+      leads somewhere"). Ran `mkdocs build --strict` (already this repo's
+      CI build command) against a local build — it validates every
+      internal Markdown link and `#anchor`, but anchor mismatches were
+      only logged at `INFO` level, so a strict build never actually failed
+      on one. Added `validation.links.anchors: warn` to `mkdocs.yml` so
+      `--strict` (already run in `.github/workflows/docs.yml`) now fails
+      the build on a broken internal anchor going forward, not just logs
+      it. That change surfaced two real, pre-existing broken links, both
+      fixed: `docs/plans/0008-...md`'s reference to
+      `0007-milestone-7-dogfooding.md#phase-5-2026-08-03` (no such anchor
+      exists — that text is bold prose, not a heading — corrected to
+      point at the actual `## Notes` section containing it), and two
+      self-referencing TOC links in `docs/research/0001-autofixture-comparison.md`
+      using a double-hyphen anchor MkDocs' slugifier never generates for
+      an em-dash in a heading (the same bug class PR #53 already fixed
+      once in `architecture/current/performance.md` — this phase found
+      the two remaining instances). Re-ran `mkdocs build --strict`
+      afterward: 0 warnings, build succeeds.
+- [x] Code-snippet compilation check where practical (snippets drawn from
       real sample/test code, per `documentation.md`'s "prefer real
       examples" quality bar — verify they still compile against current
-      `main`, not just that they did when written).
-- [ ] Spelling/style pass across the full site.
+      `main`, not just that they did when written). `dotnet build
+      Compono.slnx -c Release` — 0 warnings, 0 errors, including both
+      sample projects (`Compono.Samples.BasicUsage`,
+      `Compono.Samples.AspNetApi` + its test project) that public docs
+      pages draw real snippets from. Cross-checked every distinct Compono
+      API symbol referenced across the 79 C# code fences on the public
+      docs pages (Concepts, How-to, Getting Started, Cookbook, Package
+      Guides, Best Practices, Samples, migration guide) against current
+      `src/` — every symbol (`Composer.Create`, `CreateMany`,
+      `CompositionBuilder`, `ICompositionProfile`,
+      `ICompositionValueProvider`, `Register<T>`, `For<T>()`, `[Shared]`,
+      `UseBogus`, `UseNSubstitute`, `UseServiceProvider`,
+      `WithCollectionSize`, `WithSeed`, `AddProfile`, `ComposeAttribute`,
+      `SharedAttribute`) still exists on the current public API — no
+      stale example found.
+- [x] Spelling/style pass across the full site. Ran `codespell` across
+      `docs/` (excluding `reference/api/` — generated content — and
+      `docs/adr/` — immutable once `Accepted`). Zero issues on every
+      public/hand-authored page. The only two hits before excluding
+      `docs/adr/` were both "implementors" in `docs/adr/0024-...md`, a
+      legitimate alternate spelling of "implementers" that also can't be
+      edited post-`Accepted` either way. Grepped for stray
+      TODO/TBD/FIXME/lorem-ipsum/placeholder markers across public pages:
+      none found (the two `placeholder` hits in
+      `docs/packages/compono-bogus.md` are legitimate prose about
+      AutoFixture-style anonymous placeholder values, not stub markers).
 
 ## Phase 8: Clean-room public-preview acceptance test and first publication
 
@@ -1173,7 +1217,7 @@ actual end-to-end verification.
 The original PLAN-0008 draft (produced by PLAN-0007 Phase 5) was a flat,
 unphased backlog, deliberately left unphased pending this design pass —
 see that phase's own Notes in
-[PLAN-0007](0007-milestone-7-dogfooding.md#phase-5-2026-08-03) for why.
+[PLAN-0007](0007-milestone-7-dogfooding.md#notes) for why.
 This rewrite is that design pass: same total scope (every page, every
 package-readiness item, every repository-process artifact the draft
 listed), now split into ten independently-shippable phases (0-9), with
