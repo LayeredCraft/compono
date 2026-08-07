@@ -883,7 +883,10 @@ together, not just each page in isolation.
 
 ## Phase 8: Clean-room public-preview acceptance test and first publication
 
-**Status:** Not Started
+**Status:** In Progress — acceptance test done (with real findings sent
+to their own fix, [PR #58](https://github.com/LayeredCraft/compono/pull/58));
+the first-release cut and its post-publish verification are the user's own
+action, not yet done.
 
 **Checkpoint: Release Candidate** — every prior phase is done; this phase
 either confirms the milestone is genuinely ready to publish or sends
@@ -892,26 +895,62 @@ findings back to an earlier phase before anything ships.
 The milestone's actual proof point — depends on every content and
 package-readiness phase above being done.
 
-- [ ] Clean-room acceptance test: a fresh project, following only the
+- [x] Clean-room acceptance test: a fresh project, following only the
       public docs site and consuming only published (or local-feed, for
       pre-publish verification) packages — the five-minute Getting
       Started path, one How-to Guide task, one Cookbook recipe, one
       Package Guide's "when to install" decision, one Troubleshooting
       lookup, all followed literally as written, no ADR/internal-repo
       knowledge assumed. See "Public-preview acceptance checklist" below
-      for the full list.
-- [ ] Cut the first real `0.x` release: publish a GitHub Release and mark
-      it published (not draft) — this is the actual "does this look
-      done" gate (`publish-release.yaml`, triggered by
+      for the full list. Run against the real, currently-published
+      nuget.org preview packages (`0.1.0-preview.45`, from
+      `publish-preview.yaml`'s continuous main-branch publishing) rather
+      than a local feed — more faithful to what an actual stranger gets
+      today. Every checklist item passed; two real bugs were found and
+      sent to their own scoped fix, not absorbed into this phase's own
+      diff (`design-decisions.md`'s "each phase ships as its own PR," and
+      this is itself a "blocking bug found along the way," same precedent
+      as Phase 5/7's own mid-phase bug fixes):
+      [PR #58](https://github.com/LayeredCraft/compono/pull/58) fixed
+      `CMP0001`'s message (the only one of the 12 `CMP` diagnostics
+      pointing at an internal `docs/adr/...` path a consumer has no way to
+      resolve, and it didn't even match what
+      `docs/reference/diagnostics.md` already documented as the message)
+      and three flagship types' (`Composer`/`CompositionDiagnostic`/
+      `CompositionException`) XML doc comments still citing
+      `docs/public-api.md`, a page Phase 5 already retired to a
+      redirect-only tombstone — repointed to the live docs site instead,
+      now real hyperlinks in the regenerated `reference/api/` rather than
+      inert text. Not fixed there and deliberately deferred: ~85 further
+      `docs/architecture.md`/`docs/performance.md` references across
+      nearly every file in the core package's XML doc comments (also
+      stale since Phase 5, confirmed to render as inert code-styled text
+      rather than actual broken links, so lower-severity than the two bugs
+      above) — each needs its own semantic mapping to a real replacement
+      page rather than a blind find/replace, too large a sweep to safely
+      fold into a scoped fix; flagged for its own follow-up rather than
+      silently dropped. Also spot-checked the live public docs site itself
+      (not just a local build) — every page touched during the walkthrough
+      returns `200`, and the deployed nav reflects both post-Phase-7 fixes
+      (#56/#57).
+- [ ] **User's own action, not automatable:** cut the first real `0.x`
+      release by publishing the existing `v0.1.0` draft GitHub Release
+      (reviewing/editing its release-drafter-generated notes first, as
+      desired) and marking it published, not draft — this is the actual
+      "does this look done" gate (`publish-release.yaml`, triggered by
       `release: types: [published]`), completely independent of
       `publish-preview.yaml`'s `preview` identifier (renamed in Phase 0,
-      unrelated to this step).
+      unrelated to this step). A real, public, hard-to-reverse action tied
+      to the user's own GitHub identity — deliberately not something this
+      plan's automation triggers on the user's behalf.
 - [ ] Verify all four publishable packages installable from nuget.org
       post-publish (not just the local-feed pre-check); verify
       `Compono.Generators` is present inside the installed `Compono`
       package's `analyzers/dotnet/cs` and actually runs.
 - [ ] Verify the documentation site is live at its public URL with the
-      final nav.
+      final nav. (Already spot-checked live and current as of the
+      acceptance-test task above — this remaining item is the *post-release*
+      re-confirmation once `publish-release.yaml` has run.)
 
 ## Phase 9: Final MVP documentation and closeout
 
