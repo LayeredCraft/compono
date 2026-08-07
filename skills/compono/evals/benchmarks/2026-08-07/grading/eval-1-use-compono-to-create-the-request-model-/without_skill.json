@@ -1,0 +1,33 @@
+{
+  "expectations": [
+    {
+      "text": "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
+      "passed": true,
+      "evidence": "Response uses `var composer = Composer.Create();` then `composer.Create<CreateOrderRequest>()` and `composer.CreateMany<CreateOrderRequest>(3)` as instance methods (Option A), and `[Theory] [Compose]` / `[Compose<OrderTestProfile>]` (Option B). Verified against src/Compono/Composer.cs (`public static Composer Create()`, `public T Create<T>()`, `public IReadOnlyList<T> CreateMany<T>(int count)`, all real instance/static members) and src/Compono.XunitV3/ComposeAttribute{TProfile}.cs (confirms `ComposeAttribute<TProfile>` is a real generic subclass). No invented members appear."
+    },
+    {
+      "text": "Does not add [Composable] unless there is a genuine discovery-gap reason",
+      "passed": true,
+      "evidence": "Response explicitly states: \"No `[Composable]`. That attribute exists for a genuine source-generator discovery gap... A plain request-model DTO/record with a public constructor doesn't need it — adding it here would be unjustified.\" This matches ComposableAttribute.cs's doc comment describing it as needed 'when discovery can't find it on its own.'"
+    },
+    {
+      "text": "Does not introduce Activator.CreateInstance or any reflection-based fallback",
+      "passed": true,
+      "evidence": "Response explicitly states: \"No `Activator.CreateInstance` or other reflection fallback. Compono resolves the type through its own composition pipeline; hand-rolled reflection would bypass that pipeline and isn't part of the public API contract.\" Consistent with docs/adr/0001-source-generation-first.md's rejection of automatic reflection fallback as an architecture option. No Activator.CreateInstance appears anywhere in the response's code."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "This without_skill run produced API guidance that is essentially as accurate as the with_skill run (correct Composer/Compose surface, correct [Composable]/reflection avoidance, even citing a plausible discovery-gap rationale) despite not having loaded the skill's reference docs. That's worth flagging to the eval author: for this prompt, an executor with repo access (or strong prior knowledge) can reconstruct enough of Compono's public surface from source/doc inspection to pass these assertions without the skill, weakening this eval's ability to demonstrate the skill's value. A more discriminating eval would ask for a claim that's only documented in the skill's own reference material and not easily re-derived from public API signatures alone (e.g. exact CreateMany seed-forking chain, [Shared] parameter binding order, or which CMP diagnostic code corresponds to which failure mode)."
+      }
+    ],
+    "overall": "All three assertions pass with genuine evidence, verified directly against the Compono source (Composer.cs, ComposeAttribute.cs, ComposeAttribute{TProfile}.cs, ComposableAttribute.cs, ADR-0001). As expected for a comparison eval, this without_skill run should ideally show weaker/less-grounded Compono knowledge than with_skill, but in this instance it performed comparably — same three assertions pass for essentially the same reasons. This is a meaningful finding for judging the skill's marginal value on this particular prompt, independent of the fact that both variants individually pass."
+  }
+}

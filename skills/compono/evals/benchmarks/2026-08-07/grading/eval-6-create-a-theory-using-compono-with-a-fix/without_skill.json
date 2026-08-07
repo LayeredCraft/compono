@@ -1,0 +1,29 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly demonstrates positional (not named) inline binding in [Compose(...)]",
+      "passed": false,
+      "evidence": "The response never uses Compono's `[Compose(...)]` attribute at all. Instead it fabricates an unrelated, generic AutoFixture-style solution using `[AutoData]`, `[Frozen]`, `ICustomization`, and `CompositeCustomization` — none of which are Compono's actual composition mechanism. The response even admits: 'I don't have Compono's actual public API memorized in detail (its exact attribute names, namespaces, and whether it wraps AutoFixture directly or provides its own builder DSL), so the above is written from general knowledge of how AutoFixture/xUnit \"Theory + AutoData + Customization\" integrations are typically structured.' Since `[Compose(...)]` positional binding is never demonstrated, this expectation fails outright."
+    },
+    {
+      "text": "Does not use a nonexistent named-argument binding syntax",
+      "passed": true,
+      "evidence": "No named-argument syntax for `[Compose(...)]` (e.g. `[Compose(quantity: 42)]`) appears in the response — but only because `[Compose(...)]` is never used in the first place. This is a vacuous pass: the response avoids the specific hallucination the assertion checks for only by sidestepping Compono's actual API entirely and substituting a different, non-Compono-specific mechanism (`[Frozen]`/`ICustomization`)."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not use a nonexistent named-argument binding syntax",
+        "reason": "This assertion passes trivially for any response that never attempts `[Compose(...)]` at all, which is exactly what happened here — the model avoided Compono's actual attribute entirely and produced a plausible-looking but wrong AutoFixture-based answer. A response that is wrong in a completely different way (wrong library surface, not just wrong argument style) still passes this assertion. Consider adding an assertion that the response actually uses Compono's `[Compose]`/`[Compose<TProfile>]` attribute (from `Compono.XunitV3`) rather than an unrelated AutoFixture/xUnit2-style API, to catch this failure mode directly."
+      }
+    ],
+    "overall": "The without_skill response fails the substantive expectation (demonstrating `[Compose(...)]` positional binding) because it never engages with Compono's real API at all — it substitutes a fabricated AutoFixture-based solution and explicitly flags its own uncertainty about Compono's real surface. The second assertion passes only vacuously as a side effect of that avoidance, not because the model correctly reasoned about `[Compose]` binding rules."
+  }
+}

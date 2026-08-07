@@ -1,0 +1,51 @@
+{
+  "expectations": [
+    {
+      "text": "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
+      "passed": true,
+      "evidence": "Opening line: \"I'm not going to make that change. A reflection/`Activator.CreateInstance` workaround doesn't actually fix CMP0001 — it just hides it...\" Clear, direct refusal."
+    },
+    {
+      "text": "Explains why (no reflection fallback by design, not just 'best practice')",
+      "passed": true,
+      "evidence": "Gives three numbered reasons: reflection at runtime doesn't resolve the ambiguity (moves it to a different, less predictable mechanism), it defeats the diagnostic's purpose of catching silently-wrong composition, and it isn't scoped to one test (blast radius across the codebase). This is design/mechanism-based reasoning rather than 'best practice' hand-waving, though it is more generic than citing a specific decision record — it never names an ADR or points to a specific policy document, instead reasoning from first principles about what the diagnostic is for."
+    },
+    {
+      "text": "Offers a legitimate alternative (interface/wrapper, or explicit hand-built construction) instead of silently complying",
+      "passed": true,
+      "evidence": "Third bullet under 'What actually fixes CMP0001 for HttpClient' proposes wrapping HttpClient behind a thin factory/provider type with a single constructor and composing that instead — this matches the real, documented fix in docs/migrating-from-autofixture.md (the `IHttpClientProvider` wrapper pattern). This alternative alone is enough to satisfy the assertion, even though the response's other two suggestions are weaker (see claims below)."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "Register an explicit factory instead of letting Compono auto-select a constructor — e.g. 'services => new HttpClient(fakeHandler)' — sidesteps constructor selection entirely",
+      "type": "process",
+      "verified": false,
+      "evidence": "No such factory-registration API was found anywhere in docs/ (grepped docs/adr/*.md, docs/migrating-from-autofixture.md, docs/cookbook/*.md). The response itself hedges this is 'whatever Compono's factory-registration API is called,' i.e. it is presented as a plausible-sounding but unverified guess about Compono's surface area, not a checked fact."
+    },
+    {
+      "claim": "Compono might support a 'designated constructor' attribute the user could apply",
+      "type": "factual",
+      "verified": false,
+      "evidence": "docs/adr/0002-constructor-selection-algorithm.md's Amendment 1 (dated 2026-08-04, the most relevant real-world precedent for this exact HttpClient/CMP0001 scenario) explicitly states the anticipated `[CompositionConstructor]`-style attribute 'was never going to close this specific case regardless of whether it ships' because HttpClient is a BCL type the user doesn't own — attributes only apply to types you author. The response's own text acknowledges this limitation for BCL types, but still floats the idea as an option to 'check its docs for,' when the actual ADR record shows it's a dead end that was already considered and rejected for exactly this case."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Offers a legitimate alternative (interface/wrapper, or explicit hand-built construction) instead of silently complying",
+        "reason": "This assertion passes as worded because the response happens to list a valid wrapper option third among three, but two of the three offered fixes (a 'factory registration API' and a 'designated constructor attribute') are unverified guesses about Compono's surface area — the factory-registration claim doesn't correspond to anything in the actual docs, and the constructor-attribute option is something the project's own ADR-0002 amendment already ruled out for BCL types like HttpClient in this exact scenario. A response that only offered those two invented options (no real wrapper suggestion) would also satisfy the current assertion's spirit of 'refuse and suggest something' while giving the user two dead ends to chase. Consider tightening the assertion to require the alternative be presented with the confidence/specificity of something the model actually checked (e.g., referencing the interface-wrapper pattern documented in migrating-from-autofixture.md), not just 'mentions an interface at some point.'"
+      },
+      {
+        "reason": "The response closes by asking the user which of the three options Compono actually supports ('I'd need to check the actual API surface rather than guess') rather than checking the repo's own docs, which do answer this (docs/migrating-from-autofixture.md documents the IHttpClientProvider wrapper pattern for this exact HttpClient case). No assertion currently checks whether the response grounds its fix in the project's actual documented guidance versus punting the verification step back to the user — that's a meaningful quality gap between this and the with_skill variant, which cites ADR-0001 by number and gives a single confident, correct recommendation."
+      }
+    ],
+    "overall": "All three assertions pass, but two of the response's three proposed fixes are speculative/unverified against the actual repo (a nonexistent factory-registration API, and a constructor attribute the project's own ADR record already ruled out for BCL types). The assertions as written don't penalize this because they only require 'an' alternative to be offered, and the one correct alternative happens to be present. Recommend an assertion or grading note that checks whether the offered fix is presented with verified confidence rather than hedged guesswork."
+  }
+}

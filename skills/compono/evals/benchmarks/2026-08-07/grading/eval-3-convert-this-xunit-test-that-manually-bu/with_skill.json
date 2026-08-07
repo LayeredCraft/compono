@@ -1,0 +1,59 @@
+{
+  "expectations": [
+    {
+      "text": "Uses [Compose] or [Compose<TProfile>] correctly, only one Compose-family attribute on the method",
+      "passed": true,
+      "evidence": "The converted test uses `[Theory]\\n[Compose<NSubstituteTestProfile>]` on `Saves_order`, exactly one Compose-family attribute. This matches the real Compono API confirmed in the repo at src/Compono.XunitV3/ComposeAttribute{TProfile}.cs and mirrors the shipped sample test/Compono.XunitV3.SampleTests/NSubstituteTests.cs almost verbatim (same profile name, same parameter shapes)."
+    },
+    {
+      "text": "Uses UseNSubstitute() since Compono.NSubstitute is referenced",
+      "passed": true,
+      "evidence": "`NSubstituteTestProfile.Configure` calls `builder.UseNSubstitute();`, the real extension method defined in src/Compono.NSubstitute/CompositionBuilderExtensions.cs. The response also explains why a profile is required to invoke it (Compose attributes alone don't wire providers)."
+    },
+    {
+      "text": "Uses [Shared] only where the substitute needs to be asserted against, not applied indiscriminately",
+      "passed": true,
+      "evidence": "Only the `repository` parameter is annotated `[Shared] IOrderRepository repository`; `handler` and `command` are left unannotated. The write-up explicitly justifies this: '[Shared] parameters compose first... so repository exists before handler is built' and warns that without it the assertion would target a different substitute instance than the one actually injected into `handler`. `SharedAttribute` in src/Compono.XunitV3/SharedAttribute.cs confirms this is exactly its documented semantics."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "The example under `test/Compono.XunitV3.SampleTests/NSubstituteTests.cs` was used as the template for this conversion.",
+      "type": "process",
+      "verified": true,
+      "evidence": "Read the actual file at /Users/ncipollina/source/repos/layered-craft/compono/test/Compono.XunitV3.SampleTests/NSubstituteTests.cs — the response's 'After' code block is essentially identical to it (same IOrderRepository, Order, PlaceOrder, CreateOrderHandler, NSubstituteTestProfile, and Saves_order test), confirming genuine grounding in the real codebase rather than invention."
+    },
+    {
+      "claim": "Without [Shared], repository and the IOrderRepository nested inside handler's composed constructor would be two independent Substitute.For<IOrderRepository>() instances.",
+      "type": "factual",
+      "verified": true,
+      "evidence": "This matches SharedAttribute's documented behavior in src/Compono.XunitV3/SharedAttribute.cs: without sharing, structurally identical requests compose independently, each getting its own instance."
+    },
+    {
+      "claim": "Compono's composition attributes are DataAttributes and only work on [Theory] methods, so [Fact] would not work.",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Consistent with the real ComposeAttribute implementation pattern (xUnit v3 DataAttribute-based) and the shipped sample test, which also uses [Theory] with [Compose<TProfile>]."
+    },
+    {
+      "claim": "The manually-built Order can be dropped and the assertion switched to Arg.Any<Order>() rather than a specific instance, unless the real test asserts specific Order field values.",
+      "type": "quality",
+      "verified": true,
+      "evidence": "This is a reasonable, clearly-flagged simplification, and the response proactively calls out the condition under which it would NOT be valid (specific-value assertions), pointing the user to Arg.Is<Order>(...) as the alternative — this is not glossed over."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "This assertion set doesn't check whether the emitted code even compiles against the real Compono API surface (member names, generic signatures, whether ICompositionProfile/CompositionBuilder/UseNSubstitute exist as written). In this run the with_skill output happened to be verified correct by inspecting the actual source tree, but an eval that can't be graded without a source checkout is fragile — worth adding a lightweight compile-check step (or at minimum an assertion like 'does not invent attribute/method names not present in the Compono package') so a hallucinated-but-plausible-looking API surface is caught mechanically rather than requiring the grader to go spelunking."
+      }
+    ],
+    "overall": "All three assertions are discriminating here: the with_skill output satisfies them with real, verifiable API usage traceable to the actual shipped sample test, while the without_skill output (graded separately) fails all three by inventing AutoFixture-style attribute names that don't exist in Compono. That said, the assertions rely entirely on the grader independently knowing/checking the real API — consider strengthening the eval with an explicit 'no invented API surface' check so this is discriminating without requiring source-tree access."
+  }
+}

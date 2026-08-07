@@ -122,12 +122,19 @@ tagged with which of the three it targets.
       `<skill-name>-workspace/` run directories, no with-skill/baseline
       pairing, no `grading.json`/`timing.json` artifacts, no aggregated
       `benchmark.json`.
-- [ ] Run the actual `/skill-creator` eval workflow (with-skill +
-      baseline pairs, independent grading, persisted artifacts) across
-      all 18 scenarios, or explicitly re-scope this task's Goal to name
-      the lighter spot-check as the accepted bar for a v0.1 skill pack —
-      currently neither has happened, so this remains open rather than
-      silently treated as satisfied by the spot-check above.
+- [x] Run the actual `/skill-creator` eval workflow across all 18
+      scenarios — with-skill + baseline pairs (1 run each, not
+      `/skill-creator`'s default 3, per the honest scope note in
+      `evals/benchmarks/2026-08-07/README.md`), independent grading
+      (separate grader subagent per scenario, not self-graded),
+      `benchmark.json`/`benchmark.md` aggregated via
+      `scripts.aggregate_benchmark`. **Result: 97.4% pass rate with the
+      skill (38/39 assertions) vs. 56.4% without it (22/39)** — summary
+      artifacts and per-scenario grading committed at
+      `evals/benchmarks/2026-08-07/`. See that directory's README for
+      known limitations (single run per config, baseline wasn't
+      repo-isolated, no timing data) and eval-quality feedback the
+      graders surfaced for a future `evals.json` revision.
 
 ### Group 3 — Installation UX and docs
 
@@ -336,3 +343,24 @@ confirmed real against source and fixed:
   pages and omitted the new `ai-agent-skill.md` from its canonical tree —
   added an entry with audience/purpose/handoff, consistent with every
   other page's treatment.
+
+**Full `/skill-creator` benchmark run (2026-08-07, closing the eval-workflow
+gap Jonas flagged)**: ran the real workflow — 36 subagent runs (18 evals
+× with-skill/baseline), 18 independent grader subagents (one per eval,
+grading both variants against the eval's own `expectations`), aggregated
+via `scripts.aggregate_benchmark`. **97.4% pass rate with the skill
+(38/39) vs. 56.4% without (22/39)** — a real, evidence-backed gap.
+Artifacts committed at `skills/compono/evals/benchmarks/2026-08-07/`
+(summary + per-scenario grading, not raw transcripts, per the chosen
+scope). Honest limitations recorded in that directory's own README: one
+run per configuration rather than three, no timing/token capture, and a
+methodology gap multiple graders independently flagged — the baseline
+subagents kept full repo filesystem access even though told not to read
+the skill, and at least one (eval 9) still produced accurate
+Compono-specific terminology, likely by exploring the repo directly. That
+means the true skill-driven gap is probably *larger* than 97.4/56.4
+against a genuinely repo-isolated baseline, not smaller. Graders also
+surfaced concrete eval-quality feedback (several assertions pass
+regardless of skill use) — recorded as a follow-up, not acted on in this
+pass. The one remaining Group 3 item (a real `npx skills add` run against
+a merge-ready ref) is still outstanding, so `Status` stays `In Progress`.

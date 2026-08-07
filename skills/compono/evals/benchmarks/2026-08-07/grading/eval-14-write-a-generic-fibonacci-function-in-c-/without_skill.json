@@ -1,0 +1,47 @@
+{
+  "expectations": [
+    {
+      "text": "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design",
+      "passed": true,
+      "evidence": "response.md never mentions Compono anywhere. Tests use plain xUnit [Theory]/[InlineData] with Assert.Equal (lines 49-79) and no composer/builder pattern of any kind. Note: this response has no visibility into the Compono skill/repo context, so it never had the option to introduce it — the pass reflects absence of the skill rather than an active decision to avoid it (see eval feedback)."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "total": 1,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "FibonacciCalculator.Fibonacci(n) uses BigInteger to avoid overflow and is described as 'generic' in the sense of handling arbitrarily large results",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Code (lines 8-38) uses BigInteger throughout; the prose (lines 41-44) explicitly frames genericity as overflow-avoidance rather than type-parametric generics — this is a materially different (and weaker) interpretation of 'generic' than the with_skill variant's INumber<T> approach, but it is internally consistent and accurately described."
+    },
+    {
+      "claim": "Hardcoded pairs F(0)=0, F(1)=1, F(2)=1, F(3)=2, F(10)=55, F(20)=6765 are correct",
+      "type": "factual",
+      "verified": true,
+      "evidence": "These are standard, correct Fibonacci values; manually confirmed via the iterative recurrence."
+    },
+    {
+      "claim": "Negative input throws ArgumentOutOfRangeException",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Code explicitly guards 'if (n < 0) throw new ArgumentOutOfRangeException(...)' (lines 18-21), covered by Fibonacci_ThrowsArgumentOutOfRangeException_ForNegativeInput test (lines 74-78)."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design",
+        "reason": "For the without_skill variant this assertion is not discriminating: the response shows no awareness of Compono at all, so passing tells us nothing about judgment — it would pass identically for any generic C# answer unrelated to this repo. It mainly serves as a baseline/contrast for the with_skill variant. Worth noting explicitly in the eval design that this assertion is expected to trivially pass without_skill."
+      },
+      {
+        "reason": "Neither response's use of 'generic' is challenged by an assertion. The two variants interpret 'generic' quite differently (with_skill: true generic type parameter via INumber<T>; without_skill: fixed BigInteger return type, generic only in the colloquial sense of 'handles big values'). Since the prompt explicitly asks for a 'generic fibonacci function,' an assertion checking for an actual generic type parameter (e.g., <T>) would better distinguish implementation quality between the two variants."
+      }
+    ],
+    "overall": "The single assertion passes, but only because this variant lacks any repo/skill context to introduce Compono in the first place — it is not a meaningful test of judgment for this variant. The implementation and tests are otherwise correct, but 'generic' is interpreted more weakly here (fixed BigInteger type) than in the with_skill response (true type-parametric generics), a distinction no current assertion captures."
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly explains [Composable] is a discovery mechanism, not a fix for constructor/shape diagnostics",
+      "passed": true,
+      "evidence": "Response states: '[Composable] only solves one specific problem: discovery — it tells the generator \"reach this type even though your call-site walk doesn't get to it directly\"... It does nothing about the shape of the type itself. If your DTO fails for a shape reason, [Composable] is a no-op for that failure.' This matches the actual repo source: src/Compono/ComposableAttribute.cs's XML doc says it 'Opts a type into generated composition when discovery can't find it on its own... a plan-generation request equivalent to a Composer.Create<T>() call site,' and the real shape-related failures are CMP0001 'Ambiguous construction path', CMP0002 'No accessible constructor', CMP0004 'Unsupported constructor parameter kind', CMP0007 'Unsupported required member kind' (src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs) — exactly the codes the response lists and describes correctly (e.g. CMP0001 tied to multiple accessible constructors, CMP0004 to ref/out/pointer params, CMP0007 to unset required members)."
+    },
+    {
+      "text": "Asks for or infers the actual CMP code rather than guessing a fix blindly",
+      "passed": true,
+      "evidence": "Response opens with 'To actually fix this I need the exact error — what's the CMP00xx code (or the full compiler message) you're seeing?' and closes with an explicit numbered request: '1. The exact CMP00xx code (or full error text) from the build. 2. The DTO's constructor signature... 3. The Create<T>() call site.' It frames the diagnostic list as hypotheses to check against the real code/references/diagnostics.md ('I don't want to guess which of these it is without seeing it'), rather than asserting a single blind fix."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "[Composable] on an assembly-level attribute without a type argument is itself a compile error, CMP0008",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Not directly confirmed against the repo's diagnostics list in this grading pass (only CMP0001/0002/0004/0007 were checked against DiagnosticDescriptors.cs); plausible given the file defines a CMP000x numbering scheme, but unverified here."
+    },
+    {
+      "claim": "Reflection/Activator.CreateInstance workarounds and diagnostic suppression are explicitly excluded per 'Compono guardrails'",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Not checked against repo docs/guardrails in this grading pass; consistent in spirit with a compile-time composition-generator design but not independently confirmed."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Both assertions are meaningful and discriminating here: the without_skill variant fails both by fabricating a generic source-generator narrative (partial classes, analyzer wiring, IDE caching) that doesn't match Compono's actual semantics, while the with_skill variant correctly ties the failure to real CMP0001/0002/0004/0007 diagnostics and defers to the actual error code. No changes needed to this eval's assertions."
+  }
+}

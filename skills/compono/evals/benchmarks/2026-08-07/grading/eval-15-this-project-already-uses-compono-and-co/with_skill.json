@@ -1,0 +1,29 @@
+{
+  "expectations": [
+    {
+      "text": "Recommends literal/inline values for the boundary case rather than ordinary composition",
+      "passed": true,
+      "evidence": "Response opens with 'Don't compose this one — write it literally' and the primary code example uses `[Theory]`/`[InlineData(18, true)]` / `[InlineData(17, false)]` with a plain xUnit v3 test, explicitly avoiding `composer.Create<int>()` for the boundary value."
+    },
+    {
+      "text": "Explicitly reasons about when NOT to lean on Compono's generation, even in a Compono-adopting project",
+      "passed": true,
+      "evidence": "Response directly quotes the skill's 'When not to use Compono' guidance ('The test's whole point *is* a specific, meaningful value... write it literally, don't compose it and then override it') and adds a dedicated 'Why not other approaches' section reasoning against `composer.Create<Applicant>()` + mutate, `[Shared]`, and seed-pinning to hit the boundary value, explaining Compono's role is 'generating the *incidental* data' versus the boundary value which 'is the entire point of the test.'"
+    },
+    {
+      "text": "Does not force Compono usage just because the project has it available",
+      "passed": true,
+      "evidence": "The primary recommended example is plain xUnit `[Theory]`/`[InlineData]` with no Compono composition at all; Compono is only reintroduced conditionally ('If the type under validation is a richer object... compose the object normally with Compono and pin only the Age member') and even then only for incidental fields, not the boundary value itself."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All three assertions are well-targeted here: they specifically probe for the skill's 'when not to use Compono' guidance, and the with_skill output demonstrates genuine internalization of that guidance (verbatim quoting, explicit anti-pattern list) rather than superficial compliance. No changes needed."
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "Does not immediately/silently introduce AutoFixture as a substitute without first addressing the underlying Compono failure",
+      "passed": true,
+      "evidence": "Response opens with 'Before I swap anything, one thing gives me pause' and lists three investigative steps ('See the actual exception', 'Check if it's a config problem', 'If it really is a gap in the engine...') before any AutoFixture instructions appear. No AutoFixture code is added; the response only describes what a swap *would* involve, conditionally, later in the message."
+    },
+    {
+      "text": "Treats swapping to a different fixture library as an explicit user decision, not a default fallback",
+      "passed": true,
+      "evidence": "The response frames the swap as conditional on user confirmation: 'That said — if you've already diagnosed it and it's a deliberately pathological/adversarial graph that's out of scope... or you just need to unblock right now and will circle back, swapping is fine.' It closes with 'Point me at the file and the exception text and I'll do whichever of these you want — including making the swap myself if that's still the call after we see what's actually failing,' explicitly deferring the choice to the user rather than defaulting to the swap."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "This without_skill response independently reaches the same cautious, investigate-first behavior as the with_skill response (repo-grounded reasoning about Compono's own test suite, request for the exception, conditional/explicit framing of the swap). That both variants pass suggests these two assertions do not discriminate the value the skill adds for this prompt — a stronger eval would assert on skill-specific content (e.g., correct use of Compono's actual API surface like CompositionException.Diagnostic, or accurate composition-engine diagnostic categories) that a model without the skill would be less likely to get right or complete."
+      }
+    ],
+    "overall": "Both assertions passed. The without_skill response shows strong baseline reasoning (it even correctly infers repo context — that this is Compono's own test suite, not a consumer app — from file/directory names alone), so this eval currently has limited power to distinguish skill-driven behavior from good general-purpose reasoning on this particular prompt."
+  }
+}

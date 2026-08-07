@@ -1,0 +1,24 @@
+{
+  "expectations": [
+    {
+      "text": "Recommends [Shared], correctly describes it as Compono.XunitV3-only, not core Compono",
+      "passed": true,
+      "evidence": "Response line 12: 'Compono.XunitV3 gives you the [Shared] parameter attribute, which is the mechanism for \"same instance reused throughout the composition\" inside a [Compose] theory row. [Shared] is *only* available in that Compono.XunitV3 context — it has no equivalent for a plain, non-[Compose] composer.Create<T>() call.' This explicitly attributes [Shared] to the Compono.XunitV3 package (not core Compono), matches the prerequisites section listing both Compono.NSubstitute and Compono.XunitV3 as required packages, and the full worked example at lines 27-48 demonstrates [Shared] usage correctly (type-keyed identity, resolution order, the two-[Shared]-of-same-type error)."
+    },
+    {
+      "text": "Does not suggest [Shared] can be used outside a [Compose] row",
+      "passed": true,
+      "evidence": "Response explicitly states the opposite in the 'If you're not using [Compose] theories' section (lines 70-72): 'If this is a plain, programmatic composition (Composer.Create(...), no [Compose] attribute), [Shared] doesn't apply — it's scoped to a [Compose] row. Instead, capture the substitute yourself and register it directly...' followed by a manual Register<T>() workaround. No part of the response implies [Shared] works outside a [Compose] row."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Both assertions are discriminating and well-targeted: the without_skill baseline (AutoFixture [Frozen]/Freeze<T>, no mention of Compono's [Shared] at all) fails both, while the with_skill response not only recommends [Shared] but proactively documents its scope boundary unprompted, which is exactly the kind of correct-but-non-obvious domain fact these assertions are designed to catch. No changes suggested."
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "expectations": [
+    {
+      "text": "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
+      "passed": true,
+      "evidence": "Opening line: \"I won't route around this with reflection/`Activator.CreateInstance` — that's a deliberate non-goal for Compono, not an oversight I can patch over for one test.\" This is an unambiguous, immediate refusal, not a hedge."
+    },
+    {
+      "text": "Explains why (no reflection fallback by design, not just 'best practice')",
+      "passed": true,
+      "evidence": "Cites a specific design decision: \"Compono is deliberately *not* a reflection-based fixture library (that's ADR-0001) — that design choice is the whole reason it exists instead of you just using AutoFixture.\" Verified against the actual repo: docs/adr/0001-source-generation-first.md exists and explicitly excludes 'Automatic reflection fallback' as a rejected option, stating 'runtime reflection is intentionally excluded from the default architecture.' The response also explains the mechanism-level reason CMP0001 fires (multiple accessible HttpClient constructors) and why bypassing it isn't 'just this one test' (precedent risk). This is grounded, specific, by-design reasoning, not generic best-practice language."
+    },
+    {
+      "text": "Offers a legitimate alternative (interface/wrapper, or explicit hand-built construction) instead of silently complying",
+      "passed": true,
+      "evidence": "Gives two concrete options: Option A, hand-construct `new HttpClient(new SomeFakeHandler())` at the point of use; Option B, wrap behind an app-owned `IHttpClientFactory2`-style interface that Compono can compose. Both match actual repo guidance: docs/migrating-from-autofixture.md documents an `IHttpClientProvider` wrapper pattern for exactly this HttpClient/CMP0001 case, and docs/cookbook/freeze-a-shared-httpmessagehandler.md documents the hand-construction pattern. The response also gives a clear recommendation for the stated time pressure (\"For today: go with Option A\")."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "No assertion checks factual grounding of the explanation. This response cites ADR-0001 and a specific mechanism (3 accessible HttpClient constructors) that were independently verified against docs/adr/0001-source-generation-first.md and docs/adr/0002-constructor-selection-algorithm.md — a response that merely asserted 'it's not how Compono works' without any verifiable specifics would pass the current wording of assertion 2 just as easily. Consider an assertion that rewards citing a specific artifact (ADR number, diagnostic code, doc) over vague design-philosophy language, since that's the real signal of the skill doing its job versus the model improvising a plausible-sounding refusal."
+      }
+    ],
+    "overall": "All three assertions pass with strong, verifiable evidence — the response's factual claims (ADR-0001, CMP0001 cause, HttpClient wrapper pattern) were independently checked against the actual docs/ tree and hold up. The assertions themselves are reasonably discriminating but slightly under-specify what counts as 'by design' evidence; see suggestion above."
+  }
+}

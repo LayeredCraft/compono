@@ -1,0 +1,53 @@
+{
+  "expectations": [
+    {
+      "text": "Uses [Compose] or [Compose<TProfile>] correctly, only one Compose-family attribute on the method",
+      "passed": false,
+      "evidence": "The converted test uses `[Theory, AutoNSubstituteData]`. `AutoNSubstituteData` is not a real Compono attribute — there is no such type anywhere in the Compono source tree (searched src/ and test/ for `AutoNSubstituteData`, no matches). The real Compono.XunitV3 API only exposes `ComposeAttribute` / `ComposeAttribute<TProfile>` (src/Compono.XunitV3/ComposeAttribute.cs, ComposeAttribute{TProfile}.cs), neither of which is used."
+    },
+    {
+      "text": "Uses UseNSubstitute() since Compono.NSubstitute is referenced",
+      "passed": false,
+      "evidence": "`UseNSubstitute()` is never called anywhere in the response. The response instead assumes `Compono.NSubstitute` 'auto-customizes the fixture' implicitly via the invented `AutoNSubstituteData` attribute, with no CompositionBuilder/profile wiring at all. The real extension method `UseNSubstitute()` (src/Compono.NSubstitute/CompositionBuilderExtensions.cs) is the actual documented way to enable NSubstitute support and is absent from this output."
+    },
+    {
+      "text": "Uses [Shared] only where the substitute needs to be asserted against, not applied indiscriminately",
+      "passed": false,
+      "evidence": "The response uses `[Frozen] IOrderRepository repository`, not `[Shared]`. There is no `FrozenAttribute` type in the Compono codebase (searched, no matches) — Compono's real sharing mechanism is `SharedAttribute` (src/Compono.XunitV3/SharedAttribute.cs). `[Frozen]` is AutoFixture.Xunit2 terminology, not Compono's, so the assertion's required attribute is never used."
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 3,
+    "total": 3,
+    "pass_rate": 0.0
+  },
+  "claims": [
+    {
+      "claim": "`Compono.Xunit3`, `AutoNSubstituteData`, and `[Frozen]` are the correct Compono API names, following 'conventional AutoFixture-style naming that Compono.XunitV3 / Compono.NSubstitute are modeled after.'",
+      "type": "factual",
+      "verified": false,
+      "evidence": "False. The real namespace is `Compono.XunitV3` (see namespace declarations in src/Compono.XunitV3/*.cs), not `Compono.Xunit3` as written in the response's `using` block. The real attributes are `[Compose]`/`[Compose<TProfile>]` and `[Shared]`, not `AutoNSubstituteData`/`[Frozen]` — Compono does not use AutoFixture.Xunit2-style naming conventions at all, despite the response's explicit claim that it does. This is a hallucinated API surface presented as a plausible-but-hedged guess."
+    },
+    {
+      "claim": "If the installed version exposes differently named attributes, only the names need to change — the pattern stays the same.",
+      "type": "quality",
+      "verified": false,
+      "evidence": "Understated: it is not merely a naming mismatch. Compono has no attribute equivalent to AutoFixture's [AutoData]/[Frozen] pairing in the way described — composition is driven by `[Compose]`/`[Compose<TProfile>]` plus explicit `UseNSubstitute()` profile wiring, and sharing is opt-in per-parameter via `[Shared]` with different scoping semantics than AutoFixture's `[Frozen]`. A user following this response's advice to 'just rename the attributes' would still end up with code that doesn't compile against the real package."
+    },
+    {
+      "claim": "The response explicitly hedges that it is guessing at attribute names and invites the user to correct it.",
+      "type": "process",
+      "verified": true,
+      "evidence": "The response does say: 'Attribute names shown (AutoNSubstituteData, [Frozen]) follow the conventional AutoFixture-style naming that Compono.XunitV3 / Compono.NSubstitute are modeled after. If your installed version exposes differently named attributes... swap the names only.' This hedge is honest about uncertainty but is still substantively wrong about what Compono is modeled after, and doesn't rise to the level of correct usage the assertions require."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "No assertion checks the `using`/namespace correctness, but this run surfaced a concrete additional error worth calling out: the without_skill output writes `using Compono.Xunit3;` (real namespace is `Compono.XunitV3`). This is a second, independent piece of evidence (beyond the attribute names) that the model has no grounded knowledge of the real package without the skill — worth folding into a general 'no fabricated identifiers' assertion rather than leaving it to be caught incidentally."
+      }
+    ],
+    "overall": "All three assertions are discriminating and correctly fail this variant: without the skill, the model has no access to Compono's real API surface and fabricates a plausible-looking but entirely incorrect AutoFixture-style API (AutoNSubstituteData, [Frozen], Compono.Xunit3 namespace) that would not compile. The model is appropriately humble about not having the real test file, but that hedging doesn't compensate for inventing an API that doesn't exist — this is exactly the failure mode the eval should catch, and it does."
+  }
+}

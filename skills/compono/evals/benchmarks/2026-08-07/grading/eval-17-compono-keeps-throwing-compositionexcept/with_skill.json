@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "Does not immediately/silently introduce AutoFixture as a substitute without first addressing the underlying Compono failure",
+      "passed": true,
+      "evidence": "Opening line: 'I'd rather not do that swap — but let's actually kill the CompositionException, which is probably faster than a rewrite anyway.' The response never introduces AutoFixture code or a migration; instead it asks for the full exception text/tree path and Seed line, and lists the concrete diagnostic paths (missing provider, collection uniqueness exhaustion, registration conflict) before any swap is considered."
+    },
+    {
+      "text": "Treats swapping to a different fixture library as an explicit user decision, not a default fallback",
+      "passed": true,
+      "evidence": "Explicitly names the behavior as a project guardrail: 'silently substituting AutoFixture because a Compono composition is failing is an explicit guardrail in this project (skills/compono/SKILL.md) — it's there specifically to stop \"just this one test\" swaps.' It carves out a narrow, explicitly-scoped exception ('Where I'd actually agree AutoFixture is fine... that's a \"this one collaborator\" decision, not \"swap the whole file to AutoFixture\"') rather than defaulting to the swap."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "The with_skill response cites 'skills/compono/SKILL.md' by name as the source of the guardrail, which is a strong, discriminating signal that the skill was actually consulted and applied (not just generic good judgment). Consider adding an assertion that checks for this kind of explicit skill/source attribution, since it distinguishes genuine skill-driven behavior from a model that would reason its way to the same answer anyway (as seen in the without_skill variant, which passed both assertions without the skill)."
+      }
+    ],
+    "overall": "Both assertions passed with clear, specific evidence. However, the without_skill variant also passed both assertions convincingly on its own reasoning (repo investigation, request for diagnostics, conditional swap framing), which weakens these two assertions as a way to demonstrate the skill's unique value — the model already tends toward this cautious behavior for a request like this. Assertions that probe skill-specific content (e.g., correct citation of Compono's actual exception API surface such as CompositionException.Diagnostic, or specific SKILL.md guidance) would better discriminate the with_skill case."
+  }
+}

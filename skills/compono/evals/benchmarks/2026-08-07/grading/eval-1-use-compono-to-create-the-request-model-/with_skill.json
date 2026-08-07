@@ -1,0 +1,37 @@
+{
+  "expectations": [
+    {
+      "text": "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
+      "passed": true,
+      "evidence": "Response uses `private static readonly Composer Composer = Composer.Create();` then `Composer.Create<CreateOrderRequest>()` as an instance call (Option B), and `[Theory] [Compose]` with inline positional binding `[Compose(42)]` (Option A). Verified against src/Compono/Composer.cs: `public static Composer Create()`, `public T Create<T>()` (instance method), and src/Compono.XunitV3/ComposeAttribute.cs's constructor `ComposeAttribute(params object?[] inlineValues)` which supports positional inline binding exactly as described. No invented members (e.g. no fabricated `[Frozen]`/AutoFixture APIs) appear."
+    },
+    {
+      "text": "Does not add [Composable] unless there is a genuine discovery-gap reason",
+      "passed": true,
+      "evidence": "Response explicitly states: \"Not adding `[Composable]` to `CreateOrderRequest`... `[Composable]` is only for the narrow case where that walk can't reach the type... Since the request model is composed directly at the call site above, there's no discovery gap to work around.\" This matches the real ComposableAttribute.cs doc comment: \"Opts a type into generated composition when discovery can't find it on its own... Most types never need this.\""
+    },
+    {
+      "text": "Does not introduce Activator.CreateInstance or any reflection-based fallback",
+      "passed": true,
+      "evidence": "Response explicitly states: \"Not using `Activator.CreateInstance` or any reflection-based construction. Compono has no reflection fallback by design (ADR-0001)... that surfaces as a `CMP0001`-`CMP0012` compile diagnostic or a `CompositionException`.\" Verified: docs/adr/0001-source-generation-first.md documents 'Automatic reflection fallback' as a rejected option, and src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs defines exactly CMP0001 through CMP0012. No Activator.CreateInstance appears anywhere in the response's code."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Neither variant actually edited a test file — both responses declined to act because no test file/path was provided in the prompt (the prompt says 'in this test' but supplies no file). The eval scores the API-knowledge content of a clarifying-question response rather than an applied edit. This assertion set can't distinguish 'model correctly refused to guess at an unseen file' from 'model would have produced a correct edit given the file' — worth adding a variant of this eval that supplies an actual test file path/content so the response can be graded on an applied diff, not just prose guidance."
+      },
+      {
+        "assertion": "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
+        "reason": "Both with_skill and without_skill passed this and the other two assertions identically, with comparably accurate API knowledge and reasoning (including correct ADR/diagnostic-code citations) even in the without_skill run. That's a genuine, notable finding: this particular prompt/assertion set does not discriminate between the two conditions in this run, which undercuts the eval's purpose of showing the skill's marginal value. Consider assertions that require detail only the skill's reference docs would supply (e.g. exact seed-forking semantics, [Shared] parameter ordering rules, or CompositionRow behavior) rather than commonly-inferable public-API shape."
+      }
+    ],
+    "overall": "Both variants pass all three assertions with genuine, verifiable evidence (checked against the actual Compono source: Composer.cs, ComposeAttribute.cs, ComposableAttribute.cs, ADR-0001, and DiagnosticDescriptors.cs). However, both variants declined to make an actual edit since no test file was supplied, so grading is against prose/code-snippet guidance rather than an applied change — and, notably, the without_skill run was equally accurate here, suggesting this particular eval prompt doesn't strongly discriminate skill-on vs skill-off for this model."
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "Does not add Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus package references without being asked",
+      "passed": true,
+      "evidence": "The .csproj shown (lines 55-82) references only xunit.v3, xunit.runner.visualstudio, Microsoft.NET.Test.Sdk, NSubstitute, Bogus, and AwesomeAssertions. No Compono package reference appears anywhere in the response, and Compono is never mentioned."
+    },
+    {
+      "text": "Does not use [Compose]/[Shared]/UseNSubstitute()/UseBogus() unprompted",
+      "passed": true,
+      "evidence": "All test code (OrderServiceTests, lines 169-240) uses plain xUnit [Fact]/[Theory], Substitute.For<T>() directly, and a hand-rolled Faker<Order> via a static OrderFaker class (lines 138-160). No [Compose], [Shared], UseNSubstitute(), or UseBogus() appear anywhere in the response."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "This variant passes both assertions purely by omission -- it has no knowledge of Compono's existence at all (it was never invoked/loaded), so there is no restraint being exercised, just absence of awareness. This makes the assertions non-discriminating: any response from a model unaware of Compono would pass identically regardless of quality. This is expected for the without_skill baseline and not a flaw in this specific run, but it underscores that these two assertions alone don't validate meaningful skill behavior -- they only catch a regression where the skill (when active) fails to hold back."
+      }
+    ],
+    "overall": "Both assertions pass, but trivially so, since this run never had access to or knowledge of Compono. No corrective action needed for this variant; the eval_feedback about discriminating power (see with_skill grading.json) applies to the eval design as a whole rather than to this specific response."
+  }
+}

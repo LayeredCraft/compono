@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "Does not add Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus package references without being asked",
+      "passed": true,
+      "evidence": "The .csproj shown (lines 74-97) references only Microsoft.NET.Test.Sdk, xunit.v3, xunit.runner.visualstudio, NSubstitute, and Bogus. No PackageReference to any Compono package appears anywhere in the response. The response explicitly reasons through this: 'Compono doesn't apply here, and I'm not going to introduce it' (line 10) and explains it consulted the compono skill's detection/adoption rule ('Adopting Compono in a project that doesn't have it yet: only do this when the user explicitly asks', lines 17-18) before deciding to skip it."
+    },
+    {
+      "text": "Does not use [Compose]/[Shared]/UseNSubstitute()/UseBogus() unprompted",
+      "passed": true,
+      "evidence": "The sample test code (OrderCalculatorTests, lines 142-183) uses plain xUnit [Fact], Substitute.For<IPricingService>(), and a hand-rolled Faker<OrderLine> from Bogus directly -- no [Compose], [Shared], UseNSubstitute(), or UseBogus() anywhere. The closing section (lines 217-224) explicitly offers Compono's [Compose]/[Shared] as an opt-in alternative only 'if this project will actually consume Compono', reinforcing that it was deliberately withheld rather than accidentally omitted."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Both assertions passed here, but they'd also pass trivially for any response that never mentions Compono at all (e.g. the without_skill variant, which has no awareness of Compono's existence). The eval doesn't distinguish 'correctly withheld adoption after considering it' from 'never considered it because it doesn't know it exists.' A stronger assertion for the with_skill variant specifically would check that the skill's adoption rule was consulted and reasoned about (which it was here), not just that the forbidden APIs are absent."
+      }
+    ],
+    "overall": "Assertions are satisfied but are not discriminating between the two variants for this eval -- since the without_skill run has no knowledge of Compono, it passes by default/omission rather than by a deliberate skill-guided decision. Consider adding a positive assertion that the with_skill output should reference the skill's non-adoption rule or reasoning, to differentiate 'skill correctly restrained itself' from 'skill was simply not invoked/relevant.'"
+  }
+}

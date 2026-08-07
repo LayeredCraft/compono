@@ -1,0 +1,50 @@
+{
+  "expectations": [
+    {
+      "text": "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design",
+      "passed": true,
+      "evidence": "response.md lines 3-10 explicitly address Compono: 'This repo has the Compono test-composition framework available, but I'm not reaching for it here. Per the Compono skill's own \"When not to use Compono\" guidance: the whole point of this test is a couple of specific, hardcoded input/output pairs, and there's no object graph to compose — a composer call would add indirection without saving anything real. Plain [Theory] / [InlineData] is the right tool.' The actual test code (lines 60-97) uses plain xUnit [Theory]/[InlineData] with AwesomeAssertions .Should(), with no Compono composer/builder usage anywhere."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "total": 1,
+    "pass_rate": 1.0
+  },
+  "claims": [
+    {
+      "claim": "The Fibonacci.Calculate<T> implementation is generic via System.Numerics.INumber<T> and works for int, long, double, BigInteger, etc.",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Code at lines 35-56 constrains T : INumber<T> and uses T.Zero/T.One; a supplementary test (Calculate_WorksForLong_NotJustInt, lines 88-95) exercises long, demonstrating type-parametric behavior."
+    },
+    {
+      "claim": "Hardcoded pairs F(0)=0, F(1)=1, F(2)=1, F(3)=2, F(10)=55 are correct",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Manually traced the iterative loop for n=0..3 and confirmed outputs (0,1,1,2) match standard Fibonacci values; F(10)=55 and F(20)=6765 (used in the long-type test) are also standard, correct Fibonacci values."
+    },
+    {
+      "claim": "Negative n throws ArgumentOutOfRangeException",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Code explicitly guards 'if (n < 0) throw new ArgumentOutOfRangeException(...)' (lines 37-40) and is covered by Calculate_Throws_WhenNIsNegative test (lines 80-86)."
+    },
+    {
+      "claim": "This matches the assertion style and Fact/Theory conventions already used throughout this repo's own test suite (e.g. Compono.Tests/ComposerCreateManyTests.cs)",
+      "type": "process",
+      "verified": false,
+      "evidence": "Unverifiable from response.md alone — the referenced repo file was not inspected as part of this grading pass, so this claim is flagged as unverified rather than confirmed or contradicted."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design",
+        "reason": "This assertion is weak for the without_skill variant by construction: a response with no knowledge of the Compono skill can never 'introduce Compono' in the first place, so it trivially passes regardless of reasoning quality. The assertion is only discriminating for the with_skill variant, where it meaningfully tests whether the skill correctly signals a 'when not to use' boundary rather than over-applying itself. Consider splitting this into two assertions: (1) with_skill explicitly reasons about and declines Compono for this hardcoded-data case, and (2) a separate, more general code-quality assertion (e.g., correct Fibonacci values, proper generic constraints) that applies to both variants equally."
+      }
+    ],
+    "overall": "The single assertion passes cleanly for with_skill with strong, explicit evidence of correct 'when not to use' reasoning, but it doesn't discriminate against without_skill (which passes by default, having no Compono awareness at all). No assertion covers correctness of the Fibonacci values or the generic-type implementation, which I checked manually — both are correct in this variant."
+  }
+}

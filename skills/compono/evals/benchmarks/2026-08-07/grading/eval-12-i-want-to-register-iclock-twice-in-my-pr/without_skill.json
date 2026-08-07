@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly identifies the duplicate Register<T>() as a build-time conflict, not an override",
+      "passed": false,
+      "evidence": "The response hedges instead of stating the actual Compono behavior: 'the second call either silently overwrites the first (\"last write wins\") or throws on a duplicate key, depending on how `Register<T>` is implemented.' It never confirms Compono actually throws a build-time conflict; Option 1 explicitly relies on and recommends 'last-write-wins' behavior ('If `Register<T>` does overwrite on duplicate keys, this is the simplest approach') and even tells the user to 'Check the implementation (or just write a two-line unit test against the builder itself) before relying on this' rather than stating the known Compono semantics."
+    },
+    {
+      "text": "Does not imply Compono supports customization override semantics like AutoFixture",
+      "passed": false,
+      "evidence": "Option 1 directly presents override-by-reregistration as a viable, even recommended, approach: 'apply default profile, then call `Register<IClock>` again afterward) is the least ceremony.' This is exactly the AutoFixture-style 'last write wins' override semantic the assertion says should not be implied. The response also invents API surface not matching Compono (`IBuilder`, `IProfile`, `ApplyProfile<T>`), indicating no real knowledge of Compono's actual `CompositionBuilder`/`ICompositionProfile`/`Register<T>` conflict behavior."
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 2,
+    "total": 2,
+    "pass_rate": 0.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "No assertion explicitly flags the fabricated API (`IBuilder`, `IProfile`, `ApplyProfile<T>`) which don't match Compono's real types (`CompositionBuilder`, `ICompositionProfile`, `[Compose<TProfile>]`). This is a significant quality issue beyond the two graded assertions — the response is written as generic DI-container advice rather than Compono-specific guidance, and an assertion checking for correct Compono type/attribute names would make the gap more visible."
+      }
+    ],
+    "overall": "Both assertions clearly fail. The without_skill response never asserts Compono's actual build-time-conflict behavior, instead hedging between 'last-write-wins' and 'throws' and recommending an approach (Option 1) that explicitly relies on override-by-reregistration — the AutoFixture-like semantic the assertion says must not be implied. This is a strong, discriminating failure that highlights the skill's value."
+  }
+}

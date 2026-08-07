@@ -1,0 +1,44 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly identifies the missing ConfigureMembers=true equivalent as the root cause",
+      "passed": true,
+      "evidence": "Response headline is '## Most likely root cause: loss of ConfigureMembers = true behavior' and explains: 'Without ConfigureMembers, NSubstitute's default behavior for any unconfigured member that returns a reference type is to return null ... That null then gets dereferenced somewhere in the call chain, producing the NullReferenceException.' This correctly identifies the same root cause as the with_skill response, though hedged with 'most likely' and 'If ... only replicates' framing rather than stated as verified fact."
+    },
+    {
+      "text": "Does not suggest a nonexistent Compono.NSubstitute auto-configure option",
+      "passed": false,
+      "evidence": "Under 'Fixes, in order of preference' the response's second bullet says: 'Check whether Compono.NSubstitute exposes an equivalent opt-in. Many lighter-weight AutoFixture/NSubstitute integrations offer a flag or overload analogous to ConfigureMembers (sometimes named something like configureMembers: true, or a separate customization you layer on top of UseNSubstitute()). If one exists, enabling it is the closest drop-in replacement for your old behavior.' This explicitly speculates about and recommends looking for a ConfigureMembers-style auto-configure option that does not exist in Compono.NSubstitute, directly violating this assertion. The bottom-line paragraph repeats this: 'either find the equivalent auto-configure members switch in Compono.NSubstitute if one exists, or replace the implicit auto-stubbing with explicit .Returns(...) setups.'"
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "total": 2,
+    "pass_rate": 0.5
+  },
+  "claims": [
+    {
+      "claim": "Compono.NSubstitute's UseNSubstitute() most likely does not replicate ConfigureMembers-style auto-stubbing",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Correct as far as it goes, but the response never confirms this — it repeatedly hedges ('most likely', 'if ... only replicates') rather than stating it as a known fact, indicating the executor lacked grounded knowledge of the package's actual API surface."
+    },
+    {
+      "claim": "Compono.NSubstitute may expose a ConfigureMembers-equivalent opt-in flag or customization",
+      "type": "factual",
+      "verified": false,
+      "evidence": "No such option exists in Compono.NSubstitute per the eval's own assertion set ('Does not suggest a nonexistent Compono.NSubstitute auto-configure option'), so this claim is false and actively misleading — it sends the user searching for a feature that isn't there instead of pointing them directly at explicit stubbing."
+    },
+    {
+      "claim": "Freeze<T>() plus pre-configuration is a viable fallback fix",
+      "type": "process",
+      "verified": false,
+      "evidence": "Compono.NSubstitute is presented elsewhere (with_skill response, and by implication the skill it's built on) as a distinct, non-AutoFixture-based composition system; the fix example uses `fixture.Freeze<ISomething>()`, which assumes an AutoFixture-style fixture API that may not apply directly to Compono's composition model. This is not verifiable from the transcript alone but reads as carried-over AutoFixture vocabulary rather than confirmed Compono API, which is consistent with the overall pattern of unverified guessing in this response."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "No suggestions on the assertions themselves — assertion 2 did its job here, correctly catching a real failure mode (speculating about a nonexistent auto-configure flag) that a naive read of the response's correct root-cause section would have missed. This is a good example of a discriminating assertion: it passes for the with_skill response, which confidently forecloses the option, and fails for the without_skill response, which hedges into suggesting it."
+  }
+}

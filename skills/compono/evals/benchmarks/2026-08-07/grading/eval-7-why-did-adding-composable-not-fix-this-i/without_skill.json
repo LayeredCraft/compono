@@ -1,0 +1,38 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly explains [Composable] is a discovery mechanism, not a fix for constructor/shape diagnostics",
+      "passed": false,
+      "evidence": "Response claims the opposite characterization: '[Composable] almost certainly does — generating the members Create<T>() needs, like a static factory method, builder, or interface implementation' and that it requires the target type to be declared partial for the generator to 'add to' it ('Source generators that augment a type... can only add to a type declared partial'). This is factually wrong against the actual repo source: src/Compono/ComposableAttribute.cs documents [Composable] purely as a discovery/plan-generation request ('Opts a type into generated composition when discovery can't find it on its own... a plan-generation request equivalent to a Composer.Create<T>() call site'), with no partial-class requirement, and it never generates members directly on the DTO. The response never identifies discovery vs. shape as separate concerns, nor mentions any CMP0001/0002/0004/0007-style shape diagnostic by the project's actual naming, instead inventing a placeholder 'COMP001' code and generic advice (partial classes, PrivateAssets analyzer wiring, stale IDE cache) that doesn't reflect Compono's real generator design."
+    },
+    {
+      "text": "Asks for or infers the actual CMP code rather than guessing a fix blindly",
+      "passed": false,
+      "evidence": "The response is dominated by six numbered speculative causes (partial-class requirement, nested-type partial chain, attribute namespace collision, shape requirements, analyzer package wiring, stale generated-file cache) presented as likely fixes to try, before finally asking at the very end: 'If you can share the exact error/diagnostic code and whether the class... are partial, I can narrow this down precisely instead of listing possibilities.' This is exactly the 'guessing a fix blindly' pattern the assertion is checking against — the bulk of the advice (dotnet clean/rm -rf obj bin, EmitCompilerGeneratedFiles, PrivateAssets=\"all\") is offered as things to try without first establishing what CMP code or error is actually occurring, rather than leading with a request for the diagnostic."
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 2,
+    "total": 2,
+    "pass_rate": 0.0
+  },
+  "claims": [
+    {
+      "claim": "Compono's [Composable] attribute generates members like a static factory method and requires the target type to be 'partial'",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Contradicted by src/Compono/ComposableAttribute.cs, which documents [Composable] as a discovery-only request with no partial-class requirement or direct member generation on the annotated type."
+    },
+    {
+      "claim": "The relevant diagnostic code is likely something like 'COMP001'",
+      "type": "factual",
+      "verified": false,
+      "evidence": "The repo's actual diagnostics use the CMP000x prefix (CMP0001, CMP0002, CMP0004, CMP0007 per src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs), not 'COMP001' — the response's invented code doesn't match the project's real diagnostic scheme."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "This variant illustrates exactly why both assertions matter: without project-specific knowledge, the response defaults to generic C# source-generator troubleshooting (partial classes, analyzer package wiring, IDE caching) that actively misdescribes how Compono's [Composable] attribute and diagnostics actually work, and buries the request for the real error code under six speculative fixes rather than leading with it."
+  }
+}
