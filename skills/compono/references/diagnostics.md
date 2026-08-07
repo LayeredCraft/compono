@@ -94,5 +94,12 @@ message with `Seed:` appended.
    depend on which specific random values were drawn) rather than
    assuming the investigation is complete. Remove any pinned seed once
    the fix is verified — don't leave it pinned as a permanent habit.
-6. A `CompositionException` is deterministic, not flaky. Don't wrap it in
-   a retry; investigate.
+6. A `CompositionException` from Compono's own generated plans and
+   built-in providers is deterministic, not flaky — don't wrap it in a
+   retry, investigate. But check what's actually in the failing path
+   first: a consumer-supplied `Register<T>()` factory, custom provider,
+   or a configured `IServiceProvider` fallback can still do
+   non-deterministic things (clock/random reads, I/O, a transient
+   throw). If the failure traces through one of those, the "just
+   reproduce it with the seed" assumption doesn't hold — inspect that
+   code path directly instead.

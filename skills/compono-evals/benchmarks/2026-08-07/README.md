@@ -1,11 +1,13 @@
 # Benchmark run — 2026-08-07
 
-Full `/skill-creator` eval workflow run against all 18 scenarios in
-`../evals.json` (superseding the 6-scenario manual spot-check recorded
-earlier in PLAN-0035). With-skill and baseline (`without_skill`, no
-access to the skill's SKILL.md/references) subagents ran independently
-for every scenario, each graded by a separate grader subagent against
-that scenario's `expectations`.
+A `/skill-creator`-*style* eval run against all 18 scenarios in
+`../../evals.json` (superseding the 6-scenario manual spot-check recorded
+earlier in PLAN-0035) — not `/skill-creator`'s full documented workflow;
+see "Known limitations" below for exactly where it's lighter-weight.
+With-skill and baseline (`without_skill`, no access to the skill's
+SKILL.md/references) subagents ran independently for every scenario,
+each graded by a separate grader subagent against that scenario's
+`expectations`.
 
 ## Result
 
@@ -35,8 +37,16 @@ per-scenario, per-assertion evidence.
   lacking the knowledge. This likely *understates* the skill's true
   marginal value relative to a genuinely repo-isolated baseline (e.g. a
   fresh consumer project with no access to Compono's own source).
-- **No timing/token data.** `timing.json`/`metrics.json` weren't captured
-  per run, so `benchmark.md`'s Time/Tokens rows are not meaningful.
+- **No timing/token data.** `timing.json`/`metrics.json` were never
+  captured, at any point — not merely omitted from what's committed.
+  `benchmark.md`'s Time/Tokens rows are genuinely empty, not just
+  unpublished.
+- **`eval_metadata.json`/per-run `outputs/response.md` aren't retained.**
+  They existed in ephemeral scratch space during the run but were never
+  committed — `grading.json` (per scenario, per variant) and the
+  aggregated `benchmark.json`/`benchmark.md` are the actual durable
+  record here, not the full per-run artifact set `/skill-creator`'s
+  workflow produces.
 
 ## Eval-quality feedback surfaced by graders
 

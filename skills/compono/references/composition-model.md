@@ -22,16 +22,21 @@ var composer = Composer.Create(builder =>
 Config is validated and frozen at `Create()` time — a `Composer` is never
 reconfigured after that. **Build one `Composer` per test/suite and reuse
 it**; rebuilding it per assertion is a documented common mistake, not a
-style choice — two reasons why:
-- It rebuilds/revalidates the configuration on every call for no reason.
-- If the callback doesn't call `WithSeed(...)`, **each** `Composer.Create(...)`
-  call draws its own fresh random root seed — rebuilding an unseeded
-  composer per assertion means each rebuild's compositions are
-  unrelated to the others, not reproducible relative to each other,
-  even within the same test run. (A rebuild that *does* call
-  `WithSeed(sameValue)` every time stays reproducible across rebuilds —
-  it's specifically the unseeded case that loses reproducibility, not
-  rebuilding itself.)
+style choice — mainly because it revalidates the configuration on every
+call for no reason.
+
+Reuse does **not** by itself make an *unseeded* composer's calls
+correlated or reproducible relative to each other. The seed logic lives
+inside `Create<T>()`/`CreateMany<T>()` themselves — each call evaluates
+`_configuration.Seed ?? CompositionSeed.Generate()`, so on an unseeded
+composer, **every individual `Create<T>()`/`CreateMany<T>()` call draws
+its own fresh random root seed**, whether that call happens on a
+long-lived reused `Composer` instance or a freshly rebuilt one — reuse
+doesn't change this. The only way to get reproducible/correlated values
+across multiple `Create<T>()` calls is `WithSeed(...)` at configuration
+time, which makes `_configuration.Seed` non-null so every call on that
+composer reuses the same configured seed instead of generating a new
+one.
 
 `ICompositionContext` is what a registration factory or custom provider
 uses to resolve *its own* nested dependencies:

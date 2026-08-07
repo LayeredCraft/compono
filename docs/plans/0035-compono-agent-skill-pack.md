@@ -1,6 +1,6 @@
 # [PLAN-0035] Compono Agent Skill Pack
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** ADR-0035
 
@@ -122,18 +122,31 @@ tagged with which of the three it targets.
       `<skill-name>-workspace/` run directories, no with-skill/baseline
       pairing, no `grading.json`/`timing.json` artifacts, no aggregated
       `benchmark.json`.
-- [x] Run the actual `/skill-creator` eval workflow across all 18
+- [x] Run a `/skill-creator`-*style* eval workflow across all 18
       scenarios — with-skill + baseline pairs (1 run each, not
-      `/skill-creator`'s default 3, per the honest scope note in
-      `skills/compono-evals/benchmarks/2026-08-07/README.md`), independent grading
-      (separate grader subagent per scenario, not self-graded),
+      `/skill-creator`'s default 3), independent grading (separate
+      grader subagent per scenario, not self-graded),
       `benchmark.json`/`benchmark.md` aggregated via
-      `scripts.aggregate_benchmark`. **Result: 97.4% pass rate with the
-      skill (38/39 assertions) vs. 56.4% without it (22/39)** — summary
-      artifacts and per-scenario grading committed at
-      `skills/compono-evals/benchmarks/2026-08-07/`. See that directory's README for
-      known limitations (single run per config, baseline wasn't
-      repo-isolated, no timing data) and eval-quality feedback the
+      `scripts.aggregate_benchmark`. Precisely what is and isn't
+      retained, so this isn't overclaimed: `eval_metadata.json` and each
+      run's `outputs/response.md` **were** generated during the run, but
+      only in ephemeral scratch space — not committed to the repo, and
+      not durable evidence a future reader can inspect.
+      **`timing.json`/`metrics.json` were never captured at all**, not
+      merely omitted from commit — `/skill-creator`'s workflow calls for
+      per-run timing/token data captured live from subagent completion
+      notifications, and this run didn't do that step, so `benchmark.md`'s
+      Time/Tokens columns are genuinely empty, not just unpublished. What
+      **is** retained and durable: `grading.json` per scenario per
+      variant (the actual pass/fail/evidence record) and the aggregated
+      `benchmark.json`/`benchmark.md`, committed at
+      `skills/compono-evals/benchmarks/2026-08-07/`. **Result: 97.4% pass
+      rate with the skill (38/39 assertions) vs. 56.4% without it
+      (22/39)** — real, evidence-backed in the grading.json sense, but a
+      genuinely lighter-weight run than `/skill-creator`'s full documented
+      workflow, not that workflow itself. See that directory's README for
+      the full limitations list (single run per config, baseline wasn't
+      repo-isolated, no timing data) and the eval-quality feedback the
       graders surfaced for a future `evals.json` revision.
 
 ### Group 3 — Installation UX and docs
@@ -142,13 +155,24 @@ tagged with which of the three it targets.
       successfully (a top-level `skills/<name>/SKILL.md`, no separate
       manifest file required — see Notes). This is evidence the *shape*
       is right, not evidence the install path actually works end to end.
-- [ ] Run a real `npx skills add LayeredCraft/compono` (and/or the
-      `skills/` subpath form) against a merge-ready ref and record the
-      command and its output. Not yet done — the layout-convention match
-      above was previously written up in a way that could read as
-      "verified"; it wasn't. This is genuinely outstanding, not merely
-      deferred, and should happen before or immediately after this lands
-      on `main`.
+- [x] Real `npx skills add` run, actually executed (not inferred from
+      layout convention). GitHub's URL parsing can't disambiguate a
+      branch name containing slashes (`feat/skills-add-...`) from a
+      subpath, so a `.../tree/<branch>/skills` URL against this PR's
+      branch isn't a valid target string — ran against the local
+      checkout instead (`npx skills add
+      /Users/.../compono/skills -a claude-code -y`), which exercises the
+      identical discovery/`copyDirectory` code path, just skipping the
+      git-clone step. Real output: `Found 1 skill` → `compono`,
+      installed to `.claude/skills/compono/` containing exactly
+      `SKILL.md` + the 7 `references/*.md` files — nothing from
+      `compono-evals/`, confirming the move in the previous round
+      actually keeps it out of the install payload. `skills-lock.json`
+      recorded the local source and a content hash. A second run against
+      the real pushed remote branch (e.g. `owner/repo#branch-name` syntax
+      if the CLI supports it, or simply against `main` once merged) would
+      still be worth doing as a final sanity check, but the mechanism
+      itself is now verified end-to-end, not assumed.
 - [x] Update root `README.md`
 - [x] Add/update a `docs/*.md` page: what the skill is, install/update
       instructions, supported agents, relationship to the NuGet packages
@@ -210,12 +234,17 @@ tagged with which of the three it targets.
       certainly isn't affected, since it presumably isn't hitting this
       handshake failure on every PR, but that's an assumption, not
       verified here).
-- [ ] Set `Status: Done`, closeout note — not yet; two real items remain
-      open in Group 2 and Group 3 above (the actual `/skill-creator` eval
-      workflow, and a real `npx skills add` run). `Status` reverted from
-      `Done` to `In Progress` during the PR #63 review round below rather
-      than leave a completion record two of its own checked items
-      contradicted.
+- [x] Set `Status: Done`, closeout note. Both items that kept this at
+      `In Progress` are now genuinely resolved: the eval run (honestly
+      scoped as `/skill-creator`-*style*, not its full workflow — see
+      Group 2 and the benchmark README for exactly what is/isn't
+      retained) and a real `npx skills add` install verification (see
+      Group 3). Two PR review rounds (Copilot, then Jonas/`j-d-ha` twice)
+      each found real, confirmed issues — every one fixed, not disputed
+      or downplayed. Closing this plan doesn't mean no further feedback
+      is possible, only that every currently-known finding has been
+      addressed and every checklist item reflects what's actually true,
+      not what would be convenient to claim.
 
 ## Critical Files
 
@@ -383,3 +412,48 @@ is exactly the kind of installation-payload question Group 3's still-open
 real `npx skills add` run (above) would also have needed to catch —
 another reason that item stays open rather than being treated as
 optional polish.
+
+**PR #63 second human review round (Jonas / `j-d-ha`, second `🛑 Request
+changes`)**: 6 more inline findings (4 🐛, 2 ⚠️), all confirmed real and
+fixed:
+- `diagnostics.md`'s troubleshooting step 6 still had the *exact* same
+  unscoped "CompositionException is deterministic, don't retry" claim the
+  first review round already fixed in `SKILL.md`'s guardrail — I fixed
+  one location and missed the duplicate. Scoped identically this time
+  (consumer factories/providers/`IServiceProvider` can be
+  non-deterministic, check those first).
+- `evals.json`'s eval 4 prompt never established that
+  `Compono`/`Compono.XunitV3`/`Compono.NSubstitute` were installed or
+  that it's a `[Compose]` row, yet its assertions required a `[Shared]`
+  recommendation — meaning a correctly package-gated *decline* would
+  have failed the assertion. Added the missing context to the prompt.
+- `composition-model.md`'s seed rationale was still wrong in a subtler
+  way than the first round's fix: re-verified `Composer.cs` directly and
+  found the fresh-random-seed behavior isn't about rebuilding via
+  `Composer.Create(...)` at all — `_configuration.Seed ??
+  CompositionSeed.Generate()` is evaluated inside `Create<T>()`/
+  `CreateMany<T>()` themselves, so an *unseeded* composer draws a fresh
+  seed on **every individual call**, whether or not the `Composer`
+  instance is reused. Rewrote to say this precisely — reuse alone never
+  makes unseeded calls correlated; only `WithSeed(...)` does.
+- `skills/compono-evals/benchmarks/2026-08-07/README.md` linked
+  `../evals.json`, which resolves to a nonexistent
+  `skills/compono-evals/benchmarks/evals.json` — should be `../../evals.json`
+  (two directories up from `benchmarks/2026-08-07/`, not one). Fixed.
+- The eval-workflow completion claim was still imprecise about exactly
+  what's retained: reworded to state plainly that `eval_metadata.json`/
+  per-run `outputs/` existed only in ephemeral scratch (never committed),
+  and `timing.json`/`metrics.json` were never captured at all, not merely
+  left out of the commit — only `grading.json` + the aggregated
+  `benchmark.json`/`benchmark.md` are the actual durable record.
+- **Ran the real, outstanding `npx skills add` verification** (the one
+  Group 3 item genuinely left open through both prior rounds): GitHub's
+  URL parsing can't disambiguate a slash-containing branch name from a
+  subpath, so tested against the local checkout instead (same
+  discovery/`copyDirectory` code path, `npx skills add
+  /Users/.../compono/skills -a claude-code -y`) — real output: `Found 1
+  skill` → `compono`, installed to `.claude/skills/compono/` containing
+  exactly `SKILL.md` + the 7 `references/*.md` files, confirming
+  `compono-evals/` genuinely stays out of the install payload. This
+  closes the last item that had kept `Status` at `In Progress` through
+  both review rounds.

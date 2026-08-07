@@ -29,7 +29,7 @@
       "id": 3,
       "category": "routing",
       "prompt": "Convert this xUnit test that manually builds an Order and a fake IOrderRepository into an xUnit v3 test that uses Compono. The project references Compono, Compono.XunitV3, and Compono.NSubstitute.",
-      "expected_output": "Uses [Theory]/[Compose] or [Compose<TProfile>], composes Order directly, and uses [Shared] IOrderRepository with UseNSubstitute() from a profile rather than a hand-rolled fake — because Compono.NSubstitute is referenced.",
+      "expected_output": "Uses [Theory]/[Compose] or [Compose<TProfile>], composes Order directly, and uses [Shared] IOrderRepository with UseNSubstitute() from a profile rather than a hand-rolled fake \u2014 because Compono.NSubstitute is referenced.",
       "files": [],
       "expectations": [
         "Uses [Compose] or [Compose<TProfile>] correctly, only one Compose-family attribute on the method",
@@ -40,8 +40,8 @@
     {
       "id": 4,
       "category": "behavioral-correctness",
-      "prompt": "I want the same NSubstitute dependency reused throughout this composition, and I need to assert calls against it after the system under test runs.",
-      "expected_output": "Recommends [Shared] on the interface-typed parameter (Compono.XunitV3), explains it's type-keyed and resolves first, and shows asserting against the same shared instance.",
+      "prompt": "I want the same NSubstitute dependency reused throughout this composition, and I need to assert calls against it after the system under test runs. The project references Compono, Compono.XunitV3, and Compono.NSubstitute, and this is a [Compose] theory row.",
+      "expected_output": "Recommends [Shared] on the interface-typed parameter in the [Compose] theory row (Compono.XunitV3), explains it is type-keyed and resolves first, and shows asserting against the same shared instance.",
       "files": [],
       "expectations": [
         "Recommends [Shared], correctly describes it as Compono.XunitV3-only, not core Compono",
