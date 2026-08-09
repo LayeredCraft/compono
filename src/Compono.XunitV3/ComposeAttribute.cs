@@ -302,7 +302,11 @@ public class ComposeAttribute : DataAttribute
     // matching the same trailing text a propagated pipeline CompositionDiagnostic already renders
     // (ADR-0022's Seed Policy and Reporting) - so every failure category ends the same way, whether
     // Compono.XunitV3 constructed the message or the pipeline did.
-    private static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
+    // private protected, not private - ComposeAttribute{TProfile,TConfig} reuses this exact
+    // convention for its own pre-composer negative-seed check (PR #65 review), which must run
+    // before ApplyProfile does any config/profile binding work, i.e. before a CompositionRow (and
+    // this method's usual row.Seed source) exists at all.
+    private protected static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
 
     // A genuine composition failure (PR #26 review; ADR-0022 Amendment 5) propagates un-wrapped from
     // the pipeline otherwise, and CompositionException.Message alone never carries the seed for that

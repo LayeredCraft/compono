@@ -207,6 +207,26 @@ internal static class SampleTestMethods
         }
     }
 
+    // A single public constructor that itself throws - ConfigProfileBinder.Invoke's
+    // TargetInvocationException-unwrapping, config-construction case (PR #65 review:
+    // ConstructorInfo.Invoke wraps a constructor-thrown exception in TargetInvocationException;
+    // without unwrapping, ApplyProfile's own catch (CompositionException) never observes this).
+    public sealed class ThrowingTestConfig
+    {
+        public ThrowingTestConfig(string value) => throw new CompositionException($"custom validation failed for '{value}'");
+    }
+
+    // Same reasoning as ThrowingTestConfig above, but for the profile-construction call site instead
+    // of the config-construction one.
+    public sealed class ThrowingTestProfile : ICompositionProfile
+    {
+        public ThrowingTestProfile(TestConfig config) => throw new CompositionException($"custom validation failed for '{config.Value}'");
+
+        public void Configure(CompositionBuilder builder)
+        {
+        }
+    }
+
     // Mirrors CollectionPlan.scriban's own HashSet<T> shape exactly (same UniqueValueResolver call,
     // same plain-message CompositionException on exhaustion) rather than just throwing directly,
     // since this test project doesn't reference Compono.Generators as an analyzer and can't get the

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 
 namespace Compono.XunitV3.Binding;
 
@@ -85,7 +86,7 @@ internal static class ConfigProfileBinder
             arguments[i] = value;
         }
 
-        return constructor.Invoke(arguments);
+        return Invoke(constructor, arguments);
     }
 
     /// <summary>
@@ -102,7 +103,30 @@ internal static class ConfigProfileBinder
     {
         var constructor = ResolveSingleProfileConstructor(typeof(TProfile), typeof(TConfig));
 
-        return (TProfile)constructor.Invoke([config]);
+        return (TProfile)Invoke(constructor, [config]);
+    }
+
+    // ConstructorInfo.Invoke wraps any exception the constructor body itself throws (e.g. a
+    // CompositionException from custom TConfig/TProfile validation logic) in a
+    // TargetInvocationException - without unwrapping it here, ApplyProfile's own
+    // catch (CompositionException) could never observe it, and the caller would see a generic
+    // reflection failure with no seed-reporting instead of the constructor's own actionable
+    // exception (PR #65 review). ExceptionDispatchInfo.Capture(...).Throw() re-throws the inner
+    // exception with its original stack trace preserved, rather than a bare `throw
+    // exception.InnerException` (which would reset it) or catching only CompositionException
+    // specifically (which would still let a non-CompositionException constructor-thrown exception
+    // stay wrongly wrapped).
+    private static object Invoke(ConstructorInfo constructor, object?[] arguments)
+    {
+        try
+        {
+            return constructor.Invoke(arguments);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw; // Unreachable - Throw() always throws; satisfies every code path returning a value.
+        }
     }
 
     private static ConstructorInfo ResolveSingleConstructor(Type type)

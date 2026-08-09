@@ -465,3 +465,33 @@ Both fixes have dedicated `Compono.XunitV3.Tests` regression coverage
 `GetData_Throws_WhenConfigTypeIsAbstract`,
 `GetData_Throws_WhenProfileTypeIsAbstract`) and are documented in
 `docs/troubleshooting/common-errors.md`. Full solution: 903/903 passed.
+
+**PR #65's third review round caught two more, both edge cases of the
+round-2 fixes rather than newly independent gaps — fixed and pushed:**
+
+1. **A negative configured seed lost to a binder failure.** Round 2's
+   catch-block fix used `SeedAsNullable ?? <fresh seed>` unconditionally —
+   if `SeedAsNullable` itself was negative (`Seed = -1`) *and* the
+   config/profile shape was also invalid, the binder failure reported
+   `Seed: -1` instead of the documented negative-seed diagnostic the base
+   `GetData` enforces for every other case. Fixed: `ApplyProfile` now
+   checks for a negative `SeedAsNullable` first, before attempting any
+   config/profile binding, throwing the identical negative-seed message
+   the base class uses (`AppendSeed` promoted from `private` to
+   `private protected` so both share the exact convention).
+2. **`ConstructorInfo.Invoke` wrapping constructor-thrown exceptions.** If
+   `TConfig`'s or `TProfile`'s own constructor throws (e.g. custom
+   validation logic), reflection wraps that in `TargetInvocationException`
+   — `ApplyProfile`'s `catch (CompositionException)` never saw it, so a
+   constructor's own actionable exception was replaced by an opaque
+   reflection failure with no seed reporting. Fixed:
+   `ConfigProfileBinder`'s shared `Invoke` helper unwraps
+   `TargetInvocationException` via `ExceptionDispatchInfo.Capture(...).Throw()`
+   (preserving the original stack trace), for both the `TConfig` and
+   `TProfile` construction call sites.
+
+Regression coverage:
+`GetData_ReportsTheNegativeSeedDiagnostic_NotTheBinderFailure_WhenBothApply`,
+`GetData_UnwrapsAndReportsTheOriginalException_WhenTheConfigConstructorThrows`,
+`GetData_UnwrapsAndReportsTheOriginalException_WhenTheProfileConstructorThrows`.
+Full solution: 909/909 passed.

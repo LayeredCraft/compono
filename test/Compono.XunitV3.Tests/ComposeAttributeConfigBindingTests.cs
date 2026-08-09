@@ -167,6 +167,51 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [Fact]
+    public async Task GetData_ReportsTheNegativeSeedDiagnostic_NotTheBinderFailure_WhenBothApply()
+    {
+        // Seed = -1 combined with an invalid profile/config shape must report the documented
+        // negative-seed diagnostic, not the binder failure with "Seed: -1" embedded (PR #65 review) -
+        // the negative-seed check has to run before any config/profile binding is even attempted.
+        var attribute = new ComposeAttribute<SampleTestMethods.ProfileWithoutMatchingConstructor, SampleTestMethods.TestConfig>("value") { Seed = -1 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*non-negative seed*-1*");
+    }
+
+    [Fact]
+    public async Task GetData_UnwrapsAndReportsTheOriginalException_WhenTheConfigConstructorThrows()
+    {
+        var attribute = new ComposeAttribute<SampleTestMethods.ProfileWithoutMatchingConstructor, SampleTestMethods.ThrowingTestConfig>("value");
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        // Proves ConstructorInfo.Invoke's TargetInvocationException wrapper was unwrapped - the
+        // caller sees ThrowingTestConfig's own actionable message (and the seed convention still
+        // applies), not a generic reflection failure.
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*custom validation failed for 'value'*Seed: *");
+    }
+
+    [Fact]
+    public async Task GetData_UnwrapsAndReportsTheOriginalException_WhenTheProfileConstructorThrows()
+    {
+        var attribute = new ComposeAttribute<SampleTestMethods.ThrowingTestProfile, SampleTestMethods.TestConfig>("value");
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*custom validation failed for 'value'*Seed: *");
+    }
+
+    [Fact]
     public async Task GetData_Throws_WhenAProfileConfigurationArgumentHasAnIncompatibleType()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.ParameterizedTestProfile, SampleTestMethods.TestConfig>(42);

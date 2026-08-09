@@ -66,6 +66,21 @@ public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
 
     internal override void ApplyProfile(CompositionBuilder builder)
     {
+        // A negative configured seed must be rejected before any config/profile binding is
+        // attempted - otherwise Seed = -1 combined with an invalid TConfig/TProfile shape would
+        // report the binder failure below with "Seed: -1" embedded instead of the documented
+        // negative-seed diagnostic the base class's own GetData enforces (PR #65 review).
+        // SeedAsNullable is exactly what CompositionRow.Seed would resolve to if non-negative
+        // (Composer.CreateRow's unseeded fallback only ever generates a non-negative value), so
+        // checking it here - before a CompositionRow even exists - gives the identical guarantee
+        // GetData's own row.Seed < 0 check gives, just earlier.
+        if (SeedAsNullable is { } configuredSeed && configuredSeed < 0)
+        {
+            throw new CompositionException(AppendSeed(
+                $"Compono.XunitV3 requires a non-negative seed, but the configured seed was {configuredSeed}.",
+                configuredSeed));
+        }
+
         try
         {
             var config = ConfigProfileBinder.BindConfig(typeof(TConfig), _configArguments);
@@ -79,12 +94,13 @@ public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
             // GetData ever calls Composer.CreateRow, so no CompositionRow/row.Seed exists yet at this
             // point (PR #65 review: this attribute's own binder failures were escaping with no seed
             // at all, unlike every other Compono.XunitV3-owned pre-composition failure). Report the
-            // seed this attribute is actually configured with (SeedAsNullable) - the same seed
-            // row.Seed would resolve to once composition succeeds - or a freshly generated one
-            // otherwise. Reproducibility isn't actually the point for this specific failure category
-            // (a constructor-shape/argument mismatch fails identically regardless of seed); this is
-            // purely ADR-0022's "every Compono.XunitV3-owned failure ends with Seed: {value}"
-            // convention, applied consistently rather than as an exception for this one binding path.
+            // seed this attribute is actually configured with (SeedAsNullable, already proven
+            // non-negative by the check above) - the same seed row.Seed would resolve to once
+            // composition succeeds - or a freshly generated one otherwise. Reproducibility isn't
+            // actually the point for this specific failure category (a constructor-shape/argument
+            // mismatch fails identically regardless of seed); this is purely ADR-0022's "every
+            // Compono.XunitV3-owned failure ends with Seed: {value}" convention, applied consistently
+            // rather than as an exception for this one binding path.
             var seed = SeedAsNullable ?? Random.Shared.Next(0, int.MaxValue);
             throw CompositionException.WithSeedInMessage(exception, seed);
         }
