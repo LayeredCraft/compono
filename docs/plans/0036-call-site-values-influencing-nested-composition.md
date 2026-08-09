@@ -400,3 +400,36 @@ stack-traced through `ConfigProfileBinder.ResolveSingleProfileConstructor`
 happens before the test body runs, from inside the packaged assembly.
 Full solution `dotnet build`/`dotnet test` (`Compono.slnx`): 0 warnings,
 0 errors, 893/893 passed.
+
+**PR #65 review (Codex) caught a real blocking gap this plan's own
+verification missed:** `Compono.Generators`' `ComposeMethodDiscovery` was
+registered against the non-generic and one-type-parameter
+`ComposeAttribute` metadata names only (`ComponoIncrementalGenerator.cs`)
+— `ComposeAttribute<TProfile, TConfig>`'s own arity-suffixed metadata name
+(`Compono.XunitV3.ComposeAttribute\`2`) was never registered, so a
+concrete parameter type reached *only* through
+`[Compose<TProfile, TConfig>]` (no other `Create<T>()`/`[Composable]` call
+site) got no generated `ICompositionPlan<T>` at all and would fail at
+`GetData` time in real usage. This plan's own packaged-consumer sample
+(`ConfigProfileTests.cs`) didn't catch it because its only composed
+parameter type was a `string` — provider-resolved, never needs a
+generated plan — masking the gap exactly the way `testing.md`'s
+"verifying a new public entry point" rule warns against. Fixed: a third
+`ForAttributeWithMetadataName` registration added for
+`ComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName`, merged
+into the same `composeMethodResultsAll` pipeline as the other two arities
+(`ComponoIncrementalGenerator.cs`); a new isolated
+`Compono.Generators.Tests` snapshot test
+(`ComposeTwoTypeParameterAttributedMethodParameter_GeneratesCompositionPlan`)
+proves a concrete type reached only this way now gets a plan; and
+`ConfigProfileTests.cs` was changed to compose a real concrete
+`RepositoryConsumer` class (with its own nested `string` dependency
+satisfied by the profile's registration) instead of a bare `string`, so
+the packaged sample now actually exercises the fixed path instead of
+masking it. `docs/roadmap/post-mvp.md` was also corrected in the same
+review round — the page's own stated purpose
+(`docs/roadmap/index.md`: "not fully available") doesn't allow a shipped,
+`Accepted`+`Done` capability to stay listed as an outstanding candidate;
+returned to a no-current-candidates state with the historical trail
+preserved via ADR-0036/RESEARCH-0002/PLAN-0036 links instead of inline
+restatement.

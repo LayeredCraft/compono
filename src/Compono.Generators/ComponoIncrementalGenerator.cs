@@ -73,14 +73,27 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TransformMethod)
             .WithTrackingName(TrackingNames.ComposeGenericMethods);
 
-        // Both ComposeMethodDiscovery registrations above (non-generic and generic-metadata-name)
-        // feed the exact same discovery logic - merge them into one provider here so every consumer
-        // below treats "a [Compose]/[Compose<TProfile>]-attributed method" as a single source, same
-        // as CreateInvocations/Composable/AssemblyComposable already do for their own two-syntax-form
-        // splits.
+        // [Compose<TProfile, TConfig>] specifically (ADR-0036) - same reasoning as the arity-1
+        // registration immediately above: ForAttributeWithMetadataName matches only the exact,
+        // arity-suffixed attribute class metadata name ("ComposeAttribute`2"), invisible to either
+        // of the other two registrations. Same transform - TransformMethod only cares about the
+        // attributed method's own parameters, not which ComposeAttribute arity triggered it.
+        var composeTwoTypeParameterMethodResults = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                ComposeMethodDiscovery.TransformMethod)
+            .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethods);
+
+        // All three ComposeMethodDiscovery registrations above (non-generic, arity-1, arity-2) feed
+        // the exact same discovery logic - merge them into one provider here so every consumer below
+        // treats "a [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed method" as
+        // a single source, same as CreateInvocations/Composable/AssemblyComposable already do for
+        // their own multi-syntax-form splits.
         var composeMethodResultsAll = composeMethodResults.Collect()
             .Combine(composeGenericMethodResults.Collect())
-            .SelectMany(static (results, _) => results.Left.Concat(results.Right))
+            .Combine(composeTwoTypeParameterMethodResults.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
@@ -266,6 +279,7 @@ internal static class TrackingNames
     public const string AssemblyComposablesTypes = "AssemblyComposables.Types";
     public const string ComposeMethods = "ComposeMethods";
     public const string ComposeGenericMethods = "ComposeMethods.Generic";
+    public const string ComposeTwoTypeParameterMethods = "ComposeMethods.TwoTypeParameter";
     public const string ComposeMethodsAll = "ComposeMethods.All";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";

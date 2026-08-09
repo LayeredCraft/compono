@@ -1895,6 +1895,79 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task ComposeTwoTypeParameterAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.XunitV3
+                {
+                    // Stands in for the real Compono.XunitV3.ComposeAttribute/ICompositionProfile (a
+                    // separate package/assembly, not referenced from this generator test project) -
+                    // ComposeMethodDiscovery matches on the fully qualified metadata name alone, so
+                    // same-named types here trigger it identically to the real ones.
+                    public interface ICompositionProfile
+                    {
+                        void Configure(object builder);
+                    }
+
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+
+                    public sealed class ComposeAttribute<TProfile> : ComposeAttribute
+                        where TProfile : ICompositionProfile, new()
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) : base(inlineValues) { }
+                    }
+
+                    // [Compose<TProfile, TConfig>]'s (ADR-0036) attribute class metadata name is the
+                    // arity-suffixed "Compono.XunitV3.ComposeAttribute`2" - distinct from both the
+                    // non-generic and the one-type-parameter forms above, and reached only via
+                    // ComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName's own, separately
+                    // registered discovery provider (PR #65 review).
+                    public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
+                        where TProfile : ICompositionProfile
+                    {
+                        public ComposeAttribute(params object?[] configArguments) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed record InvoiceConfig(string Reference);
+
+                    public sealed class InvoiceProfile : Compono.XunitV3.ICompositionProfile
+                    {
+                        public InvoiceProfile(InvoiceConfig config) { }
+                        public void Configure(object builder) { }
+                    }
+
+                    public sealed class CreditNote
+                    {
+                        public CreditNote(string reference) { Reference = reference; }
+                        public string Reference { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<CreditNote>()/CreateMany<CreditNote>() call site, no [Composable]
+                        // attribute, and no non-generic/one-type-parameter [Compose] use anywhere in
+                        // this source - CreditNote is reachable only as this
+                        // [Compose<TProfile, TConfig>]-attributed method's own parameter, proving the
+                        // two-type-parameter-metadata-name discovery path on its own (the exact gap
+                        // PR #65 review caught: a concrete parameter type reached only through this
+                        // attribute form previously had no generated plan at all).
+                        [Compono.XunitV3.Compose<InvoiceProfile, InvoiceConfig>("some-reference")]
+                        public static void Creates_creditNote(CreditNote creditNote)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ComposeAttributedGenericMethodParameter_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

@@ -11,6 +11,23 @@ public enum RepositoryKind
 
 public sealed record RepositoryTestConfig(RepositoryKind Repository);
 
+// Composed only as ConfigProfileTests' own [Compose<TProfile,TConfig>]-attributed theory methods'
+// parameter type - no Create<RepositoryConsumer>()/CreateMany<RepositoryConsumer>() call site, no
+// [Composable], and no other Compose-family use of it anywhere else in this project. This is the
+// exact shape PR #65 review caught: ComposeMethodDiscovery originally had no registered provider for
+// the two-type-parameter attribute's own metadata name, so a concrete parameter type reached only
+// this way got no generated ICompositionPlan<T> at all and failed at GetData time - the earlier
+// version of this file used only a registered `string` parameter, which never needs a generated plan
+// and masked the gap entirely. RepositoryConsumer's own nested `string` constructor dependency is
+// still satisfied by the profile's registration below, proving both paths (attribute-only discovery,
+// and registration-backed nested resolution) together.
+public sealed class RepositoryConsumer
+{
+    public RepositoryConsumer(string repositoryName) => RepositoryName = repositoryName;
+
+    public string RepositoryName { get; }
+}
+
 // Reached only through ConfigProfileTests' own [Compose<TProfile,TConfig>] theory parameters - proves
 // ComposeAttribute<TProfile,TConfig> actually binds profile configuration arguments and applies the
 // resulting profile through the real packaged pipeline, not just Compono.XunitV3.Tests' in-process
@@ -46,16 +63,16 @@ public sealed class ConfigProfileTests
 {
     [Theory]
     [Compose<RepositoryTestProfile, RepositoryTestConfig>(RepositoryKind.Player)]
-    public void ComposesTheProfileBuiltFromConfigArguments(string repositoryName)
+    public void ComposesTheProfileBuiltFromConfigArguments(RepositoryConsumer consumer)
     {
-        repositoryName.Should().Be("player-repository");
+        consumer.RepositoryName.Should().Be("player-repository");
     }
 
     [Theory]
     [Compose<RepositoryTestProfile, RepositoryTestConfig>(RepositoryKind.Game)]
-    public void DifferentConfigArguments_ProduceADifferentlyConfiguredProfile(string repositoryName)
+    public void DifferentConfigArguments_ProduceADifferentlyConfiguredProfile(RepositoryConsumer consumer)
     {
-        repositoryName.Should().Be("game-repository");
+        consumer.RepositoryName.Should().Be("game-repository");
     }
 
     // Deliberately fails, on every run, via ConfigProfileBinder's own pre-composition constructor-shape
