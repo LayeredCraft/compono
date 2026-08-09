@@ -23,6 +23,7 @@ public sealed class PublicApiSurfaceTests
         [
             "Compono.XunitV3.ComposeAttribute",
             "Compono.XunitV3.ComposeAttribute`1",
+            "Compono.XunitV3.ComposeAttribute`2",
             "Compono.XunitV3.SharedAttribute",
         ]);
     }

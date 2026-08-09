@@ -31,6 +31,18 @@ public void ComposesTheProfileConfiguredValue(NotificationSettings settings) { }
 parameterless constructor — `[Compose<TProfile>]` enforces this at compile
 time via a generic constraint.
 
+**A profile that needs a value known only at a specific test's call
+site** — not a fixed, default-constructed one — can't use
+`[Compose<TProfile>]` at all, since it has no way to receive that value.
+`[Compose<TProfile, TConfig>]` covers this: `TConfig` is a small,
+strongly-typed configuration object, bound positionally from the
+attribute's own constructor arguments and passed to `TProfile`'s
+constructor. See
+[`Compono.XunitV3`'s Package Guide](../packages/compono-xunitv3.md#profile-configuration-arguments)
+for the full shape and
+[Migrating from AutoFixture](../migrating-from-autofixture.md#migrate-a-parameterized-custom-autodataattribute)
+for the AutoFixture pattern this replaces.
+
 ## Combining more than one profile
 
 ```csharp

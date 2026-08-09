@@ -89,6 +89,7 @@ each row is expanded into its own section below.
 | `fixture.Create<T>()` | `composer.Create<T>()` |
 | `[AutoData]` | `[Compose]` |
 | Custom `AutoDataAttribute` subclass | `[Compose<TProfile>]` |
+| **Parameterized** custom `AutoDataAttribute` subclass (constructor args driving customization logic) | `[Compose<TProfile, TConfig>]` |
 | `ICustomization` | `ICompositionProfile` |
 | Exact-type specimen customization | `Register<T>()` |
 | Exact-type `ISpecimenBuilder` | `Register<T>()` |
@@ -179,6 +180,93 @@ Compono equivalent — pick one Compose-family attribute per method and
 cover the rest with a separate `[Theory]`/`[InlineData]` method instead.
 See [`Compono.XunitV3`'s Package Guide](packages/compono-xunitv3.md#what-it-deliberately-doesnt-do)
 for the full mechanics of why stacking isn't supported.
+
+## Migrate a parameterized custom `AutoDataAttribute`
+
+A common, larger pattern than the previous section's simple wrapper: a
+custom `AutoDataAttribute` subclass whose own **constructor** takes
+arguments that change what the underlying fixture customization produces
+— not just which type gets composed, but a value read *inside* the
+customization logic itself. Real, frequent examples found migrating a
+much larger AutoFixture test suite than this guide's other examples are
+drawn from (`ncipollina/trivia-platform`'s `PersistenceAutoData(repositoryName)` —
+around 45 call sites, each a different repository name driving a
+different persistence setup — and an 8-parameter
+`AnnouncementsAutoData(validConfig, gameOverEnabled, ...)`):
+
+```csharp
+// Before
+public sealed class PersistenceAutoDataAttribute(string repositoryName)
+    : AutoDataAttribute(() => CreateFixture(repositoryName))
+{
+    private static IFixture CreateFixture(string repositoryName)
+    {
+        var fixture = new Fixture();
+        fixture.Customize(new PersistenceCustomization(repositoryName));
+        return fixture;
+    }
+}
+
+[Theory]
+[PersistenceAutoData("PlayerRepository")]
+public void Repository_Works(PlayerRepository sut) { }
+```
+
+Neither of the migration paths the previous sections cover fits cleanly
+here: a plain `[Compose<TProfile>]` has no way to receive
+`"PlayerRepository"` at all, and writing one profile subclass per
+repository name doesn't scale to `AnnouncementsAutoData`'s combinatorial
+8-flag argument space — nor does falling back to a hand-built
+`Composer.Create(...)` per test, which reintroduces exactly the per-test
+setup code the attribute-based idiom exists to eliminate. This is what
+`[Compose<TProfile, TConfig>]` ([ADR-0036](adr/0036-parameterized-composition-profile-selection.md))
+exists for — a **typed configuration object** paired with the profile,
+bound from this attribute's own constructor arguments:
+
+```csharp
+// After
+public enum RepositoryKind
+{
+    Player,
+    Leaderboard,
+}
+
+public sealed record PersistenceConfig(RepositoryKind Repository);
+
+public sealed class PersistenceProfile : ICompositionProfile
+{
+    public PersistenceProfile(PersistenceConfig config) => Config = config;
+
+    public PersistenceConfig Config { get; }
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register<IRepositoryOptions>(_ => RepositoryOptionsFactory.Create(Config.Repository));
+}
+
+[Theory]
+[Compose<PersistenceProfile, PersistenceConfig>(RepositoryKind.Player)]
+public void Repository_Works(PlayerRepository sut) { }
+```
+
+Note the enum, not a string — the original AutoFixture attribute took a
+raw `string repositoryName`, but that string only ever had a handful of
+valid values in practice (a finite, named choice). `params object?[]` is
+a binding mechanism forced by C#'s attribute-argument-must-be-a-
+compile-time-constant rule, not a license to carry the original
+stringly-typed shape forward — see
+[`Compono.XunitV3`'s Package Guide](packages/compono-xunitv3.md#profile-configuration-arguments)
+for the full "prefer the strongest attribute-legal type" guidance
+(`typeof(...)` for a CLR type, `bool`/numeric values where those already
+carry the real meaning).
+
+**Don't reach for `[Compose<TProfile, TConfig>]` for every parameterized
+attribute, though.** If the "parameter" is really just a `[Frozen]`-style
+substitute or a single fixed value that's the same for every call site in
+practice, the simpler existing forms (`[Compose<TProfile>]`, an inline
+value, a member rule) already cover it — reserve this form for the case
+this section actually describes: a value that's genuinely different per
+call site and needs to reach configuration logic running *inside* the
+profile, not at the test method's own parameter list.
 
 ## Migrate `ICustomization`
 
@@ -346,6 +434,57 @@ case. Reach for a custom `ICompositionValueProvider` only for the rarer
 case that genuinely needs to match on request shape rather than a fixed
 type — see [Providers](concepts/providers.md).
 
+**A specimen builder that dispatches on the requesting *parameter/member
+name*, not just its type** — several distinct values of the same
+declared type, chosen by which parameter is asking — is the other real
+case a custom `ICompositionValueProvider` covers cleanly.
+`CompositionProviderRequest.Name` carries the requesting constructor
+parameter/required member/test-method-parameter's own name for exactly
+this:
+
+```csharp
+// Before
+public sealed class UpsellPayloadSpecimenBuilder : ISpecimenBuilder
+{
+    public object Create(object request, ISpecimenContext context) => request switch
+    {
+        ParameterInfo { Name: "newGamePayload" } => new UpsellPayload("new-game"),
+        ParameterInfo { Name: "lockedPackPayload" } => new UpsellPayload("locked-pack"),
+        _ => new NoSpecimen(),
+    };
+}
+```
+
+```csharp
+// After
+public sealed class UpsellPayloadProvider : ICompositionValueProvider
+{
+    public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
+    {
+        if (request.RequestedType != typeof(UpsellPayload))
+            return CompositionProviderResult.NotHandled;
+
+        return request.Name switch
+        {
+            "newGamePayload" => CompositionProviderResult.Handled(new UpsellPayload("new-game")),
+            "lockedPackPayload" => CompositionProviderResult.Handled(new UpsellPayload("locked-pack")),
+            _ => CompositionProviderResult.NotHandled,
+        };
+    }
+}
+```
+
+Registered via `builder.AddSemanticProvider(new UpsellPayloadProvider())`
+(or `AddTestDoubleProvider`, depending on what it's producing — see
+[Providers](concepts/providers.md)). This is a different question from
+[Profile configuration arguments](packages/compono-xunitv3.md#profile-configuration-arguments) —
+a `Name`-based provider is a **global rule** ("whenever anything asks for
+`UpsellPayload` named `newGamePayload`, produce this"), evaluated for
+every matching request across every test; a profile configuration
+argument is a **per-invocation value** known only at one specific test's
+`[Compose<TProfile, TConfig>(...)]` call site. Don't reach for one to
+solve the other.
+
 ## Handle recursion behavior
 
 **Intentional difference:** AutoFixture's default `ThrowingRecursionBehavior`
@@ -469,7 +608,9 @@ in [Troubleshooting](troubleshooting/index.md#known-limitations).
 
 - [ ] Remove AutoFixture package references.
 - [ ] Add the required Compono packages at matching versions.
-- [ ] Replace custom AutoData attributes with `[Compose]` or `[Compose<TProfile>]`.
+- [ ] Replace custom AutoData attributes with `[Compose]` or
+      `[Compose<TProfile>]` — or, for one whose constructor arguments
+      drive customization logic, `[Compose<TProfile, TConfig>]`.
 - [ ] Convert real customizations into profiles.
 - [ ] Delete empty or obsolete fixture abstractions.
 - [ ] Audit every `[Frozen]` usage to determine whether identity is

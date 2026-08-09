@@ -93,6 +93,15 @@ user to make test-by-test, not something to do as a drive-by.
      generated values are fine when realism doesn't matter to the test.
    - Cross-test/cross-project reusable setup → an `ICompositionProfile`,
      not a copy-pasted builder lambda in every test.
+   - A value only known at a *specific test's call site* that must
+     influence configuration logic running *inside* a profile (not a
+     top-level test parameter) → `Compono.XunitV3`'s
+     `[Compose<TProfile, TConfig>]`, if that package is referenced — see
+     `references/xunit-v3.md`. Prefer an enum/`typeof(...)` over a bare
+     string for the argument. Don't confuse this with a
+     `CompositionProviderRequest.Name`-based custom provider
+     (`references/registrations-profiles-and-scopes.md`), which solves a
+     different (name-based, not call-site) selection problem.
 4. **Check `[Composable]` necessity** — see
    `references/composition-model.md`'s Discovery section. Most types need
    nothing; only add it when the type has no local `Create<T>()`/

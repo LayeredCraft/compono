@@ -52,3 +52,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0007](0007-milestone-7-dogfooding.md) | Milestone 7: Dogfooding | Done |
 | [0008](0008-milestone-8-public-preview.md) | Milestone 8: Public Preview | Done |
 | [0035](0035-compono-agent-skill-pack.md) | Compono Agent Skill Pack | Done |
+| [0036](0036-call-site-values-influencing-nested-composition.md) | Call-Site Values Influencing Nested Composition | Done |

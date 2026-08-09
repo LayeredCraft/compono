@@ -60,16 +60,7 @@ public class ComposeAttribute : DataAttribute
     /// </param>
     public ComposeAttribute(params object?[] inlineValues)
     {
-        _inlineValues = inlineValues switch
-        {
-            null => [null],
-            // Every genuinely expanded-form call (zero or more scalar arguments, including
-            // Compose()'s empty case) produces a freshly built array whose runtime type is exactly
-            // object[] - only a single non-expanded reference-array argument arrives with some other
-            // runtime array type, per the remarks above.
-            not null when inlineValues.GetType() != typeof(object[]) => [inlineValues],
-            _ => inlineValues,
-        };
+        _inlineValues = NormalizeParamsArguments(inlineValues);
         _composer = new Lazy<Composer>(BuildComposer);
     }
 
@@ -273,6 +264,21 @@ public class ComposeAttribute : DataAttribute
     internal virtual void ApplyProfile(CompositionBuilder builder)
     {
     }
+
+    // Shared with ComposeAttribute{TProfile,TConfig}'s profile-configuration-argument constructor,
+    // which faces the exact same params object?[] single-null/single-array binding ambiguity this
+    // constructor's own remarks document - extracted so both call sites normalize identically rather
+    // than reimplementing the same edge cases twice.
+    internal static object?[] NormalizeParamsArguments(object?[] arguments) => arguments switch
+    {
+        null => [null],
+        // Every genuinely expanded-form call (zero or more scalar arguments, including an empty
+        // case) produces a freshly built array whose runtime type is exactly object[] - only a
+        // single non-expanded reference-array argument arrives with some other runtime array type,
+        // per this constructor's own remarks above.
+        not null when arguments.GetType() != typeof(object[]) => [arguments],
+        _ => arguments,
+    };
 
     // Internal test seam - lets Compono.XunitV3.Tests assert the same BindingPlan instance (and the
     // same per-parameter invoker delegates on it) is returned across repeated calls with the same

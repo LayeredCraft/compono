@@ -119,6 +119,65 @@ internal static class SampleTestMethods
         public void Configure(CompositionBuilder builder) => builder.Register(() => "from-profile");
     }
 
+    // ComposeAttribute{TProfile,TConfig} fixtures - a config record with exactly one public
+    // constructor (the supported shape), a profile with exactly one public constructor accepting
+    // exactly that config type, and one broken variant per ConfigProfileBinder failure mode.
+
+    public sealed record TestConfig(string Value);
+
+    public sealed class ParameterizedTestProfile : ICompositionProfile
+    {
+        public ParameterizedTestProfile(TestConfig config) => Config = config;
+
+        public TestConfig Config { get; }
+
+        public void Configure(CompositionBuilder builder) => builder.Register(() => Config.Value);
+    }
+
+    public sealed record NullableTestConfig(string? Value);
+
+    public sealed class NullableParameterizedTestProfile : ICompositionProfile
+    {
+        public NullableParameterizedTestProfile(NullableTestConfig config) => Config = config;
+
+        public NullableTestConfig Config { get; }
+
+        public void Configure(CompositionBuilder builder) => builder.Register(() => Config.Value ?? "null");
+    }
+
+    // Zero public constructors - ConfigProfileBinder.BindConfig's "exactly one" check, zero case.
+    public sealed class ConfigWithNoPublicConstructor
+    {
+        private ConfigWithNoPublicConstructor()
+        {
+        }
+    }
+
+    // Two public constructors - ConfigProfileBinder.BindConfig's "exactly one" check, ambiguous case.
+    public sealed class ConfigWithMultiplePublicConstructors
+    {
+        public ConfigWithMultiplePublicConstructors(string value) => Value = value;
+
+        public ConfigWithMultiplePublicConstructors(string value, string extra)
+        {
+            Value = value;
+            Extra = extra;
+        }
+
+        public string Value { get; }
+
+        public string? Extra { get; }
+    }
+
+    // No constructor accepting exactly one TestConfig parameter - ConfigProfileBinder.BuildProfile's
+    // "exactly one matching constructor" check, zero-match case.
+    public sealed class ProfileWithoutMatchingConstructor : ICompositionProfile
+    {
+        public void Configure(CompositionBuilder builder)
+        {
+        }
+    }
+
     // Mirrors CollectionPlan.scriban's own HashSet<T> shape exactly (same UniqueValueResolver call,
     // same plain-message CompositionException on exhaustion) rather than just throwing directly,
     // since this test project doesn't reference Compono.Generators as an analyzer and can't get the
