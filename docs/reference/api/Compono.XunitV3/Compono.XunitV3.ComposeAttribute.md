@@ -16,15 +16,22 @@ public class ComposeAttribute : Xunit.v3.DataAttribute
 Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → [System\.Attribute](https://learn.microsoft.com/en-us/dotnet/api/system.attribute 'System\.Attribute') → `Xunit.v3.DataAttribute` → ComposeAttribute
 
 Derived  
+↳ [ComposeAttribute&lt;TProfile,TConfig&gt;](Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile,TConfig\>')  
 ↳ [ComposeAttribute&lt;TProfile&gt;](Compono.XunitV3.ComposeAttribute_TProfile_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile\>')
 
 ### Remarks
-Deliberately unsealed \- [ComposeAttribute&lt;TProfile&gt;](Compono.XunitV3.ComposeAttribute_TProfile_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile\>') is the one designed extension
-point, mirroring [AddProfile&lt;TProfile&gt;\(\)](../Compono/Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_() 'Compono\.CompositionBuilder\.AddProfile\`\`1')'s own
-`TProfile : ICompositionProfile, new()` constraint\. [SupportsDiscoveryEnumeration\(\)](Compono.XunitV3.ComposeAttribute.SupportsDiscoveryEnumeration().md 'Compono\.XunitV3\.ComposeAttribute\.SupportsDiscoveryEnumeration\(\)')
-returns [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'): composition is deferred entirely to execution time, so
-[GetData\(MethodInfo, DisposalTracker\)](Compono.XunitV3.ComposeAttribute.GetData(System.Reflection.MethodInfo,Xunit.Sdk.DisposalTracker).md 'Compono\.XunitV3\.ComposeAttribute\.GetData\(System\.Reflection\.MethodInfo, Xunit\.Sdk\.DisposalTracker\)') runs for real exactly once per test execution \- there is no separate
-discovery\-time composition pass to keep synchronized with it\.
+Deliberately unsealed \- [ComposeAttribute&lt;TProfile&gt;](Compono.XunitV3.ComposeAttribute_TProfile_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile\>') and
+[ComposeAttribute&lt;TProfile,TConfig&gt;](Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile,TConfig\>') are the two designed extension points\.
+[ComposeAttribute&lt;TProfile&gt;](Compono.XunitV3.ComposeAttribute_TProfile_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile\>') mirrors [AddProfile&lt;TProfile&gt;\(\)](../Compono/Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_() 'Compono\.CompositionBuilder\.AddProfile\`\`1')'s
+own `TProfile : ICompositionProfile, new()` constraint \(a fixed, default\-constructed
+profile\); [ComposeAttribute&lt;TProfile,TConfig&gt;](Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.md 'Compono\.XunitV3\.ComposeAttribute\<TProfile,TConfig\>') mirrors
+[AddProfile\(ICompositionProfile\)](../Compono/Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile(Compono.ICompositionProfile) 'Compono\.CompositionBuilder\.AddProfile\(Compono\.ICompositionProfile\)')'s instance\-based overload
+instead \(a profile built from call\-site\-known \<em\>profile configuration arguments\</em\> \- see
+`docs/adr/0036-parameterized-composition-profile-selection.md`\)\.
+[SupportsDiscoveryEnumeration\(\)](Compono.XunitV3.ComposeAttribute.SupportsDiscoveryEnumeration().md 'Compono\.XunitV3\.ComposeAttribute\.SupportsDiscoveryEnumeration\(\)') returns [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'): composition is
+deferred entirely to execution time, so [GetData\(MethodInfo, DisposalTracker\)](Compono.XunitV3.ComposeAttribute.GetData(System.Reflection.MethodInfo,Xunit.Sdk.DisposalTracker).md 'Compono\.XunitV3\.ComposeAttribute\.GetData\(System\.Reflection\.MethodInfo, Xunit\.Sdk\.DisposalTracker\)') runs for real exactly once per
+test execution \- there is no separate discovery\-time composition pass to keep synchronized with
+it\.
 
 | Constructors | |
 | :--- | :--- |

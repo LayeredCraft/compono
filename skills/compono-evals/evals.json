@@ -201,6 +201,19 @@
         "Does not use or recommend UseBogus()/BogusOptions/any Compono.Bogus API without that package being referenced or explicitly requested",
         "Correctly identifies that realistic-data generation requires Compono.Bogus specifically, not core Compono"
       ]
+    },
+    {
+      "id": 19,
+      "category": "migration",
+      "prompt": "Convert this parameterized AutoFixture custom AutoDataAttribute to Compono. It takes a RepositoryKind-shaped argument (currently a string constant) at each call site and configures a different repository customization per call.",
+      "expected_output": "Recognizes this as the profile-configuration-arguments pattern: a TConfig record (using an enum, not the original string) paired with a profile via [Compose<TProfile, TConfig>(...)], not a combinatorial set of profile subclasses, a per-test Composer.Create(...) escape hatch, invented ambient/global scenario state, or a recommendation to keep the AutoFixture attribute.",
+      "files": [],
+      "expectations": [
+        "Proposes [Compose<TProfile, TConfig>] specifically, not [Compose<TProfile>] with no way to pass the value, and not a new attribute-per-argument-combination subclass",
+        "Uses an enum (or other attribute-legal typed value) for the finite-choice argument, not a magic string, per the no-stringly-typed-configuration principle",
+        "Does not suggest ambient/global mutable scenario state, a per-test hand-built Composer.Create(...) as the primary recommendation, or retaining the AutoFixture attribute",
+        "Correctly distinguishes this from inline values (which bind to the test method's own parameters) and does not conflate the two"
+      ]
     }
   ]
 }

@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <Title>Compono — xUnit v3 Integration</Title>
-        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;] theory data attributes and [Shared] parameter sharing.</Description>
+        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] theory data attributes and [Shared] parameter sharing.</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -15,9 +15,10 @@
              only Compono.XunitV3 - caught by test/Compono.XunitV3.SampleTests failing to compose
              a [Compose]-attributed type until this was added (PLAN-0004 Phase 3). -->
         <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
-        <!-- Ordinary reference, not PrivateAssets="all" - ComposeAttribute/ComposeAttribute{TProfile}
-             derive from and return types this package owns publicly, so a consumer needs them
-             transitively assignable. See ADR-0022's Package Boundaries and Dependencies section. -->
+        <!-- Ordinary reference, not PrivateAssets="all" - ComposeAttribute/ComposeAttribute{TProfile}/
+             ComposeAttribute{TProfile,TConfig} derive from and return types this package owns
+             publicly, so a consumer needs them transitively assignable. See ADR-0022's Package
+             Boundaries and Dependencies section. -->
         <PackageReference Include="xunit.v3.extensibility.core" />
     </ItemGroup>
 

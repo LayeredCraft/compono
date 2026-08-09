@@ -41,6 +41,18 @@ internal static class ComposeMethodDiscovery
     /// </summary>
     public const string GenericAttributeMetadataName = "Compono.XunitV3.ComposeAttribute`1";
 
+    /// <summary>
+    /// The metadata name of the two-type-parameter form, <c>[Compose&lt;TProfile, TConfig&gt;]</c> -
+    /// same reasoning as <see cref="GenericAttributeMetadataName"/>: its attribute class metadata
+    /// name is the distinct, arity-suffixed <c>Compono.XunitV3.ComposeAttribute`2</c>, invisible to
+    /// a provider registered against either of the other two metadata names, and needs its own
+    /// independently-registered provider (PR #65 review - the packaged sample's only composed
+    /// parameter type was a registered <c>string</c>, which never needs a generated plan and masked
+    /// this gap; a concrete, undiscovered-elsewhere parameter type reached only through
+    /// <c>[Compose&lt;TProfile, TConfig&gt;]</c> failed at <c>GetData</c> time with no plan found).
+    /// </summary>
+    public const string TwoTypeParameterAttributeMetadataName = "Compono.XunitV3.ComposeAttribute`2";
+
     public static TransitiveClosureResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)

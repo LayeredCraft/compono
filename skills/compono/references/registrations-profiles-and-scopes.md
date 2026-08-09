@@ -76,6 +76,51 @@ var composer = Composer.Create(b => b.AddProfile<OrderTestProfile>());
 consumer/test class that happens to use them — don't grow one giant
 catch-all profile.
 
+## Custom providers — matching on request shape, including name
+
+`Register<T>()`/`.For<T>()` are exact-type-keyed. When a value genuinely
+needs to vary by the **requesting parameter/member's own name**, not just
+its type — several distinct values of the same declared type, chosen by
+which parameter is asking — write a custom `ICompositionValueProvider`
+instead:
+
+```csharp
+public sealed class UpsellPayloadProvider : ICompositionValueProvider
+{
+    public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
+    {
+        if (request.RequestedType != typeof(UpsellPayload))
+            return CompositionProviderResult.NotHandled;
+
+        return request.Name switch
+        {
+            "newGamePayload" => CompositionProviderResult.Handled(new UpsellPayload("new-game")),
+            "lockedPackPayload" => CompositionProviderResult.Handled(new UpsellPayload("locked-pack")),
+            _ => CompositionProviderResult.NotHandled,
+        };
+    }
+}
+
+builder.AddSemanticProvider(new UpsellPayloadProvider());
+// or AddTestDoubleProvider(...), depending on what it produces
+```
+
+`CompositionProviderRequest.Name` carries the requesting constructor
+parameter/required member/test-method-parameter's own name — this is a
+**global rule** ("whenever anything asks for `UpsellPayload` named
+`newGamePayload`, produce this"), evaluated for every matching request
+across every test. Reserve this for the case that genuinely needs to
+match on request shape rather than a fixed type — most AutoFixture
+specimen builders migrate to a plain `Register<T>()` instead (see
+`patterns-and-antipatterns.md`'s mapping table).
+
+**Don't confuse this with `[Compose<TProfile, TConfig>]`'s profile
+configuration arguments** (`xunit-v3.md`) — a `Name`-based provider is a
+global rule keyed off the requesting parameter's name; a profile
+configuration argument is a per-invocation value known only at one
+specific test's call site. They solve different problems and aren't
+interchangeable.
+
 ## Scopes and recursion
 
 A type appearing twice in a graph is **not** automatically a cycle — a

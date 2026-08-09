@@ -86,6 +86,56 @@ conflict found is collected and reported together, not just the first
 one. Fix: remove the duplicate/contradictory configuration call — there is
 no last-write-wins fallback to rely on instead.
 
+### "`ComposeAttribute<TProfile, TConfig>` throws before my test even runs"
+
+Five distinct, deterministic, pre-composition failures — all plain-message
+`CompositionException`s, computed once per attribute instance and cached,
+never re-checked per theory row (see
+[`Compono.XunitV3`'s Package Guide](../packages/compono-xunitv3.md#profile-configuration-arguments)
+and [ADR-0036](../adr/0036-parameterized-composition-profile-selection.md)
+for the full design). Every one of these ends with the same `"\n\nSeed:
+{value}"` convention every other `Compono.XunitV3`-owned pre-composition
+failure uses — even though a constructor-shape/argument mismatch fails
+identically regardless of seed, the seed printed is either the one you
+configured via `Seed = ...` or a freshly generated one, for consistency
+with every other failure category:
+
+- **`'{TConfig}' must have exactly one public constructor...`** — the
+  config type you passed as `TConfig` has zero or more than one public
+  constructor. There's no "best match" heuristic here by design — reduce
+  `TConfig` to exactly one public constructor.
+- **`'{TConfig}' is abstract and cannot be used as profile
+  configuration...`** — `TConfig` is an abstract class. Even if it has
+  exactly one public constructor (abstract types can declare one; only a
+  derived type can actually call it), it can't be instantiated directly —
+  use a concrete type.
+- **`'{TProfile}' must have exactly one public constructor accepting a
+  single '{TConfig}' parameter...`** — the profile type has no
+  constructor accepting exactly one `TConfig`-typed parameter (or has more
+  than one, which normal C# overload resolution can't actually produce for
+  an identical single-parameter shape, so this case is effectively
+  unreachable in practice). Add a public constructor to your profile that
+  takes a single `TConfig` parameter.
+- **`'{TProfile}' is abstract and cannot be used as a profile...`** — same
+  reasoning as `TConfig`'s abstract-rejection case above, applied to the
+  profile type.
+- **`'{TConfig}' requires {N} profile configuration argument(s), but {M}
+  were supplied.`** / a null-for-non-nullable or type-mismatch message —
+  the attribute's own constructor arguments don't match `TConfig`'s
+  constructor positionally. Unlike this attribute family's ordinary inline
+  values (which may supply fewer than the test method has parameters,
+  leaving the rest composed), profile configuration arguments must match
+  `TConfig`'s constructor **exactly** — there's no "leave the rest to
+  composition" fallback for a config type's own constructor parameters.
+
+Note the compile-time-vs-runtime tradeoff this form makes deliberately:
+`[Compose<TProfile>]` (no `TConfig`) rejects an invalid profile type at
+**compile time**, via its `TProfile : ICompositionProfile, new()`
+constraint — `[Compose<TProfile, TConfig>]` can't offer that, since "has a
+constructor accepting exactly this type" isn't expressible as a C# generic
+constraint. All three failures above are deterministic runtime checks
+instead, computed once and cached, but not compile errors.
+
 ### "A composed value doesn't look realistic" (looks like an anonymous string)
 
 `Compono.Bogus` isn't installed, or `UseBogus()` wasn't called, or the

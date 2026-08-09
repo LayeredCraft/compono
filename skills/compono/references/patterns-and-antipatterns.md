@@ -52,6 +52,23 @@ drawn from real dogfooding evidence
 14. **Reusing one member rule across unrelated types** hoping it applies
     broadly — use a type rule or `Register<T>()` if it should really be
     global.
+15. **Recommending a combinatorial set of profile subclasses, a per-test
+    `Composer.Create(...)` escape hatch, invented ambient/global scenario
+    state, or AutoFixture retention** for a parameterized custom
+    `AutoDataAttribute` (constructor args driving customization logic —
+    e.g. `PersistenceAutoData(repositoryName)`) — the correct answer is
+    `[Compose<TProfile, TConfig>]`, see `xunit-v3.md` and the mapping
+    table below. Don't propose the workarounds `[Compose<TProfile,
+    TConfig>]` exists to eliminate.
+16. **Passing a bare string to a `[Compose<TProfile, TConfig>]` argument**
+    when the value is really a finite choice or a CLR type — prefer an
+    `enum`/`typeof(...)` instead; see `xunit-v3.md`'s "no stringly typed
+    configuration" guidance.
+17. **Reaching for `[Compose<TProfile, TConfig>]` to solve a name-based
+    value-selection problem, or reaching for a custom
+    `ICompositionValueProvider` to solve a call-site-configuration
+    problem** — these are two different questions (see `xunit-v3.md`),
+    not two names for the same mechanism.
 
 ## AutoFixture → Compono concept mapping
 
@@ -63,6 +80,7 @@ drawn from real dogfooding evidence
 | `AutoNSubstituteCustomization` | `builder.UseNSubstitute()` | No `ConfigureMembers` equivalent — see antipattern 12 and `nsubstitute.md` |
 | `fixture.Customize<T>(...)` | `builder.Register<T>()` / `.For<T>().Use()` | Re-customizing the same type is a build-time conflict, not override |
 | `[AutoData]`/`[InlineAutoData]` | `[Compose]` / inline args on `[Compose(...)]` | Only one Compose-family attribute per method — see `xunit-v3.md` |
+| Parameterized custom `AutoDataAttribute` (constructor args driving customization logic) | `[Compose<TProfile, TConfig>]` | `TConfig`'s constructor args, not the test method's parameters — see `xunit-v3.md`. Use an enum/`typeof(...)`, not a bare string |
 | `OmitOnRecursionBehavior` | *(none)* | Real cycles fail fast; break them with an explicit `Register<T>()` |
 | `IFixture` | *(none)* | No fixture-holder object; configure via `[Compose<TProfile>]`/`ICompositionProfile` per test |
 | `IRequestSpecification`/`NamedRequest` | *(none)* | No equivalent request-matching abstraction |

@@ -15,12 +15,18 @@ namespace Compono.XunitV3;
 /// and diagnostics.
 /// </summary>
 /// <remarks>
-/// Deliberately unsealed - <see cref="ComposeAttribute{TProfile}"/> is the one designed extension
-/// point, mirroring <see cref="CompositionBuilder.AddProfile{TProfile}"/>'s own
-/// <c>TProfile : ICompositionProfile, new()</c> constraint. <see cref="SupportsDiscoveryEnumeration"/>
-/// returns <see langword="false"/>: composition is deferred entirely to execution time, so
-/// <see cref="GetData"/> runs for real exactly once per test execution - there is no separate
-/// discovery-time composition pass to keep synchronized with it.
+/// Deliberately unsealed - <see cref="ComposeAttribute{TProfile}"/> and
+/// <see cref="ComposeAttribute{TProfile, TConfig}"/> are the two designed extension points.
+/// <see cref="ComposeAttribute{TProfile}"/> mirrors <see cref="CompositionBuilder.AddProfile{TProfile}"/>'s
+/// own <c>TProfile : ICompositionProfile, new()</c> constraint (a fixed, default-constructed
+/// profile); <see cref="ComposeAttribute{TProfile, TConfig}"/> mirrors
+/// <see cref="CompositionBuilder.AddProfile(ICompositionProfile)"/>'s instance-based overload
+/// instead (a profile built from call-site-known <em>profile configuration arguments</em> - see
+/// <c>docs/adr/0036-parameterized-composition-profile-selection.md</c>).
+/// <see cref="SupportsDiscoveryEnumeration"/> returns <see langword="false"/>: composition is
+/// deferred entirely to execution time, so <see cref="GetData"/> runs for real exactly once per
+/// test execution - there is no separate discovery-time composition pass to keep synchronized with
+/// it.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public class ComposeAttribute : DataAttribute
@@ -60,16 +66,7 @@ public class ComposeAttribute : DataAttribute
     /// </param>
     public ComposeAttribute(params object?[] inlineValues)
     {
-        _inlineValues = inlineValues switch
-        {
-            null => [null],
-            // Every genuinely expanded-form call (zero or more scalar arguments, including
-            // Compose()'s empty case) produces a freshly built array whose runtime type is exactly
-            // object[] - only a single non-expanded reference-array argument arrives with some other
-            // runtime array type, per the remarks above.
-            not null when inlineValues.GetType() != typeof(object[]) => [inlineValues],
-            _ => inlineValues,
-        };
+        _inlineValues = NormalizeParamsArguments(inlineValues);
         _composer = new Lazy<Composer>(BuildComposer);
     }
 
@@ -189,29 +186,17 @@ public class ComposeAttribute : DataAttribute
             var parameter = parameters[i];
             var value = _inlineValues[i];
 
-            if (value is null)
+            switch (PositionalArgumentBinder.Validate(parameter.ParameterType, parameter.Descriptor.Nullability, value))
             {
-                if (parameter.Descriptor.Nullability != Nullability.Nullable)
-                {
+                case PositionalArgumentValidation.NullNotAllowed:
                     throw new CompositionException(AppendSeed(
                         $"Inline value for parameter '{parameter.Name}' on '{methodDisplayName}' is null, but the parameter is not nullable.",
                         row.Seed));
-                }
 
-                continue;
-            }
-
-            // A non-null Nullable<T> boxes as a boxed T, not a boxed Nullable<T> (a CLR
-            // nullable-boxing rule) - unwrapping first is a no-op for a non-nullable parameter
-            // (Nullable.GetUnderlyingType returns null, so ?? falls back to the declared type
-            // unchanged) and is what makes e.g. [Compose(42)] valid for an int? parameter.
-            var underlyingType = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;
-
-            if (!underlyingType.IsInstanceOfType(value))
-            {
-                throw new CompositionException(AppendSeed(
-                    $"Inline value for parameter '{parameter.Name}' on '{methodDisplayName}' has type '{value.GetType()}', which is not assignable to '{parameter.ParameterType}'.",
-                    row.Seed));
+                case PositionalArgumentValidation.TypeMismatch:
+                    throw new CompositionException(AppendSeed(
+                        $"Inline value for parameter '{parameter.Name}' on '{methodDisplayName}' has type '{value!.GetType()}', which is not assignable to '{parameter.ParameterType}'.",
+                        row.Seed));
             }
         }
 
@@ -274,6 +259,21 @@ public class ComposeAttribute : DataAttribute
     {
     }
 
+    // Shared with ComposeAttribute{TProfile,TConfig}'s profile-configuration-argument constructor,
+    // which faces the exact same params object?[] single-null/single-array binding ambiguity this
+    // constructor's own remarks document - extracted so both call sites normalize identically rather
+    // than reimplementing the same edge cases twice.
+    internal static object?[] NormalizeParamsArguments(object?[] arguments) => arguments switch
+    {
+        null => [null],
+        // Every genuinely expanded-form call (zero or more scalar arguments, including an empty
+        // case) produces a freshly built array whose runtime type is exactly object[] - only a
+        // single non-expanded reference-array argument arrives with some other runtime array type,
+        // per this constructor's own remarks above.
+        not null when arguments.GetType() != typeof(object[]) => [arguments],
+        _ => arguments,
+    };
+
     // Internal test seam - lets Compono.XunitV3.Tests assert the same BindingPlan instance (and the
     // same per-parameter invoker delegates on it) is returned across repeated calls with the same
     // testMethod, proving MakeGenericMethod ran exactly once per parameter, not once per GetData call.
@@ -296,7 +296,11 @@ public class ComposeAttribute : DataAttribute
     // matching the same trailing text a propagated pipeline CompositionDiagnostic already renders
     // (ADR-0022's Seed Policy and Reporting) - so every failure category ends the same way, whether
     // Compono.XunitV3 constructed the message or the pipeline did.
-    private static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
+    // private protected, not private - ComposeAttribute{TProfile,TConfig} reuses this exact
+    // convention for its own pre-composer negative-seed check (PR #65 review), which must run
+    // before ApplyProfile does any config/profile binding work, i.e. before a CompositionRow (and
+    // this method's usual row.Seed source) exists at all.
+    private protected static string AppendSeed(string message, int seed) => $"{message}\n\nSeed: {seed}";
 
     // A genuine composition failure (PR #26 review; ADR-0022 Amendment 5) propagates un-wrapped from
     // the pipeline otherwise, and CompositionException.Message alone never carries the seed for that

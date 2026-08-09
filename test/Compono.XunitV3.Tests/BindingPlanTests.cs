@@ -98,6 +98,20 @@ public sealed class BindingPlanTests
     }
 
     [Fact]
+    public void Build_ReportsASignatureError_ForComposeStackedWithTheTwoTypeParameterForm()
+    {
+        // Detection (testMethod.GetCustomAttributes<ComposeAttribute>()) already covers this form
+        // since ComposeAttribute<TProfile, TConfig> derives from ComposeAttribute - this test proves
+        // the reported message names it too, not just the two original forms (PR #65 review).
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithComposeAndTwoTypeParameterComposeAttributes))!;
+
+        var plan = BindingPlan.Build(method);
+
+        plan.SignatureError.Should().Contain("Compose<TProfile, TConfig>");
+        plan.Parameters.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Build_MarksTheParameterAsShared_WhenAttributed()
     {
         var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithShared))!;
