@@ -15,12 +15,18 @@ namespace Compono.XunitV3;
 /// and diagnostics.
 /// </summary>
 /// <remarks>
-/// Deliberately unsealed - <see cref="ComposeAttribute{TProfile}"/> is the one designed extension
-/// point, mirroring <see cref="CompositionBuilder.AddProfile{TProfile}"/>'s own
-/// <c>TProfile : ICompositionProfile, new()</c> constraint. <see cref="SupportsDiscoveryEnumeration"/>
-/// returns <see langword="false"/>: composition is deferred entirely to execution time, so
-/// <see cref="GetData"/> runs for real exactly once per test execution - there is no separate
-/// discovery-time composition pass to keep synchronized with it.
+/// Deliberately unsealed - <see cref="ComposeAttribute{TProfile}"/> and
+/// <see cref="ComposeAttribute{TProfile, TConfig}"/> are the two designed extension points.
+/// <see cref="ComposeAttribute{TProfile}"/> mirrors <see cref="CompositionBuilder.AddProfile{TProfile}"/>'s
+/// own <c>TProfile : ICompositionProfile, new()</c> constraint (a fixed, default-constructed
+/// profile); <see cref="ComposeAttribute{TProfile, TConfig}"/> mirrors
+/// <see cref="CompositionBuilder.AddProfile(ICompositionProfile)"/>'s instance-based overload
+/// instead (a profile built from call-site-known <em>profile configuration arguments</em> - see
+/// <c>docs/adr/0036-parameterized-composition-profile-selection.md</c>).
+/// <see cref="SupportsDiscoveryEnumeration"/> returns <see langword="false"/>: composition is
+/// deferred entirely to execution time, so <see cref="GetData"/> runs for real exactly once per
+/// test execution - there is no separate discovery-time composition pass to keep synchronized with
+/// it.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public class ComposeAttribute : DataAttribute

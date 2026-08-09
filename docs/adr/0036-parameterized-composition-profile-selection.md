@@ -467,6 +467,50 @@ consumer exists.
   enforcement, replaced by a deterministic runtime check — an accepted,
   explicitly-stated cost.
 
+## Amendment 1 (2026-08-09): direct `ConstructorInfo.Invoke`, not a cached delegate
+
+"Reflection is bounded and cached, never on the hot path" (above)
+specified the identical close-once-cache-a-delegate shape
+[ADR-0022](0022-compono-xunit-package-design.md) uses for
+`MakeGenericMethod`/`Delegate.CreateDelegate` — building a cached invoker
+delegate for `TConfig`'s and `TProfile`'s constructors once, at
+binding-plan-cache-construction time. PLAN-0036's implementation does not
+do this: `ConfigProfileBinder` calls `ConstructorInfo.Invoke` directly
+(via a small shared `Invoke` helper that also unwraps
+`TargetInvocationException`, per PR #65 review round 3), with no
+separate delegate-caching layer of its own.
+
+This is a correction to that section's implementation detail, not a
+reversal of the section's actual guarantee. The guarantee — reflection
+bounded to once per attribute instance, never on the repeated per-row
+`GetData` path — still holds, for a different reason than originally
+assumed: `ComposeAttribute<TProfile, TConfig>.ApplyProfile` (the only
+caller of `ConfigProfileBinder`'s methods) is itself only ever invoked
+once per attribute instance, from inside the base `ComposeAttribute`'s
+existing `Lazy<Composer>`-backed caching (`ComposeAttribute.cs`'s
+`_composer` field) — a caching layer this ADR's original design already
+relied on for the *composer* as a whole, but didn't originally credit
+with also bounding the *constructor-resolution* reflection specifically.
+`RowInvokers`' `MakeGenericMethod`/`Delegate.CreateDelegate` shape exists
+for a genuinely different reason: it closes a generic method over a
+parameter type known only at runtime (a test method's own
+`ParameterInfo.ParameterType`, discovered per-parameter across
+potentially many parameters), which needs a delegate cache to avoid
+`MakeGenericMethod`/`MethodInfo.Invoke` cost repeating per row.
+`TConfig`/`TProfile` need no equivalent: they are already
+compile-time-closed generic arguments on
+`ComposeAttribute<TProfile, TConfig>` itself, so there is no per-runtime-
+discovered-type generic closure to cache in the first place — a direct
+`ConstructorInfo.Invoke`, called once (per the `Lazy<Composer>` guarantee
+above), already satisfies the no-reflection-on-the-hot-path requirement
+without needing the heavier delegate-caching mechanism.
+
+This does not change the ADR's Decision Outcome (Option 4 remains
+chosen) or any of its stated tradeoffs — it corrects one implementation
+detail this ADR specified more precisely than turned out necessary, per
+`design-decisions.md`'s Amendment mechanic for a correction discovered
+during implementation.
+
 ## Links
 
 - [RESEARCH-0002](../research/0002-trivia-platform-comparison.md) —

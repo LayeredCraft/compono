@@ -495,3 +495,40 @@ Regression coverage:
 `GetData_UnwrapsAndReportsTheOriginalException_WhenTheConfigConstructorThrows`,
 `GetData_UnwrapsAndReportsTheOriginalException_WhenTheProfileConstructorThrows`.
 Full solution: 909/909 passed.
+
+**PR #65's fourth review round — three findings, two fixed, one
+deliberately not actioned:**
+
+1. **ADR-0036 needed a dated Amendment, not a silent plan-note
+   correction.** This plan's own Notes already recorded that
+   `ConfigProfileBinder` uses direct `ConstructorInfo.Invoke`, not the
+   cached-delegate (`MakeGenericMethod`/`Delegate.CreateDelegate`) shape
+   ADR-0036's "Reflection is bounded and cached" section specified — but
+   per this repo's own rule (`design-decisions.md`'s Amendment mechanic),
+   a correction to an *already-`Accepted`* ADR's decision detail belongs
+   as a dated Amendment on that ADR itself, not only a plan-side note.
+   Fixed: added ADR-0036's Amendment 1 (2026-08-09), explaining why the
+   simpler direct-invocation shape still satisfies the ADR's actual
+   guarantee (bounded to once per attribute instance — via the base
+   class's existing `Lazy<Composer>` caching, not a new delegate cache).
+2. **Base `ComposeAttribute`'s XML docs and the NuGet package description
+   were stale.** `ComposeAttribute`'s remarks still said
+   `ComposeAttribute<TProfile>` was "the one designed extension point,"
+   and `Compono.XunitV3.csproj`'s `<Description>` listed only
+   `[Compose]`/`[Compose<TProfile>]`. Fixed: updated both to describe both
+   extension points, and regenerated the API reference
+   (`docs/reference/api/Compono.XunitV3/Compono.XunitV3.ComposeAttribute.md`)
+   from the corrected XML docs.
+3. **Not actioned: "move the `CompositionProviderRequest.Name` migration
+   section to a separate PR."** A legitimate scope observation in the
+   abstract, but this was a deliberate, explicit instruction from the
+   user who commissioned this plan (not an oversight) — the original
+   request said, verbatim in spirit, to include RESEARCH-0002 Finding 2's
+   documentation gap in this same work "unless there is a strong reason
+   to keep it separate," and this plan's own "Documentation tasks"
+   section already recorded that no such reason was found. Replied on the
+   thread explaining this and resolved it without a code change - the
+   scope decision stands as the user directed it, not as this review
+   round would have made it unilaterally.
+
+Full solution after round 4: 909/909 passed, 0 warnings, 0 errors.
