@@ -238,6 +238,23 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [Fact]
+    public async Task GetData_AcceptsANonNullValueTypeArgument_ForANullableValueTypeParameter()
+    {
+        // 42 boxes as System.Int32, not System.Nullable<System.Int32> (a CLR nullable-boxing rule) -
+        // this proves ConfigProfileBinder unwraps Nullable<T> before the assignability check the
+        // same way ComposeAttribute's own inline-value binding already does, rather than the check
+        // wrongly rejecting a valid int argument for an int? config constructor parameter.
+        var attribute = new ComposeAttribute<SampleTestMethods.NullableIntParameterizedTestProfile, SampleTestMethods.NullableIntTestConfig>(42);
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableValueParameter))!;
+        var tracker = new DisposalTracker();
+
+        var rows = await attribute.GetData(method, tracker);
+        var data = rows.Single().GetData();
+
+        data.Should().Equal(42);
+    }
+
+    [Fact]
     public async Task GetData_AcceptsANullProfileConfigurationArgument_ForANullableParameter()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.NullableParameterizedTestProfile, SampleTestMethods.NullableTestConfig>((object?)null);

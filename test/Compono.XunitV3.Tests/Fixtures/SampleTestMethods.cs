@@ -112,6 +112,16 @@ internal static class SampleTestMethods
     public static void WithMultipleComposeAttributes(int value)
     {
     }
+
+    // Same reasoning as WithMultipleComposeAttributes above, pairing the two-type-parameter form
+    // with the plain one instead of the one-type-parameter form - proves BindingPlan's stacking
+    // detection (and its message) covers ComposeAttribute<TProfile, TConfig> too, not just the
+    // original two forms (PR #65 review).
+    [Compose]
+    [Compose<ParameterizedTestProfile, TestConfig>("value")]
+    public static void WithComposeAndTwoTypeParameterComposeAttributes(int value)
+    {
+    }
 #pragma warning restore xUnit1008
 
     public sealed class TestProfile : ICompositionProfile
@@ -143,6 +153,22 @@ internal static class SampleTestMethods
         public NullableTestConfig Config { get; }
 
         public void Configure(CompositionBuilder builder) => builder.Register(() => Config.Value ?? "null");
+    }
+
+    // A non-null value-typed profile configuration argument for a Nullable<T> constructor parameter
+    // - proves ConfigProfileBinder's Nullable<T>-boxing unwrap (a non-null int? boxes as a boxed
+    // int, not a boxed int?) the same way ComposeAttribute's own inline-value binding already covers
+    // it, retargeted at a config type's constructor instead of a test method's parameters (PR #65
+    // review: this exact case had no regression coverage).
+    public sealed record NullableIntTestConfig(int? Value);
+
+    public sealed class NullableIntParameterizedTestProfile : ICompositionProfile
+    {
+        public NullableIntParameterizedTestProfile(NullableIntTestConfig config) => Config = config;
+
+        public NullableIntTestConfig Config { get; }
+
+        public void Configure(CompositionBuilder builder) => builder.Register(() => Config.Value ?? -1);
     }
 
     // Zero public constructors - ConfigProfileBinder.BindConfig's "exactly one" check, zero case.

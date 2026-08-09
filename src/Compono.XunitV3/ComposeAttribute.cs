@@ -186,29 +186,17 @@ public class ComposeAttribute : DataAttribute
             var parameter = parameters[i];
             var value = _inlineValues[i];
 
-            if (value is null)
+            switch (PositionalArgumentBinder.Validate(parameter.ParameterType, parameter.Descriptor.Nullability, value))
             {
-                if (parameter.Descriptor.Nullability != Nullability.Nullable)
-                {
+                case PositionalArgumentValidation.NullNotAllowed:
                     throw new CompositionException(AppendSeed(
                         $"Inline value for parameter '{parameter.Name}' on '{methodDisplayName}' is null, but the parameter is not nullable.",
                         row.Seed));
-                }
 
-                continue;
-            }
-
-            // A non-null Nullable<T> boxes as a boxed T, not a boxed Nullable<T> (a CLR
-            // nullable-boxing rule) - unwrapping first is a no-op for a non-nullable parameter
-            // (Nullable.GetUnderlyingType returns null, so ?? falls back to the declared type
-            // unchanged) and is what makes e.g. [Compose(42)] valid for an int? parameter.
-            var underlyingType = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;
-
-            if (!underlyingType.IsInstanceOfType(value))
-            {
-                throw new CompositionException(AppendSeed(
-                    $"Inline value for parameter '{parameter.Name}' on '{methodDisplayName}' has type '{value.GetType()}', which is not assignable to '{parameter.ParameterType}'.",
-                    row.Seed));
+                case PositionalArgumentValidation.TypeMismatch:
+                    throw new CompositionException(AppendSeed(
+                        $"Inline value for parameter '{parameter.Name}' on '{methodDisplayName}' has type '{value!.GetType()}', which is not assignable to '{parameter.ParameterType}'.",
+                        row.Seed));
             }
         }
 

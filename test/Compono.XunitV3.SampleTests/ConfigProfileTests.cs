@@ -48,10 +48,9 @@ public sealed class RepositoryTestProfile : ICompositionProfile
 }
 
 // Deliberately has no constructor accepting a RepositoryTestConfig - reserved for
-// MismatchedProfileConstructorShape_FailsBeforeTheTestExecutes below, which needs
-// ConfigProfileBinder's own pre-composition constructor-shape failure, not a genuine composition
-// failure (mirrors FailingCompositionTests' distinction for the ordinary [Compose]/[Compose<TProfile>]
-// forms).
+// FailingConfigProfileTests below, which needs ConfigProfileBinder's own pre-composition
+// constructor-shape failure, not a genuine composition failure (mirrors FailingCompositionTests'
+// distinction for the ordinary [Compose]/[Compose<TProfile>] forms).
 public sealed class ProfileWithNoMatchingConstructor : ICompositionProfile
 {
     public void Configure(CompositionBuilder builder)
@@ -73,19 +72,5 @@ public sealed class ConfigProfileTests
     public void DifferentConfigArguments_ProduceADifferentlyConfiguredProfile(RepositoryConsumer consumer)
     {
         consumer.RepositoryName.Should().Be("game-repository");
-    }
-
-    // Deliberately fails, on every run, via ConfigProfileBinder's own pre-composition constructor-shape
-    // validation (ProfileWithNoMatchingConstructor has no constructor accepting a RepositoryTestConfig)
-    // - not a genuine composition failure. Proves the diagnostic reaches a real xUnit v3 runner's
-    // actual output before the test body ever executes, through the real packaged pipeline, mirroring
-    // FailingCompositionTests' existing pattern (this whole project is deliberately excluded from
-    // Compono.slnx/CI for exactly this reason - it's packaged-consumer verification, run manually, not
-    // an automated gate).
-    [Theory]
-    [Compose<ProfileWithNoMatchingConstructor, RepositoryTestConfig>(RepositoryKind.Player)]
-    public void MismatchedProfileConstructorShape_FailsBeforeTheTestExecutes(string repositoryName)
-    {
-        repositoryName.Should().BeNull("GetData throws before this body ever runs - this line never executes");
     }
 }

@@ -532,3 +532,57 @@ deliberately not actioned:**
    round would have made it unilaterally.
 
 Full solution after round 4: 909/909 passed, 0 warnings, 0 errors.
+
+**PR #65's fifth review round — three findings, all fixed, plus a
+live-CI-caught regression this round's own fix introduced:**
+
+1. **ADR-0036's "retargeted rather than reimplemented" promise wasn't
+   actually kept.** `ConfigProfileBinder.BindConfig` independently
+   reimplemented the exact null/`Nullable<T>`-unwrap/assignability check
+   `ComposeAttribute.GetData`'s own inline-value loop already had — a
+   correction to one would never have reached the other. Fixed: extracted
+   both into a new shared `Binding/PositionalArgumentBinder.cs`
+   (`PositionalArgumentBinder.Validate`, returning a
+   `PositionalArgumentValidation` enum), used by both call sites, with
+   message text ownership staying local to each (the two describe the
+   value differently — "Inline value... on..." vs. "Profile configuration
+   argument... of...").
+2. **No regression coverage for a non-null value-typed config argument
+   against a `Nullable<T>` constructor parameter** (e.g. `42` for an
+   `int?`) — the plan promised this exact case per ADR-0022's own
+   precedent, but every existing config-binding test used a reference
+   type. Fixed: added `NullableIntTestConfig`/
+   `NullableIntParameterizedTestProfile` fixtures and
+   `GetData_AcceptsANonNullValueTypeArgument_ForANullableValueTypeParameter`.
+3. **The Compose-family-stacking diagnostic still named only the original
+   two forms.** Detection already worked correctly for the new attribute
+   (`GetCustomAttributes<ComposeAttribute>()` matches any derived type),
+   but `BindingPlan.ValidateSignature`'s message text hadn't been updated.
+   Fixed: message and its surrounding comment now name all three forms;
+   added `WithComposeAndTwoTypeParameterComposeAttributes` fixture and
+   `Build_ReportsASignatureError_ForComposeStackedWithTheTwoTypeParameterForm`.
+
+**Live CI regression, caught by the user, not by Codex:** round 5's own
+push broke the `package-validation` workflow's "Local-feed
+packed-consumer smoke test" step. That step runs
+`Compono.XunitV3.SampleTests` directly (it's excluded from `Compono.slnx`
+only, not from CI as a whole — an incorrect assumption baked into this
+project's own code comments since round 1, now corrected everywhere it
+appeared) with `--filter-not-class
+"Compono.XunitV3.SampleTests.FailingCompositionTests"` to skip exactly
+one known-always-failing class. `ConfigProfileTests.cs`'s own
+deliberately-failing `MismatchedProfileConstructorShape_...` test lived
+inside the otherwise-green `ConfigProfileTests` class, so it wasn't
+excluded and failed the gate. Fixed: moved that test into its own
+`FailingConfigProfileTests` class (mirroring `FailingCompositionTests`'
+pattern exactly), and changed the workflow's filter to a trailing
+wildcard, `--filter-not-class "Compono.XunitV3.SampleTests.Failing*"`,
+covering the whole naming convention instead of one hardcoded class name
+— verified directly against the built test host that the wildcard must
+be trailing-only (a mid-string wildcard like `Failing*Tests` is rejected
+by the MTP CLI). Verified locally with the exact corrected command:
+20/20 passed. CS1591-as-error build and `docs/reference/api` freshness
+(the other two `package-validation`/`docs` gates) also reverified clean.
+
+Full solution after round 5 + the CI fix: 913/913 passed, 0 warnings, 0
+errors.

@@ -58,29 +58,17 @@ internal static class ConfigProfileBinder
         {
             var parameter = parameters[i];
             var value = configArguments[i];
+            var nullability = IsNullable(nullabilityContext, parameter) ? Nullability.Nullable : Nullability.NotNullable;
 
-            if (value is null)
+            switch (PositionalArgumentBinder.Validate(parameter.ParameterType, nullability, value))
             {
-                if (!IsNullable(nullabilityContext, parameter))
-                {
+                case PositionalArgumentValidation.NullNotAllowed:
                     throw new CompositionException(
                         $"Profile configuration argument for parameter '{parameter.Name}' of '{configType}' is null, but the parameter is not nullable.");
-                }
 
-                arguments[i] = null;
-                continue;
-            }
-
-            // A non-null Nullable<T> boxes as a boxed T, not a boxed Nullable<T> (a CLR
-            // nullable-boxing rule) - unwrapping first is a no-op for a non-nullable parameter and
-            // is what makes e.g. an int argument valid for an int? parameter. Same rule as
-            // ComposeAttribute's own inline-value validation (ADR-0022).
-            var underlyingType = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;
-
-            if (!underlyingType.IsInstanceOfType(value))
-            {
-                throw new CompositionException(
-                    $"Profile configuration argument for parameter '{parameter.Name}' of '{configType}' has type '{value.GetType()}', which is not assignable to '{parameter.ParameterType}'.");
+                case PositionalArgumentValidation.TypeMismatch:
+                    throw new CompositionException(
+                        $"Profile configuration argument for parameter '{parameter.Name}' of '{configType}' has type '{value!.GetType()}', which is not assignable to '{parameter.ParameterType}'.");
             }
 
             arguments[i] = value;

@@ -118,11 +118,23 @@ jobs:
         # Reuses test/Compono.XunitV3.SampleTests' own PackToLocalFeed restore
         # (packs current source, not this job's Release artifacts above, into
         # .local-nuget-feed and restores the four publishable packages from
-        # there as a real consumer would) - filtered to exclude
-        # FailingCompositionTests, which fails by design per ADR-0022's
+        # there as a real consumer would) - filtered to exclude every class
+        # whose name starts with "Failing" (FailingCompositionTests,
+        # FailingConfigProfileTests, and any future one following the same
+        # naming convention), each of which fails by design per ADR-0022's
         # Testing Strategy and is why this project is deliberately not in
-        # Compono.slnx (docs/plans/0004-milestone-4-xunit-integration.md).
+        # Compono.slnx (docs/plans/0004-milestone-4-xunit-integration.md). A
+        # single wildcarded --filter-not-class covers the whole naming
+        # convention rather than needing a new literal class name added here
+        # every time a new deliberately-failing proof test is added (PR #65
+        # review: a non-wildcarded, single-class filter here is exactly what
+        # broke this job when FailingConfigProfileTests' predecessor test was
+        # first added inside an otherwise-green class instead). The wildcard
+        # must be trailing-only ("Failing*", not "Failing*Tests") - the MTP
+        # CLI rejects a wildcard placed in the middle of a filter expression
+        # ("wildcards may only be at the beginning and/or end"), confirmed
+        # directly against the built test host.
         run: |
           dotnet test test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj \
             -c Release \
-            -- --filter-not-class "Compono.XunitV3.SampleTests.FailingCompositionTests"
+            -- --filter-not-class "Compono.XunitV3.SampleTests.Failing*"
