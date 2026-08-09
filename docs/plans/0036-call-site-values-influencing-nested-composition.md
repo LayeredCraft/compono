@@ -586,3 +586,14 @@ by the MTP CLI). Verified locally with the exact corrected command:
 
 Full solution after round 5 + the CI fix: 913/913 passed, 0 warnings, 0
 errors.
+
+**PR #65's sixth review round** — one finding, a continuation of round
+4's stale-docs theme: `docs/packages/index.md`'s top-level package
+catalog table and `skills/compono/SKILL.md`'s Detection table/reference
+table (two separate rows) still enumerated only the original two
+Compose-family forms. Round 4 fixed the base attribute's XML docs and the
+NuGet package description but missed these two additional discovery
+surfaces. Fixed all three, then ran a repo-wide
+`grep -rn '\[Compose\]/\[Compose<TProfile>\]'` across every `.md` file to
+confirm no further stale mentions remained (none found). Full solution:
+913/913 passed, unchanged (markdown-only change).
