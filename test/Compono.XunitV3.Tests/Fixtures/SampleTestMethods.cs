@@ -178,6 +178,35 @@ internal static class SampleTestMethods
         }
     }
 
+    // Abstract with an otherwise-qualifying public constructor - ConfigProfileBinder.BindConfig's
+    // abstract-type rejection, not the "exactly one constructor" count check (PR #65 review: without
+    // the explicit IsAbstract check, this shape would pass the count check and then throw
+    // MemberAccessException from ConstructorInfo.Invoke instead of the documented CompositionException).
+    public abstract class AbstractConfig
+    {
+        // Public, not protected - an abstract type's constructor accessibility is independent of
+        // whether the type itself can be instantiated; C# and the CLR both allow a public constructor
+        // on an abstract type (only a derived type can actually call it), which is exactly what makes
+        // this shape reach ConstructorInfo.Invoke without the explicit IsAbstract guard.
+        public AbstractConfig(string value) => Value = value;
+
+        public string Value { get; }
+    }
+
+    // Abstract with an otherwise-qualifying public constructor accepting TestConfig -
+    // ConfigProfileBinder.BuildProfile's abstract-type rejection, same reasoning as AbstractConfig
+    // above.
+    public abstract class AbstractProfile : ICompositionProfile
+    {
+        public AbstractProfile(TestConfig config) => Config = config;
+
+        public TestConfig Config { get; }
+
+        public void Configure(CompositionBuilder builder)
+        {
+        }
+    }
+
     // Mirrors CollectionPlan.scriban's own HashSet<T> shape exactly (same UniqueValueResolver call,
     // same plain-message CompositionException on exhaustion) rather than just throwing directly,
     // since this test project doesn't reference Compono.Generators as an analyzer and can't get the

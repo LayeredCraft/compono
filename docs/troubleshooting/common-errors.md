@@ -88,17 +88,27 @@ no last-write-wins fallback to rely on instead.
 
 ### "`ComposeAttribute<TProfile, TConfig>` throws before my test even runs"
 
-Three distinct, deterministic, pre-composition failures — all plain-message
+Five distinct, deterministic, pre-composition failures — all plain-message
 `CompositionException`s, computed once per attribute instance and cached,
 never re-checked per theory row (see
 [`Compono.XunitV3`'s Package Guide](../packages/compono-xunitv3.md#profile-configuration-arguments)
 and [ADR-0036](../adr/0036-parameterized-composition-profile-selection.md)
-for the full design):
+for the full design). Every one of these ends with the same `"\n\nSeed:
+{value}"` convention every other `Compono.XunitV3`-owned pre-composition
+failure uses — even though a constructor-shape/argument mismatch fails
+identically regardless of seed, the seed printed is either the one you
+configured via `Seed = ...` or a freshly generated one, for consistency
+with every other failure category:
 
 - **`'{TConfig}' must have exactly one public constructor...`** — the
   config type you passed as `TConfig` has zero or more than one public
   constructor. There's no "best match" heuristic here by design — reduce
   `TConfig` to exactly one public constructor.
+- **`'{TConfig}' is abstract and cannot be used as profile
+  configuration...`** — `TConfig` is an abstract class. Even if it has
+  exactly one public constructor (abstract types can declare one; only a
+  derived type can actually call it), it can't be instantiated directly —
+  use a concrete type.
 - **`'{TProfile}' must have exactly one public constructor accepting a
   single '{TConfig}' parameter...`** — the profile type has no
   constructor accepting exactly one `TConfig`-typed parameter (or has more
@@ -106,6 +116,9 @@ for the full design):
   an identical single-parameter shape, so this case is effectively
   unreachable in practice). Add a public constructor to your profile that
   takes a single `TConfig` parameter.
+- **`'{TProfile}' is abstract and cannot be used as a profile...`** — same
+  reasoning as `TConfig`'s abstract-rejection case above, applied to the
+  profile type.
 - **`'{TConfig}' requires {N} profile configuration argument(s), but {M}
   were supplied.`** / a null-for-non-nullable or type-mismatch message —
   the attribute's own constructor arguments don't match `TConfig`'s

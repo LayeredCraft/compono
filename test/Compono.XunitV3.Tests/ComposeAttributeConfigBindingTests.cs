@@ -102,6 +102,71 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [Fact]
+    public async Task GetData_Throws_WhenConfigTypeIsAbstract()
+    {
+        var attribute = new ComposeAttribute<SampleTestMethods.ProfileWithoutMatchingConstructor, SampleTestMethods.AbstractConfig>("value");
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        // AbstractConfig has exactly one public constructor - passes the "exactly one constructor"
+        // count check on its own, so this proves the explicit IsAbstract guard, not the count check
+        // (PR #65 review: without it, this would throw MemberAccessException from
+        // ConstructorInfo.Invoke instead of the documented CompositionException).
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*abstract*cannot be used as profile configuration*");
+    }
+
+    [Fact]
+    public async Task GetData_Throws_WhenProfileTypeIsAbstract()
+    {
+        var attribute = new ComposeAttribute<SampleTestMethods.AbstractProfile, SampleTestMethods.TestConfig>("value");
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*abstract*cannot be used as a profile*");
+    }
+
+    [Fact]
+    public async Task GetData_AppendsTheConfiguredSeed_WhenProfileConstructionFailsBeforeARowExists()
+    {
+        // Every Compono.XunitV3-owned pre-composition failure ends with "Seed: {value}" (ADR-0022) -
+        // this failure category is special because it's thrown from inside the base class's
+        // Lazy<Composer> initialization, before GetData ever calls Composer.CreateRow, so there is no
+        // CompositionRow/row.Seed to read from yet (PR #65 review: this was previously missing
+        // entirely for config/profile binder failures). Using an explicitly configured Seed proves the
+        // reported value is the one this attribute is actually configured with, not an unrelated
+        // throwaway number.
+        var attribute = new ComposeAttribute<SampleTestMethods.ProfileWithoutMatchingConstructor, SampleTestMethods.TestConfig>("value") { Seed = 492173 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*Seed: 492173*");
+    }
+
+    [Fact]
+    public async Task GetData_AppendsAGeneratedSeed_WhenProfileConstructionFailsWithNoSeedConfigured()
+    {
+        var attribute = new ComposeAttribute<SampleTestMethods.ProfileWithoutMatchingConstructor, SampleTestMethods.TestConfig>("value");
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        // No explicit seed configured, so only the convention (a trailing "Seed: <non-negative int>")
+        // is checked, not a specific value.
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*\nSeed: *");
+    }
+
+    [Fact]
     public async Task GetData_Throws_WhenAProfileConfigurationArgumentHasAnIncompatibleType()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.ParameterizedTestProfile, SampleTestMethods.TestConfig>(42);

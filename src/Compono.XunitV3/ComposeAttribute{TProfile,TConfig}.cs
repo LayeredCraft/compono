@@ -66,9 +66,27 @@ public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
 
     internal override void ApplyProfile(CompositionBuilder builder)
     {
-        var config = ConfigProfileBinder.BindConfig(typeof(TConfig), _configArguments);
-        var profile = ConfigProfileBinder.BuildProfile<TProfile, TConfig>(config);
+        try
+        {
+            var config = ConfigProfileBinder.BindConfig(typeof(TConfig), _configArguments);
+            var profile = ConfigProfileBinder.BuildProfile<TProfile, TConfig>(config);
 
-        builder.AddProfile(profile);
+            builder.AddProfile(profile);
+        }
+        catch (CompositionException exception)
+        {
+            // ApplyProfile runs while the base class's Lazy<Composer> is still being built - before
+            // GetData ever calls Composer.CreateRow, so no CompositionRow/row.Seed exists yet at this
+            // point (PR #65 review: this attribute's own binder failures were escaping with no seed
+            // at all, unlike every other Compono.XunitV3-owned pre-composition failure). Report the
+            // seed this attribute is actually configured with (SeedAsNullable) - the same seed
+            // row.Seed would resolve to once composition succeeds - or a freshly generated one
+            // otherwise. Reproducibility isn't actually the point for this specific failure category
+            // (a constructor-shape/argument mismatch fails identically regardless of seed); this is
+            // purely ADR-0022's "every Compono.XunitV3-owned failure ends with Seed: {value}"
+            // convention, applied consistently rather than as an exception for this one binding path.
+            var seed = SeedAsNullable ?? Random.Shared.Next(0, int.MaxValue);
+            throw CompositionException.WithSeedInMessage(exception, seed);
+        }
     }
 }

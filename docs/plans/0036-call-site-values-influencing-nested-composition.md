@@ -433,3 +433,35 @@ review round — the page's own stated purpose
 returned to a no-current-candidates state with the historical trail
 preserved via ADR-0036/RESEARCH-0002/PLAN-0036 links instead of inline
 restatement.
+
+**PR #65's second review round caught two more real gaps, both fixed and
+pushed:**
+
+1. **Missing seed on config/profile binder failures.** `ApplyProfile`
+   runs while the base class's `Lazy<Composer>` is still being built —
+   before `GetData` ever calls `Composer.CreateRow` — so a
+   `ConfigProfileBinder` failure had no `CompositionRow`/`row.Seed` to
+   read from and escaped without the `"\n\nSeed: ..."` suffix every other
+   `Compono.XunitV3`-owned pre-composition failure carries (ADR-0022).
+   Fixed: `ApplyProfile` now catches `CompositionException` and rethrows
+   via the existing `CompositionException.WithSeedInMessage` helper, using
+   `SeedAsNullable` (the attribute's own configured seed) or a freshly
+   generated one otherwise — reproducibility isn't actually meaningful for
+   this failure category (a constructor-shape mismatch fails identically
+   regardless of seed), this is purely about applying the established
+   convention consistently.
+2. **Abstract `TConfig`/`TProfile` threw the wrong exception type.** An
+   abstract class can still declare a public constructor (only a derived
+   type can call it) — `ResolveSingleConstructor`/
+   `ResolveSingleProfileConstructor` would find it, pass the "exactly one
+   constructor" check, and then `ConstructorInfo.Invoke` would throw
+   `MemberAccessException` instead of the documented `CompositionException`.
+   Fixed: both methods now explicitly reject an abstract type with a named
+   `CompositionException`, checked before the constructor-count logic.
+
+Both fixes have dedicated `Compono.XunitV3.Tests` regression coverage
+(`GetData_AppendsTheConfiguredSeed_WhenProfileConstructionFailsBeforeARowExists`,
+`GetData_AppendsAGeneratedSeed_WhenProfileConstructionFailsWithNoSeedConfigured`,
+`GetData_Throws_WhenConfigTypeIsAbstract`,
+`GetData_Throws_WhenProfileTypeIsAbstract`) and are documented in
+`docs/troubleshooting/common-errors.md`. Full solution: 903/903 passed.

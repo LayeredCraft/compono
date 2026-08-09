@@ -107,6 +107,19 @@ internal static class ConfigProfileBinder
 
     private static ConstructorInfo ResolveSingleConstructor(Type type)
     {
+        // An abstract type can still declare a public constructor (invoked only by a derived type's
+        // own constructor chain) - GetConstructors would find it and this method would otherwise
+        // hand it back as "the one constructor," but ConstructorInfo.Invoke on it throws
+        // MemberAccessException ("Cannot create an abstract class"), not the documented
+        // CompositionException - reject explicitly, before the constructor count check, so an
+        // abstract TConfig fails with the same named diagnostic shape as every other unsupported
+        // shape here (PR #65 review).
+        if (type.IsAbstract)
+        {
+            throw new CompositionException(
+                $"'{type}' is abstract and cannot be used as profile configuration - it must be a concrete, constructible type.");
+        }
+
         var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 
         if (constructors.Length != 1)
@@ -120,6 +133,15 @@ internal static class ConfigProfileBinder
 
     private static ConstructorInfo ResolveSingleProfileConstructor(Type profileType, Type configType)
     {
+        // Same reasoning as ResolveSingleConstructor's abstract check above - an abstract TProfile
+        // with a matching public constructor would otherwise reach ConstructorInfo.Invoke and throw
+        // MemberAccessException instead of the documented CompositionException.
+        if (profileType.IsAbstract)
+        {
+            throw new CompositionException(
+                $"'{profileType}' is abstract and cannot be used as a profile - it must be a concrete, constructible type.");
+        }
+
         var matching = profileType.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
             .Where(constructor =>
             {
