@@ -134,9 +134,13 @@ not something to decide as a side effect of one feature's plan.
       constructor for its own, separate `configArguments` parameter — a
       behavior-preserving refactor (see Notes), not a change to existing
       binding semantics.
-- [x] No change needed to `src/Compono.XunitV3/Binding/BindingPlan.cs` —
-      see Notes for why the originally-sketched approach (extending
-      `BindingPlan`) turned out unnecessary.
+- [x] `src/Compono.XunitV3/Binding/BindingPlan.cs` — no change needed for
+      the core binding mechanism (see Notes for why the originally-sketched
+      approach of extending `BindingPlan` for construction turned out
+      unnecessary); a later review round did update this file's
+      Compose-family-stacking diagnostic message to name the new attribute
+      form (see Notes' round 5 entry) — a message-text fix, not a
+      reopening of the "no core change needed" finding.
 
 **Documentation tasks** (part of the feature, verified at closeout — see
 "Verification and closeout" below, not left implicit):
@@ -172,14 +176,18 @@ not something to decide as a side effect of one feature's plan.
       for `ComposeAttribute<TProfile, TConfig>` plus updates to the two
       existing pages that list/link it, deterministically, with no other
       diff.
-- [x] README / package-table / sample surfaces — grepped; `README.md` and
-      `docs/packages/index.md`'s one-line package-table cell don't
-      enumerate every Compose-family form individually (adding a third
-      form to a summary cell would clutter it, not help — the package's
-      own guide is the right place, already updated), so left unchanged
-      by design; `docs/how-to/use-profiles.md` did enumerate the
+- [x] README / package-table / sample surfaces — grepped; `README.md`
+      doesn't enumerate individual Compose-family forms, so left
+      unchanged; `docs/how-to/use-profiles.md` did enumerate the
       `[Compose<TProfile>]` constraint specifically and got a new
-      paragraph pointing to the config form.
+      paragraph pointing to the config form. `docs/packages/index.md`'s
+      package-table cell was initially left unchanged by the same
+      "would clutter a summary cell" reasoning, but a later review round
+      (see Notes' round 6 entry) corrected that call — the cell's job is
+      specifically to enumerate what a package gives you, so omitting a
+      shipped form from it was a real gap, not acceptable brevity; fixed
+      there, along with two equivalent stale rows in
+      `skills/compono/SKILL.md`.
 
 **Published skill tasks** (`skills/compono/`, reviewed even though the
 runtime change is `Compono.XunitV3`-only — per ADR-0035, one skill, not a
@@ -207,40 +215,76 @@ new one per package):
   public attribute surface this plan adds.
 - `src/Compono.XunitV3/Binding/ConfigProfileBinder.cs` — new, the
   constructor-resolution/validation/construction logic.
-- `src/Compono.XunitV3/ComposeAttribute.cs` — modified (pure extraction:
-  `NormalizeParamsArguments` pulled out, behavior unchanged); left
+- `src/Compono.XunitV3/ComposeAttribute.cs` — modified (inline-value
+  normalization/validation extracted for reuse; behavior unchanged); left
   `ComposeAttribute{TProfile}.cs` untouched.
+- `src/Compono.XunitV3/Binding/PositionalArgumentBinder.cs` — new (added
+  in review round 5), the shared null/`Nullable<T>`-unwrap/assignability
+  validator both `ComposeAttribute.GetData` and `ConfigProfileBinder` use.
+- `src/Compono.XunitV3/Binding/BindingPlan.cs` — modified (review round 5:
+  the Compose-family-stacking diagnostic message now names all three
+  attribute forms).
+- `src/Compono.Generators/ComponoIncrementalGenerator.cs`,
+  `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs` — modified
+  (review round 1: a third `ForAttributeWithMetadataName` registration for
+  `ComposeAttribute\`2`'s metadata name, without which a concrete type
+  reached only through `[Compose<TProfile, TConfig>]` got no generated
+  plan at all).
 - `test/Compono.XunitV3.Tests/ComposeAttributeConfigBindingTests.cs` — new,
-  10 cases.
+  19 cases (grew from an initial 10 across review rounds 2-5: seed
+  reporting, abstract-type rejection, `TargetInvocationException`
+  unwrapping, the `Nullable<T>`-boxing case).
+- `test/Compono.XunitV3.Tests/BindingPlanTests.cs` — modified (review
+  round 5: one new stacking-diagnostic test for the new attribute form).
 - `test/Compono.XunitV3.Tests/Fixtures/SampleTestMethods.cs`,
   `test/Compono.XunitV3.Tests/PublicApiSurfaceTests.cs` — modified (new
   fixtures; exact-public-type-set assertion updated for `ComposeAttribute\`2`).
 - `test/Compono.XunitV3.SampleTests/ConfigProfileTests.cs` — new,
   packaged-consumer proof (real `dotnet test` run against the packed
-  NuGet, per its own csproj's existing pattern).
+  NuGet, per its own csproj's existing pattern); composes a real concrete
+  `RepositoryConsumer` class as of review round 1's fix, not a bare
+  provider-resolved `string`, so it actually exercises generated-plan
+  discovery.
+- `test/Compono.XunitV3.SampleTests/FailingConfigProfileTests.cs` — new
+  (review round 5), the one deliberately-failing packaged-consumer proof,
+  split into its own class to match `package-validation.yaml`'s
+  `Failing*`-named-class CI filter (see Notes' round 5 entry for the live
+  CI regression this fixed).
+- `.github/workflows/package-validation.yaml` — modified (review round 5:
+  the "Local-feed packed-consumer smoke test" filter widened to a
+  trailing wildcard, `Failing*`, covering both `FailingCompositionTests`
+  and the new `FailingConfigProfileTests`).
 - `docs/packages/compono-xunitv3.md`, `docs/migrating-from-autofixture.md`,
   `docs/troubleshooting/common-errors.md`, `docs/how-to/use-profiles.md`,
+  `docs/packages/index.md` (review round 6), `docs/adr/0036-*.md`'s
+  Amendment 1 (review round 4),
   `docs/reference/api/Compono.XunitV3/*` (regenerated) — documentation
   updates, per `documentation.md`'s "update the subsystem doc in the same
   PR" rule.
 - `skills/compono/references/xunit-v3.md`,
   `skills/compono/references/patterns-and-antipatterns.md`,
   `skills/compono/references/registrations-profiles-and-scopes.md`,
-  `skills/compono/SKILL.md`, `skills/compono-evals/evals.json` —
+  `skills/compono/SKILL.md` (also touched again in review round 6),
+  `skills/compono-evals/evals.json` —
   published-skill updates, in scope per ADR-0035.
 
 ## Test Plan
 
-**All executed; full solution `dotnet test` (`Compono.slnx`, Debug):
-893 passed, 0 failed, 0 skipped** (11 new `Compono.XunitV3.Tests` cases:
-10 `ComposeAttributeConfigBindingTests` plus
-`ConfigArguments_AreNeverBoundAsInlineValues`, per TFM).
-`Compono.XunitV3.SampleTests` (excluded
-from `Compono.slnx`/CI by design — see its own csproj comment — run
-manually per this plan): 20 passed (10 per TFM, including the two new
-`ComposeAttribute<TProfile, TConfig>` passing cases) + 2 pre-existing
-`FailingCompositionTests` failures (expected, unrelated) + 2 new
-deliberate `ConfigProfileTests` failures (expected, see below), per TFM.
+**Final state, after all six review rounds (see Notes below for the
+round-by-round history): full solution `dotnet test` (`Compono.slnx`,
+Debug): 913 passed, 0 failed, 0 skipped** —
+`test/Compono.XunitV3.Tests` alone carries 134 of those (67 per TFM),
+including 19 cases in `ComposeAttributeConfigBindingTests.cs` (grew from
+an initial 10) and one new case in `BindingPlanTests.cs`.
+`test/Compono.XunitV3.SampleTests` is excluded from `Compono.slnx` itself
+(per its own csproj comment) but **is** run directly by the
+`package-validation` CI workflow (a fact this plan originally got wrong —
+see Notes' round 5 entry), not run "manually" as this section first
+claimed: 20 passed (10 per TFM), 2 pre-existing `FailingCompositionTests`
+failures (expected, unrelated), and 2 deliberate
+`FailingConfigProfileTests` failures (expected, its own class as of round
+5 — see below), all excluded from the CI gate by
+`--filter-not-class "Compono.XunitV3.SampleTests.Failing*"`.
 
 Per `testing.md`'s existing `Compono.XunitV3.Tests` (fast,
 direct-`GetData`) / `Compono.XunitV3.SampleTests` (real xUnit v3 runner)
@@ -290,9 +334,11 @@ split, matching how ADR-0022's own binding algorithm was verified:
   every type composed inside the resulting profile's `Configure` method,
   the same packaged-consumer verification ADR-0022's own Amendment
   (2026-07-30) required for `[Compose]`-attributed parameters.
-- A deliberately-failing case (e.g. a `TConfig` with two public
-  constructors) asserted to fail before the test method ever executes,
-  with the expected diagnostic text.
+- A deliberately-failing case (a `TProfile` with no constructor accepting
+  the `TConfig`) asserted to fail before the test method ever executes,
+  with the expected diagnostic text — its own `FailingConfigProfileTests`
+  class as of round 5 (see Notes), matching `FailingCompositionTests`'
+  established pattern.
 
 **`skills/compono-evals`** — a new eval, shaped exactly as required:
 
@@ -326,16 +372,18 @@ Explicit exit checklist — every item confirmed before this plan moves to
       references `Compono.XunitV3` via `PackageReference` only (no
       `ProjectReference` anywhere in that project, by design), packed
       fresh from current source via `pack-to-local-feed.sh` on every
-      restore; `ConfigProfileTests.cs`'s two passing theories and one
-      deliberately-failing theory all ran successfully against that real
-      packaged build (see Notes for the exact `dotnet test` output
+      restore; `ConfigProfileTests.cs`'s two passing theories and
+      `FailingConfigProfileTests.cs`'s one deliberately-failing theory (its
+      own class as of review round 5) all ran successfully against that
+      real packaged build (see Notes for the exact `dotnet test` output
       confirming the failure's stack trace originates in the packaged
       `Compono.XunitV3.dll`, not a project reference).
 - [x] Existing `[Compose]`/`[Compose<TProfile>]` semantics unchanged —
-      full solution suite (891 tests) passes; no existing test file's
-      assertions were modified, only `PublicApiSurfaceTests.cs`'s exact-set
-      list extended (expected, additive) and `ComposeAttribute.cs`'s
-      normalization logic extracted with no behavioral change (verified by
+      the full solution suite (913 tests, final count after all review
+      rounds) passes; no existing test file's assertions were modified,
+      only `PublicApiSurfaceTests.cs`'s exact-set list extended (expected,
+      additive) and `ComposeAttribute.cs`'s normalization/validation logic
+      extracted for reuse with no behavioral change (verified by
       every pre-existing inline-value test still passing unmodified).
 - [x] `ConfigArguments_AreNeverBoundAsInlineValues` (new test) proves
       profile configuration arguments never populate the base class's
@@ -364,10 +412,13 @@ Implementation deviated from this plan's original file-level sketch in
 two ways, neither changing the ADR's decision, both narrowing scope in a
 good direction:
 
-1. **No `BindingPlan.cs` changes needed at all.** The plan originally
-   assumed the new attribute would need to hook into `BindingPlan`'s
-   cache-construction pass the way test-method-parameter binding does.
-   It doesn't: `ComposeAttribute<TProfile, TConfig>.ApplyProfile` is
+1. **No `BindingPlan.cs` changes needed for construction itself** (a later
+   review round did touch this file for an unrelated reason — a
+   diagnostic-message-text fix, not a reopening of this finding; see
+   round 5 below). The plan originally assumed the new attribute would
+   need to hook into `BindingPlan`'s cache-construction pass the way
+   test-method-parameter binding does. It doesn't for the actual
+   construction/binding work: `ComposeAttribute<TProfile, TConfig>.ApplyProfile` is
    already called exactly once per attribute instance, for free, by the
    *existing* `Lazy<Composer>`-backed `_composer` field the base
    `ComposeAttribute` class already has — `TConfig`/`TProfile` are
@@ -597,3 +648,20 @@ surfaces. Fixed all three, then ran a repo-wide
 `grep -rn '\[Compose\]/\[Compose<TProfile>\]'` across every `.md` file to
 confirm no further stale mentions remained (none found). Full solution:
 913/913 passed, unchanged (markdown-only change).
+
+**PR #65's seventh review round** — one finding, about this plan
+document itself: as a `Done` plan, the Test Plan summary/Critical
+Files/Verification-checklist sections above are the record maintainers
+rely on, and they still described the pre-review-round state (stale test
+counts, a "left unchanged by design" claim round 6 reversed, an "excluded
+from CI" claim round 5 already corrected in code comments but not here,
+and a "no `BindingPlan.cs` changes" claim round 5's own diagnostic-message
+fix quietly contradicted). Fixed by editing those sections directly to
+the final, true state (913/913, `PositionalArgumentBinder.cs`,
+`FailingConfigProfileTests.cs`, `package-validation.yaml`, and every
+other file this loop actually touched) rather than adding a seventh
+dated note on top of six already-accumulated ones — this plan is a living
+document, not an ADR, so a correction here is a direct edit, not an
+Amendment. The round-by-round Notes entries above stay as the historical
+"what changed and why, in order" trail; only the summary sections a
+reader would check first for final state were stale.
