@@ -55,6 +55,10 @@ _rels/.rels
 ${pkg_name}.nuspec
 README.md
 icon.png
+lib/net8.0/${pkg_name}.dll
+lib/net8.0/${pkg_name}.xml
+lib/net9.0/${pkg_name}.dll
+lib/net9.0/${pkg_name}.xml
 lib/net10.0/${pkg_name}.dll
 lib/net10.0/${pkg_name}.xml
 lib/net11.0/${pkg_name}.dll

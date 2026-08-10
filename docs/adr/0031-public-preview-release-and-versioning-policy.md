@@ -530,6 +530,43 @@ intended — not just that *some* range was declared. See
 [PLAN-0008](../plans/0008-milestone-8-public-preview.md) Phase 0 for the
 concrete task list this amendment revises.
 
+## Amendment 2 (2026-08-10): `netstandard2.1` compatibility floor added alongside the TFM window
+
+[ADR-0037](0037-netstandard2.1-compatibility-floor.md) adds `netstandard2.1`
+as a third, independent floor TFM on all four packages, to unblock
+consumers on currently-supported .NET releases older than the rolling
+window's oldest tracked TFM (concretely: .NET 8, .NET 9). This does not
+change the policy stated above — `net10.0`/`net11.0` remain the packages'
+primary, actively-tracked window, dropped from the pair only on a
+minor-version bump exactly as this ADR already specifies. `netstandard2.1`
+sits underneath that window as a compatibility floor, not a third tracked
+release; see ADR-0037 for the BCL-gap analysis and shim strategy that
+makes it safe to add without touching what the primary TFMs can use
+directly.
+
+## Amendment 3 (2026-08-10): `netstandard2.1` floor superseded by an explicit `net8.0`/`net9.0` widen
+
+Amendment 2 above, and the ADR-0037 it describes, are left as-written — an
+accurate record of what was decided and why, at the time. That decision has
+since been **superseded**: [ADR-0038](0038-net8-net9-explicit-multi-target.md)
+replaces the `netstandard2.1` floor with explicit `net8.0`/`net9.0` TFMs
+added directly to all four packages, after ADR-0037's own required
+implementation-time compatibility audit found two gaps
+(`DateOnly`/`TimeOnly`, `Enum.GetValuesAsUnderlyingType`) that
+`netstandard2.1` could not shim without either a real public-surface
+divergence between TFMs or reintroducing a reflection path this project had
+already deliberately rejected (ADR-0001).
+
+Unlike Amendment 2's floor (an independent addition underneath the tracked
+window), ADR-0038's change **does** widen this ADR's own rolling window:
+`net8.0;net9.0;net10.0;net11.0` are now all actively-tracked TFMs, not a
+window-plus-floor split. The "current GA plus the next release in
+development" framing in this ADR's original Decision Outcome still governs
+which TFM gets added/dropped going forward at the *newest* end
+(`net11.0` today) — this amendment just records that the *oldest* end now
+starts two releases further back than the original two-TFM window assumed,
+per ADR-0038's own reasoning for why that trade-off was accepted.
+
 ## Links
 
 - [ADR-0001](0001-source-generation-first.md) — source-generation-first

@@ -4,7 +4,7 @@
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
         <Title>Compono — xUnit v3 Integration</Title>
         <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] theory data attributes and [Shared] parameter sharing.</Description>
     </PropertyGroup>
