@@ -4,7 +4,7 @@
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
         <Title>Compono — NSubstitute Integration</Title>
         <Description>NSubstitute integration for Compono - a test-double provider composing interface, delegate, and (optionally) abstract-class parameters as real NSubstitute substitutes.</Description>
     </PropertyGroup>

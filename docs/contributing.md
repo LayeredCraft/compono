@@ -36,8 +36,8 @@ dotnet build Compono.slnx -c Release
 dotnet test Compono.slnx -c Release
 ```
 
-The solution targets `net10.0`/`net11.0`; install both SDKs (or let
-`global.json`/CI resolve them) before building. Tests run on the
+The solution targets `net8.0`/`net9.0`/`net10.0`/`net11.0`; install all four
+SDKs (or let `global.json`/CI resolve them) before building. Tests run on the
 [Microsoft Testing Platform](https://learn.microsoft.com/dotnet/core/testing/microsoft-testing-platform-intro)
 runner, not VSTest — use MTP's own filter syntax
 (`--filter-not-class`/`--filter-class`, not VSTest-style `--filter`) if you

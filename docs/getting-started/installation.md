@@ -26,7 +26,7 @@ dotnet add package Compono.NSubstitute --prerelease   # automatic substitute com
 dotnet add package Compono.Bogus --prerelease         # semantic fake data (names, emails, ...)
 ```
 
-Every package targets `net10.0`/`net11.0`. Until the first stable `1.0`
+Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0`. Until the first stable `1.0`
 release, every published version is a `0.x.y-preview.N` prerelease — the
 `--prerelease` flag (or an explicit `<PackageReference Version="0.x.y-preview.N" />`)
 is required for `dotnet add package`/NuGet restore to pick it up at all,

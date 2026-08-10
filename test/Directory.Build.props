@@ -9,8 +9,13 @@
   <PropertyGroup>
     <!-- Run every test project against every TFM Compono itself ships
          (src/Compono/Compono.csproj's TargetFrameworks) - a test suite that
-         only exercises net11.0 gives zero coverage of the net10.0 build. -->
-    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+         only exercises net11.0 gives zero coverage of the net10.0 build.
+         ADR-0038 widened Compono's own TargetFrameworks to net8.0;net9.0 -
+         widened here too, so this comment's stated intent stays true and
+         Compono.XunitV3.SampleTests' packed-consumer smoke test (which has
+         no TargetFrameworks of its own, inheriting this value) actually
+         exercises the net8.0/net9.0 packed assets, not just net10.0/net11.0. -->
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -11,10 +11,12 @@ need the first two.
 | [`Compono.NSubstitute`](compono-nsubstitute.md) | Automatic substitute composition for interface, delegate, and (optionally) abstract-class parameters. | Your composed types depend on interfaces you'd otherwise stub by hand with NSubstitute. |
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
 
-Every package targets `net10.0`/`net11.0` and, until the first stable `1.0`
-release, publishes as a `0.x.y-preview.N` prerelease — see
-[Installation](../getting-started/installation.md) for the exact
-`dotnet add package` commands and why `--prerelease` is required.
+Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and, until the
+first stable `1.0` release, publishes as a `0.x.y-preview.N` prerelease —
+see [Installation](../getting-started/installation.md) for the exact
+`dotnet add package` commands and why `--prerelease` is required. See
+[ADR-0038](../adr/0038-net8-net9-explicit-multi-target.md) for why `net8.0`/
+`net9.0` were added alongside the existing `net10.0`/`net11.0` window.
 
 `Compono.Generators` (the source generator itself) is not a separate
 package you install — it's embedded inside `Compono.nupkg`'s

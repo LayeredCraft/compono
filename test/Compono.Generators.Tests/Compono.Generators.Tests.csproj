@@ -10,6 +10,13 @@
     <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Overrides test/Directory.Build.props' net8.0;net9.0;net10.0;net11.0 (ADR-0038) - this
+         project tests Compono.Generators (netstandard2.0, unaffected by ADR-0038) by driving
+         CSharpGeneratorDriver directly against Basic.Reference.Assemblies.NetXXX reference-assembly
+         sets below, which only exist for net10.0/net11.0 in this repo's dependencies. Widening this
+         project's own host TFM to net8.0/net9.0 would test nothing new (the generator itself never
+         varies by consumer TFM) and has no matching reference-assembly package to compile against. -->
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>

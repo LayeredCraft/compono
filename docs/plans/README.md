@@ -53,3 +53,5 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0008](0008-milestone-8-public-preview.md) | Milestone 8: Public Preview | Done |
 | [0035](0035-compono-agent-skill-pack.md) | Compono Agent Skill Pack | Done |
 | [0036](0036-call-site-values-influencing-nested-composition.md) | Call-Site Values Influencing Nested Composition | Done |
+| [0037](0037-netstandard2.1-compatibility-floor.md) | netstandard2.1 Compatibility Floor | Superseded by PLAN-0038 |
+| [0038](0038-net8-net9-explicit-multi-target.md) | net8.0/net9.0 Explicit Multi-Target | Done |
