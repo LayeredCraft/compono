@@ -145,6 +145,7 @@ Explicitly deferred (not in this plan):
 - `docs/packages/index.md`, `docs/getting-started/installation.md`, `docs/contributing.md` — TFM claim updates.
 - `docs/adr/0037-netstandard2.1-compatibility-floor.md` — `Status` changed to `Superseded by ADR-0038`.
 - `docs/adr/0031-public-preview-release-and-versioning-policy.md` — Amendment 3 added, recording that ADR-0038 widens (not just floors) the rolling TFM window Amendment 2 described.
+- `.github/scripts/inspect-packed-nupkgs.sh` — the `package-validation` CI job's `.nupkg` file-listing allowlist hardcoded exactly `lib/net10.0/*`/`lib/net11.0/*`; missed in the original Tasks pass (which verified assemblies were present in the pack output directly, but didn't run this stricter CI script locally first) and caught live when PR #66's `package-validation` check failed. Fixed by adding `lib/net8.0/*`/`lib/net9.0/*` to the allowlist; verified locally by re-running the script against a real local pack of all four packages before pushing the fix.
 
 ## Test Plan
 
