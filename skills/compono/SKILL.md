@@ -182,10 +182,17 @@ data when:
 - The setup is one or two trivial values — a composed call adds
   indirection without saving anything real.
 - The type has an ambiguous-constructor BCL shape (e.g. `HttpClient`,
-  which has multiple accessible constructors) — these hit `CMP0001` with
-  no registration-based escape hatch. Wrap in an app-owned
-  interface/factory and compose that instead, or construct it directly
-  by hand in that one spot.
+  `Exception`, both with multiple accessible constructors) — these hit
+  `CMP0001` with no registration-based escape hatch. Wrap in an app-owned
+  interface/factory and compose that instead, or construct it directly by
+  hand in that one spot (for `Exception` specifically: compose the message
+  as a `string` parameter, then `new Exception(message)` by hand in
+  Arrange — preserves randomized-message behavior without asking Compono
+  to build the exception itself). Seen twice now in real migrations —
+  still the intended pattern, not a gap: a general multi-constructor
+  resolution mechanism would need a best-match heuristic, which conflicts
+  with Compono's deterministic, no-heuristic constructor-selection
+  principle (see ADR-0001 and ADR-0036's binder design).
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 
