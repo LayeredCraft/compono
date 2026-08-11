@@ -152,7 +152,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `xunit.v3.extensibility.core`'s own entry for the exact shape) —
       centrally-managed package references restore-fail without it, so
       this isn't optional polish, it's required for the csproj above to
-      restore at all.
+      restore at all. **Also add `Compono.TUnit`'s own entry** (matching
+      `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`'s existing
+      `Version="1.0.0"` pattern) — this phase's own local-feed consumer
+      task (below) restores a real `PackageReference` to `Compono.TUnit`,
+      which `ManagePackageVersionsCentrally=true` rejects with no central
+      version for it, same as the `TUnit.Core`/`TUnit` case.
 - [ ] **New `test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj`** — this
       phase's own `[Test]`-attributed test suite needs somewhere to
       actually run. `PackageReference` to `Compono.TUnit`
@@ -353,6 +358,13 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
         a `Compono.TUnit` install example alongside the existing
         `Compono.XunitV3` one, so the installation path isn't implicitly
         xUnit-v3-only.
+  - [ ] **Front-door package inventories** — `README.md` and
+        `docs/index.md` each carry their own "## Packages" table listing
+        exactly the four shipped packages (confirmed by direct read, both
+        currently identical four-row tables). Add `Compono.TUnit`'s row to
+        both — otherwise a reader never gets past either front door
+        without being told the package doesn't exist, even once the
+        Package Guide and package index (above) both advertise it.
 - [ ] `skills/compono/references/tunit.md`: new package-conditional
       reference file, covering `[Compose]`/`[Shared]` — matching
       `xunit-v3.md`'s shape; Phase 1 extends it.
@@ -375,12 +387,24 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       built from attribute-constructor-supplied config args, mirroring
       `Compono.XunitV3`'s `ComposeAttribute<TProfile, TConfig>`
       (ADR-0036) exactly, including its once-per-attribute-instance
-      reflection bound and its seed/config value semantics. Both generic
-      forms' own constructors accept `params object?[] inlineValues` and
-      pass through to `base(inlineValues)` — Phase 0 already shipped
-      inline-value binding itself (see that phase's `ComposeAttribute`
-      constructor task); this phase is pure inheritance, no new binding
-      logic.
+      reflection bound and its seed/config value semantics. **Correction
+      to the previous round's fix**: unlike `ComposeAttribute<TProfile>`,
+      this form's own constructor is **not** an inline-values pass-through
+      — verified against the real source
+      (`src/Compono.XunitV3/ComposeAttribute{TProfile,TConfig}.cs:62-64`):
+      `public ComposeAttribute(params object?[] configArguments) :
+      base()` calls the base constructor with **zero** inline values and
+      stores `configArguments` in its own separate `_configArguments`
+      field instead — a distinct binding target (`TConfig`'s own
+      constructor, via `ConfigProfileBinder`) from ordinary inline values,
+      which this form doesn't accept at all (every test method parameter
+      is always fully composed under `[Compose<TProfile, TConfig>]`, per
+      `Compono.XunitV3`'s own doc comment). `ComposeAttribute<TProfile>`
+      (above) is the only generic form that inherits Phase 0's
+      inline-value constructor unchanged; this one has its own,
+      independent constructor and storage, duplicated from
+      `Compono.XunitV3`'s exact shape, not shared with the other generic
+      form.
 - [ ] Stacked Compose-family attribute validation: reject a test method
       carrying more than one of `[Compose]`/`[Compose<TProfile>]`/
       `[Compose<TProfile, TConfig>]` — `AllowMultiple = false` is enforced
@@ -487,7 +511,8 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 - `docs/packages/compono-tunit.md` — new
 - `docs/packages/index.md`, `docs/roadmap/future-packages.md`,
   `docs/public-api.md`, `docs/concepts/shared-values.md`,
-  `docs/getting-started/installation.md` — updated
+  `docs/getting-started/installation.md`, `README.md`, `docs/index.md`
+  — updated
 - `skills/compono/SKILL.md`, `skills/compono/references/tunit.md`,
   `skills/compono-evals/evals.json` — new/updated
 
@@ -631,3 +656,29 @@ confirmed real:
   said disposal was "owned entirely by TUnit" and a run "confirms nothing
   leaks," both stale after the fifth round's root-vs-nested correction.
   Reworded both to match the corrected, scoped claim.
+
+**PR #72 Codex review, seventh round (2026-08-11)**: 3 findings, all
+confirmed real — one of them a mistake in the sixth round's own fix:
+- 🐛-equivalent (P1): the sixth round's constructor-consolidation fix
+  incorrectly claimed both generic forms (`ComposeAttribute<TProfile>`
+  and `ComposeAttribute<TProfile, TConfig>`) inherit Phase 0's inline-value
+  constructor unchanged. Verified against the real source
+  (`ComposeAttribute{TProfile,TConfig}.cs:62-64`): the two-type-parameter
+  form's own constructor is `params object?[] configArguments) : base()`
+  — zero inline values passed to the base, `configArguments` stored in
+  its own separate field entirely, bound to `TConfig`'s constructor via
+  `ConfigProfileBinder`, not to test parameters at all. Corrected Phase
+  1's task to describe this form's own independent constructor/storage/
+  binding path instead of incorrectly grouping it with
+  `ComposeAttribute<TProfile>`'s.
+- ⚠️-equivalent (P2): Phase 0's local-feed consumer task restores a real
+  `PackageReference` to `Compono.TUnit`, but the `Directory.Packages.props`
+  task only added `TUnit.Core`'s central version, not `Compono.TUnit`'s
+  own (needed the same way `Compono.XunitV3`/`Compono.NSubstitute`/
+  `Compono.Bogus` already have one for their own sample-consumer
+  projects). Added it.
+- ⚠️-equivalent (P2): `README.md` and `docs/index.md` both carry their own
+  four-package inventory table (confirmed identical, by direct read),
+  neither included in the doc-update list even though Phase 0 ships
+  `Compono.TUnit` as its own PR. Added both to Phase 0's stale-doc task
+  group.
