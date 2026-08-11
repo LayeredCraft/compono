@@ -9,9 +9,12 @@ installable package at all. It's `IsPackable=false`
 embedded inside `Compono`'s own `.nupkg` as an analyzer
 (`analyzers/dotnet/cs`) — a consumer never references it directly, and
 it never appears on nuget.org on its own. One additional package —
-`Compono.TUnit` — is committed via an `Accepted` ADR and is being built;
-see [Roadmap items](#roadmap-items-cleared-gate-a-and-gate-b) below. No
-other candidate on this page has cleared both gates yet.
+`Compono.TUnit` — is committed via an `Accepted` ADR
+([ADR-0040](../adr/0040-compono-tunit-package-design.md)), with
+[PLAN-0040](../plans/0040-compono-tunit-package-design.md) (`Not Started`)
+tracking its implementation; see
+[Roadmap items](#roadmap-items-cleared-gate-a-and-gate-b) below. No other
+candidate on this page has cleared both gates yet.
 
 ## Admission model
 

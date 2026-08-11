@@ -162,8 +162,12 @@ same-named types in different namespaces already coexist):
 ```csharp
 namespace Compono.TUnit;
 
-public class ComposeAttribute : UntypedDataSourceGeneratorAttribute
+public class ComposeAttribute : UntypedDataSourceGeneratorAttribute, ITestDiscoveryEventReceiver
 {
+    // Non-negative only, matching Compono.XunitV3's own ComposeAttribute.Seed exactly - the
+    // same "a reported seed is always pasteable back into this property unchanged" contract.
+    public int Seed { get; set; }
+
     protected override IEnumerable<Func<object?[]?>> GenerateDataSources(
         DataGeneratorMetadata dataGeneratorMetadata)
     {
@@ -173,14 +177,33 @@ public class ComposeAttribute : UntypedDataSourceGeneratorAttribute
         // (DependencyInjectionDataSourceAttribute does the same).
         yield return () =>
         {
-            var row = _composer.CreateRow(dataGeneratorMetadata.TestClassType);
-            // ...bind each of dataGeneratorMetadata's method parameters
+            var declaringType = dataGeneratorMetadata.TestInformation!.Class.Type;
+            var row = _composer.CreateRow(declaringType);
+
+            // Rejected here, not left to the pipeline - matching Compono.XunitV3's own
+            // row.Seed < 0 pre-composition check, so a negative *effective* seed (this
+            // attribute's own Seed property, or a profile that itself calls
+            // CompositionBuilder.WithSeed with a negative value) is caught before any
+            // parameter composes, not partway through.
+            if (row.Seed < 0)
+                throw new CompositionException($"Compono.TUnit requires a non-negative seed, but the configured seed was {row.Seed}.
+
+Seed: {row.Seed}");
+
+            // ...bind each of dataGeneratorMetadata.TestInformation's method parameters
             // through row.Resolve<T>(descriptor)/row.ResolveShared<T>(descriptor),
             // exactly like Compono.XunitV3's BindingPlan already does for
-            // MethodInfo/ParameterInfo - TUnit's DataGeneratorMetadata
-            // exposes the equivalent parameter metadata this needs.
+            // MethodInfo/ParameterInfo - TUnit's ParameterMetadata[] exposes the
+            // equivalent per-parameter metadata this needs.
             return boundArguments;
         };
+    }
+
+    public ValueTask OnTestDiscovered(DiscoveredTestContext context)
+    {
+        // Reads the seed this attribute instance's own GenerateDataSources stored into the
+        // same row's TestBuilderContext.StateBag - see "Seed observability" below.
+        return default;
     }
 }
 
@@ -191,7 +214,34 @@ Illustrative, not committed — the exact binding-plan mechanics
 (delegate caching, inline-value precedence, profile resolution) are
 implementation detail for `implement.md`'s own pass, following
 `Compono.XunitV3`'s proven shape as the template, not reinvented from
-scratch.
+scratch. **The `Seed` property and its non-negative validation, however,
+are a committed requirement, not illustrative detail** — see "Seed input
+and replay" immediately below; a first implementation that reports a seed
+but has no way to feed it back in would violate this ADR's own
+reproducibility driver.
+
+### Seed input and replay
+
+This ADR's own Decision Drivers promise the same "seed printed
+identically, pasteable back" guarantee `Compono.XunitV3` already
+established — but an earlier draft of this ADR never actually specified
+the public input half of that promise: `Compono.XunitV3.ComposeAttribute`
+has a public `Seed` property (non-negative only) that routes into
+`BuildComposer` (via `CompositionBuilder.WithSeed`) and is checked against
+`row.Seed < 0` before any parameter composes; nothing in this ADR's first
+draft added the equivalent for `Compono.TUnit`, so an implementation
+following it exactly could report a seed via `AddProperty("Compono.Seed",
+...)` with no way for a consumer to actually paste it back as
+`[Compose(Seed = ...)]`. **Corrected: `ComposeAttribute.Seed` (`int`,
+required member of the public surface, not optional implementation
+detail) is part of this ADR's Decision Outcome**, mirroring
+`Compono.XunitV3.ComposeAttribute.Seed` exactly — same non-negative
+constraint, same routing into the row's composer, same pre-composition
+rejection for a negative *effective* seed (whether set directly on this
+property or via a profile's own `CompositionBuilder.WithSeed` call).
+`ComposeAttribute<TProfile>`/`ComposeAttribute<TProfile, TConfig>`
+(Package shape above) inherit it unchanged, exactly like
+`Compono.XunitV3`'s own generic attributes do.
 
 ### Row-binding logic: duplicated, not extracted, for this release
 
@@ -257,6 +307,62 @@ ADR's earlier draft proposed wiring `Compono.TUnit` into
 building it would have given Compono a disposal-tracking responsibility it
 doesn't have anywhere else in this codebase, for values TUnit already
 disposes correctly on its own.
+
+**"TUnit owns 100% of it" is correct for a value Compono itself composes
+fresh — it is not automatically safe for a value that already had an
+external owner before Compono ever touched it, and this ADR's first draft
+glossed over that distinction.** `CompositionProviderResult`/
+`CompositionResult` (ADR-0024) are deliberately opaque about provenance —
+a value `UseServiceProvider(...)` or an exact `Register<T>(...)` factory
+hands back is, by design, indistinguishable from one Compono's own
+generated plan just constructed; `Compono.XunitV3`'s own `GetData` remarks
+document this exact ambiguity and resolve it by simply never registering
+a composed value with xUnit v3's `DisposalTracker` at all — disposal is
+then entirely the consumer's own responsibility, always, for every
+composed value. `Compono.TUnit` cannot take the same escape hatch: TUnit's
+`ObjectTracker`/`ObjectGraphDiscoverer` are not opt-in per data-source
+attribute — every value TUnit can reach as a root test argument
+(confirmed in source: any `[Compose]`-composed value, since it's always
+itself a top-level method parameter, whether marked `[Shared]` or not) is
+tracked and, when its reference count reaches zero, disposed, regardless
+of which attribute produced it. That reference count is genuinely
+cross-test (a static, process-wide `ConcurrentDictionary<object, Counter>`
+keyed by object identity — confirmed in `ObjectTracker.cs`) with no
+provenance check (`ShouldSkipTracking` only tests `is IDisposable or
+IAsyncDisposable`, nothing about origin) — so an externally-owned,
+deliberately cross-test-shared disposable instance (a singleton returned
+by `UseServiceProvider(...)`/an exact registration factory, composed as a
+`[Compose]`/`[Shared]` parameter) is tracked exactly like a fresh value:
+its count rises to 1 the first test that composes it, falls back to 0 and
+gets **disposed** the moment that first test finishes — before any later
+test that also needs the same shared instance ever runs. This directly
+contradicts [ADR-0019](0019-registrations-and-service-provider-injection.md)'s
+"the caller owns the provider and its entire lifetime; Compono is a pure
+consumer" contract, and a freshly-constructed-and-never-reused
+`IDisposable` test type (this ADR's own disposal-verification test,
+PLAN-0040 Phase 0) cannot detect this failure mode at all — it only
+manifests when the *same* disposable instance is deliberately reused
+*across* tests, which that test doesn't exercise.
+
+**Resolution: this is a real, documented non-goal for this release, not
+silently left to accidentally work.** `Compono.TUnit` has no way to
+distinguish a fresh value from an externally-owned one (the same
+limitation `Compono.XunitV3` documents), and unlike `Compono.XunitV3` it
+has no opt-out from TUnit's own disposal tracking to fall back on — so the
+safe rule this ADR commits to is on the *consumer* side: **do not compose
+an externally-owned, disposable, cross-test-shared instance (from
+`UseServiceProvider(...)` or an exact `Register<T>(...)` factory returning
+a shared/cached instance) as a `[Compose]`/`[Shared]` parameter under
+`Compono.TUnit`.** A disposable value Compono itself freshly constructs
+per composition is unaffected (its reference count is always exactly 1,
+for exactly one test) — the constraint is specific to a value whose
+lifetime is meant to outlive a single test. A resource that genuinely
+needs cross-test sharing belongs in a mechanism TUnit itself owns the
+lifetime of (its own `[ClassDataSource(Shared = ...)]`/assembly-fixture
+model), not injected into a test through Compono composition. This
+constraint is recorded here, in the Package Guide (PLAN-0040 Phase 0), and
+as a `Compono.TUnit`-specific skill guardrail — a real, load-bearing
+limitation, not an implementation footnote.
 
 **Seed observability — a real TUnit-native equivalent exists, and this
 ADR requires using it, not a degraded fallback.** TUnit's own first-party
@@ -334,6 +440,15 @@ not specifically probe.
   captured closures, and because `StateBag`/`AddProperty` are both public,
   documented API surfaces TUnit's own built-in attributes already depend
   on the same way.
+- An externally-owned, cross-test-shared disposable instance composed as
+  a `[Compose]`/`[Shared]` parameter is not safe under `Compono.TUnit`
+  (see "Diagnostics, disposal, and seed observability" above) — a real
+  constraint `Compono.XunitV3` doesn't share (xUnit v3's disposal is
+  opt-in and `Compono.XunitV3` opts out entirely), because TUnit's own
+  disposal tracking has no such opt-out to inherit. Accepted as a
+  documented non-goal rather than solved, since Compono has no provenance
+  information to solve it with — the same limitation `Compono.XunitV3`
+  already documents, inherited here under a stricter runner.
 
 ## Pros and Cons of the Options
 

@@ -130,6 +130,14 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (cached, reflection-once-per-parameter delegate construction, not
       re-reflected per row) — duplicated into this package per ADR-0040,
       not shared.
+- [ ] `ComposeAttribute.Seed` (`int`, non-negative) — public property
+      mirroring `Compono.XunitV3.ComposeAttribute.Seed` exactly, routed
+      into `BuildComposer`'s `CompositionBuilder.WithSeed(...)` call. The
+      row's effective seed (`row.Seed < 0`) is checked before any
+      parameter composes, matching `Compono.XunitV3`'s own pre-composition
+      check — required by ADR-0040's "Seed input and replay" section, not
+      optional: without this property a reported seed can never actually
+      be pasted back as `[Compose(Seed = ...)]`.
 - [ ] `SharedAttribute` — package-local marker, mirroring
       `Compono.XunitV3.SharedAttribute`'s shape and duplicate-shared-type
       validation.
@@ -155,6 +163,16 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `IAsyncDisposable`/`ITestEndEventReceiver` implementation anywhere in
       this package — ADR-0040's disposal conclusion is a hard constraint
       for this phase, not just a design note to remember.
+- [ ] Document the externally-owned-disposable constraint from ADR-0040's
+      "Diagnostics, disposal, and seed observability" section — do not
+      compose a cross-test-shared disposable instance (from
+      `UseServiceProvider(...)`/an exact `Register<T>(...)` factory
+      returning a shared instance) as a `[Compose]`/`[Shared]` parameter,
+      since TUnit's reference-counted disposal has no provenance
+      awareness and will dispose it after the first test that uses it.
+      Lands in the new Package Guide (below) and as a `Compono.TUnit`-
+      specific skill guardrail — a real constraint, not a footnote to
+      mention once and forget.
 - [ ] `test/Compono.TUnit.Tests`: binding-plan unit coverage for the
       no-profile shape (parameter resolution, signature-validation errors —
       generic method, ref/out/in, params — `[Shared]` duplicate-type
