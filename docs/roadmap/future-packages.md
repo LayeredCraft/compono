@@ -48,7 +48,13 @@ core itself unchanged:
   ([ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)).
   Not admitted because TUnit is source-generated — that architectural
   kinship is not, on its own, consumer value; see ADR-0039 for what was
-  retired and why.
+  retired and why. **Now a roadmap item**: Gate B cleared via an explicit
+  product-owner request (ADR-0039's real-demand trigger), and
+  [ADR-0040](../adr/0040-compono-tunit-package-design.md) (`Accepted`)
+  records the resulting package design — method-parameter composition
+  only for the first release, full parity with `Compono.XunitV3`'s scope;
+  see that ADR for why constructor-dependency composition was
+  investigated and deferred.
 - **`Compono.NUnit`** — NUnit's `IParameterDataSource` gives genuine
   per-parameter composition granularity `Compono.XunitV3`'s row model
   doesn't have; `ITestBuilder`/`IFixtureBuilder` cover the row/fixture-
