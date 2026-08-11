@@ -178,14 +178,26 @@ undermines the reason Compono exists in this project.
   explicitly undecided/future work, not shipped API — don't tell a user
   they can "opt into reflection fallback."
 - **Never claim or write code against a Compono integration package that
-  hasn't shipped.** Only `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`,
-  and `Compono.Bogus` are real today — there is no `Compono.NUnit`,
+  hasn't shipped — but distinguish "no dedicated package" from "no
+  capability."** Only `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`,
+  and `Compono.Bogus` ship as packages today — there is no `Compono.NUnit`,
   `Compono.MSTest`, `Compono.TUnit`, `Compono.FakeItEasy`, `Compono.Moq`, or
-  `Compono.DependencyInjection`. If asked whether Compono supports one of
-  these, say plainly that it doesn't ship today and, if useful, point at
-  `docs/roadmap/future-packages.md` for its current status (an idea, an
-  admitted-but-unevidenced candidate, or deferred) — never invent a
-  plausible-looking API for a package that doesn't exist.
+  `Compono.DependencyInjection`, and never invent a plausible-looking API
+  for one. That doesn't always mean the underlying capability is
+  unsupported, though: core `Composer.Create<T>()`/`CreateMany<T>()` work
+  inside any test framework's test body today, including NUnit/MSTest,
+  with no framework-specific package required — just without
+  `Compono.XunitV3`'s `[Compose]`/`[Shared]`/row convenience. Likewise,
+  `CompositionBuilder.UseServiceProvider(...)` already bridges a
+  consumer's own `IServiceProvider` today — there's no missing DI
+  capability, only a richer/auto-registering DI package that hasn't
+  shipped. When asked whether Compono supports one of these, say
+  precisely what does and doesn't exist rather than a blanket "no." For
+  current candidate status (idea / admitted candidate / deferred), point
+  at <https://layeredcraft.github.io/compono/roadmap/future-packages/> —
+  not a repo-relative `docs/` path, since an installed skill payload
+  (`npx skills add`) only includes `SKILL.md` and `references/`, not the
+  rest of this repository.
 
 ## When not to use Compono
 
