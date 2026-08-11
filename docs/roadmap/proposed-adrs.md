@@ -3,21 +3,18 @@
 A status-filtered view of [`docs/adr/README.md`](../adr/README.md): every
 ADR that's `Proposed`, or `Accepted` but not yet implemented.
 
-## Accepted, not yet implemented
+## Current state: none proposed or pending implementation
 
-- [ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md) —
-  Future Extension Package Admission Gate and Release Sequence.
-  `Accepted`. Establishes a two-stage admission model for future
-  extension packages — an architectural admission gate this ADR owns,
-  feeding into [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)'s
-  existing evidence gate — with no committed release sequence. See
-  [Future Packages](future-packages.md) for the resulting per-candidate
-  disposition. [PLAN-0039](../plans/0039-future-extension-package-admission-gate-and-release-sequence.md)
-  (`In Progress`, Phase 0 done) tracks putting this decision into effect
-  across the repo's docs/skill surfaces — no package code is implied or
-  scheduled by this ADR itself.
+[ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)
+(Future Extension Package Admission Gate and Release Sequence) was the
+last entry on this page — `Accepted`, with
+[PLAN-0039](../plans/0039-future-extension-package-admission-gate-and-release-sequence.md)
+now `Done`, putting its two-stage admission model into effect across
+`docs/roadmap/future-packages.md` and `skills/compono`. See
+[Future Packages](future-packages.md) for the resulting per-candidate
+disposition it produced.
 
-Every other ADR recorded in [`docs/adr/README.md`](../adr/README.md) is
+Every ADR recorded in [`docs/adr/README.md`](../adr/README.md) is
 currently `Accepted` and implemented, `Superseded`, or (for the two
 decisions later revisions replaced) implicitly retired by their
 successor. See the [Historical Decision Log](../architecture/decision-log.md)
