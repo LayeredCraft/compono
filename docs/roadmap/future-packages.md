@@ -46,3 +46,12 @@ into an ADR, per
 [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md).
 A future package gets its own [Package Guide](../packages/index.md) entry
 the moment it ships.
+
+## Proposed release sequence (not committed)
+
+[ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)
+(`Proposed`, not yet `Accepted`) records current thinking on an admission
+gate and a candidate release order for these future packages, if/when they
+move forward. Neither is binding — each package still needs its own
+design dive and its own `Proposed` ADR before it's real roadmap content,
+per the process above.
