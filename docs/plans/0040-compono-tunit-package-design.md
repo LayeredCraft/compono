@@ -3,9 +3,14 @@
 **Status:** Not Started
 
 **Implements:** [ADR-0040](../adr/0040-compono-tunit-package-design.md)
-(`Compono.TUnit` package: method-parameter composition only, no core
-`Compono` changes, disposal owned entirely by TUnit, seed observability
-via `ITestDiscoveryEventReceiver`/`DiscoveredTestContext.AddProperty`)
+(`Compono.TUnit` package: method-parameter composition only, no new
+public runtime `Compono` API (a discovery-time-only `Compono.Generators`
+extension is required, see ADR-0040's "Generator discovery" section),
+root-argument disposal owned by TUnit only — a nested composed dependency
+is disposed by no one, and an externally-owned shared disposable composed
+as a root parameter is unsafe, both documented limitations, not solved
+problems — seed observability via `ITestDiscoveryEventReceiver`/
+`DiscoveredTestContext.AddProperty`)
 
 **Note:** ADR-0040 is `Accepted` as of this plan's creation (2026-08-11) —
 implementation may begin.
@@ -47,7 +52,11 @@ composed constructor parameter (mirroring `Compono.XunitV3`'s own
 different test framework); the row's seed is discoverable via TUnit's own
 reporting surface (`TestContext`/`DiscoveredTestContext.AddProperty`)
 whether the test passes or fails, not only on failure; no `Compono.TUnit`
-code disposes anything, and a real TUnit test run confirms nothing leaks.
+code disposes the *root* composed values, and a real TUnit test run
+confirms it — with the equally real, documented limitation that a nested
+composed dependency is disposed by no one, and an externally-owned shared
+disposable must never be composed as a root parameter (see ADR-0040's
+disposal section).
 
 ## Scope
 
@@ -144,6 +153,28 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       centrally-managed package references restore-fail without it, so
       this isn't optional polish, it's required for the csproj above to
       restore at all.
+- [ ] **New `test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj`** — this
+      phase's own `[Test]`-attributed test suite needs somewhere to
+      actually run. `PackageReference` to `Compono.TUnit`
+      (`ProjectReference` in-repo) and the **full `TUnit` meta-package**
+      (not `TUnit.Core` alone — this project executes as a real TUnit test
+      run, unlike `src/Compono.TUnit` itself, which only authors against
+      `TUnit.Core`'s extensibility surface). `Directory.Packages.props`
+      also needs `TUnit`'s own `PackageVersion` entry alongside
+      `TUnit.Core`'s, immediately above. Matches `test/Compono.XunitV3.Tests`'
+      own csproj shape (`IsTestProject`, MTP runner properties) as the
+      template, substituting TUnit's own project-SDK/runner conventions
+      where they differ — confirm exact required properties
+      (`TestingPlatformDotnetTestSupport`-equivalent, if any) against a
+      real TUnit sample project during implementation rather than
+      guessing them here. Also needs a `Compono.TUnit.Tests`-name
+      exclusion added to `test/Directory.Build.props`'s two
+      `IsTestProject`-scoped `ItemGroup`s (the shared xUnit v3 test-runner
+      packages and global `using Xunit;`/etc. it force-adds to every test
+      project don't belong in a TUnit-run project — mixing two
+      `Microsoft.Testing.Platform` entry points in one project doesn't
+      work) — a genuinely new edit this phase makes, not something already
+      in place.
 - [ ] **Generator discovery** (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
       `src/Compono.Generators/ComponoIncrementalGenerator.cs`): three new
       metadata-name constants (`Compono.TUnit.ComposeAttribute`/`` `1``/
@@ -186,6 +217,24 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (cached, reflection-once-per-parameter delegate construction, not
       re-reflected per row) — duplicated into this package per ADR-0040,
       not shared.
+- [ ] **`ComposeAttribute`'s constructor — `public ComposeAttribute(params
+      object?[] inlineValues)`, with full inline-value binding, ships in
+      this phase, not Phase 1.** Confirmed against `Compono.XunitV3`'s
+      real source: inline values live on the *base* `ComposeAttribute`
+      constructor (`Compono.XunitV3.ComposeAttribute<TProfile>`'s own
+      constructor is `public ComposeAttribute(params object?[]
+      inlineValues) : base(inlineValues)` — a pass-through, not a
+      Phase-1-only concept). Shipping `Compono.TUnit.ComposeAttribute`
+      with only an implicit parameterless constructor in this phase and
+      adding the `params` constructor in Phase 1 would remove that
+      implicit constructor (C# stops auto-generating it the moment any
+      explicit constructor exists) — a binary-compatibility break for
+      anything compiled against Phase 0's shipped assembly. The
+      constructor shape must be final from this phase's first release.
+      Positional, leading-parameters-only precedence over composition,
+      matching `Compono.XunitV3`'s existing algorithm exactly (`Compono.XunitV3
+      .ComposeAttribute`'s `NormalizeParamsArguments`/inline-value-validation
+      logic is the template).
 - [ ] `ComposeAttribute.Seed` (`int`, non-negative) — public property
       mirroring `Compono.XunitV3.ComposeAttribute.Seed` exactly, routed
       into `BuildComposer`'s `CompositionBuilder.WithSeed(...)` call. The
@@ -235,8 +284,10 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 - [ ] `test/Compono.TUnit.Tests`: binding-plan unit coverage for the
       no-profile shape (parameter resolution, signature-validation errors —
       generic method, ref/out/in, params — `[Shared]` duplicate-type
-      validation), mirroring `Compono.XunitV3.Tests`' existing coverage
-      shape for the equivalent binding logic.
+      validation), **plus inline-value precedence coverage** (now a Phase
+      0 concern, per the constructor-shape fix above) — mirroring
+      `Compono.XunitV3.Tests`' `InlineNullHandlingTests`/equivalent
+      binding-logic coverage.
 - [ ] Seed-observability verification, real TUnit run: `AddProperty
       ("Compono.Seed", ...)` actually visible on both a passing and a
       failing `[Compose]` row (via TUnit's own reporting/TRX output, not
@@ -324,11 +375,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       built from attribute-constructor-supplied config args, mirroring
       `Compono.XunitV3`'s `ComposeAttribute<TProfile, TConfig>`
       (ADR-0036) exactly, including its once-per-attribute-instance
-      reflection bound and its seed/config value semantics.
-- [ ] Inline value support: the attribute's own constructor `params
-      object?[]`, strictly positional leading-parameters-only, matching
-      `Compono.XunitV3`'s existing precedent (not a second attribute, not
-      named-argument binding).
+      reflection bound and its seed/config value semantics. Both generic
+      forms' own constructors accept `params object?[] inlineValues` and
+      pass through to `base(inlineValues)` — Phase 0 already shipped
+      inline-value binding itself (see that phase's `ComposeAttribute`
+      constructor task); this phase is pure inheritance, no new binding
+      logic.
 - [ ] Stacked Compose-family attribute validation: reject a test method
       carrying more than one of `[Compose]`/`[Compose<TProfile>]`/
       `[Compose<TProfile, TConfig>]` — `AllowMultiple = false` is enforced
@@ -349,9 +401,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       ADR-0040 promising full `Compono.XunitV3` parity.
 - [ ] `test/Compono.TUnit.Tests`: profile-binding unit/integration
       coverage (`ComposeAttribute<TProfile>`, `ComposeAttribute<TProfile,
-      TConfig>` config binding), inline-value precedence coverage,
-      mirroring `Compono.XunitV3.Tests`' `ComposeAttributeConfigBindingTests`/
-      `InlineNullHandlingTests` shape. Includes stacked-attribute-rejection
+      TConfig>` config binding) plus inline-values-combined-with-a-profile
+      coverage (Phase 0 already covers inline values alone; this phase
+      only adds the combined case, once a profile exists to combine with),
+      mirroring `Compono.XunitV3.Tests`' `ComposeAttributeConfigBindingTests`
+      shape. Includes stacked-attribute-rejection
       test cases for the generic and config-generic forms specifically
       (`[Compose]` + `[Compose<TProfile>]`, `[Compose<TProfile>]` +
       `[Compose<TProfile, TConfig>]`, etc.) — the case Phase 0 alone can't
@@ -424,6 +478,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
   `Compono.TUnit`-only-reachable discovery)
 - A new or extended sample project proving real-package consumption
 - `Compono.slnx` — modified (new project entries)
+- `test/Directory.Build.props` — modified (`Compono.TUnit.Tests`-name exclusion from the xUnit-v3-specific `ItemGroup`s)
 - `Directory.Packages.props` — modified (`TUnit.Core`/`TUnit`/`Compono.TUnit` `PackageVersion` entries)
 - `.github/workflows/docs.yml`, `.github/workflows/package-validation.yaml`,
   `.github/scripts/inspect-packed-nupkgs.sh`,
@@ -549,3 +604,30 @@ confirmed real:
   `PinProjectReferenceVersionsExact` MSBuild target every other
   integration project's csproj has — without both, the new project can't
   restore or pack correctly. Added both to the Phase 0 task list.
+
+**PR #72 Codex review, sixth round (2026-08-11)**: 3 findings, all
+confirmed real:
+- 🐛-equivalent (P1): `ComposeAttribute`'s constructor shape would have
+  changed between Phase 0 and Phase 1 — Phase 0 shipping only an implicit
+  parameterless constructor, Phase 1 adding `params object?[] inlineValues`,
+  which removes that implicit constructor (C# stops generating it once any
+  explicit constructor exists) — a binary-compatibility break for anything
+  compiled against Phase 0's shipped assembly. Verified against real
+  `Compono.XunitV3` source that inline values are a *base*-class
+  constructor concern, not a generic-subclass one
+  (`ComposeAttribute<TProfile>`'s own constructor is `params object?[]
+  inlineValues) : base(inlineValues)`, a pure pass-through) — moved the
+  constructor and its binding logic entirely into Phase 0, where it
+  actually belongs; Phase 1's generic forms now just inherit it.
+- 🐛-equivalent (P1): Phase 0 added `TUnit.Core`'s package version but
+  never a task to create `test/Compono.TUnit.Tests` itself or reference
+  the full `TUnit` meta-package it needs to actually execute as a TUnit
+  test run. Added the project-creation task, and caught my own claim that
+  the `test/Directory.Build.props` exclusion was "already added" — it
+  isn't, it only exists in this session's stashed, uncommitted work, not
+  on this branch or `main` — corrected to describe it as a task this
+  phase does, not a precondition already met.
+- ⚠️-equivalent (P2): the plan's own header summary and Goal section still
+  said disposal was "owned entirely by TUnit" and a run "confirms nothing
+  leaks," both stale after the fifth round's root-vs-nested correction.
+  Reworded both to match the corrected, scoped claim.
