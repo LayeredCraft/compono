@@ -112,3 +112,13 @@ case hand-constructs directly from a composed `string` — both are
 legitimate answers to the same guardrail rule ("wrap in an app-owned
 interface/factory, or construct it directly by hand"), not evidence the
 workaround has converged on one specific mechanism.
+
+## Decisions
+
+- **This finding** → no ADR or Amendment. Classified "Acceptable
+  Compono-native alternative" per ADR-0029, which explicitly needs no ADR
+  action — recorded here and in the migration guide instead (see
+  "Classification" above for the required artifacts).
+  [ADR-0002](../adr/0002-constructor-selection-algorithm.md) itself is
+  unchanged: no new Amendment was added for this finding, and its
+  Amendment 1 (the `HttpClient` finding) stands as previously recorded.
