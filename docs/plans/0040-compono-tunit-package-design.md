@@ -157,12 +157,15 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       check for the parity guarantee ADR-0040 requires, not an assumption.
       Also investigate (per ADR-0040's flagged open item) whether this
       holds under `[Retry]`; record the actual finding either way.
-- [ ] **Disposal verification**: a real TUnit test run with an
-      `IDisposable` composed value (e.g. a `[Shared]` substitute or a
-      disposable domain object) confirming TUnit disposes it without any
-      `Compono.TUnit`-side cleanup code — the concrete check for ADR-0040's
-      "TUnit owns 100% of it" conclusion, not just trusting the design
-      analysis.
+- [ ] **Disposal verification**: a real TUnit test run with a simple
+      `IDisposable` domain/test type (a small purpose-built type recording
+      whether `Dispose()` was called — not a `[Shared]` substitute or any
+      other mocking-library-produced object) confirming TUnit disposes it
+      without any `Compono.TUnit`-side cleanup code — the concrete check
+      for ADR-0040's "TUnit owns 100% of it" conclusion, not just trusting
+      the design analysis. A plain domain type keeps this test proving
+      exactly one thing (TUnit disposes composed method arguments), not
+      conflating it with a mocking library's own disposal semantics.
 - [ ] An API-surface/approval test locking `Compono.TUnit`'s public shape
       (`ComposeAttribute` family, `SharedAttribute`, and nothing else),
       matching `Compono.XunitV3.Tests`'/`Compono.NSubstitute.Tests`'
