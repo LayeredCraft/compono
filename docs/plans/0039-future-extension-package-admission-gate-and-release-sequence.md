@@ -70,23 +70,32 @@ own Decision Outcome and this ADR's user-facing constraints:
 
 ## Phase 1 — Admission policy
 
-- [ ] Confirm ADR-0039's Decision Outcome section stands as the single
-      canonical statement of Gate A's five criteria, Gate B's unchanged
-      deference to ADR-0029, and the four-stage terminology (candidate /
-      admitted candidate / roadmap item / committed implementation work) —
-      no separate restatement needed in `design-decisions.md` or the
-      `engineering-workflow` skill, since ADR-0039 is already the system of
-      record per this repo's own ADR/doc split.
-- [ ] Confirm `docs/roadmap/future-packages.md` (already rewritten as part
-      of the ADR revision) correctly documents how a candidate moves
-      candidate → admitted candidate (Gate A, this ADR) → roadmap item
-      (Gate B, ADR-0029) → committed implementation work (Accepted ADR +
-      in-progress Plan), and that it points at ADR-0039 rather than
-      restating Gate A's criteria inline.
-- [ ] Check `docs/roadmap/index.md` (the page `post-mvp.md` describes
-      itself as a "status-filtered index" under) for any stale description
-      of the admission process that predates ADR-0039's two-stage model;
-      update if found.
+- [x] Confirmed ADR-0039's Decision Outcome section stands as the single
+      canonical statement — verified directly against the file: five Gate
+      A criteria present under "The two-stage admission model", Gate B
+      deference to ADR-0029 stated explicitly and unduplicated, and the
+      four-stage terminology section present verbatim
+      ("### Terminology..."). No separate restatement added to
+      `design-decisions.md` or the `engineering-workflow` skill —
+      confirmed neither currently restates any future-package-specific
+      criteria that would now conflict with ADR-0039's gate, so there's
+      nothing to reconcile there.
+- [x] Confirmed `docs/roadmap/future-packages.md`'s "Admission model"
+      section states the two-gate flow (Gate A → admitted candidate;
+      Gate B → roadmap item) in a short summary and links to ADR-0039 for
+      the full five-criteria list — grepped the file directly and
+      confirmed none of Gate A's five criteria names ("Compono-specific
+      value," "Native ecosystem fit," etc.) are restated verbatim there,
+      so the doc points rather than duplicates.
+- [x] Checked `docs/roadmap/index.md` — it references `future-packages.md`/
+      `proposed-adrs.md` generically and never describes the admission
+      gate's mechanics itself, so there's no gate-specific staleness to
+      fix. Noted, but explicitly out of scope for this phase: its one-line
+      description of `proposed-adrs.md` ("design decisions still being
+      discussed, not yet `Accepted`") is a pre-existing, minor imprecision
+      against that page's own actual scope ("`Proposed`, or `Accepted` but
+      not yet implemented") — predates ADR-0039's revision, not introduced
+      or worsened by it.
 
 ## Phase 2 — Candidate inventory
 
@@ -207,3 +216,10 @@ real:
   rule. User decision: keep it bundled as-is (small, one-line-per-entry,
   directly adjacent to the ADR-0039 index edit in the same file) — not
   acted on, replied on the thread explaining the reasoning.
+
+**Phase 1 (2026-08-11)**: pure verification pass, no doc changes needed.
+All three items confirmed clean against the merged PR #69 state — ADR-0039
+is already the single canonical statement of the gate/terminology,
+`future-packages.md` already points at it rather than duplicating it, and
+`docs/roadmap/index.md` has no gate-specific staleness (its one unrelated,
+pre-existing imprecision is noted but out of scope here).
