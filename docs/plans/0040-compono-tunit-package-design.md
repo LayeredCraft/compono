@@ -131,7 +131,19 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `PackageReference` to `Compono` (`PrivateAssets="none"`, per
       PLAN-0004 Phase 3's real packaging-bug lesson — do not repeat it) and
       `TUnit.Core` only (not the full `TUnit`/`TUnit.Engine` meta-packages,
-      per ADR-0040's minimal-dependency driver).
+      per ADR-0040's minimal-dependency driver). Also carries the same
+      `PinProjectReferenceVersionsExact` MSBuild target every existing
+      integration project's `.csproj` has (`Compono.XunitV3.csproj`'s own
+      copy is the template) — without it, `dotnet pack`'s own
+      `ProjectReference`-to-`Compono` version resolves to a bare,
+      minimum-inclusive range instead of the bracket/exact syntax ADR-0031
+      requires.
+- [ ] `Directory.Packages.props`: add `TUnit.Core`'s `PackageVersion` entry
+      (a tested range, matching ADR-0031 Amendment 1's convention — see
+      `xunit.v3.extensibility.core`'s own entry for the exact shape) —
+      centrally-managed package references restore-fail without it, so
+      this isn't optional polish, it's required for the csproj above to
+      restore at all.
 - [ ] **Generator discovery** (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
       `src/Compono.Generators/ComponoIncrementalGenerator.cs`): three new
       metadata-name constants (`Compono.TUnit.ComposeAttribute`/`` `1``/
@@ -151,6 +163,19 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       method (no other discovery path in the same compilation) gets a
       generated plan — mirroring whatever regression test closed the
       equivalent `Compono.XunitV3` gap (ADR-0022's Amendment, fix #2).
+- [ ] **Real packaged-consumer proof of the generator-discovery
+      extension, in this phase — not deferred to Phase 2.** Since Phase 0
+      is what actually changes the embedded `Compono.Generators` analyzer,
+      a snapshot test alone doesn't prove the real NuGet dependency chain
+      works: a minimal local-feed consumer project (mirroring PLAN-0004
+      Phase 3 / PLAN-0005 Phase 2's `dotnet pack` → local-feed → real
+      restore pattern) using the unqualified `[Compose]` attribute against
+      a type with no other discovery path, proving the packed
+      `Compono.TUnit`/`Compono` dependency chain actually generates a plan
+      for it. Phase 2's own packaged-consumer run then exercises the
+      *complete* attribute family once Phase 1 exists — this Phase 0
+      instance is the minimum needed to prove Phase 0's own change works
+      for real, in its own PR, not left unverified until a later phase.
 - [ ] `ComposeAttribute : UntypedDataSourceGeneratorAttribute` — the
       no-profile entry point. Overrides `GenerateDataSources(DataGeneratorMetadata)`,
       returns a single deferred `Func<object?[]?>` that (inside the Func,
@@ -194,16 +219,19 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `IAsyncDisposable`/`ITestEndEventReceiver` implementation anywhere in
       this package — ADR-0040's disposal conclusion is a hard constraint
       for this phase, not just a design note to remember.
-- [ ] Document the externally-owned-disposable constraint from ADR-0040's
-      "Diagnostics, disposal, and seed observability" section — do not
-      compose a cross-test-shared disposable instance (from
-      `UseServiceProvider(...)`/an exact `Register<T>(...)` factory
-      returning a shared instance) as a `[Compose]`/`[Shared]` parameter,
-      since TUnit's reference-counted disposal has no provenance
-      awareness and will dispose it after the first test that uses it.
-      Lands in the new Package Guide (below) and as a `Compono.TUnit`-
-      specific skill guardrail — a real constraint, not a footnote to
-      mention once and forget.
+- [ ] Document both disposal constraints from ADR-0040's "Diagnostics,
+      disposal, and seed observability" section: (1) do not compose a
+      cross-test-shared disposable instance (from `UseServiceProvider(...)`/
+      an exact `Register<T>(...)` factory returning a shared instance) as a
+      `[Compose]`/`[Shared]` parameter, since TUnit's reference-counted
+      disposal has no provenance awareness and will dispose it after the
+      first test that uses it; (2) a nested, non-root `IDisposable`
+      dependency a generated plan composes internally is never disposed by
+      TUnit or Compono at all — promote it to `[Shared]` or dispose it
+      explicitly in the test body if that matters. Lands in the new
+      Package Guide (below) and as `Compono.TUnit`-specific skill
+      guardrails — real constraints, not footnotes to mention once and
+      forget.
 - [ ] `test/Compono.TUnit.Tests`: binding-plan unit coverage for the
       no-profile shape (parameter resolution, signature-validation errors —
       generic method, ref/out/in, params — `[Shared]` duplicate-type
@@ -217,12 +245,17 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       investigate whether this holds under `[Retry]`; record the actual
       finding either way (ADR-0040's flagged open item — doesn't need
       profile support to check, so it belongs here, not Phase 2).
-- [ ] Disposal verification, real TUnit run: a simple `IDisposable`
+- [ ] Disposal verification, real TUnit run, two cases per ADR-0040's
+      corrected (root-only) disposal claim: (1) a simple `IDisposable`
       domain/test type (a small purpose-built type recording whether
       `Dispose()` was called — not a `[Shared]` substitute or any other
-      mocking-library-produced object) composed via `[Compose]`, confirming
-      TUnit disposes it without any `Compono.TUnit`-side cleanup code — the
-      concrete check for ADR-0040's "TUnit owns 100% of it" conclusion.
+      mocking-library-produced object) composed as a top-level `[Compose]`
+      parameter, confirming TUnit disposes it without any `Compono.TUnit`-
+      side cleanup code; (2) the same type composed as a *nested*,
+      non-`[Shared]` constructor dependency of another composed value,
+      confirming — and recording as documented, expected behavior, not a
+      bug — that it is **not** disposed by anyone. Testing only case (1)
+      would silently overclaim coverage case (2) never had.
 - [ ] End-to-end `[Shared]` composition test against a real TUnit run,
       using the no-profile `[Compose]` shape (a plain composed domain
       object reused via `[Shared]`, not the NSubstitute scenario — that
@@ -342,12 +375,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 **Status:** Not Started
 
 - [ ] A real packaged-consumer sample project run (mirroring PLAN-0004
-      Phase 3 / PLAN-0005 Phase 2's precedent exactly) — a
-      `ProjectReference`-only build cannot surface a real packaging bug.
-      Exercises the full attribute family (`[Compose]`/`[Compose<TProfile>]`/
-      `[Compose<TProfile, TConfig>]`/`[Shared]`) through the actual
-      packaged `Compono.TUnit` → `Compono` dependency chain, not
-      `Compono.TUnit.Tests`' own `ProjectReference`-based calls.
+      Phase 3 / PLAN-0005 Phase 2's precedent exactly) — extends Phase 0's
+      own minimal local-feed consumer to exercise the *complete* attribute
+      family (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/
+      `[Shared]`) through the actual packaged `Compono.TUnit` → `Compono`
+      dependency chain, not `Compono.TUnit.Tests`' own `ProjectReference`-
+      based calls.
 - [ ] Final API-surface/approval test locking `Compono.TUnit`'s complete
       public shape (`ComposeAttribute` family, `SharedAttribute`, and
       nothing else), matching `Compono.XunitV3.Tests`'/
@@ -391,6 +424,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
   `Compono.TUnit`-only-reachable discovery)
 - A new or extended sample project proving real-package consumption
 - `Compono.slnx` — modified (new project entries)
+- `Directory.Packages.props` — modified (`TUnit.Core`/`TUnit`/`Compono.TUnit` `PackageVersion` entries)
 - `.github/workflows/docs.yml`, `.github/workflows/package-validation.yaml`,
   `.github/scripts/inspect-packed-nupkgs.sh`,
   `.github/scripts/generate-api-reference.sh` — modified (five-package
@@ -489,3 +523,29 @@ confirmed real:
   `docs/concepts/shared-values.md`'s "[Shared] only applies within
   Compono.XunitV3" line). Added Phase 0 tasks for both, plus an
   installation-guide addition.
+
+**PR #72 Codex review, fifth round (2026-08-11)**: 3 findings, all
+confirmed real:
+- 🐛-equivalent (P1): ADR-0040's disposal claim ("TUnit owns 100% of it")
+  overclaimed coverage. Re-read `ObjectGraphDiscoverer`'s own traversal
+  logic directly: its nested-object walk is scoped to TUnit's own
+  `IAsyncInitializer` property registry, not a general graph walk — an
+  ordinary nested composed dependency (never itself a root `[Compose]`/
+  `[Shared]` parameter) is never reached by TUnit's disposal at all.
+  Corrected the ADR to scope the claim precisely to root/top-level
+  returned arguments, added the nested-dependency gap as an accepted
+  limitation (the same one `Compono.XunitV3` already has for every
+  composed value, just narrower here), and split the Phase 0
+  disposal-verification task into two cases so it doesn't silently
+  overclaim coverage the second case never had.
+- ⚠️-equivalent (P1): the only real packaged-consumer proof of Phase 0's
+  own generator-discovery change was deferred to Phase 2, meaning Phase 0
+  could ship a broken embedded-analyzer change unverified against a real
+  NuGet dependency chain in its own PR. Added a minimal Phase 0 local-feed
+  consumer task (unqualified `[Compose]` only); Phase 2 now extends it to
+  the complete attribute family instead of being the first such run.
+- ⚠️-equivalent (P2): the csproj task never mentioned adding `TUnit.Core`'s
+  `PackageVersion` to `Directory.Packages.props` or the
+  `PinProjectReferenceVersionsExact` MSBuild target every other
+  integration project's csproj has — without both, the new project can't
+  restore or pack correctly. Added both to the Phase 0 task list.

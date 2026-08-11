@@ -349,33 +349,68 @@ itself (a pre-composition signature-validation failure, which already has
 the seed appended when constructed) has no separate pipeline exception to
 rewrap. No new exception type either way.
 
-**Disposal — Compono.TUnit adds no cleanup machinery. TUnit owns 100% of
-it.** Verified directly, not assumed: `grep`-ing every `.cs` file in
-`src/Compono` for `IDisposable`/`IAsyncDisposable` returns zero matches.
-`CompositionRow` holds only a `CompositionContext` reference and an `int`
-seed; `CompositionContext` (`src/Compono/CompositionContext.cs`) and
-`CompositionScope` (`src/Compono/CompositionScope.cs`, a plain
-`Dictionary<Type, object?>`) hold no unmanaged resources, no event
-subscriptions, and nothing requiring explicit teardown — every object they
-reference is either GC-reclaimable once the row itself becomes
-unreachable, or *is* one of the composed values already returned in the
-argument array. There is nothing left for Compono to own once
-`GenerateDataSources`'s deferred `Func` returns its `object?[]`: every
-value in that array (including a `[Shared]` value, which is always itself
-bound to a real top-level method parameter, never only a hidden
-row-internal reference) is exactly what TUnit's `ObjectGraphDiscoverer`
-already roots and disposes — confirmed empirically in this dive's probe
-(method-parameter values from a data source: disposed by TUnit). This
-ADR's earlier draft proposed wiring `Compono.TUnit` into
+**Disposal — Compono.TUnit adds no cleanup machinery, but "TUnit owns
+100% of it" was an overclaim and is corrected here to what's actually
+true: TUnit owns 100% of the *root, top-level returned arguments* — not
+the whole composed object graph.** Verified directly, not assumed:
+`grep`-ing every `.cs` file in `src/Compono` for `IDisposable`/
+`IAsyncDisposable` returns zero matches. `CompositionRow` holds only a
+`CompositionContext` reference and an `int` seed; `CompositionContext`
+(`src/Compono/CompositionContext.cs`) and `CompositionScope`
+(`src/Compono/CompositionScope.cs`, a plain `Dictionary<Type, object?>`)
+hold no unmanaged resources, no event subscriptions, and nothing requiring
+explicit teardown. Every value directly returned in `GenerateDataSources`'s
+`object?[]` (bound to a top-level `[Compose]` method parameter — including
+a `[Shared]` value, which per this ADR is always itself bound to a real
+top-level parameter, never only a hidden row-internal reference) is
+exactly what TUnit's `ObjectGraphDiscoverer` already roots and disposes —
+confirmed empirically in this dive's probe (method-parameter values from a
+data source: disposed by TUnit).
+
+**What that root-level coverage does *not* extend to, confirmed by
+re-reading `ObjectGraphDiscoverer`'s own traversal logic**: TUnit's
+depth-1+ ("nested object") walk (`TraverseInitializerProperties`) is
+scoped specifically to properties registered in
+`InitializerPropertyRegistry` — "Registry for `IAsyncInitializer`
+property metadata," a narrow TUnit lifecycle concept, not a general
+reflection walk of arbitrary public properties. An ordinary nested
+dependency a generated composition plan composes internally via
+`context.Resolve<T>()` (e.g. `CreateOrderHandler`'s own `IOrderRepository`
+constructor parameter, stored in a private field or an ordinary property
+that doesn't implement `IAsyncInitializer`) — never itself a root
+`[Compose]`/`[Shared]` parameter — is **not reachable by TUnit's
+`ObjectGraphDiscoverer` at all**, and therefore never disposed by TUnit,
+regardless of whether it implements `IDisposable`. This is not a new gap
+`Compono.TUnit` introduces: it is the *same* "no automatic disposal for a
+nested composed `IDisposable`, consumer's own responsibility" limitation
+`Compono.XunitV3`'s own `GetData` remarks already accept for *every*
+composed value (xUnit v3 disposes none of them, by design). `Compono.TUnit`
+is narrower, not worse — it covers the root/top-level case xUnit v3
+doesn't cover at all, and shares xUnit v3's existing accepted gap for the
+nested case. **Accepted as-is, not solved**: building nested-dependency
+disposal tracking would require Compono to gain provenance/reachability
+information it has never had anywhere else in this codebase (the same
+"Compono has no such mechanism" reasoning that ruled out the
+`ITestEndEventReceiver` machinery below). A consumer whose composed test
+class genuinely needs a nested `IDisposable` cleaned up should make that
+dependency `[Shared]` (promoting it to a root, TUnit-covered argument) or
+dispose it explicitly in the test body — the same two escape hatches
+`Compono.XunitV3` consumers already have today.
+
+This ADR's earlier draft proposed wiring `Compono.TUnit` into
 `ITestEndEventReceiver` for row cleanup; that machinery is **removed** —
 building it would have given Compono a disposal-tracking responsibility it
-doesn't have anywhere else in this codebase, for values TUnit already
-disposes correctly on its own.
+doesn't have anywhere else in this codebase, for the root-argument case
+TUnit already disposes correctly on its own (and building it wouldn't
+have reached the nested case above anyway, since `Compono.TUnit` itself
+has no more provenance/reachability information about a nested dependency
+than TUnit's own graph walker does).
 
-**"TUnit owns 100% of it" is correct for a value Compono itself composes
-fresh — it is not automatically safe for a value that already had an
-external owner before Compono ever touched it, and this ADR's first draft
-glossed over that distinction.** `CompositionProviderResult`/
+**The root-level "TUnit disposes it" coverage above is correct for a
+*fresh* value Compono itself composes — it is not automatically safe for
+a root value that already had an external owner before Compono ever
+touched it, and this ADR's first draft glossed over that distinction.**
+`CompositionProviderResult`/
 `CompositionResult` (ADR-0024) are deliberately opaque about provenance —
 a value `UseServiceProvider(...)` or an exact `Register<T>(...)` factory
 hands back is, by design, indistinguishable from one Compono's own
@@ -515,6 +550,18 @@ not specifically probe.
   documented non-goal rather than solved, since Compono has no provenance
   information to solve it with — the same limitation `Compono.XunitV3`
   already documents, inherited here under a stricter runner.
+- A nested, non-root `IDisposable` dependency a generated plan composes
+  internally (never itself a `[Compose]`/`[Shared]` top-level parameter,
+  never exposed via a TUnit `IAsyncInitializer`-typed property) is never
+  disposed by TUnit or by Compono — `ObjectGraphDiscoverer`'s nested-object
+  traversal is scoped to TUnit's own `IAsyncInitializer` property registry,
+  not a general graph walk, confirmed by reading it directly. Accepted:
+  this is the same "no automatic disposal for a nested composed value"
+  limitation `Compono.XunitV3` already accepts for *every* composed value
+  (it disposes none of them); `Compono.TUnit` is narrower, not worse — it
+  additionally covers the root/top-level case xUnit v3 never covers at
+  all. A consumer needing a nested dependency disposed promotes it to
+  `[Shared]` (a root argument) or disposes it explicitly in the test body.
 
 ## Pros and Cons of the Options
 
