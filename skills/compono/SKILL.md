@@ -170,8 +170,10 @@ undermines the reason Compono exists in this project.
   ambiguous-constructor BCL type with no registration-based escape hatch
   (e.g. `HttpClient`, `Exception`) — see "When not to use Compono" below;
   hand-constructing that one value in Arrange there isn't dodging a fixable
-  diagnostic, it's the intended answer for a type Compono was never going
-  to compose.
+  diagnostic, it's the current answer for a type that isn't supported for
+  direct composition today (see ADR-0002's Decision Outcome for why a
+  future explicit disambiguation mechanism, not this workaround, is the
+  door left open for that to change).
 - **Never assume a runtime reflection compatibility mode exists.** It's
   explicitly undecided/future work, not shipped API — don't tell a user
   they can "opt into reflection fallback."
@@ -201,8 +203,10 @@ data when:
   disambiguation mechanism would cost to design and build, so neither
   justified building the still-undesigned explicit
   disambiguation mechanism ADR-0002 leaves as the intended escape hatch
-  (ADR-0002's Decision Outcome; both real occurrences are classified and
-  recorded in ADR-0002's Amendments 1 and 2).
+  (ADR-0002's Decision Outcome; `HttpClient`'s occurrence is classified
+  and recorded in [ADR-0002's Amendment 1](../../docs/adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
+  `Exception`'s in [RESEARCH-0003](../../docs/research/0003-structured-logging-exception-constructor-ambiguity.md)
+  and the [migration guide](../../docs/migrating-from-autofixture.md#known-differences-and-limitations)).
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 
