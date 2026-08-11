@@ -192,7 +192,8 @@ data when:
   still the intended pattern, not a gap: a general multi-constructor
   resolution mechanism would need a best-match heuristic, which conflicts
   with Compono's deterministic, no-heuristic constructor-selection
-  principle (see ADR-0001 and ADR-0036's binder design).
+  principle (ADR-0002's Decision Outcome; both real occurrences are
+  classified and recorded in ADR-0002's Amendments 1 and 2).
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 

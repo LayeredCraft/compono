@@ -182,3 +182,40 @@ here as the evidence trail for a plausible future roadmap item — generic
 support for disambiguating construction of a registered/external
 ambiguous type — should a real pre-existing call site surface it later,
 not as a decision to build that mechanism today.
+
+## Amendment 2 (2026-08-11): `CMP0001` observed against `Exception`, second real data point, no change made
+
+`structured-logging`'s AutoFixture→Compono migration hit `CMP0001`
+composing `System.Exception` directly (3 accessible constructors,
+correctly reported `AmbiguousConstructor` per this ADR's rule) across
+~61 theories. Applying ADR-0029's gap decision rubric to this finding:
+
+1. **Observed frequency.** ~61 real theory call sites across the
+   migrated test kit — materially higher than Amendment 1's `HttpClient`
+   finding, which had zero real pre-migration call sites.
+2. **Intended to work?** No — `Exception`, like `HttpClient`, is a BCL
+   type this ADR's originally-anticipated `[CompositionConstructor]`
+   attribute was never going to close (the type's author can't be asked
+   to annotate a BCL constructor). Not a bug.
+3. **Workaround cost.** Low. The migration composes the exception's
+   message as a plain `string` parameter and hand-constructs
+   `new Exception(message)` in Arrange — preserves randomized-message
+   behavior, costs one line per call site, no readability loss.
+4. **Principle alignment.** Same as Amendment 1: closing this generically
+   would mean guessing which constructor a registered/external type's
+   author intended, which is exactly the heuristic this ADR's Decision
+   Outcome rejects.
+
+**Classification: Intentional design difference — no change to this
+ADR's decision.** The higher call-site count (61 vs. Amendment 1's zero)
+strengthens the case that the workaround is the durable, low-cost answer
+rather than evidence a new mechanism is needed — question 3's cost stayed
+low even at higher frequency. This is the second real occurrence of the
+same evidence pattern Amendment 1 recorded: a registered/external
+ambiguous-constructor type hitting `CMP0001`, closed by an app-owned
+workaround, not by this ADR's still-undesigned disambiguation attribute.
+Two real-world migrations now converge on the same workaround shape for
+BCL types, reinforcing rather than reopening Amendment 1's "no change"
+verdict. `skills/compono/SKILL.md` and
+`skills/compono/references/patterns-and-antipatterns.md` record the
+practitioner-facing pattern; this Amendment is its decision trail.
