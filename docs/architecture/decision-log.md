@@ -47,3 +47,8 @@ readers wanting "how it works today" belong in
 | [0032](../adr/0032-api-reference-documentation-toolchain.md) | API Reference Documentation Toolchain | Accepted |
 | [0033](../adr/0033-public-preview-samples-strategy.md) | Public Preview Samples Strategy | Accepted |
 | [0034](../adr/0034-benchmark-suite-strategy-and-redesign.md) | Benchmark Suite Strategy and Redesign — replaces the accreted benchmark suite with a categorized, audience-driven design | Accepted |
+| [0035](../adr/0035-compono-agent-skill-pack.md) | Compono Agent Skill Pack | Accepted |
+| [0036](../adr/0036-parameterized-composition-profile-selection.md) | Call-Site Values Influencing Nested Composition | Accepted |
+| [0037](../adr/0037-netstandard2.1-compatibility-floor.md) | netstandard2.1 Compatibility Floor | Superseded by [ADR-0038](../adr/0038-net8-net9-explicit-multi-target.md) |
+| [0038](../adr/0038-net8-net9-explicit-multi-target.md) | net8.0/net9.0 Explicit Multi-Target | Accepted |
+| [0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md) | Future Extension Package Admission Gate and Release Sequence — two-stage admission model for future extension packages, no committed sequence | Accepted |
