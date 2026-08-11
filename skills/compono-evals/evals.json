@@ -214,6 +214,19 @@
         "Does not suggest ambient/global mutable scenario state, a per-test hand-built Composer.Create(...) as the primary recommendation, or retaining the AutoFixture attribute",
         "Correctly distinguishes this from inline values (which bind to the test method's own parameters) and does not conflate the two"
       ]
+    },
+    {
+      "id": 20,
+      "category": "behavioral-correctness",
+      "prompt": "Does Compono support NUnit? I want to use it in an NUnit test project the same way we use Compono.XunitV3 in our xUnit projects.",
+      "expected_output": "States plainly that Compono.NUnit does not exist/ship today, without inventing a plausible-looking package name, API, or usage example for it. May mention that NUnit integration is an idea/admitted candidate tracked in docs/roadmap/future-packages.md (not committed, no evidence yet), and may note that core Compono (Composer.Create<T>() etc.) can still be called directly inside an NUnit test today without any NUnit-specific package.",
+      "files": [],
+      "expectations": [
+        "Does not claim Compono.NUnit is installable or reference a fabricated NuGet package/attribute/API for it",
+        "Does not invent a plausible-looking [Compose]-style NUnit attribute or extension method",
+        "Correctly distinguishes 'not shipped' from 'impossible' \u2014 core Compono usable directly in any test framework via Composer.Create<T>()",
+        "Does not silently redirect to Compono.XunitV3 as if it worked in NUnit"
+      ]
     }
   ]
 }

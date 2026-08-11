@@ -177,6 +177,15 @@ undermines the reason Compono exists in this project.
 - **Never assume a runtime reflection compatibility mode exists.** It's
   explicitly undecided/future work, not shipped API — don't tell a user
   they can "opt into reflection fallback."
+- **Never claim or write code against a Compono integration package that
+  hasn't shipped.** Only `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`,
+  and `Compono.Bogus` are real today — there is no `Compono.NUnit`,
+  `Compono.MSTest`, `Compono.TUnit`, `Compono.FakeItEasy`, `Compono.Moq`, or
+  `Compono.DependencyInjection`. If asked whether Compono supports one of
+  these, say plainly that it doesn't ship today and, if useful, point at
+  `docs/roadmap/future-packages.md` for its current status (an idea, an
+  admitted-but-unevidenced candidate, or deferred) — never invent a
+  plausible-looking API for a package that doesn't exist.
 
 ## When not to use Compono
 

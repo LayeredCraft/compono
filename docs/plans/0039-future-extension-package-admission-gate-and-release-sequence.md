@@ -1,6 +1,6 @@
 # [PLAN-0039] Future Extension Package Admission Gate and Release Sequence
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** ADR-0039
 
@@ -99,66 +99,72 @@ own Decision Outcome and this ADR's user-facing constraints:
 
 ## Phase 2 — Candidate inventory
 
-- [ ] Confirm `future-packages.md`'s three sections (Admitted candidates;
-      Documentation-only ideas; Deferred indefinitely) are internally
-      consistent with ADR-0039's own candidate-by-candidate disposition
-      text — no drift between the ADR's prose and the roadmap page's
-      summary of it.
-- [ ] Confirm no `Proposed` ADR exists (or gets created by this plan) for
-      any of the six candidates — Gate B hasn't cleared for any of them,
-      so none is roadmap content yet. This is a negative-verification
-      step: the exit criterion is that `docs/adr/README.md`'s index still
-      ends at ADR-0039, with no new candidate-specific ADR added as a
-      side effect of this plan.
-- [ ] Confirm `docs/packages/index.md` (the current package-guide index)
-      is not implying any of the six candidates already exist or are
-      imminent — it should continue to describe only the four shipped
-      packages.
+- [x] Confirmed `future-packages.md`'s three sections against ADR-0039's
+      candidate-by-candidate disposition text side by side — all six
+      candidates' reasoning matches (TUnit/NUnit/MSTest as admitted;
+      FakeItEasy/DI as documentation-only ideas; Moq deferred on
+      maintenance-health grounds only, post the thread-2 fix above). No
+      drift found.
+- [x] Confirmed `docs/adr/README.md`'s index still ends at ADR-0039 —
+      no ADR exists for any of the six candidate names (`ls docs/adr/`
+      grepped for all six, zero matches).
+- [x] Confirmed `docs/packages/index.md` lists exactly the four shipped
+      packages (`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`,
+      `Compono.Bogus`) and makes no mention of any of the six candidates.
 
 ## Phase 3 — Documentation and skill alignment
 
-- [ ] Review `skills/compono/SKILL.md` and `skills/compono/references/*.md`
-      for any claim about package admission, future packages, or which
-      integrations Compono supports/plans to support. The skill's job is
-      to help an agent work with what's *actually shipped* — confirm it
-      doesn't invent or imply support for `Compono.TUnit`/`Compono.NUnit`/
-      `Compono.MSTest`/etc., and doesn't need a new Detection-table row
-      until one of them actually ships (per ADR-0035's escape-hatch
-      principle, restated in PLAN-0035 Notes item 3 — a new candidate
-      being merely *admitted* is not sufficient reason to touch the skill).
-- [ ] If the skill has any guardrail language about "don't invent a
-      Compono package/API that doesn't exist," confirm it's still accurate
-      and, if useful, add a one-line pointer that `future-packages.md`
-      is where an agent can check current admission status rather than
-      guessing — optional, only if it meaningfully reduces a real
-      confusion risk (an agent asked "does Compono support NUnit"
-      hallucinating a package instead of reporting "admitted candidate,
-      not yet built").
-- [ ] Add or update `skills/compono-evals/evals.json` with one scenario
-      only if Phase 3's guardrail review above finds a real gap (e.g. an
-      agent currently invents `Compono.NUnit` usage when asked about NUnit
-      support) — do not add a scenario speculatively if the existing
-      guardrails already cover it.
+- [x] Reviewed `skills/compono/SKILL.md` and every `skills/compono/references/*.md`
+      file — grepped for all six candidate names. Only hit:
+      `SKILL.md`'s existing "DO NOT USE FOR: ordinary xUnit/NUnit/MSTest..."
+      guardrail line, which correctly scopes the skill *away* from
+      non-Compono NUnit/MSTest work and makes no claim that a Compono
+      package for them exists. Detection table already lists exactly the
+      four shipped packages — no new row added, per ADR-0035's escape-hatch
+      principle (a merely-admitted candidate isn't sufficient reason to
+      touch the skill).
+- [x] No existing guardrail said "don't invent a Compono package that
+      hasn't shipped" — a real gap, not just a hypothetical one, given
+      NUnit/MSTest/Moq are all plausible things a user could ask about.
+      Added one guardrail bullet to `SKILL.md`'s Guardrails section naming
+      the four real packages explicitly, stating none of
+      `Compono.NUnit`/`Compono.MSTest`/`Compono.TUnit`/`Compono.FakeItEasy`/
+      `Compono.Moq`/`Compono.DependencyInjection` exist today, and pointing
+      at `docs/roadmap/future-packages.md` for current status.
+- [x] Added `skills/compono-evals/evals.json` scenario 20
+      (`behavioral-correctness`) — "Does Compono support NUnit?" — asserting
+      the agent states plainly that `Compono.NUnit` doesn't ship, doesn't
+      invent a plausible-looking API for it, and doesn't silently redirect
+      to `Compono.XunitV3` as if it worked in NUnit. Not spot-run live
+      against a subagent this pass (unlike PLAN-0035's Group 2) — flagged
+      honestly rather than claimed; a future pass through this eval suite
+      should include it.
 
 ## Phase 4 — Verification and closeout
 
-- [ ] Full-repo grep confirming no remaining reference to the retired
-      three-item OR-gate text or the retired six-package committed
-      sequence outside of ADR-0039's own Context section (where the
-      original text is deliberately preserved as historical record).
-- [x] Confirm `docs/adr/README.md`'s index row for ADR-0039 reads
-      `Accepted` — already flipped. Confirm every internal ADR-0039 cross-link (Post-MVP, ADR-0029, ADR-0024,
-      ADR-0025, ADR-0021, ADR-0022, ADR-0019, ADR-0038) resolves.
-- [ ] Confirm `docs/plans/README.md` has a row for this plan
-      (PLAN-0039), status matching this plan's own `Status` field.
-- [ ] Verify no candidate was accidentally converted into a commitment:
-      re-read `future-packages.md` end to end and confirm every sentence
-      about the six candidates stays in "idea"/"admitted candidate"/
-      "deferred" language, never "will ship" or "planned for."
-- [ ] `mkdocs build --strict` (or this repo's current doc-link-check
-      equivalent) clean, if the doc site build is wired up to catch
-      cross-reference breakage.
-- [ ] Set `Status: Done`.
+- [x] Repo-wide grep for the retired OR-gate text and the retired
+      six-package sequence — the only two hits are inside ADR-0039 itself
+      (the Context section's historical record, and a Pros/Cons bullet
+      quoting the retired phrase to explain why it was rejected), both
+      deliberately preserved, not live claims.
+- [x] Confirmed `docs/adr/README.md`'s index row for ADR-0039 reads
+      `Accepted`. Confirmed every internal ADR-0039 cross-link (Post-MVP,
+      ADR-0029, ADR-0024, ADR-0025, ADR-0021, ADR-0022, ADR-0019,
+      ADR-0037, ADR-0038) resolves to a real file.
+- [x] Confirmed `docs/plans/README.md`'s PLAN-0039 row and the plan
+      file's own `Status` field matched throughout (`In Progress`) and
+      both move to `Done` together in this same change.
+- [x] Re-read `future-packages.md` end to end — grepped for
+      commitment-implying phrasing ("will ship", "planned for", "is
+      coming", "scheduled for") across the whole file: zero matches. Every
+      candidate stays in idea/admitted-candidate/documentation-only/
+      deferred language throughout.
+- [x] `mkdocs build --strict` is wired into CI (`.github/workflows/docs.yml`,
+      triggered on any PR touching `docs/**`) rather than run locally
+      (mkdocs/uv not installed in this environment) — validated by CI on
+      this phase's own PR rather than a local run; not claiming a local
+      execution that didn't happen.
+- [x] Set `Status: Done`.
 
 ## Critical Files
 
@@ -223,3 +229,24 @@ is already the single canonical statement of the gate/terminology,
 `future-packages.md` already points at it rather than duplicating it, and
 `docs/roadmap/index.md` has no gate-specific staleness (its one unrelated,
 pre-existing imprecision is noted but out of scope here).
+
+**Phases 2-4 (2026-08-11)**: run together in one PR rather than three
+separate ones. Per `design-decisions.md`'s phase-per-PR rule ("a phase
+that ships bundled with three others might as well not have been a
+separate phase"), that rule targets phases whose independent
+reviewability actually matters — here, Phase 2 was pure verification
+(zero file changes), and Phases 3-4's total diff (one guardrail bullet,
+one eval scenario, one roadmap-page rewrite reflecting the plan's own
+completion) is small and tightly coupled to closing this plan out.
+Splitting three phases this thin into three PRs would have been
+fragmentation for its own sake, the same reasoning PLAN-0035 recorded for
+its own single-PR delivery — explicit by user direction this time, not a
+unilateral call.
+
+**Phase 4 closeout finding**: `docs/roadmap/proposed-adrs.md` needed a
+further update beyond the Phase 0/response-to-feedback fix already made —
+now that PLAN-0039 is `Done`, ADR-0039 is fully implemented, so it comes
+off the "Accepted, not yet implemented" list entirely. Rewrote the page to
+reflect an empty list (matching `post-mvp.md`'s own precedent for
+recording a "current state: none" finding explicitly rather than leaving
+stale content).
