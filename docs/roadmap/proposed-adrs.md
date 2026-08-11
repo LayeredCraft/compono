@@ -13,9 +13,9 @@ ADR that's `Proposed`, or `Accepted` but not yet implemented.
   existing evidence gate — with no committed release sequence. See
   [Future Packages](future-packages.md) for the resulting per-candidate
   disposition. [PLAN-0039](../plans/0039-future-extension-package-admission-gate-and-release-sequence.md)
-  (`Not Started`) tracks putting this decision into effect across the
-  repo's docs/skill surfaces — no package code is implied or scheduled by
-  this ADR itself.
+  (`In Progress`, Phase 0 done) tracks putting this decision into effect
+  across the repo's docs/skill surfaces — no package code is implied or
+  scheduled by this ADR itself.
 
 Every other ADR recorded in [`docs/adr/README.md`](../adr/README.md) is
 currently `Accepted` and implemented, `Superseded`, or (for the two

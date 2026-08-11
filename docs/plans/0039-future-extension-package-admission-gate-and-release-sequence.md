@@ -186,3 +186,24 @@ ADR-0035 through ADR-0038, predating this work) while backfilling its
 ADR-0039 entry. No contradiction found between ADR-0039's new text and
 `future-packages.md`, `post-mvp.md`, ADR-0029, design-principles.md, or
 the three shipped package boundaries.
+
+**PR #69 Codex review (2026-08-11)**: 3 inline findings, all confirmed
+real:
+- 🐛-equivalent (Codex P2): ADR-0039's `Compono.Moq` disposition claimed
+  "no `net8.0`/`net9.0` target at all" made Moq TFM-incompatible — false.
+  Moq ships `netstandard2.0`/`netstandard2.1` assets, and this repo's own
+  [ADR-0037](../adr/0037-netstandard2.1-compatibility-floor.md) already
+  documents that NuGet's asset-compatibility fallback makes those
+  consumable from `net8.0`/`net9.0` without issue. Fixed: the claim is
+  retracted in ADR-0039, `future-packages.md`, and the ADR's own Links
+  section; the Moq deferral is re-grounded solely in maintenance health
+  (~23 months without a release, SponsorLink reputational damage) per the
+  user's explicit direction to keep Moq deferred for that reason alone.
+- ⚠️-equivalent (Codex P2): `docs/roadmap/proposed-adrs.md` still said
+  PLAN-0039 was `Not Started` after this plan had already moved to
+  `In Progress` with Phase 0 checked off — fixed.
+- ⚠️-equivalent (Codex P1): flagged the ADR-0035–0038 decision-log backfill
+  as an unrelated bundled change per this repo's own no-drive-by-rewrites
+  rule. User decision: keep it bundled as-is (small, one-line-per-entry,
+  directly adjacent to the ADR-0039 index edit in the same file) — not
+  acted on, replied on the thread explaining the reasoning.

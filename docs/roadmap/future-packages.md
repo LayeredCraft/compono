@@ -84,13 +84,14 @@ core itself unchanged:
 
 ## Deferred indefinitely
 
-- **Moq integration** — blocked on more than lack of evidence: Moq has
-  shipped no release in roughly 23 months, has no `net8.0`/`net9.0` target
-  at all (Compono's own current TFM floor per
-  [ADR-0038](../adr/0038-net8-net9-explicit-multi-target.md)), and carries
-  durable reputational damage from the 4.20.0 SponsorLink incident.
-  Re-evaluate if Moq ships an active net8.0/net9.0-targeting release —
-  this is a dependency-health block, not lost interest.
+- **Moq integration** — blocked on maintenance health, not TFM
+  compatibility (Moq's `netstandard2.0`/`netstandard2.1` assets are
+  consumable from `net8.0`/`net9.0` via NuGet's own asset-compatibility
+  fallback, per [ADR-0037](../adr/0037-netstandard2.1-compatibility-floor.md) —
+  an earlier draft claimed otherwise and was corrected). Moq has shipped
+  no release in roughly 23 months and carries durable reputational damage
+  from the 4.20.0 SponsorLink incident. Re-evaluate if Moq resumes active,
+  regular releases — this is a dependency-health block, not lost interest.
 
 ## No committed sequence
 

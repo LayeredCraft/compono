@@ -228,18 +228,24 @@ mechanisms, researched directly rather than assumed:
   `Compono.NSubstitute`'s published shape almost line for line) rather than
   a package candidate — promote back to a package candidate only if that
   recipe itself surfaces real friction or demand.
-- **`Compono.Moq` — deferred indefinitely, blocked on more than lack of
-  evidence.** Moq has shipped **no release in roughly 23 months**, has
-  **no `net8.0`/`net9.0` target at all** (Compono's own current TFM floor
-  per [ADR-0038](0038-net8-net9-explicit-multi-target.md)), and carries
-  durable reputational damage from the 4.20.0 SponsorLink incident. Even a
-  Gate-A-legitimate integration surface (Moq's API is otherwise a workable,
-  if reflection-heavier, structural cousin of NSubstitute's) doesn't
-  overcome a dependency the target TFMs can't currently consume. This is
-  recorded as an explicit deferral with a re-evaluation trigger (Moq
-  ships an active net8.0/net9.0-targeting release), not a silent drop —
-  `future-packages.md` states the reason so it isn't mistaken for lost
-  interest.
+- **`Compono.Moq` — deferred indefinitely, blocked on maintenance health,
+  not TFM compatibility.** An earlier draft of this ADR claimed Moq's lack
+  of a `net8.0`/`net9.0`-specific target made it TFM-incompatible with
+  Compono's own floor — that claim is wrong and is retracted here: Moq
+  ships `netstandard2.0`/`netstandard2.1` assets, and
+  [ADR-0037](0037-netstandard2.1-compatibility-floor.md) (its
+  "netstandard2.1 Compatibility" section) already documents that a
+  `net8.0`/`net9.0` project consumes a `netstandard2.0`/`netstandard2.1`-only
+  dependency through NuGet's own asset-compatibility fallback without
+  issue — a `net8.0`/`net9.0` consumer can restore and use Moq today. The
+  actual, narrower basis for deferral: Moq has shipped **no release in
+  roughly 23 months** and carries durable reputational damage from the
+  4.20.0 SponsorLink incident — a workable, if reflection-heavier,
+  integration surface (Moq's API is otherwise a structural cousin of
+  NSubstitute's) doesn't overcome a dependency this stale. Recorded as an
+  explicit deferral with a re-evaluation trigger (Moq resumes active,
+  regular releases), not a silent drop — `future-packages.md` states the
+  reason so it isn't mistaken for lost interest.
 - **`Compono.DependencyInjection` — does not clear Gate A today as a
   package; downgraded to a documentation-only idea pending a prerequisite
   core ADR.** Research into current
@@ -386,5 +392,8 @@ scratch; not itself a design decision.
 - [ADR-0019](0019-registrations-and-service-provider-injection.md) — the
   DI boundary this ADR's `Compono.DependencyInjection` disposition builds
   on directly; already anticipated this package's name and shape.
-- [ADR-0038](0038-net8-net9-explicit-multi-target.md) — the current TFM
-  floor `Compono.Moq`'s deferral is judged against.
+- [ADR-0037](0037-netstandard2.1-compatibility-floor.md) — documents the
+  NuGet asset-compatibility fallback that makes Moq's
+  `netstandard2.0`/`netstandard2.1` assets consumable from `net8.0`/
+  `net9.0`; the reason `Compono.Moq`'s deferral below is grounded in
+  maintenance health, not TFM incompatibility.
