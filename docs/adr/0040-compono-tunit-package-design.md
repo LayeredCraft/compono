@@ -26,9 +26,24 @@ This design dive investigated two questions before drafting anything:
    `Composer.CreateRow(Type declaringType)`/`CompositionRow` was
    deliberately designed framework-agnostic ("a hypothetical future
    non-xUnit test-framework integration reuses the identical mechanism"),
-   and this dive confirms that holds: no core change is needed. This ADR
-   is package-design-only, the same shape as
-   [ADR-0025](0025-compono-nsubstitute-package-design.md)/[ADR-0027](0027-compono-bogus-package-design.md).
+   and this dive confirms that holds for **runtime public API**: no new
+   public `Compono` type or method is needed. **Correction**: this ADR's
+   first draft over-stated that as "no core change is needed" at all —
+   `Compono.Generators`' discovery component (`ComposeMethodDiscovery`,
+   embedded in `Compono.nupkg` per [ADR-0003](0003-generator-package-distribution.md))
+   hardcodes `Compono.XunitV3`'s three attribute metadata names today, and
+   a type reached only through a `Compono.TUnit`-attributed method's
+   parameter has no textual `Resolve<T>()` call site for the generator's
+   ordinary discovery to find (the identical gap
+   [ADR-0022](0022-compono-xunit-package-design.md)'s own Amendment fixed
+   for `Compono.XunitV3`). Extending that discovery component for a second
+   attribute family is real `Compono.Generators` work — see "Generator
+   discovery" below. This is not a new core-extension ADR, though: ADR-0022
+   made the identical extension as part of `Compono.XunitV3`'s own
+   package-design ADR, not a separate ADR-0021-style core-extension one,
+   because it's discovery-time/compile-time-only and adds no new *public
+   runtime* surface — this ADR follows that same precedent, package-design-
+   only in the ADR-0025/ADR-0027 sense the sentence below still means.
 2. **What is TUnit's actual, current (verified against a real clone of
    `thomhurst/TUnit` at commit `c1830bf`, plus an empirical probe project
    against the published `TUnit.Core` 1.64.13) extension surface, and does
@@ -261,6 +276,55 @@ extraction only if a **third** test-framework package (`Compono.NUnit`,
 per ADR-0039's other admitted candidate) shows the same pattern a third
 time with enough shape in common to generalize safely.
 
+### Generator discovery
+
+`Compono.Generators`' `ComposeMethodDiscovery` (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`)
+is the component that closed this exact gap for `Compono.XunitV3`
+(ADR-0022's Amendment, 2026-07-30, fix #2): a type reached only as a
+`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` method's
+own parameter has no textual `Resolve<T>(...)` call site anywhere in the
+consumer's source — `Compono.XunitV3`'s binding is entirely runtime
+reflection (`MethodInfo.MakeGenericMethod`-based invoker caching), so
+`Compono.Generators`' ordinary `CreateInvocationDiscovery` path (which
+matches literal `Resolve<T>()` call-site expressions) never sees it.
+`ComposeMethodDiscovery` exists specifically to generate a plan for every
+eligible parameter type on a `[Compose]`-family-attributed method instead,
+independent of whether that call site exists in source.
+
+**`Compono.TUnit` hits the identical gap** — its own binding is likewise
+entirely runtime reflection over `DataGeneratorMetadata`'s parameter
+metadata, no textual `Resolve<T>()` call site. `ComposeMethodDiscovery`
+today hardcodes exactly three metadata names, all `Compono.XunitV3`'s own
+(`Compono.XunitV3.ComposeAttribute`, `` `1``, `` `2``), registered via three
+separate `SyntaxValueProvider.ForAttributeWithMetadataName` calls in
+`ComponoIncrementalGenerator.cs` (`Microsoft.CodeAnalysis.SyntaxValueProvider
+.ForAttributeWithMetadataName` matches only an attribute's own exact
+metadata name, not a base type's — the same reason `Compono.XunitV3`'s two
+generic forms each need their own registration, arity-suffixed metadata
+names being distinct per CLR arity).
+
+**Required design**: three more constants and three more
+`ForAttributeWithMetadataName` registrations, for `Compono.TUnit
+.ComposeAttribute`/`` `1``/`` `2``, feeding the *same*
+`ComposeMethodDiscovery.TransformMethod` — that method's own logic
+(eligible-parameter filtering, `ref`/`out`/`in`/`params` exclusion,
+generic-method exclusion) is already attribute-family-agnostic, operating
+on `IMethodSymbol`/`IParameterSymbol` alone, not on anything
+`Compono.XunitV3`-specific. This is real work inside `Compono.Generators`
+(embedded in `Compono.nupkg` per [ADR-0003](0003-generator-package-distribution.md)) —
+see "Correction" in Context above for why this doesn't need its own
+core-extension ADR the way `CompositionRow` (ADR-0021) did: it's
+discovery-time-only, adds no new public runtime type, and ADR-0022 already
+established the precedent of making this exact kind of extension inside a
+package's own design ADR. `Compono.Generators.Tests` needs a snapshot test
+proving a concrete parameter type reachable *only* through a
+`Compono.TUnit`-attributed method (no other discovery path in the same
+compilation) actually gets a generated plan — mirroring whatever
+regression test closed the equivalent gap for `Compono.XunitV3`. Without
+this, `row.Resolve<T>()` fails at runtime with "no plan found" for any
+type not otherwise discoverable, silently breaking the entire package for
+exactly the cases this ADR's own Goal section exercises.
+
 ### Diagnostics, disposal, and seed observability
 
 **Diagnostics.** This ADR's first draft claimed pipeline failures
@@ -401,9 +465,11 @@ not specifically probe.
 
 ### Positive Consequences
 
-- No core `Compono` change required — `CompositionRow`'s framework-agnostic
-  design (ADR-0021) validated by its first real second consumer, exactly
-  as that ADR's own Positive Consequences anticipated.
+- No new public runtime `Compono` API required — `CompositionRow`'s
+  framework-agnostic design (ADR-0021) validated by its first real second
+  consumer, exactly as that ADR's own Positive Consequences anticipated.
+  (`Compono.Generators`' discovery-time-only extension, below, is real
+  work but adds no public surface — see "Generator discovery.")
 - Full scope parity with `Compono.XunitV3` (profiles, inline values,
   `[Shared]`) from the first release, not a reduced MVP that needs a later
   parity pass.

@@ -60,14 +60,26 @@ Per ADR-0040's Decision Outcome:
   binding implementation, `ITestDiscoveryEventReceiver`-based seed
   observability.
 - New test project: `test/Compono.TUnit.Tests`.
+- A `Compono.Generators` discovery extension (three new metadata-name
+  registrations feeding the existing `ComposeMethodDiscovery`) — real
+  work inside the embedded generator, not new public runtime API; see
+  ADR-0040's "Generator discovery" section for why this is required, not
+  a nice-to-have.
+- Build/CI infrastructure wiring: `Compono.slnx` and every workflow/script
+  that currently enumerates the four shipped packages by name
+  (`docs.yml`, `package-validation.yaml`, `inspect-packed-nupkgs.sh`,
+  `generate-api-reference.sh`) need `Compono.TUnit` added alongside them.
 - A real packaged-consumer sample project (mirroring PLAN-0004 Phase 3 /
   PLAN-0005 Phase 2's precedent — a `ProjectReference`-only build cannot
   surface a real packaging bug, only an actual `dotnet add package`-style
   consumer run can).
 - Doc updates: new `docs/packages/compono-tunit.md` guide,
   `docs/packages/index.md`, `docs/roadmap/future-packages.md` (candidate →
-  shipped), `skills/compono` (new `references/tunit.md`, Detection table
-  row, `SKILL.md` description/guardrail update — this is the real trigger
+  shipped), existing topic docs that go stale the moment a second
+  `[Compose]`-family package ships (`docs/public-api.md`,
+  `docs/concepts/shared-values.md`, installation/how-to pages),
+  `skills/compono` (new `references/tunit.md`, Detection table row,
+  `SKILL.md` description/guardrail update — this is the real trigger
   ADR-0035's escape hatch anticipated, a package that actually ships, not
   merely an admitted candidate per PLAN-0039 Phase 3's narrower scope).
 
@@ -120,6 +132,25 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       PLAN-0004 Phase 3's real packaging-bug lesson — do not repeat it) and
       `TUnit.Core` only (not the full `TUnit`/`TUnit.Engine` meta-packages,
       per ADR-0040's minimal-dependency driver).
+- [ ] **Generator discovery** (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
+      `src/Compono.Generators/ComponoIncrementalGenerator.cs`): three new
+      metadata-name constants (`Compono.TUnit.ComposeAttribute`/`` `1``/
+      `` `2``) and three new `ForAttributeWithMetadataName` registrations
+      feeding the existing, already attribute-family-agnostic
+      `ComposeMethodDiscovery.TransformMethod` — see ADR-0040's "Generator
+      discovery" section for why this is required, not optional (without
+      it, a parameter type reachable only through a `Compono.TUnit`-
+      attributed method has no generated plan and `row.Resolve<T>()` fails
+      at runtime). This touches `Compono.Generators`, embedded in
+      `Compono.nupkg` — real core-package work, done here per the same
+      package-design-ADR precedent ADR-0022 already set for
+      `Compono.XunitV3`'s equivalent extension, not a separate
+      core-extension ADR.
+- [ ] `Compono.Generators.Tests`: a snapshot test proving a concrete
+      parameter type reachable *only* through a `Compono.TUnit`-attributed
+      method (no other discovery path in the same compilation) gets a
+      generated plan — mirroring whatever regression test closed the
+      equivalent `Compono.XunitV3` gap (ADR-0022's Amendment, fix #2).
 - [ ] `ComposeAttribute : UntypedDataSourceGeneratorAttribute` — the
       no-profile entry point. Overrides `GenerateDataSources(DataGeneratorMetadata)`,
       returns a single deferred `Func<object?[]?>` that (inside the Func,
@@ -197,10 +228,47 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       object reused via `[Shared]`, not the NSubstitute scenario — that
       needs `[Compose<TProfile>]`, Phase 1's own scope; see Phase 1's own
       test item for the full Goal-section scenario).
+- [ ] **Build/CI infrastructure wiring** — creating the project alone
+      leaves it outside every place this repo's build/release/validation
+      pipeline enumerates packages by name; each of the following
+      hardcodes the current four-package list and needs `Compono.TUnit`
+      added alongside them:
+  - [ ] `Compono.slnx`: add `src/Compono.TUnit/Compono.TUnit.csproj` and
+        `test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj`.
+  - [ ] `.github/workflows/docs.yml`: add `src/Compono.TUnit/**` to both
+        `paths:` trigger lists, and `Compono.TUnit` to the `for pkg in ...`
+        build loop feeding the API-reference generator.
+  - [ ] `.github/workflows/package-validation.yaml`: add `Compono.TUnit`
+        to its `for pkg in ...` loop and the two explicit `pack_one`/path
+        lists.
+  - [ ] `.github/scripts/inspect-packed-nupkgs.sh`: add `Compono.TUnit` to
+        its `for pkg in ...` loop and its own `case` branch (this
+        package's own expected dependency set: `Compono` + `TUnit.Core`,
+        no `Compono.Generators.dll` embedding since that's `Compono`-only
+        per ADR-0003).
+  - [ ] `.github/scripts/generate-api-reference.sh`: add `Compono.TUnit`
+        to its `integration_pkgs` array so its public API gets generated
+        reference docs and cross-link resolution like the other three
+        integration packages.
 - [ ] New `docs/packages/compono-tunit.md` Package Guide — covers
       `[Compose]`/`[Shared]` (what Phase 0 actually ships); Phase 1 extends
       it with the profile-attribute sections once they exist.
 - [ ] `docs/packages/index.md`: add `Compono.TUnit`'s row.
+- [ ] **Existing topic docs that become stale the moment `[Compose]`/
+      `[Shared]` ships under a second framework** — found by rereading the
+      actual current content, not assumed:
+  - [ ] `docs/public-api.md` (tombstone) — its "Package Guides" bullet
+        lists only `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`;
+        add `Compono.TUnit`.
+  - [ ] `docs/concepts/shared-values.md` — its "Scope and limits" section
+        states "`[Shared]` only applies within `Compono.XunitV3`'s
+        `[Compose]` row" as if that's the only such row; reword to name
+        both packages (or speak generically about "a `[Compose]`-family
+        row," now that a second one exists).
+  - [ ] `docs/getting-started/installation.md`/relevant how-to pages: add
+        a `Compono.TUnit` install example alongside the existing
+        `Compono.XunitV3` one, so the installation path isn't implicitly
+        xUnit-v3-only.
 - [ ] `skills/compono/references/tunit.md`: new package-conditional
       reference file, covering `[Compose]`/`[Shared]` — matching
       `xunit-v3.md`'s shape; Phase 1 extends it.
@@ -314,10 +382,23 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
   `ComposeAttribute{TProfile}.cs`, `ComposeAttribute{TProfile,TConfig}.cs`,
   `SharedAttribute.cs` — new
 - `src/Compono.TUnit/Binding/*` — new (duplicated pattern, not shared)
+- `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
+  `src/Compono.Generators/ComponoIncrementalGenerator.cs` — modified
+  (three new metadata-name constants/registrations for `Compono.TUnit`'s
+  attribute family; see ADR-0040's "Generator discovery" section)
 - `test/Compono.TUnit.Tests/*` — new
+- `test/Compono.Generators.Tests/*` — modified (new snapshot test for
+  `Compono.TUnit`-only-reachable discovery)
 - A new or extended sample project proving real-package consumption
+- `Compono.slnx` — modified (new project entries)
+- `.github/workflows/docs.yml`, `.github/workflows/package-validation.yaml`,
+  `.github/scripts/inspect-packed-nupkgs.sh`,
+  `.github/scripts/generate-api-reference.sh` — modified (five-package
+  enumeration instead of four)
 - `docs/packages/compono-tunit.md` — new
-- `docs/packages/index.md`, `docs/roadmap/future-packages.md` — updated
+- `docs/packages/index.md`, `docs/roadmap/future-packages.md`,
+  `docs/public-api.md`, `docs/concepts/shared-values.md`,
+  `docs/getting-started/installation.md` — updated
 - `skills/compono/SKILL.md`, `skills/compono/references/tunit.md`,
   `skills/compono-evals/evals.json` — new/updated
 
@@ -382,3 +463,29 @@ confirmed real:
   after the prior round's fix. Reworded to say `Compono.TUnit` reached
   roadmap-item status with an `Accepted` design ADR, not committed
   implementation work.
+
+**PR #72 Codex review, fourth round (2026-08-11)**: 3 findings, all
+confirmed real:
+- 🐛-equivalent (P1): no generator-discovery task anywhere in this plan.
+  Verified directly against `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`
+  and `ComponoIncrementalGenerator.cs`: `ComposeMethodDiscovery` hardcodes
+  exactly three `Compono.XunitV3` attribute metadata names — a parameter
+  type reachable only through a `Compono.TUnit`-attributed method would
+  have no generated plan, failing `row.Resolve<T>()` at runtime with "no
+  plan found," exactly the gap ADR-0022's own Amendment fixed for
+  `Compono.XunitV3`. Added a "Generator discovery" section to ADR-0040
+  (correcting its Context section's "no core change needed" overstatement
+  in the process) and the corresponding Phase 0 tasks (three new metadata
+  registrations, a `Compono.Generators.Tests` snapshot test).
+- ⚠️-equivalent (P2): the plan never wired the new package into
+  `Compono.slnx` or the build/release/validation scripts that enumerate
+  the four current packages by name (`docs.yml`,
+  `package-validation.yaml`, `inspect-packed-nupkgs.sh`,
+  `generate-api-reference.sh`, all confirmed by direct grep). Added an
+  explicit Phase 0 task group for each.
+- ⚠️-equivalent (P2): Phase 0 only touched the new Package Guide and
+  index, leaving existing topic docs stale (confirmed by reading them
+  directly: `docs/public-api.md`'s Package Guides list, and
+  `docs/concepts/shared-values.md`'s "[Shared] only applies within
+  Compono.XunitV3" line). Added Phase 0 tasks for both, plus an
+  installation-guide addition.
