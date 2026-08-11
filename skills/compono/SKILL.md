@@ -204,9 +204,9 @@ data when:
   justified building the still-undesigned explicit
   disambiguation mechanism ADR-0002 leaves as the intended escape hatch
   (ADR-0002's Decision Outcome; `HttpClient`'s occurrence is classified
-  and recorded in [ADR-0002's Amendment 1](../../docs/adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
-  `Exception`'s in [RESEARCH-0003](../../docs/research/0003-structured-logging-exception-constructor-ambiguity.md)
-  and the [migration guide](../../docs/migrating-from-autofixture.md#known-differences-and-limitations)).
+  and recorded in [ADR-0002's Amendment 1](https://github.com/LayeredCraft/compono/blob/main/docs/adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
+  `Exception`'s in [RESEARCH-0003](https://github.com/LayeredCraft/compono/blob/main/docs/research/0003-structured-logging-exception-constructor-ambiguity.md)
+  and the [migration guide](https://github.com/LayeredCraft/compono/blob/main/docs/migrating-from-autofixture.md#known-differences-and-limitations)).
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 
