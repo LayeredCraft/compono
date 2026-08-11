@@ -201,21 +201,29 @@ correctly reported `AmbiguousConstructor` per this ADR's rule) across
    message as a plain `string` parameter and hand-constructs
    `new Exception(message)` in Arrange — preserves randomized-message
    behavior, costs one line per call site, no readability loss.
-4. **Principle alignment.** Same as Amendment 1: closing this generically
-   would mean guessing which constructor a registered/external type's
-   author intended, which is exactly the heuristic this ADR's Decision
-   Outcome rejects.
+4. **Principle alignment.** Neutral, not blocking. An explicit,
+   consumer-configured disambiguation mechanism for a registered/external
+   type — the kind Amendment 1 flagged as the plausible future roadmap
+   item, distinct from the guessing-based "greedy" option this ADR's
+   Decision Outcome already rejected — would stay deterministic and
+   wouldn't conflict with this ADR's principle. Nothing here rules a
+   general mechanism out on principle; the "no change" verdict below
+   rests on question 3's low observed cost, not on a claim that no
+   deterministic mechanism could exist.
 
 **Classification: Intentional design difference — no change to this
 ADR's decision.** The higher call-site count (61 vs. Amendment 1's zero)
 strengthens the case that the workaround is the durable, low-cost answer
 rather than evidence a new mechanism is needed — question 3's cost stayed
-low even at higher frequency. This is the second real occurrence of the
-same evidence pattern Amendment 1 recorded: a registered/external
-ambiguous-constructor type hitting `CMP0001`, closed by an app-owned
-workaround, not by this ADR's still-undesigned disambiguation attribute.
-Two real-world migrations now converge on the same workaround shape for
-BCL types, reinforcing rather than reopening Amendment 1's "no change"
-verdict. `skills/compono/SKILL.md` and
-`skills/compono/references/patterns-and-antipatterns.md` record the
+low even at higher frequency, and that low cost, not any claim that a
+deterministic general mechanism is impossible, is what this "no change"
+verdict rests on. This is the second real occurrence of the same evidence
+pattern Amendment 1 recorded: a registered/external ambiguous-constructor
+type hitting `CMP0001`, closed by an app-owned workaround, not by this
+ADR's still-undesigned disambiguation attribute. Two real-world
+migrations now converge on the same workaround shape for BCL types,
+reinforcing rather than reopening Amendment 1's "no change" verdict —
+generic registered/external disambiguation remains a plausible future
+roadmap item per Amendment 1, not a rejected one. `skills/compono/SKILL.md`
+and `skills/compono/references/patterns-and-antipatterns.md` record the
 practitioner-facing pattern; this Amendment is its decision trail.

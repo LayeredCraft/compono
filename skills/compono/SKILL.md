@@ -189,11 +189,12 @@ data when:
   as a `string` parameter, then `new Exception(message)` by hand in
   Arrange — preserves randomized-message behavior without asking Compono
   to build the exception itself). Seen twice now in real migrations —
-  still the intended pattern, not a gap: a general multi-constructor
-  resolution mechanism would need a best-match heuristic, which conflicts
-  with Compono's deterministic, no-heuristic constructor-selection
-  principle (ADR-0002's Decision Outcome; both real occurrences are
-  classified and recorded in ADR-0002's Amendments 1 and 2).
+  still the intended pattern, not a gap: both occurrences kept the
+  workaround's cost low (one line per call site, no readability loss),
+  so neither justified building the still-undesigned explicit
+  disambiguation mechanism ADR-0002 leaves as the intended escape hatch
+  (ADR-0002's Decision Outcome; both real occurrences are classified and
+  recorded in ADR-0002's Amendments 1 and 2).
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 
