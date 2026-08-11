@@ -35,8 +35,11 @@ drawn from real dogfooding evidence
 9. **Stacking multiple Compose-family attributes** on one test method —
    see `xunit-v3.md`; split into separate methods instead.
 10. **Composing an ambiguous-constructor BCL type directly** (e.g.
-    `HttpClient`). `CMP0001` has no registration-based escape hatch —
-    wrap in an app-owned interface/factory.
+    `HttpClient`, `Exception` — both seen in real migrations). `CMP0001`
+    has no registration-based escape hatch — wrap in an app-owned
+    interface/factory, or (for `Exception` specifically) compose the
+    message as a `string` and hand-construct
+    `new Exception(message)` in Arrange.
 11. **Mechanically converting every `[Frozen]` to `[Shared]`.** Audit
     each one — many `[Frozen]` interface parameters existed only to
     obtain a substitute, not to share it; once `UseNSubstitute()` is

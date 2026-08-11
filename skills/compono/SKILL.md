@@ -166,7 +166,14 @@ undermines the reason Compono exists in this project.
   or switching the type to be constructed manually elsewhere just to
   dodge it). Fix the underlying shape, or compose an interface/wrapper
   instead when the diagnostic's fix column says so — see
-  `references/diagnostics.md`.
+  `references/diagnostics.md`. The one documented exception is an
+  ambiguous-constructor BCL type with no registration-based escape hatch
+  (e.g. `HttpClient`, `Exception`) — see "When not to use Compono" below;
+  hand-constructing that one value in Arrange there isn't dodging a fixable
+  diagnostic, it's the current answer for a type that isn't supported for
+  direct composition today (see ADR-0002's Decision Outcome for why a
+  future explicit disambiguation mechanism, not this workaround, is the
+  door left open for that to change).
 - **Never assume a runtime reflection compatibility mode exists.** It's
   explicitly undecided/future work, not shipped API — don't tell a user
   they can "opt into reflection fallback."
@@ -182,10 +189,24 @@ data when:
 - The setup is one or two trivial values — a composed call adds
   indirection without saving anything real.
 - The type has an ambiguous-constructor BCL shape (e.g. `HttpClient`,
-  which has multiple accessible constructors) — these hit `CMP0001` with
-  no registration-based escape hatch. Wrap in an app-owned
-  interface/factory and compose that instead, or construct it directly
-  by hand in that one spot.
+  `Exception`, both with multiple accessible constructors) — these hit
+  `CMP0001` with no registration-based escape hatch. Wrap in an app-owned
+  interface/factory and compose that instead, or construct it directly by
+  hand in that one spot (for `Exception` specifically: compose the message
+  as a `string` parameter, then `new Exception(message)` by hand in
+  Arrange — preserves randomized-message behavior without asking Compono
+  to build the exception itself — one added line per call site, no
+  readability loss). `HttpClient`'s workaround is heavier: a real
+  interface wrapper (`IHttpClientProvider`), not a one-liner. Seen twice
+  now in real migrations — still the intended pattern, not a gap: both
+  occurrences kept their own workaround's cost low relative to what a new
+  disambiguation mechanism would cost to design and build, so neither
+  justified building the still-undesigned explicit
+  disambiguation mechanism ADR-0002 leaves as the intended escape hatch
+  (ADR-0002's Decision Outcome; `HttpClient`'s occurrence is classified
+  and recorded in [ADR-0002's Amendment 1](https://github.com/LayeredCraft/compono/blob/main/docs/adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
+  `Exception`'s in [RESEARCH-0003](https://github.com/LayeredCraft/compono/blob/main/docs/research/0003-structured-logging-exception-constructor-ambiguity.md)
+  and the [migration guide](https://github.com/LayeredCraft/compono/blob/main/docs/migrating-from-autofixture.md#known-differences-and-limitations)).
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 

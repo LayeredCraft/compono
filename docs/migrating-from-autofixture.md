@@ -599,6 +599,44 @@ selection, so it never reaches ambiguous-constructor validation. See
 [Reference: Diagnostics](reference/diagnostics.md#cmp0001-ambiguous-construction-path)
 for the full cause/fix detail.
 
+`System.Exception` (three accessible constructors) hits the same
+`CMP0001` for the same reason. An interface wrapper is overkill here,
+though — compose the message as a `string` and hand-construct the
+exception in Arrange instead:
+
+```csharp
+// Before
+[Theory]
+[AutoNSubstituteData]
+public void Critical_WithMessageAndException_LogsAtCriticalLevelWithException(
+    string message,
+    Exception exception)
+{
+    // Arrange
+    var testLogger = new TestLogger();
+    ...
+}
+
+// After
+[Theory]
+[Compose]
+public void Critical_WithMessageAndException_LogsAtCriticalLevelWithException(
+    string message,
+    string exceptionMessage)
+{
+    // Arrange
+    var exception = new Exception(exceptionMessage);
+    var testLogger = new TestLogger();
+    ...
+}
+```
+
+This preserves the randomized-message behavior a composed `Exception`
+would have had, at the cost of one extra Arrange line per call site — see
+[RESEARCH-0003](research/0003-structured-logging-exception-constructor-ambiguity.md)
+for the full evidence trail (61 real call sites, from
+[`structured-logging` PR #57](https://github.com/LayeredCraft/structured-logging/pull/57)).
+
 For the rest of Compono's `0.x` known limitations (Compose-family
 stacking, Bogus's member-name-matching limits, and more), see each
 Package Guide's own "What it deliberately doesn't do" section, aggregated
