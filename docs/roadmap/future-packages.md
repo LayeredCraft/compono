@@ -35,8 +35,11 @@ reaches `Accepted` (its own full design pass, not just the problem
 statement) and a `Plan` moves `In Progress` against it — the same
 ADR/Plan mechanics every other change in this repo goes through, per
 `docs/adr/README.md`/`docs/plans/README.md`. `Compono.TUnit` (below) is
-the one candidate that has made that full progression so far; nothing
-else on this page is roadmap content yet.
+the one candidate that has reached **roadmap item** status — an `Accepted`
+design ADR exists — but not yet committed implementation work, since
+[PLAN-0040](../plans/0040-compono-tunit-package-design.md) is still
+`Not Started`; nothing on this page is committed implementation work yet,
+and nothing besides `Compono.TUnit` is roadmap content at all.
 
 ## Roadmap items (cleared Gate A and Gate B)
 

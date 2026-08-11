@@ -228,11 +228,33 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       object?[]`, strictly positional leading-parameters-only, matching
       `Compono.XunitV3`'s existing precedent (not a second attribute, not
       named-argument binding).
+- [ ] Stacked Compose-family attribute validation: reject a test method
+      carrying more than one of `[Compose]`/`[Compose<TProfile>]`/
+      `[Compose<TProfile, TConfig>]` — `AllowMultiple = false` is enforced
+      per exact attribute type by the compiler, not across the family, so
+      nothing else stops two *different* Compose-family types stacking on
+      one method (`Compono.XunitV3`'s own `BindingPlan.ValidateSignature`
+      has this exact check, `composeAttributeCount > 1`). This can't reuse
+      Phase 0's own `BindingPlan.Build(MethodMetadata)` input as-is — TUnit
+      hands a data source `DataGeneratorMetadata`/`MethodMetadata`, which
+      (per this ADR's own investigation) has no ready-made method-level
+      attribute list — so this needs one reflection call to the method's
+      own attributes via `ParameterMetadata.ReflectionInfo.Member` (a
+      `MethodInfo`, available whenever the method has at least one
+      parameter) or an equivalent lookup for a zero-parameter method;
+      exact mechanism is `implement.md`'s call, this task is the
+      requirement. Without it, TUnit runs both attributes' data sources
+      independently and produces duplicate/conflicting rows despite
+      ADR-0040 promising full `Compono.XunitV3` parity.
 - [ ] `test/Compono.TUnit.Tests`: profile-binding unit/integration
       coverage (`ComposeAttribute<TProfile>`, `ComposeAttribute<TProfile,
       TConfig>` config binding), inline-value precedence coverage,
       mirroring `Compono.XunitV3.Tests`' `ComposeAttributeConfigBindingTests`/
-      `InlineNullHandlingTests` shape.
+      `InlineNullHandlingTests` shape. Includes stacked-attribute-rejection
+      test cases for the generic and config-generic forms specifically
+      (`[Compose]` + `[Compose<TProfile>]`, `[Compose<TProfile>]` +
+      `[Compose<TProfile, TConfig>]`, etc.) — the case Phase 0 alone can't
+      exercise, since it needs a second Compose-family type to exist.
 - [ ] The full Goal-section scenario, run for real under TUnit: `[Shared]
       IOrderRepository` composed via `[Compose<NSubstituteTestProfile>]`,
       `UseNSubstitute()` wired through the profile, `repository` reused
@@ -344,3 +366,19 @@ per this plan's own phase-per-PR structure — see each phase above.
   it had cleared Gate B via ADR-0040 — internally contradictory. Fixed:
   moved to a new "Roadmap items" section; corrected the page's intro and
   admission-model prose accordingly.
+
+**PR #72 Codex review, third round (2026-08-11)**: 2 findings, both
+confirmed real:
+- ⚠️-equivalent (P2): Phase 1 never listed a task for rejecting stacked
+  Compose-family attributes (`[Compose]` + `[Compose<TProfile>]` on the
+  same method), a validation `Compono.XunitV3` has and ADR-0040 promises
+  parity with. Added the task and its generic/config-generic test
+  coverage — flagged that it needs a reflection-based method-attribute
+  lookup `DataGeneratorMetadata`/`MethodMetadata` doesn't hand over
+  directly, deferring the exact mechanism to `implement.md`.
+- ⚠️-equivalent (P2): `future-packages.md`'s "has made that full
+  progression so far" claim still contradicted the page's own definition
+  of committed implementation work (requires `Plan: In Progress`) even
+  after the prior round's fix. Reworded to say `Compono.TUnit` reached
+  roadmap-item status with an `Accepted` design ADR, not committed
+  implementation work.
