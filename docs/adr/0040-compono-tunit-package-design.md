@@ -213,10 +213,27 @@ time with enough shape in common to generalize safely.
 
 ### Diagnostics, disposal, and seed observability
 
-**Diagnostics.** Pipeline failures propagate the underlying
-`CompositionException` un-wrapped, matching `Compono.XunitV3`'s own choice
-([ADR-0022](0022-compono-xunit-package-design.md)) — no new exception
-type.
+**Diagnostics.** This ADR's first draft claimed pipeline failures
+propagate un-wrapped "matching `Compono.XunitV3`'s own choice" — that
+description of `Compono.XunitV3` was wrong and is corrected here.
+`Compono.XunitV3`'s real `ComposeAttribute` (`InvokeWithSeedOnFailure`)
+catches every `CompositionException` a `Resolve`/`ResolveShared`/
+`ShareExplicit` call throws and rewrites it via
+`CompositionException.WithSeedInMessage(exception, seed)` before
+re-throwing — specifically because a pipeline failure happens *before* a
+completed row exists, so nothing else appends the seed for that case, and
+a real test runner's failure display shows `Exception.Message`, not
+`CompositionDiagnostic.ToString()`. Without that wrapping, a genuine
+composition failure in `Compono.TUnit` would violate this same ADR's own
+unconditional, pasteable-seed guarantee (the Seed observability
+requirement below) exactly when it matters most — a failing row.
+**Required design**: `ComposeAttribute` wraps every `Resolve`/
+`ResolveShared`/`ShareExplicit` call the same way — catch
+`CompositionException`, rethrow via `CompositionException.WithSeedInMessage`.
+Only a plain-message `CompositionException` `Compono.TUnit` constructs
+itself (a pre-composition signature-validation failure, which already has
+the seed appended when constructed) has no separate pipeline exception to
+rewrap. No new exception type either way.
 
 **Disposal — Compono.TUnit adds no cleanup machinery. TUnit owns 100% of
 it.** Verified directly, not assumed: `grep`-ing every `.cs` file in

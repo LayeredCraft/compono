@@ -1,6 +1,6 @@
 # Future Packages
 
-Compono's MVP package set is fully shipped as of this milestone (see
+Compono's MVP package set is fully shipped (see
 [Package Guides](../packages/index.md)): four independently installable
 packages — `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, and
 `Compono.Bogus` — plus `Compono.Generators`, which is not a fifth
@@ -8,8 +8,10 @@ installable package at all. It's `IsPackable=false`
 ([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
 embedded inside `Compono`'s own `.nupkg` as an analyzer
 (`analyzers/dotnet/cs`) — a consumer never references it directly, and
-it never appears on nuget.org on its own. No additional package is
-currently committed via an `Accepted` ADR.
+it never appears on nuget.org on its own. One additional package —
+`Compono.TUnit` — is committed via an `Accepted` ADR and is being built;
+see [Roadmap items](#roadmap-items-cleared-gate-a-and-gate-b) below. No
+other candidate on this page has cleared both gates yet.
 
 ## Admission model
 
@@ -20,8 +22,7 @@ records a two-stage admission model for everything on this page:
    non-wrapper Compono extension at all? Evaluated once, recorded below as
    each candidate's disposition.
 2. **Gate B (evidence admission, [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md))** —
-   does real demand/dogfooding evidence exist yet? None of the candidates
-   below has any today — see [Post-MVP](post-mvp.md).
+   does real demand/dogfooding evidence exist yet?
 
 A candidate that clears Gate A is an **admitted candidate**: architecturally
 legitimate, but still just an idea until Gate B clears too and it becomes a
@@ -30,8 +31,30 @@ item becomes **committed implementation work** only once that ADR itself
 reaches `Accepted` (its own full design pass, not just the problem
 statement) and a `Plan` moves `In Progress` against it — the same
 ADR/Plan mechanics every other change in this repo goes through, per
-`docs/adr/README.md`/`docs/plans/README.md`. Nothing on this page is
-roadmap content yet, let alone committed implementation work.
+`docs/adr/README.md`/`docs/plans/README.md`. `Compono.TUnit` (below) is
+the one candidate that has made that full progression so far; nothing
+else on this page is roadmap content yet.
+
+## Roadmap items (cleared Gate A and Gate B)
+
+- **`Compono.TUnit`** — cleared Gate A on TUnit's `IDataSourceAttribute`
+  family (especially `UntypedDataSourceGeneratorAttribute`, which TUnit's
+  own docs cite AutoFixture-shaped libraries as the motivating case for),
+  its per-row `TestBuilderContext`, and its combinatorial interplay with
+  `[Arguments]` — a real integration surface following `Compono.XunitV3`'s
+  `CompositionRow`-based model
+  ([ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)).
+  Cleared Gate A on that surface specifically, not because TUnit is
+  source-generated — that architectural kinship is not, on its own,
+  consumer value; see ADR-0039 for what was retired and why. Cleared
+  Gate B via an explicit product-owner request (ADR-0039's real-demand
+  trigger). [ADR-0040](../adr/0040-compono-tunit-package-design.md)
+  (`Accepted`) records the resulting package design — method-parameter
+  composition only for the first release, full parity with
+  `Compono.XunitV3`'s scope; see that ADR for why constructor-dependency
+  composition was investigated and deferred.
+  [PLAN-0040](../plans/0040-compono-tunit-package-design.md) tracks
+  implementation, phase by phase.
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
@@ -39,22 +62,6 @@ Each follows the pattern `Compono.NSubstitute`/`Compono.Bogus` already
 establish — a package built entirely on a public core extension point,
 core itself unchanged:
 
-- **`Compono.TUnit`** — TUnit's `IDataSourceAttribute` family (especially
-  `UntypedDataSourceGeneratorAttribute`, which TUnit's own docs cite
-  AutoFixture-shaped libraries as the motivating case for), its per-row
-  `TestBuilderContext`, and its combinatorial interplay with `[Arguments]`
-  give a real integration surface following `Compono.XunitV3`'s
-  `CompositionRow`-based model
-  ([ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)).
-  Not admitted because TUnit is source-generated — that architectural
-  kinship is not, on its own, consumer value; see ADR-0039 for what was
-  retired and why. **Now a roadmap item**: Gate B cleared via an explicit
-  product-owner request (ADR-0039's real-demand trigger), and
-  [ADR-0040](../adr/0040-compono-tunit-package-design.md) (`Accepted`)
-  records the resulting package design — method-parameter composition
-  only for the first release, full parity with `Compono.XunitV3`'s scope;
-  see that ADR for why constructor-dependency composition was
-  investigated and deferred.
 - **`Compono.NUnit`** — NUnit's `IParameterDataSource` gives genuine
   per-parameter composition granularity `Compono.XunitV3`'s row model
   doesn't have; `ITestBuilder`/`IFixtureBuilder` cover the row/fixture-
@@ -106,15 +113,18 @@ core itself unchanged:
 
 ## No committed sequence
 
-ADR-0039 records no candidate order. Two real dogfooding passes
-([Post-MVP](post-mvp.md)) have already produced zero outstanding roadmap
-candidates in this entire space, so ranking the admitted candidates above
-against each other has no evidentiary basis yet. If more than one clears
-Gate B around the same time, ADR-0039's non-binding heuristics (value
-relative to maintenance cost; architectural-validation diversity over
-repeating an already-proven pattern) apply — category completion
-(finishing all test-framework integrations before starting a test-double
-one, or vice versa) is explicitly rejected as a sequencing principle.
+ADR-0039 records no candidate order. `Compono.TUnit` cleared Gate B
+through an explicit product-owner request, not dogfooding evidence — the
+two real dogfooding passes recorded in [Post-MVP](post-mvp.md) still
+haven't produced a roadmap candidate of their own in this space. Ranking
+the remaining admitted candidates (`Compono.NUnit`/`Compono.MSTest`)
+against each other, or against a hypothetical next TUnit-style request,
+still has no evidentiary basis. If more than one clears Gate B around the
+same time, ADR-0039's non-binding heuristics (value relative to
+maintenance cost; architectural-validation diversity over repeating an
+already-proven pattern) apply — category completion (finishing all
+test-framework integrations before starting a test-double one, or vice
+versa) is explicitly rejected as a sequencing principle.
 
 Any admitted candidate above becomes real roadmap content the moment real
 demand and a concrete design exist — see [Post-MVP](post-mvp.md) for the
