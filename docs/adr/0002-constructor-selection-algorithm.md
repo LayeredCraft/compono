@@ -245,26 +245,39 @@ finding:
    rests on question 3's low observed cost, not on a claim that no
    deterministic mechanism could exist.
 
-**Classification: Intentional design difference — no change to this
-ADR's decision.** The higher call-site count (61 vs. Amendment 1's zero)
-strengthens the case that the workaround is the durable, low-cost answer
-rather than evidence a new mechanism is needed — question 3's cost stayed
-low even at higher frequency, and that low cost, not any claim that a
-deterministic general mechanism is impossible, is what this "no change"
-verdict rests on. This is the second real occurrence of the same evidence
-pattern Amendment 1 recorded: a registered/external ambiguous-constructor
-type hitting `CMP0001`, closed by an app-owned workaround, not by this
-ADR's still-undesigned disambiguation attribute — though the two
-workarounds aren't the same shape: Amendment 1's `HttpClient` case used
-an interface wrapper (`IHttpClientProvider`, a provider-resolved leaf),
-while this `Exception` case hand-constructs directly from a composed
-`string`. Both are legitimate answers to the same guardrail rule ("wrap
-in an app-owned interface/factory, or construct it directly by hand"),
-not evidence the workaround has converged on one specific mechanism.
-What the two migrations do reinforce together is Amendment 1's "no
-change" verdict itself: generic registered/external disambiguation
-remains a plausible future roadmap item per Amendment 1, not a rejected
-one, but neither real occurrence yet crosses the cost bar that would
-justify designing it now. `skills/compono/SKILL.md`
-and `skills/compono/references/patterns-and-antipatterns.md` record the
+**Classification: Acceptable Compono-native alternative — no change to
+this ADR's decision.** Per [ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)'s
+gap classification, "low workaround cost, no material readability loss"
+with no principle conflict identified (question 4, above) is this
+classification's own definition — not "Intentional design difference,"
+which needs a genuine principle conflict or disproportionate complexity,
+neither of which this finding presents. ADR-0029's classification 3 is
+normally recorded in a research doc and migration guide rather than a
+governing ADR's Amendment; this repo doesn't have a per-incident research
+doc for real-world migrations outside a formal Milestone dogfooding pass
+(only [RESEARCH-0001](../research/0001-autofixture-comparison.md)/
+[RESEARCH-0002](../research/0002-trivia-platform-comparison.md) exist,
+both scoped to Milestone 7), so this Amendment is the pragmatic
+substitute recording mechanism for this specific finding, not a
+misapplication of classification 4's Amendment mechanism.
+
+The higher call-site count (61 vs. Amendment 1's zero) strengthens the
+case that the workaround is the durable, low-cost answer rather than
+evidence a new mechanism is needed. This is the second real occurrence of
+the same evidence pattern Amendment 1 recorded: a registered/external
+ambiguous-constructor type hitting `CMP0001`, closed by an app-owned
+workaround, not by this ADR's still-undesigned disambiguation attribute —
+though the two workarounds aren't the same shape: Amendment 1's
+`HttpClient` case used an interface wrapper (`IHttpClientProvider`, a
+provider-resolved leaf), while this `Exception` case hand-constructs
+directly from a composed `string`. Both are legitimate answers to the
+same guardrail rule ("wrap in an app-owned interface/factory, or
+construct it directly by hand"), not evidence the workaround has
+converged on one specific mechanism. What the two migrations do reinforce
+together is Amendment 1's "no change" verdict itself: generic
+registered/external disambiguation remains a plausible future roadmap
+item per Amendment 1, not a rejected one, but neither real occurrence yet
+crosses the cost bar that would justify designing it now.
+`skills/compono/SKILL.md` and
+`skills/compono/references/patterns-and-antipatterns.md` record the
 practitioner-facing pattern; this Amendment is its decision trail.

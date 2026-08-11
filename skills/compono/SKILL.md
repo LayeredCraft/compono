@@ -166,7 +166,12 @@ undermines the reason Compono exists in this project.
   or switching the type to be constructed manually elsewhere just to
   dodge it). Fix the underlying shape, or compose an interface/wrapper
   instead when the diagnostic's fix column says so — see
-  `references/diagnostics.md`.
+  `references/diagnostics.md`. The one documented exception is an
+  ambiguous-constructor BCL type with no registration-based escape hatch
+  (e.g. `HttpClient`, `Exception`) — see "When not to use Compono" below;
+  hand-constructing that one value in Arrange there isn't dodging a fixable
+  diagnostic, it's the intended answer for a type Compono was never going
+  to compose.
 - **Never assume a runtime reflection compatibility mode exists.** It's
   explicitly undecided/future work, not shipped API — don't tell a user
   they can "opt into reflection fallback."
@@ -188,10 +193,13 @@ data when:
   hand in that one spot (for `Exception` specifically: compose the message
   as a `string` parameter, then `new Exception(message)` by hand in
   Arrange — preserves randomized-message behavior without asking Compono
-  to build the exception itself). Seen twice now in real migrations —
-  still the intended pattern, not a gap: both occurrences kept the
-  workaround's cost low (one line per call site, no readability loss),
-  so neither justified building the still-undesigned explicit
+  to build the exception itself — one added line per call site, no
+  readability loss). `HttpClient`'s workaround is heavier: a real
+  interface wrapper (`IHttpClientProvider`), not a one-liner. Seen twice
+  now in real migrations — still the intended pattern, not a gap: both
+  occurrences kept their own workaround's cost low relative to what a new
+  disambiguation mechanism would cost to design and build, so neither
+  justified building the still-undesigned explicit
   disambiguation mechanism ADR-0002 leaves as the intended escape hatch
   (ADR-0002's Decision Outcome; both real occurrences are classified and
   recorded in ADR-0002's Amendments 1 and 2).
