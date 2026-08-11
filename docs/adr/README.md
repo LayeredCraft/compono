@@ -100,3 +100,4 @@ the mechanics: numbering, status, and the index.
 | [0036](0036-parameterized-composition-profile-selection.md) | Call-Site Values Influencing Nested Composition | Accepted |
 | [0037](0037-netstandard2.1-compatibility-floor.md) | netstandard2.1 Compatibility Floor | Superseded by ADR-0038 |
 | [0038](0038-net8-net9-explicit-multi-target.md) | net8.0/net9.0 Explicit Multi-Target | Accepted |
+| [0039](0039-future-extension-package-admission-gate-and-release-sequence.md) | Future Extension Package Admission Gate and Release Sequence | Proposed |

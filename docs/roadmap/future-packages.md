@@ -49,33 +49,9 @@ the moment it ships.
 
 ## Proposed release sequence (not committed)
 
-Current thinking on order and admission criteria, if/when these candidates
-move forward. Not an `Accepted` ADR and not binding — each package still
-needs its own design dive and `Proposed` ADR before it's real roadmap
-content, per the process above.
-
-**Admission gate.** Before adding any extension package, it must clear one
-of:
-
-- Supply composed values, or
-- Expose composed values naturally to a test framework, or
-- Bridge an established registration system.
-
-This keeps the package set from accumulating entries that are little more
-than branding around an existing library.
-
-**Sequence, if pursued:**
-
-1. `Compono.TUnit`
-2. `Compono.NUnit`
-3. `Compono.MSTest`
-4. `Compono.FakeItEasy`
-5. `Compono.Moq`
-6. `Compono.DependencyInjection`
-
-Rationale: complete test-framework coverage before adding another
-test-double integration. `Compono.TUnit` first — TUnit's source-generated
-test model is the closest architectural match to Compono's own
-source-generated composition, and the strongest demonstration that
-Compono is meaningfully different from an AutoFixture replacement rather
-than another one.
+[ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)
+(`Proposed`, not yet `Accepted`) records current thinking on an admission
+gate and a candidate release order for these future packages, if/when they
+move forward. Neither is binding — each package still needs its own
+design dive and its own `Proposed` ADR before it's real roadmap content,
+per the process above.
