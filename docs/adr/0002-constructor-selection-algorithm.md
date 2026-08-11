@@ -185,22 +185,56 @@ not as a decision to build that mechanism today.
 
 ## Amendment 2 (2026-08-11): `CMP0001` observed against `Exception`, second real data point, no change made
 
-`structured-logging`'s AutoFixture→Compono migration hit `CMP0001`
-composing `System.Exception` directly (3 accessible constructors,
-correctly reported `AmbiguousConstructor` per this ADR's rule) across
-~61 theories. Applying ADR-0029's gap decision rubric to this finding:
+[`structured-logging` PR #57](https://github.com/LayeredCraft/structured-logging/pull/57)
+(merged 2026-08-10, `36af03b`) — its AutoFixture→Compono test migration —
+hit `CMP0001` composing `System.Exception` directly (3 accessible
+constructors, correctly reported `AmbiguousConstructor` per this ADR's
+rule) across 61 theories. Applying ADR-0029's gap decision rubric to this
+finding:
 
-1. **Observed frequency.** ~61 real theory call sites across the
-   migrated test kit — materially higher than Amendment 1's `HttpClient`
-   finding, which had zero real pre-migration call sites.
+1. **Observed frequency.** 61 real theory call sites across the migrated
+   test kit (exact count, not an estimate) — materially higher than
+   Amendment 1's `HttpClient` finding, which had zero real pre-migration
+   call sites.
 2. **Intended to work?** No — `Exception`, like `HttpClient`, is a BCL
    type this ADR's originally-anticipated `[CompositionConstructor]`
    attribute was never going to close (the type's author can't be asked
    to annotate a BCL constructor). Not a bug.
-3. **Workaround cost.** Low. The migration composes the exception's
-   message as a plain `string` parameter and hand-constructs
-   `new Exception(message)` in Arrange — preserves randomized-message
-   behavior, costs one line per call site, no readability loss.
+3. **Workaround cost.** Low, confirmed by the real diff. Every one of the
+   61 call sites made the same one-line change — parameter changes from
+   `Exception exception` to `string exceptionMessage`, and Arrange gains
+   one line:
+
+   ```csharp
+   // Before
+   [Theory]
+   [AutoNSubstituteData]
+   public void Critical_WithMessageAndException_LogsAtCriticalLevelWithException(
+       string message,
+       Exception exception)
+   {
+       // Arrange
+       var testLogger = new TestLogger();
+       ...
+   }
+
+   // After
+   [Theory]
+   [Compose]
+   public void Critical_WithMessageAndException_LogsAtCriticalLevelWithException(
+       string message,
+       string exceptionMessage)
+   {
+       // Arrange
+       var exception = new Exception(exceptionMessage);
+       var testLogger = new TestLogger();
+       ...
+   }
+   ```
+
+   Preserves randomized-message behavior, costs one line per call site,
+   no readability loss — verified against all 61 occurrences in the PR
+   diff, not sampled.
 4. **Principle alignment.** Neutral, not blocking. An explicit,
    consumer-configured disambiguation mechanism for a registered/external
    type — the kind Amendment 1 flagged as the plausible future roadmap
@@ -220,10 +254,17 @@ deterministic general mechanism is impossible, is what this "no change"
 verdict rests on. This is the second real occurrence of the same evidence
 pattern Amendment 1 recorded: a registered/external ambiguous-constructor
 type hitting `CMP0001`, closed by an app-owned workaround, not by this
-ADR's still-undesigned disambiguation attribute. Two real-world
-migrations now converge on the same workaround shape for BCL types,
-reinforcing rather than reopening Amendment 1's "no change" verdict —
-generic registered/external disambiguation remains a plausible future
-roadmap item per Amendment 1, not a rejected one. `skills/compono/SKILL.md`
+ADR's still-undesigned disambiguation attribute — though the two
+workarounds aren't the same shape: Amendment 1's `HttpClient` case used
+an interface wrapper (`IHttpClientProvider`, a provider-resolved leaf),
+while this `Exception` case hand-constructs directly from a composed
+`string`. Both are legitimate answers to the same guardrail rule ("wrap
+in an app-owned interface/factory, or construct it directly by hand"),
+not evidence the workaround has converged on one specific mechanism.
+What the two migrations do reinforce together is Amendment 1's "no
+change" verdict itself: generic registered/external disambiguation
+remains a plausible future roadmap item per Amendment 1, not a rejected
+one, but neither real occurrence yet crosses the cost bar that would
+justify designing it now. `skills/compono/SKILL.md`
 and `skills/compono/references/patterns-and-antipatterns.md` record the
 practitioner-facing pattern; this Amendment is its decision trail.
