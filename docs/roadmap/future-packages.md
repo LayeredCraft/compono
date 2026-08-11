@@ -25,8 +25,13 @@ records a two-stage admission model for everything on this page:
 
 A candidate that clears Gate A is an **admitted candidate**: architecturally
 legitimate, but still just an idea until Gate B clears too and it becomes a
-**roadmap item** with its own problem-focused `Proposed` ADR. Nothing on
-this page is roadmap content yet.
+**roadmap item** with its own problem-focused `Proposed` ADR. A roadmap
+item becomes **committed implementation work** only once that ADR itself
+reaches `Accepted` (its own full design pass, not just the problem
+statement) and a `Plan` moves `In Progress` against it — the same
+ADR/Plan mechanics every other change in this repo goes through, per
+`docs/adr/README.md`/`docs/plans/README.md`. Nothing on this page is
+roadmap content yet, let alone committed implementation work.
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
