@@ -7,7 +7,7 @@ on:
 permissions: write-all
 jobs:
   build:
-    uses: LayeredCraft/devops-templates/.github/workflows/pr-build.yaml@v10.3
+    uses: LayeredCraft/devops-templates/.github/workflows/pr-build.yaml@v10.4
     with:
       solution: Compono.slnx
       hasTests: true
@@ -16,6 +16,6 @@ jobs:
         8.0.x
         9.0.x
         10.0.x
-        11.0.x
+        11.0.100-preview.6.26359.118
       runCdk: false
     secrets: inherit
