@@ -519,21 +519,27 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 2: Verification requiring the completed attribute family
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] A real packaged-consumer sample project run (mirroring PLAN-0004
+- [x] A real packaged-consumer sample project run (mirroring PLAN-0004
       Phase 3 / PLAN-0005 Phase 2's precedent exactly) — extends Phase 0's
       own minimal local-feed consumer to exercise the *complete* attribute
       family (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/
       `[Shared]`) through the actual packaged `Compono.TUnit` → `Compono`
       dependency chain, not `Compono.TUnit.Tests`' own `ProjectReference`-
-      based calls.
-- [ ] Final API-surface/approval test locking `Compono.TUnit`'s complete
+      based calls. `test/Compono.TUnit.SampleTests/ConfigProfileTests.cs`
+      (new) adds the missing `[Compose<TProfile, TConfig>]` leg, mirroring
+      `Compono.XunitV3.SampleTests/ConfigProfileTests.cs` exactly — the
+      other three forms were already covered by Phase 0/1's own sample
+      files (`CompositionTests.cs`, `SharedTests.cs`, `NSubstituteTests.cs`).
+- [x] Final API-surface/approval test locking `Compono.TUnit`'s complete
       public shape (`ComposeAttribute` family, `SharedAttribute`, and
       nothing else), matching `Compono.XunitV3.Tests`'/
-      `Compono.NSubstitute.Tests`' existing pattern — Phase 0/1 may have
-      already started this file for their own incrementally-shipped shape;
-      this phase closes it out against the full family.
+      `Compono.NSubstitute.Tests`' existing pattern — new
+      `test/Compono.TUnit.Tests/PublicApiSurfaceTests.cs`, confirming the
+      exact four-type public surface (`ComposeAttribute`,
+      `` ComposeAttribute`1``, `` ComposeAttribute`2``, `SharedAttribute`)
+      Phase 0/1 already shipped, with no drift.
 
 ### Phase 3: Docs and skill consistency close-out
 
@@ -910,3 +916,27 @@ with the shipped shape and the real stacked-attribute rejection behavior.
 
 Phase 1 is complete - every task checked off, full solution build/test
 green.
+
+**Phase 2 implementation (2026-08-12)**: PR #76 (Phase 1) merged to `main`
+first, per this plan's own phase-PR rule. Two tasks, both scoped
+verification-only (no new `src/Compono.TUnit` public API):
+`test/Compono.TUnit.SampleTests/ConfigProfileTests.cs` (new) adds the
+`[Compose<TProfile, TConfig>]` leg the packaged-consumer sample project
+was still missing - `RepositoryConsumer`/`RepositoryTestProfile`/
+`RepositoryTestConfig`, mirroring `Compono.XunitV3.SampleTests
+/ConfigProfileTests.cs` exactly - proving the fourth and last
+attribute-family form through the real packaged `Compono.TUnit` ->
+`Compono` dependency chain (the other three were already covered by
+Phase 0/1's own sample files). `test/Compono.TUnit.Tests
+/PublicApiSurfaceTests.cs` (new) locks the exact four-type public surface
+(`ComposeAttribute`, `` ComposeAttribute`1``, `` ComposeAttribute`2``,
+`SharedAttribute`) via a hand-rolled `IsPublic || IsNestedPublic`
+reflection check, matching `Compono.XunitV3.Tests`' own file byte-for-byte
+in structure. Both projects' full test suites pass:
+`Compono.TUnit.Tests` 52/52 (net10.0, including the new API-surface
+test), `Compono.TUnit.SampleTests` 7/7 (net10.0, through the real
+packaged pipeline - up from 5, the two new `ConfigProfileTests` cases).
+No doc updates in this phase - Phase 3 is the docs/skill closing
+consistency pass, not this one.
+
+Phase 2 is complete - every task checked off.
