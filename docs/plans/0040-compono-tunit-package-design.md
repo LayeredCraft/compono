@@ -248,7 +248,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (PLAN-0041's own dispatch-eligibility-guard task adds the identical
       check to `Compono.XunitV3.Binding.BindingPlan` - mirror it here, not
       a new investigation).
-- [ ] **Full end-to-end Native AOT publish-and-run proof, through the real
+- [x] **Full end-to-end Native AOT publish-and-run proof, through the real
       packaged `Compono.TUnit` dependency chain** - `test/Compono.TUnit.SampleTests`
       (or a dedicated AOT-only sibling project), `dotnet publish -c Release
       -p:PublishAot=true` + run, exercising a real `[Compose]`-composed
@@ -794,3 +794,47 @@ during implementation, not just planned in advance:
   `Compono.NSubstitute.Tests` 23/23, `Compono.Bogus.Tests` 63/63,
   `Compono.TUnit.Tests` 15/15, `Compono.TUnit.SampleTests` 4/4 (including the
   real root-disposed/nested-not-disposed and `[Shared]` end-to-end proofs).
+
+**PLAN-0041 merge + remaining two tasks (2026-08-12)**: `main` (carrying
+PLAN-0041's `RowInvokerRegistry`) merged into this phase's branch. Three
+merge conflicts, all mechanical (`ComposeMethodDiscovery.TransformMethod`'s
+new `ComposeMethodDiscoveryResult` return type; both plan-status tables).
+One real, previously-latent gap surfaced by the merge itself: the existing
+`TUnitComposeAttributedMethodParameter_GeneratesCompositionPlan` snapshot
+test had no verified file for the `RowInvokerRegistration.g.cs` output the
+generator now also emits for `Compono.TUnit`-discovered parameters — added.
+Then the two tasks this phase's own text had left blocked on that merge:
+- `Compono.TUnit.Binding.RowInvokers.cs` rewritten against
+  `RowInvokerRegistry.TryGet`, byte-for-byte mirroring
+  `Compono.XunitV3.Binding.RowInvokers`'s already-merged rewrite - no
+  `MethodInfo.MakeGenericMethod`/`Delegate.CreateDelegate` left anywhere in
+  `Compono.TUnit`. `BindingPlan.cs` gained the matching ref-struct/pointer
+  by-value-parameter rejection (`Span<int>` sample method + regression
+  test, mirroring `Compono.XunitV3.Tests`'s own).
+- **Native AOT publish-and-run proof, new `test/Compono.TUnit.AotSmokeTest`
+  project** (`Compono.AotSmokeTest`'s sibling, not `Compono.TUnit.SampleTests`
+  itself - a real TUnit test host has its own generator/engine wiring that a
+  one-shot publish-and-run proof doesn't need). Stronger proof than
+  `Compono.AotSmokeTest`'s own: rather than standing in for the attribute and
+  dispatching through `RowInvokerRegistry` manually (proving only the shared
+  registry mechanism), this harness drives the real, packaged
+  `Compono.TUnit.ComposeAttribute.GetDataRowsAsync` directly - proving
+  `BindingPlan.Build` and `Compono.TUnit.Binding.RowInvokers.Build`
+  themselves, not just what they call into, survive AOT. Needed
+  `ComponoTestFramework=TUnit` (not `Compono.AotSmokeTest`'s
+  `<Using Remove>` trick) to opt out of `test/Directory.Build.targets`' xUnit
+  v3 package sweep, and `<NoWarn>TUnit0034</NoWarn>` - TUnit.Core's analyzer
+  otherwise flags this project's own `Main` method, assuming any project
+  referencing `TUnit.Core` is a real test host. `dotnet publish -c Release
+  -p:PublishAot=true -r osx-arm64 --self-contained true` + run: PASS,
+  composing both a custom type (`Widget`) and a provider-resolved leaf type
+  (`string`) through the real dispatch path. A `-p:TrimmerSingleWarn=false`
+  pass surfaced exactly two individual `IL2072` trim warnings, both inside
+  this harness's own reflection-based `MethodMetadata`/`DataGeneratorMetadata`
+  construction code (working around `TUnit.Core`'s own missing
+  `DynamicallyAccessedMembers` annotations on `ParameterMetadata`'s
+  constructor/`ClassMetadata.Type`'s setter) - zero from `Compono`'s or
+  `Compono.TUnit`'s own shipped code.
+
+Both tasks this phase's text had left open are now done - Phase 0 is
+complete pending PR review/merge.

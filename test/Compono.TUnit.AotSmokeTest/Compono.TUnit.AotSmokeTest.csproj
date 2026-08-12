@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PLAN-0040 Phase 0's real Native AOT publish-and-run proof, through the actual packaged
+       Compono.TUnit dependency chain (not just the shared RowInvokerRegistry mechanism in isolation -
+       test/Compono.AotSmokeTest already proved that generically for PLAN-0041). A single throwaway
+       console app that reflects a Compono.TUnit-attributed method's real generator-emitted
+       RowInvokerRegistry registrations and dispatches through them, then asserts the composed values
+       are real - `dotnet publish -c Release -p:PublishAot=true` + run is this project's whole
+       purpose, not incremental inner-loop iteration. Mirrors test/Compono.AotSmokeTest's own .csproj
+       almost verbatim - see that project's comments for the full reasoning behind each choice below. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- test/Directory.Build.targets gates the xUnit-v3-only Using/PackageReference ItemGroups
+         (Xunit/NSubstitute/AwesomeAssertions/Microsoft.Testing.Platform/etc.) on this property -
+         this project needs none of them, real or stand-in. Matches Compono.TUnit.Tests/
+         Compono.TUnit.SampleTests' own opt-out. -->
+    <ComponoTestFramework>TUnit</ComponoTestFramework>
+    <!-- Overrides test/Directory.Build.props' multi-TFM sweep (net8.0;net9.0;net10.0;net11.0) - this
+         is a one-shot AOT publish-and-run proof, not a matrix run; a single current TFM is enough. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- TUnit.Core ships an analyzer that flags any Main method in a project referencing it
+         (TUnit0034) - it assumes every such project is a real TUnit test host, which generates its
+         own entry point. This one deliberately isn't: an ordinary console app that happens to
+         reference Compono.TUnit (transitively pulling in TUnit.Core) to drive the real
+         ComposeAttribute.GetDataRowsAsync API directly, with no TUnit test host/generator involved
+         at all. -->
+    <NoWarn>$(NoWarn);TUnit0034</NoWarn>
+    <!-- The repo's central Directory.Packages.props doesn't (and shouldn't) know about the
+         throwaway "1.0.0" version pack-compono.sh stamps onto its local-feed-only nupkgs - opting
+         this one project out of CPM instead of adding a fake pin to the shared file. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Isolates this restore from NuGet's shared global packages folder entirely - NuGet treats a
+         package id+version already present in a packages folder as immutable and never re-extracts
+         it, so rerunning pack-compono.sh with different source under the same fixed "1.0.0" version
+         would otherwise let a stale global-cache entry silently satisfy a later restore/publish,
+         printing PASS without ever exercising the current generator/registry. Mirrors
+         Compono.TUnit.SampleTests' own RestorePackagesPath isolation - no per-run GUID scoping
+         needed there, since this harness is a manual one-shot, never run concurrently with itself. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <!-- PackageReferences, not ProjectReferences to src/Compono*/*.csproj - the same consumption shape
+       any real consumer uses (Compono.TUnit.SampleTests' own local-feed pattern), and required here
+       specifically: a ProjectReference's global properties (PublishAot/RuntimeIdentifier/
+       SelfContained) flow down into Compono.csproj's own analyzer-only ProjectReference to
+       Compono.Generators.csproj (netstandard2.0), failing `dotnet publish -p:PublishAot=true` with
+       NETSDK1207 ("AOT is not supported for the target framework") for a project that's never
+       actually part of the published app. A PackageReference has no such project-graph propagation -
+       the generator analyzer just rides along as a plain `analyzers/dotnet/cs` asset inside the
+       packed Compono.nupkg, exactly like a real consumer gets it. Packed into
+       ../../.local-nuget-feed-tunit-aot-smoke by pack-compono.sh (run before publish, not an MSBuild
+       pre-restore target - this project's publish is a deliberate, manual, one-shot proof, not part
+       of the ordinary inner-loop restore). -->
+  <ItemGroup>
+    <PackageReference Include="Compono.TUnit" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

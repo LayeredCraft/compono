@@ -52,6 +52,17 @@ selection and profile configuration arguments, matching
 [`Compono.XunitV3`](compono-xunitv3.md#profile-configuration-arguments)'s
 own shape — are not part of this first slice; see PLAN-0040's later phases.
 
+## Native AOT
+
+`Compono.TUnit`'s dispatch path is Native AOT-safe end to end — no
+`MethodInfo.MakeGenericMethod`/`Delegate.CreateDelegate` anywhere, per
+[ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)'s shared
+`RowInvokerRegistry` mechanism. Proven by a real `dotnet publish -c Release
+-p:PublishAot=true` build and run against the packaged `Compono`/
+`Compono.TUnit` dependency chain (`test/Compono.TUnit.AotSmokeTest`), driving
+the real `ComposeAttribute.GetDataRowsAsync` through both a custom composed
+type and a provider-resolved leaf type.
+
 ## Disposal
 
 TUnit disposes a `[Compose]`-composed **root** method argument itself,
