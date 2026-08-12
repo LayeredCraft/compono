@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (22,37)-(22,59),
+      Message: 'System.Span<int>' is a ref struct (ref-like type), which cannot be used as a type argument for Compono's generated ICompositionPlan<T>/PlanCache<T>,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0009,
+        Title: Type argument is a ref struct,
+        MessageFormat: '{0}' is a ref struct (ref-like type), which cannot be used as a type argument for Compono's generated ICompositionPlan<T>/PlanCache<T>,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

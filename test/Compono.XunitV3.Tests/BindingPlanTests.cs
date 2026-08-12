@@ -112,6 +112,22 @@ public sealed class BindingPlanTests
     }
 
     [Fact]
+    public void Build_ReportsASignatureError_ForARefStructByValueParameter()
+    {
+        // ADR-0041's dispatch-eligibility guard, runtime side: a ref struct (e.g. Span<int>) can
+        // never legally be a generic type argument to CompositionRow.Resolve<T>()/etc. at all - this
+        // used to be a latent, undiagnosed gap under the old MakeGenericMethod-based design (it would
+        // have thrown its own unclear error for the same shape); now it's a clear, intentional
+        // ValidateSignature rejection instead.
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithRefStructParameter))!;
+
+        var plan = BindingPlan.Build(method);
+
+        plan.SignatureError.Should().Contain("ref struct").And.Contain("value");
+        plan.Parameters.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Build_MarksTheParameterAsShared_WhenAttributed()
     {
         var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithShared))!;

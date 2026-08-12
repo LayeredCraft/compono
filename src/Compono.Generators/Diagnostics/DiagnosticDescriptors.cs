@@ -115,4 +115,15 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InaccessibleRowInvokerParameterType = new(
+        "CMP0013",
+        "Compose-attributed parameter type is not accessible",
+        "'{0}' cannot be registered for row-binding dispatch on '{1}' - the generated dispatch " +
+        "registration is emitted as a top-level type outside any containing type, so a private or " +
+        "protected parameter type can never be referenced from it, even from a test method that could " +
+        "otherwise see it. Use a parameter of an accessible type, or widen '{0}''s accessibility.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

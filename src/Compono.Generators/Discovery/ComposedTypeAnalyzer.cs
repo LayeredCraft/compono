@@ -85,6 +85,35 @@ internal static class ComposedTypeAnalyzer
         return new TransitiveClosureResult(new[] { failure }.ToEquatableArray(), EquatableArray<DiscoveredCollectionInfo>.Empty);
     }
 
+    /// <summary>
+    /// Whether <paramref name="type"/> could ever legally be a generic type argument to
+    /// <c>CompositionRow.Resolve&lt;T&gt;()</c>/<c>ResolveShared&lt;T&gt;()</c>/<c>ShareExplicit&lt;T&gt;()</c>
+    /// at all - reused by <see cref="ComposeMethodDiscovery"/> for its <c>RowInvokerRegistry</c>
+    /// dispatch-eligibility guard (ADR-0041), sharing the same three root-validity checks
+    /// <see cref="Analyze"/> already applies before ever reaching <see cref="TransitiveClosureWalker.Walk"/>:
+    /// an open type parameter (<see cref="ContainsTypeParameter"/>), a <see langword="ref"/> struct (no
+    /// <c>allows ref struct</c> constraint on any of those three methods), or a shape with no
+    /// <see cref="INamedTypeSymbol"/> identity that isn't one of ADR-0013's recognized collection shapes
+    /// (a pointer, function pointer, or unsupported array rank). A type that fails this check was never
+    /// going to get a working generated plan either - CMP0005/CMP0006/CMP0009 already cover the ordinary
+    /// composed-type-argument case; this is the same rejection applied to a bare method-parameter type
+    /// instead, silently (no diagnostic - see <see cref="ComposeMethodDiscovery"/> for why).
+    /// </summary>
+    public static bool IsRowInvokerShapeEligible(ITypeSymbol type, Compilation compilation)
+    {
+        if (ContainsTypeParameter(type))
+            return false;
+
+        // A recognized collection shape (List<T>, an array, ...) is an ordinary named/array type as
+        // far as being a legal generic type argument goes - the collection-specific accessibility
+        // concern (element/key type) is handled separately, by the accessibility check
+        // ComposeMethodDiscovery applies via Compilation.IsSymbolAccessibleWithin.
+        if (CollectionWellKnownTypes.GetOrCreate(compilation).TryClassify(type, out _))
+            return true;
+
+        return type is INamedTypeSymbol named && !named.IsRefLikeType;
+    }
+
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
     {
         ITypeParameterSymbol => true,

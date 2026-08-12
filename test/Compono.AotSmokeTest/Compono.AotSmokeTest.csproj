@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PLAN-0041's real Native AOT publish-and-run proof, scoped to the shared RowInvokerRegistry
+       mechanism itself (ADR-0041) - not a real xUnit v3/TUnit test host, and not packaged/published
+       to anywhere. A single throwaway console app that reflects a [Compose]-attributed method's real
+       generator-emitted RowInvokerRegistry registrations and dispatches through them, then asserts the
+       composed values are real - `dotnet publish -c Release -p:PublishAot=true` + run is this
+       project's whole purpose, not incremental inner-loop iteration. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Overrides test/Directory.Build.props' multi-TFM sweep (net8.0;net9.0;net10.0;net11.0) - this
+         is a one-shot AOT publish-and-run proof, not a matrix run; a single current TFM is enough. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The repo's central Directory.Packages.props doesn't (and shouldn't) know about the
+         throwaway "1.0.0" version pack-compono.sh stamps onto its local-feed-only Compono.nupkg -
+         opting this one project out of CPM instead of adding a fake pin to the shared file. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <!-- test/Directory.Build.props' global usings assume every project under test/ references
+       Xunit/NSubstitute/AwesomeAssertions (true for every other project here, all real test
+       projects) - this one deliberately doesn't, so those usings would fail to compile. -->
+  <ItemGroup>
+    <Using Remove="Xunit" />
+    <Using Remove="NSubstitute" />
+    <Using Remove="AwesomeAssertions" />
+  </ItemGroup>
+
+  <!-- A PackageReference, not a ProjectReference to src/Compono/Compono.csproj - the same
+       consumption shape any real consumer uses (Compono.XunitV3.SampleTests' own local-feed
+       pattern), and required here specifically: a ProjectReference's global properties
+       (PublishAot/RuntimeIdentifier/SelfContained) flow down into Compono.csproj's own
+       analyzer-only ProjectReference to Compono.Generators.csproj (netstandard2.0), failing
+       `dotnet publish -p:PublishAot=true` with NETSDK1207 ("AOT is not supported for the target
+       framework") for a project that's never actually part of the published app. A PackageReference
+       has no such project-graph propagation - the generator analyzer just rides along as a plain
+       `analyzers/dotnet/cs` asset inside the packed .nupkg, exactly like a real consumer gets it.
+       Packed into ../../.local-nuget-feed-aot-smoke by pack-compono.sh (run before publish, not an
+       MSBuild pre-restore target - this project's publish is a deliberate, manual, one-shot proof,
+       not part of the ordinary inner-loop restore). -->
+  <ItemGroup>
+    <PackageReference Include="Compono" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

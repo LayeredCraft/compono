@@ -1,6 +1,6 @@
 # [PLAN-0041] AOT-Safe Row-Binding Dispatch
 
-**Status:** Not Started
+**Status:** Done
 
 **Implements:** [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)
 
@@ -102,7 +102,7 @@ driver — not part of this plan):
 
 ## Tasks
 
-- [ ] **Core**: add `src/Compono/RowInvokerRegistry.cs`, with an XML-doc
+- [x] **Core**: add `src/Compono/RowInvokerRegistry.cs`, with an XML-doc
       cross-reference to `docs/architecture/current/generated-plans-and-discovery.md`'s
       broadened collectible-`AssemblyLoadContext`-rooting note (deferred,
       same disposition as `CollectionPlanCache<T>`'s own existing,
@@ -137,7 +137,9 @@ driver — not part of this plan):
       question, there is no real "which one is correct" ambiguity to defer
       here, so this doesn't need its own class-of-problem design
       discussion the way that item does.
-- [ ] **`EditorBrowsable` decision, made deliberately, not by default.**
+- [x] **`EditorBrowsable` decision, made deliberately, not by default.**
+      Chose (a): `RowInvokerRegistry` is left undecorated, matching
+      `PlanCache<T>`/`CollectionPlanCache<T>` exactly.
       Neither `PlanCache<T>` nor `CollectionPlanCache<T>` — the two
       existing "generator infrastructure, not consumer-facing" caches —
       carry `[EditorBrowsable(EditorBrowsableState.Never)]` today; both
@@ -155,7 +157,7 @@ driver — not part of this plan):
       `CollectionPlanCache<T>`'s public API shape is already shipped, so
       changing their attribution is a lower-risk but real docs/API-surface
       change worth its own line in this plan's Critical Files if chosen).
-- [ ] **Dispatch-eligibility guard (generator-side).** Before recording a
+- [x] **Dispatch-eligibility guard (generator-side).** Before recording a
       parameter type for `RowInvokerRegistry` emission, reject shapes that
       cannot legally be a generic type argument to `Resolve<T>()`/etc. at
       all — reuse `ComposedTypeAnalyzer`'s existing root-validity checks
@@ -182,7 +184,7 @@ driver — not part of this plan):
       have thrown its own unclear error for the same shapes at runtime.
       This task makes it a clear, intentional diagnostic instead of an
       accidental one, which the old design never had either.)
-- [ ] **Dispatch-eligibility guard, part 2: accessibility.** The three
+- [x] **Dispatch-eligibility guard, part 2: accessibility.** The three
       shape checks above don't catch every unnameable-in-generated-code
       case — a provider-resolved leaf type (e.g. a `private`/`internal`
       nested interface satisfied by a substitute provider) passes them
@@ -209,7 +211,7 @@ driver — not part of this plan):
       `ConstructorSelector`'s own accessible-constructor filtering (which
       implicitly requires the type itself be reachable) the way an
       ordinary composed type does.
-- [ ] **Generator, discovery**: extend `ComposeMethodDiscovery.TransformMethod`
+- [x] **Generator, discovery**: extend `ComposeMethodDiscovery.TransformMethod`
       (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`) to
       record every *dispatch-eligible* (per the guard above) method
       parameter's own type (namespace/name/emitted fully-qualified name —
@@ -222,7 +224,7 @@ driver — not part of this plan):
       which stays exactly what it always was (a plan-generation worklist,
       not a complete parameter-type inventory - ADR-0041 Amendment 2's
       Flaw 2 is specifically about not repeating that conflation).
-- [ ] **Generator, emission**: extend `ComponoIncrementalGenerator.cs`'s
+- [x] **Generator, emission**: extend `ComponoIncrementalGenerator.cs`'s
       existing per-discovered-type emission to also emit
       `RowInvokerRegistry.Register(typeof(T), static (row, descriptor) =>
       row.Resolve<T>(descriptor), ..., ...)` for every distinct parameter
@@ -231,7 +233,7 @@ driver — not part of this plan):
       `CollectionPlanCache<T>` entry (built-in-composable types, since
       dispatch registration and plan generation are now two independently-
       populated concerns).
-- [ ] `Compono.Generators.Tests`: a snapshot test proving a `[Compose]`-
+- [x] `Compono.Generators.Tests`: a snapshot test proving a `[Compose]`-
       reachable **provider-resolved leaf type** (e.g. `string`) gets a real
       emitted `RowInvokerRegistry.Register` call, not just a
       `PlanCache<T>`-needing custom type - this is the exact case
@@ -240,7 +242,11 @@ driver — not part of this plan):
       snapshot coverage. A second test proving a `ref struct`/pointer-typed
       parameter produces *no* `RowInvokerRegistry.Register` emission (the
       dispatch-eligibility guard actually excludes it, not just in theory).
-- [ ] `test/Compono.Tests`: a `RowInvokerRegistry`-specific test proving
+      A third test, beyond this task's own two, additionally proves the
+      accessibility half of the guard: an inaccessible (private nested)
+      provider-resolved parameter type reports `CMP0013` instead of
+      emitting uncompilable generated code.
+- [x] `test/Compono.Tests`: a `RowInvokerRegistry`-specific test proving
       `GetOrAdd`-style idempotent registration - two simulated "consuming
       assemblies" (two separate `Register`/`GetOrAdd` calls for the exact
       same `Type` with two distinct-but-functionally-equivalent delegate
@@ -248,19 +254,28 @@ driver — not part of this plan):
       working (if unspecified-which-one) entry - covering the two-
       consumer-assembly-sharing-one-`Compono`-instance scenario directly,
       not just asserting the API shape compiles.
-- [ ] **`Compono.XunitV3`**: rewrite `Binding/RowInvokers.cs` to call
+- [x] **`Compono.XunitV3`**: rewrite `Binding/RowInvokers.cs` to call
       `RowInvokerRegistry.TryGet(parameterType, ...)` instead of building
       delegates via `MakeGenericMethod`/`Delegate.CreateDelegate` —
       `System.Reflection` drops out of this file entirely.
-- [ ] `Compono.XunitV3.Tests`: existing `RowInvokers`/binding tests still
+- [x] `Compono.XunitV3.Tests`: existing `RowInvokers`/binding tests still
       pass unmodified in behavior (same public dispatch outcomes) — add a
       test proving no `MakeGenericMethod`/reflection-based path remains
       reachable; one covering a provider-resolved leaf parameter type
       specifically (the case that was previously unregistered under the
       original, now-superseded design); one covering the new
       `ValidateSignature` rejection for a `ref struct`/pointer-typed
-      by-value parameter, with its own clear diagnostic message.
-- [ ] **Real Native AOT verification, scoped to the mechanism, not to
+      by-value parameter, with its own clear diagnostic message. This
+      project doesn't reference `Compono.Generators` as an analyzer
+      (`testing.md`'s hand-fake convention, confirmed directly - no
+      `RowInvokerRegistration.g.cs`/`CompositionPlan.g.cs` output at all
+      even after a clean rebuild), so a new `Fixtures/RowInvokerRegistryFakes.cs`
+      module initializer hand-fakes the registrations a real generator
+      would emit for every distinct dispatch-eligible parameter type
+      `SampleTestMethods` declares - the same disposition as
+      `SampleTestMethods.CollectionExhaustionPlan`/`DisposableProfile`
+      already hand-faking a generated collection plan/registration.
+- [x] **Real Native AOT verification, scoped to the mechanism, not to
       `Compono.TUnit`.** A `dotnet publish -c Release -p:PublishAot=true`
       + run, using whatever's already available on `main` — most likely a
       minimal new sample/harness project (or extending an existing
@@ -272,35 +287,55 @@ driver — not part of this plan):
       Investigate whether this needs its own CI job (Native AOT publish is
       RID-specific, slower, and typically Linux-only in this repo's
       existing CI) or can fold into `package-validation.yaml`'s existing
-      local-feed smoke-test step.
-- [ ] Document the outcome in this plan's own Notes section: confirmed
+      local-feed smoke-test step. New `test/Compono.AotSmokeTest/` (a
+      throwaway console harness, not a real xUnit v3/TUnit host) - not
+      added to `package-validation.yaml`/any CI job in this pass; see
+      Notes.
+- [x] Document the outcome in this plan's own Notes section: confirmed
       AOT-safe end-to-end for the mechanism, or a specific remaining gap
       (e.g. the deferred `[Shared]`-detection reflection turns out to
       matter after all) recorded honestly rather than assumed away.
 
 ## Critical Files
 
-- `src/Compono/RowInvokerRegistry.cs` — new.
+- `src/Compono/RowInvokerRegistry.cs` — new. Also carries the
+  `ResolveInvoker`/`ResolveSharedInvoker`/`ShareExplicitInvoker` delegate
+  types, moved here from `Compono.XunitV3.Binding.RowInvokers`.
 - `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
   `src/Compono.Generators/Discovery/ComposedTypeAnalyzer.cs` — extended
   discovery (a shared dispatch-eligibility helper covering both shape and
   accessibility, and recording every eligible parameter's own type, not
   just plan-eligible ones).
+- `src/Compono.Generators/Models/RowInvokerTypeInfo.cs`,
+  `src/Compono.Generators/Models/ComposeMethodDiscoveryResult.cs` — new
+  models threading the new discovery field alongside the existing
+  `TransitiveClosureResult`.
 - `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` — new
-  `CMP0013`-or-next-free-number diagnostic for an inaccessible
-  row-invoker-eligible parameter type (a `RowInvokerRegistry`-scoped
-  sibling to `CMP0012`'s existing collection-element-type check).
+  `CMP0013` diagnostic for an inaccessible row-invoker-eligible parameter
+  type (a `RowInvokerRegistry`-scoped sibling to `CMP0012`'s existing
+  collection-element-type check).
+- `src/Compono.Generators/Emitters/RowInvokerRegistrationEmitter.cs`,
+  `src/Compono.Generators/Templates/RowInvokerRegistration.scriban` — new
+  emitter/template for the `RowInvokerRegistry.Register(...)`
+  module-initializer registration.
 - `src/Compono.Generators/ComponoIncrementalGenerator.cs` — extended
-  emission, alongside the existing `PlanCache<T>` module-initializer code.
+  pipeline, alongside the existing `PlanCache<T>` module-initializer code.
 - `src/Compono.XunitV3/Binding/RowInvokers.cs` — reflection removed,
   rewritten to look up `RowInvokerRegistry`.
 - `src/Compono.XunitV3/Binding/BindingPlan.cs` — new explicit rejection
   for `ref struct`/pointer-typed by-value parameters.
-- `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs` (or a new
-  sibling file) — the `RowInvokerRegistry` emission snapshot tests
-  (provider-resolved leaf type included; dispatch-ineligible type
-  excluded).
-- A new/extended sample project for the real Native AOT publish-and-run
+- `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs` — the
+  `RowInvokerRegistry` emission snapshot tests (provider-resolved leaf
+  type, dispatch-ineligible type excluded, inaccessible type/`CMP0013`).
+- `test/Compono.Tests/RowInvokerRegistryTests.cs` — new; idempotent
+  registration coverage.
+- `test/Compono.XunitV3.Tests/RowInvokersTests.cs`,
+  `test/Compono.XunitV3.Tests/BindingPlanTests.cs`,
+  `test/Compono.XunitV3.Tests/Fixtures/RowInvokerRegistryFakes.cs` (new) —
+  reflection-free dispatch coverage, the new `ValidateSignature` rejection,
+  and the hand-fake registrations this project needs since it doesn't
+  reference `Compono.Generators` as an analyzer.
+- `test/Compono.AotSmokeTest/` — new; the real Native AOT publish-and-run
   proof, scoped to the shared mechanism (not `Compono.TUnit`).
 
 ## Test Plan
@@ -454,3 +489,74 @@ into the ADR that's supposed to be authoritative:
   but never fixed in the ADR that instruction originally came from.
   Amendment 3 corrects it, redirecting to PLAN-0040 Phase 0's own
   dedicated `Compono.TUnit` AOT harness.
+
+## Implementation (2026-08-12)
+
+**Confirmed AOT-safe end-to-end for the mechanism.** All tasks above are
+complete: `RowInvokerRegistry` in core `Compono`, the generator's
+dispatch-eligibility guard (shape + accessibility, `CMP0013`) and
+discovery/emission, `Compono.XunitV3.Binding.RowInvokers`/`BindingPlan`
+migrated off `MakeGenericMethod`/`Delegate.CreateDelegate` entirely, and a
+real `dotnet publish -c Release -f net10.0 -r osx-arm64 -p:PublishAot=true
+--self-contained true` + run against `test/Compono.AotSmokeTest/` — a new,
+throwaway console harness (not a real xUnit v3/TUnit host) that declares
+its own `Compono.XunitV3.ComposeAttribute`-metadata-name stand-in (the same
+trick `Compono.Generators.Tests` already uses) on a method taking both a
+custom composed type (`Widget`, needs a real `PlanCache<Widget>` entry) and
+a provider-resolved leaf type (`string`, needs none), then dispatches both
+through the real, generator-populated `RowInvokerRegistry` directly (no
+dependency on `Compono.XunitV3` itself). The published native binary ran
+standalone and printed a real composed `Widget.Name`/`leaf` pair with exit
+code 0; a second run with `-p:TrimmerSingleWarn=false` (to surface every
+individual trim warning rather than the default one-line summary) produced
+zero `IL2`/`IL3`-prefixed trim/AOT warnings. `System.Reflection` no longer
+appears anywhere in `Compono.XunitV3.Binding.RowInvokers`, confirmed by
+inspection of the rewritten file, not just by the passing test suite.
+
+**One real, unplanned finding surfaced during test verification, not part
+of this plan's original task list.** `Compono.XunitV3.Tests` — a
+`ProjectReference`-based consumer of `Compono`/`Compono.XunitV3`, not the
+packed-`PackageReference`-based `Compono.XunitV3.SampleTests` — does not
+actually get `Compono.Generators` flowing as an analyzer into its own
+compilation at all (confirmed directly: zero generator-emitted `.cs` files
+even with `EmitCompilerGeneratedFiles=true` after a clean rebuild). This
+was already true before this plan's changes and invisible under the old
+`MakeGenericMethod`-based design (which needed no generator output to
+dispatch), and is consistent with `testing.md`'s own stated hand-fake
+convention for this project (`DisposableValue`/`CollectionExhaustionPlan`
+already stand in for what a real generator/registration would provide) —
+not a regression this plan introduced, but a previously-latent gap this
+plan's new generator-output dependency made load-bearing for the first
+time. Fixed by adding `Fixtures/RowInvokerRegistryFakes.cs`, a module
+initializer hand-registering `RowInvokerRegistry` entries for every
+distinct dispatch-eligible parameter type `SampleTestMethods` declares -
+the same disposition as that project's existing hand-fakes, not a design
+change.
+
+**AOT harness packaging note, also unplanned.** `test/Compono.AotSmokeTest/`
+initially referenced `Compono` via `ProjectReference` (simpler, no local
+NuGet feed needed) - `dotnet publish -p:PublishAot=true`'s global
+properties (`PublishAot`/`RuntimeIdentifier`/`SelfContained`) turned out to
+flow down through that `ProjectReference` into `Compono.csproj`'s own
+analyzer-only `ProjectReference` to `Compono.Generators.csproj`
+(`netstandard2.0`), failing the whole publish with `NETSDK1207` ("AOT is
+not supported for the target framework") for a project that was never
+actually part of the published app. This never affects any real consumer
+(every real consumer - `Compono.XunitV3.SampleTests` included - uses
+`PackageReference`, which has no such project-graph propagation), so
+rather than changing `Compono.csproj`'s own already-shipped, already-
+working analyzer-reference shape for one harness project's own
+`ProjectReference` convenience, `Compono.AotSmokeTest` was switched to
+consume `Compono` via a local-feed `PackageReference` instead (mirroring
+`Compono.XunitV3.SampleTests`' own pattern, packed by
+`pack-compono.sh` - no concurrency lock, since this harness runs as a
+manual one-shot, not concurrently across TFMs in CI).
+
+**Not done in this pass, left for a follow-up decision, not silently
+dropped:** whether `test/Compono.AotSmokeTest/`'s publish-and-run proof
+gets wired into a CI job (`package-validation.yaml` or its own) - Native
+AOT publish is RID-specific and noticeably slower than an ordinary
+build/test step, and this repo's existing CI matrix doesn't run one today.
+Verified manually, once, on `osx-arm64` (this session's own host) - not
+verified on Linux/Windows RIDs, and not re-verified automatically on every
+future change to `RowInvokerRegistry`/the generator's emission.

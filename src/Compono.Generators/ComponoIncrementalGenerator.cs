@@ -258,6 +258,39 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
 
             CompositionPlanEmitter.Generate(productionContext, type);
         });
+
+        // Only ComposeMethodDiscovery produces row-invoker-eligible types (ADR-0041) - Create<T>()
+        // call sites and [Composable] requests never reach BindingPlan.Build's runtime-Type dispatch
+        // problem at all, so they carry no RowInvokerTypes to merge in here.
+        var rowInvokerTypes = composeMethodResultsAll.SelectMany(static (result, _) => result.RowInvokerTypes)
+            .Collect()
+            .WithTrackingName(TrackingNames.RowInvokerTypesCollected)
+            .SelectMany(static (types, _) => types
+                .GroupBy(static type => type.FullyQualifiedTypeName)
+                .SelectMany(static group =>
+                {
+                    // A row-invoker registration carries no metadata beyond the type itself, so every
+                    // successful discovery of the same type is structurally identical and Distinct()
+                    // collapses it to one entry - unlike DiscoveredTypeInfo's Nullability-bearing
+                    // conflict case, there's no "agree on the type, disagree on the metadata" state to
+                    // detect here. A real disagreement can only be two accessibility failures
+                    // (CMP0013) at two different parameter locations - both distinct and both real,
+                    // reported as-is rather than folded into a synthetic conflict diagnostic.
+                    var distinct = group.Distinct().ToArray();
+                    return distinct.Length == 1 ? distinct : distinct.Where(static t => t.Diagnostics.Count > 0).ToArray();
+                }))
+            .WithTrackingName(TrackingNames.RowInvokerTypesDistinct);
+
+        context.RegisterSourceOutput(rowInvokerTypes, static (productionContext, type) =>
+        {
+            foreach (var diagnostic in type.Diagnostics)
+                diagnostic.Report(productionContext);
+
+            if (type.Diagnostics.Count > 0)
+                return;
+
+            RowInvokerRegistrationEmitter.Generate(productionContext, type);
+        });
     }
 }
 
@@ -286,4 +319,6 @@ internal static class TrackingNames
     public const string DiscoveredDistinct = "Discovered.Distinct";
     public const string DiscoveredCollectionsCollected = "DiscoveredCollections.Collected";
     public const string DiscoveredCollectionsDistinct = "DiscoveredCollections.Distinct";
+    public const string RowInvokerTypesCollected = "RowInvokerTypes.Collected";
+    public const string RowInvokerTypesDistinct = "RowInvokerTypes.Distinct";
 }
