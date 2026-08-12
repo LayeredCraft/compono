@@ -110,7 +110,7 @@
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
     <!-- Generator testing: snapshot-test the generator itself, per ADR-0005. -->
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
-    <PackageVersion Include="Verify.XunitV3" Version="31.27.0" />
+    <PackageVersion Include="Verify.XunitV3" Version="31.28.0" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.10" />
     <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.10" />
     <!-- Phase 4: benchmark harness comparing generated construction against a reflection
