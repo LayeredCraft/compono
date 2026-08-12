@@ -13,7 +13,7 @@ likely reach for AutoFixture-shaped habits that don't apply — `[Frozen]`
 semantics, customization override, reflection-based construction. The
 skill teaches the agent Compono's actual model: source-generated
 composition, `[Composable]`'s narrow scope, registration/rule precedence,
-`[Shared]`, deterministic seeding, the real `CMP0001`-`CMP0012` diagnostic
+`[Shared]`, deterministic seeding, the real `CMP0001`-`CMP0013` diagnostic
 set, and the package-specific surface of `Compono.XunitV3`/
 `Compono.NSubstitute`/`Compono.Bogus` — only recommending an integration's
 API when that package is actually referenced in your project.

@@ -13,7 +13,9 @@ message.
 Constructor-selection diagnostics (`CMP0001`–`CMP0007`, `CMP0009`) are
 governed by [ADR-0002](../adr/0002-constructor-selection-algorithm.md);
 the collection/discovery-conflict diagnostics (`CMP0010`–`CMP0012`) by the
-generator's own discovery-merge logic.
+generator's own discovery-merge logic; `CMP0013` by
+[ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)'s row-binding
+dispatch-eligibility guard.
 
 ## CMP0001 — Ambiguous construction path
 
@@ -195,6 +197,24 @@ otherwise see the private type.
 
 **Fix:** Use a collection of an accessible (`public`/`internal`) element
 or key type, or widen the element/key type's own accessibility.
+
+## CMP0013 — Compose-attributed parameter type is not accessible
+
+**Message:** `'{Type}' cannot be registered for row-binding dispatch on
+'{Method}'`
+
+**Cause:** A `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile,
+TConfig>]`-attributed test method has a parameter whose type is
+`private`/`protected` — the generated `RowInvokerRegistry` registration
+that lets `Compono.XunitV3` dispatch into it at runtime is always emitted
+as a top-level type outside any containing type, so it can never reference
+a private/protected parameter type, even from a test method that could
+otherwise see it. The same accessibility-domain problem CMP0012 solves for
+collection element/key types, applied here to a bare `[Compose]`-family
+parameter.
+
+**Fix:** Use a parameter of an accessible (`public`/`internal`) type, or
+widen the parameter type's own accessibility.
 
 ## Next
 

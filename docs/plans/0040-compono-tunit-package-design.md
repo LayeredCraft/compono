@@ -111,10 +111,21 @@ Negative Consequences:
 - Constructor-dependency composition via a class-level
   `DataGeneratorType.ClassParameters` data source — named as the correct
   future path if real demand appears, not designed or built here.
-- Extracting `Compono.XunitV3`'s binding-delegate-caching pattern into a
-  shared location — ADR-0040 deliberately duplicates it for this release;
-  revisit only if a third test-framework package needs the same pattern a
-  third time.
+- ~~Extracting `Compono.XunitV3`'s binding-delegate-caching pattern into a
+  shared location~~ — **superseded by [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)/
+  [PLAN-0041](0041-aot-safe-row-binding-dispatch.md).** ADR-0040's original
+  duplication call stood only as long as the pattern being duplicated
+  (`MethodInfo.MakeGenericMethod`-based dispatch) was itself acceptable to
+  ship — ADR-0041 found it isn't (Native AOT-unsafe, a release requirement
+  for `Compono.TUnit`), and its replacement (`RowInvokerRegistry`, per
+  ADR-0041 Amendment 2) is a shared, framework-agnostic core mechanism by
+  construction, not a duplicated per-package one. `src/Compono.TUnit/Binding/RowInvokers.cs`
+  is built against `RowInvokerRegistry` from its first commit — never a
+  duplicated `MakeGenericMethod` version. PLAN-0041 is scoped to core +
+  generator + `Compono.XunitV3` only (buildable/completable on `main`
+  alone - see that plan's own round-2 Notes for why); once it merges to
+  `main`, this phase's own branch rebases onto it and implements the two
+  explicit tasks below against the real, merged `RowInvokerRegistry`.
 - Verifying seed-observability behavior under TUnit's own retry/repeat
   mechanisms — ADR-0040 flags this as unverified; Phase 0's test suite
   investigates and records the actual behavior (it doesn't need profile
@@ -217,11 +228,39 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       returns a single deferred `Func<object?[]?>` that (inside the Func,
       not before it) calls `composer.CreateRow(declaringType)` and binds
       each of the method's parameters via `row.Resolve<T>(descriptor)`/
-      `row.ResolveShared<T>(descriptor)`, following
-      `Compono.XunitV3`'s `BindingPlan`/`ParameterBindingPlan` pattern
-      (cached, reflection-once-per-parameter delegate construction, not
-      re-reflected per row) — duplicated into this package per ADR-0040,
-      not shared.
+      `row.ResolveShared<T>(descriptor)`, following `Compono.XunitV3`'s
+      `BindingPlan`/`ParameterBindingPlan` pattern — `BindingPlan.cs`/
+      `ParameterBindingPlan.cs`/`PositionalArgumentBinder.cs` are
+      duplicated into this package per ADR-0040's binding-logic decision,
+      unaffected by ADR-0041. `RowInvokers.cs` is **not** duplicated - see
+      the two explicit tasks below.
+- [ ] **`RowInvokers.cs` built against core `Compono`'s `RowInvokerRegistry`
+      from its first commit — per [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)
+      (Amendment 2)/[PLAN-0041](0041-aot-safe-row-binding-dispatch.md).**
+      Blocked on PLAN-0041 merging to `main` first (core + generator +
+      `Compono.XunitV3` only - not itself blocked on this package existing).
+      Once merged, this phase's own branch rebases onto it: `RowInvokers.cs`
+      calls `RowInvokerRegistry.TryGet(parameterType, ...)`, never
+      `MethodInfo.MakeGenericMethod`/`Delegate.CreateDelegate` - no
+      throwaway reflection-based version ships first. `BindingPlan.cs`'s
+      own signature validation additionally rejects a `ref struct`/
+      pointer-typed by-value parameter with a clear `CompositionException`
+      (PLAN-0041's own dispatch-eligibility-guard task adds the identical
+      check to `Compono.XunitV3.Binding.BindingPlan` - mirror it here, not
+      a new investigation).
+- [ ] **Full end-to-end Native AOT publish-and-run proof, through the real
+      packaged `Compono.TUnit` dependency chain** - `test/Compono.TUnit.SampleTests`
+      (or a dedicated AOT-only sibling project), `dotnet publish -c Release
+      -p:PublishAot=true` + run, exercising a real `[Compose]`-composed
+      custom type and a provider-resolved leaf-type parameter (e.g.
+      `string`). PLAN-0041's own AOT proof only covers the shared
+      mechanism in isolation (core + `Compono.XunitV3`, since
+      `Compono.TUnit` doesn't exist on `main` when that plan is
+      implemented) - this task is what actually proves the full
+      `Compono.TUnit` package chain survives trimming/AOT, the deliverable
+      ADR-0041's Native-AOT-as-a-release-requirement decision exists for
+      in the first place. Update `docs/packages/compono-tunit.md`'s Native
+      AOT claim to point at this proof once it exists, not before.
 - [x] **`ComposeAttribute`'s constructor — `public ComposeAttribute(params
       object?[] inlineValues)`, with full inline-value binding, ships in
       this phase, not Phase 1.** Confirmed against `Compono.XunitV3`'s
@@ -447,6 +486,36 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       inline values).
 - [ ] Extend `skills/compono/references/tunit.md` with profile-attribute
       guidance, matching `xunit-v3.md`'s equivalent sections.
+- [ ] **Native AOT gate on `ConfigProfileBinder` — a release requirement,
+      not optional polish (ADR-0041 Amendment 1).** `[Compose<TProfile,
+      TConfig>]`'s own `ConfigProfileBinder` needs the identical AOT
+      analysis ADR-0041 already performed for row-binding dispatch:
+      confirm whether its `ConstructorInfo.Invoke(object?[])`-based
+      `TConfig` construction is Native AOT-safe (unlike
+      `MakeGenericMethod`, `ConstructorInfo.Invoke` on an
+      already-known/non-generic `Type` is a materially different, likely
+      lower-risk case — but "likely" isn't good enough here; verify for
+      real, the same way ADR-0041 refused to assume the `[Shared]`-
+      detection reflection was safe without a real check). If it is not
+      AOT-safe, design and implement the smallest AOT-safe replacement
+      (per ADR-0041's own "smallest maintainable design" driver) *before*
+      `[Compose<TProfile, TConfig>]` ships in this phase — this attribute
+      does not merge until its own construction path clears the same bar
+      row-binding dispatch already had to. Extend **this phase's own
+      dedicated `Compono.TUnit` AOT project** (Phase 0's "Full end-to-end
+      Native AOT publish-and-run proof" task, above) to also exercise
+      `[Compose<TProfile, TConfig>]`, not just unqualified `[Compose]` -
+      **not** PLAN-0041's own smoke test, which is explicitly scoped to
+      the shared mechanism through `Compono.XunitV3` only (that plan must
+      complete and merge before this phase even starts, and never runs
+      anything through the real `Compono.TUnit` package chain at all - see
+      PLAN-0041's own Scope). Extending the wrong harness would let this
+      release gate get checked off without ever actually running
+      `[Compose<TProfile, TConfig>]` through `Compono.TUnit` under Native
+      AOT — the final `Compono.TUnit` Native AOT claim must cover every
+      public Compose-family attribute shipped, not just the one Phase 0
+      introduced, and only this phase's own TUnit-real harness can prove
+      that.
 
 ### Phase 2: Verification requiring the completed attribute family
 
@@ -492,7 +561,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 - `src/Compono.TUnit/ComposeAttribute.cs`,
   `ComposeAttribute{TProfile}.cs`, `ComposeAttribute{TProfile,TConfig}.cs`,
   `SharedAttribute.cs` — new
-- `src/Compono.TUnit/Binding/*` — new (duplicated pattern, not shared)
+- `src/Compono.TUnit/Binding/*` — new. `BindingPlan.cs`/`ParameterBindingPlan.cs`/
+  `PositionalArgumentBinder.cs` are a duplicated pattern from `Compono.XunitV3`'s own
+  (ADR-0040's binding-logic decision, unaffected by ADR-0041). `RowInvokers.cs` is **not**
+  duplicated — built against core `Compono`'s shared `RowInvokerRegistry` from the start, per
+  [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)/[PLAN-0041](0041-aot-safe-row-binding-dispatch.md).
 - `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
   `src/Compono.Generators/ComponoIncrementalGenerator.cs` — modified
   (three new metadata-name constants/registrations for `Compono.TUnit`'s

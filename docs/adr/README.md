@@ -102,3 +102,4 @@ the mechanics: numbering, status, and the index.
 | [0038](0038-net8-net9-explicit-multi-target.md) | net8.0/net9.0 Explicit Multi-Target | Accepted |
 | [0039](0039-future-extension-package-admission-gate-and-release-sequence.md) | Future Extension Package Admission Gate and Release Sequence | Accepted |
 | [0040](0040-compono-tunit-package-design.md) | Compono.TUnit Package Design | Accepted |
+| [0041](0041-aot-safe-row-binding-dispatch.md) | AOT-Safe Row-Binding Dispatch | Accepted |

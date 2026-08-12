@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (25,36)-(25,52),
+      Message: 'TestNamespace.Container.IHandler' cannot be registered for row-binding dispatch on 'global::TestNamespace.Container.IHandler' - the generated dispatch registration is emitted as a top-level type outside any containing type, so a private or protected parameter type can never be referenced from it, even from a test method that could otherwise see it. Use a parameter of an accessible type, or widen 'TestNamespace.Container.IHandler''s accessibility.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0013,
+        Title: Compose-attributed parameter type is not accessible,
+        MessageFormat: '{0}' cannot be registered for row-binding dispatch on '{1}' - the generated dispatch registration is emitted as a top-level type outside any containing type, so a private or protected parameter type can never be referenced from it, even from a test method that could otherwise see it. Use a parameter of an accessible type, or widen '{0}''s accessibility.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

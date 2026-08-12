@@ -1,3 +1,4 @@
+using Compono.Generators.Diagnostics;
 using Compono.Generators.Models;
 using Compono.Generators.Types;
 using Microsoft.CodeAnalysis;
@@ -7,7 +8,10 @@ namespace Compono.Generators.Discovery;
 /// <summary>
 /// Finds methods attributed <c>[Compose]</c>/<c>[Compose&lt;TProfile&gt;]</c> (<c>Compono.XunitV3</c>)
 /// and generates a plan for each eligible parameter type in that method's signature, per ADR-0022's
-/// Amendment (2026-07-30), fix #2.
+/// Amendment (2026-07-30), fix #2. Separately, per ADR-0041 Amendment 2, records every
+/// dispatch-eligible parameter type needing a <c>RowInvokerRegistry</c> registration - a distinct
+/// concern from plan generation, since a provider-resolved leaf type (e.g. <see langword="string"/>)
+/// never needs a plan but always needs a dispatch registration.
 /// </summary>
 /// <remarks>
 /// A separate discovery component, deliberately not folded into <see cref="CreateInvocationDiscovery"/>
@@ -72,13 +76,19 @@ internal static class ComposeMethodDiscovery
     /// <remarks><c>Compono.TUnit.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
     public const string TUnitTwoTypeParameterAttributeMetadataName = "Compono.TUnit.ComposeAttribute`2";
 
-    public static TransitiveClosureResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)
-            return new TransitiveClosureResult(EquatableArray<DiscoveredTypeInfo>.Empty, EquatableArray<DiscoveredCollectionInfo>.Empty);
+        {
+            return new ComposeMethodDiscoveryResult(
+                new TransitiveClosureResult(EquatableArray<DiscoveredTypeInfo>.Empty, EquatableArray<DiscoveredCollectionInfo>.Empty),
+                EquatableArray<RowInvokerTypeInfo>.Empty);
+        }
 
+        var compilation = context.SemanticModel.Compilation;
         var types = new List<DiscoveredTypeInfo>();
         var collections = new List<DiscoveredCollectionInfo>();
+        var rowInvokerTypes = new List<RowInvokerTypeInfo>();
 
         foreach (var parameter in method.Parameters)
         {
@@ -86,12 +96,43 @@ internal static class ComposeMethodDiscovery
                 continue;
 
             var location = LocationOf(parameter, cancellationToken);
-            var result = ComposedTypeAnalyzer.Analyze(parameter.Type, context.SemanticModel.Compilation, location);
+            var result = ComposedTypeAnalyzer.Analyze(parameter.Type, compilation, location);
             types.AddRange(result.Types);
             collections.AddRange(result.Collections);
+
+            if (RowInvokerTypeOf(parameter.Type, compilation, location) is { } rowInvokerType)
+                rowInvokerTypes.Add(rowInvokerType);
         }
 
-        return new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray());
+        return new ComposeMethodDiscoveryResult(
+            new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray()),
+            rowInvokerTypes.ToEquatableArray());
+    }
+
+    // ADR-0041's dispatch-eligibility guard: a parameter type that can never legally be a generic type
+    // argument to CompositionRow.Resolve<T>()/etc. at all (a ref struct, a pointer, an open type
+    // parameter) is simply not recorded - it was never going to get a working generated plan either,
+    // so no diagnostic. A shape-eligible type that isn't accessible from a top-level generated type
+    // (CMP0012's collection-element-type problem, applied here to a bare parameter type - part 2 of
+    // the guard) still needs recording, but carrying its own CMP0013 diagnostic instead of a
+    // registration.
+    private static RowInvokerTypeInfo? RowInvokerTypeOf(ITypeSymbol parameterType, Compilation compilation, LocationInfo? location)
+    {
+        if (!ComposedTypeAnalyzer.IsRowInvokerShapeEligible(parameterType, compilation))
+            return null;
+
+        var fullyQualifiedName = parameterType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        if (compilation.IsSymbolAccessibleWithin(parameterType, compilation.Assembly))
+            return new RowInvokerTypeInfo(fullyQualifiedName, EquatableArray<DiagnosticInfo>.Empty);
+
+        var diagnostic = new DiagnosticInfo(
+            DiagnosticDescriptors.InaccessibleRowInvokerParameterType,
+            location,
+            parameterType.ToDisplayString(),
+            fullyQualifiedName);
+
+        return new RowInvokerTypeInfo(fullyQualifiedName, new[] { diagnostic }.ToEquatableArray());
     }
 
     // Points diagnostics at the parameter's own declaration - the closest thing to a "request site"
