@@ -283,3 +283,104 @@ real `dotnet publish -p:PublishAot=true` + run smoke test to exercise
 `[Compose<TProfile, TConfig>]` specifically, so the package's final Native
 AOT claim is verified against every public Compose-family attribute it
 ships, not just the one this ADR's own scope covers.
+
+## Amendment 2 (2026-08-12): `RowInvokerCache<T>` corrected to a non-generic `RowInvokerRegistry`
+
+PR #74 review caught two real flaws in this ADR's original mechanism, both
+confirmed against the actual generator source before writing this
+amendment (not accepted on the review's word alone):
+
+**Flaw 1 — `RowInvokerCache<T>` cannot actually be read from the code that
+needs it.** `PlanCache<T>.Instance` works as a closed-generic static field
+because its only reader, `CompositionContext.ResolveCore<TValue>`, is
+itself generic and always called with `TValue` bound at a real compile-time
+call site (`composer.Create<OrderService>()`, written by a consumer).
+`BindingPlan.Build` has no such call site — it only ever has
+`parameter.ParameterType`, a `System.Type` obtained via reflection over
+TUnit's/xUnit's own runtime metadata, with no compile-time `T` to name.
+Reading `RowInvokerCache<T>` for a `T` known only as a runtime `Type`
+requires exactly the same `MakeGenericMethod`-shaped reflection this ADR
+exists to remove — the original design didn't eliminate the AOT problem,
+it relocated it from `CompositionRow.Resolve<T>` to `RowInvokerCache<T>`
+without solving it.
+
+**Flaw 2 — the discovery data this needs doesn't exist where the original
+design assumed it did.** `ComposeMethodDiscovery.TransformMethod` walks
+every method parameter via `ComposedTypeAnalyzer.Analyze`, which delegates
+to `TransitiveClosureWalker.Walk` — but `TransitiveClosureWalker` (both at
+the root, `EnqueueRoot`, and for nested members, `EnqueueMember`)
+explicitly returns without recording anything when
+`LeafTypeClassifier.IsRuntimeProviderResolved`/`IsProviderResolved` is
+true (`TransitiveClosureWalker.cs:135-136`, `:224-225`) — the exact set of
+types (`string`, `int`, interfaces, delegates, anything satisfied by a
+built-in/registration/semantic provider rather than a generated plan) that
+never need a `PlanCache<T>` entry. `TransitiveClosureResult.Types` was
+never meant to be a complete parameter-type inventory; it's a
+plan-generation worklist that deliberately excludes exactly the types a
+row-binding dispatch mechanism needs most (provider-resolved leaf types
+are, in practice, extremely common `[Compose]` parameter types). Extending
+the existing per-discovered-type emission, as originally described, would
+silently leave every such parameter's dispatch unregistered.
+
+### Corrected mechanism
+
+Replace `RowInvokerCache<T>` with a **non-generic, `Type`-keyed
+registry** in core `Compono`:
+
+```csharp
+public static class RowInvokerRegistry
+{
+    // Same non-generic delegate shapes Compono.XunitV3.Binding.RowInvokers/
+    // Compono.TUnit.Binding.RowInvokers already define locally today - moved to core so both
+    // packages (and the generator) share one definition instead of two.
+    public static void Register(Type type, ResolveInvoker resolve, ResolveSharedInvoker resolveShared, ShareExplicitInvoker shareExplicit) { /* ... */ }
+    public static bool TryGet(Type type, out ResolveInvoker resolve, out ResolveSharedInvoker resolveShared, out ShareExplicitInvoker shareExplicit) { /* ... */ }
+}
+```
+
+populated by generated code exactly like this ADR's original sketch, just
+targeting the registry instead of a closed generic field:
+
+```csharp
+RowInvokerRegistry.Register(typeof(OrderService),
+    static (row, descriptor) => row.Resolve<OrderService>(descriptor),
+    static (row, descriptor) => row.ResolveShared<OrderService>(descriptor),
+    static (row, descriptor, value) => row.ShareExplicit(descriptor, (OrderService)value!));
+```
+
+This resolves both flaws without abandoning the "smallest maintainable
+design" driver:
+
+- **Flaw 1**: `BindingPlan.Build` calls `RowInvokerRegistry.TryGet(parameterType, ...)`
+  — an ordinary `Dictionary<Type, ...>`-shaped lookup by a runtime `Type`
+  value, not a generic-type-parameter problem at all. `Type` objects are
+  ordinary runtime values under Native AOT; only *dynamic instantiation*
+  of a generic method/type from one (`MakeGenericMethod`) is unsafe, and
+  nothing here does that. Every `Resolve<T>()`/`ResolveShared<T>()`/
+  `ShareExplicit<T>()` call the registry's entries actually make is still
+  written directly, with a compile-time-known `T`, in generator-emitted
+  source — the AOT-safety property this ADR's Decision Outcome already
+  argued for is unchanged, it just required a non-generic storage shape to
+  actually be reachable from `BindingPlan`.
+- **Flaw 2**: `ComposeMethodDiscovery.TransformMethod` already iterates
+  every method parameter directly (`foreach (var parameter in
+  method.Parameters)`) before handing each one to
+  `ComposedTypeAnalyzer.Analyze` for plan-eligibility walking. It now also
+  records each parameter's own type directly, independent of what the
+  eligibility walk decides — a small, additive change to a loop that
+  already visits every parameter, not a new discovery pass. This is
+  threaded through as its own field alongside the existing
+  `TransitiveClosureResult`, not folded into `.Types`/`.Collections`,
+  since those two remain exactly what they always were (a plan-generation
+  worklist) — conflating them with a complete parameter-type inventory
+  would be the same category of bug this amendment is fixing.
+
+The registry needs one entry per distinct parameter type reachable through
+either attribute family — whether or not that type also gets a
+`PlanCache<T>`/`CollectionPlanCache<T>` entry — since dispatch and plan
+generation are now explicitly two different, independently-populated
+concerns, correctly reflecting that they always were two different
+questions ("how do I call `Resolve<T>()`" vs. "how do I construct a `T`").
+
+PLAN-0041 is revised to build `RowInvokerRegistry`, not `RowInvokerCache<T>`,
+from its first task.

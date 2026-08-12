@@ -111,10 +111,17 @@ Negative Consequences:
 - Constructor-dependency composition via a class-level
   `DataGeneratorType.ClassParameters` data source — named as the correct
   future path if real demand appears, not designed or built here.
-- Extracting `Compono.XunitV3`'s binding-delegate-caching pattern into a
-  shared location — ADR-0040 deliberately duplicates it for this release;
-  revisit only if a third test-framework package needs the same pattern a
-  third time.
+- ~~Extracting `Compono.XunitV3`'s binding-delegate-caching pattern into a
+  shared location~~ — **superseded by [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)/
+  [PLAN-0041](0041-aot-safe-row-binding-dispatch.md).** ADR-0040's original
+  duplication call stood only as long as the pattern being duplicated
+  (`MethodInfo.MakeGenericMethod`-based dispatch) was itself acceptable to
+  ship — ADR-0041 found it isn't (Native AOT-unsafe, a release requirement
+  for `Compono.TUnit`), and its replacement (`RowInvokerRegistry`, per
+  ADR-0041 Amendment 2) is a shared, framework-agnostic core mechanism by
+  construction, not a duplicated per-package one. `src/Compono.TUnit/Binding/RowInvokers.cs`
+  is built against `RowInvokerRegistry` from its first commit — never a
+  duplicated `MakeGenericMethod` version — coordinated with PLAN-0041.
 - Verifying seed-observability behavior under TUnit's own retry/repeat
   mechanisms — ADR-0040 flags this as unverified; Phase 0's test suite
   investigates and records the actual behavior (it doesn't need profile
@@ -513,7 +520,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 - `src/Compono.TUnit/ComposeAttribute.cs`,
   `ComposeAttribute{TProfile}.cs`, `ComposeAttribute{TProfile,TConfig}.cs`,
   `SharedAttribute.cs` — new
-- `src/Compono.TUnit/Binding/*` — new (duplicated pattern, not shared)
+- `src/Compono.TUnit/Binding/*` — new. `BindingPlan.cs`/`ParameterBindingPlan.cs`/
+  `PositionalArgumentBinder.cs` are a duplicated pattern from `Compono.XunitV3`'s own
+  (ADR-0040's binding-logic decision, unaffected by ADR-0041). `RowInvokers.cs` is **not**
+  duplicated — built against core `Compono`'s shared `RowInvokerRegistry` from the start, per
+  [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)/[PLAN-0041](0041-aot-safe-row-binding-dispatch.md).
 - `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
   `src/Compono.Generators/ComponoIncrementalGenerator.cs` — modified
   (three new metadata-name constants/registrations for `Compono.TUnit`'s
