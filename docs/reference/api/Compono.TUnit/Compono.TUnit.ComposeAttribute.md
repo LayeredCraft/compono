@@ -16,6 +16,10 @@ public class ComposeAttribute : TUnit.Core.UntypedDataSourceGeneratorAttribute, 
 
 Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object') → [System\.Attribute](https://learn.microsoft.com/en-us/dotnet/api/system.attribute 'System\.Attribute') → `TUnit.Core.AsyncUntypedDataSourceGeneratorAttribute` → `TUnit.Core.UntypedDataSourceGeneratorAttribute` → ComposeAttribute
 
+Derived  
+↳ [ComposeAttribute&lt;TProfile,TConfig&gt;](Compono.TUnit.ComposeAttribute_TProfile,TConfig_.md 'Compono\.TUnit\.ComposeAttribute\<TProfile,TConfig\>')  
+↳ [ComposeAttribute&lt;TProfile&gt;](Compono.TUnit.ComposeAttribute_TProfile_.md 'Compono\.TUnit\.ComposeAttribute\<TProfile\>')
+
 Implements `TUnit.Core.Interfaces.ITestDiscoveryEventReceiver`, `TUnit.Core.Interfaces.IEventReceiver`
 
 ### Remarks
