@@ -30,6 +30,36 @@
     <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
   </PropertyGroup>
 
+  <!-- MSBuild auto-imports process environment variables as property values (case-insensitively)
+       whenever no project-file assignment has already set that property - CI's shared devops-
+       templates PR-build workflow sets a GITHUB_ENV variable named "outputPath" (intended only for
+       its own later Blazor/Lambda publish steps, which read it explicitly via an "output" CLI flag),
+       but that variable stays set as a process env var for every subsequent step in the same job,
+       including the plain "dotnet build"/"dotnet test" steps this repo's own PR build actually runs.
+       Left unset, that env var satisfies MSBuild's standard `OutputPath`
+       property (same name, case-insensitive) for every project the SDK builds - collapsing every
+       project's per-TFM output into one shared directory across the entire solution instead of each
+       project's own bin/<config>/<tfm>/. Verified by reproducing locally: `outputPath=<path> dotnet
+       build Compono.slnx` puts every project (libraries and test projects alike) into
+       <path>/<tfm>/ together. That shared directory is exactly the kind of setup where two
+       projects' concurrent MSBuild copy-to-output steps can race on the same shared runtime
+       dependency file - the actual cause of the intermittent "Could not load ...
+       Microsoft.Testing.Extensions.MSBuild ... cannot find the file" CI flake (a different TFM each
+       run, never reproducible via a single local build - exactly what a race looks like), not a
+       missing/unpinned package reference. Explicitly reasserting OutputPath here, unconditionally,
+       restores the SDK's own default per-project/per-TFM computation regardless of what an external
+       CI environment happens to leak in - the same value
+       Microsoft.NET.DefaultOutputPaths.targets computes when OutputPath was never externally set.
+       Resetting to empty (not to an explicit bin\$(Configuration)\$(TargetFramework)\ value) is
+       deliberate - a multi-targeted project's inner per-TargetFramework build unconditionally
+       appends $(TargetFramework)\ onto whatever OutputPath already resolves to, so hardcoding that
+       same segment here would double it (bin\Release\net10.0\net10.0\, verified while testing this
+       fix). Resetting to empty instead makes the SDK's own conditional default-path computation
+       fire again, exactly as if the leaked env var had never been set. -->
+  <PropertyGroup>
+    <OutputPath></OutputPath>
+  </PropertyGroup>
+
   <!-- Tests never get packed - only src/ packages are consumer-facing. -->
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
     <IsPackable>false</IsPackable>

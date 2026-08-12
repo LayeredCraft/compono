@@ -1,3 +1,4 @@
+using System.Reflection;
 using global::TUnit.Core;
 
 namespace Compono.TUnit.Binding;
@@ -82,14 +83,26 @@ internal sealed class BindingPlan
 
     // Mirrors Compono.XunitV3's own "Async and Unsupported Shapes" validation, adapted to what
     // ParameterMetadata already computes (IsParams) versus what still needs one reflection call per
-    // parameter (ByRef - ParameterMetadata has no ready-made equivalent). Deliberately does not
-    // detect more than one Compose-family attribute stacked on the same method (Compono.XunitV3's
-    // own such check) - DataGeneratorMetadata/MethodMetadata don't expose the method's own attribute
-    // list at generation time the way a raw MethodInfo would; left as a known v1 scope reduction, not
-    // a silently dropped requirement.
+    // parameter (ByRef - ParameterMetadata has no ready-made equivalent).
     private static string? ValidateSignature(MethodMetadata testInformation, ParameterMetadata[] parameters)
     {
         var methodDisplayName = MethodDisplayName(testInformation);
+
+        // [AttributeUsage(AllowMultiple = false)] is enforced per exact attribute type by the
+        // compiler, not across a base/derived family - [Compose], [Compose<TProfile>], and
+        // [Compose<TProfile, TConfig>] (or two differently-closed forms of either generic one) are
+        // distinct types that each individually satisfy their own AllowMultiple = false, so nothing
+        // stops stacking more than one Compose-family attribute on the same method without this
+        // explicit check. Mirrors Compono.XunitV3.Binding.BindingPlan's identical check, adapted to
+        // what MethodMetadata/ParameterMetadata expose: a parameter's ReflectionInfo.Member is the
+        // declaring MethodInfo whenever the method has at least one parameter; a zero-parameter
+        // method needs its own lookup instead (see ResolveMethodInfo below - filtered by name,
+        // parameter count, and generic arity together, not parameter count alone).
+        var method = ResolveMethodInfo(testInformation, parameters);
+        var composeAttributeCount = method?.GetCustomAttributes<ComposeAttribute>(inherit: false).Count() ?? 0;
+
+        if (composeAttributeCount > 1)
+            return $"More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on '{methodDisplayName}' - only one Compose-family attribute per test method is allowed.";
 
         if (testInformation.GenericTypeCount > 0)
             return $"Compono.TUnit does not support generic test methods ('{methodDisplayName}').";
@@ -125,5 +138,29 @@ internal sealed class BindingPlan
         }
 
         return null;
+    }
+
+    // A parameter's own ReflectionInfo.Member is always the declaring MethodInfo - the cheapest
+    // possible lookup, and correct even for an overloaded method name, since it's the exact
+    // MethodInfo TUnit itself resolved this parameter from. A zero-parameter method has no
+    // parameter to read that from, so falls back to a direct lookup instead - but
+    // Type.GetMethod(name, Type.EmptyTypes) matches by parameter *types* only, not generic arity, so
+    // a class declaring both a zero-parameter Run() and a zero-parameter-but-generic Run<T>() throws
+    // AmbiguousMatchException instead of returning either - before the generic-method check above
+    // even gets a chance to produce its own clear CompositionException (Codex review). Filtering
+    // GetMethods() by both zero declared parameters and testInformation.GenericTypeCount (this
+    // specific test's own arity, whether zero or not) disambiguates that case the same way the
+    // compiler already did to produce this exact MethodMetadata.
+    private static MethodInfo? ResolveMethodInfo(MethodMetadata testInformation, ParameterMetadata[] parameters)
+    {
+        if (parameters.Length > 0)
+            return parameters[0].ReflectionInfo.Member as MethodInfo;
+
+        return testInformation.Class.Type
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .FirstOrDefault(candidate =>
+                candidate.Name == testInformation.Name &&
+                candidate.GetParameters().Length == 0 &&
+                (candidate.IsGenericMethodDefinition ? candidate.GetGenericArguments().Length : 0) == testInformation.GenericTypeCount);
     }
 }
