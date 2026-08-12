@@ -14,6 +14,21 @@ internal sealed class Widget
     public string Name { get; }
 }
 
+// PLAN-0040 Phase 1's own Native AOT gate (ADR-0041 Amendment 1): ConfigProfileBinder's
+// ConstructorInfo.Invoke-based TConfig/TProfile construction needs the same real publish-and-run
+// proof RowInvokerRegistry dispatch already got in Phase 0 - "likely AOT-safe because it's a
+// non-generic, already-known Type" isn't good enough on its own.
+internal sealed record ProfileConfig(int Seed);
+
+internal sealed class ConfiguredProfile : ICompositionProfile
+{
+    private readonly ProfileConfig _config;
+
+    public ConfiguredProfile(ProfileConfig config) => _config = config;
+
+    public void Configure(CompositionBuilder builder) => builder.WithSeed(_config.Seed);
+}
+
 internal static class SmokeTestMethods
 {
     // The real target of this whole harness: a real Compono.TUnit.ComposeAttribute-attributed method
@@ -31,6 +46,14 @@ internal static class SmokeTestMethods
     public static void Handle(Widget widget, string leaf)
     {
     }
+
+    // Exercises ComposeAttribute<TProfile, TConfig>.ApplyProfile -> ConfigProfileBinder.BindConfig/
+    // BuildProfile, both ConstructorInfo.Invoke-based - the Phase 1 AOT gate this harness exists to
+    // prove.
+    [Compose<ConfiguredProfile, ProfileConfig>(12345)]
+    public static void HandleWithConfiguredProfile(Widget widget, string leaf)
+    {
+    }
 }
 
 internal static class Program
@@ -39,23 +62,16 @@ internal static class Program
     {
         try
         {
-            var method = typeof(SmokeTestMethods).GetMethod(nameof(SmokeTestMethods.Handle))!;
-            var attribute = new ComposeAttribute();
-            var metadata = CreateDataGeneratorMetadata(method);
+            await RunRow(
+                typeof(SmokeTestMethods).GetMethod(nameof(SmokeTestMethods.Handle))!,
+                new ComposeAttribute(),
+                "Compono.TUnit.ComposeAttribute");
 
-            var factories = new List<Func<Task<object?[]?>>>();
-            await foreach (var factory in attribute.GetDataRowsAsync(metadata))
-                factories.Add(factory);
+            await RunRow(
+                typeof(SmokeTestMethods).GetMethod(nameof(SmokeTestMethods.HandleWithConfiguredProfile))!,
+                new ComposeAttribute<ConfiguredProfile, ProfileConfig>(12345),
+                "Compono.TUnit.ComposeAttribute<TProfile, TConfig> (ConfigProfileBinder)");
 
-            if (factories.Count != 1)
-                throw new InvalidOperationException($"Expected exactly one data row, got {factories.Count}.");
-
-            var data = await factories[0]();
-
-            if (data is not [Widget { Name.Length: > 0 } widget, string { Length: > 0 } leaf])
-                throw new InvalidOperationException($"Unexpected composed row: {(data is null ? "null" : string.Join(", ", data))}");
-
-            Console.WriteLine($"PASS: Compono.TUnit.ComposeAttribute dispatch survived Native AOT - Widget.Name='{widget.Name}', leaf='{leaf}'.");
             return 0;
         }
         catch (Exception ex)
@@ -63,6 +79,25 @@ internal static class Program
             Console.WriteLine($"FAIL: {ex}");
             return 1;
         }
+    }
+
+    private static async Task RunRow(MethodInfo method, ComposeAttribute attribute, string label)
+    {
+        var metadata = CreateDataGeneratorMetadata(method);
+
+        var factories = new List<Func<Task<object?[]?>>>();
+        await foreach (var factory in attribute.GetDataRowsAsync(metadata))
+            factories.Add(factory);
+
+        if (factories.Count != 1)
+            throw new InvalidOperationException($"Expected exactly one data row, got {factories.Count}.");
+
+        var data = await factories[0]();
+
+        if (data is not [Widget { Name.Length: > 0 } widget, string { Length: > 0 } leaf])
+            throw new InvalidOperationException($"Unexpected composed row: {(data is null ? "null" : string.Join(", ", data))}");
+
+        Console.WriteLine($"PASS: {label} dispatch survived Native AOT - Widget.Name='{widget.Name}', leaf='{leaf}'.");
     }
 
     // Hand-builds a real DataGeneratorMetadata/MethodMetadata from a real MethodInfo via reflection -
