@@ -19,6 +19,7 @@ on:
       - 'src/Compono.XunitV3/**'
       - 'src/Compono.NSubstitute/**'
       - 'src/Compono.Bogus/**'
+      - 'src/Compono.TUnit/**'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
@@ -36,6 +37,7 @@ on:
       - 'src/Compono.XunitV3/**'
       - 'src/Compono.NSubstitute/**'
       - 'src/Compono.Bogus/**'
+      - 'src/Compono.TUnit/**'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
@@ -79,7 +81,7 @@ jobs:
       - name: Build publishable packages (net10.0)
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit; do
             dotnet build "src/${pkg}/${pkg}.csproj" -c Release -f net10.0
           done
 

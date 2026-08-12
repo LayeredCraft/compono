@@ -16,30 +16,19 @@
          no TargetFrameworks of its own, inheriting this value) actually
          exercises the net8.0/net9.0 packed assets, not just net10.0/net11.0. -->
     <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <!-- Which test framework a given test project runs under - "XunitV3" (the default every
+         existing test project gets for free) or "TUnit" (set explicitly, in that project's own
+         PropertyGroup, by Compono.TUnit.Tests/Compono.TUnit.SampleTests). test/Directory.Build.targets
+         gates the xUnit-v3-only Using/PackageReference ItemGroups on this property rather than
+         matching the project's name - a project-name string match breaks the moment a project is
+         renamed and gives no compile-time signal that a new TUnit-run project forgot to opt out; a
+         property a project declares about itself is the property's whole point. Set here (in
+         Directory.Build.props, imported *before* the project body) only as the fallback default - a
+         TUnit project's own override in its own PropertyGroup (evaluated as part of the project body,
+         after this import) still wins for that property's own later reads, per ordinary MSBuild
+         document-order property evaluation; what actually *depends* on this property's final value
+         must live in Directory.Build.targets (imported *after* the project body), not here, or it
+         would see this default, not the override - see that file's own comment. -->
+    <ComponoTestFramework Condition="'$(ComponoTestFramework)' == ''">XunitV3</ComponoTestFramework>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Using Include="Xunit" />
-    <Using Include="NSubstitute" />
-    <Using Include="AwesomeAssertions" />
-  </ItemGroup>
-
-  <!-- Common test-project package references, so individual test .csproj
-       files only need to declare what's actually specific to them (a
-       project reference, a project-specific package). Scoped to
-       IsTestProject rather than unconditional, matching AlexaVoxCraft's
-       test/Directory.Build.props paradigm - a future non-test helper
-       project under test/ (a shared TestKit, if this repo grows enough
-       test projects to warrant one) wouldn't want these forced on it. -->
-  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
-    <PackageReference Include="Microsoft.Testing.Platform" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit.v3.mtp-v2" />
-    <PackageReference Include="xunit.runner.visualstudio">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="NSubstitute" />
-    <PackageReference Include="AwesomeAssertions" />
-  </ItemGroup>
 </Project>

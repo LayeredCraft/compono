@@ -1968,6 +1968,53 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task TUnitComposeAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.TUnit
+                {
+                    // Stands in for the real Compono.TUnit.ComposeAttribute (a separate package/
+                    // assembly, not referenced from this generator test project) - ComposeMethodDiscovery
+                    // matches on the fully qualified metadata name alone, so a same-named type here
+                    // triggers it identically to the real one. See
+                    // docs/adr/0040-compono-tunit-package-design.md's "Generator discovery" section -
+                    // this is the second attribute family ComposeMethodDiscovery.TransformMethod feeds,
+                    // registered against Compono.TUnit's own metadata names, not Compono.XunitV3's.
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class PurchaseOrder
+                    {
+                        public PurchaseOrder(string reference) { Reference = reference; }
+                        public string Reference { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<PurchaseOrder>()/CreateMany<PurchaseOrder>() call site, no
+                        // [Composable] attribute, and no CompositionRow.Resolve<T>(descriptor) call
+                        // site anywhere in this source - PurchaseOrder is reachable only as this
+                        // [Compose]-attributed method's own parameter, under Compono.TUnit's own
+                        // attribute metadata name rather than Compono.XunitV3's, proving the
+                        // TUnit-specific discovery registration on its own (PR #72 review round 4 -
+                        // ComposeMethodDiscovery originally hardcoded only Compono.XunitV3's three
+                        // metadata names, leaving this exact case with no generated plan at all).
+                        [Compono.TUnit.Compose]
+                        public static void Creates_purchaseOrder(PurchaseOrder purchaseOrder)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ComposeAttributedGenericMethodParameter_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

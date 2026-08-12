@@ -11,10 +11,10 @@ service used, not a look-alike.
 
 ## `[Shared]`
 
-`Compono.XunitV3`'s `[Shared]` attribute marks a `[Compose]` theory
-parameter whose value is reused by name-of-type for every other composed
-parameter (or nested dependency) in that same test row that structurally
-requests the same type:
+`Compono.XunitV3`'s and `Compono.TUnit`'s own `[Shared]` attribute each
+mark a `[Compose]`-attributed parameter whose value is reused by name-of-type
+for every other composed parameter (or nested dependency) in that same test
+row that structurally requests the same type:
 
 ```csharp
 [Theory]
@@ -63,14 +63,20 @@ Sharing is type-keyed, not name-keyed — every parameter/nested dependency
 requesting exactly that type in the row shares the value, regardless of
 what it's called. A method can't declare two `[Shared]` parameters of the
 same type (there'd be no way to tell which one "the" shared value is), and
-`[Shared]` only applies within `Compono.XunitV3`'s `[Compose]` row — it's
-not a core-`Compono` concept, since a plain `Composer.Create<T>()` call has
-no notion of "this test's row" to scope a shared value to.
+`[Shared]` only applies within a `Compono.XunitV3`- or `Compono.TUnit`-
+owned `[Compose]` row — it's not a core-`Compono` concept, since a plain
+`Composer.Create<T>()` call has no notion of "this test's row" to scope a
+shared value to. The two packages' `[Shared]` attributes are distinct types
+with identical binding rules (declaration order, duplicate-type rejection,
+row-scoped visibility), duplicated rather than shared across packages — see
+ADR-0040's "Row-binding logic: duplicated, not extracted" section.
 
 ## Next
 
 - Where sharing fits among `Compono.XunitV3`'s other attributes →
   [`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md).
+- Where sharing fits among `Compono.TUnit`'s own attributes →
+  [`Compono.TUnit` Package Guide](../packages/compono-tunit.md).
 - Apply it to a real test → [Share a Value Across a Test](../how-to/share-a-value-across-a-test.md).
 - The independent-by-default composition each shared value overrides →
   [The Composition Model](composition-model.md).

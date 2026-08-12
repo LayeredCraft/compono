@@ -3,11 +3,14 @@
 ## Which packages to add
 
 The common case is a test project that composes plain object graphs and
-composed xUnit v3 theories. That's two packages:
+composed test method parameters/theories. That's two packages — `Compono`
+plus whichever test-framework integration matches your test host:
 
 ```bash
 dotnet add package Compono --prerelease
 dotnet add package Compono.XunitV3 --prerelease
+# or, for TUnit:
+dotnet add package Compono.TUnit --prerelease
 ```
 
 This tutorial's assertions (`.Should()`, throughout this site's own
@@ -42,10 +45,9 @@ the only step needed to enable source generation. There's no separate
 generator package to add, no `nuget.config` entry beyond your normal NuGet
 feed, and no MSBuild property required to opt in.
 
-If your test project doesn't already reference an xUnit v3 test host,
-`Compono.XunitV3` doesn't add one for you — it integrates with an existing
-xUnit v3 project (`xunit.v3` + the Microsoft Testing Platform runner), it
-doesn't create one.
+If your test project doesn't already reference an xUnit v3 (or TUnit) test
+host, `Compono.XunitV3` (or `Compono.TUnit`) doesn't add one for you — each
+integrates with an existing test project, it doesn't create one.
 
 ## Verify the install
 

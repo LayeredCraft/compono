@@ -11,7 +11,7 @@ embedded inside `Compono`'s own `.nupkg` as an analyzer
 it never appears on nuget.org on its own. One additional package —
 `Compono.TUnit` — is committed via an `Accepted` ADR
 ([ADR-0040](../adr/0040-compono-tunit-package-design.md)), with
-[PLAN-0040](../plans/0040-compono-tunit-package-design.md) (`Not Started`)
+[PLAN-0040](../plans/0040-compono-tunit-package-design.md) (`In Progress`)
 tracking its implementation; see
 [Roadmap items](#roadmap-items-cleared-gate-a-and-gate-b) below. No other
 candidate on this page has cleared both gates yet.
@@ -35,11 +35,10 @@ reaches `Accepted` (its own full design pass, not just the problem
 statement) and a `Plan` moves `In Progress` against it — the same
 ADR/Plan mechanics every other change in this repo goes through, per
 `docs/adr/README.md`/`docs/plans/README.md`. `Compono.TUnit` (below) is
-the one candidate that has reached **roadmap item** status — an `Accepted`
-design ADR exists — but not yet committed implementation work, since
-[PLAN-0040](../plans/0040-compono-tunit-package-design.md) is still
-`Not Started`; nothing on this page is committed implementation work yet,
-and nothing besides `Compono.TUnit` is roadmap content at all.
+the one candidate that has reached **roadmap item** status and, as of
+[PLAN-0040](../plans/0040-compono-tunit-package-design.md) moving
+`In Progress`, committed implementation work too; nothing besides
+`Compono.TUnit` is roadmap content at all.
 
 ## Roadmap items (cleared Gate A and Gate B)
 

@@ -85,15 +85,55 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TransformMethod)
             .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethods);
 
-        // All three ComposeMethodDiscovery registrations above (non-generic, arity-1, arity-2) feed
-        // the exact same discovery logic - merge them into one provider here so every consumer below
-        // treats "a [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed method" as
-        // a single source, same as CreateInvocations/Composable/AssemblyComposable already do for
-        // their own multi-syntax-form splits.
-        var composeMethodResultsAll = composeMethodResults.Collect()
+        // Compono.TUnit's own [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed
+        // methods hit the identical discovery gap the three Compono.XunitV3 registrations above
+        // solve - Compono.TUnit's binding is likewise entirely runtime reflection over
+        // DataGeneratorMetadata, no textual Resolve<T>() call site. Same TransformMethod (already
+        // attribute-family-agnostic - operates on IMethodSymbol/IParameterSymbol alone, nothing
+        // Compono.XunitV3-specific), three more metadata-name registrations. See
+        // docs/adr/0040-compono-tunit-package-design.md's "Generator discovery" section.
+        var composeMethodResultsTUnit = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.TUnitAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                ComposeMethodDiscovery.TransformMethod)
+            .WithTrackingName(TrackingNames.ComposeMethodsTUnit);
+
+        var composeGenericMethodResultsTUnit = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.TUnitGenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                ComposeMethodDiscovery.TransformMethod)
+            .WithTrackingName(TrackingNames.ComposeGenericMethodsTUnit);
+
+        var composeTwoTypeParameterMethodResultsTUnit = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.TUnitTwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                ComposeMethodDiscovery.TransformMethod)
+            .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethodsTUnit);
+
+        // Every ComposeMethodDiscovery registration for one attribute family (non-generic, arity-1,
+        // arity-2) feeds the exact same discovery logic - merge each family into one provider, same
+        // as CreateInvocations/Composable/AssemblyComposable already do for their own multi-syntax-
+        // form splits, then concat the two families together. A third test-framework family (e.g. a
+        // future Compono.NUnit) extends this same two-step shape: merge its own three registrations,
+        // then fold into the final concat below.
+        var composeMethodResultsXunitV3 = composeMethodResults.Collect()
             .Combine(composeGenericMethodResults.Collect())
             .Combine(composeTwoTypeParameterMethodResults.Collect())
             .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeMethodsXunitV3);
+
+        var composeMethodResultsTUnitAll = composeMethodResultsTUnit.Collect()
+            .Combine(composeGenericMethodResultsTUnit.Collect())
+            .Combine(composeTwoTypeParameterMethodResultsTUnit.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeMethodsTUnitAll);
+
+        var composeMethodResultsAll = composeMethodResultsXunitV3.Collect()
+            .Combine(composeMethodResultsTUnitAll.Collect())
+            .SelectMany(static (results, _) => results.Left.Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
@@ -313,6 +353,11 @@ internal static class TrackingNames
     public const string ComposeMethods = "ComposeMethods";
     public const string ComposeGenericMethods = "ComposeMethods.Generic";
     public const string ComposeTwoTypeParameterMethods = "ComposeMethods.TwoTypeParameter";
+    public const string ComposeMethodsXunitV3 = "ComposeMethods.XunitV3";
+    public const string ComposeMethodsTUnit = "ComposeMethods.TUnit";
+    public const string ComposeGenericMethodsTUnit = "ComposeMethods.TUnit.Generic";
+    public const string ComposeTwoTypeParameterMethodsTUnit = "ComposeMethods.TUnit.TwoTypeParameter";
+    public const string ComposeMethodsTUnitAll = "ComposeMethods.TUnit.All";
     public const string ComposeMethodsAll = "ComposeMethods.All";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";

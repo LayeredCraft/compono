@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.TUnit.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-only ItemGroups
+         (Using Xunit/NSubstitute/AwesomeAssertions, the shared MTP/xunit.v3 PackageReferences) -
+         a property this project declares about itself, not a name match a future rename would
+         silently break. -->
+    <ComponoTestFramework>TUnit</ComponoTestFramework>
+    <!-- Microsoft Testing Platform (MTP) runner - explicit, matching
+         Compono.XunitV3.Tests' own csproj (PR #73 review: without these, MSBuild doesn't
+         reliably copy the generated entry point's own runtime dependency
+         (Microsoft.Testing.Extensions.MSBuild.dll) into this project's publish output for
+         every TargetFramework - observed in CI as a TFM-inconsistent FileNotFoundException
+         for that assembly at test-host startup, not reproducible via a single-project local
+         publish). -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Full TUnit meta-package, not TUnit.Core alone - this project actually executes as a real
+         TUnit test run, unlike src/Compono.TUnit itself, which only authors against TUnit.Core's
+         extensibility surface. -->
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.TUnit\Compono.TUnit.csproj" />
+  </ItemGroup>
+
+</Project>

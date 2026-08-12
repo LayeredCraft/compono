@@ -1,6 +1,6 @@
 # Package Guides
 
-Compono ships as four independently-installable NuGet packages. Pick which
+Compono ships as five independently-installable NuGet packages. Pick which
 ones you need before reading any single guide in depth — most projects only
 need the first two.
 
@@ -10,6 +10,7 @@ need the first two.
 | [`Compono.XunitV3`](compono-xunitv3.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` theory data attributes and `[Shared]` parameter sharing for xUnit v3. | You write xUnit v3 tests and want composed theory parameters instead of hand-built test data. |
 | [`Compono.NSubstitute`](compono-nsubstitute.md) | Automatic substitute composition for interface, delegate, and (optionally) abstract-class parameters. | Your composed types depend on interfaces you'd otherwise stub by hand with NSubstitute. |
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
+| [`Compono.TUnit`](compono-tunit.md) | `[Compose]` data source attribute and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and, until the
 first stable `1.0` release, publishes as a `0.x.y-preview.N` prerelease —
@@ -25,11 +26,15 @@ package you install — it's embedded inside `Compono.nupkg`'s
 
 ## The common case
 
-For most test projects, that's `Compono` + `Compono.XunitV3`:
+For most test projects, that's `Compono` plus whichever test-framework
+integration matches your test host — `Compono.XunitV3` for xUnit v3, or
+`Compono.TUnit` for TUnit:
 
 ```bash
 dotnet add package Compono --prerelease
 dotnet add package Compono.XunitV3 --prerelease
+# or, for TUnit:
+dotnet add package Compono.TUnit --prerelease
 ```
 
 Add `Compono.NSubstitute` and/or `Compono.Bogus` independently, as your
@@ -40,7 +45,7 @@ whether or not you're also using xUnit v3 integration).
 
 ## Version compatibility
 
-All four packages ship in lockstep during the `0.x` line — each integration
+All five packages ship in lockstep during the `0.x` line — each integration
 package's dependency on `Compono` is exact-pinned at pack time, so mixing
 versions across packages (e.g. `Compono.XunitV3 0.3.0` with `Compono
 0.5.0`) is not supported and will fail to restore. Always update all

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — TUnit Integration</Title>
+        <Description>TUnit integration for Compono - a [Compose] data source attribute and [Shared] parameter sharing. Profile variants ([Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;]) ship in a later phase - see PLAN-0040.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.TUnit - matching Compono.XunitV3's own precedent (PLAN-0004 Phase 3). -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <!-- Ordinary reference, not PrivateAssets="all" - ComposeAttribute/ComposeAttribute{TProfile}/
+             ComposeAttribute{TProfile,TConfig} derive from and return types this package owns
+             publicly, so a consumer needs them transitively assignable. See ADR-0040's Package
+             shape section. TUnit.Core only, not the full TUnit/TUnit.Engine meta-packages - the
+             extensibility-authoring surface this package's own code needs, matching
+             xunit.v3.extensibility.core's precedent. -->
+        <PackageReference Include="TUnit.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.TUnit.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a
+         bare, minimum-inclusive version by default (e.g. "0.3.0"), which would let a consumer
+         install this package alongside a newer, incompatible Compono and still restore - exactly
+         the cross-package version drift ADR-0031 declares unsupported. Rewrites the SDK's own
+         _ProjectReferencesWithVersions item (what GenerateNuspec actually reads) to bracket/exact
+         syntax instead. Keeping <ProjectReference> itself (rather than switching to
+         <PackageReference>) preserves the fast local inner-loop build for cross-package development
+         in this repo - this target only changes the version *range* dotnet pack writes into the
+         .nuspec, nothing about how the project is referenced/built locally. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

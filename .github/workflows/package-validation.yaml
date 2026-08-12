@@ -47,7 +47,7 @@ jobs:
       - name: Resolve nuget.org baseline versions
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus; do
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit; do
             id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
             # No -f here: a non-2xx response must still reach the status-code branch
             # below (curl -f suppresses the body/short-circuits on HTTP errors), and
@@ -100,6 +100,7 @@ jobs:
           pack_one src/Compono.XunitV3/Compono.XunitV3.csproj BASELINE_Compono_XunitV3
           pack_one src/Compono.NSubstitute/Compono.NSubstitute.csproj BASELINE_Compono_NSubstitute
           pack_one src/Compono.Bogus/Compono.Bogus.csproj BASELINE_Compono_Bogus
+          pack_one src/Compono.TUnit/Compono.TUnit.csproj BASELINE_Compono_TUnit
 
       - name: Enforce XML doc comments (CS1591) on publishable packages
         run: |
@@ -108,7 +109,8 @@ jobs:
             src/Compono/Compono.csproj \
             src/Compono.XunitV3/Compono.XunitV3.csproj \
             src/Compono.NSubstitute/Compono.NSubstitute.csproj \
-            src/Compono.Bogus/Compono.Bogus.csproj; do
+            src/Compono.Bogus/Compono.Bogus.csproj \
+            src/Compono.TUnit/Compono.TUnit.csproj; do
             echo "Building $csproj with CS1591 as an error"
             dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done
@@ -140,3 +142,11 @@ jobs:
           dotnet test test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj \
             -c Release \
             -- --filter-not-class "Compono.XunitV3.SampleTests.Failing*"
+
+      - name: Local-feed packed-consumer smoke test (Compono.TUnit)
+        # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
+        # source into .local-nuget-feed, restores as a real consumer would) - no deliberately-failing
+        # proof tests exist in this project yet, so no --filter-not-class is needed.
+        run: |
+          dotnet test test/Compono.TUnit.SampleTests/Compono.TUnit.SampleTests.csproj \
+            -c Release
