@@ -42,6 +42,12 @@
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="Compono.TUnit" />
+    <!-- Explicit, CPM-pinned reference for the `dotnet test`-via-MTP entry point's own runtime
+         dependency (Microsoft.Testing.Extensions.MSBuild.dll) - see Directory.Packages.props' own
+         comment on this PackageVersion, and Compono.TUnit.Tests.csproj's identical addition, for why
+         relying on TestingPlatformDotnetTestSupport's implicit auto-injection alone was unreliable
+         in CI. -->
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
     <!-- PLAN-0040 Phase 1's own Goal-section scenario, run for real under TUnit: composing
          Compono.NSubstitute through the actual packaged dependency chain, same reasoning as
          Compono.TUnit above - mirrors Compono.XunitV3.SampleTests' identical NSubstituteTests.cs. -->

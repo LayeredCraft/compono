@@ -28,6 +28,11 @@
          TUnit test run, unlike src/Compono.TUnit itself, which only authors against TUnit.Core's
          extensibility surface. -->
     <PackageReference Include="TUnit" />
+    <!-- Explicit, CPM-pinned reference for the `dotnet test`-via-MTP entry point's own runtime
+         dependency (Microsoft.Testing.Extensions.MSBuild.dll) - see Directory.Packages.props' own
+         comment on this PackageVersion for why relying on TestingPlatformDotnetTestSupport's
+         implicit auto-injection alone was unreliable in CI. -->
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
   </ItemGroup>
 
   <ItemGroup>
