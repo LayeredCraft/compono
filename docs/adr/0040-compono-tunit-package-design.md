@@ -619,3 +619,47 @@ not specifically probe.
   implementation micro-detail `implement.md` should still own.
 - `docs/roadmap/future-packages.md` — the admitted-candidate entry this
   ADR promotes to real roadmap content once `Accepted`.
+
+## Amendment 1 (2026-08-12): Row-binding dispatch mechanism revised for Native AOT
+
+The "Package shape" section's illustrative sketch and PLAN-0040's Phase 0
+originally assumed `Compono.TUnit.Binding.RowInvokers` would use the same
+`MethodInfo.MakeGenericMethod`/`Delegate.CreateDelegate` dispatch pattern
+`Compono.XunitV3.Binding.RowInvokers` already ships with — not called out
+explicitly here as a design decision because it was inherited, unexamined,
+from the package this ADR's binding logic mirrors.
+
+That pattern is not Native AOT-safe: `MakeGenericMethod` with a `Type`
+computed at runtime has no statically-discoverable closed generic
+instantiation for a Native AOT compiler to pre-compile. TUnit stakes a
+headline claim on Native AOT support, making this gap a real release
+concern for `Compono.TUnit` specifically, unlike for `Compono.XunitV3`
+(whose consumers don't typically publish Native AOT). Compounded by
+`publish-preview.yaml` auto-publishing every packable `src/` project on
+every push to `main` — merging PLAN-0040's Phase 0 as originally drafted
+would have auto-published a `Compono.TUnit` preview package containing
+this gap.
+
+[ADR-0041](0041-aot-safe-row-binding-dispatch.md) records the resulting
+decision: a generator-emitted `RowInvokerCache<T>` in core `Compono`,
+replacing reflection-based dispatch in both `Compono.TUnit` and
+`Compono.XunitV3`. This ADR's own "Package shape" sketch and disposal/seed
+sections are otherwise unaffected — this amendment changes *how*
+`RowInvokers` gets its delegates, not the binding algorithm, seed policy,
+or diagnostics behavior those sections describe. PLAN-0040's Phase 0 is
+revised to build against `RowInvokerCache<T>` from the start, per
+ADR-0041's own Decision Outcome.
+
+## Amendment 2 (2026-08-12): Amendment 1's "RowInvokerCache<T>" superseded by "RowInvokerRegistry"
+
+Amendment 1 (above) named the row-binding dispatch mechanism as
+`RowInvokerCache<T>`, per [ADR-0041](0041-aot-safe-row-binding-dispatch.md)'s
+Decision Outcome at the time it was written. ADR-0041's own Amendment 2
+subsequently corrected that mechanism to a non-generic, `Type`-keyed
+`RowInvokerRegistry` — `RowInvokerCache<T>` as originally drafted couldn't
+actually be read from `BindingPlan.Build`, which only ever has a runtime
+`System.Type`, not a compile-time `T` (see ADR-0041 Amendment 2 for the
+full reasoning). Every reference to `RowInvokerCache<T>` in this ADR's own
+Amendment 1 should be read as `RowInvokerRegistry` — the underlying
+decision (a shared, generator-populated, reflection-free dispatch
+mechanism in core `Compono`) is unchanged; only its concrete shape is.
