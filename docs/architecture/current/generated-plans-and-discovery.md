@@ -83,3 +83,19 @@ BCL-only-typed collection, which neither `docs/mvp.md`'s scope nor
 Compono's primary xUnit-test-runner consumer currently exercises. Revisit
 alongside the collision item if collectible-ALC hosting becomes an actual
 target — no design has been chosen yet.
+
+**`RowInvokerRegistry` broadens this beyond the BCL-only-typed edge
+case above.** [ADR-0041](../../adr/0041-aot-safe-row-binding-dispatch.md)'s
+`Type`-keyed `Dictionary<Type, ...>` (replacing reflection-based row-
+binding dispatch) has no closed-generic-instantiation home-context tie at
+all - a plain dictionary entry is an ordinary GC root reachable from a
+static field regardless of which ALC its key `Type` or delegate-target
+assembly came from. Every registered parameter type roots its generated
+dispatch delegate (and the generated assembly defining it), not just the
+narrow "every composing type is BCL" case `CollectionPlanCache<T>` above
+is scoped to. Same disposition as the collision item and the case above:
+deferred, for the same reason - neither `docs/mvp.md`'s scope nor
+Compono's primary xUnit/TUnit-test-runner consumers currently exercise
+collectible-ALC hosting. Revisit together if collectible-ALC hosting
+becomes an actual target; no design has been chosen for any of the three
+related items on this page.

@@ -102,7 +102,13 @@ driver — not part of this plan):
 
 ## Tasks
 
-- [ ] **Core**: add `src/Compono/RowInvokerRegistry.cs` — the three
+- [ ] **Core**: add `src/Compono/RowInvokerRegistry.cs`, with an XML-doc
+      cross-reference to `docs/architecture/current/generated-plans-and-discovery.md`'s
+      broadened collectible-`AssemblyLoadContext`-rooting note (deferred,
+      same disposition as `CollectionPlanCache<T>`'s own existing,
+      narrower version of this limitation - not a design change this
+      plan makes, just documented consistently where a reader would look
+      for it). — the three
       non-generic delegate types `Compono.XunitV3.Binding.RowInvokers`
       already defines locally today (`ResolveInvoker`/`ResolveSharedInvoker`/
       `ShareExplicitInvoker`: `(CompositionRow, in CompositionRequestDescriptor) -> object?`
@@ -361,3 +367,21 @@ confirmed real:
   does). Extended the dispatch-eligibility guard task to reuse the same
   `IsSymbolAccessibleWithin` check, feeding a new, `RowInvokerRegistry`-
   scoped diagnostic (a sibling to `CMP0012`, not a reuse of it).
+
+**PR #74 Codex review, round 4 (2026-08-12)**: 1 finding, confirmed real,
+different category from rounds 1-3 (not "this design doesn't work" - "this
+design has the same already-accepted tradeoff `CollectionPlanCache<T>`
+already documents, now broader in scope"):
+- ⚠️ (P2): `RowInvokerRegistry`'s plain `Dictionary<Type, ...>` has no
+  closed-generic-instantiation home-context tie the way `PlanCache<T>`/
+  `CollectionPlanCache<T>` do, so it roots every registered parameter
+  type's generated dispatch delegate (and the generating assembly)
+  permanently - broader than `CollectionPlanCache<T>`'s own documented
+  limitation, which is scoped only to collections whose type arguments
+  are entirely BCL types. Same disposition as that existing, deliberately
+  deferred limitation (documented in
+  `docs/architecture/current/generated-plans-and-discovery.md`, extended
+  to name `RowInvokerRegistry`): neither `docs/mvp.md`'s scope nor
+  Compono's primary test-runner consumers currently exercise collectible-
+  ALC hosting, so this is recorded, not redesigned around, consistent
+  with ADR-0041's own "smallest maintainable design" driver.
