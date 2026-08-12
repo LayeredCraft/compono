@@ -42,6 +42,12 @@ internal static class SampleTestMethods
     {
     }
 
+    // A ref struct (e.g. Span<int>) can never legally be a generic type argument to
+    // CompositionRow.Resolve<T>()/etc. at all (ADR-0041's dispatch-eligibility guard, runtime side).
+    public static void WithRefStructParameter(Span<int> value)
+    {
+    }
+
     public static void Generic<T>(T value)
     {
     }

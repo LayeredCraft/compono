@@ -234,7 +234,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       duplicated into this package per ADR-0040's binding-logic decision,
       unaffected by ADR-0041. `RowInvokers.cs` is **not** duplicated - see
       the two explicit tasks below.
-- [ ] **`RowInvokers.cs` built against core `Compono`'s `RowInvokerRegistry`
+- [x] **`RowInvokers.cs` built against core `Compono`'s `RowInvokerRegistry`
       from its first commit — per [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)
       (Amendment 2)/[PLAN-0041](0041-aot-safe-row-binding-dispatch.md).**
       Blocked on PLAN-0041 merging to `main` first (core + generator +

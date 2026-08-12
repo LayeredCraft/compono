@@ -101,6 +101,16 @@ internal sealed class BindingPlan
 
             if (parameter.IsParams)
                 return $"Compono.TUnit does not support params parameters (parameter '{parameter.Name}' on '{methodDisplayName}').";
+
+            // ADR-0041's dispatch-eligibility guard, runtime side: a ref struct (e.g. Span<int>) or a
+            // pointer type can never legally be a generic type argument to
+            // CompositionRow.Resolve<T>()/etc. at all - the generator's own guard (ComposedTypeAnalyzer.
+            // IsRowInvokerShapeEligible) already refuses to emit a RowInvokerRegistry registration for
+            // one, so RowInvokers.Build would otherwise fail with an unhelpful "no dispatch registered"
+            // message. Mirrors Compono.XunitV3.Binding.BindingPlan's identical check - not a new
+            // investigation.
+            if (parameter.ReflectionInfo.ParameterType.IsByRefLike || parameter.ReflectionInfo.ParameterType.IsPointer)
+                return $"Compono.TUnit does not support ref struct or pointer-typed parameters (parameter '{parameter.Name}' on '{methodDisplayName}').";
         }
 
         var duplicateSharedType = parameters
