@@ -501,12 +501,21 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (per ADR-0041's own "smallest maintainable design" driver) *before*
       `[Compose<TProfile, TConfig>]` ships in this phase — this attribute
       does not merge until its own construction path clears the same bar
-      row-binding dispatch already had to. Extend PLAN-0041's real
-      `dotnet publish -p:PublishAot=true` + run smoke test to also
-      exercise `[Compose<TProfile, TConfig>]`, not just unqualified
-      `[Compose]` — the final `Compono.TUnit` Native AOT claim must cover
-      every public Compose-family attribute shipped, not just the one
-      Phase 0 introduced.
+      row-binding dispatch already had to. Extend **this phase's own
+      dedicated `Compono.TUnit` AOT project** (Phase 0's "Full end-to-end
+      Native AOT publish-and-run proof" task, above) to also exercise
+      `[Compose<TProfile, TConfig>]`, not just unqualified `[Compose]` -
+      **not** PLAN-0041's own smoke test, which is explicitly scoped to
+      the shared mechanism through `Compono.XunitV3` only (that plan must
+      complete and merge before this phase even starts, and never runs
+      anything through the real `Compono.TUnit` package chain at all - see
+      PLAN-0041's own Scope). Extending the wrong harness would let this
+      release gate get checked off without ever actually running
+      `[Compose<TProfile, TConfig>]` through `Compono.TUnit` under Native
+      AOT — the final `Compono.TUnit` Native AOT claim must cover every
+      public Compose-family attribute shipped, not just the one Phase 0
+      introduced, and only this phase's own TUnit-real harness can prove
+      that.
 
 ### Phase 2: Verification requiring the completed attribute family
 
