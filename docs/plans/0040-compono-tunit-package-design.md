@@ -844,9 +844,35 @@ complete pending PR review/merge.
 byte-for-byte from `Compono.XunitV3`, adapted to `Compono.TUnit`'s base
 class shape. Stacked-attribute rejection added to
 `BindingPlan.ValidateSignature`, resolving the method's real `MethodInfo`
-via a parameter's `ReflectionInfo.Member` (or a `Type.GetMethod(name,
-Type.EmptyTypes)` fallback for a zero-parameter method) and counting
-`ComposeAttribute`-derived attributes on it.
+via a parameter's `ReflectionInfo.Member` (or a fallback lookup for a
+zero-parameter method - see the PR #76 Codex review note below for why
+that fallback isn't a plain `Type.GetMethod(name, Type.EmptyTypes)` call)
+and counting `ComposeAttribute`-derived attributes on it.
+
+**PR #76 Codex review, round 1 (2026-08-12)**: 2 findings, both confirmed
+real, fixed in `e36facd`:
+- The zero-parameter `ResolveMethodInfo` fallback originally used
+  `Type.GetMethod(name, Type.EmptyTypes)`, which matches by parameter
+  *types* only, not generic arity - a class declaring both a
+  zero-parameter `Run()` and a zero-parameter-but-generic `Run<T>()`
+  threw `AmbiguousMatchException` instead of reaching the existing
+  generic-method `CompositionException`, crashing `BindingPlan.Build`
+  entirely for that shape. Fixed by filtering `GetMethods()` on name,
+  zero declared parameters, *and* `testInformation.GenericTypeCount`
+  together. Added `AmbiguousZeroParameterMethod()`/
+  `AmbiguousZeroParameterMethod<T>()` fixtures and two regression tests.
+- `src/Compono.TUnit/Compono.TUnit.csproj`'s NuGet description still said
+  the profile variants "ship in a later phase" despite this same PR
+  shipping them - restored to describe the full family.
+
+**PR #76 Codex review, round 2 (2026-08-12)**: 1 finding, confirmed real,
+fixed in the same commit as this note - a code comment on
+`ValidateSignature` (and this Notes entry, above) still described the
+*original*, buggy `Type.EmptyTypes`-only reasoning after the arity-aware
+fix replaced it, contradicting the actual implementation and risking
+someone "simplifying" `ResolveMethodInfo` back to the broken version on a
+future read. Both corrected to point at `ResolveMethodInfo`'s real,
+three-part filter.
 
 **Native AOT gate on `ConfigProfileBinder` (ADR-0041 Amendment 1) found a
 real gap, not a formality.** Extending the Phase 0 AOT smoke test to also

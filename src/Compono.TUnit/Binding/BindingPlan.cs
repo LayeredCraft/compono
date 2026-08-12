@@ -96,8 +96,8 @@ internal sealed class BindingPlan
         // explicit check. Mirrors Compono.XunitV3.Binding.BindingPlan's identical check, adapted to
         // what MethodMetadata/ParameterMetadata expose: a parameter's ReflectionInfo.Member is the
         // declaring MethodInfo whenever the method has at least one parameter; a zero-parameter
-        // method needs its own lookup instead, disambiguated unambiguously via Type.EmptyTypes since
-        // a zero-parameter overload's signature has nothing else to overload on.
+        // method needs its own lookup instead (see ResolveMethodInfo below - filtered by name,
+        // parameter count, and generic arity together, not parameter count alone).
         var method = ResolveMethodInfo(testInformation, parameters);
         var composeAttributeCount = method?.GetCustomAttributes<ComposeAttribute>(inherit: false).Count() ?? 0;
 
