@@ -384,3 +384,48 @@ questions ("how do I call `Resolve<T>()`" vs. "how do I construct a `T`").
 
 PLAN-0041 is revised to build `RowInvokerRegistry`, not `RowInvokerCache<T>`,
 from its first task.
+
+## Amendment 3 (2026-08-12): Idempotent registration required; Amendment 1's smoke-test instruction corrected
+
+PR #74 review caught two more real gaps, both about this ADR's own text
+lagging decisions already made elsewhere:
+
+**Idempotent registration is a decision, not an implementation detail —
+record it here, not only in PLAN-0041.** Two consumer assemblies loaded
+into the same process that both discover, say, `string` as a `[Compose]`
+parameter type will each run their own generated module initializer
+against the same `RowInvokerRegistry`. Unlike `PlanCache<T>`'s own
+already-documented, already-deferred cross-assembly collision (a plain
+static field write — atomic and safe under concurrent module-initializer
+execution, merely nondeterministic about *which* assembly's value ends up
+winning), `RowInvokerRegistry`'s underlying `Dictionary<Type, ...>`
+storage can have its *internal structure* corrupted by genuinely
+concurrent writes from two module initializers running on different
+threads — a strictly worse failure mode than "last write wins," not a
+variant of the same one. This ADR's Amendment 2 sketch (`Register`/
+`TryGet` over an unqualified `Dictionary<Type, ...>`) left this
+unconstrained. It is now a firm requirement: `RowInvokerRegistry` uses a
+`ConcurrentDictionary<Type, ...>` with an atomic `GetOrAdd` (or equivalent
+`TryAdd`-shaped idempotent registration) — never a throwing or
+blind-overwrite `Register`. This is safe specifically because every
+registration for a given `Type` is functionally interchangeable
+regardless of which assembly generated it (the emitted lambda is always
+the same shape, `(row, descriptor) => row.Resolve<T>(descriptor)`, for the
+same `T`) — unlike `PlanCache<T>`'s own genuine "which plan is correct"
+ambiguity, there is no real question to defer here.
+
+**Amendment 1's own smoke-test instruction is superseded, not just
+PLAN-0040's copy of it.** Amendment 1 (above) directs Phase 1 to "extend
+PLAN-0041's real `dotnet publish -p:PublishAot=true` + run smoke test to
+exercise `[Compose<TProfile, TConfig>]`." Amendment 2's own correction to
+PLAN-0041's scope (core + `Compono.XunitV3` only, never running anything
+through the real `Compono.TUnit` package chain) makes that instruction
+impossible to satisfy as written — extending the wrong harness would let
+Phase 1's Native AOT release gate get checked off without ever actually
+exercising `[Compose<TProfile, TConfig>]` through `Compono.TUnit`.
+PLAN-0040's own copy of this instruction was already corrected (its Phase
+1 task now points at that phase's own dedicated `Compono.TUnit` AOT
+project); this ADR's Amendment 1 text should be read the same way —
+Phase 1's Native AOT verification belongs to PLAN-0040 Phase 0's own
+harness, never to PLAN-0041's, which is scoped away from `Compono.TUnit`
+entirely and merges before that harness exists.

@@ -436,3 +436,21 @@ real:
   planned/not-yet-implemented, with a note to rewrite it in plain present
   tense once PLAN-0041 actually ships (matching `tasks/implement.md`'s own
   step 6 convention for exactly this kind of doc update).
+
+**PR #74 Codex review, round 7 (2026-08-12)**: 2 findings, both confirmed
+real — both about this plan's own decisions not yet being reflected back
+into the ADR that's supposed to be authoritative:
+- 🐛 (P1): round 6's idempotent-registration requirement
+  (`ConcurrentDictionary` + atomic `GetOrAdd`) only existed in this plan,
+  not in ADR-0041 itself — an implementer reading only the accepted ADR
+  (the actual decision record) would have found an unconstrained
+  `Dictionary`/`Register` sketch and could legitimately have built
+  something incompatible with what this plan requires. Added ADR-0041
+  Amendment 3, and updated the architecture doc's still-`Dictionary<Type,
+  ...>`-named planned paragraph to match.
+- ⚠️ (P2): ADR-0041's own Amendment 1 still directed Phase 1 to "extend
+  PLAN-0041's smoke test" for `[Compose<TProfile, TConfig>]` — the same
+  stale instruction round 5 already corrected in PLAN-0040's own copy,
+  but never fixed in the ADR that instruction originally came from.
+  Amendment 3 corrects it, redirecting to PLAN-0040 Phase 0's own
+  dedicated `Compono.TUnit` AOT harness.

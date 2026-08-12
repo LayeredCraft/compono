@@ -93,7 +93,10 @@ the one exception, describing
 accepted-but-`Not Started` design, not runtime behavior that exists in
 `Compono` today - don't read it as a description of what a current
 `dotnet build` actually produces. Once built: `RowInvokerRegistry`'s
-`Type`-keyed `Dictionary<Type, ...>` (replacing reflection-based row-
+`Type`-keyed `ConcurrentDictionary<Type, ...>` (populated via an atomic
+`GetOrAdd`, never a throwing or blind-overwrite registration - required,
+not just an implementation detail, per ADR-0041 Amendment 3) (replacing
+reflection-based row-
 binding dispatch in `Compono.XunitV3`/`Compono.TUnit`) will have no
 closed-generic-instantiation home-context tie at all - a plain dictionary
 entry is an ordinary GC root reachable from a static field regardless of
