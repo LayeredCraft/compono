@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Packs Compono and Compono.TUnit into the local NuGet feed this project restores against
-# (test/Compono.TUnit.SampleTests/nuget.config), serialized behind a cross-process lock, and clears
-# this restore's own isolated packages path before every pack. Mirrors
+# Packs Compono, Compono.TUnit, and Compono.NSubstitute into the local NuGet feed this project
+# restores against (test/Compono.TUnit.SampleTests/nuget.config), serialized behind a cross-process
+# lock, and clears this restore's own isolated packages path before every pack. Mirrors
 # test/Compono.XunitV3.SampleTests/pack-to-local-feed.sh exactly - see that script's own comment for
 # the full reasoning behind the lock (concurrent nested `dotnet test` invocations racing on the same
 # .local-nuget-feed/ and src/Compono*/bin/obj output) and the isolated restore-packages-path clear
@@ -11,9 +11,10 @@ set -euo pipefail
 
 compono_csproj="$1"
 tunit_csproj="$2"
-feed_dir="$3"
-configuration="$4"
-restore_packages_path="$5"
+nsubstitute_csproj="$3"
+feed_dir="$4"
+configuration="$5"
+restore_packages_path="$6"
 
 lock_dir="$feed_dir/.pack.lock"
 
@@ -37,3 +38,4 @@ rm -rf "$restore_packages_path"
 
 dotnet pack "$compono_csproj" -c "$configuration" -o "$feed_dir" -p:Version=1.0.0 --nologo
 dotnet pack "$tunit_csproj" -c "$configuration" -o "$feed_dir" -p:Version=1.0.0 --nologo
+dotnet pack "$nsubstitute_csproj" -c "$configuration" -o "$feed_dir" -p:Version=1.0.0 --nologo

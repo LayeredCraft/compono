@@ -42,17 +42,27 @@
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="Compono.TUnit" />
+    <!-- Explicit, CPM-pinned reference for the `dotnet test`-via-MTP entry point's own runtime
+         dependency (Microsoft.Testing.Extensions.MSBuild.dll) - see Directory.Packages.props' own
+         comment on this PackageVersion, and Compono.TUnit.Tests.csproj's identical addition, for why
+         relying on TestingPlatformDotnetTestSupport's implicit auto-injection alone was unreliable
+         in CI. -->
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
+    <!-- PLAN-0040 Phase 1's own Goal-section scenario, run for real under TUnit: composing
+         Compono.NSubstitute through the actual packaged dependency chain, same reasoning as
+         Compono.TUnit above - mirrors Compono.XunitV3.SampleTests' identical NSubstituteTests.cs. -->
+    <PackageReference Include="Compono.NSubstitute" />
   </ItemGroup>
 
   <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
        current source tree - not a stale checked-in .nupkg - every time this project restores.
-       Delegates to pack-to-local-feed.sh, which serializes the two `dotnet pack` calls behind a
+       Delegates to pack-to-local-feed.sh, which serializes the three `dotnet pack` calls behind a
        cross-process lock (see that script's own comment, shared verbatim reasoning with
        Compono.XunitV3.SampleTests' copy) - CI can run this project's multiple TFM test hosts
        concurrently, each independently triggering this target. -->
   <Target Name="PackToLocalFeed" BeforeTargets="Restore">
     <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
-    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.TUnit/Compono.TUnit.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.TUnit/Compono.TUnit.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
   </Target>
 
 </Project>

@@ -10,6 +10,19 @@
          a directly-referenced/newer Microsoft.Testing.Platform and throws TypeLoadException
          (IDataConsumer) at test-host startup. -->
     <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.3" />
+    <!-- Ships Microsoft.Testing.Extensions.MSBuild.dll, the `dotnet test`-via-MTP entry point's own
+         runtime dependency. TestingPlatformDotnetTestSupport=true is supposed to auto-add this
+         package via the .NET SDK's own targets, but under Central Package Management with no pinned
+         PackageVersion for it, that implicit reference resolved inconsistently across a solution-wide
+         parallel multi-TFM build - observed in CI as a TFM-inconsistent FileNotFoundException for
+         this exact assembly at test-host startup (never reproducible via a single-project local
+         build/publish, since there's no parallel-TFM race to hit). Compono.XunitV3.Tests never hit
+         this because it explicitly references Microsoft.Testing.Platform (pinned above) via
+         test/Directory.Build.targets' shared xUnit-only ItemGroup; Compono.TUnit.Tests/
+         Compono.TUnit.SampleTests had no equivalent explicit, CPM-pinned reference at all. An
+         explicit PackageReference (added to both projects) makes restore resolve it deterministically
+         instead of depending on the SDK's own auto-injection timing. -->
+    <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
