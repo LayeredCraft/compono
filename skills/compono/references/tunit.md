@@ -66,12 +66,17 @@ disposal story (no automatic disposal at all, PR #24) carries over
 unchanged; the two packages differ here because TUnit's own execution
 model differs from xUnit v3's.
 
-## Hard constraint: one Compose-family attribute per method
+## Stacking Compose-family attributes: undefined, not rejected
 
-Same reasoning as `Compono.XunitV3` — stacking `[Compose]` with a future
-`[Compose<TProfile>]` on one method throws `CompositionException` at
-binding-plan-construction time (`BindingPlan.Build`'s signature
-validation), not compile time.
+Unlike `Compono.XunitV3` (which throws a clear `CompositionException` for
+this shape), `Compono.TUnit`'s `BindingPlan.Build` does not currently
+detect more than one Compose-family attribute stacked on the same method -
+`MethodMetadata` doesn't expose the method's own attribute list the way a
+raw `MethodInfo` does, and this check hasn't been added yet (a known v1
+gap, tracked in PLAN-0040's Phase 1 checklist ("Stacked Compose-family attribute validation")). Don't stack Compose-family
+attributes on one TUnit test method - the result is undefined, not a
+documented failure mode; if you see it in review, flag it the same way
+you'd flag any other unsupported shape.
 
 ## No fixture object
 

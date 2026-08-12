@@ -1,0 +1,41 @@
+<Project>
+  <!-- A nested Directory.Build.targets doesn't automatically chain to the repo-root one - MSBuild
+       imports only the nearest one found walking up from the project directory (same behavior
+       test/Directory.Build.props' own top comment documents for itself). Import the root one
+       explicitly so its own CS1591-suppression-for-test-code setting still applies to everything
+       under test/. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Imported after the project body (unlike Directory.Build.props, imported before it), so a
+       project's own ComponoTestFramework override (set in its own PropertyGroup, e.g.
+       Compono.TUnit.Tests.csproj setting it to "TUnit") is reliably in effect by the time the
+       Conditions below evaluate it - see Directory.Build.props' own comment on that property for why
+       this can't just live there instead. -->
+
+  <!-- Every TUnit-run test project needs neither xUnit v3's own test-execution packages nor a
+       `using Xunit;` global usable in a project with no xunit reference at all - mixing two
+       Microsoft.Testing.Platform entry points (xUnit v3's and TUnit's own) in one test project
+       doesn't work (PLAN-0040 Phase 0's real build verification). -->
+  <ItemGroup Condition="'$(ComponoTestFramework)' != 'TUnit'">
+    <Using Include="Xunit" />
+    <Using Include="NSubstitute" />
+    <Using Include="AwesomeAssertions" />
+  </ItemGroup>
+
+  <!-- Common test-project package references, so individual test .csproj files only need to declare
+       what's actually specific to them (a project reference, a project-specific package). Scoped to
+       IsTestProject rather than unconditional, matching AlexaVoxCraft's test/Directory.Build.props
+       paradigm - a future non-test helper project under test/ (a shared TestKit, if this repo grows
+       enough test projects to warrant one) wouldn't want these forced on it. -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND '$(ComponoTestFramework)' != 'TUnit'">
+    <PackageReference Include="Microsoft.Testing.Platform" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
+</Project>

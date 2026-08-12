@@ -68,9 +68,19 @@ section for the full reasoning.
 
 ## What it deliberately doesn't do
 
-- **No stacking distinct Compose-family attributes on one method** — same
-  reasoning and same `CompositionException` behavior as
-  [`Compono.XunitV3`](compono-xunitv3.md#what-it-deliberately-doesnt-do).
+- **Stacking distinct Compose-family attributes on one method is not
+  currently detected or rejected.** `Compono.XunitV3`'s equivalent throws a
+  clear `CompositionException` for this shape
+  ([`Compono.XunitV3`](compono-xunitv3.md#what-it-deliberately-doesnt-do)) -
+  `Compono.TUnit` does not do the same validation yet: `BindingPlan.Build`
+  only ever sees TUnit's own `MethodMetadata`, which doesn't expose the
+  method's attribute list the way a raw `MethodInfo` does, so this is a
+  known v1 gap, tracked in
+  [PLAN-0040](../plans/0040-compono-tunit-package-design.md)'s Phase 1
+  checklist ("Stacked Compose-family attribute validation"), not a
+  guarantee. Don't stack Compose-family attributes on one
+  TUnit test method - the result is undefined, not a documented failure
+  mode.
 - **No fixture object** — configuration lives in a profile, applied per
   test method, not a shared mutable object (once profile support ships).
 

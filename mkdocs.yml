@@ -144,6 +144,7 @@ nav:
     - Compono.XunitV3: packages/compono-xunitv3.md
     - Compono.NSubstitute: packages/compono-nsubstitute.md
     - Compono.Bogus: packages/compono-bogus.md
+    - Compono.TUnit: packages/compono-tunit.md
   - Best Practices:
     - Overview: best-practices/index.md
     - Organizing Profiles: best-practices/organizing-profiles.md
@@ -175,6 +176,7 @@ nav:
       - Compono.XunitV3: reference/api/Compono.XunitV3/index.md
       - Compono.NSubstitute: reference/api/Compono.NSubstitute/index.md
       - Compono.Bogus: reference/api/Compono.Bogus/index.md
+      - Compono.TUnit: reference/api/Compono.TUnit/index.md
     - Diagnostics: reference/diagnostics.md
     - Glossary: reference/glossary.md
   - Roadmap:
