@@ -53,6 +53,25 @@ internal static class ComposeMethodDiscovery
     /// </summary>
     public const string TwoTypeParameterAttributeMetadataName = "Compono.XunitV3.ComposeAttribute`2";
 
+    /// <summary>
+    /// <c>Compono.TUnit</c>'s own <c>[Compose]</c> - the identical discovery gap as
+    /// <see cref="AttributeMetadataName"/>, for a second attribute family. See
+    /// <c>docs/adr/0040-compono-tunit-package-design.md</c>'s "Generator discovery" section:
+    /// <c>Compono.TUnit</c>'s binding is likewise entirely runtime reflection over
+    /// <c>DataGeneratorMetadata</c>, no textual <c>Resolve&lt;T&gt;()</c> call site, so a parameter
+    /// type reached only through a <c>Compono.TUnit</c>-attributed method needs this same dedicated
+    /// discovery path. Feeds the identical, attribute-family-agnostic <see cref="TransformMethod"/>.
+    /// </summary>
+    public const string TUnitAttributeMetadataName = "Compono.TUnit.ComposeAttribute";
+
+    /// <inheritdoc cref="GenericAttributeMetadataName"/>
+    /// <remarks><c>Compono.TUnit.ComposeAttribute&lt;TProfile&gt;</c>'s own arity-suffixed form.</remarks>
+    public const string TUnitGenericAttributeMetadataName = "Compono.TUnit.ComposeAttribute`1";
+
+    /// <inheritdoc cref="TwoTypeParameterAttributeMetadataName"/>
+    /// <remarks><c>Compono.TUnit.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
+    public const string TUnitTwoTypeParameterAttributeMetadataName = "Compono.TUnit.ComposeAttribute`2";
+
     public static TransitiveClosureResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)

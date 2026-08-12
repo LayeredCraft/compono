@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.TUnit.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Full TUnit meta-package, not TUnit.Core alone - this project actually executes as a real
+         TUnit test run, unlike src/Compono.TUnit itself, which only authors against TUnit.Core's
+         extensibility surface. -->
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.TUnit\Compono.TUnit.csproj" />
+  </ItemGroup>
+
+</Project>

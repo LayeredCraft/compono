@@ -5,7 +5,8 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus` packages).
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`
+  packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0012` or `CompositionException` failures, deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
@@ -14,7 +15,7 @@ description: >-
   DO NOT USE FOR: ordinary xUnit/NUnit/MSTest, NSubstitute, or Bogus work
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
-  SCOPES TO: only load `xunit-v3.md`/`nsubstitute.md`/`bogus.md`
+  SCOPES TO: only load `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -42,10 +43,11 @@ some packages and not others.
 |---|---|---|---|
 | `<PackageReference Include="Compono"` | any `.csproj` in the project | Definitive | Core Compono in use |
 | `<PackageReference Include="Compono.XunitV3"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/xunit-v3.md` |
+| `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Shared]` available (method-parameter composition only so far - no `[Compose<TProfile>]` yet) — load `references/tunit.md` |
 | `<PackageReference Include="Compono.NSubstitute"` | `.csproj` | Definitive | `UseNSubstitute()` available — load `references/nsubstitute.md` |
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
-| `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` attributes in active use |
+| `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
 | `[Composable]` / `[assembly: Composable(` | `*.cs` | Medium | Discovery-gap workaround already in use somewhere in this codebase |
 | No `Compono*` package reference anywhere | `.csproj` | — | Not a Compono project. Don't suggest Compono unless the user explicitly asks to adopt it. |
@@ -58,8 +60,9 @@ version pattern.
 
 **Adopting Compono in a project that doesn't have it yet**: only do this
 when the user explicitly asks. Add the `Compono` package (plus
-`Compono.XunitV3` if the project uses xUnit v3 theories, `Compono.NSubstitute`/
-`Compono.Bogus` only if the user wants those). Don't retrofit existing
+`Compono.XunitV3` if the project uses xUnit v3 theories, `Compono.TUnit`
+if it uses TUnit, `Compono.NSubstitute`/`Compono.Bogus` only if the user
+wants those). Don't retrofit existing
 passing tests to use Compono unprompted — that's a scope decision for the
 user to make test-by-test, not something to do as a drive-by.
 
@@ -80,7 +83,8 @@ user to make test-by-test, not something to do as a drive-by.
      (`.For<T>().Member(x => x.Y).Use(...)`), not a post-hoc mutation
      after `Create<T>()`.
    - The *same instance* needs to be shared across the composed graph and
-     the test body → `[Shared]` (in `Compono.XunitV3`) — see
+     the test body → `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`,
+     whichever the project references) — see
      `references/registrations-profiles-and-scopes.md`. Don't reach for
      `[Shared]` just to "make things consistent" or as a perceived
      performance win; ordinary composition is already cheap.
@@ -179,9 +183,12 @@ undermines the reason Compono exists in this project.
   they can "opt into reflection fallback."
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
-  capability."** Only `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`,
-  and `Compono.Bogus` ship as packages today — there is no `Compono.NUnit`,
-  `Compono.MSTest`, `Compono.TUnit`, `Compono.FakeItEasy`, `Compono.Moq`, or
+  capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
+  `Compono.NSubstitute`, and `Compono.Bogus` ship as packages today
+  (`Compono.TUnit` ships only `[Compose]`/`[Shared]` method-parameter
+  composition so far, not `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`
+  — see `references/tunit.md`) — there is no `Compono.NUnit`,
+  `Compono.MSTest`, `Compono.FakeItEasy`, `Compono.Moq`, or
   `Compono.DependencyInjection`, and never invent a plausible-looking API
   for one. That doesn't always mean the underlying capability is
   unsupported, though: core `Composer.Create<T>()`/`CreateMany<T>()` work
@@ -241,6 +248,7 @@ Load only what the Detection table says is relevant to the current task.
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
 | `references/diagnostics.md` | A `CMP0001`-`CMP0012` build error, or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
+| `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

@@ -1,6 +1,6 @@
 # [PLAN-0040] Compono.TUnit Package Design
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0040](../adr/0040-compono-tunit-package-design.md)
 (`Compono.TUnit` package: method-parameter composition only, no new
@@ -128,9 +128,9 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 0: Package skeleton, unqualified `[Compose]`, its own tests and docs
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] New `src/Compono.TUnit/Compono.TUnit.csproj` — `net8.0;net9.0;net10.0;net11.0`
+- [x] New `src/Compono.TUnit/Compono.TUnit.csproj` — `net8.0;net9.0;net10.0;net11.0`
       (matching every other package's TFM window per ADR-0038; verify
       during implementation whether TUnit.Core's own `net10.0` asset
       restores cleanly for the `net11.0` leg via NuGet's asset-
@@ -147,7 +147,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `ProjectReference`-to-`Compono` version resolves to a bare,
       minimum-inclusive range instead of the bracket/exact syntax ADR-0031
       requires.
-- [ ] `Directory.Packages.props`: add `TUnit.Core`'s `PackageVersion` entry
+- [x] `Directory.Packages.props`: add `TUnit.Core`'s `PackageVersion` entry
       (a tested range, matching ADR-0031 Amendment 1's convention — see
       `xunit.v3.extensibility.core`'s own entry for the exact shape) —
       centrally-managed package references restore-fail without it, so
@@ -158,7 +158,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       task (below) restores a real `PackageReference` to `Compono.TUnit`,
       which `ManagePackageVersionsCentrally=true` rejects with no central
       version for it, same as the `TUnit.Core`/`TUnit` case.
-- [ ] **New `test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj`** — this
+- [x] **New `test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj`** — this
       phase's own `[Test]`-attributed test suite needs somewhere to
       actually run. `PackageReference` to `Compono.TUnit`
       (`ProjectReference` in-repo) and the **full `TUnit` meta-package**
@@ -180,7 +180,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       `Microsoft.Testing.Platform` entry points in one project doesn't
       work) — a genuinely new edit this phase makes, not something already
       in place.
-- [ ] **Generator discovery** (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
+- [x] **Generator discovery** (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
       `src/Compono.Generators/ComponoIncrementalGenerator.cs`): three new
       metadata-name constants (`Compono.TUnit.ComposeAttribute`/`` `1``/
       `` `2``) and three new `ForAttributeWithMetadataName` registrations
@@ -194,12 +194,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       package-design-ADR precedent ADR-0022 already set for
       `Compono.XunitV3`'s equivalent extension, not a separate
       core-extension ADR.
-- [ ] `Compono.Generators.Tests`: a snapshot test proving a concrete
+- [x] `Compono.Generators.Tests`: a snapshot test proving a concrete
       parameter type reachable *only* through a `Compono.TUnit`-attributed
       method (no other discovery path in the same compilation) gets a
       generated plan — mirroring whatever regression test closed the
       equivalent `Compono.XunitV3` gap (ADR-0022's Amendment, fix #2).
-- [ ] **Real packaged-consumer proof of the generator-discovery
+- [x] **Real packaged-consumer proof of the generator-discovery
       extension, in this phase — not deferred to Phase 2.** Since Phase 0
       is what actually changes the embedded `Compono.Generators` analyzer,
       a snapshot test alone doesn't prove the real NuGet dependency chain
@@ -212,7 +212,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       *complete* attribute family once Phase 1 exists — this Phase 0
       instance is the minimum needed to prove Phase 0's own change works
       for real, in its own PR, not left unverified until a later phase.
-- [ ] `ComposeAttribute : UntypedDataSourceGeneratorAttribute` — the
+- [x] `ComposeAttribute : UntypedDataSourceGeneratorAttribute` — the
       no-profile entry point. Overrides `GenerateDataSources(DataGeneratorMetadata)`,
       returns a single deferred `Func<object?[]?>` that (inside the Func,
       not before it) calls `composer.CreateRow(declaringType)` and binds
@@ -222,7 +222,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (cached, reflection-once-per-parameter delegate construction, not
       re-reflected per row) — duplicated into this package per ADR-0040,
       not shared.
-- [ ] **`ComposeAttribute`'s constructor — `public ComposeAttribute(params
+- [x] **`ComposeAttribute`'s constructor — `public ComposeAttribute(params
       object?[] inlineValues)`, with full inline-value binding, ships in
       this phase, not Phase 1.** Confirmed against `Compono.XunitV3`'s
       real source: inline values live on the *base* `ComposeAttribute`
@@ -240,7 +240,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       matching `Compono.XunitV3`'s existing algorithm exactly (`Compono.XunitV3
       .ComposeAttribute`'s `NormalizeParamsArguments`/inline-value-validation
       logic is the template).
-- [ ] `ComposeAttribute.Seed` (`int`, non-negative) — public property
+- [x] `ComposeAttribute.Seed` (`int`, non-negative) — public property
       mirroring `Compono.XunitV3.ComposeAttribute.Seed` exactly, routed
       into `BuildComposer`'s `CompositionBuilder.WithSeed(...)` call. The
       row's effective seed (`row.Seed < 0`) is checked before any
@@ -248,10 +248,10 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       check — required by ADR-0040's "Seed input and replay" section, not
       optional: without this property a reported seed can never actually
       be pasted back as `[Compose(Seed = ...)]`.
-- [ ] `SharedAttribute` — package-local marker, mirroring
+- [x] `SharedAttribute` — package-local marker, mirroring
       `Compono.XunitV3.SharedAttribute`'s shape and duplicate-shared-type
       validation.
-- [ ] Seed observability: `ComposeAttribute` also implements
+- [x] Seed observability: `ComposeAttribute` also implements
       `ITestDiscoveryEventReceiver`. Inside the deferred `Func`, after
       `CreateRow` produces the row, store `row.Seed` into
       `dataGeneratorMetadata.TestBuilderContext.StateBag` under a
@@ -260,7 +260,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       seed.ToString())`. **Do not** store the seed as an attribute-instance
       field — ADR-0040's own `IClassConstructor` finding (a reused
       attribute/receiver instance across rows) is the standing reason.
-- [ ] Diagnostics: every `Resolve`/`ResolveShared`/`ShareExplicit` call
+- [x] Diagnostics: every `Resolve`/`ResolveShared`/`ShareExplicit` call
       wrapped so a thrown `CompositionException` is rethrown via
       `CompositionException.WithSeedInMessage(exception, seed)` — matching
       `Compono.XunitV3`'s real `InvokeWithSeedOnFailure`, **not** left
@@ -269,11 +269,11 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       ADR). A pipeline failure without this wrapping would violate this
       same plan's own unconditional seed-observability guarantee exactly
       when a row fails composition.
-- [ ] Explicitly confirm during implementation: no `IDisposable`/
+- [x] Explicitly confirm during implementation: no `IDisposable`/
       `IAsyncDisposable`/`ITestEndEventReceiver` implementation anywhere in
       this package — ADR-0040's disposal conclusion is a hard constraint
       for this phase, not just a design note to remember.
-- [ ] Document both disposal constraints from ADR-0040's "Diagnostics,
+- [x] Document both disposal constraints from ADR-0040's "Diagnostics,
       disposal, and seed observability" section: (1) do not compose a
       cross-test-shared disposable instance (from `UseServiceProvider(...)`/
       an exact `Register<T>(...)` factory returning a shared instance) as a
@@ -286,14 +286,14 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       Package Guide (below) and as `Compono.TUnit`-specific skill
       guardrails — real constraints, not footnotes to mention once and
       forget.
-- [ ] `test/Compono.TUnit.Tests`: binding-plan unit coverage for the
+- [x] `test/Compono.TUnit.Tests`: binding-plan unit coverage for the
       no-profile shape (parameter resolution, signature-validation errors —
       generic method, ref/out/in, params — `[Shared]` duplicate-type
       validation), **plus inline-value precedence coverage** (now a Phase
       0 concern, per the constructor-shape fix above) — mirroring
       `Compono.XunitV3.Tests`' `InlineNullHandlingTests`/equivalent
       binding-logic coverage.
-- [ ] Seed-observability verification, real TUnit run: `AddProperty
+- [x] Seed-observability verification, real TUnit run: `AddProperty
       ("Compono.Seed", ...)` actually visible on both a passing and a
       failing `[Compose]` row (via TUnit's own reporting/TRX output, not
       just asserting the internal call happened) — the concrete check for
@@ -301,7 +301,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       investigate whether this holds under `[Retry]`; record the actual
       finding either way (ADR-0040's flagged open item — doesn't need
       profile support to check, so it belongs here, not Phase 2).
-- [ ] Disposal verification, real TUnit run, two cases per ADR-0040's
+- [x] Disposal verification, real TUnit run, two cases per ADR-0040's
       corrected (root-only) disposal claim: (1) a simple `IDisposable`
       domain/test type (a small purpose-built type recording whether
       `Dispose()` was called — not a `[Shared]` substitute or any other
@@ -312,63 +312,63 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       confirming — and recording as documented, expected behavior, not a
       bug — that it is **not** disposed by anyone. Testing only case (1)
       would silently overclaim coverage case (2) never had.
-- [ ] End-to-end `[Shared]` composition test against a real TUnit run,
+- [x] End-to-end `[Shared]` composition test against a real TUnit run,
       using the no-profile `[Compose]` shape (a plain composed domain
       object reused via `[Shared]`, not the NSubstitute scenario — that
       needs `[Compose<TProfile>]`, Phase 1's own scope; see Phase 1's own
       test item for the full Goal-section scenario).
-- [ ] **Build/CI infrastructure wiring** — creating the project alone
+- [x] **Build/CI infrastructure wiring** — creating the project alone
       leaves it outside every place this repo's build/release/validation
       pipeline enumerates packages by name; each of the following
       hardcodes the current four-package list and needs `Compono.TUnit`
       added alongside them:
-  - [ ] `Compono.slnx`: add `src/Compono.TUnit/Compono.TUnit.csproj` and
+  - [x] `Compono.slnx`: add `src/Compono.TUnit/Compono.TUnit.csproj` and
         `test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj`.
-  - [ ] `.github/workflows/docs.yml`: add `src/Compono.TUnit/**` to both
+  - [x] `.github/workflows/docs.yml`: add `src/Compono.TUnit/**` to both
         `paths:` trigger lists, and `Compono.TUnit` to the `for pkg in ...`
         build loop feeding the API-reference generator.
-  - [ ] `.github/workflows/package-validation.yaml`: add `Compono.TUnit`
+  - [x] `.github/workflows/package-validation.yaml`: add `Compono.TUnit`
         to its `for pkg in ...` loop and the two explicit `pack_one`/path
         lists.
-  - [ ] `.github/scripts/inspect-packed-nupkgs.sh`: add `Compono.TUnit` to
+  - [x] `.github/scripts/inspect-packed-nupkgs.sh`: add `Compono.TUnit` to
         its `for pkg in ...` loop and its own `case` branch (this
         package's own expected dependency set: `Compono` + `TUnit.Core`,
         no `Compono.Generators.dll` embedding since that's `Compono`-only
         per ADR-0003).
-  - [ ] `.github/scripts/generate-api-reference.sh`: add `Compono.TUnit`
+  - [x] `.github/scripts/generate-api-reference.sh`: add `Compono.TUnit`
         to its `integration_pkgs` array so its public API gets generated
         reference docs and cross-link resolution like the other three
         integration packages.
-- [ ] New `docs/packages/compono-tunit.md` Package Guide — covers
+- [x] New `docs/packages/compono-tunit.md` Package Guide — covers
       `[Compose]`/`[Shared]` (what Phase 0 actually ships); Phase 1 extends
       it with the profile-attribute sections once they exist.
-- [ ] `docs/packages/index.md`: add `Compono.TUnit`'s row.
-- [ ] **Existing topic docs that become stale the moment `[Compose]`/
+- [x] `docs/packages/index.md`: add `Compono.TUnit`'s row.
+- [x] **Existing topic docs that become stale the moment `[Compose]`/
       `[Shared]` ships under a second framework** — found by rereading the
       actual current content, not assumed:
-  - [ ] `docs/public-api.md` (tombstone) — its "Package Guides" bullet
+  - [x] `docs/public-api.md` (tombstone) — its "Package Guides" bullet
         lists only `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`;
         add `Compono.TUnit`.
-  - [ ] `docs/concepts/shared-values.md` — its "Scope and limits" section
+  - [x] `docs/concepts/shared-values.md` — its "Scope and limits" section
         states "`[Shared]` only applies within `Compono.XunitV3`'s
         `[Compose]` row" as if that's the only such row; reword to name
         both packages (or speak generically about "a `[Compose]`-family
         row," now that a second one exists).
-  - [ ] `docs/getting-started/installation.md`/relevant how-to pages: add
+  - [x] `docs/getting-started/installation.md`/relevant how-to pages: add
         a `Compono.TUnit` install example alongside the existing
         `Compono.XunitV3` one, so the installation path isn't implicitly
         xUnit-v3-only.
-  - [ ] **Front-door package inventories** — `README.md` and
+  - [x] **Front-door package inventories** — `README.md` and
         `docs/index.md` each carry their own "## Packages" table listing
         exactly the four shipped packages (confirmed by direct read, both
         currently identical four-row tables). Add `Compono.TUnit`'s row to
         both — otherwise a reader never gets past either front door
         without being told the package doesn't exist, even once the
         Package Guide and package index (above) both advertise it.
-- [ ] `skills/compono/references/tunit.md`: new package-conditional
+- [x] `skills/compono/references/tunit.md`: new package-conditional
       reference file, covering `[Compose]`/`[Shared]` — matching
       `xunit-v3.md`'s shape; Phase 1 extends it.
-- [ ] `skills/compono/SKILL.md`: new Detection-table row
+- [x] `skills/compono/SKILL.md`: new Detection-table row
       (`<PackageReference Include="Compono.TUnit"` → load
       `references/tunit.md`); remove `Compono.TUnit` from the "don't
       invent an unshipped package" guardrail's named-absent list (it's no
@@ -682,3 +682,42 @@ confirmed real — one of them a mistake in the sixth round's own fix:
   neither included in the doc-update list even though Phase 0 ships
   `Compono.TUnit` as its own PR. Added both to Phase 0's stale-doc task
   group.
+
+**Phase 0 implementation (2026-08-11)**: completed against the review-hardened
+ADR-0040/PLAN-0040 text (post PR #72 merge). Key real findings/decisions made
+during implementation, not just planned in advance:
+- `TrackedWidget`-shaped composed custom types don't resolve inside
+  `test/Compono.TUnit.Tests` at all — a plain `ProjectReference` doesn't
+  propagate `Compono.Generators` as an analyzer (only a packed nupkg's
+  `analyzers/dotnet/cs` delivery does), matching the same constraint
+  `testing.md` already documents for `Compono.Tests`/`Compono.XunitV3.Tests`.
+  `Compono.TUnit.Tests`' own binding/seed-observability unit tests use
+  built-in-composable parameter types (`string`, `int`) instead, and the two
+  real-TUnit-run verifications that need a genuine composed custom type
+  (disposal, `[Shared]`) live in the new `test/Compono.TUnit.SampleTests`
+  packaged-consumer project instead, alongside the generator-discovery
+  packaged-consumer proof this phase's own task list already required.
+- `BindingPlan.Build`/`ComposeAttribute.GetDataRowsAsync` unit tests hand-build
+  a real `MethodMetadata`/`DataGeneratorMetadata` via `MethodMetadataFactory`/
+  `ClassMetadata`/`AssemblyMetadata`'s own public factories (reflection-based,
+  the same shape TUnit.Core's own internal `ClassMetadataHelper` uses) rather
+  than a bare `MethodInfo` — TUnit's data-source pipeline hands attributes
+  `DataGeneratorMetadata`, not `MethodInfo`, so there's no `MethodInfo`-based
+  unit-test entry point the way `Compono.XunitV3.ComposeAttribute.GetData`
+  has.
+- The negative-seed case (seed-observability's "fail case", and
+  `[Retry]` investigation) can't live as a permanent green `[Test]` — TUnit
+  reports the row's own `CompositionException` as that test failing, not
+  something the test body can assert against (composition happens before the
+  body runs). Verified once by a real run (`Seed: -1` present in the failure
+  message, confirming the negative-seed check precedes any state report and
+  that `[Retry]` would just re-run the same deterministic failure), then
+  recorded as a comment in `SeedObservabilityTests.cs` instead of a
+  permanently-failing test — the same "prove once via a real run, then keep
+  only a passing regression" pattern this phase's runner-wiring smoke test
+  used.
+- Full regression confirmed clean throughout: `Compono.Tests` 213/213,
+  `Compono.Generators.Tests` 86/86, `Compono.XunitV3.Tests` 67/67,
+  `Compono.NSubstitute.Tests` 23/23, `Compono.Bogus.Tests` 63/63,
+  `Compono.TUnit.Tests` 15/15, `Compono.TUnit.SampleTests` 4/4 (including the
+  real root-disposed/nested-not-disposed and `[Shared]` end-to-end proofs).

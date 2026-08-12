@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.TUnit.SampleTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Deliberately no ProjectReference to Compono/Compono.TUnit anywhere in this project - the
+         whole point is consuming Compono.TUnit exactly the way an external consumer would, via the
+         PackageReference below, so packaging mistakes (a missing dependency, wrong PrivateAssets,
+         the Compono.Generators analyzer not flowing transitively) surface here instead of being
+         masked by a ProjectReference build. Mirrors Compono.XunitV3.SampleTests (PLAN-0004 Phase 3,
+         ADR-0022's Testing Strategy) - this is PLAN-0040 Phase 0's own equivalent proof that
+         ComposeMethodDiscovery's new TUnit-attribute registrations (ComponoIncrementalGenerator.cs)
+         actually produce a real generated plan through the packaged Compono.TUnit -> Compono
+         dependency, not just Compono.Generators.Tests' isolated snapshot test. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
+    <!-- Isolated restore path, same reasoning as Compono.XunitV3.SampleTests' own (see that
+         project's csproj comment for the full account of why: NuGet never re-extracts an
+         already-present package id+version, so a shared/fixed path would let a stale entry
+         silently satisfy a later restore after this project's own local feed content changes). -->
+    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Compono.TUnit" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Delegates to pack-to-local-feed.sh, which serializes the two `dotnet pack` calls behind a
+       cross-process lock (see that script's own comment, shared verbatim reasoning with
+       Compono.XunitV3.SampleTests' copy) - CI can run this project's multiple TFM test hosts
+       concurrently, each independently triggering this target. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.TUnit/Compono.TUnit.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+  </Target>
+
+</Project>

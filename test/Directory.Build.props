@@ -18,7 +18,16 @@
     <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- Every Compono.TUnit.* test project runs under TUnit, not xUnit v3 - it
+       needs neither xUnit v3's own test-execution packages nor a
+       `using Xunit;` global usable in a project with no xunit reference at
+       all. Excluded by name prefix from both ItemGroups below (not just
+       Compono.TUnit.Tests - Compono.TUnit.SampleTests, PLAN-0040 Phase 0's
+       packaged-consumer proof, is the same shape), per PLAN-0040 Phase 0's
+       real build verification (mixing two Microsoft.Testing.Platform entry
+       points - xUnit v3's and TUnit's own - in one test project doesn't
+       work). -->
+  <ItemGroup Condition="!$(MSBuildProjectName.StartsWith('Compono.TUnit'))">
     <Using Include="Xunit" />
     <Using Include="NSubstitute" />
     <Using Include="AwesomeAssertions" />
@@ -31,7 +40,7 @@
        test/Directory.Build.props paradigm - a future non-test helper
        project under test/ (a shared TestKit, if this repo grows enough
        test projects to warrant one) wouldn't want these forced on it. -->
-  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND !$(MSBuildProjectName.StartsWith('Compono.TUnit'))">
     <PackageReference Include="Microsoft.Testing.Platform" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3.mtp-v2" />
