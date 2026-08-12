@@ -227,6 +227,19 @@
         "Correctly distinguishes 'not shipped' from 'impossible' \u2014 core Compono usable directly in any test framework via Composer.Create<T>()",
         "Does not silently redirect to Compono.XunitV3 as if it worked in NUnit"
       ]
+    },
+    {
+      "id": 21,
+      "category": "routing",
+      "prompt": "Write a TUnit test that composes an OrderService and reuses a mocked IOrderRepository across the composed graph, applying an NSubstitute profile. The project references Compono, Compono.TUnit, and Compono.NSubstitute - not Compono.XunitV3.",
+      "expected_output": "Uses TUnit's own [Test]/[Compose<TProfile>] shape (not xUnit v3's [Theory]/ClassData), with a profile calling UseNSubstitute() and [Shared] on the substitute parameter - because Compono.TUnit and Compono.NSubstitute are referenced, not Compono.XunitV3.",
+      "files": [],
+      "expectations": [
+        "Uses [Test] + [Compose<TProfile>] (TUnit's own attributes), not [Theory]/xUnit v3 syntax, since Compono.XunitV3 isn't referenced",
+        "Applies UseNSubstitute() from a profile since Compono.NSubstitute is referenced",
+        "Uses [Shared] only on the substitute parameter that needs to be asserted against",
+        "Does not mix Compono.XunitV3-only constructs (e.g. [Theory]) into a TUnit test"
+      ]
     }
   ]
 }

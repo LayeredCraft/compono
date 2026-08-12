@@ -1,6 +1,6 @@
 # [PLAN-0040] Compono.TUnit Package Design
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0040](../adr/0040-compono-tunit-package-design.md)
 (`Compono.TUnit` package: method-parameter composition only, no new
@@ -543,23 +543,43 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 3: Docs and skill consistency close-out
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] Re-read `docs/packages/compono-tunit.md`, `docs/packages/index.md`,
+- [x] Re-read `docs/packages/compono-tunit.md`, `docs/packages/index.md`,
       `skills/compono/references/tunit.md`, and `SKILL.md`'s Detection
       table/guardrail/description end to end — confirm nothing Phase 0/1
       added is inconsistent or stale now that the full package exists (a
       pure consistency pass; Phase 0/1 already did the substantive writing
-      per-behavior).
-- [ ] `docs/roadmap/future-packages.md`: move `Compono.TUnit` out of
-      "Roadmap items" — it's shipped, not a roadmap item anymore.
-- [ ] `skills/compono-evals/evals.json`: retire or rewrite eval scenario
-      20 (`Does Compono support NUnit?` — currently uses `Compono.TUnit`
-      as an example of a package that doesn't exist; check it doesn't
-      accidentally still assert that once `Compono.TUnit` ships) and add a
-      routing scenario confirming the skill only recommends
-      `Compono.TUnit` guidance when that package is referenced, matching
-      the existing NSubstitute/Bogus routing scenarios' shape.
+      per-behavior). Found and fixed four stale spots, all pre-dating
+      Phase 1/2 shipping: `compono-tunit.md`'s and `tunit.md`'s own
+      "PLAN-0040 Phase 0/1 have shipped" intro lines (now describe the
+      full family, not a phase number); `docs/packages/index.md`'s
+      `Compono.TUnit` row (still said "`[Compose]` data source attribute
+      ... " only, no profile variants, unlike the `Compono.XunitV3` row
+      immediately above it); `SKILL.md`'s Detection table row, its "Never
+      claim or write code against..." guardrail, and its
+      `references/tunit.md` file-index row (all three still said
+      `Compono.TUnit` ships only `[Compose]`/`[Shared]`, "not
+      `[Compose<TProfile>]` yet" — stale since Phase 1 merged).
+- [x] `docs/roadmap/future-packages.md`: moved `Compono.TUnit` out of
+      "Roadmap items" — it's shipped, not a roadmap item anymore. Reworded
+      the intro (five shipped packages, not four-plus-one-committed), the
+      Admission model section's `Compono.TUnit` paragraph (now describes
+      the full admitted-candidate → roadmap-item → committed →
+      **shipped-package** progression, past tense), and emptied the
+      "Roadmap items" section itself with a pointer to
+      [Package Guides](../packages/index.md).
+- [x] `skills/compono-evals/evals.json`: eval 20 (`Does Compono support
+      NUnit?`) was checked directly — it's about `Compono.NUnit`, not
+      `Compono.TUnit`, and doesn't use `Compono.TUnit` as an example of a
+      nonexistent package (that concern must have been addressed earlier
+      than this phase; nothing to retire/rewrite there). Added eval 21 (a
+      new `routing` scenario): a project referencing `Compono`,
+      `Compono.TUnit`, and `Compono.NSubstitute` but *not*
+      `Compono.XunitV3`, expecting TUnit's own `[Test]`/`[Compose<TProfile>]`
+      shape (not xUnit v3's `[Theory]`) with `UseNSubstitute()`/`[Shared]`
+      — mirrors eval 3's (`Compono.NSubstitute` routing) and eval 18's
+      (negative-routing: a package NOT referenced) shape.
 
 ## Critical Files
 
@@ -940,3 +960,22 @@ No doc updates in this phase - Phase 3 is the docs/skill closing
 consistency pass, not this one.
 
 Phase 2 is complete - every task checked off.
+
+**Phase 3 implementation (2026-08-12)**: PR #79 (Phase 2) merged to `main`
+first, per this plan's own phase-PR rule. A pure consistency pass, no
+`src/Compono.TUnit` code changes - four stale-doc spots found by direct
+rereading (not assumed), all pre-dating Phase 1/2's own shipping, listed
+in Phase 3's own task checkboxes above. `docs/roadmap/future-packages.md`
+got the larger rewrite the plan's task called for: `Compono.TUnit` moved
+from "committed implementation work" language to past-tense "shipped
+package" language throughout (intro, Admission model section, and the
+"Roadmap items" section itself, now empty with a pointer to Package
+Guides) - the five-package count (not four-plus-one) now matches
+`docs/packages/index.md`'s own count exactly. `skills/compono-evals
+/evals.json` eval 20 turned out already correct (it's an NUnit scenario,
+not a TUnit one - the plan's own premise for that half of the task was
+stale by the time this phase ran); added eval 21, a `Compono.TUnit` +
+`Compono.NSubstitute`-without-`Compono.XunitV3` routing scenario.
+
+Phase 3 is complete - every task checked off. **PLAN-0040 is complete -
+all four phases done, `Compono.TUnit` is a shipped package.**

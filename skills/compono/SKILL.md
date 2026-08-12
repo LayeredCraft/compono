@@ -43,7 +43,7 @@ some packages and not others.
 |---|---|---|---|
 | `<PackageReference Include="Compono"` | any `.csproj` in the project | Definitive | Core Compono in use |
 | `<PackageReference Include="Compono.XunitV3"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/xunit-v3.md` |
-| `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Shared]` available (method-parameter composition only so far - no `[Compose<TProfile>]` yet) — load `references/tunit.md` |
+| `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/tunit.md` |
 | `<PackageReference Include="Compono.NSubstitute"` | `.csproj` | Definitive | `UseNSubstitute()` available — load `references/nsubstitute.md` |
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
@@ -99,9 +99,10 @@ user to make test-by-test, not something to do as a drive-by.
      not a copy-pasted builder lambda in every test.
    - A value only known at a *specific test's call site* that must
      influence configuration logic running *inside* a profile (not a
-     top-level test parameter) → `Compono.XunitV3`'s
-     `[Compose<TProfile, TConfig>]`, if that package is referenced — see
-     `references/xunit-v3.md`. Prefer an enum/`typeof(...)` over a bare
+     top-level test parameter) → `[Compose<TProfile, TConfig>]` (in
+     `Compono.XunitV3` or `Compono.TUnit`, whichever the project
+     references) — see `references/xunit-v3.md` or `references/tunit.md`
+     to match. Prefer an enum/`typeof(...)` over a bare
      string for the argument. Don't confuse this with a
      `CompositionProviderRequest.Name`-based custom provider
      (`references/registrations-profiles-and-scopes.md`), which solves a
@@ -185,9 +186,9 @@ undermines the reason Compono exists in this project.
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
   `Compono.NSubstitute`, and `Compono.Bogus` ship as packages today
-  (`Compono.TUnit` ships only `[Compose]`/`[Shared]` method-parameter
-  composition so far, not `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`
-  — see `references/tunit.md`) — there is no `Compono.NUnit`,
+  (`Compono.TUnit` ships the full attribute family —
+  `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
+  see `references/tunit.md`) — there is no `Compono.NUnit`,
   `Compono.MSTest`, `Compono.FakeItEasy`, `Compono.Moq`, or
   `Compono.DependencyInjection`, and never invent a plausible-looking API
   for one. That doesn't always mean the underlying capability is
@@ -248,7 +249,7 @@ Load only what the Detection table says is relevant to the current task.
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
 | `references/diagnostics.md` | A `CMP0001`-`CMP0012` build error, or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
-| `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Shared]` test-method work |
+| `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

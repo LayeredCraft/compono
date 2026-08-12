@@ -10,7 +10,7 @@ need the first two.
 | [`Compono.XunitV3`](compono-xunitv3.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` theory data attributes and `[Shared]` parameter sharing for xUnit v3. | You write xUnit v3 tests and want composed theory parameters instead of hand-built test data. |
 | [`Compono.NSubstitute`](compono-nsubstitute.md) | Automatic substitute composition for interface, delegate, and (optionally) abstract-class parameters. | Your composed types depend on interfaces you'd otherwise stub by hand with NSubstitute. |
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
-| [`Compono.TUnit`](compono-tunit.md) | `[Compose]` data source attribute and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
+| [`Compono.TUnit`](compono-tunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` data source attributes and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and, until the
 first stable `1.0` release, publishes as a `0.x.y-preview.N` prerelease —
