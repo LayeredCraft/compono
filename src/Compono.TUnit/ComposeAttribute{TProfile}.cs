@@ -31,6 +31,18 @@ public sealed class ComposeAttribute<TProfile> : ComposeAttribute
 
     internal override void ApplyProfile(CompositionBuilder builder)
     {
+        // A negative configured seed must be rejected before any profile work is attempted -
+        // otherwise Seed = -1 combined with a throwing TProfile.Configure would report the profile
+        // failure below with "Seed: -1" embedded instead of the documented negative-seed diagnostic
+        // the base class's own ComposeRow enforces. Matches ComposeAttribute<TProfile, TConfig>'s
+        // identical early check (Codex review).
+        if (SeedAsNullable is { } configuredSeed && configuredSeed < 0)
+        {
+            throw new CompositionException(AppendSeed(
+                $"Compono.TUnit requires a non-negative seed, but the configured seed was {configuredSeed}.",
+                configuredSeed));
+        }
+
         try
         {
             builder.AddProfile<TProfile>();

@@ -43,6 +43,21 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [Test]
+    public async Task GetDataRowsAsync_ReportsTheNegativeSeedDiagnostic_NotTheProfileFailure_ForAFixedProfile_WhenBothApply()
+    {
+        // Seed = -1 combined with a throwing TProfile.Configure must report the documented
+        // negative-seed diagnostic, not the profile failure with "Seed: -1" embedded - the
+        // negative-seed check has to run before any profile work is even attempted. Mirrors
+        // ComposeAttribute<TProfile, TConfig>'s identical precedence test.
+        var attribute = new ComposeAttribute<SampleTestMethods.ThrowingConfigureTestProfile> { Seed = -1 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+
+        await Assert.That(() => SingleRow(attribute, method)).Throws<CompositionException>()
+            .WithMessageContaining("non-negative seed").And
+            .WithMessageContaining("-1");
+    }
+
+    [Test]
     public async Task GetDataRowsAsync_ConstructsProfileFromConfig_AndComposesEveryTestParameter()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.ParameterizedTestProfile, SampleTestMethods.TestConfig>("from-config");
