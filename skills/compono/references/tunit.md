@@ -89,10 +89,12 @@ test method's own parameters, all of which are still composed in full.
 
 - `TConfig` must have exactly one public constructor; `TProfile` must have
   exactly one public constructor accepting exactly one `TConfig`-typed
-  parameter. Either shape being wrong is a clear, cached
-  `CompositionException` at binding-plan-construction time, not a compile
-  error (`[Compose<TProfile>]`'s `new()` constraint doesn't carry over to
-  this form - see `docs/adr/0036-parameterized-composition-profile-selection.md`).
+  parameter. Either shape being wrong is a clear `CompositionException`
+  raised during composer/profile initialization (`ApplyProfile`, inside
+  the base class's cached `Lazy<Composer>`) - before `BindingPlan` is
+  ever built, not a compile error (`[Compose<TProfile>]`'s `new()`
+  constraint doesn't carry over to this form - see
+  `docs/adr/0036-parameterized-composition-profile-selection.md`).
 - **Use the strongest attribute-legal type for each argument** - an
   `enum` for a finite choice, `typeof(...)` for a CLR type, `bool`/numeric
   where that's already the real meaning. `params object?[]` is a binding

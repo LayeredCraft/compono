@@ -73,8 +73,10 @@ internal static class SampleTestMethods
     }
 
     // A zero-parameter method has no ParameterMetadata to read ReflectionInfo.Member from -
-    // BindingPlan's own stacked-attribute lookup falls back to a direct Type.GetMethod(name,
-    // Type.EmptyTypes) call for exactly this shape; this fixture exercises that fallback path.
+    // BindingPlan's own stacked-attribute lookup falls back to an arity-aware GetMethods() filter
+    // (name, zero declared parameters, and generic arity together) for exactly this shape; this
+    // fixture exercises that fallback path. See AmbiguousZeroParameterMethod below for why generic
+    // arity must be part of that filter, not just parameter count.
     [Compose]
     [Compose<TestProfile>]
     public static void WithMultipleComposeAttributesAndNoParameters()
