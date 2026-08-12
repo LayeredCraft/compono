@@ -125,6 +125,45 @@ public sealed class BindingPlanTests
     }
 
     [Test]
+    public async Task Build_ReportsASignatureError_ForMultipleComposeFamilyAttributes()
+    {
+        // [AttributeUsage(AllowMultiple = false)] is enforced per exact attribute type, not across
+        // the Compose family - [Compose] and [Compose<TProfile>] are distinct types that each
+        // individually satisfy their own AllowMultiple = false, so nothing else stops stacking them.
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithMultipleComposeAttributes))!;
+
+        var plan = BindingPlan.Build(MethodMetadataTestFactory.Create(method));
+
+        await Assert.That(plan.SignatureError).Contains("Compose");
+        await Assert.That(plan.Parameters).IsEmpty();
+    }
+
+    [Test]
+    public async Task Build_ReportsASignatureError_ForMultipleComposeFamilyAttributes_OnAZeroParameterMethod()
+    {
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithMultipleComposeAttributesAndNoParameters))!;
+
+        var plan = BindingPlan.Build(MethodMetadataTestFactory.Create(method));
+
+        await Assert.That(plan.SignatureError).Contains("Compose");
+        await Assert.That(plan.Parameters).IsEmpty();
+    }
+
+    [Test]
+    public async Task Build_ReportsASignatureError_ForComposeStackedWithTheTwoTypeParameterForm()
+    {
+        // Detection (method.GetCustomAttributes<ComposeAttribute>()) already covers this form
+        // since ComposeAttribute<TProfile, TConfig> derives from ComposeAttribute - this test proves
+        // it, rather than assuming the base-type relationship alone is enough.
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithComposeAndTwoTypeParameterComposeAttributes))!;
+
+        var plan = BindingPlan.Build(MethodMetadataTestFactory.Create(method));
+
+        await Assert.That(plan.SignatureError).Contains("Compose<TProfile, TConfig>");
+        await Assert.That(plan.Parameters).IsEmpty();
+    }
+
+    [Test]
     public async Task Build_DescriptorUsesParameterPositionNameAndDeclaringType()
     {
         var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.Simple))!;
