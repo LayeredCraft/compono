@@ -161,6 +161,33 @@ driver — not part of this plan):
       have thrown its own unclear error for the same shapes at runtime.
       This task makes it a clear, intentional diagnostic instead of an
       accidental one, which the old design never had either.)
+- [ ] **Dispatch-eligibility guard, part 2: accessibility.** The three
+      shape checks above don't catch every unnameable-in-generated-code
+      case — a provider-resolved leaf type (e.g. a `private`/`internal`
+      nested interface satisfied by a substitute provider) passes them
+      cleanly (`LeafTypeClassifier` says "provider-resolved, no diagnostic
+      needed" - true for plan-generation purposes, since a provider-
+      resolved type is never constructed by generated code at all today),
+      but `RowInvokerRegistry.Register(typeof(T), (row, d) =>
+      row.Resolve<T>(d), ...)` still needs to *name* `T` from a top-level,
+      file-scoped generated type - exactly the same accessibility-domain
+      problem `TransitiveClosureWalker.cs:249-251` already solves for
+      collection element/key types via `Compilation.IsSymbolAccessibleWithin`
+      (feeding the existing `CMP0012` "Collection element or key type is
+      not accessible" diagnostic). Reuse that same
+      `IsSymbolAccessibleWithin(type, compilation.Assembly)` check for
+      every row-invoker-eligible parameter type - not just collection
+      shapes, which is all `CMP0012` currently covers - and add a new
+      diagnostic (`CMP0013` or the next free number; a
+      `RowInvokerRegistry`-scoped sibling to `CMP0012`, not a reuse of it,
+      since the message needs to explain a method-parameter-reachable type
+      being unregisterable, not a collection element) for the case this
+      guard actually rejects. Confirmed this is a real, previously-
+      unchecked gap: no existing accessibility check applies to a
+      provider-resolved parameter type today, since it never goes through
+      `ConstructorSelector`'s own accessible-constructor filtering (which
+      implicitly requires the type itself be reachable) the way an
+      ordinary composed type does.
 - [ ] **Generator, discovery**: extend `ComposeMethodDiscovery.TransformMethod`
       (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`) to
       record every *dispatch-eligible* (per the guard above) method
@@ -227,8 +254,13 @@ driver — not part of this plan):
 - `src/Compono/RowInvokerRegistry.cs` — new.
 - `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
   `src/Compono.Generators/Discovery/ComposedTypeAnalyzer.cs` — extended
-  discovery (a shared dispatch-eligibility helper, and recording every
-  eligible parameter's own type, not just plan-eligible ones).
+  discovery (a shared dispatch-eligibility helper covering both shape and
+  accessibility, and recording every eligible parameter's own type, not
+  just plan-eligible ones).
+- `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` — new
+  `CMP0013`-or-next-free-number diagnostic for an inaccessible
+  row-invoker-eligible parameter type (a `RowInvokerRegistry`-scoped
+  sibling to `CMP0012`'s existing collection-element-type check).
 - `src/Compono.Generators/ComponoIncrementalGenerator.cs` — extended
   emission, alongside the existing `PlanCache<T>` module-initializer code.
 - `src/Compono.XunitV3/Binding/RowInvokers.cs` — reflection removed,
@@ -246,9 +278,10 @@ driver — not part of this plan):
 
 - `Compono.Generators.Tests`: snapshot proof of real `RowInvokerRegistry`
   emission, including the provider-resolved-leaf-type case Amendment 2
-  found missing under the original design, and proof that a
-  dispatch-ineligible (`ref struct`/pointer) parameter type produces no
-  emission at all.
+  found missing under the original design; proof that a dispatch-ineligible
+  (`ref struct`/pointer) parameter type produces no emission at all; proof
+  that an inaccessible provider-resolved parameter type produces the new
+  accessibility diagnostic instead of uncompilable generated code.
 - `Compono.XunitV3.Tests`: existing binding/dispatch tests unchanged in
   outcome; new tests for a reflection-free dispatch path, a leaf
   parameter type, and the new `ValidateSignature` rejection.
@@ -309,3 +342,22 @@ confirmed real:
 - ⚠️ (P2): ADR-0040's Amendment 1 still named `RowInvokerCache<T>` even
   after ADR-0041 Amendment 2 corrected the mechanism - added ADR-0040
   Amendment 2, a short dated correction pointing at the actual mechanism.
+
+**PR #74 Codex review, round 3 (2026-08-12)**: 1 finding, confirmed real:
+- 🐛 (P1): the round-2 dispatch-eligibility guard (shape-only: open
+  generic, `ref struct`, non-`INamedTypeSymbol`-non-collection) didn't
+  cover accessibility — a `private`/`internal` nested interface satisfied
+  by a provider passes `LeafTypeClassifier`'s "provider-resolved, no
+  diagnostic" check cleanly (true for plan-generation purposes, since a
+  provider-resolved type is never constructed by generated code today),
+  but `RowInvokerRegistry.Register(typeof(T), ...)` still needs to *name*
+  `T` from a top-level, file-scoped generated type - the exact
+  accessibility-domain problem `TransitiveClosureWalker.cs:249-251`
+  already solves for collection element/key types via
+  `Compilation.IsSymbolAccessibleWithin`, feeding the existing `CMP0012`
+  diagnostic. Confirmed no existing check applies to a provider-resolved
+  *parameter* type today (it never goes through `ConstructorSelector`'s
+  own accessible-constructor filtering the way an ordinary composed type
+  does). Extended the dispatch-eligibility guard task to reuse the same
+  `IsSymbolAccessibleWithin` check, feeding a new, `RowInvokerRegistry`-
+  scoped diagnostic (a sibling to `CMP0012`, not a reuse of it).
