@@ -108,20 +108,35 @@ driver — not part of this plan):
       same disposition as `CollectionPlanCache<T>`'s own existing,
       narrower version of this limitation - not a design change this
       plan makes, just documented consistently where a reader would look
-      for it). — the three
-      non-generic delegate types `Compono.XunitV3.Binding.RowInvokers`
-      already defines locally today (`ResolveInvoker`/`ResolveSharedInvoker`/
-      `ShareExplicitInvoker`: `(CompositionRow, in CompositionRequestDescriptor) -> object?`
-      shapes), moved to core, plus a `Register(Type, ResolveInvoker,
-      ResolveSharedInvoker, ShareExplicitInvoker)` method and a
-      `TryGet(Type, out ResolveInvoker, out ResolveSharedInvoker, out
-      ShareExplicitInvoker)` accessor over an internal `Dictionary<Type,
-      ...>` (thread-safety: populated once via generated module
-      initializers before any test runs, read-only thereafter from
-      `BindingPlan.Build`'s perspective - confirm during implementation
-      whether a `ConcurrentDictionary` is still warranted for safety against
-      concurrent test-assembly-load ordering, or whether module-initializer
-      ordering guarantees make a plain `Dictionary` sufficient).
+      for it). The three non-generic delegate types
+      `Compono.XunitV3.Binding.RowInvokers` already defines locally today
+      (`ResolveInvoker`/`ResolveSharedInvoker`/`ShareExplicitInvoker`:
+      `(CompositionRow, in CompositionRequestDescriptor) -> object?`
+      shapes), moved to core, plus a `Register`/`TryGet` pair over a
+      **`ConcurrentDictionary<Type, ...>`, using an atomic `GetOrAdd`
+      (or equivalent `TryAdd`-shaped idempotent registration), never a
+      throwing or blind-overwrite `Register`.** This is a firm design
+      requirement, not an implementation detail to decide later - two
+      different consuming assemblies loaded into the same process (e.g.
+      both composing `string` as a `[Compose]` parameter) will each run
+      their own generated module initializer, and unlike `PlanCache<T>`'s
+      own cross-assembly collision (an atomic field write, silently
+      nondeterministic about *which* assembly's value wins but never
+      unsafe - documented, deliberately deferred, in
+      `docs/architecture/current/generated-plans-and-discovery.md`'s
+      "Cross-assembly plan-cache collision" item), a plain, non-concurrent
+      `Dictionary<TKey, TValue>`'s *internal structure* can corrupt under
+      genuinely concurrent writes from two module initializers running on
+      different threads during assembly load - a strictly worse failure
+      mode than "last write wins," not just a variant of it. `GetOrAdd`
+      is safe here specifically because every registration for the same
+      `Type` is functionally interchangeable regardless of which assembly
+      generated it (the emitted lambda is always the same shape,
+      `(row, descriptor) => row.Resolve<T>(descriptor)`, for the same
+      `T`) - unlike `PlanCache<T>`'s own open "which assembly's plan wins"
+      question, there is no real "which one is correct" ambiguity to defer
+      here, so this doesn't need its own class-of-problem design
+      discussion the way that item does.
 - [ ] **`EditorBrowsable` decision, made deliberately, not by default.**
       Neither `PlanCache<T>` nor `CollectionPlanCache<T>` — the two
       existing "generator infrastructure, not consumer-facing" caches —
@@ -225,6 +240,14 @@ driver — not part of this plan):
       snapshot coverage. A second test proving a `ref struct`/pointer-typed
       parameter produces *no* `RowInvokerRegistry.Register` emission (the
       dispatch-eligibility guard actually excludes it, not just in theory).
+- [ ] `test/Compono.Tests`: a `RowInvokerRegistry`-specific test proving
+      `GetOrAdd`-style idempotent registration - two simulated "consuming
+      assemblies" (two separate `Register`/`GetOrAdd` calls for the exact
+      same `Type` with two distinct-but-functionally-equivalent delegate
+      sets) both succeed, neither throws, and `TryGet` afterward returns a
+      working (if unspecified-which-one) entry - covering the two-
+      consumer-assembly-sharing-one-`Compono`-instance scenario directly,
+      not just asserting the API shape compiles.
 - [ ] **`Compono.XunitV3`**: rewrite `Binding/RowInvokers.cs` to call
       `RowInvokerRegistry.TryGet(parameterType, ...)` instead of building
       delegates via `MakeGenericMethod`/`Delegate.CreateDelegate` —
@@ -385,3 +408,31 @@ already documents, now broader in scope"):
   Compono's primary test-runner consumers currently exercise collectible-
   ALC hosting, so this is recorded, not redesigned around, consistent
   with ADR-0041's own "smallest maintainable design" driver.
+
+**PR #74 Codex review, round 6 (2026-08-12)**: 2 findings, both confirmed
+real:
+- 🐛 (P1): the round-1/round-4 design left cross-assembly registration
+  semantics unspecified ("confirm during implementation whether a
+  `ConcurrentDictionary` is still warranted"). Verified this is worse than
+  `PlanCache<T>`'s own already-documented, already-deferred cross-assembly
+  collision: a plain static field write is atomic/safe under concurrent
+  module-initializer execution even though nondeterministic about which
+  assembly's value wins, but a non-concurrent `Dictionary<TKey, TValue>`'s
+  *internal structure* can corrupt under genuinely concurrent writes -
+  strictly worse than "last write wins." Firmed this into a real design
+  requirement: `ConcurrentDictionary` + atomic `GetOrAdd` (never a
+  throwing or blind-overwrite `Register`) - safe here specifically because
+  every registration for the same `Type` is functionally interchangeable
+  regardless of source assembly, unlike `PlanCache<T>`'s own genuine
+  "which plan is correct" ambiguity. Added a dedicated `Compono.Tests`
+  task covering two consumer assemblies sharing one `Compono` instance.
+- ⚠️ (P2): `docs/architecture/current/generated-plans-and-discovery.md` is
+  the shipped-state reference (per `design-decisions.md`'s own rule -
+  `docs/*.md` describes current state, an ADR/plan describes a decision),
+  but round 4's edit described `RowInvokerRegistry` in plain present tense
+  even though PLAN-0041 is `Not Started` - readers would have no way to
+  tell this paragraph describes a `Not Started` plan's design, not
+  `Compono`'s actual current dispatch mechanism. Marked it explicitly as
+  planned/not-yet-implemented, with a note to rewrite it in plain present
+  tense once PLAN-0041 actually ships (matching `tasks/implement.md`'s own
+  step 6 convention for exactly this kind of doc update).
