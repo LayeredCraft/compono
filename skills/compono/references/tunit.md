@@ -133,10 +133,15 @@ subclasses. Two **different** Compose-family attributes on one method
 (e.g. `[Compose]` + `[Compose<ProfileA>]`) *compile* but throw
 `CompositionException` at data-generation time, not compile time —
 `BindingPlan.ValidateSignature` resolves the method's own `MethodInfo`
-(via a parameter's `ReflectionInfo.Member`, or a direct `GetMethod`
-lookup for a zero-parameter method) and counts `ComposeAttribute`-derived
-attributes on it. The identical attribute type twice on one method **is**
-a compiler error (`AllowMultiple=false`).
+(via a parameter's `ReflectionInfo.Member`, or - for a zero-parameter
+method, which has no parameter to read that from - an arity-aware
+`GetMethods()` filter matched on name, zero declared parameters, *and*
+generic arity together, not a plain `GetMethod(name, Type.EmptyTypes)`
+call, which would throw `AmbiguousMatchException` for a class declaring
+both a zero-parameter `Run()` and a zero-parameter-but-generic `Run<T>()`)
+and counts `ComposeAttribute`-derived attributes on it. The identical
+attribute type twice on one method **is** a compiler error
+(`AllowMultiple=false`).
 
 **There is no equivalent of stacking multiple data-source attributes on
 one method.** If a test needs several independent inline+composed
