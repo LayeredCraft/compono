@@ -4,9 +4,9 @@ Only relevant if the project references `Compono.TUnit`. Requires real
 TUnit (`TUnit`/`TUnit.Core` + Microsoft Testing Platform runner). Depends
 on `Compono` (the source generator flows through transitively).
 
-PLAN-0040 Phase 0/1 have shipped: `[Compose]`, `[Compose<TProfile>]`, and
-`[Compose<TProfile, TConfig>]`, method-parameter-only — see ADR-0040 for
-the full design.
+The full attribute family has shipped: `[Compose]`, `[Compose<TProfile>]`,
+and `[Compose<TProfile, TConfig>]`, method-parameter-only — see ADR-0040
+for the full design.
 
 ## `[Compose]`
 

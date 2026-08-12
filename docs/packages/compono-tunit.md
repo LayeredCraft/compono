@@ -21,7 +21,7 @@ composer's own `Create<T>()`).
 
 ## What it gives you (today)
 
-PLAN-0040 Phase 0/1 have shipped — see
+The full attribute family has shipped — see
 [ADR-0040](../adr/0040-compono-tunit-package-design.md) for the full design
 and [PLAN-0040](../plans/0040-compono-tunit-package-design.md) for phase
 status.

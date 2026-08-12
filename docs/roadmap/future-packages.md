@@ -1,20 +1,18 @@
 # Future Packages
 
-Compono's MVP package set is fully shipped (see
-[Package Guides](../packages/index.md)): four independently installable
-packages — `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, and
-`Compono.Bogus` — plus `Compono.Generators`, which is not a fifth
-installable package at all. It's `IsPackable=false`
+Compono's shipped package set (see [Package Guides](../packages/index.md))
+is five independently installable packages — `Compono`, `Compono.XunitV3`,
+`Compono.NSubstitute`, `Compono.Bogus`, and `Compono.TUnit` — plus
+`Compono.Generators`, which is not a sixth installable package at all. It's
+`IsPackable=false`
 ([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
 embedded inside `Compono`'s own `.nupkg` as an analyzer
-(`analyzers/dotnet/cs`) — a consumer never references it directly, and
-it never appears on nuget.org on its own. One additional package —
-`Compono.TUnit` — is committed via an `Accepted` ADR
-([ADR-0040](../adr/0040-compono-tunit-package-design.md)), with
-[PLAN-0040](../plans/0040-compono-tunit-package-design.md) (`In Progress`)
-tracking its implementation; see
-[Roadmap items](#roadmap-items-cleared-gate-a-and-gate-b) below. No other
-candidate on this page has cleared both gates yet.
+(`analyzers/dotnet/cs`) — a consumer never references it directly, and it
+never appears on nuget.org on its own. `Compono.TUnit` graduated from this
+page's roadmap once [PLAN-0040](../plans/0040-compono-tunit-package-design.md)
+completed all its phases — see
+[`Compono.TUnit`](../packages/compono-tunit.md) for what it ships. No
+candidate on this page has cleared both admission gates yet.
 
 ## Admission model
 
@@ -34,32 +32,19 @@ item becomes **committed implementation work** only once that ADR itself
 reaches `Accepted` (its own full design pass, not just the problem
 statement) and a `Plan` moves `In Progress` against it — the same
 ADR/Plan mechanics every other change in this repo goes through, per
-`docs/adr/README.md`/`docs/plans/README.md`. `Compono.TUnit` (below) is
-the one candidate that has reached **roadmap item** status and, as of
-[PLAN-0040](../plans/0040-compono-tunit-package-design.md) moving
-`In Progress`, committed implementation work too; nothing besides
-`Compono.TUnit` is roadmap content at all.
+`docs/adr/README.md`/`docs/plans/README.md`. `Compono.TUnit` made that full
+progression — admitted candidate, roadmap item, committed implementation
+work, and finally a shipped package once
+[PLAN-0040](../plans/0040-compono-tunit-package-design.md) completed — and
+is documented as a [Package Guide](../packages/compono-tunit.md) now, not
+roadmap content; nothing on this page has reached roadmap-item status
+since.
 
 ## Roadmap items (cleared Gate A and Gate B)
 
-- **`Compono.TUnit`** — cleared Gate A on TUnit's `IDataSourceAttribute`
-  family (especially `UntypedDataSourceGeneratorAttribute`, which TUnit's
-  own docs cite AutoFixture-shaped libraries as the motivating case for),
-  its per-row `TestBuilderContext`, and its combinatorial interplay with
-  `[Arguments]` — a real integration surface following `Compono.XunitV3`'s
-  `CompositionRow`-based model
-  ([ADR-0021](../adr/0021-row-composition-entry-point-for-test-framework-integrations.md)).
-  Cleared Gate A on that surface specifically, not because TUnit is
-  source-generated — that architectural kinship is not, on its own,
-  consumer value; see ADR-0039 for what was retired and why. Cleared
-  Gate B via an explicit product-owner request (ADR-0039's real-demand
-  trigger). [ADR-0040](../adr/0040-compono-tunit-package-design.md)
-  (`Accepted`) records the resulting package design — method-parameter
-  composition only for the first release, full parity with
-  `Compono.XunitV3`'s scope; see that ADR for why constructor-dependency
-  composition was investigated and deferred.
-  [PLAN-0040](../plans/0040-compono-tunit-package-design.md) tracks
-  implementation, phase by phase.
+None currently. `Compono.TUnit` was the one candidate to reach this
+status — see the Admission model note above; it shipped as a package and
+moved to [Package Guides](../packages/index.md).
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
