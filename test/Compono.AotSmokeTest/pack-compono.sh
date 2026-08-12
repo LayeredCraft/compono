@@ -11,8 +11,15 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 feed_dir="$script_dir/../../.local-nuget-feed-aot-smoke"
+restore_packages_path="$script_dir/obj/.nuget-packages"
 
 mkdir -p "$feed_dir"
 rm -f "$feed_dir"/Compono.*.nupkg
+
+# NuGet treats a package id+version already present in a packages folder as immutable and never
+# re-extracts it - without clearing this project's own isolated restore path (see the .csproj's
+# RestorePackagesPath), a rerun after changing Compono source would silently keep serving the first
+# run's cached compono/1.0.0 instead of the freshly repacked nupkg above.
+rm -rf "$restore_packages_path"
 
 dotnet pack "$script_dir/../../src/Compono/Compono.csproj" -c Release -o "$feed_dir" -p:Version=1.0.0 --nologo

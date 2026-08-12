@@ -20,6 +20,14 @@
          throwaway "1.0.0" version pack-compono.sh stamps onto its local-feed-only Compono.nupkg -
          opting this one project out of CPM instead of adding a fake pin to the shared file. -->
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Isolates this restore from NuGet's shared global packages folder entirely - NuGet treats a
+         package id+version already present in a packages folder as immutable and never re-extracts
+         it, so rerunning pack-compono.sh with different Compono source under the same fixed "1.0.0"
+         version would otherwise let a stale global-cache entry silently satisfy a later restore/
+         publish, printing PASS without ever exercising the current generator/registry. Mirrors
+         Compono.XunitV3.SampleTests' own RestorePackagesPath isolation - no per-run GUID scoping
+         needed there, since this harness is a manual one-shot, never run concurrently with itself. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
   </PropertyGroup>
 
   <!-- test/Directory.Build.props' global usings assume every project under test/ references
