@@ -649,3 +649,17 @@ sections are otherwise unaffected — this amendment changes *how*
 or diagnostics behavior those sections describe. PLAN-0040's Phase 0 is
 revised to build against `RowInvokerCache<T>` from the start, per
 ADR-0041's own Decision Outcome.
+
+## Amendment 2 (2026-08-12): Amendment 1's "RowInvokerCache<T>" superseded by "RowInvokerRegistry"
+
+Amendment 1 (above) named the row-binding dispatch mechanism as
+`RowInvokerCache<T>`, per [ADR-0041](0041-aot-safe-row-binding-dispatch.md)'s
+Decision Outcome at the time it was written. ADR-0041's own Amendment 2
+subsequently corrected that mechanism to a non-generic, `Type`-keyed
+`RowInvokerRegistry` — `RowInvokerCache<T>` as originally drafted couldn't
+actually be read from `BindingPlan.Build`, which only ever has a runtime
+`System.Type`, not a compile-time `T` (see ADR-0041 Amendment 2 for the
+full reasoning). Every reference to `RowInvokerCache<T>` in this ADR's own
+Amendment 1 should be read as `RowInvokerRegistry` — the underlying
+decision (a shared, generator-populated, reflection-free dispatch
+mechanism in core `Compono`) is unchanged; only its concrete shape is.
