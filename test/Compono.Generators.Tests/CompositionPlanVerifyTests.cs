@@ -2003,6 +2003,118 @@ public sealed class CompositionPlanVerifyTests
                 """,
         }, TestContext.Current.CancellationToken);
 
+    [Fact]
+    public Task ComposeAttributedMethodParameter_ProviderResolvedLeafType_GeneratesRowInvokerRegistrationOnly() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.XunitV3
+                {
+                    // Stands in for the real Compono.XunitV3.ComposeAttribute - see
+                    // ComposeAttributedMethodParameter_GeneratesCompositionPlan for why.
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public static class TestClass
+                    {
+                        // string is provider-resolved (LeafTypeClassifier), so it never reaches
+                        // TransitiveClosureResult.Types and gets no CompositionPlan.g.cs - the exact
+                        // gap ADR-0041 Amendment 2 found: this parameter still needs a
+                        // RowInvokerRegistry registration to dispatch through at runtime, recorded
+                        // independent of the plan-eligibility walk.
+                        [Compono.XunitV3.Compose]
+                        public static void Greets(string name)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposeAttributedMethodParameter_RefStructParameter_NoRowInvokerRegistrationEmitted() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace Compono.XunitV3
+                    {
+                        // Stands in for the real Compono.XunitV3.ComposeAttribute - see
+                        // ComposeAttributedMethodParameter_GeneratesCompositionPlan for why.
+                        public class ComposeAttribute : System.Attribute
+                        {
+                            public ComposeAttribute(params object?[] inlineValues) { }
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public static class TestClass
+                        {
+                            // System.Span<int> is a by-value (not ref/out/in) ref struct parameter -
+                            // ComposeMethodDiscovery's ordinary ComposedTypeAnalyzer.Analyze call
+                            // already reports CMP0009 for it (a ref struct can never be a
+                            // ICompositionPlan<T>/PlanCache<T> type argument either); the
+                            // dispatch-eligibility guard must independently exclude it from
+                            // RowInvokerRegistry emission too, since Resolve<Span<int>>() would fail
+                            // to compile the same way (no `allows ref struct` constraint).
+                            [Compono.XunitV3.Compose]
+                            public static void Processes(System.Span<int> value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0009",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ComposeAttributedMethodParameter_InaccessibleParameterType_ReportsDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace Compono.XunitV3
+                    {
+                        // Stands in for the real Compono.XunitV3.ComposeAttribute - see
+                        // ComposeAttributedMethodParameter_GeneratesCompositionPlan for why.
+                        public class ComposeAttribute : System.Attribute
+                        {
+                            public ComposeAttribute(params object?[] inlineValues) { }
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public sealed class Container
+                        {
+                            private interface IHandler { }
+
+                            // Test is itself private, consistent with IHandler's own accessibility
+                            // (CS0051 would otherwise reject a public method with a private-type
+                            // parameter) - IHandler is provider-resolved (an interface, per
+                            // LeafTypeClassifier), so it gets no CompositionPlan.g.cs either way, but
+                            // a RowInvokerRegistry registration still needs to *name* IHandler from a
+                            // top-level generated type, which it can never legally do - the same
+                            // accessibility-domain problem CMP0012 already solves for collection
+                            // element/key types, applied here to a bare Compose-attributed parameter.
+                            [Compono.XunitV3.Compose]
+                            private static void Handles(IHandler handler)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            expectedDiagnosticId: "CMP0013",
+            TestContext.Current.CancellationToken);
+
     // No automated regression test for RequiredMemberCollector.IsAssignableFromGeneratedCode: the
     // shape it defends against (a required member with no accessible setter, or a required
     // readonly field) is one the C# compiler itself refuses to let *any* C#-authored type declare

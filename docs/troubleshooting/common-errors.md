@@ -2,7 +2,7 @@
 
 ## By diagnostic code (compile-time)
 
-Every `CMP0001`–`CMP0012` error is a compile-time diagnostic from
+Every `CMP0001`–`CMP0013` error is a compile-time diagnostic from
 `Compono.Generators` — see [Reference: Diagnostics](../reference/diagnostics.md)
 for the full message/cause/fix for each code. The one you'll hit most
 often in practice:
