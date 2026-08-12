@@ -4,8 +4,9 @@ Only relevant if the project references `Compono.TUnit`. Requires real
 TUnit (`TUnit`/`TUnit.Core` + Microsoft Testing Platform runner). Depends
 on `Compono` (the source generator flows through transitively).
 
-This is PLAN-0040's first, method-parameter-only slice (Phase 0) — see
-ADR-0040 for the full design and which forms ship in which phase.
+PLAN-0040 Phase 0/1 have shipped: `[Compose]`, `[Compose<TProfile>]`, and
+`[Compose<TProfile, TConfig>]`, method-parameter-only — see ADR-0040 for
+the full design.
 
 ## `[Compose]`
 
@@ -42,14 +43,73 @@ public async Task ReproducesTheSameComposedValues(Order order) { }
 - Composition happens at data-generation time, not a separate discovery
   pass.
 
-## `[Compose<TProfile>]` / `[Compose<TProfile, TConfig>]`
+## `[Compose<TProfile>]`
 
-Not part of this first slice — see PLAN-0040's later phases and
-`references/xunit-v3.md` for the shape these will eventually mirror once
-they land in `Compono.TUnit` too. Until then, `Compono.TUnit` has no
-profile-application mechanism at all — a `[Compose]`-composed type that
-needs a substitute, Bogus-generated data, or a custom registration can't
-get one through this package yet.
+```csharp
+[Test]
+[Compose<OrderTestProfile>]
+public async Task Creates_service(
+    [Shared] IOrderRepository repository,
+    OrderService service,
+    CreateOrder command)
+{
+}
+```
+
+Same behavior as `[Compose]`, but applies `TProfile.Configure` to the
+row's builder first — this is how a test picks up
+`UseNSubstitute()`/`UseBogus()`/registrations for that specific test.
+
+## `[Compose<TProfile, TConfig>]`
+
+```csharp
+public enum RepositoryKind { Player, Game }
+
+public sealed record RepositoryConfig(RepositoryKind Repository);
+
+public sealed class RepositoryProfile : ICompositionProfile
+{
+    public RepositoryProfile(RepositoryConfig config) => Config = config;
+    public RepositoryConfig Config { get; }
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register<IRepository>(_ => RepositoryFactory.Create(Config.Repository));
+}
+
+[Test]
+[Compose<RepositoryProfile, RepositoryConfig>(RepositoryKind.Player)]
+public async Task Handles_PlayerRepository(IRepository repository) { }
+```
+
+Use this when a profile needs a value only known at **this specific
+test's call site** - not a fixed, default-constructed profile the way
+`[Compose<TProfile>]` always is. `TConfig`'s constructor arguments here
+(**profile configuration arguments**) are a completely different binding
+target from this file's inline values above - they never bind to the
+test method's own parameters, all of which are still composed in full.
+
+- `TConfig` must have exactly one public constructor; `TProfile` must have
+  exactly one public constructor accepting exactly one `TConfig`-typed
+  parameter. Either shape being wrong is a clear, cached
+  `CompositionException` at binding-plan-construction time, not a compile
+  error (`[Compose<TProfile>]`'s `new()` constraint doesn't carry over to
+  this form - see `docs/adr/0036-parameterized-composition-profile-selection.md`).
+- **Use the strongest attribute-legal type for each argument** - an
+  `enum` for a finite choice, `typeof(...)` for a CLR type, `bool`/numeric
+  where that's already the real meaning. `params object?[]` is a binding
+  mechanism C# attribute rules force, not a reason to design `TConfig`
+  around magic strings.
+- **This is not the same problem as name-based value selection.** A value
+  that varies by which parameter/member is *asking* (not by test call
+  site) is a `CompositionProviderRequest.Name`-matching custom
+  `ICompositionValueProvider` question - see
+  `registrations-profiles-and-scopes.md`. Don't reach for
+  `[Compose<TProfile, TConfig>]` for that case, and don't reach for a
+  custom provider for this one.
+- **Don't reach for this form by default.** If a fixed, default-constructed
+  profile already covers it, the plain `[Compose<TProfile>]` form is
+  enough - reserve this one for a value that's genuinely different per
+  call site and needs to reach configuration logic running *inside* the
+  profile.
 
 ## Disposal — read before assuming automatic cleanup
 
@@ -66,17 +126,22 @@ disposal story (no automatic disposal at all, PR #24) carries over
 unchanged; the two packages differ here because TUnit's own execution
 model differs from xUnit v3's.
 
-## Stacking Compose-family attributes: undefined, not rejected
+## Hard constraint: one Compose-family attribute per method
 
-Unlike `Compono.XunitV3` (which throws a clear `CompositionException` for
-this shape), `Compono.TUnit`'s `BindingPlan.Build` does not currently
-detect more than one Compose-family attribute stacked on the same method -
-`MethodMetadata` doesn't expose the method's own attribute list the way a
-raw `MethodInfo` does, and this check hasn't been added yet (a known v1
-gap, tracked in PLAN-0040's Phase 1 checklist ("Stacked Compose-family attribute validation")). Don't stack Compose-family
-attributes on one TUnit test method - the result is undefined, not a
-documented failure mode; if you see it in review, flag it the same way
-you'd flag any other unsupported shape.
+`[Compose]` and `[Compose<TProfile>]` are both `ComposeAttribute`
+subclasses. Two **different** Compose-family attributes on one method
+(e.g. `[Compose]` + `[Compose<ProfileA>]`) *compile* but throw
+`CompositionException` at data-generation time, not compile time —
+`BindingPlan.ValidateSignature` resolves the method's own `MethodInfo`
+(via a parameter's `ReflectionInfo.Member`, or a direct `GetMethod`
+lookup for a zero-parameter method) and counts `ComposeAttribute`-derived
+attributes on it. The identical attribute type twice on one method **is**
+a compiler error (`AllowMultiple=false`).
+
+**There is no equivalent of stacking multiple data-source attributes on
+one method.** If a test needs several independent inline+composed
+combinations, split into separate `[Test]`/`[Arguments]` methods — don't
+try to layer multiple Compose-family attributes to get that effect.
 
 ## No fixture object
 
@@ -93,3 +158,7 @@ class.
 - `test/Compono.TUnit.SampleTests/DisposalTests.cs` — the root-disposed
   vs. nested-not-disposed proof, using a plain purpose-built
   `IDisposable` type, not a mocking-library substitute.
+- `test/Compono.TUnit.SampleTests/NSubstituteTests.cs` —
+  `[Compose<NSubstituteTestProfile>] async Task Saves_order([Shared]
+  IOrderRepository repository, CreateOrderHandler handler, PlaceOrder
+  command)`.

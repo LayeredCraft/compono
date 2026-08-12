@@ -10,6 +10,22 @@ namespace Compono.TUnit.Tests;
 public sealed class ComposeAttributeConfigBindingTests
 {
     [Test]
+    public async Task GetDataRowsAsync_MixesInlineValuesWithAProfileAppliedComposer()
+    {
+        // ComposeAttribute<TProfile> inherits Phase 0's own inline-value constructor unchanged
+        // (unlike ComposeAttribute<TProfile, TConfig>, whose constructor arguments bind to TConfig
+        // instead) - this proves inline values still take precedence over composition even once a
+        // profile is applied to the underlying Composer.
+        var attribute = new ComposeAttribute<SampleTestMethods.TestProfile>(42);
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.Simple))!;
+
+        var data = await SingleRow(attribute, method);
+
+        await Assert.That(data![0]).IsEqualTo(42);
+        await Assert.That(data[1]).IsTypeOf<string>();
+    }
+
+    [Test]
     public async Task GetDataRowsAsync_ConstructsProfileFromConfig_AndComposesEveryTestParameter()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.ParameterizedTestProfile, SampleTestMethods.TestConfig>("from-config");

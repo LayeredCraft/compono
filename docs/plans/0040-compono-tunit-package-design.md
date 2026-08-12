@@ -416,13 +416,13 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
 
 ### Phase 1: Profile variants, their own tests and docs
 
-**Status:** Not Started
+**Status:** Done
 
-- [ ] `ComposeAttribute<TProfile> : ComposeAttribute` — `new()`-constrained
+- [x] `ComposeAttribute<TProfile> : ComposeAttribute` — `new()`-constrained
       profile type parameter, mirroring `Compono.XunitV3`'s
       `ComposeAttribute<TProfile>` exactly (method-level only, matching
       that package's own original scope decision).
-- [ ] `ComposeAttribute<TProfile, TConfig> : ComposeAttribute` — profile
+- [x] `ComposeAttribute<TProfile, TConfig> : ComposeAttribute` — profile
       built from attribute-constructor-supplied config args, mirroring
       `Compono.XunitV3`'s `ComposeAttribute<TProfile, TConfig>`
       (ADR-0036) exactly, including its once-per-attribute-instance
@@ -444,7 +444,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       independent constructor and storage, duplicated from
       `Compono.XunitV3`'s exact shape, not shared with the other generic
       form.
-- [ ] Stacked Compose-family attribute validation: reject a test method
+- [x] Stacked Compose-family attribute validation: reject a test method
       carrying more than one of `[Compose]`/`[Compose<TProfile>]`/
       `[Compose<TProfile, TConfig>]` — `AllowMultiple = false` is enforced
       per exact attribute type by the compiler, not across the family, so
@@ -462,7 +462,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       requirement. Without it, TUnit runs both attributes' data sources
       independently and produces duplicate/conflicting rows despite
       ADR-0040 promising full `Compono.XunitV3` parity.
-- [ ] `test/Compono.TUnit.Tests`: profile-binding unit/integration
+- [x] `test/Compono.TUnit.Tests`: profile-binding unit/integration
       coverage (`ComposeAttribute<TProfile>`, `ComposeAttribute<TProfile,
       TConfig>` config binding) plus inline-values-combined-with-a-profile
       coverage (Phase 0 already covers inline values alone; this phase
@@ -473,7 +473,7 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       (`[Compose]` + `[Compose<TProfile>]`, `[Compose<TProfile>]` +
       `[Compose<TProfile, TConfig>]`, etc.) — the case Phase 0 alone can't
       exercise, since it needs a second Compose-family type to exist.
-- [ ] The full Goal-section scenario, run for real under TUnit: `[Shared]
+- [x] The full Goal-section scenario, run for real under TUnit: `[Shared]
       IOrderRepository` composed via `[Compose<NSubstituteTestProfile>]`,
       `UseNSubstitute()` wired through the profile, `repository` reused
       inside `handler`'s own composed constructor parameter — the
@@ -481,12 +481,12 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       reproduced under TUnit for real (this needs `Compono.NSubstitute` as
       an additional test dependency, matching how the xUnit v3 sample
       project references it).
-- [ ] Extend `docs/packages/compono-tunit.md` with the profile-attribute
+- [x] Extend `docs/packages/compono-tunit.md` with the profile-attribute
       sections (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`,
       inline values).
-- [ ] Extend `skills/compono/references/tunit.md` with profile-attribute
+- [x] Extend `skills/compono/references/tunit.md` with profile-attribute
       guidance, matching `xunit-v3.md`'s equivalent sections.
-- [ ] **Native AOT gate on `ConfigProfileBinder` — a release requirement,
+- [x] **Native AOT gate on `ConfigProfileBinder` — a release requirement,
       not optional polish (ADR-0041 Amendment 1).** `[Compose<TProfile,
       TConfig>]`'s own `ConfigProfileBinder` needs the identical AOT
       analysis ADR-0041 already performed for row-binding dispatch:
@@ -838,3 +838,49 @@ Then the two tasks this phase's own text had left blocked on that merge:
 
 Both tasks this phase's text had left open are now done - Phase 0 is
 complete pending PR review/merge.
+
+**Phase 1 implementation (2026-08-12)**: `ComposeAttribute<TProfile>` and
+`ComposeAttribute<TProfile, TConfig>` (+ `ConfigProfileBinder`) both ported
+byte-for-byte from `Compono.XunitV3`, adapted to `Compono.TUnit`'s base
+class shape. Stacked-attribute rejection added to
+`BindingPlan.ValidateSignature`, resolving the method's real `MethodInfo`
+via a parameter's `ReflectionInfo.Member` (or a `Type.GetMethod(name,
+Type.EmptyTypes)` fallback for a zero-parameter method) and counting
+`ComposeAttribute`-derived attributes on it.
+
+**Native AOT gate on `ConfigProfileBinder` (ADR-0041 Amendment 1) found a
+real gap, not a formality.** Extending the Phase 0 AOT smoke test to also
+exercise `[Compose<TProfile, TConfig>]` failed at runtime on first try:
+`CompositionException: 'ProfileConfig' must have exactly one public
+constructor to be used as profile configuration, but has 0` — the trimmer
+strips a closed generic type argument's public constructors by default
+unless something tells it they're reachable; "`ConstructorInfo.Invoke` on
+an already-known/non-generic `Type` is likely lower-risk than
+`MakeGenericMethod`" (this plan's own original hedge) was directionally
+right but not sufficient on its own. Fixed with
+`[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]`
+annotations on `ConfigProfileBinder`'s `Type`/generic-type-parameter
+inputs and on `ComposeAttribute<TProfile, TConfig>`'s own `TProfile`/
+`TConfig` type parameters — re-running the same `dotnet publish -c Release
+-p:PublishAot=true -r osx-arm64 --self-contained true` + run confirmed
+both `[Compose]` and `[Compose<TProfile, TConfig>]` now pass, with zero
+trim warnings from `Compono.TUnit`'s own code (`-p:TrimmerSingleWarn=false`
+still shows only the same two pre-existing harness-only `IL2072` warnings
+from Phase 0).
+
+The Goal-section scenario now runs for real:
+`test/Compono.TUnit.SampleTests/NSubstituteTests.cs` mirrors
+`Compono.XunitV3.SampleTests/NSubstituteTests.cs` exactly, added
+`Compono.NSubstitute` to that project's local-feed pack chain (relies on
+`PackageReference`'s default transitive-dependency flow for `NSubstitute`
+itself, same as the xUnit v3 sibling - no explicit `NSubstitute`
+`PackageReference` needed). Passed under a real TUnit runner across all
+four TFMs.
+
+Docs (`docs/packages/compono-tunit.md`,
+`skills/compono/references/tunit.md`) updated in the same change - the
+former "not part of this slice"/"stacking is undefined" language replaced
+with the shipped shape and the real stacked-attribute rejection behavior.
+
+Phase 1 is complete - every task checked off, full solution build/test
+green.
