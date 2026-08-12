@@ -56,3 +56,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0037](0037-netstandard2.1-compatibility-floor.md) | netstandard2.1 Compatibility Floor | Superseded by PLAN-0038 |
 | [0038](0038-net8-net9-explicit-multi-target.md) | net8.0/net9.0 Explicit Multi-Target | Done |
 | [0039](0039-future-extension-package-admission-gate-and-release-sequence.md) | Future Extension Package Admission Gate and Release Sequence | Done |
+| [0040](0040-compono-tunit-package-design.md) | Compono.TUnit Package Design | Not Started |
