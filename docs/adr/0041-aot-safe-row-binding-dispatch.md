@@ -249,3 +249,37 @@ flip `IsPackable` back once it lands.
   in-review Phase 0 implementation this ADR's design dive was triggered
   by, held pending this decision rather than merged with the
   `MakeGenericMethod` path.
+
+## Amendment 1 (2026-08-12): Native AOT requirement extended to the full attribute family
+
+This ADR's original Decision Outcome deferred
+`Compono.XunitV3.Binding.ConfigProfileBinder`'s `ConstructorInfo.Invoke`
+(used for `[Compose<TProfile, TConfig>]`'s `TConfig` construction) to
+"that phase's own design pass," on the reasoning that it doesn't exist in
+`Compono.TUnit` yet.
+
+That framing understated the requirement. `Compono.TUnit`'s Native AOT
+compatibility is a v1 release requirement for the package as a whole, not
+per-attribute — a consumer who is Native AOT/trimming compatible today
+must not lose that property by adding `Compono.TUnit`, regardless of
+which supported `[Compose]`-family attribute they use. Shipping
+`[Compose<TProfile, TConfig>]` in PLAN-0040 Phase 1 with an unexamined,
+possibly-AOT-unsafe construction path would mean the package's Native AOT
+claim only holds for the subset of consumers who happen not to reach for
+that attribute — the same category of gap this ADR exists to close for
+row-binding dispatch.
+
+Deferring the *implementation* to Phase 1 (this ADR's Scope stays row-
+binding dispatch only, per its own "smallest maintainable design" driver
+— `RowInvokerCache<T>` does not need to solve `ConfigProfileBinder`'s
+problem too) was correct. Deferring the *analysis*, without making it an
+explicit, non-optional gate on Phase 1 shipping, was not. PLAN-0040's
+Phase 1 task list now carries this explicitly: perform the same AOT
+analysis on `ConfigProfileBinder`/`ConstructorInfo.Invoke` this ADR
+performed for `MakeGenericMethod`-based dispatch; if it is not AOT-safe,
+design and implement the smallest AOT-safe replacement before
+`[Compose<TProfile, TConfig>]` ships, not after; and extend PLAN-0041's
+real `dotnet publish -p:PublishAot=true` + run smoke test to exercise
+`[Compose<TProfile, TConfig>]` specifically, so the package's final Native
+AOT claim is verified against every public Compose-family attribute it
+ships, not just the one this ADR's own scope covers.

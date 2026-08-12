@@ -67,6 +67,24 @@ driver — not part of this plan):
       `Compono.XunitV3.Binding.RowInvokers`' existing non-generic delegate
       shapes' *intent* but now generic in `T` since they live in core and
       must work for any composed type.
+- [ ] **`EditorBrowsable` decision, made deliberately, not by default.**
+      Neither `PlanCache<T>` nor `CollectionPlanCache<T>` — the two
+      existing "generator infrastructure, not consumer-facing" caches —
+      carry `[EditorBrowsable(EditorBrowsableState.Never)]` today; both
+      are plain `public static class`, documented via XML comments
+      explaining they're populated by generated module initializers.
+      Hiding only the new `RowInvokerCache<T>` would make it inconsistent
+      with its own two closest precedents, not aligned with an existing
+      convention. Two legitimate options, pick one explicitly during
+      implementation rather than defaulting silently: (a) leave
+      `RowInvokerCache<T>` undecorated, matching `PlanCache<T>`/
+      `CollectionPlanCache<T>` exactly, or (b) apply
+      `[EditorBrowsable(Never)]` to all three caches together, as its own
+      small, explicit consistency pass (arguably out of this plan's own
+      "row-binding dispatch" scope, and `PlanCache<T>`/
+      `CollectionPlanCache<T>`'s public API shape is already shipped, so
+      changing their attribution is a lower-risk but real docs/API-surface
+      change worth its own line in this plan's Critical Files if chosen).
 - [ ] **Generator**: extend `Compono.Generators`' per-discovered-type
       emission (wherever `PlanCache<T>.Instance = ...` is currently
       emitted) to also emit `RowInvokerCache<T>.Resolve/.ResolveShared/

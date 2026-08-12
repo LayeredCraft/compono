@@ -447,6 +447,27 @@ Each phase ships as its own PR, per `design-decisions.md`'s phase rule.
       inline values).
 - [ ] Extend `skills/compono/references/tunit.md` with profile-attribute
       guidance, matching `xunit-v3.md`'s equivalent sections.
+- [ ] **Native AOT gate on `ConfigProfileBinder` — a release requirement,
+      not optional polish (ADR-0041 Amendment 1).** `[Compose<TProfile,
+      TConfig>]`'s own `ConfigProfileBinder` needs the identical AOT
+      analysis ADR-0041 already performed for row-binding dispatch:
+      confirm whether its `ConstructorInfo.Invoke(object?[])`-based
+      `TConfig` construction is Native AOT-safe (unlike
+      `MakeGenericMethod`, `ConstructorInfo.Invoke` on an
+      already-known/non-generic `Type` is a materially different, likely
+      lower-risk case — but "likely" isn't good enough here; verify for
+      real, the same way ADR-0041 refused to assume the `[Shared]`-
+      detection reflection was safe without a real check). If it is not
+      AOT-safe, design and implement the smallest AOT-safe replacement
+      (per ADR-0041's own "smallest maintainable design" driver) *before*
+      `[Compose<TProfile, TConfig>]` ships in this phase — this attribute
+      does not merge until its own construction path clears the same bar
+      row-binding dispatch already had to. Extend PLAN-0041's real
+      `dotnet publish -p:PublishAot=true` + run smoke test to also
+      exercise `[Compose<TProfile, TConfig>]`, not just unqualified
+      `[Compose]` — the final `Compono.TUnit` Native AOT claim must cover
+      every public Compose-family attribute shipped, not just the one
+      Phase 0 introduced.
 
 ### Phase 2: Verification requiring the completed attribute family
 
