@@ -150,6 +150,32 @@ public sealed class BindingPlanTests
     }
 
     [Test]
+    public async Task Build_ResolvesTheNonGenericOverload_WhenAZeroParameterMethodNameIsAmbiguousWithAGenericOverload()
+    {
+        var method = typeof(SampleTestMethods).GetMethods()
+            .Single(candidate => candidate.Name == nameof(SampleTestMethods.AmbiguousZeroParameterMethod) && !candidate.IsGenericMethodDefinition);
+
+        var plan = BindingPlan.Build(MethodMetadataTestFactory.Create(method));
+
+        await Assert.That(plan.SignatureError).IsNull();
+    }
+
+    [Test]
+    public async Task Build_ReportsASignatureError_ForTheGenericOverload_WhenAZeroParameterMethodNameIsAmbiguousWithANonGenericOverload()
+    {
+        // Proves ResolveMethodInfo's zero-parameter fallback doesn't throw AmbiguousMatchException
+        // for this shape (it would, without also filtering by generic arity) - the generic-method
+        // check below is reached and produces its own clear error, rather than the whole
+        // BindingPlan.Build call crashing first.
+        var method = typeof(SampleTestMethods).GetMethods()
+            .Single(candidate => candidate.Name == nameof(SampleTestMethods.AmbiguousZeroParameterMethod) && candidate.IsGenericMethodDefinition);
+
+        var plan = BindingPlan.Build(MethodMetadataTestFactory.Create(method));
+
+        await Assert.That(plan.SignatureError).Contains("generic");
+    }
+
+    [Test]
     public async Task Build_ReportsASignatureError_ForComposeStackedWithTheTwoTypeParameterForm()
     {
         // Detection (method.GetCustomAttributes<ComposeAttribute>()) already covers this form

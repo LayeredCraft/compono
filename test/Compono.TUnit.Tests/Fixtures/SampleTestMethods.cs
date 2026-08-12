@@ -81,6 +81,19 @@ internal static class SampleTestMethods
     {
     }
 
+    // Two zero-parameter overloads sharing a name, distinguished only by generic arity -
+    // BindingPlan's own zero-parameter method-resolution fallback matches by parameter *types* only
+    // (Type.EmptyTypes), which doesn't distinguish these; without also filtering by generic arity,
+    // Type.GetMethod(name, Type.EmptyTypes) throws AmbiguousMatchException for this exact shape,
+    // crashing before the generic-method signature check even runs (Codex review).
+    public static void AmbiguousZeroParameterMethod()
+    {
+    }
+
+    public static void AmbiguousZeroParameterMethod<T>()
+    {
+    }
+
     // Same reasoning as WithMultipleComposeAttributes above, pairing the two-type-parameter form
     // with the plain one instead of the one-type-parameter form - proves BindingPlan's stacking
     // detection (and its message) covers ComposeAttribute<TProfile, TConfig> too, not just the

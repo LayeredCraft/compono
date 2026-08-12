@@ -143,14 +143,24 @@ internal sealed class BindingPlan
     // A parameter's own ReflectionInfo.Member is always the declaring MethodInfo - the cheapest
     // possible lookup, and correct even for an overloaded method name, since it's the exact
     // MethodInfo TUnit itself resolved this parameter from. A zero-parameter method has no
-    // parameter to read that from, so falls back to a direct Type.GetMethod(name, Type.EmptyTypes)
-    // lookup instead - unambiguous specifically because a zero-parameter overload's signature has
-    // nothing else to disambiguate on.
-    private static MethodInfo? ResolveMethodInfo(MethodMetadata testInformation, ParameterMetadata[] parameters) =>
-        parameters.Length > 0
-            ? parameters[0].ReflectionInfo.Member as MethodInfo
-            : testInformation.Class.Type.GetMethod(
-                testInformation.Name,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly,
-                Type.EmptyTypes);
+    // parameter to read that from, so falls back to a direct lookup instead - but
+    // Type.GetMethod(name, Type.EmptyTypes) matches by parameter *types* only, not generic arity, so
+    // a class declaring both a zero-parameter Run() and a zero-parameter-but-generic Run<T>() throws
+    // AmbiguousMatchException instead of returning either - before the generic-method check above
+    // even gets a chance to produce its own clear CompositionException (Codex review). Filtering
+    // GetMethods() by both zero declared parameters and testInformation.GenericTypeCount (this
+    // specific test's own arity, whether zero or not) disambiguates that case the same way the
+    // compiler already did to produce this exact MethodMetadata.
+    private static MethodInfo? ResolveMethodInfo(MethodMetadata testInformation, ParameterMetadata[] parameters)
+    {
+        if (parameters.Length > 0)
+            return parameters[0].ReflectionInfo.Member as MethodInfo;
+
+        return testInformation.Class.Type
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .FirstOrDefault(candidate =>
+                candidate.Name == testInformation.Name &&
+                candidate.GetParameters().Length == 0 &&
+                (candidate.IsGenericMethodDefinition ? candidate.GetGenericArguments().Length : 0) == testInformation.GenericTypeCount);
+    }
 }
