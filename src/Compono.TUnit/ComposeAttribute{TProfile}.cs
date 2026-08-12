@@ -29,5 +29,23 @@ public sealed class ComposeAttribute<TProfile> : ComposeAttribute
     {
     }
 
-    internal override void ApplyProfile(CompositionBuilder builder) => builder.AddProfile<TProfile>();
+    internal override void ApplyProfile(CompositionBuilder builder)
+    {
+        try
+        {
+            builder.AddProfile<TProfile>();
+        }
+        catch (CompositionException exception)
+        {
+            // ApplyProfile runs while the base class's Lazy<Composer> is still being built - before
+            // ComposeRow ever calls Composer.CreateRow, so no CompositionRow/row.Seed exists yet at
+            // this point. TProfile.Configure throwing here (e.g. a bad registration) must still end
+            // with the "Seed: {value}" convention every Compono.TUnit-owned pre-composition failure
+            // uses, matching ComposeAttribute<TProfile, TConfig>'s identical wrapping for its own
+            // ApplyProfile failures - otherwise even a configured Seed goes unreported for this
+            // profile form specifically (Codex review).
+            var seed = SeedAsNullable ?? Random.Shared.Next(0, int.MaxValue);
+            throw CompositionException.WithSeedInMessage(exception, seed);
+        }
+    }
 }

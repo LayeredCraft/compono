@@ -26,6 +26,23 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [Test]
+    public async Task GetDataRowsAsync_AppendsTheConfiguredSeed_WhenAFixedProfileFailsBeforeARowExists()
+    {
+        // ComposeAttribute<TProfile>.ApplyProfile runs while the base class's Lazy<Composer> is
+        // still being built - before ComposeRow ever calls Composer.CreateRow, so there's no
+        // CompositionRow/row.Seed to read from yet when TProfile.Configure itself throws. Every
+        // Compono.TUnit-owned pre-composition failure ends with "Seed: {value}" - this proves that
+        // convention holds for the fixed-profile form too, not just ComposeAttribute<TProfile,
+        // TConfig>'s own identical wrapping.
+        var attribute = new ComposeAttribute<SampleTestMethods.ThrowingConfigureTestProfile> { Seed = 492173 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+
+        await Assert.That(() => SingleRow(attribute, method)).Throws<CompositionException>()
+            .WithMessageContaining("custom profile configuration failed").And
+            .WithMessageContaining("Seed: 492173");
+    }
+
+    [Test]
     public async Task GetDataRowsAsync_ConstructsProfileFromConfig_AndComposesEveryTestParameter()
     {
         var attribute = new ComposeAttribute<SampleTestMethods.ParameterizedTestProfile, SampleTestMethods.TestConfig>("from-config");
