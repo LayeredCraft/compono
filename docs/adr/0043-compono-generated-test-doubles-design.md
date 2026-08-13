@@ -1292,6 +1292,56 @@ mechanism.
 PLAN-0043 is updated in the same pass as this Amendment to reflect both
 corrections above.
 
+## Amendment 9 (2026-08-13): preserve `init`/get-only accessor kind, escape member names in the explicit interface implementation too
+
+An eighth PR #82 review pass (Codex, two more P1 findings, still before any
+implementation code existed) caught two real gaps — both extensions of
+already-decided mechanisms, not new design forks. All prior Amendment text
+is left exactly as written, per the same immutability rule already
+followed seven times above.
+
+**Finding U — `init` accessors weren't preserved.** Amendment 7's property
+design assumed `{ get; set; }` uniformly. An interface property declared
+`{ get; init; }` is common (immutable-style DTOs) and cannot be
+implemented with a `set` accessor — `init` and `set` are distinct,
+non-interchangeable accessor kinds; emitting `set` for an interface that
+declares `init` fails to implement the interface at all.
+
+**Corrected:** the generated double's explicit interface implementation
+preserves whichever accessor kind the interface actually declares —
+`get`-only, `get`/`set`, or `get`/`init` — routing an `init` body through
+the exact same `ReturnConfigBuilder<T>.Returns` call Amendment 8's setter
+fix already established; only the emitted keyword changes, not the
+mechanism. A `get`-only property needs no write path through the double at
+all — it's configurable only via `Configure().Name().Returns(...)`/
+`.Throws(...)`, the same as an ordinary method already is.
+
+```csharp
+string? IOptions.Name
+{
+    get => __name.HasConfiguredException ? throw __name.ConfiguredException
+        : __name.HasConfiguredValue ? __name.ConfiguredValue
+        : default;
+    init => new global::Compono.ReturnConfigBuilder<string?>(ref __name).Returns(value);
+}
+```
+
+**Finding V — keyword escaping covered the configuration extension's
+member name but not the explicit interface implementation's.** Amendment 6
+Finding O added `EscapeIdentifier`-based escaping for a keyword-shaped
+member name (`@new`) in the generated configuration extension, but the
+explicit interface implementation itself also emits the member name
+(`int IFoo.new()`) and was never covered — still invalid source for the
+exact same member.
+
+**Corrected:** the same escaping applies at every site a member's name is
+emitted as a C# identifier — the explicit interface implementation
+declaration and the configuration extension both, not just the one
+Amendment 6 happened to fix first.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect both
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the

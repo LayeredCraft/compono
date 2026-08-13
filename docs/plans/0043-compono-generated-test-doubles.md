@@ -86,13 +86,19 @@ worth its own phase if it turns out to need more than that.
         getter-only-with-no-op-setter): the getter and setter share one
         `ReturnConfig<T>` field, the getter returns whatever was last set
         or the deterministic default, `Configure().<PropertyName>().Returns(...)`/
-        `.Throws(...)` still work as an explicit override. **The setter
-        does *not* touch `ReturnConfig<T>`'s internal fields directly**
-        (Amendment 7's own sketch did, and reintroduced Amendment 3's
-        cross-assembly `CS0122` defect for writes — corrected by Amendment
-        8 Finding S) — it constructs a `ReturnConfigBuilder<T>` (public
-        constructor) and calls its public `Returns` method, the same
-        public surface the external `Configure()` path already uses.
+        `.Throws(...)` still work as an explicit override. **The write
+        accessor's exact kind (`set` vs. `init`) must match what the
+        interface actually declares** (Amendment 9 Finding U — `init` and
+        `set` are non-interchangeable; emitting the wrong one fails to
+        implement the interface) — a `get`-only property gets no write
+        accessor at all, configurable only via `Configure()`, same as a
+        method. Neither write accessor touches `ReturnConfig<T>`'s
+        internal fields directly (Amendment 7's own sketch did, and
+        reintroduced Amendment 3's cross-assembly `CS0122` defect for
+        writes — corrected by Amendment 8 Finding S) — both construct a
+        `ReturnConfigBuilder<T>` (public constructor) and call its public
+        `Returns` method, the same public surface the external
+        `Configure()` path already uses.
       - `internal static class <Hash>_DoubleConfiguration` — per-member
         configuration extensions (`FindAsync()`/`Save()`/property names,
         no parameters — argument-independent per Amendment 2 Finding 4;
@@ -104,6 +110,11 @@ worth its own phase if it turns out to need more than that.
         generalized rather than duplicated (Amendment 6 Finding O — an
         interface member like `@new` must round-trip through its generated
         extension's name too, not just through generated type names).
+        **The same escaping applies to the member name in the explicit
+        interface implementation too** (Amendment 9 Finding V — Amendment 6
+        only covered the configuration extension; `int IFoo.new()` is
+        still invalid without it), not just the type-name half Amendment 5
+        Finding J covers.
       - `internal static class <Hash>_ConfigureExtension` — the
         `Configure(this IRepository)` bridge (Amendment 1, corrected
         target type by Amendment 2), whose cast-failure exception message
@@ -431,5 +442,22 @@ still before any implementation code was written:
    reusing the exact `Compilation.IsSymbolAccessibleWithin` check this repo
    already applies identically to generated collection plans and
    row-invoker registrations.
+
+An eighth review pass caught two more real gaps, both extensions of
+already-decided mechanisms rather than new forks, corrected via
+[ADR-0043 Amendment 9](../adr/0043-compono-generated-test-doubles-design.md#amendment-9-2026-08-13-preserve-initget-only-accessor-kind-escape-member-names-in-the-explicit-interface-implementation-too),
+still before any implementation code was written:
+
+1. `init` accessors weren't preserved — Amendment 7's property design
+   assumed `{ get; set; }` uniformly, but `init` and `set` are
+   non-interchangeable; a `{ get; init; }` interface property would have
+   failed to be implemented. Fixed by preserving whichever accessor kind
+   the interface actually declares, routing `init` through the same
+   `ReturnConfigBuilder<T>.Returns` call the setter already uses.
+2. Keyword escaping (Amendment 6) covered the configuration extension's
+   member name but not the explicit interface implementation's — `int
+   IFoo.new()` was still invalid. Fixed by applying the same escaping at
+   every site a member name is emitted, not just the one Amendment 6
+   happened to fix first.
 
 This plan's task list above already reflects the fully-corrected shape.
