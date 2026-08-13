@@ -654,4 +654,53 @@ be listed), a handful of missing `<param>` XML doc tags on the new model
 records, and `docs/reference/api/` needed regenerating for the new public
 `Compono.ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`/`Unit` surface.
 
+## PR #83 review round 2 (2026-08-13)
+
+Codex caught five more real gaps in `TestDoubleDefaults`/`TestDoubleAnalyzer`,
+all fixed:
+
+1. **`ValueTask<T>`/`ValueTask` are themselves structs**, so the generic
+   `type.IsValueType → default` fallback fired before the `ValueTask`-specific
+   branch further down the method ever ran - `ValueTask<string>` silently
+   returned a `ValueTask` wrapping `null` instead of either the deterministic
+   default for `string`'s own shape or the non-nullable-reference diagnostic.
+   Fixed by moving the `Task`/`ValueTask` checks ahead of the generic
+   value-type fallback.
+2. **A nullable-annotated collection (`List<int>?`, `int[]?`) hit the
+   nullable-reference fallback first** and returned `null`, contradicting
+   "empty collections never null." Fixed by moving the collection-shape
+   checks ahead of the nullable-reference fallback - a nullable-annotated
+   collection now gets `[]` same as a non-nullable one.
+3. **A multi-dimensional array (`int[,]`) matched the same `IArrayTypeSymbol → []`
+   branch as an ordinary array**, but C# collection expressions only target
+   rank-1 arrays - the generated double would have failed to compile. Fixed
+   by restricting the `[]` default to `Rank: 1` and falling through to the
+   unsupported-return-shape diagnostic otherwise.
+4. **A private default-implemented interface method** (`private int Helper() => 1;`,
+   a C# 8+ default interface member) was only excluded by the *static* check,
+   not by accessibility - a private (or otherwise non-public) instance
+   default member isn't part of any implementing type's contract and can't
+   be explicitly implemented at all, so the double failed to compile. Fixed
+   by skipping any non-abstract, non-public member (both methods and
+   properties, for the same reason).
+5. **The `Configure`-name collision check was name-only, not arity-aware.**
+   Verified directly with a real compile spike before fixing (not taken on
+   faith): an interface's own `Configure(int mode)`, explicitly implemented
+   on a concrete type, alongside a zero-argument `Configure(this IFoo)`
+   extension - `foo.Configure()` on an `IFoo`-typed receiver resolves to the
+   extension without ambiguity or error. C# only falls back to extension-method
+   resolution when ordinary member lookup finds no *applicable* candidate,
+   not merely "no candidate with this name," so a differently-shaped
+   `Configure` member never actually shadows the bridge. The blanket
+   name-only check over-rejected valid interfaces. Fixed to flag a collision
+   only when the interface's own `Configure` member is non-method (property/
+   field/event - always collides, since member lookup never falls back to
+   extensions for a non-method name at all) or a zero-parameter method.
+
+Six new tests added (one Verify() golden-path test for finding 5's fix
+doubled as proof both `Configure()` extensions - the bridge and the member's
+own config extension - coexist without ambiguity, since they have different
+receiver types). `TestDoubleVerifyTests` is now 16 tests, all green on both
+target frameworks. Full solution: 1945/1945 tests pass.
+
 Phase 1 (`Compono.TestDoubles` runtime package) is next.

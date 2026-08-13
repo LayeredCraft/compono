@@ -35,10 +35,18 @@ internal static class TestDoubleAnalyzer
         var closure = new List<INamedTypeSymbol> { interfaceType };
         closure.AddRange(interfaceType.AllInterfaces);
 
-        // An interface member (of any kind) literally named "Configure" would silently shadow the
-        // generated Configure() bridge - instance members always win over extension methods in
-        // overload resolution. Amendment 3, Finding E.
-        if (closure.SelectMany(i => i.GetMembers()).Any(m => m.Name == "Configure"))
+        // A member literally named "Configure" only actually shadows the generated, always-zero-
+        // argument Configure() bridge extension when it's itself applicable to a zero-argument call -
+        // a property/field/event named Configure always collides (member lookup finds it and never
+        // falls back to extension methods for that name at all), but a *method* named Configure with
+        // one or more parameters does not: C# only falls back to extension-method resolution when
+        // ordinary member lookup finds no *applicable* candidate, not merely "no candidate with this
+        // name" - verified directly with a real compile spike (an explicitly-implemented
+        // `IFoo.Configure(int mode)` alongside a zero-argument `Configure(this IFoo)` extension: calling
+        // `foo.Configure()` on an IFoo-typed receiver resolves to the extension without ambiguity).
+        // Amendment 3, Finding E; corrected to compare arity, not just name, PR #83 review round 2.
+        if (closure.SelectMany(i => i.GetMembers())
+            .Any(m => m.Name == "Configure" && m is not IMethodSymbol { Parameters.Length: > 0 }))
         {
             return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                 DiagnosticDescriptors.TestDoubleConfigureMemberCollision, location, interfaceType.ToDisplayString()));
@@ -101,6 +109,17 @@ internal static class TestDoubleAnalyzer
                         // reaching here is necessarily non-abstract (a concrete default
                         // implementation), not part of the instance contract a double implements.
                         if (method.IsStatic)
+                            continue;
+
+                        // A non-abstract instance member with a default implementation (C# 8+ default
+                        // interface members) that isn't public - most commonly `private` - is never
+                        // part of any implementing type's contract at all; it's only callable from
+                        // within the interface's own other default implementations. Explicitly
+                        // implementing it (`ReturnType IFoo.Helper()`) is both unnecessary and invalid,
+                        // since a private interface member isn't accessible outside the interface to
+                        // begin with - skip it silently, same as a non-abstract static member.
+                        // PR #83 review round 2.
+                        if (!method.IsAbstract && method.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
                         if (duplicateConfigurationMemberNames.Contains(method.Name))
@@ -219,6 +238,12 @@ internal static class TestDoubleAnalyzer
 
                             continue;
                         }
+
+                        // Same reasoning as the method branch above - a non-public default-implemented
+                        // property isn't part of any implementing type's contract and can't be
+                        // explicitly implemented. PR #83 review round 2.
+                        if (!property.IsAbstract && property.DeclaredAccessibility != Accessibility.Public)
+                            continue;
 
                         if (duplicateConfigurationMemberNames.Contains(property.Name))
                         {
