@@ -81,7 +81,13 @@ worth its own phase if it turns out to need more than that.
         it for this one type too.
       - `internal static class <Hash>_DoubleConfiguration` — per-member
         configuration extensions (`FindAsync()`/`Save()`, no parameters —
-        argument-independent per Amendment 2 Finding 4).
+        argument-independent per Amendment 2 Finding 4). Member names reuse
+        `RequiredMemberCollector.EscapeIdentifier`'s existing
+        `SyntaxFacts.GetKeywordKind`-based `@`-escaping convention
+        (`src/Compono.Generators/Discovery/RequiredMemberCollector.cs`),
+        generalized rather than duplicated (Amendment 6 Finding O — an
+        interface member like `@new` must round-trip through its generated
+        extension's name too, not just through generated type names).
       - `internal static class <Hash>_ConfigureExtension` — the
         `Configure(this IRepository)` bridge (Amendment 1, corrected
         target type by Amendment 2), whose cast-failure exception message
@@ -131,13 +137,22 @@ worth its own phase if it turns out to need more than that.
       exists for these; diagnose and reject rather than emit `null` or
       attempt real composition) — leaf still defers to the unchanged
       runtime-provider path.
-- [ ] Compile-time diagnostic for an interface member whose name/signature
-      collides with an inherited `object` member (`GetHashCode()`,
-      `ToString()`, `Equals(object)`, `GetType()` — Amendment 5 Finding L)
-      — same "instance member always wins over extension" shadowing as the
+- [ ] Compile-time diagnostic for an interface member whose **generated,
+      zero-argument extension** collides with an inherited `object` member
+      (`GetHashCode()`, `ToString()`, `Equals(object)`, `GetType()` —
+      Amendment 5 Finding L, corrected by Amendment 6 Finding N) — same
+      "instance member always wins over extension" shadowing as the
       `Configure()` collision above, just against `object` instead of the
-      interface's own declared members — leaf still defers to the
-      unchanged runtime-provider path.
+      interface's own declared members. **Compare the generated (always
+      zero-argument, per Amendment 2 Finding 4) extension's name against
+      `object`'s members — not the interface member's own declared
+      signature** — Amendment 6 Finding N: e.g. `int ToString(int format)`
+      is not `object.ToString()` as declared, but its zero-argument
+      generated extension collides with it; `Equals(object obj)`'s
+      zero-argument generated extension does **not** collide with
+      `object.Equals(object)` (one parameter), so checking the original
+      interface signature both under- and over-diagnoses. Leaf still
+      defers to the unchanged runtime-provider path.
 
 ### Phase 1 — Runtime package (`Compono.TestDoubles`)
 
@@ -335,5 +350,25 @@ still before any implementation code was written:
    `RowInvokerRegistry` — added as a Phase 3 doc task (not made now, since
    the registry doesn't exist yet and `docs/architecture/current/*.md`
    describes only shipped behavior).
+
+A fifth review pass caught two more real gaps in Amendment 5's own fixes
+plus a stale cross-reference, corrected via
+[ADR-0043 Amendment 6](../adr/0043-compono-generated-test-doubles-design.md#amendment-6-2026-08-13-object-collision-check-compares-generated-signatures-keyword-escaped-member-names),
+still before any implementation code was written:
+
+1. Amendment 5's `object`-collision check compared the *interface
+   member's* declared signature — but every configuration extension is
+   always zero-argument (Amendment 2 Finding 4), so the check needs to
+   compare the *generated* signature instead: `int ToString(int format)`
+   wasn't flagged but should have been (its generated extension collides);
+   `Equals(object)` was flagged but shouldn't have been (its generated
+   extension doesn't).
+2. Amendment 5 added identifier escaping for generated type names but not
+   member names — an interface member like `@new` needs the same
+   treatment, reusing this repo's existing
+   `RequiredMemberCollector.EscapeIdentifier` convention.
+
+`future-packages.md`'s "two Amendments" reference was also corrected to
+avoid hardcoding a count that will keep going stale.
 
 This plan's task list above already reflects the fully-corrected shape.

@@ -64,8 +64,9 @@ to reach roadmap-item status since — see below.
   Problem recorded in [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)
   (`Accepted`). The deep-design pass is decided in
   [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)
-  (`Accepted`, two Amendments — both pre-implementation review corrections,
-  no code written yet): a distinct-receiver-type control surface (no
+  (`Accepted`, with amendments — all pre-implementation review corrections,
+  no code written yet; see the ADR's own Amendment history for the current
+  count): a distinct-receiver-type control surface (no
   interception — proven viable by a real spike, but rejected as unnecessary
   once the generated double implements its interface directly), `[Shared]
   IRepository` unchanged plus a generator-emitted `Configure(...)` bridge

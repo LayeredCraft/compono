@@ -1109,6 +1109,53 @@ doesn't exist yet.
 PLAN-0043 is updated in the same pass as this Amendment to reflect all four
 corrections above.
 
+## Amendment 6 (2026-08-13): object-collision check compares generated signatures, keyword-escaped member names
+
+A fifth PR #82 review pass (Codex, three P2 findings, still before any
+implementation code existed) caught two further real gaps in Amendment 5's
+own fixes, plus a stale cross-reference. All prior Amendment text is left
+exactly as written, per the same immutability rule already followed four
+times above.
+
+**Finding N — Amendment 5 Finding L's `object`-collision check compared
+the wrong signature.** Every configuration extension drops the interface
+member's own parameters entirely (Amendment 2 Finding 4's argument-
+independent decision) — the generated extension is always zero-argument,
+regardless of the original member's arity. Amendment 5 Finding L's fix
+diagnosed a collision by checking the *interface member's own* name and
+signature against `object`'s members, but that's not what actually
+collides at the call site: an interface member like `int ToString(int format)`
+is not, as declared, `object.ToString()` — different arity — so it
+wouldn't have been flagged, yet its *generated* extension
+(`ToString(this <Double> self)`, zero arguments) collides with
+`object.ToString()` exactly the same way the original `Configure()`
+collision did. The reverse also happens: `Equals(object obj)`'s generated
+extension is zero-argument too, and does **not** collide with
+`object.Equals(object)` (which takes one parameter) — Finding L's fix as
+written would have rejected this member unnecessarily, a false positive.
+
+**Corrected:** the collision check compares each member's *generated*,
+zero-argument extension signature (name only, since arity is always zero
+after argument-independence) against `object`'s own instance members —
+not the interface member's original declared signature.
+
+**Finding O — keyword-named generated members need identifier escaping.**
+Amendment 5 Finding J added identifier escaping for generated *type* names,
+but the same problem exists for generated *member* names: an interface
+member named `@new` (a valid C# identifier requiring `@`-escaping because
+`new` is a reserved keyword) would have its configuration extension emitted
+using the member's raw name, producing invalid consumer source
+(`public static ... new(this ...)` is a syntax error, not a valid method
+declaration).
+
+**Corrected:** the same identifier-escaping treatment (via the existing
+`@`-prefix convention this codebase already uses for a keyword-shaped
+identifier, generalized rather than duplicated) applies to generated
+per-member configuration extension names, not just generated type names.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect both
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
