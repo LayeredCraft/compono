@@ -103,3 +103,5 @@ the mechanics: numbering, status, and the index.
 | [0039](0039-future-extension-package-admission-gate-and-release-sequence.md) | Future Extension Package Admission Gate and Release Sequence | Accepted |
 | [0040](0040-compono-tunit-package-design.md) | Compono.TUnit Package Design | Accepted |
 | [0041](0041-aot-safe-row-binding-dispatch.md) | AOT-Safe Row-Binding Dispatch | Accepted |
+| [0042](0042-compono-owned-source-generated-test-doubles.md) | Compono-Owned Source-Generated Test Doubles | Accepted |
+| [0043](0043-compono-generated-test-doubles-design.md) | Compono-Generated Test Doubles: Design | Accepted |
