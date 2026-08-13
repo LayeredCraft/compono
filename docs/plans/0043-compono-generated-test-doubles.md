@@ -47,7 +47,9 @@ worth its own phase if it turns out to need more than that.
       dispatch code to read; Amendment 3 Finding A), `ReturnConfigBuilder<T>`
       (a `public readonly ref struct` holding a `ref ReturnConfig<T>`, public
       constructor — Amendment 3 Finding A — whose `Returns` sets **both**
-      `Value` and `HasValue`, Amendment 3 Finding B), and
+      `Value` and `HasValue` (Amendment 3 Finding B) **and clears any
+      previously-set `Exception`, and whose `Throws` clears `HasValue`**
+      (last-configuration-wins — Amendment 7 Finding R), and
       `GeneratedTestDoubleRegistry` (`RegisterFactory<T>(Func<T> factory)`/
       `TryCreate(Type requestedType, out object? value)`, `Type`-keyed,
       first-registration-wins — Amendment 3 Finding C documents this as a
@@ -78,10 +80,22 @@ worth its own phase if it turns out to need more than that.
         `public readonly struct Unit` from the start — not `internal`,
         per Amendment 4 Finding H, applying Amendment 3's own
         cross-assembly-accessibility lesson up front rather than missing
-        it for this one type too.
+        it for this one type too. **A read/write property gets real
+        auto-property semantics** (Amendment 7 Finding Q, confirmed with
+        the requester over two alternatives — properties-unsupported, and
+        getter-only-with-no-op-setter): the getter and setter share one
+        `ReturnConfig<T>` field, the setter stores whatever's set
+        (`Value = value; HasValue = true; Exception = null;`), the getter
+        returns whatever was last set or the deterministic default,
+        `Configure().<PropertyName>().Returns(...)`/`.Throws(...)` still
+        work as an explicit override — accessors access the field
+        directly (same file, same assembly), no public builder needed for
+        the accessors themselves.
       - `internal static class <Hash>_DoubleConfiguration` — per-member
-        configuration extensions (`FindAsync()`/`Save()`, no parameters —
-        argument-independent per Amendment 2 Finding 4). Member names reuse
+        configuration extensions (`FindAsync()`/`Save()`/property names,
+        no parameters — argument-independent per Amendment 2 Finding 4;
+        a property's configuration extension is method-shaped exactly
+        like an ordinary member's, no special-casing). Member names reuse
         `RequiredMemberCollector.EscapeIdentifier`'s existing
         `SyntaxFacts.GetKeywordKind`-based `@`-escaping convention
         (`src/Compono.Generators/Discovery/RequiredMemberCollector.cs`),
@@ -370,5 +384,23 @@ still before any implementation code was written:
 
 `future-packages.md`'s "two Amendments" reference was also corrected to
 avoid hardcoding a count that will keep going stale.
+
+A sixth review pass caught one genuine undecided design question and one
+clean bug, corrected via
+[ADR-0043 Amendment 7](../adr/0043-compono-generated-test-doubles-design.md#amendment-7-2026-08-13-property-accessor-semantics-decided-last-configuration-wins),
+still before any implementation code was written:
+
+1. Read/write properties were never actually specified — every generated-
+   code sketch only covered methods, and properties were neither diagnosed
+   as unsupported nor given a decided accessor contract. Confirmed with
+   the requester over two alternatives (unsupported-for-v1, getter-only
+   with a no-op setter): real auto-property semantics — the setter stores,
+   the getter returns what was last set (or the default), `Returns`/
+   `Throws` still work as an explicit override.
+2. Repeated configuration left stale state — `Returns` after an earlier
+   `Throws` on the same member was silently ignored, since `Returns` never
+   cleared the exception and dispatch checks it first — fixed with
+   last-configuration-wins semantics (each setter now clears the other's
+   state).
 
 This plan's task list above already reflects the fully-corrected shape.

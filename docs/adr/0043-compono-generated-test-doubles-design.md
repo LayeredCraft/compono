@@ -1156,6 +1156,86 @@ per-member configuration extension names, not just generated type names.
 PLAN-0043 is updated in the same pass as this Amendment to reflect both
 corrections above.
 
+## Amendment 7 (2026-08-13): property accessor semantics decided, last-configuration-wins
+
+A sixth PR #82 review pass (Codex, two P2 findings, still before any
+implementation code existed) caught one genuine undecided design question
+and one clean bug. All prior Amendment text is left exactly as written,
+per the same immutability rule already followed five times above.
+
+**Finding Q — read/write properties were never actually specified.** Every
+generated-code sketch in this ADR walks through ordinary methods; read/write
+properties (`string? Name { get; set; }`) were part of v1's originally
+scoped required feature set (the Gate A admission check's minimum-feature-
+set analysis) but the unsupported-shape diagnostic list never rejects them
+either — leaving a real gap where implementation would have had to invent,
+un-reviewed, whether the getter reads configured state, whether the setter
+is a no-op, and whether `Throws` applies to one or both accessors.
+
+**Decided (confirmed directly with the requester, over two other real
+options — diagnosing properties as unsupported for v1, or a getter-only
+"setter is a no-op" shape, both considered and rejected): real
+auto-property semantics.** A property's setter stores whatever value is
+set; its getter returns whatever was most recently set, or the
+deterministic default if the property was never touched — the same
+`ReturnConfig<T>` slot backs both accessors, and `Configure().Name().Returns(...)`/
+`.Throws(...)` still work as an explicit override, exactly like a method.
+This was chosen because it's the least-surprising behavior for a "double"
+specifically — a consumer that writes to a property and reads it back gets
+what it wrote, rather than an unrelated configured value or nothing at
+all — and it needed no new mechanism: the getter/setter live in the same
+generated file as the double's other members, so they access `ReturnConfig<T>`'s
+internal fields directly (same-assembly access, no cross-assembly concern
+Amendment 3 had to solve for the public configuration surface).
+
+```csharp
+// Inside <Hash>_Double, same file as everything else this feature generates.
+string? IOptions.Name
+{
+    get => __name.HasConfiguredException ? throw __name.ConfiguredException
+        : __name.HasConfiguredValue ? __name.ConfiguredValue
+        : default;
+    set { __name.Value = value; __name.HasValue = true; __name.Exception = null; }
+}
+```
+
+```csharp
+// Configuration extension - same shape as a method's, no special-casing.
+internal static class <Hash>_DoubleConfiguration
+{
+    public static global::Compono.ReturnConfigBuilder<string?> Name(this <Hash>_Double self) =>
+        new(ref self.__name);
+}
+```
+
+**Finding R — repeated configuration left stale state, order-dependent.**
+`ReturnConfigBuilder<T>.Returns` sets `Value`/`HasValue` but never clears a
+previously-set `Exception`; `Throws` sets `Exception` but never clears
+`HasValue`. Since dispatch checks `HasConfiguredException` first, calling
+`Returns(...)` after an earlier `Throws(...)` on the same member would be
+silently ignored — the member keeps throwing regardless of the later call.
+
+**Corrected: last-configuration-wins**, each setter now clears the other's
+state (the property setter above already reflects this fix):
+
+```csharp
+public void Returns(T value)
+{
+    _slot.Value = value;
+    _slot.HasValue = true;
+    _slot.Exception = null;
+}
+
+public void Throws(Exception exception)
+{
+    _slot.Exception = exception;
+    _slot.HasValue = false;
+}
+```
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect both
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
