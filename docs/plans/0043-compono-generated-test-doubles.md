@@ -84,13 +84,15 @@ worth its own phase if it turns out to need more than that.
         auto-property semantics** (Amendment 7 Finding Q, confirmed with
         the requester over two alternatives — properties-unsupported, and
         getter-only-with-no-op-setter): the getter and setter share one
-        `ReturnConfig<T>` field, the setter stores whatever's set
-        (`Value = value; HasValue = true; Exception = null;`), the getter
-        returns whatever was last set or the deterministic default,
-        `Configure().<PropertyName>().Returns(...)`/`.Throws(...)` still
-        work as an explicit override — accessors access the field
-        directly (same file, same assembly), no public builder needed for
-        the accessors themselves.
+        `ReturnConfig<T>` field, the getter returns whatever was last set
+        or the deterministic default, `Configure().<PropertyName>().Returns(...)`/
+        `.Throws(...)` still work as an explicit override. **The setter
+        does *not* touch `ReturnConfig<T>`'s internal fields directly**
+        (Amendment 7's own sketch did, and reintroduced Amendment 3's
+        cross-assembly `CS0122` defect for writes — corrected by Amendment
+        8 Finding S) — it constructs a `ReturnConfigBuilder<T>` (public
+        constructor) and calls its public `Returns` method, the same
+        public surface the external `Configure()` path already uses.
       - `internal static class <Hash>_DoubleConfiguration` — per-member
         configuration extensions (`FindAsync()`/`Save()`/property names,
         no parameters — argument-independent per Amendment 2 Finding 4;
@@ -121,6 +123,14 @@ worth its own phase if it turns out to need more than that.
       - Deduplicated per distinct interface symbol across the compilation
         (same `.Collect()` + `SymbolEqualityComparer` pattern used
         elsewhere in the generator).
+- [ ] Compile-time diagnostic for an interface **inaccessible to a
+      top-level generated type** (Amendment 8 Finding T — a `private`/
+      `protected` nested interface is a legal call-site request but a
+      top-level double can never implement it) — reuse the existing
+      `compilation.IsSymbolAccessibleWithin(...)` check already used for
+      generated collection plans and row-invoker registrations
+      (`TransitiveClosureWalker.ToDiscoveredCollectionInfo`), not a new
+      mechanism; leaf still defers to the unchanged runtime-provider path.
 - [ ] Deterministic-default logic per ADR-0043's "Deterministic defaults"
       (primitives, nullable refs, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`,
       empty collections never `null`). **Non-nullable reference returns
@@ -402,5 +412,24 @@ still before any implementation code was written:
    cleared the exception and dispatch checks it first — fixed with
    last-configuration-wins semantics (each setter now clears the other's
    state).
+
+A seventh review pass caught one repeat of an already-fixed defect class
+and one real gap this repo already has precedent for closing, corrected via
+[ADR-0043 Amendment 8](../adr/0043-compono-generated-test-doubles-design.md#amendment-8-2026-08-13-property-setter-routed-through-the-public-builder-inaccessible-interface-diagnostic),
+still before any implementation code was written:
+
+1. Amendment 7's property setter directly mutated `ReturnConfig<T>`'s
+   `internal` fields — the exact cross-assembly `CS0122` defect Amendment 3
+   fixed for reads, reintroduced for writes because Amendment 7 conflated
+   "the struct instance is stored in the consumer's generated file" with
+   "the struct's type is defined in that same assembly" (it isn't —
+   `ReturnConfig<T>` is core). Fixed by routing the setter through the
+   existing public `ReturnConfigBuilder<T>` constructor + `Returns` method
+   instead — no new core API.
+2. No diagnostic existed for an interface inaccessible to a top-level
+   generated type (a `private`/`protected` nested interface) — fixed by
+   reusing the exact `Compilation.IsSymbolAccessibleWithin` check this repo
+   already applies identically to generated collection plans and
+   row-invoker registrations.
 
 This plan's task list above already reflects the fully-corrected shape.

@@ -1236,6 +1236,62 @@ public void Throws(Exception exception)
 PLAN-0043 is updated in the same pass as this Amendment to reflect both
 corrections above.
 
+## Amendment 8 (2026-08-13): property setter routed through the public builder, inaccessible-interface diagnostic
+
+A seventh PR #82 review pass (Codex, two more P1 findings, still before any
+implementation code existed) caught one repeat of an already-fixed defect
+class and one real gap this repo already has precedent for closing. All
+prior Amendment text is left exactly as written, per the same immutability
+rule already followed six times above.
+
+**Finding S — Amendment 7's property setter reintroduced the exact
+cross-assembly defect Amendment 3 already fixed, this time for writes
+instead of reads.** Amendment 7's setter sketch
+(`__name.Value = value; __name.HasValue = true; __name.Exception = null;`)
+mutates `ReturnConfig<T>`'s `internal` fields directly. Amendment 7's own
+reasoning — "accessors access the field directly (same file, same
+assembly)" — conflated *where the struct instance is stored* (the
+consumer's generated file) with *where the struct's type and its `internal`
+members are defined* (core `Compono`, a different assembly); `internal`
+accessibility follows the declaring assembly, not the storage location.
+This is `CS0122` again, for the setter Amendment 3's fix never covered
+because it didn't exist yet.
+
+**Corrected:** the setter routes through the same public
+`ReturnConfigBuilder<T>` constructor and `Returns` method the external
+`Configure()` surface already uses — no new core API, just using the
+existing public surface instead of reaching for the internal fields
+directly:
+
+```csharp
+string? IOptions.Name
+{
+    get => __name.HasConfiguredException ? throw __name.ConfiguredException
+        : __name.HasConfiguredValue ? __name.ConfiguredValue
+        : default;
+    set => new global::Compono.ReturnConfigBuilder<string?>(ref __name).Returns(value);
+}
+```
+
+**Finding T — no diagnostic for an interface inaccessible to a top-level
+generated type.** A generated double is always a top-level type
+(Amendment 2's file-scoping/collision-safety design), but a consumer can
+legally reference a `private`/`protected` nested interface from inside its
+own containing type — a top-level type can never implement or name such an
+interface. This repo already has the exact check needed, used identically
+for generated collection plans and row-invoker registrations
+(`TransitiveClosureWalker.ToDiscoveredCollectionInfo`'s
+`compilation.IsSymbolAccessibleWithin(...)` calls).
+
+**Corrected:** the same `Compilation.IsSymbolAccessibleWithin` check runs
+before emitting a double for a discovered interface leaf; an inaccessible
+interface gets a clear diagnostic, and that leaf defers to the ordinary
+runtime-provider path unchanged — exactly the existing pattern, not a new
+mechanism.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect both
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
