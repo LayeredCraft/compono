@@ -262,9 +262,50 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             {
                 var (((callSites, composables), assemblyComposables), composeMethods) = testDoubles;
 
+                // Two discoveries can share the same emission identity (InterfaceFullyQualifiedName -
+                // what AddSource's hint name actually keys on, via TestDoubleIdentifierNaming) while
+                // disagreeing structurally - e.g. a member typed IProvider<string> and one typed
+                // IProvider<string?>: FullyQualifiedFormat erases the top-level nullable annotation
+                // (identical hint name either way, deliberately walked as distinct entries per
+                // TransitiveClosureWalker's own IncludeNullability comment), but one succeeds with a
+                // real default and the other gets diagnosed away, or the two disagree on some member's
+                // deterministic default. Mirrors DiscoveredTypeInfo's CMP0010 conflict check exactly -
+                // silently picking "whichever was discovered first" both risks an AddSource
+                // duplicate-hint-name crash if the two disagree on Diagnostics.Count and one still
+                // reaches emission, and hides a real ambiguity from the other discovery site either way.
                 return callSites.Concat(composables).Concat(assemblyComposables).Concat(composeMethods)
                     .GroupBy(static testDouble => testDouble.InterfaceFullyQualifiedName)
-                    .Select(static group => group.Distinct().First());
+                    .SelectMany(static group =>
+                    {
+                        var distinct = group.Distinct().ToArray();
+
+                        if (distinct.Length == 1)
+                            return distinct;
+
+                        // A failure already carries its own correct diagnostic at its own request-site
+                        // Location - DiagnosticInfo.Equals includes Location, so the same failing
+                        // interface reached from two different discovery paths naturally produces two
+                        // "distinct" failure entries even though neither is wrong. Pass those through
+                        // as-is rather than erasing them into a synthetic, locationless CMP0028.
+                        var failures = distinct.Where(static t => t.Diagnostics.Count > 0).ToArray();
+
+                        if (failures.Length > 0)
+                            return failures;
+
+                        // Every surviving entry succeeded, but disagrees on test-double metadata (e.g.
+                        // differing member defaults from IProvider<string> vs IProvider<string?>) -
+                        // there's no value that's correct for every discovery sharing this one emitted
+                        // double, so report it instead of guessing.
+                        return new DiscoveredTestDoubleInfo[]
+                        {
+                            new(
+                                group.Key,
+                                distinct[0].SafeIdentifier,
+                                EquatableArray<TestDoubleMemberInfo>.Empty,
+                                new[] { new DiagnosticInfo(DiagnosticDescriptors.ConflictingTestDoubleMetadata, null, group.Key) }
+                                    .ToEquatableArray()),
+                        };
+                    });
             })
             .WithTrackingName(TrackingNames.DiscoveredTestDoublesDistinct);
 

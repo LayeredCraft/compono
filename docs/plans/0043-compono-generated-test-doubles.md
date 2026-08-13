@@ -703,4 +703,60 @@ own config extension - coexist without ambiguity, since they have different
 receiver types). `TestDoubleVerifyTests` is now 16 tests, all green on both
 target frameworks. Full solution: 1945/1945 tests pass.
 
+## PR #83 review round 3 (2026-08-13)
+
+A real `dotnet publish -p:PublishAot=true` verification (against the packed
+`Compono` `.nupkg`, driving a generated double directly through
+`GeneratedTestDoubleRegistry`/`Configure()` since Phase 1's runtime provider
+doesn't exist yet) confirmed the AOT-safety claim empirically, not just by
+inspection: zero `IL2xxx`/`IL3xxx` trim/AOT-analyzer warnings during native
+code generation, and the published native binary ran standalone and passed.
+Not a substitute for Phase 2's own real end-to-end `PublishAot` test against
+the full sample (still unchecked in the Phase 2 task list above) - this was
+scoped narrowly to "does the generated-code-and-core-primitives path itself
+survive AOT," which is exactly the risk surface Phase 0 introduced.
+
+Codex caught four more real gaps:
+
+1. **(P1, docs)** `AGENTS.md`/`coding-standards.md`'s "every generator-
+   emitted type is `file`-scoped" rule was never updated to record ADR-0043's
+   own exception (test-double types reference each other across signatures,
+   which `file`-scoping breaks with `CS9051` - already proven twice during
+   design review). Left unchanged, a future change following that stale
+   blanket rule would "fix" this back into a compile error. Documented the
+   exception in both `AGENTS.md` and `references/coding-standards.md`'s
+   "Generated code" section.
+2. **(P2)** `TransitiveClosureWalker`'s `VisitedTestDoubleInterfaces` used
+   `SymbolEqualityComparer.Default`, not `IncludeNullability` like the
+   adjacent `VisitedTypes` field - `IProvider<string>` and `IProvider<string?>`
+   collapsed to whichever was discovered first, silently deciding (by
+   traversal order) whether the double was rejected or emitted with a
+   possibly-wrong default. Fixed to `IncludeNullability`, matching
+   `VisitedTypes`. This alone would have turned the bug into a worse one - a
+   duplicate `AddSource` hint-name crash - since `ToDisplayString(FullyQualifiedFormat)`
+   doesn't include nullable annotations either (verified directly with a
+   real compile spike before touching anything: `IProvider<string>` and
+   `IProvider<string?>` both display as `global::IProvider<string>`). Fixed
+   properly by mirroring `DiscoveredTypeInfo`'s own `CMP0010` conflict-merge
+   pattern exactly: `ComponoIncrementalGenerator`'s `discoveredTestDoubles`
+   merge now groups by emission identity, passes through real per-location
+   diagnostics when any exist (so two discoveries that disagree - one fails,
+   one would succeed - now deterministically report the real failure,
+   instead of an order-dependent silent pick), and only synthesizes the new
+   `CMP0028` when every surviving entry succeeded but still disagrees
+   structurally.
+3. **(P2)** `HashSet<T>` was missing from `TestDoubleDefaults`'s known-
+   collection-shapes whitelist - a member returning `HashSet<int>` was
+   wrongly rejected (`CMP0025`) instead of getting `[]`. Added.
+4. **(P2)** The overload/duplicate-name pre-pass in `TestDoubleAnalyzer`
+   counted members the main emission loop already silently skips (a private
+   or non-abstract-static default-interface member) - a public `Get()`
+   sharing a name with an unrelated private default `Get()` helper falsely
+   tripped `CMP0022` even though only one of them would ever generate
+   anything. Fixed by filtering the pre-pass to the same instance-contract
+   eligibility the emission loop already applies.
+
+Four new tests (one for each of findings 2-4; finding 1 is docs-only). Full
+solution: 1951/1951 tests pass.
+
 Phase 1 (`Compono.TestDoubles` runtime package) is next.

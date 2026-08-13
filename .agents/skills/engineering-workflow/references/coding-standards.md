@@ -460,6 +460,25 @@ every other section of this file like any hand-written code):
   simple names are identical) without conflict, with no name-mangling
   schemes to invent or get wrong. This is exactly what C#'s `file`
   modifier was designed for.
+  - **The one documented exception: ADR-0043's generated test doubles.**
+    A generated double's type, its configuration extensions, and its
+    `Configure()` bridge all reference each other in public signatures
+    (the bridge returns the double's own type; the config extensions take
+    it as their `this` parameter) - `file`-scoping any of them produces
+    `CS9051` ("file-local type cannot be used in a member signature in
+    non-file-local type"), proven by two separate failed drafts during
+    ADR-0043's design review (Amendment 2's own account: file-scoping just
+    the double first hit `CS0246` cross-file invisibility since `Configure()`
+    must be callable from an arbitrary consumer file; file-scoping only
+    the double with `internal` config extensions referencing it hit
+    `CS9051` next, even co-located in the same file). These types are
+    `internal` + collision-safe hash-suffixed names instead (see
+    `TestDoubleIdentifierNaming`) - only the `[ModuleInitializer]`
+    registration class, never referenced by name, stays `file`-scoped.
+    Don't "fix" this back to `file`-scoping without re-deriving why it
+    doesn't compile; treat any *other* future generator-emitted type as
+    still bound by the default rule above unless it has the same
+    cross-signature-reference constraint.
 - **Every type reference emitted into generated code is
   `global::`-qualified**, via
   `ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)` — never

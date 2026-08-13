@@ -130,6 +130,7 @@ internal static class TestDoubleDefaults
             "System.Collections.Generic.IReadOnlyList<T>" or
             "System.Collections.Generic.ICollection<T>" or
             "System.Collections.Generic.IList<T>" or
-            "System.Collections.Generic.List<T>";
+            "System.Collections.Generic.List<T>" or
+            "System.Collections.Generic.HashSet<T>";
     }
 }

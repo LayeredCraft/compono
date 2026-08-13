@@ -343,7 +343,14 @@ internal static class TransitiveClosureWalker
 
         public HashSet<ITypeSymbol> VisitedCollections { get; } = new(SymbolEqualityComparer.IncludeNullability);
 
-        public HashSet<INamedTypeSymbol> VisitedTestDoubleInterfaces { get; } = new(SymbolEqualityComparer.Default);
+        // IncludeNullability, matching VisitedTypes above, for the identical reason: Default treats
+        // IProvider<string> and IProvider<string?> as the same interface and would silently keep
+        // whichever is discovered first (traversal order deciding whether the double is rejected for
+        // a non-nullable member or emitted with a null default) - both variants are walked and
+        // analyzed here, and ComponoIncrementalGenerator's own merge step is what detects and
+        // diagnoses (CMP0028) two structurally-different results sharing the same emission identity,
+        // the same "diagnose, don't guess" pattern DiscoveredTypeInfo's CMP0010 already follows.
+        public HashSet<INamedTypeSymbol> VisitedTestDoubleInterfaces { get; } = new(SymbolEqualityComparer.IncludeNullability);
 
         public List<DiscoveredTypeInfo> Results { get; } = [];
 

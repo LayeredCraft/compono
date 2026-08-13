@@ -56,10 +56,16 @@ internal static class TestDoubleAnalyzer
         // that's not just a method-vs-method concern: two properties of the same name inherited
         // from different base interfaces (a diamond shape) would emit the same backing field and
         // the same zero-argument configuration extension just as surely as an overloaded method
-        // would, so both member kinds feed the same name-collision check together.
+        // would, so both member kinds feed the same name-collision check together. Filtered to the
+        // same instance-contract eligibility the emission loop below applies (abstract, or a public
+        // non-static default implementation) - a private or non-abstract-static default-interface
+        // member never gets its own field/extension at all, so counting it here would falsely flag a
+        // real, public, emitted member as "overloaded" against a same-named member that generates
+        // nothing. PR #83 review round 3.
         var duplicateConfigurationMemberNames = closure
             .SelectMany(i => i.GetMembers())
             .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
+            .Where(m => m.IsAbstract || (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public))
             .GroupBy(m => m.Name)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)

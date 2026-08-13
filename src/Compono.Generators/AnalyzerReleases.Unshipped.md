@@ -26,3 +26,4 @@ CMP0024 | Compono.TestDoubles | Info | A test-double member's generated, always-
 CMP0025 | Compono.TestDoubles | Info | A test-double member has an unsupported return shape (ref-like, by-ref, pointer, function-pointer, or non-nullable reference with no deterministic default)
 CMP0026 | Compono.TestDoubles | Info | A test-double member has an unsupported parameter shape (pointer or function-pointer)
 CMP0027 | Compono.TestDoubles | Info | A test-double interface declares a set-only property, which is unsupported (no call recording/verification in v1)
+CMP0028 | Compono.TestDoubles | Info | The same test-double-eligible interface was discovered multiple times with conflicting generic-argument nullability

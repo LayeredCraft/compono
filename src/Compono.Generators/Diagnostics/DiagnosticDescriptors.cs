@@ -207,4 +207,16 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConflictingTestDoubleMetadata = new(
+        "CMP0028",
+        "Conflicting test-double metadata across discoveries",
+        "'{0}' was discovered multiple times with different generic-argument nullability (for example, " +
+        "a member typed IProvider<string> and one typed IProvider<string?> in the same compilation) - " +
+        "Compono generates exactly one test double per interface and can't guarantee it correctly " +
+        "reflects every discovery. Request this interface with consistent nullability everywhere it's " +
+        "composed, or disable ComponoGeneratedTestDoubles for this leaf.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

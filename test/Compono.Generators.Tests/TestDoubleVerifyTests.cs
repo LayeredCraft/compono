@@ -469,4 +469,100 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task HashSetReturn_GeneratesDoubleWithEmptyDefault() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    System.Collections.Generic.HashSet<int> GetIds();
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task PrivateDefaultMethodSharesNameWithPublicMember_DoesNotFalselyReportOverload() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void Get();
+
+                    private int Helper() { return 1; }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Two call sites reach the same closed generic interface with disagreeing nullability
+    // (IProvider<string> vs IProvider<string?>) - TransitiveClosureWalker now walks and analyzes
+    // both independently (IncludeNullability, PR #83 review round 3) rather than silently
+    // collapsing to whichever is discovered first. Here the two disagree on whether Get() even has
+    // a deterministic default at all, so the merge step's own conflict handling (mirroring
+    // DiscoveredTypeInfo's CMP0010 pattern) surfaces the real per-location CMP0025 failure
+    // deterministically, regardless of discovery order, rather than an order-dependent silent pick.
+    [Fact]
+    public Task SameInterfaceDiscoveredWithDisagreeingNullability_ReportsRealFailureDeterministically() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IProvider<T>
+                    {
+                        T Get();
+                    }
+
+                    public sealed class A
+                    {
+                        public A(IProvider<string> provider) { }
+                    }
+
+                    public sealed class B
+                    {
+                        public B(IProvider<string?> provider) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.A>();
+                            Compono.Composer.Create().Create<TestNamespace.B>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0025",
+            TestContext.Current.CancellationToken);
 }
