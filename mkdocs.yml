@@ -177,6 +177,7 @@ nav:
       - Compono.NSubstitute: reference/api/Compono.NSubstitute/index.md
       - Compono.Bogus: reference/api/Compono.Bogus/index.md
       - Compono.TUnit: reference/api/Compono.TUnit/index.md
+      - Compono.TestDoubles: reference/api/Compono.TestDoubles/index.md
     - Diagnostics: reference/diagnostics.md
     - Glossary: reference/glossary.md
   - Roadmap:

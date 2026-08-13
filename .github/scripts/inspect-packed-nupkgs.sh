@@ -135,7 +135,7 @@ assert_dependency_range() {
     fi
 }
 
-for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit; do
+for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -189,6 +189,10 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — TUnit Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "TUnit.Core" "[1.64.13, 2.0.0)"
+            ;;
+        Compono.TestDoubles)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Generated Test Doubles"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             ;;
     esac
 done

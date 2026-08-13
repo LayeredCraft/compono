@@ -224,7 +224,7 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 1 — Runtime package (`Compono.TestDoubles`)
 
-- [ ] New `src/Compono.TestDoubles` project — **only**
+- [x] New `src/Compono.TestDoubles` project — **only**
       `GeneratedTestDoubleProvider : ICompositionValueProvider` (reads the
       core `GeneratedTestDoubleRegistry`) and `UseGeneratedTestDoubles()`
       builder extension ([ADR-0024](../adr/0024-public-provider-extensibility-model.md)'s
@@ -232,11 +232,11 @@ worth its own phase if it turns out to need more than that.
       `ReturnConfigBuilder<T>`, no registry, no `Configure(...)` here —
       all three live in core `Compono` or are generator-emitted per
       interface (Amendment 2).
-- [ ] Precedence documentation: `UseGeneratedTestDoubles()` before
+- [x] Precedence documentation: `UseGeneratedTestDoubles()` before
       `UseNSubstitute()` when both are installed (ADR-0043's "Runtime
       activation and precedence") — a real sample/test proving registration
       order produces the documented result, not just prose.
-- [ ] **No global-using declaration.** Amendment 1's original
+- [x] **No global-using declaration.** Amendment 1's original
       `global using Compono.TestDoubles.Generated;` idea is retired by
       Amendment 4 Finding G, and validated (not just assumed) by Amendment
       11 Finding AA's global-namespace-placement fix: every type this
@@ -264,11 +264,14 @@ worth its own phase if it turns out to need more than that.
   - [ ] `dotnet publish -p:PublishAot=true` + real execution against that
         sample — the "prove it, don't assume it" standard `Compono.TUnit`
         (PLAN-0040) already set for this repo, applied here.
-- [ ] Public-API-surface approval test for `Compono.TestDoubles` (now a
+- [x] Public-API-surface approval test for `Compono.TestDoubles` (now a
       much smaller surface post-Amendment-2: just the provider type and
       `UseGeneratedTestDoubles()`), matching
-      `Compono.TUnit.Tests.PublicApiSurfaceTests`' pattern. Core `Compono`'s
-      own public-API-surface test (if one exists) picks up
+      `Compono.TUnit.Tests.PublicApiSurfaceTests`' pattern — added in Phase 1
+      as `test/Compono.TestDoubles.Tests/PublicApiSurfaceTests.cs`, alongside
+      the rest of that phase's own test project rather than deferred here.
+      Core `Compono` has no public-API-surface test of its own yet (no such
+      file exists in `test/Compono.Tests`) — nothing to extend for
       `ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`.
 
 ### Phase 3 — Docs and skill alignment
@@ -834,4 +837,41 @@ four prior rounds).
 
 Six new tests. Full solution: 1963/1963 tests pass.
 
-Phase 1 (`Compono.TestDoubles` runtime package) is next.
+## Phase 1 implementation notes (2026-08-13)
+
+Phase 1 is implemented and every task above is checked off. `src/Compono.TestDoubles` is
+deliberately small, matching `Compono.NSubstitute`'s own shape: `GeneratedTestDoubleProvider`
+(reads core `GeneratedTestDoubleRegistry` via `TryCreate`, no state of its own) and
+`CompositionBuilderExtensions.UseGeneratedTestDoubles()` (registers it via the existing
+`AddTestDoubleProvider`). No new core API was needed - the provider is a thin adapter over Phase
+0's already-public registry.
+
+Precedence (ADR-0043's "Runtime activation and precedence") is proven, not just documented:
+`PrecedenceTests` registers both `UseGeneratedTestDoubles()` and `UseNSubstitute()` in both orders
+and asserts the first-registered provider's value wins each time - a direct, testable consequence
+of `AddTestDoubleProvider`'s existing "tried in registration order" contract (unchanged by this
+phase), not special-cased logic in either provider.
+
+Real generated-code coverage (a real `[ModuleInitializer]` populating the registry, driven through
+an actual `ComponoGeneratedTestDoubles=true` build) is explicitly deferred to Phase 2's packaged
+sample, per this plan's own phase split - Phase 1's tests populate the registry by hand
+(`GeneratedTestDoubleRegistry.RegisterFactory<T>`), exactly the shape a generated module
+initializer produces, which is enough to prove the provider and precedence logic in isolation.
+`test/Compono.TestDoubles.Tests` (6 tests, `PublicApiSurfaceTests` included) references both
+`Compono.TestDoubles` and `Compono.NSubstitute` project-to-project - the only test project in the
+repo that does, needed for the precedence proof.
+
+New package wired into the same CI surface every prior package addition needed:
+`Compono.slnx`, `docs.yml` (path triggers + net10.0 build loop for the API-reference-drift check),
+`package-validation.yaml` (baseline lookup, pack, CS1591 enforcement), `inspect-packed-nupkgs.sh`
+(file-listing allowlist + manifest-field/exact-pin assertions - no third-party dependency to range-
+check, just the `Compono` exact pin), `generate-api-reference.sh` (`integration_pkgs`), and
+`mkdocs.yml`'s API Reference nav (the Package Guide page itself stays Phase 3, per this plan's own
+split - the nav entry here only points at the already-generated `docs/reference/api/` content, kept
+in step with every other publishable package so the `mkdocs build --strict` gate in `docs.yml`
+doesn't need a separate follow-up). No local-feed packed-consumer smoke test yet - that needs a
+sample project, which is Phase 2's job. Full solution (562 tests across every project) is green.
+
+Phase 2 (end-to-end verification: a real packaged-consumer sample, cross-namespace `Configure()`
+reachability, and a real `PublishAot=true` run — `Compono.TestDoubles`' own public-API-surface
+approval test already landed in this phase, above) is next.

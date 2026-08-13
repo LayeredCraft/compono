@@ -58,4 +58,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0039](0039-future-extension-package-admission-gate-and-release-sequence.md) | Future Extension Package Admission Gate and Release Sequence | Done |
 | [0040](0040-compono-tunit-package-design.md) | Compono.TUnit Package Design | Done |
 | [0041](0041-aot-safe-row-binding-dispatch.md) | AOT-Safe Row-Binding Dispatch | Done |
-| [0043](0043-compono-generated-test-doubles.md) | Compono-Generated Test Doubles | Not Started |
+| [0043](0043-compono-generated-test-doubles.md) | Compono-Generated Test Doubles | In Progress |
