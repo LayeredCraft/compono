@@ -264,11 +264,14 @@ worth its own phase if it turns out to need more than that.
   - [ ] `dotnet publish -p:PublishAot=true` + real execution against that
         sample — the "prove it, don't assume it" standard `Compono.TUnit`
         (PLAN-0040) already set for this repo, applied here.
-- [ ] Public-API-surface approval test for `Compono.TestDoubles` (now a
+- [x] Public-API-surface approval test for `Compono.TestDoubles` (now a
       much smaller surface post-Amendment-2: just the provider type and
       `UseGeneratedTestDoubles()`), matching
-      `Compono.TUnit.Tests.PublicApiSurfaceTests`' pattern. Core `Compono`'s
-      own public-API-surface test (if one exists) picks up
+      `Compono.TUnit.Tests.PublicApiSurfaceTests`' pattern — added in Phase 1
+      as `test/Compono.TestDoubles.Tests/PublicApiSurfaceTests.cs`, alongside
+      the rest of that phase's own test project rather than deferred here.
+      Core `Compono` has no public-API-surface test of its own yet (no such
+      file exists in `test/Compono.Tests`) — nothing to extend for
       `ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`.
 
 ### Phase 3 — Docs and skill alignment
@@ -870,5 +873,5 @@ doesn't need a separate follow-up). No local-feed packed-consumer smoke test yet
 sample project, which is Phase 2's job. Full solution (562 tests across every project) is green.
 
 Phase 2 (end-to-end verification: a real packaged-consumer sample, cross-namespace `Configure()`
-reachability, a real `PublishAot=true` run, and `Compono.TestDoubles`' own public-API-surface
-approval test) is next.
+reachability, and a real `PublishAot=true` run — `Compono.TestDoubles`' own public-API-surface
+approval test already landed in this phase, above) is next.

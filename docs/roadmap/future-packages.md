@@ -64,9 +64,9 @@ to reach roadmap-item status since — see below.
   Problem recorded in [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)
   (`Accepted`). The deep-design pass is decided in
   [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)
-  (`Accepted`, with amendments — all pre-implementation review corrections,
-  no code written yet; see the ADR's own Amendment history for the current
-  count): a distinct-receiver-type control surface (no
+  (`Accepted`, with amendments — all pre-implementation review corrections
+  made before any code was written; see the ADR's own Amendment history for
+  the current count): a distinct-receiver-type control surface (no
   interception — proven viable by a real spike, but rejected as unnecessary
   once the generated double implements its interface directly), `[Shared]
   IRepository` unchanged plus a generator-emitted `Configure(...)` bridge
@@ -78,10 +78,12 @@ to reach roadmap-item status since — see below.
   design couldn't make), the compile-time-gated generator logic stays in
   core `Compono.Generators`, and a deliberately small optional package,
   **`Compono.TestDoubles`**, holds just the provider and
-  `UseGeneratedTestDoubles()`. Not yet committed implementation work
+  `UseGeneratedTestDoubles()`. Committed implementation work
   per [ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)'s
-  terminology — that requires a `Plan` moving `In Progress`, which hasn't
-  started yet.
+  terminology as of [PLAN-0043](../plans/0043-compono-generated-test-doubles.md)
+  moving `In Progress` — core primitives/generator emission (Phase 0) and
+  the `Compono.TestDoubles` runtime package (Phase 1) are done; end-to-end
+  verification and docs/skill alignment remain.
 
 `Compono.TUnit` was the first candidate to reach this status — see the
 Admission model note above; it shipped as a package and moved to
