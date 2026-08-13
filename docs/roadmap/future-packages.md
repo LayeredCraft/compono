@@ -11,8 +11,9 @@ embedded inside `Compono`'s own `.nupkg` as an analyzer
 never appears on nuget.org on its own. `Compono.TUnit` graduated from this
 page's roadmap once [PLAN-0040](../plans/0040-compono-tunit-package-design.md)
 completed all its phases — see
-[`Compono.TUnit`](../packages/compono-tunit.md) for what it ships. No
-candidate on this page has cleared both admission gates yet.
+[`Compono.TUnit`](../packages/compono-tunit.md) for what it ships. One
+candidate — Compono-owned source-generated test doubles — has since cleared
+both admission gates and is a roadmap item; see below.
 
 ## Admission model
 
@@ -37,14 +38,54 @@ progression — admitted candidate, roadmap item, committed implementation
 work, and finally a shipped package once
 [PLAN-0040](../plans/0040-compono-tunit-package-design.md) completed — and
 is documented as a [Package Guide](../packages/compono-tunit.md) now, not
-roadmap content; nothing on this page has reached roadmap-item status
-since.
+roadmap content. Compono-generated test doubles is the one other candidate
+to reach roadmap-item status since — see below.
 
 ## Roadmap items (cleared Gate A and Gate B)
 
-None currently. `Compono.TUnit` was the one candidate to reach this
-status — see the Admission model note above; it shipped as a package and
-moved to [Package Guides](../packages/index.md).
+- **Compono-owned source-generated test doubles** — a fallback default-value
+  generator for otherwise-unresolvable **interface** leaves in a composition
+  graph (v1 scope, per [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md) —
+  abstract-class and delegate leaves are not part of this item; PLAN-0043
+  has no work for either), giving Compono an AOT-safe, zero-declaration
+  alternative to `Compono.NSubstitute`'s runtime-proxy dependency for the
+  common case. Cleared Gate A on the strength of a real, checked finding: no
+  external source-generated mocking library (TUnit.Mocks, Imposter, Rocks —
+  all researched directly) can preserve `composer.Create<T>()`'s
+  zero-declaration UX, because none can observe another generator's output
+  in the same compilation, and only `Compono.Generators` itself already
+  performs the composition-graph discovery this capability depends on.
+  Explicitly **not** admitted as a general-purpose mocking framework —
+  see [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
+  Non-Goals for the load-bearing scope boundary. Cleared Gate B via an
+  explicit product-owner request, the same trigger shape that cleared
+  `Compono.TUnit`'s Gate B, not dogfooding evidence. `Compono.NSubstitute`
+  is not deprecated or replaced by this — see the ADR's Decision Drivers.
+  Problem recorded in [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)
+  (`Accepted`). The deep-design pass is decided in
+  [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)
+  (`Accepted`, with amendments — all pre-implementation review corrections,
+  no code written yet; see the ADR's own Amendment history for the current
+  count): a distinct-receiver-type control surface (no
+  interception — proven viable by a real spike, but rejected as unnecessary
+  once the generated double implements its interface directly), `[Shared]
+  IRepository` unchanged plus a generator-emitted `Configure(...)` bridge
+  per interface (zero `CompositionScope` changes), v1 including configured
+  returns/exceptions — argument-independent, no argument matchers (not
+  default-value-only) — and a package split: `ReturnConfigBuilder<T>` and a
+  `[ModuleInitializer]`-populated registry live in **core `Compono`** (moved
+  there by Amendment 2, fixing a cross-assembly reference the original
+  design couldn't make), the compile-time-gated generator logic stays in
+  core `Compono.Generators`, and a deliberately small optional package,
+  **`Compono.TestDoubles`**, holds just the provider and
+  `UseGeneratedTestDoubles()`. Not yet committed implementation work
+  per [ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)'s
+  terminology — that requires a `Plan` moving `In Progress`, which hasn't
+  started yet.
+
+`Compono.TUnit` was the first candidate to reach this status — see the
+Admission model note above; it shipped as a package and moved to
+[Package Guides](../packages/index.md).
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
@@ -103,12 +144,13 @@ core itself unchanged:
 
 ## No committed sequence
 
-ADR-0039 records no candidate order. `Compono.TUnit` cleared Gate B
-through an explicit product-owner request, not dogfooding evidence — the
-two real dogfooding passes recorded in [Post-MVP](post-mvp.md) still
-haven't produced a roadmap candidate of their own in this space. Ranking
-the remaining admitted candidates (`Compono.NUnit`/`Compono.MSTest`)
-against each other, or against a hypothetical next TUnit-style request,
+ADR-0039 records no candidate order. `Compono.TUnit` and the
+source-generated-test-doubles capability both cleared Gate B through an
+explicit product-owner request, not dogfooding evidence — the two real
+dogfooding passes recorded in [Post-MVP](post-mvp.md) still haven't
+produced a roadmap candidate of their own in this space. Ranking the
+remaining admitted candidates (`Compono.NUnit`/`Compono.MSTest`) against
+each other, or against a hypothetical next explicit-request-driven item,
 still has no evidentiary basis. If more than one clears Gate B around the
 same time, ADR-0039's non-binding heuristics (value relative to
 maintenance cost; architectural-validation diversity over repeating an
