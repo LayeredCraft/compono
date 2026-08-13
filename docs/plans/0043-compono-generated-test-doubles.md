@@ -56,6 +56,13 @@ worth its own phase if it turns out to need more than that.
       unless a factory is ever registered.
 - [ ] Extend `LeafTypeClassifier` with the compile-time-gated third
       classification outcome (ADR-0043's "Generator architecture").
+- [ ] Ship a `CompilerVisibleProperty` declaration for
+      `ComponoGeneratedTestDoubles` via core `Compono`'s own packaged build
+      assets (Amendment 4 Finding F — a custom MSBuild property is
+      **not** automatically visible to `AnalyzerConfigOptionsProvider`
+      the way a built-in one like `InterceptorsNamespaces` is; without this
+      declaration the opt-in can never activate, regardless of what a
+      consumer sets).
 - [ ] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
       confirm zero generated-output diff when unset/`false` (a compile-diff
       regression test, not just a manual check).
@@ -66,6 +73,12 @@ worth its own phase if it turns out to need more than that.
       co-located):
       - `internal sealed class <Hash>_Double : IRepository` — explicit
         interface implementation, one `ReturnConfig<T>` field per member.
+        A `void` member's field is `ReturnConfig<Compono.Unit>`, where
+        `Unit` (if core doesn't already have one) is introduced as
+        `public readonly struct Unit` from the start — not `internal`,
+        per Amendment 4 Finding H, applying Amendment 3's own
+        cross-assembly-accessibility lesson up front rather than missing
+        it for this one type too.
       - `internal static class <Hash>_DoubleConfiguration` — per-member
         configuration extensions (`FindAsync()`/`Save()`, no parameters —
         argument-independent per Amendment 2 Finding 4).
@@ -101,6 +114,12 @@ worth its own phase if it turns out to need more than that.
       extension in overload resolution, silently making the bridge
       unreachable) — leaf still defers to the unchanged runtime-provider
       path.
+- [ ] Compile-time diagnostics for unsupported **return** shapes — ref-like
+      (`Span<byte> Read()`, can't close the unconstrained generic
+      `ReturnConfig<T>` at all), by-ref-returning members, pointer, and
+      function-pointer returns (Amendment 4 Finding I — the original list
+      only covered parameter modifiers, not returns) — leaf still defers to
+      the unchanged runtime-provider path.
 
 ### Phase 1 — Runtime package (`Compono.TestDoubles`)
 
@@ -116,6 +135,13 @@ worth its own phase if it turns out to need more than that.
       `UseNSubstitute()` when both are installed (ADR-0043's "Runtime
       activation and precedence") — a real sample/test proving registration
       order produces the documented result, not just prose.
+- [ ] **No global-using declaration.** Amendment 1's original
+      `global using Compono.TestDoubles.Generated;` idea is retired by
+      Amendment 4 Finding G — Amendment 2's per-interface `internal` types
+      are found by ordinary extension-method lookup with no namespace
+      import needed at all, and an unconditional `global using` for a
+      namespace nothing ever populates would itself be a compile error
+      gate-off. Do not add this back during implementation.
 
 ### Phase 2 — End-to-end verification
 
@@ -149,9 +175,15 @@ worth its own phase if it turns out to need more than that.
 ## Critical Files
 
 - `src/Compono/` — new core primitives: `ReturnConfig<T>`,
-  `ReturnConfigBuilder<T>`, `GeneratedTestDoubleRegistry` (ADR-0043
-  Amendment 2 — moved here from the originally-planned `Compono.TestDoubles`
-  to fix a cross-assembly reference the generator couldn't otherwise make).
+  `ReturnConfigBuilder<T>`, `GeneratedTestDoubleRegistry`, `Unit` if not
+  already present (ADR-0043 Amendment 2 — moved here from the
+  originally-planned `Compono.TestDoubles` to fix a cross-assembly
+  reference the generator couldn't otherwise make; all public from the
+  start per Amendments 3 and 4).
+- Core `Compono`'s packaged build assets (`.props`/`.targets` or
+  equivalent) — the `CompilerVisibleProperty` declaration for
+  `ComponoGeneratedTestDoubles` (Amendment 4 Finding F) — without this,
+  the opt-in silently never activates.
 - `src/Compono.Generators/Discovery/LeafTypeClassifier.cs` — the
   compile-time-gated third classification outcome.
 - `src/Compono.Generators/Emitters/GeneratedFileNaming.cs` — reused (not
@@ -232,5 +264,27 @@ still before any implementation code was written:
 5. An interface declaring its own `Configure` member silently shadows the
    generated bridge (instance members always win over extensions) — fixed
    by diagnosing the collision.
+
+A third review pass caught four more P1s, corrected via
+[ADR-0043 Amendment 4](../adr/0043-compono-generated-test-doubles-design.md#amendment-4-2026-08-13-compiler-visible-opt-in-property-retired-stale-global-using-promise-accessible-void-marker-unsupported-return-shape-diagnostics),
+still before any implementation code was written:
+
+1. The compile-time opt-in was never declared `CompilerVisibleProperty` —
+   without it, `AnalyzerConfigOptionsProvider` never sees a custom MSBuild
+   property at all, so the feature could never activate regardless of what
+   a consumer sets — fixed by shipping the declaration in core `Compono`'s
+   own packaged build assets.
+2. Amendment 1's `global using Compono.TestDoubles.Generated;` promise went
+   stale the moment Amendment 2 moved every generated type into
+   per-interface `internal` types — nothing was left in that namespace to
+   import, gate on or off, and the unconditional `global using` was itself
+   a compile error — retired entirely, not repaired; no `using` was ever
+   actually needed under Amendment 2's design.
+3. The `void`-member marker (`Compono.Unit`) was missed by Amendment 3's
+   own cross-assembly-accessibility fix — introduced `public` from the
+   start instead.
+4. The unsupported-shape diagnostic list covered parameter modifiers but
+   not return shapes (`Span<T>`-like ref-like returns, by-ref-returning
+   members, pointers, function pointers) — added.
 
 This plan's task list above already reflects the fully-corrected shape.

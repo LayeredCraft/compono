@@ -921,6 +921,103 @@ ordinary runtime-provider path unchanged.
 PLAN-0043 is updated in the same pass as this Amendment to reflect all five
 corrections above.
 
+## Amendment 4 (2026-08-13): compiler-visible opt-in property, retired stale global-using promise, accessible void marker, unsupported return-shape diagnostics
+
+A third PR #82 review pass (Codex, four more P1 findings, still before any
+implementation code existed) caught further real gaps — two against the
+original Decision Outcome text, one against Amendment 1's own text, one
+against Amendment 3's own fix. All prior Amendment text is left exactly as
+written, per the same immutability rule already followed twice above.
+
+**Finding F — the compile-time opt-in was never declared compiler-visible.**
+"Generator architecture" above says `ComponoGeneratedTestDoubles` is "an
+MSBuild property surfaced to the generator via `AnalyzerConfigOptionsProvider`
+(the same mechanism generators already use to read consumer-set
+configuration, not a new one)" — true for a *built-in* compiler-recognized
+property (this ADR's own interceptor spike used exactly one,
+`InterceptorsNamespaces`, which needs no extra declaration), but false for a
+brand-new *custom* property like this one. Roslyn only surfaces a custom
+MSBuild property to `AnalyzerConfigOptionsProvider` if it's also listed in a
+`CompilerVisibleProperty` MSBuild item — without that declaration, a
+consumer setting `ComponoGeneratedTestDoubles=true` would have no effect at
+all; the generator would never observe it and the feature could never
+activate, regardless of what a consumer sets.
+
+**Corrected:** core `Compono` ships the declaration itself, via a packaged
+build asset (the same `buildTransitive`-style packaging technique this
+ADR's own interceptor spike already proved works for auto-injecting MSBuild
+configuration with zero consumer `.csproj` edits):
+
+```xml
+<!-- Shipped by core Compono's own package build assets. -->
+<ItemGroup>
+  <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
+</ItemGroup>
+```
+
+**Finding G — Amendment 1's global-using promise went stale.** Amendment 1
+(above, left unchanged) says `Compono.TestDoubles` injects
+`global using Compono.TestDoubles.Generated;` unconditionally, so a
+consumer never has to write that `using` by hand. Amendment 2 then moved
+every type this feature generates into per-interface `internal` types with
+hash-suffixed names — none of them live in `Compono.TestDoubles.Generated`
+anymore, gate on or off, eligible interfaces discovered or not. An
+unconditional `global using` targeting a namespace that never has any
+member anywhere in the compilation is a real compiler error, not a no-op —
+directly contradicting this feature's own "zero behavior change when not
+opted in" driver, this time as a **compile failure** merely from
+referencing the `Compono.TestDoubles` package at all, gate off or on.
+
+**Corrected: the global-using promise is retired, not repaired.** It was
+only ever needed because Amendment 1's original sketch imagined a shared
+namespace consumer code would otherwise have to `using` by hand — Amendment
+2's per-interface, ordinary-overload-resolution design (Section "Why
+explicit interface implementation removes the ambiguity," Amendment 2's
+corrected generated-code shape) never required consumer code to write any
+`using` for the generated types in the first place, `Configure()`/the
+per-member configuration extensions are found by ordinary extension-method
+lookup the moment their containing (`internal`, same-assembly) type is
+anywhere in the compilation — no namespace import needed at all, by either
+the package or the consumer. `Compono.TestDoubles` ships no global-using
+declaration.
+
+**Finding H — the void-member marker was missed by Amendment 3's own
+accessibility fix.** Amendment 3 made `ReturnConfig<T>`/`ReturnConfigBuilder<T>`
+usable across the core/consumer assembly boundary, but the "Generated code
+shape" section's `ReturnConfig<Compono.Unit>` sketch (used for `void`
+members) still describes `Unit` only as "the existing internal void-marker
+shape, if Compono already has one; otherwise a small internal struct
+introduced by this feature" — if introduced as `internal`, generated
+consumer code referencing it hits exactly the `CS0122` Amendment 3 already
+fixed for everything else, just missed for this one type.
+
+**Corrected:** if core `Compono` doesn't already have a `Unit`-shaped type,
+this feature introduces `public readonly struct Unit;` in core `Compono` —
+public from the start, no separate accessibility fix needed later, applying
+Amendment 3's own lesson (every type a generated consumer-assembly member
+signature touches must be public) up front rather than rediscovering it a
+fourth time.
+
+**Finding I — return-shape diagnostics only covered parameters, not
+returns.** "Diagnostics" above lists unsupported *parameter* shapes
+(`ref`/`out`/`in`) but nothing for unsupported *return* shapes. A member
+like `Span<byte> Read()` is ref-like and cannot close the unconstrained
+generic `ReturnConfig<T>` at all (ref-like types can never be a generic
+type argument); a by-ref-returning member (`ref int Current` on an
+indexer/property) cannot be satisfied by returning a plain value from a
+slot the way every other member shape in this design can. Left undiagnosed,
+either shape would produce broken, non-compiling generated code rather than
+a clean diagnostic deferring to the runtime-provider path.
+
+**Corrected:** the unsupported-member-shape diagnostic list gains
+ref-like, by-ref-returning, pointer, and function-pointer return shapes,
+checked the same way the existing parameter-modifier check already is —
+that leaf still defers to the ordinary runtime-provider path unchanged,
+exactly like every other unsupported shape.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect all four
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
