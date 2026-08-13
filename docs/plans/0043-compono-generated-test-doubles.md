@@ -90,17 +90,25 @@ worth its own phase if it turns out to need more than that.
       - `file static class <Hash>_DoubleRegistration` — `[ModuleInitializer]`
         registering the double's factory into `GeneratedTestDoubleRegistry`
         (this one *can* stay `file`-scoped — never called by name).
-      - `<Hash>` reuses `GeneratedFileNaming.HintNameFor`'s sanitized-name +
-        FNV-1a-hash scheme (`src/Compono.Generators/Emitters/GeneratedFileNaming.cs`),
-        applied to type names here too, not just `AddSource` hint names —
-        the collision-safety mechanism this feature relies on instead of
-        `file`-scoping.
+      - `<Hash>` uses a **new, identifier-specific sanitizer** (Amendment 5
+        Finding J — `HintNameFor` itself is reused only for its FNV-1a hash
+        over the original, unsanitized fully-qualified name; its own
+        sanitized-name output deliberately preserves dots, which are
+        illegal in a C# identifier, so a separate sanitizer replacing `.`
+        with `_` alongside every other character `HintNameFor` already
+        replaces is needed for the type-name half). `GeneratedFileNaming.cs`
+        itself is unchanged — this is a sibling helper, not a modification.
       - Deduplicated per distinct interface symbol across the compilation
         (same `.Collect()` + `SymbolEqualityComparer` pattern used
         elsewhere in the generator).
 - [ ] Deterministic-default logic per ADR-0043's "Deterministic defaults"
       (primitives, nullable refs, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`,
-      empty collections never `null`).
+      empty collections never `null`). **Non-nullable reference returns
+      (`string`, a non-nullable `Customer`, `Task<Customer>`) have no
+      deterministic default at all (Amendment 5 Finding K)** — diagnose and
+      reject, per the decision below; do not emit `null` (violates the
+      interface's own nullable annotation) or attempt real composition
+      (out of scope, confirmed with the requester).
 - [ ] Compile-time diagnostics for unsupported member shapes (indexers,
       events, generic methods, `ref`/`out`/`in`, static abstract members,
       **overloaded members** — Amendment 3 Finding D: a zero-argument
@@ -118,8 +126,18 @@ worth its own phase if it turns out to need more than that.
       (`Span<byte> Read()`, can't close the unconstrained generic
       `ReturnConfig<T>` at all), by-ref-returning members, pointer, and
       function-pointer returns (Amendment 4 Finding I — the original list
-      only covered parameter modifiers, not returns) — leaf still defers to
-      the unchanged runtime-provider path.
+      only covered parameter modifiers, not returns), **and non-nullable
+      reference returns** (Amendment 5 Finding K — no deterministic default
+      exists for these; diagnose and reject rather than emit `null` or
+      attempt real composition) — leaf still defers to the unchanged
+      runtime-provider path.
+- [ ] Compile-time diagnostic for an interface member whose name/signature
+      collides with an inherited `object` member (`GetHashCode()`,
+      `ToString()`, `Equals(object)`, `GetType()` — Amendment 5 Finding L)
+      — same "instance member always wins over extension" shadowing as the
+      `Configure()` collision above, just against `object` instead of the
+      interface's own declared members — leaf still defers to the
+      unchanged runtime-provider path.
 
 ### Phase 1 — Runtime package (`Compono.TestDoubles`)
 
@@ -171,6 +189,16 @@ worth its own phase if it turns out to need more than that.
 - [ ] `docs/roadmap/future-packages.md` — move this entry to shipped once
       the package exists, matching `Compono.TUnit`'s own graduation edit.
 - [ ] `docs/adr/README.md`/`docs/plans/README.md` status flips to `Done`.
+- [ ] `docs/architecture/current/generated-plans-and-discovery.md`'s "Open
+      questions" section gains a fourth item for
+      `GeneratedTestDoubleRegistry`, matching `RowInvokerRegistry`'s
+      existing collectible-`AssemblyLoadContext`-rooting entry (Amendment 5
+      Finding M — identical shape, identical consequence: a plain
+      `Type`-keyed dictionary entry has no closed-generic-instantiation
+      home-context tie, so it roots its generated factory delegate, and the
+      assembly that defined it, for the process's lifetime). Same
+      disposition as the existing three items on that page — deferred,
+      revisit together if collectible-ALC hosting becomes an actual target.
 
 ## Critical Files
 
@@ -286,5 +314,26 @@ still before any implementation code was written:
 4. The unsupported-shape diagnostic list covered parameter modifiers but
    not return shapes (`Span<T>`-like ref-like returns, by-ref-returning
    members, pointers, function pointers) — added.
+
+A fourth review pass caught two more P1s and two P2s, corrected via
+[ADR-0043 Amendment 5](../adr/0043-compono-generated-test-doubles-design.md#amendment-5-2026-08-13-identifier-safe-type-names-non-nullable-reference-return-diagnostic-object-member-shadowing-diagnostic-documented-alc-rooting),
+still before any implementation code was written:
+
+1. The generated type names weren't valid C# identifiers — `HintNameFor`
+   deliberately preserves dots (correct for file names, wrong for type
+   names) — fixed with a distinct identifier-specific sanitizer, still
+   hashing the original fully-qualified name for the collision-safe
+   suffix.
+2. Non-nullable reference returns had no deterministic default at all —
+   confirmed with the requester as diagnose-and-reject, not an attempt at
+   real composition.
+3. A configuration extension can be shadowed by an inherited `object`
+   member (`GetHashCode`/`ToString`/`Equals`/`GetType`), the same class of
+   bug as the earlier `Configure()` collision — fixed by diagnosing it too.
+4. `GeneratedTestDoubleRegistry` roots a collectible `AssemblyLoadContext`,
+   the same documented consequence this repo already accepts for
+   `RowInvokerRegistry` — added as a Phase 3 doc task (not made now, since
+   the registry doesn't exist yet and `docs/architecture/current/*.md`
+   describes only shipped behavior).
 
 This plan's task list above already reflects the fully-corrected shape.

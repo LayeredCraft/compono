@@ -1018,6 +1018,97 @@ exactly like every other unsupported shape.
 PLAN-0043 is updated in the same pass as this Amendment to reflect all four
 corrections above.
 
+## Amendment 5 (2026-08-13): identifier-safe type names, non-nullable-reference-return diagnostic, object-member shadowing diagnostic, documented ALC rooting
+
+A fourth PR #82 review pass (Codex, two more P1 findings and two P2, still
+before any implementation code existed) caught further real gaps. All
+prior Amendment text is left exactly as written, per the same immutability
+rule already followed three times above.
+
+**Finding J — the generated type names Amendment 2 introduced aren't valid
+C# identifiers.** Amendment 2 said the collision-safe naming scheme
+"reuses `GeneratedFileNaming.HintNameFor`'s sanitized-name + FNV-1a-hash
+scheme... applied to type names here too, not just `AddSource` hint
+names." `HintNameFor` deliberately *preserves* dots in its sanitized
+output (correct for a file name, which can legally contain them) — for a
+namespaced interface, `global::MyApp.Data.IRepository` sanitizes to
+something like `MyApp.Data.IRepository_a1b2c3d4`, which cannot follow
+`class`/`static class` in a declaration at all.
+
+**Corrected:** a distinct, identifier-specific sanitizer — replacing `.`
+(and every other non-identifier character `HintNameFor` already replaces)
+with `_` — is used for the generated type names this feature introduces,
+while still hashing the *original*, unsanitized fully-qualified name (the
+same input `HintNameFor` already hashes) for the stable suffix, preserving
+the same collision-safety guarantee Amendment 2 established. `HintNameFor`
+itself is unchanged — it's correct for its own, different purpose
+(`AddSource` file hint names) — this introduces a sibling helper for
+identifiers, not a modification to the existing one.
+
+**Finding K — no deterministic default was ever specified for a
+non-nullable reference return.** The "Deterministic defaults" section
+covers nullable references, value types, and async/collection shapes, but
+says nothing for an otherwise-ordinary member returning `string`,
+`Customer`, or `Task<Customer>` where the interface's own nullable
+annotations say non-null. `null` would violate that annotation (a real
+nullable-diagnostic regression, not just a style issue); manufacturing an
+actual instance would be new composition behavior — recursively composing
+a default `Customer`, say — this ADR was never asked to design and
+explicitly scoped out.
+
+**Decided (confirmed directly with the requester): diagnose and reject**,
+the same pattern as every other return/parameter shape this feature can't
+safely give a value to (Amendment 4 Finding I's ref-like/by-ref/pointer/
+function-pointer returns is the most recent precedent). A member returning
+a non-nullable reference type gets a compile-time diagnostic; that leaf
+still defers to the ordinary runtime-provider path unchanged. The
+alternative — attempting real composition for the default — was
+considered and rejected: it would turn a narrowly-scoped fallback-value
+generator into something that recursively composes arbitrary object
+graphs, exactly the scope-creep direction ADR-0042's Non-Goals exist to
+prevent.
+
+**Finding L (P2) — a configuration extension can be shadowed by an
+inherited `object` member.** The same "instance member always wins over
+an extension method" rule that caused Amendment 3 Finding E's `Configure()`
+collision applies more broadly: every generated double ultimately derives
+from `object`, so an interface member whose name and signature happen to
+match one of `object`'s own instance members (`GetHashCode()`, `ToString()`,
+`Equals(object)`, `GetType()`) has its configuration extension silently
+shadowed the same way — `int GetHashCode()` on the interface compiles
+cleanly, but `repository.Configure().GetHashCode()` binds to
+`object.GetHashCode()`, not the generated configuration extension, and
+chaining `.Returns(...)` off it fails.
+
+**Decided: diagnose it**, exactly the same pattern as Finding E — an
+interface member whose name/signature collides with an inherited `object`
+member gets a clear compile-time diagnostic; that leaf still defers to the
+ordinary runtime-provider path unchanged.
+
+**Finding M (P2) — `GeneratedTestDoubleRegistry` roots a collectible
+`AssemblyLoadContext`, undocumented.** `docs/architecture/current/generated-plans-and-discovery.md`'s
+"Open questions" section already documents this exact consequence for
+`RowInvokerRegistry` (a `Type`-keyed dictionary entry has no closed-generic-
+instantiation home-context tie, so it roots its generated delegate — and
+the assembly that defined it — for the process's lifetime, preventing a
+collectible ALC hosting that assembly from ever unloading) — the new
+registry this ADR introduces has the identical shape (a plain `Type`-keyed
+dictionary of factory delegates) and therefore the identical consequence,
+but Amendment 3 Finding C's own limitation note only covers the
+multi-assembly collision, not this one.
+
+**Decided: documented, same disposition as the existing three related
+items on that page** (deferred — neither `docs/mvp.md`'s scope nor
+Compono's primary xUnit/TUnit-test-runner consumers currently exercise
+collectible-ALC hosting; revisit together if that changes). The actual doc
+edit is a Phase 3 task in PLAN-0043, not made in this ADR directly — per
+this repo's own documentation convention, `docs/architecture/current/*.md`
+describes *current, shipped* behavior, and `GeneratedTestDoubleRegistry`
+doesn't exist yet.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect all four
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
