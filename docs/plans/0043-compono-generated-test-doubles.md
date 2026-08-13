@@ -9,7 +9,7 @@
 `ComponoGeneratedTestDoubles=true` plus `builder.UseGeneratedTestDoubles()`
 lets `composer.Create<T>()` automatically satisfy an otherwise-unresolvable
 interface dependency with a generated, AOT-safe double — configurable via
-`interfaceValue.Configure().Member(...).Returns(...)`/`.Throws(...)` (a
+`interfaceValue.Configure().Member().Returns(...)`/`.Throws(...)` (a
 generator-emitted extension per discovered interface, per
 [ADR-0043 Amendment 1](../adr/0043-compono-generated-test-doubles-design.md#amendment-1-2026-08-13-configure-must-be-generator-emitted-per-interface-not-a-runtime-generic-method)) —
 with zero behavior change for any consumer who doesn't opt into both
@@ -19,12 +19,17 @@ proving the whole path is Native-AOT-safe.
 ## Scope
 
 Builds exactly what [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)
+(as corrected by
+[Amendment 2](../adr/0043-compono-generated-test-doubles-design.md#amendment-2-2026-08-13-cross-assembly-bridge-generated-type-collision-safety-coreoptional-package-boundary-corrected-argument-matching-sample-struck))
 decided — the generated code shape, the compile-time opt-in on
-`LeafTypeClassifier`, `GeneratedTestDoubleProvider`, and the new
-`Compono.TestDoubles` package. Explicitly deferred, per ADR-0042's
-Non-Goals (unchanged by ADR-0043): verification, call recording, strict
-mode, argument matchers beyond a minimal closed shape, callbacks,
-sequential returns, class/protected-member/static-abstract-member support,
+`LeafTypeClassifier`, the core registry/builder primitives,
+`GeneratedTestDoubleProvider`, and the new `Compono.TestDoubles` package.
+Explicitly deferred, per ADR-0042's Non-Goals (unchanged by ADR-0043):
+verification, call recording, strict mode, argument matchers (struck
+entirely by Amendment 2 — configuration is member-level and
+argument-independent, not "a minimal closed shape" as the pre-Amendment
+text once said), callbacks, sequential returns,
+class/protected-member/static-abstract-member support,
 indexers/events/generic methods/`ref`/`out`/`in` parameters. Standalone
 (non-Compono) usability is included only if it falls out at the cost
 ADR-0043's "Standalone usability" section already found (near zero) — not
@@ -32,20 +37,44 @@ worth its own phase if it turns out to need more than that.
 
 ## Phases
 
-### Phase 0 — Generator foundation
+### Phase 0 — Core primitives and generator foundation
 
+- [ ] **Core `Compono`** (not `Compono.TestDoubles` — Amendment 2 moved
+      these to fix a cross-assembly reference the original design got
+      backwards): `ReturnConfig<T>`, `ReturnConfigBuilder<T>` (a
+      `readonly ref struct` holding a `ref ReturnConfig<T>`), and
+      `GeneratedTestDoubleRegistry` (`RegisterFactory<T>(Func<T> factory)`/
+      `TryCreate(Type requestedType, out object? value)`, `Type`-keyed) —
+      always present in core, inert unless a factory is ever registered.
 - [ ] Extend `LeafTypeClassifier` with the compile-time-gated third
       classification outcome (ADR-0043's "Generator architecture").
 - [ ] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
       confirm zero generated-output diff when unset/`false` (a compile-diff
       regression test, not just a manual check).
-- [ ] Emit the generated double type (explicit interface implementation),
-      its per-member configuration extension methods, and its generated
-      `Configure(this IRepository ...) => RepositoryDouble` bridge extension
-      (`Compono.TestDoubles.Generated` namespace — ADR-0043 Amendment 1;
-      this bridge cannot be a runtime-package generic method, it must be
-      generated alongside the double type it downcasts to), deduplicated
-      per distinct interface symbol across the compilation.
+- [ ] Emit, per discovered interface, **one single generated file**
+      containing (Amendment 2's verified-by-spike shape — do not
+      file-scope any of the first three; `CS9051` blocks a file-local type
+      from appearing in any non-file-local member's signature, even
+      co-located):
+      - `internal sealed class <Hash>_Double : IRepository` — explicit
+        interface implementation, one `ReturnConfig<T>` field per member.
+      - `internal static class <Hash>_DoubleConfiguration` — per-member
+        configuration extensions (`FindAsync()`/`Save()`, no parameters —
+        argument-independent per Amendment 2 Finding 4).
+      - `internal static class <Hash>_ConfigureExtension` — the
+        `Configure(this IRepository)` bridge (Amendment 1, corrected
+        target type by Amendment 2).
+      - `file static class <Hash>_DoubleRegistration` — `[ModuleInitializer]`
+        registering the double's factory into `GeneratedTestDoubleRegistry`
+        (this one *can* stay `file`-scoped — never called by name).
+      - `<Hash>` reuses `GeneratedFileNaming.HintNameFor`'s sanitized-name +
+        FNV-1a-hash scheme (`src/Compono.Generators/Emitters/GeneratedFileNaming.cs`),
+        applied to type names here too, not just `AddSource` hint names —
+        the collision-safety mechanism this feature relies on instead of
+        `file`-scoping.
+      - Deduplicated per distinct interface symbol across the compilation
+        (same `.Collect()` + `SymbolEqualityComparer` pattern used
+        elsewhere in the generator).
 - [ ] Deterministic-default logic per ADR-0043's "Deterministic defaults"
       (primitives, nullable refs, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`,
       empty collections never `null`).
@@ -55,18 +84,14 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 1 — Runtime package (`Compono.TestDoubles`)
 
-- [ ] New `src/Compono.TestDoubles` project — `ReturnConfigBuilder<T>`,
-      `GeneratedTestDoubleProvider : ICompositionValueProvider`,
-      `UseGeneratedTestDoubles()` builder extension
-      ([ADR-0024](../adr/0024-public-provider-extensibility-model.md)'s
-      `AddTestDoubleProvider`, `NSubstituteProvider`-sized). **No**
-      `Configure<T>(...)` method here — that bridge is generator-emitted
-      per interface (Phase 0), not a runtime package member (ADR-0043
-      Amendment 1).
-- [ ] Package-level global `using Compono.TestDoubles.Generated;` shipped
-      via `Compono.TestDoubles`'s own `.props`/`GlobalUsings` (matching
-      TUnit.Mocks' own `TUnit.Mocks.Generated` global-using convention),
-      so a consumer never hand-writes that `using`.
+- [ ] New `src/Compono.TestDoubles` project — **only**
+      `GeneratedTestDoubleProvider : ICompositionValueProvider` (reads the
+      core `GeneratedTestDoubleRegistry`) and `UseGeneratedTestDoubles()`
+      builder extension ([ADR-0024](../adr/0024-public-provider-extensibility-model.md)'s
+      `AddTestDoubleProvider`, `NSubstituteProvider`-sized). No
+      `ReturnConfigBuilder<T>`, no registry, no `Configure(...)` here —
+      all three live in core `Compono` or are generator-emitted per
+      interface (Amendment 2).
 - [ ] Precedence documentation: `UseGeneratedTestDoubles()` before
       `UseNSubstitute()` when both are installed (ADR-0043's "Runtime
       activation and precedence") — a real sample/test proving registration
@@ -78,12 +103,18 @@ worth its own phase if it turns out to need more than that.
       `Compono.TUnit.SampleTests`' existing pattern) exercising
       `composer.Create<T>()` with a generated double satisfying an
       interface dependency, `[Shared] IRepository` reuse into the SUT, and
-      `repository.Configure().Member(...).Returns(...)`/`.Throws(...)`.
+      `repository.Configure().Member().Returns(...)`/`.Throws(...)` called
+      from the *test* file — the real cross-file case Amendment 2's spike
+      verified in isolation, now proven against the actual generator.
   - [ ] `dotnet publish -p:PublishAot=true` + real execution against that
         sample — the "prove it, don't assume it" standard `Compono.TUnit`
         (PLAN-0040) already set for this repo, applied here.
-- [ ] Public-API-surface approval test for `Compono.TestDoubles`, matching
-      `Compono.TUnit.Tests.PublicApiSurfaceTests`' pattern.
+- [ ] Public-API-surface approval test for `Compono.TestDoubles` (now a
+      much smaller surface post-Amendment-2: just the provider type and
+      `UseGeneratedTestDoubles()`), matching
+      `Compono.TUnit.Tests.PublicApiSurfaceTests`' pattern. Core `Compono`'s
+      own public-API-surface test (if one exists) picks up
+      `ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`.
 
 ### Phase 3 — Docs and skill alignment
 
@@ -97,19 +128,26 @@ worth its own phase if it turns out to need more than that.
 
 ## Critical Files
 
-- `src/Compono.Generators/LeafTypeClassifier.cs` — the compile-time-gated
-  third classification outcome.
-- `src/Compono.Generators/` — new generated-code-emission logic for the
-  double type, its per-member configuration extensions, and the
-  generator-emitted `Configure(this IRepository ...)` bridge per interface
-  (ADR-0043 Amendment 1 — `Configure` is generated per interface, not part
-  of the runtime package).
-- `src/Compono.TestDoubles/` — new project (`ReturnConfigBuilder<T>`,
-  `GeneratedTestDoubleProvider`, `UseGeneratedTestDoubles()`, and the
-  package-level global `using Compono.TestDoubles.Generated;` — no
-  `Configure(...)` method here).
+- `src/Compono/` — new core primitives: `ReturnConfig<T>`,
+  `ReturnConfigBuilder<T>`, `GeneratedTestDoubleRegistry` (ADR-0043
+  Amendment 2 — moved here from the originally-planned `Compono.TestDoubles`
+  to fix a cross-assembly reference the generator couldn't otherwise make).
+- `src/Compono.Generators/Discovery/LeafTypeClassifier.cs` — the
+  compile-time-gated third classification outcome.
+- `src/Compono.Generators/Emitters/GeneratedFileNaming.cs` — reused (not
+  modified) for the new hash-suffixed collision-safe type names.
+- `src/Compono.Generators/` — new generated-code-emission logic: one file
+  per discovered interface containing the double, its configuration
+  extensions, its `Configure(...)` bridge, and its module-initializer
+  registration (ADR-0043 Amendments 1 and 2).
+- `src/Compono.TestDoubles/` — new project, deliberately small:
+  `GeneratedTestDoubleProvider`, `UseGeneratedTestDoubles()`.
 - `test/Compono.Generators.Tests/` — generator-output `Verify()` tests,
-  including the "gate off → zero diff" regression test.
+  including the "gate off → zero diff" regression test, and a real
+  cross-file compile test (generated code in one file, a hand-written
+  consumer file calling `Configure()` in another) proving Amendment 2's
+  verified shape actually works end-to-end through the real generator, not
+  just the standalone spike.
 - `test/Compono.TestDoubles.Tests/`, `test/Compono.TestDoubles.SampleTests/` —
   new test projects.
 
@@ -117,19 +155,38 @@ worth its own phase if it turns out to need more than that.
 
 Matches `references/testing.md`'s existing pattern: `Verify()`-based
 generator-output snapshot tests (including the opt-in-off no-op case),
-unit tests for `GeneratedTestDoubleProvider`/`ReturnConfigBuilder<T>`
-in isolation, a real packaged sample exercising the full
-`composer.Create<T>()` path, and a real `PublishAot=true` execution test —
-not a claim, a run, per this repo's established AOT-verification standard.
+unit tests for `GeneratedTestDoubleProvider`/`ReturnConfigBuilder<T>`/
+`GeneratedTestDoubleRegistry` in isolation, a real packaged sample
+exercising the full `composer.Create<T>()` path (including cross-file
+`Configure()` usage), and a real `PublishAot=true` execution test — not a
+claim, a run, per this repo's established AOT-verification standard.
 
 ## Notes
 
 Not started. ADR-0043 is `Accepted`; this plan stays `Not Started` until
 implementation is explicitly requested.
 
-Pre-implementation review caught a compile-validity defect in ADR-0043's
-original `Configure<T>(...)` sketch (a runtime-package generic method
-can't return a per-consumer generated type it never saw) — corrected via
-[ADR-0043 Amendment 1](../adr/0043-compono-generated-test-doubles-design.md#amendment-1-2026-08-13-configure-must-be-generator-emitted-per-interface-not-a-runtime-generic-method)
-before any code was written; this plan's task list above already reflects
-the corrected shape.
+Pre-implementation review (Codex, PR #82) caught three P1 defects and one
+P2 defect in ADR-0043's original design, all corrected via
+[ADR-0043 Amendment 2](../adr/0043-compono-generated-test-doubles-design.md#amendment-2-2026-08-13-cross-assembly-bridge-generated-type-collision-safety-coreoptional-package-boundary-corrected-argument-matching-sample-struck)
+before any implementation code was written:
+
+1. The runtime provider couldn't reach a lookup generated into the
+   consumer's own compilation (same class of cross-assembly defect
+   Amendment 1 already fixed once, this time in the opposite direction) —
+   fixed by moving the registry into core `Compono`, populated via
+   `[ModuleInitializer]`, the same pattern this repo's own TUnit.Mocks
+   investigation already proved.
+2. The core generator would have needed to hardcode an optional package's
+   type shape (`Compono.TestDoubles.ReturnConfigBuilder<T>`) — fixed by
+   moving `ReturnConfigBuilder<T>` into core alongside the registry.
+3. The original file-scoped-types fix was drafted, then **experimentally
+   disproven twice** before landing on the correct shape (`internal` +
+   hash-suffixed collision-safe names, reusing `GeneratedFileNaming`) — see
+   Amendment 2's own account of both failed attempts (`CS0246`, then
+   `CS9051`) so neither gets rediscovered during implementation.
+4. An `Arg.Any<Guid>()` sample contradicted the requester's own already-
+   decided v1 scope (no argument matchers) — struck; configuration is
+   member-level and argument-independent.
+
+This plan's task list above already reflects the fully-corrected shape.

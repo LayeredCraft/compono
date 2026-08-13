@@ -44,8 +44,10 @@ to reach roadmap-item status since — see below.
 ## Roadmap items (cleared Gate A and Gate B)
 
 - **Compono-owned source-generated test doubles** — a fallback default-value
-  generator for otherwise-unresolvable interface/abstract-class/delegate
-  leaves in a composition graph, giving Compono an AOT-safe, zero-declaration
+  generator for otherwise-unresolvable **interface** leaves in a composition
+  graph (v1 scope, per [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md) —
+  abstract-class and delegate leaves are not part of this item; PLAN-0043
+  has no work for either), giving Compono an AOT-safe, zero-declaration
   alternative to `Compono.NSubstitute`'s runtime-proxy dependency for the
   common case. Cleared Gate A on the strength of a real, checked finding: no
   external source-generated mocking library (TUnit.Mocks, Imposter, Rocks —
@@ -62,16 +64,20 @@ to reach roadmap-item status since — see below.
   Problem recorded in [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)
   (`Accepted`). The deep-design pass is decided in
   [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)
-  (`Accepted`): a distinct-receiver-type control surface (no interception —
-  proven viable by a real spike, but rejected as unnecessary once the
-  generated double implements its interface directly), `[Shared] IRepository`
-  unchanged plus a generator-emitted `Configure(...)` bridge per interface
-  (zero `CompositionScope` changes — ADR-0043 Amendment 1 corrected an
-  earlier sketch that wrongly placed this bridge in the runtime package),
-  v1 including configured returns/exceptions (not default-value-only), and
-  a package split — the compile-time-gated generator logic in core
-  `Compono.Generators`, the runtime-facing surface in a new optional
-  package, **`Compono.TestDoubles`**. Not yet committed implementation work
+  (`Accepted`, two Amendments — both pre-implementation review corrections,
+  no code written yet): a distinct-receiver-type control surface (no
+  interception — proven viable by a real spike, but rejected as unnecessary
+  once the generated double implements its interface directly), `[Shared]
+  IRepository` unchanged plus a generator-emitted `Configure(...)` bridge
+  per interface (zero `CompositionScope` changes), v1 including configured
+  returns/exceptions — argument-independent, no argument matchers (not
+  default-value-only) — and a package split: `ReturnConfigBuilder<T>` and a
+  `[ModuleInitializer]`-populated registry live in **core `Compono`** (moved
+  there by Amendment 2, fixing a cross-assembly reference the original
+  design couldn't make), the compile-time-gated generator logic stays in
+  core `Compono.Generators`, and a deliberately small optional package,
+  **`Compono.TestDoubles`**, holds just the provider and
+  `UseGeneratedTestDoubles()`. Not yet committed implementation work
   per [ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)'s
   terminology — that requires a `Plan` moving `In Progress`, which hasn't
   started yet.

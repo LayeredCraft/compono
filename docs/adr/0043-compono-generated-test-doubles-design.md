@@ -529,6 +529,250 @@ corrected task breakdown (`Configure` extension generation moves to Phase
 0's generator work; Phase 1's runtime-package task list drops the
 now-nonexistent `Configure<T>` method).
 
+## Amendment 2 (2026-08-13): cross-assembly bridge, generated-type collision safety, core/optional package boundary corrected, argument-matching sample struck
+
+PR #82 review (Codex, four findings against this ADR's own text — three P1,
+one P2) caught real gaps in the "Generated code shape," "`[Shared]`
+identity," "Generator architecture," and "Package boundary and naming"
+sections above, all discovered before any implementation code existed. The
+original Decision Outcome text above (including Amendment 1) is left
+exactly as written, per `design-decisions.md`'s immutability rule — this
+Amendment supersedes the affected sketches, not the surrounding
+architecture, which holds up unchanged (control-surface mechanism,
+`[Shared]`/access-shape choice, and generator-architecture opt-in gate are
+all unaffected).
+
+**Finding 1 — the runtime provider cannot reach a lookup generated into the
+consumer's own compilation.** The original "Generator architecture"
+section described "a small, generator-emitted internal lookup keyed by
+`System.Type`" living in the consumer's compilation. `GeneratedTestDoubleProvider`
+is precompiled into `Compono.TestDoubles.dll` — it cannot reference an
+`internal` type that doesn't exist until the consumer's own later
+compilation, exactly the same class of defect Amendment 1 already fixed for
+`Configure<T>`, this time in the opposite direction (a precompiled type
+needing to reach *into* generated code, rather than a precompiled type
+trying to *return* one). As written, satisfying the request would have
+required reflection/`Activator.CreateInstance` from a bare `Type` — directly
+contradicting this ADR's own no-reflection/AOT Decision Drivers.
+
+**Finding 2 — the generator would need to know an optional package's type
+shape.** The original "Package boundary and naming" section placed
+`ReturnConfigBuilder<T>` in the optional `Compono.TestDoubles` package,
+while requiring `Compono.Generators` (core) to emit code instantiating it —
+meaning core's own hand-written generator source would have to hardcode an
+optional integration package's type shape to emit correct code, reversing
+this repo's required dependency direction
+(`design-decisions.md` rule 3) even without an actual project reference.
+
+**Corrected shape for both findings together:** a `Type`-keyed registry and
+`ReturnConfig<T>`/`ReturnConfigBuilder<T>` move into **core `Compono`**
+(`namespace Compono`), the same "extension-point contract lives in core, the
+specific provider implementation lives in the optional package" split
+[ADR-0024](0024-public-provider-extensibility-model.md) already established
+for `ICompositionValueProvider`/`NSubstituteProvider`. Population uses the
+exact mechanism this repo's own TUnit.Mocks investigation already found and
+proved (`MockRegistry.RegisterFactory<T>` via `[ModuleInitializer]`) —
+consumer-generated code registers itself into a core-owned registry at
+module-load time, so `GeneratedTestDoubleProvider` never needs to reference
+anything the consumer generated:
+
+```csharp
+// Core Compono - always present, inert unless a factory is ever registered.
+namespace Compono;
+
+public struct ReturnConfig<T>
+{
+    internal bool HasValue;
+    internal T? Value;
+    internal Exception? Exception;
+
+    internal readonly bool HasException => Exception is not null;
+}
+
+public readonly ref struct ReturnConfigBuilder<T>
+{
+    private readonly ref ReturnConfig<T> _slot;
+
+    internal ReturnConfigBuilder(ref ReturnConfig<T> slot) => _slot = ref slot;
+
+    public void Returns(T value) => _slot.Value = value;
+    public void Throws(Exception exception) => _slot.Exception = exception;
+}
+
+public static class GeneratedTestDoubleRegistry
+{
+    public static void RegisterFactory<T>(Func<T> factory) where T : class => /* keyed internally by typeof(T) */;
+    public static bool TryCreate(Type requestedType, out object? value) => /* ... */;
+}
+```
+
+```csharp
+// Compono.TestDoubles (optional package) - unchanged in spirit from the original sketch,
+// now reads the core registry instead of an unreachable consumer-generated lookup.
+public sealed class GeneratedTestDoubleProvider : ICompositionValueProvider
+{
+    public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+        GeneratedTestDoubleRegistry.TryCreate(request.RequestedType, out var value)
+            ? CompositionProviderResult.Handled(value)
+            : CompositionProviderResult.NotHandled;
+}
+```
+
+`Compono.Generators`' own hand-written source now only ever emits references
+to core `Compono` types (`ReturnConfig<T>`, `ReturnConfigBuilder<T>`,
+`GeneratedTestDoubleRegistry`) — it never needs to know `Compono.TestDoubles`
+exists at all, resolving Finding 2 directly. `Compono.TestDoubles` shrinks to
+exactly `GeneratedTestDoubleProvider` and `UseGeneratedTestDoubles()` — the
+"Package boundary and naming" section's original reasoning for *why* a
+package split exists is unchanged, only which primitives sit on which side
+of it.
+
+**Finding 3 — generated types must stay file-scoped.** The original
+"Generated code shape" sketch emitted `internal sealed class RepositoryDouble`
+and `internal static class RepositoryDoubleConfiguration` — compilation-visible
+types, contradicting `coding-standards.md`'s "every generator-emitted type is
+`file`-scoped" invariant (collision safety: two consumer interfaces, or a
+consumer's own similarly-named helper, must never collide with a Compono-
+generated type).
+
+**Two drafts of this fix were written and experimentally disproven before
+landing on the one below** — worth recording in full so neither dead end
+gets rediscovered during implementation:
+
+1. *File-scope every emitted type in this feature.* A throwaway spike
+   confirmed an extension method declared in a `file`-scoped class compiles
+   and is callable from the *same* file its receiver type is declared in,
+   but a *different* file referencing that same `file`-scoped receiver type
+   fails with `CS0246` ("type or namespace name could not be found") —
+   `Configure()` and the per-member configuration extensions must be
+   callable from the consumer's own test file, a different file than the
+   one Compono generates, so this doesn't work for them.
+2. *Keep only `RepositoryDouble` itself file-scoped, in the same physical
+   file as `internal` configuration/bridge types that reference it by
+   name.* A second spike disproved this too, with a harder compiler error:
+   `CS9051` — **"File-local type cannot be used in a member signature in
+   non-file-local type,"** even within the same file. `file`-scoping isn't
+   just cross-file-invisible; a `file`-local type is flatly barred from
+   appearing in *any* signature (parameter or return type) of a non-file-
+   local member, full stop, co-located or not.
+
+**Corrected shape, verified by a third spike that actually compiles and
+runs:** none of this feature's generated types are `file`-scoped — every
+one (the double, its per-member configuration extensions, the `Configure()`
+bridge) is `internal`, made collision-safe the same way this generator
+already keeps `AddSource` hint names collision-safe per `coding-standards.md`'s
+existing "Hint names are readable + stable-hash-suffixed" rule: each type's
+name is the sanitized interface name plus the same deterministic FNV-1a
+hash suffix `GeneratedFileNaming.HintNameFor` already computes
+(`src/Compono.Generators/Emitters/GeneratedFileNaming.cs`) — reused for type
+names here, not just file hint names, so two differently-namespaced
+interfaces that happen to share a simple name (`MyApp.Data.IRepository` vs.
+`MyApp.Legacy.IRepository`) can never collide on the generated type name
+either. This is a genuine, first-of-its-kind exception to `coding-standards.md`'s
+file-scoping default — not a violation of its *purpose* (collision safety),
+which this naming scheme still fully provides, just not through the file
+boundary, because this feature is the first generated-code shape in this
+codebase whose whole point is being referenced by name from outside its own
+generated file:
+
+```csharp
+// Compono.Generators-emitted, single file, e.g. "RepositoryDouble.g.cs".
+// Illustrative naming below - "IRepository_a1b2c3d4" stands in for whatever
+// GeneratedFileNaming-style sanitized-name+hash the real implementation computes.
+
+internal sealed class IRepository_a1b2c3d4_Double : IRepository
+{
+    internal global::Compono.ReturnConfig<Task<Customer?>> __findAsync;
+    internal global::Compono.ReturnConfig<Compono.Unit> __save; // Unit: existing internal void-marker shape, or introduced by this feature.
+
+    Task<Customer?> IRepository.FindAsync(Guid id, CancellationToken ct) =>
+        __findAsync.HasException ? throw __findAsync.Exception!
+        : __findAsync.HasValue ? __findAsync.Value!
+        : Task.FromResult<Customer?>(null);
+
+    void IRepository.Save(Customer customer)
+    {
+        if (__save.HasException) throw __save.Exception!;
+    }
+}
+
+internal static class IRepository_a1b2c3d4_DoubleConfiguration
+{
+    // No arguments - argument-independent configuration, per Finding 4 below.
+    public static global::Compono.ReturnConfigBuilder<Task<Customer?>> FindAsync(this IRepository_a1b2c3d4_Double self) =>
+        new(ref self.__findAsync);
+
+    public static global::Compono.ReturnConfigBuilder<Compono.Unit> Save(this IRepository_a1b2c3d4_Double self) =>
+        new(ref self.__save);
+}
+
+internal static class IRepository_a1b2c3d4_ConfigureExtension
+{
+    public static IRepository_a1b2c3d4_Double Configure(this IRepository repository) =>
+        repository as IRepository_a1b2c3d4_Double
+            ?? throw new InvalidOperationException(
+                $"'{repository.GetType()}' is not a Compono-generated test double for 'IRepository'.");
+}
+
+// file is fine here - a module initializer is invoked by the runtime itself,
+// never called by name from consumer code, so it has no cross-file visibility
+// requirement, and no collision-safety requirement beyond what one already-
+// unique-per-interface generated file naturally provides.
+file static class IRepository_a1b2c3d4_DoubleRegistration
+{
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void Register() =>
+        global::Compono.GeneratedTestDoubleRegistry.RegisterFactory<global::IRepository>(
+            static () => new IRepository_a1b2c3d4_Double());
+}
+```
+
+Verified directly (`Program.cs` in a separate file from the generated code,
+calling `repository.Configure().Describe()` through an `IRepository`-typed
+local, never naming the concrete generated type at all): this compiles and
+runs correctly. The caller never needs to spell
+`IRepository_a1b2c3d4_Double` — ordinary extension-method resolution and
+type inference (`var`, or a chained call) carry the concrete type through
+without it ever appearing in consumer-authored source, the same experience
+Amendment 1's `Configure()` design always intended, now on a shape that
+actually compiles.
+
+**Finding 4 (P2) — the `[Shared]` identity sample used argument-matching
+syntax (`Arg.Any<Guid>()`) that v1's own scope excludes.** The requester's
+own fork-2 decision (recorded in this ADR's own history) explicitly put
+argument matchers out of scope for v1. The original sample's
+`Compono.TestDoubles.Configure(repository).FindAsync(Arg.Any<Guid>(), default).Returns(...)`
+contradicted that directly, and the paragraph immediately after it
+compounded the problem by treating argument matching as merely
+"not fully specified" rather than already excluded. **Corrected:**
+configuration is member-level and argument-independent — a configured
+`Returns`/`Throws` applies to every call of that member regardless of
+arguments, consistent with the existing Non-Goal, not a new one. The
+corrected usage:
+
+```csharp
+[Compose<SomeProfile>]
+public void Test([Shared] IRepository repository, Service sut)
+{
+    repository.Configure().FindAsync().Returns(Task.FromResult(customer));
+    // sut received the SAME repository instance via [Shared] - ReferenceEquals holds,
+    // because it IS the same object; Configure(...) is a safe downcast, not a lookup.
+}
+```
+
+No argument-matching design surface remains open — the original sketch's
+"real design surface this ADR leaves for the implementing plan to work out"
+framing is retracted; there is nothing left to design for v1 on this point.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect the
+corrected task breakdown (the registry and `ReturnConfigBuilder<T>` move to
+core `Compono`'s own critical files; one generated file per interface with
+every type `internal` and hash-suffixed-collision-safe-named — reusing
+`GeneratedFileNaming` — except the `file`-scoped module-initializer
+registration class, which has no cross-file-visibility or collision-safety
+requirement of its own; a module-initializer registration task; no
+argument-matching task).
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
