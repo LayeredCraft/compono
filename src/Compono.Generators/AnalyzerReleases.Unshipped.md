@@ -18,3 +18,11 @@ CMP0010 | Compono.Usage | Error | The same type was discovered multiple times wi
 CMP0011 | Compono.Usage | Error | The same closed collection type was discovered multiple times with conflicting element/key nullability
 CMP0012 | Compono.Usage | Error | A collection's element or key type is private/protected and not accessible from the generated top-level collection plan
 CMP0013 | Compono.Usage | Error | A [Compose]-family method parameter type is private/protected and not accessible from the generated top-level row-invoker registration (ADR-0041)
+CMP0020 | Compono.TestDoubles | Info | A test-double-eligible interface is private/protected and not accessible from the generated top-level double (ADR-0043)
+CMP0021 | Compono.TestDoubles | Info | A test-double interface member is an unsupported kind (event, indexer, generic method, ref/out/in parameter, static abstract member)
+CMP0022 | Compono.TestDoubles | Info | A test-double interface declares an overloaded member, which a zero-argument configuration extension can't disambiguate
+CMP0023 | Compono.TestDoubles | Info | A test-double interface declares its own member named Configure, which would collide with the generated Configure() bridge
+CMP0024 | Compono.TestDoubles | Info | A test-double member's generated, always-zero-argument configuration extension collides with an inherited object member
+CMP0025 | Compono.TestDoubles | Info | A test-double member has an unsupported return shape (ref-like, by-ref, pointer, function-pointer, or non-nullable reference with no deterministic default)
+CMP0026 | Compono.TestDoubles | Info | A test-double member has an unsupported parameter shape (pointer or function-pointer)
+CMP0027 | Compono.TestDoubles | Info | A test-double interface declares a set-only property, which is unsupported (no call recording/verification in v1)

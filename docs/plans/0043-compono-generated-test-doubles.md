@@ -575,12 +575,13 @@ Two things this pass deliberately left for empirical follow-up rather than
 designing further ahead of real feedback, per this plan's own closing
 decision to move pre-implementation prediction into real build/test/PR-review:
 
-- **Diagnostic test coverage is representative, not exhaustive** — one test
-  per diagnostic *category* (member-kind, collision, return-shape), not one
-  per every shape Amendment 3–10 individually named (e.g. `ref`/`out`/`in`
-  parameters, static abstract members, pointer/function-pointer returns, and
-  `init`-accessor preservation each have analyzer logic but no dedicated
-  `VerifyFailure` test yet). The analyzer logic itself directly mirrors each
+- **Diagnostic test coverage is representative, not exhaustive** — one or two
+  tests per diagnostic *category* (member-kind, collision, return-shape), not
+  one per every shape Amendment 3–10 individually named (e.g. `ref`/`out`/`in`
+  parameters, pointer/function-pointer returns, and `init`-accessor
+  preservation each have analyzer logic but no dedicated `VerifyFailure` test
+  yet — static abstract properties/operators do now, added during PR #83
+  review round 1 below). The analyzer logic itself directly mirrors each
   Amendment's decided shape.
 - **Same interface discovered from two call sites with two different,
   disagreeing diagnostics**: the merge step in `ComponoIncrementalGenerator`
@@ -592,5 +593,65 @@ decision to move pre-implementation prediction into real build/test/PR-review:
   in accessibility between them, which it structurally can't), but worth
   tightening to match the existing pattern if Phase 2's real sample ever
   exercises it.
+
+## PR #83 review round 1 (2026-08-13)
+
+Codex caught five real gaps, all fixed before merge:
+
+1. **(P1)** The Phase 0 notes above claimed verification but every check ran
+   through the in-process generator test harness only, never the packaged
+   `.nupkg` itself — an incorrectly packaged `build/Compono.props` (wrong
+   `PackagePath`, missing from the `.nuspec`, whatever) could ship invisible
+   and every existing test would still pass, since none of them go through
+   real NuGet restore. Fixed by actually doing it: `dotnet pack` on core
+   `Compono`, a throwaway consumer project referencing the packed `.nupkg`
+   from a local feed with `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`,
+   real `dotnet restore` + `dotnet build`. This caught a real, if
+   environment-local, failure mode along the way: a stale global NuGet cache
+   entry for a previously-restored `Compono 1.0.0` silently shadowed the
+   newly packed content (NuGet trusts a cached id+version pair without
+   re-inspecting bytes) — clearing `~/.nuget/packages/compono/1.0.0` and
+   re-restoring produced the real `<Import Project="...buildTransitive/Compono.props">`
+   and the property became visible. `IRepository_<hash>.TestDouble.g.cs` was
+   generated for real, through the real packaged analyzer. (The subsequent
+   `CompositionException` at runtime is expected and correct — Phase 1's
+   `GeneratedTestDoubleProvider` doesn't exist yet.) `.github/scripts/inspect-packed-nupkgs.sh`
+   also needed its own fix here (unrelated to Codex, caught by this PR's own
+   CI): its hardcoded expected-file-listing allowlist didn't yet know about
+   `build/Compono.props`/`buildTransitive/Compono.props`.
+2. **(P2)** The overload/collision pre-pass only considered `IMethodSymbol`,
+   so two same-named properties inherited from different base interfaces (a
+   diamond shape) both passed through un-diagnosed and would have emitted
+   the same backing field and configuration extension twice — a duplicate-
+   member compile error instead of the intended `CMP0022`. Fixed by folding
+   properties into the same duplicate-name pre-pass methods already used.
+3. **(P2)** A static abstract property was silently skipped (`if (property.IsStatic) continue;`
+   with no `IsAbstract` check), leaving the double failing to implement it
+   (`CS0535`) instead of getting the `CMP0021` diagnostic every other
+   unsupported shape gets. Fixed — mirrors the method-side static-abstract
+   check that already existed.
+4. **(P2)** A static abstract *operator* has `MethodKind.UserDefinedOperator`,
+   not `Ordinary` — the existing `MethodKind: not Ordinary → continue` filter
+   ran before the static-abstract check ever saw it, silently dropping it the
+   same way. Fixed by moving the static-abstract check ahead of the
+   `MethodKind` filter (excluding property/event accessor `MethodKind`s, so
+   a static abstract property's own diagnostic still names the property, not
+   its accessor method).
+5. **(P2)** The `object`-member collision check (`ToString`/`GetHashCode`/`GetType`)
+   was only applied to methods — a property with one of those names silently
+   lost its `Configure()` surface to the inherited `object` member instead of
+   getting `CMP0024`. Fixed by applying the same check to properties.
+
+Four new `VerifyFailure` regression tests cover findings 2–5 directly (the
+diamond-property collision, both static-abstract shapes, and the property-
+side object collision) — `TestDoubleVerifyTests` is now 11 tests, all green
+on both target frameworks.
+
+Also fixed in this round, required by this PR's own CI rather than by Codex:
+`AnalyzerReleases.Unshipped.md` needed entries for `CMP0020`-`CMP0027`
+(Roslyn's release-tracking analyzer requires every declared diagnostic ID to
+be listed), a handful of missing `<param>` XML doc tags on the new model
+records, and `docs/reference/api/` needed regenerating for the new public
+`Compono.ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`/`Unit` surface.
 
 Phase 1 (`Compono.TestDoubles` runtime package) is next.

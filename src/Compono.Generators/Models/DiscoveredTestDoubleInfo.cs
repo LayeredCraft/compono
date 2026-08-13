@@ -15,6 +15,16 @@ namespace Compono.Generators.Models;
 /// (<c>{SafeIdentifier}_Double</c>, <c>{SafeIdentifier}_DoubleConfiguration</c>, ...) - produced by
 /// <c>Emitters.TestDoubleIdentifierNaming</c>, ADR-0043 Amendment 5, Finding J.
 /// </param>
+/// <param name="Members">
+/// Every supported member the double must implement - empty when <paramref name="Diagnostics"/> is
+/// non-empty, since analysis stops at the first unsupported shape found (fail-fast, matching
+/// <c>RequiredMemberCollector</c>/<c>ConstructorSelector</c>'s existing convention).
+/// </param>
+/// <param name="Diagnostics">
+/// Non-empty only when this interface can't get a generated double at all (an inaccessible interface,
+/// an unsupported member shape, a naming collision, ...) - the leaf still defers entirely to the
+/// unchanged runtime-provider path in that case.
+/// </param>
 internal sealed record DiscoveredTestDoubleInfo(
     string InterfaceFullyQualifiedName,
     string SafeIdentifier,

@@ -44,11 +44,14 @@ internal static class TestDoubleAnalyzer
                 DiagnosticDescriptors.TestDoubleConfigureMemberCollision, location, interfaceType.ToDisplayString()));
         }
 
-        // A zero-argument configuration extension can't disambiguate an overloaded member.
-        // Amendment 3, Finding D.
-        var overloadedMethodNames = closure
-            .SelectMany(i => i.GetMembers().OfType<IMethodSymbol>())
-            .Where(m => m.MethodKind == MethodKind.Ordinary)
+        // A zero-argument configuration extension can't disambiguate an overloaded member - and
+        // that's not just a method-vs-method concern: two properties of the same name inherited
+        // from different base interfaces (a diamond shape) would emit the same backing field and
+        // the same zero-argument configuration extension just as surely as an overloaded method
+        // would, so both member kinds feed the same name-collision check together.
+        var duplicateConfigurationMemberNames = closure
+            .SelectMany(i => i.GetMembers())
+            .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
             .GroupBy(m => m.Name)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
@@ -72,23 +75,35 @@ internal static class TestDoubleAnalyzer
                         return Failure(fullyQualifiedName, safeIdentifier,
                             UnsupportedMember(interfaceType, member, "an indexer", location));
 
+                    // Checked before the MethodKind filter below, not after: a static abstract
+                    // operator (`static abstract IFoo operator +(...)`) reports MethodKind.UserDefinedOperator,
+                    // not Ordinary, so the filter would otherwise silently `continue` past it before
+                    // this diagnostic ever got a chance to see it - producing an incomplete double
+                    // that fails CS0535 instead of the promised clean fallback diagnostic. Excludes
+                    // property/event accessor MethodKinds - a static abstract property's own
+                    // get_X/set_X accessor methods are handled by the IPropertySymbol case below
+                    // instead, so its diagnostic names the property, not its ugly accessor method.
+                    case IMethodSymbol
+                    {
+                        IsStatic: true,
+                        IsAbstract: true,
+                        MethodKind: not (MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove),
+                    }:
+                        return Failure(fullyQualifiedName, safeIdentifier,
+                            UnsupportedMember(interfaceType, member, "a static abstract member", location));
+
                     case IMethodSymbol { MethodKind: not MethodKind.Ordinary }:
                         continue;
 
                     case IMethodSymbol method:
                     {
+                        // Static abstract methods are already handled above - a static method
+                        // reaching here is necessarily non-abstract (a concrete default
+                        // implementation), not part of the instance contract a double implements.
                         if (method.IsStatic)
-                        {
-                            if (method.IsAbstract)
-                            {
-                                return Failure(fullyQualifiedName, safeIdentifier,
-                                    UnsupportedMember(interfaceType, member, "a static abstract member", location));
-                            }
-
                             continue;
-                        }
 
-                        if (overloadedMethodNames.Contains(method.Name))
+                        if (duplicateConfigurationMemberNames.Contains(method.Name))
                         {
                             return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                 DiagnosticDescriptors.OverloadedTestDoubleMember, location,
@@ -189,7 +204,41 @@ internal static class TestDoubleAnalyzer
                     case IPropertySymbol property:
                     {
                         if (property.IsStatic)
+                        {
+                            // A non-abstract static property is a default implementation, not part
+                            // of the instance contract a double implements - skip it silently, same
+                            // as a non-abstract static method. A static *abstract* property, though,
+                            // is exactly as unsupported as a static abstract method or operator - it
+                            // was previously skipped unconditionally here, which left the double
+                            // failing to implement it (CS0535) instead of getting this diagnostic.
+                            if (property.IsAbstract)
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier,
+                                    UnsupportedMember(interfaceType, member, "a static abstract member", location));
+                            }
+
                             continue;
+                        }
+
+                        if (duplicateConfigurationMemberNames.Contains(property.Name))
+                        {
+                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                DiagnosticDescriptors.OverloadedTestDoubleMember, location,
+                                interfaceType.ToDisplayString(), property.Name));
+                        }
+
+                        // Same object-collision rule as the method branch above: the generated,
+                        // always-zero-argument configuration extension's name is what can collide
+                        // with an inherited object member, not the property's own declared shape.
+                        // Previously only checked for methods - a property named ToString/GetHashCode/
+                        // GetType silently lost its Configure() surface to the inherited object member
+                        // instead of getting this diagnostic. Amendment 6, Finding N.
+                        if (property.Name is "ToString" or "GetHashCode" or "GetType")
+                        {
+                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
+                                interfaceType.ToDisplayString(), property.Name));
+                        }
 
                         // A setter with no getter at all: nothing could ever observe a value written
                         // through it, since v1 has no call recording/verification. Amendment 10, Finding W.

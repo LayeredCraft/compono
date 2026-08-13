@@ -23,6 +23,15 @@ namespace Compono.Generators.Models;
 /// base interface for one only inherited through it (ADR-0043 Amendment 11, Finding Z). The explicit
 /// interface implementation is qualified against this, not the leaf interface requested.
 /// </param>
+/// <param name="Kind">Whether this member came from an interface method or property.</param>
+/// <param name="AccessorKind">
+/// A property's write-accessor shape (<see langword="set"/> vs. <see langword="init"/> vs. get-only) -
+/// not meaningful when <paramref name="Kind"/> is <see cref="TestDoubleMemberKind.Method"/>.
+/// </param>
+/// <param name="ReturnTypeFullyQualifiedName">
+/// The member's return type (a method) or property type, fully qualified - unused when
+/// <paramref name="IsVoid"/> is <see langword="true"/>.
+/// </param>
 /// <param name="IsVoid">
 /// Whether the member is a <see langword="void"/>-returning method - its backing slot is
 /// <c>ReturnConfig&lt;global::Compono.Unit&gt;</c> rather than <c>ReturnConfig&lt;ReturnTypeFullyQualifiedName&gt;</c>,
@@ -31,6 +40,9 @@ namespace Compono.Generators.Models;
 /// <param name="DefaultExpression">
 /// The deterministic-default C# expression for this member's return type - empty/unused when
 /// <see cref="IsVoid"/> is <see langword="true"/>.
+/// </param>
+/// <param name="Parameters">
+/// The member's method parameters - always empty for a <see cref="TestDoubleMemberKind.Property"/>.
 /// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,

@@ -148,7 +148,10 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
 
     extra_paths=""
     if [ "$pkg" = "Compono" ]; then
-        extra_paths="analyzers/dotnet/cs/Compono.Generators.dll"
+        # build/ + buildTransitive/ Compono.props: the CompilerVisibleProperty declaration for
+        # ComponoGeneratedTestDoubles (ADR-0043 Amendment 4, Finding F) - without it,
+        # AnalyzerConfigOptionsProvider can never see a consumer's MSBuild setting for the opt-in.
+        extra_paths=$'analyzers/dotnet/cs/Compono.Generators.dll\nbuild/Compono.props\nbuildTransitive/Compono.props'
     fi
     assert_exact_file_listing "$nupkg" "$pkg" "$extra_paths"
 
