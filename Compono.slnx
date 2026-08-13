@@ -6,6 +6,7 @@
     <Project Path="src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
     <Project Path="src/Compono.Bogus/Compono.Bogus.csproj" />
     <Project Path="src/Compono.TUnit/Compono.TUnit.csproj" />
+    <Project Path="src/Compono.TestDoubles/Compono.TestDoubles.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
@@ -14,6 +15,7 @@
     <Project Path="test/Compono.NSubstitute.Tests/Compono.NSubstitute.Tests.csproj" />
     <Project Path="test/Compono.Bogus.Tests/Compono.Bogus.Tests.csproj" />
     <Project Path="test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj" />
+    <Project Path="test/Compono.TestDoubles.Tests/Compono.TestDoubles.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj" />

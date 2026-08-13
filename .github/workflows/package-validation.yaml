@@ -47,7 +47,7 @@ jobs:
       - name: Resolve nuget.org baseline versions
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit; do
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles; do
             id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
             # No -f here: a non-2xx response must still reach the status-code branch
             # below (curl -f suppresses the body/short-circuits on HTTP errors), and
@@ -101,6 +101,7 @@ jobs:
           pack_one src/Compono.NSubstitute/Compono.NSubstitute.csproj BASELINE_Compono_NSubstitute
           pack_one src/Compono.Bogus/Compono.Bogus.csproj BASELINE_Compono_Bogus
           pack_one src/Compono.TUnit/Compono.TUnit.csproj BASELINE_Compono_TUnit
+          pack_one src/Compono.TestDoubles/Compono.TestDoubles.csproj BASELINE_Compono_TestDoubles
 
       - name: Enforce XML doc comments (CS1591) on publishable packages
         run: |
@@ -110,7 +111,8 @@ jobs:
             src/Compono.XunitV3/Compono.XunitV3.csproj \
             src/Compono.NSubstitute/Compono.NSubstitute.csproj \
             src/Compono.Bogus/Compono.Bogus.csproj \
-            src/Compono.TUnit/Compono.TUnit.csproj; do
+            src/Compono.TUnit/Compono.TUnit.csproj \
+            src/Compono.TestDoubles/Compono.TestDoubles.csproj; do
             echo "Building $csproj with CS1591 as an error"
             dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done

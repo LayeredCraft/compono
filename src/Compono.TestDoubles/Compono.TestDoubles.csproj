@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — Generated Test Doubles</Title>
+        <Description>Generated-test-double runtime activation for Compono - satisfies an otherwise-unresolvable interface dependency with a Compono.Generators-emitted, AOT-safe double, configurable via `interfaceValue.Configure()`.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.TestDoubles.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.XunitV3.csproj's identical target for the full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>
