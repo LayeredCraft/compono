@@ -773,6 +773,154 @@ registration class, which has no cross-file-visibility or collision-safety
 requirement of its own; a module-initializer registration task; no
 argument-matching task).
 
+## Amendment 3 (2026-08-13): public cross-assembly state contract, overload/name-collision diagnostics, documented multi-assembly registry limitation
+
+A second PR #82 review pass (Codex, four more P1 findings and one P2,
+against Amendment 2's own corrected sketches — still before any
+implementation code existed) caught further real gaps. Amendment 2's text
+is left exactly as written, per the same immutability rule Amendment 2
+itself followed for the original Decision Outcome — this Amendment
+supersedes only the specific sketches below.
+
+**Finding A — `ReturnConfig<T>`'s fields and `ReturnConfigBuilder<T>`'s
+constructor are `internal`, but the generated double lives in a different
+(consumer) assembly than core `Compono`.** `internal` doesn't cross
+assembly boundaries — every opted-in consumer would hit `CS0122` the moment
+generated dispatch code tried to read `__findAsync.HasException`/`.Value`,
+or generated configuration code tried to call `new ReturnConfigBuilder<T>(...)`.
+
+**Finding B — `Returns` never marked the slot configured.** `Returns(T value)
+=> _slot.Value = value;` sets `Value` but never `HasValue`, and generated
+dispatch selects the configured value only when `HasValue` is `true` — every
+configured return would have silently fallen through to the deterministic
+default.
+
+**Corrected together:** `ReturnConfig<T>`'s backing fields stay `internal`
+(only core `Compono`'s own `ReturnConfigBuilder<T>` writes them directly,
+same-assembly access, no problem there), but gain `public` readonly
+accessors for the generated dispatch code (a different assembly) to read.
+`ReturnConfigBuilder<T>`'s constructor becomes `public` — it already only
+touches same-assembly `internal` fields internally, so accessibility was the
+only blocker. `Returns` now sets both fields:
+
+```csharp
+// Core Compono.
+namespace Compono;
+
+public struct ReturnConfig<T>
+{
+    internal bool HasValue;
+    internal T? Value;
+    internal Exception? Exception;
+
+    public readonly bool HasConfiguredValue => HasValue;
+    public readonly bool HasConfiguredException => Exception is not null;
+    public readonly T ConfiguredValue => Value!;
+    public readonly Exception ConfiguredException => Exception!;
+}
+
+public readonly ref struct ReturnConfigBuilder<T>
+{
+    private readonly ref ReturnConfig<T> _slot;
+
+    public ReturnConfigBuilder(ref ReturnConfig<T> slot) => _slot = ref slot;
+
+    public void Returns(T value)
+    {
+        _slot.Value = value;
+        _slot.HasValue = true;
+    }
+
+    public void Throws(Exception exception) => _slot.Exception = exception;
+}
+```
+
+Generated dispatch now reads only the public accessors:
+
+```csharp
+Task<Customer?> IRepository.FindAsync(Guid id, CancellationToken ct) =>
+    __findAsync.HasConfiguredException ? throw __findAsync.ConfiguredException
+    : __findAsync.HasConfiguredValue ? __findAsync.ConfiguredValue
+    : Task.FromResult<Customer?>(null);
+```
+
+Mutable state (the backing fields) stays `internal` to core `Compono` —
+only `ReturnConfigBuilder<T>`'s own `Returns`/`Throws` methods can ever
+write them; a consumer can read a slot's configured state through the
+public accessors but can't reach in and mutate it directly, exactly the
+"read and mutate without exposing unnecessary mutable state" shape asked
+for.
+
+**Finding C — a registry keyed only by `System.Type` breaks when two
+consumer assemblies discover the same shared interface.** If `IRepository`
+is declared in a common library both assembly A and assembly B reference,
+and both opt in, each generates its own distinct concrete double type and
+both module initializers register a factory under the same
+`typeof(IRepository)` key — whichever registration wins process-wide can
+hand assembly B a double built for assembly A, and B's own `Configure()`
+bridge then fails its concrete-type cast. Unlike the existing
+`RowInvokerRegistry` precedent (`src/Compono/RowInvokerRegistry.cs`),
+whose duplicate registrations are genuinely interchangeable, these
+factories are not.
+
+**Decided: a documented v1 limitation, not a core-engine redesign.** A
+fully correct fix needs the registry to be assembly-aware — threading
+"which assembly is asking" through `CompositionProviderRequest`/
+`ICompositionContext` — real new core engine surface this ADR's scope
+doesn't currently budget for, and confirmed directly with the requester as
+out of scope for v1. `GeneratedTestDoubleRegistry.RegisterFactory<T>` keeps
+first-registration-wins semantics (deterministic, not silently random), and
+the `Configure()` bridge's cast-failure message is upgraded from a generic
+`InvalidOperationException` to one that names this exact scenario, so a
+consumer who hits it in a multi-assembly test host understands why rather
+than seeing a confusing cast failure:
+
+```csharp
+public static IRepository_a1b2c3d4_Double Configure(this IRepository repository) =>
+    repository as IRepository_a1b2c3d4_Double
+        ?? throw new InvalidOperationException(
+            $"'{repository.GetType()}' is not the 'IRepository' test double generated for this assembly. " +
+            "If another assembly in this process also generated a double for 'IRepository', only one " +
+            "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+            "- this is a known v1 limitation, not a bug in your test.");
+```
+
+**Finding D — overloaded interface members can't share one zero-argument
+configuration entry point.** Amendment 2's own argument-independent fix
+(Finding 4 there) removed all parameters from configuration extensions —
+correct for a non-overloaded member, but for an interface declaring both
+`Get(int)` and `Get(string)`, both would generate an identical
+`Get(this <Double> self)` signature with no parameters to disambiguate them
+by — a duplicate-member compile error, not merely unsupported behavior.
+Overloaded members were never added to the unsupported-shapes list, so this
+would have silently produced uncompilable generated code.
+
+**Decided: diagnose and reject, matching the existing unsupported-shape
+pattern** (indexers, events, generic methods, `ref`/`out`/`in`, static
+abstract members) — confirmed directly with the requester over a genuinely
+different alternative (keeping real parameter types as pure, value-ignored
+overload discriminators), which was rejected as a subtler design not worth
+it for v1. An interface with an overloaded member gets a clear compile-time
+diagnostic naming the member; that leaf still defers to the ordinary
+runtime-provider path unchanged, exactly like every other unsupported
+member shape.
+
+**Finding E (P2) — `Configure()` can be shadowed by an identically-named
+interface member.** If `IRepository` itself declares a parameterless
+`Configure()` method, `repository.Configure()` always resolves to that real
+instance member — C# overload resolution prefers instance members over
+extension methods unconditionally — silently making the generated bridge
+unreachable with no compile error, just wrong (or simply confusing) runtime
+behavior.
+
+**Decided: diagnose it**, the same pattern as Finding D — an interface that
+declares its own member named `Configure` with a signature that would
+collide gets a clear compile-time diagnostic; that leaf still defers to the
+ordinary runtime-provider path unchanged.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect all five
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the

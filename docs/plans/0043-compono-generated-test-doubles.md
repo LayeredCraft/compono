@@ -41,11 +41,19 @@ worth its own phase if it turns out to need more than that.
 
 - [ ] **Core `Compono`** (not `Compono.TestDoubles` — Amendment 2 moved
       these to fix a cross-assembly reference the original design got
-      backwards): `ReturnConfig<T>`, `ReturnConfigBuilder<T>` (a
-      `readonly ref struct` holding a `ref ReturnConfig<T>`), and
+      backwards): `ReturnConfig<T>` (`internal` backing fields, `public`
+      readonly accessors — `HasConfiguredValue`/`HasConfiguredException`/
+      `ConfiguredValue`/`ConfiguredException` — for cross-assembly generated
+      dispatch code to read; Amendment 3 Finding A), `ReturnConfigBuilder<T>`
+      (a `public readonly ref struct` holding a `ref ReturnConfig<T>`, public
+      constructor — Amendment 3 Finding A — whose `Returns` sets **both**
+      `Value` and `HasValue`, Amendment 3 Finding B), and
       `GeneratedTestDoubleRegistry` (`RegisterFactory<T>(Func<T> factory)`/
-      `TryCreate(Type requestedType, out object? value)`, `Type`-keyed) —
-      always present in core, inert unless a factory is ever registered.
+      `TryCreate(Type requestedType, out object? value)`, `Type`-keyed,
+      first-registration-wins — Amendment 3 Finding C documents this as a
+      known v1 limitation for multi-assembly same-interface scenarios, not
+      something this phase needs to solve) — always present in core, inert
+      unless a factory is ever registered.
 - [ ] Extend `LeafTypeClassifier` with the compile-time-gated third
       classification outcome (ADR-0043's "Generator architecture").
 - [ ] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
@@ -63,7 +71,9 @@ worth its own phase if it turns out to need more than that.
         argument-independent per Amendment 2 Finding 4).
       - `internal static class <Hash>_ConfigureExtension` — the
         `Configure(this IRepository)` bridge (Amendment 1, corrected
-        target type by Amendment 2).
+        target type by Amendment 2), whose cast-failure exception message
+        names the multi-assembly-collision scenario explicitly (Amendment 3
+        Finding C).
       - `file static class <Hash>_DoubleRegistration` — `[ModuleInitializer]`
         registering the double's factory into `GeneratedTestDoubleRegistry`
         (this one *can* stay `file`-scoped — never called by name).
@@ -79,8 +89,18 @@ worth its own phase if it turns out to need more than that.
       (primitives, nullable refs, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`,
       empty collections never `null`).
 - [ ] Compile-time diagnostics for unsupported member shapes (indexers,
-      events, generic methods, `ref`/`out`/`in`, static abstract members) —
-      leaf still defers to the unchanged runtime-provider path.
+      events, generic methods, `ref`/`out`/`in`, static abstract members,
+      **overloaded members** — Amendment 3 Finding D: a zero-argument
+      configuration extension can't disambiguate `Get(int)` from
+      `Get(string)`, diagnose and reject rather than emit a duplicate-
+      signature compile error) — leaf still defers to the unchanged
+      runtime-provider path.
+- [ ] Compile-time diagnostic for an interface that declares its own
+      member named `Configure` with a colliding signature (Amendment 3
+      Finding E — an instance member always wins over the generated
+      extension in overload resolution, silently making the bridge
+      unreachable) — leaf still defers to the unchanged runtime-provider
+      path.
 
 ### Phase 1 — Runtime package (`Compono.TestDoubles`)
 
@@ -188,5 +208,29 @@ before any implementation code was written:
 4. An `Arg.Any<Guid>()` sample contradicted the requester's own already-
    decided v1 scope (no argument matchers) — struck; configuration is
    member-level and argument-independent.
+
+A second review pass on Amendment 2's own corrected sketches caught four
+more P1s and one P2, corrected via
+[ADR-0043 Amendment 3](../adr/0043-compono-generated-test-doubles-design.md#amendment-3-2026-08-13-public-cross-assembly-state-contract-overloadname-collision-diagnostics-documented-multi-assembly-registry-limitation),
+still before any implementation code was written:
+
+1. `ReturnConfig<T>`'s fields and `ReturnConfigBuilder<T>`'s constructor
+   were `internal`, unreachable from the consumer assembly the generated
+   code actually lives in (`CS0122`) — fixed with public readonly
+   accessors for reads, a public constructor, mutable state still confined
+   to core.
+2. `Returns` never set `HasValue`, so every configured return would have
+   silently fallen through to the default — fixed.
+3. A registry keyed only by `System.Type` breaks if two consumer
+   assemblies both generate a double for the same shared interface —
+   confirmed with the requester as a documented v1 limitation
+   (first-registration-wins, a named diagnostic message on cast failure),
+   not a core-engine redesign.
+4. The zero-argument configuration-extension shape can't disambiguate
+   overloaded interface members — fixed by diagnosing and rejecting
+   overloaded members, matching the existing unsupported-shape pattern.
+5. An interface declaring its own `Configure` member silently shadows the
+   generated bridge (instance members always win over extensions) — fixed
+   by diagnosing the collision.
 
 This plan's task list above already reflects the fully-corrected shape.
