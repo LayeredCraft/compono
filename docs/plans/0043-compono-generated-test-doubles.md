@@ -1,6 +1,6 @@
 # [PLAN-0043] Compono-Generated Test Doubles
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** ADR-0043 (design), ADR-0042 (admitted problem)
 
@@ -39,7 +39,7 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 0 — Core primitives and generator foundation
 
-- [ ] **Core `Compono`** (not `Compono.TestDoubles` — Amendment 2 moved
+- [x] **Core `Compono`** (not `Compono.TestDoubles` — Amendment 2 moved
       these to fix a cross-assembly reference the original design got
       backwards): `ReturnConfig<T>` (`internal` backing fields, `public`
       readonly accessors — `HasConfiguredValue`/`HasConfiguredException`/

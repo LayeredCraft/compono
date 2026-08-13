@@ -25,6 +25,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- CompilerVisibleProperty declaration for ComponoGeneratedTestDoubles (ADR-0043 Amendment
+             4, Finding F) - packaged into both build/ and buildTransitive/ so the opt-in is visible
+             whether Compono is referenced directly or transitively. -->
+        <None Include="build\Compono.props" Pack="true" PackagePath="build\Compono.props" />
+        <None Include="build\Compono.props" Pack="true" PackagePath="buildTransitive\Compono.props" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- Internal test seams (CompositionContext's per-stage-provider constructor, and future
              Composer.CreateRootForTesting/CreateManyForTesting) - never widened to public just so
              a test can reach them. See docs/adr/0010-composition-request-pipeline-and-diagnostics-tracing.md.

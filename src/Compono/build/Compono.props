@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Declares ComponoGeneratedTestDoubles (ADR-0043) as a CompilerVisibleProperty so
+    AnalyzerConfigOptionsProvider can actually see a consumer's MSBuild setting for it - a custom
+    MSBuild property is NOT automatically visible to the analyzer/generator pipeline the way a
+    built-in one (e.g. InterceptorsNamespaces) is; without this declaration the opt-in can never
+    activate regardless of what a consumer sets. See ADR-0043 Amendment 4, Finding F.
+
+    Packaged into both build/ and buildTransitive/ so the property is visible whether Compono is
+    referenced directly or transitively through another package (e.g. Compono.TestDoubles).
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
+  </ItemGroup>
+
+</Project>

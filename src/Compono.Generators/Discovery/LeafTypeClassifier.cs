@@ -63,6 +63,20 @@ internal static class LeafTypeClassifier
     public static bool IsRuntimeProviderResolved(ITypeSymbol type, WellKnownTypes.WellKnownTypes wellKnownTypes) =>
         IsProviderResolved(type, wellKnownTypes);
 
+    /// <summary>
+    /// The compile-time-gated third leaf outcome ADR-0043 adds alongside <see cref="IsProviderResolved"/>:
+    /// an interface leaf is additionally eligible for a generated test double when
+    /// <paramref name="testDoublesEnabled"/> (the <c>ComponoGeneratedTestDoubles</c> MSBuild opt-in,
+    /// read once via <c>AnalyzerConfigOptionsProvider</c> and threaded down to this call) is
+    /// <see langword="true"/>. This never changes <see cref="IsProviderResolved"/>'s own answer - an
+    /// interface leaf is, and remains, provider-resolved either way; this is an orthogonal query the
+    /// walker uses only to additionally record the leaf for double emission. When the opt-in is
+    /// <see langword="false"/> (the default), this always returns <see langword="false"/> and nothing
+    /// about existing generated output changes.
+    /// </summary>
+    public static bool IsGeneratedTestDoubleEligible(ITypeSymbol type, bool testDoublesEnabled) =>
+        testDoublesEnabled && type is INamedTypeSymbol { TypeKind: TypeKind.Interface };
+
     private static bool IsBuiltInSimpleType(INamedTypeSymbol type) => type.SpecialType is
         SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte or
         SpecialType.System_Char or SpecialType.System_Decimal or SpecialType.System_Double or
