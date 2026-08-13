@@ -40,99 +40,70 @@ namespace Compono.Generators.Discovery;
 /// constructor) or silently generated a dead, always-default-value plan that was never actually
 /// reached at runtime.
 /// </para>
+/// <para>
+/// An interface leaf also feeds <see cref="TestDoubleAnalyzer"/> when <c>testDoublesEnabled</c>
+/// (ADR-0043's <c>ComponoGeneratedTestDoubles</c> compile-time opt-in) is <see langword="true"/> -
+/// deduplicated once per distinct interface symbol across the whole walk, same
+/// <see cref="SymbolEqualityComparer"/>-keyed pattern as <c>visitedTypes</c>. When the opt-in is
+/// <see langword="false"/> (the default), this costs nothing beyond the classification check itself:
+/// no analysis runs, and <see cref="TransitiveClosureResult.TestDoubles"/> is always empty.
+/// </para>
 /// </summary>
 internal static class TransitiveClosureWalker
 {
-    public static TransitiveClosureResult Walk(ITypeSymbol rootType, Compilation compilation, LocationInfo? location)
+    public static TransitiveClosureResult Walk(ITypeSymbol rootType, Compilation compilation, LocationInfo? location, bool testDoublesEnabled)
     {
-        var wellKnownTypes = WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
-        var collectionTypes = CollectionWellKnownTypes.GetOrCreate(compilation);
+        var ctx = new WalkContext(compilation, location, testDoublesEnabled);
 
-        // IncludeNullability, not Default - Default treats Box<string> and Box<string?> as the
-        // same symbol (nullable annotations don't affect its notion of symbol identity), which
-        // would silently drop the second variant here before it ever became its own
-        // DiscoveredTypeInfo - i.e. before ComponoIncrementalGenerator's cross-discovery conflict
-        // check (CMP0010) ever got a chance to see there were two disagreeing entries to compare.
-        // With IncludeNullability, both variants get walked and each produces its own entry, so a
-        // real conflict between them surfaces through that existing check instead of being erased
-        // one layer upstream of it.
-        var visitedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
-        var visitedCollections = new HashSet<ITypeSymbol>(SymbolEqualityComparer.IncludeNullability);
-        var results = new List<DiscoveredTypeInfo>();
-        var collections = new List<DiscoveredCollectionInfo>();
-        var queue = new Queue<(INamedTypeSymbol Type, string? Path)>();
+        EnqueueRoot(rootType, ctx);
 
-        EnqueueRoot(rootType, compilation, location, wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
-
-        while (queue.Count > 0)
+        while (ctx.Queue.Count > 0)
         {
-            var (type, path) = queue.Dequeue();
+            var (type, path) = ctx.Queue.Dequeue();
             var (info, constructor, requiredMemberTypes) = Analyze(type, compilation, location, path);
-            results.Add(info);
+            ctx.Results.Add(info);
 
             if (constructor is null)
                 continue;
 
             foreach (var parameter in constructor.Parameters)
-            {
-                EnqueueMember(
-                    parameter.Type, parameter.Name, type, path, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
-            }
+                EnqueueMember(parameter.Type, parameter.Name, type, path, ctx);
 
             foreach (var (memberType, memberName) in requiredMemberTypes)
-            {
-                EnqueueMember(
-                    memberType, memberName, type, path, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
-            }
+                EnqueueMember(memberType, memberName, type, path, ctx);
         }
 
-        return new TransitiveClosureResult(results.ToEquatableArray(), collections.ToEquatableArray());
+        return new TransitiveClosureResult(ctx.Results.ToEquatableArray(), ctx.Collections.ToEquatableArray(), ctx.TestDoubles.ToEquatableArray());
     }
 
     // Mirrors EnqueueMember's classification (collection shape -> provider-resolved leaf ->
     // genuinely composable type), but for the root, which has no parent/member name to build a
     // diagnostic path from - the root's own type name stands in for both when recursing into a
     // collection root's element/key type(s).
-    private static void EnqueueRoot(
-        ITypeSymbol rootType,
-        Compilation compilation,
-        LocationInfo? location,
-        WellKnownTypes.WellKnownTypes wellKnownTypes,
-        CollectionWellKnownTypes collectionTypes,
-        HashSet<INamedTypeSymbol> visitedTypes,
-        HashSet<ITypeSymbol> visitedCollections,
-        List<DiscoveredCollectionInfo> collections,
-        List<DiscoveredTypeInfo> results,
-        Queue<(INamedTypeSymbol Type, string? Path)> queue)
+    private static void EnqueueRoot(ITypeSymbol rootType, WalkContext ctx)
     {
-        if (collectionTypes.TryClassify(rootType, out var shape))
+        if (ctx.CollectionTypes.TryClassify(rootType, out var shape))
         {
-            if (!visitedCollections.Add(rootType))
+            if (!ctx.VisitedCollections.Add(rootType))
                 return;
 
-            var collectionInfo = ToDiscoveredCollectionInfo(rootType, shape, compilation, location);
-            collections.Add(collectionInfo);
+            var collectionInfo = ToDiscoveredCollectionInfo(rootType, shape, ctx.Compilation, ctx.Location);
+            ctx.Collections.Add(collectionInfo);
 
             if (collectionInfo.Diagnostics.Count > 0)
                 return;
 
-            EnqueueMember(
-                shape.ElementType, "element", rootType, null, compilation, location,
-                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
+            EnqueueMember(shape.ElementType, "element", rootType, null, ctx);
 
             if (shape.KeyType is { } keyType)
-            {
-                EnqueueMember(
-                    keyType, "key", rootType, null, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
-            }
+                EnqueueMember(keyType, "key", rootType, null, ctx);
 
             return;
         }
 
-        if (LeafTypeClassifier.IsRuntimeProviderResolved(rootType, wellKnownTypes))
+        TryRecordTestDouble(rootType, ctx);
+
+        if (LeafTypeClassifier.IsRuntimeProviderResolved(rootType, ctx.WellKnown))
             return;
 
         // Guaranteed INamedTypeSymbol at this point: ComposedTypeAnalyzer only reaches Walk with a
@@ -142,48 +113,29 @@ internal static class TransitiveClosureWalker
         if (rootType is not INamedTypeSymbol namedRoot)
             return;
 
-        visitedTypes.Add(namedRoot);
-        queue.Enqueue((namedRoot, null));
+        ctx.VisitedTypes.Add(namedRoot);
+        ctx.Queue.Enqueue((namedRoot, null));
     }
 
-    private static void EnqueueMember(
-        ITypeSymbol memberType,
-        string memberName,
-        ITypeSymbol parentType,
-        string? parentPath,
-        Compilation compilation,
-        LocationInfo? location,
-        WellKnownTypes.WellKnownTypes wellKnownTypes,
-        CollectionWellKnownTypes collectionTypes,
-        HashSet<INamedTypeSymbol> visitedTypes,
-        HashSet<ITypeSymbol> visitedCollections,
-        List<DiscoveredCollectionInfo> collections,
-        List<DiscoveredTypeInfo> results,
-        Queue<(INamedTypeSymbol Type, string? Path)> queue)
+    private static void EnqueueMember(ITypeSymbol memberType, string memberName, ITypeSymbol parentType, string? parentPath, WalkContext ctx)
     {
         var childPath = parentPath is null ? $"{parentType.Name}.{memberName}" : $"{parentPath}.{memberName}";
 
-        if (collectionTypes.TryClassify(memberType, out var shape))
+        if (ctx.CollectionTypes.TryClassify(memberType, out var shape))
         {
-            if (!visitedCollections.Add(memberType))
+            if (!ctx.VisitedCollections.Add(memberType))
                 return;
 
-            var collectionInfo = ToDiscoveredCollectionInfo(memberType, shape, compilation, location);
-            collections.Add(collectionInfo);
+            var collectionInfo = ToDiscoveredCollectionInfo(memberType, shape, ctx.Compilation, ctx.Location);
+            ctx.Collections.Add(collectionInfo);
 
             if (collectionInfo.Diagnostics.Count > 0)
                 return;
 
-            EnqueueMember(
-                shape.ElementType, "element", parentType, childPath, compilation, location,
-                wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
+            EnqueueMember(shape.ElementType, "element", parentType, childPath, ctx);
 
             if (shape.KeyType is { } keyType)
-            {
-                EnqueueMember(
-                    keyType, "key", parentType, childPath, compilation, location,
-                    wellKnownTypes, collectionTypes, visitedTypes, visitedCollections, collections, results, queue);
-            }
+                EnqueueMember(keyType, "key", parentType, childPath, ctx);
 
             return;
         }
@@ -214,20 +166,35 @@ internal static class TransitiveClosureWalker
             // through exactly as it did before this diagnostic existed.
             if (memberType is IArrayTypeSymbol or IPointerTypeSymbol or IFunctionPointerTypeSymbol)
             {
-                results.AddRange(ComposedTypeAnalyzer.TypeArgumentFailure(
-                    DiagnosticDescriptors.UnsupportedTypeArgumentShape, memberType, location).Types);
+                ctx.Results.AddRange(ComposedTypeAnalyzer.TypeArgumentFailure(
+                    DiagnosticDescriptors.UnsupportedTypeArgumentShape, memberType, ctx.Location).Types);
             }
 
             return;
         }
 
-        if (LeafTypeClassifier.IsProviderResolved(namedType, wellKnownTypes))
+        TryRecordTestDouble(namedType, ctx);
+
+        if (LeafTypeClassifier.IsProviderResolved(namedType, ctx.WellKnown))
             return;
 
-        if (!visitedTypes.Add(namedType))
+        if (!ctx.VisitedTypes.Add(namedType))
             return;
 
-        queue.Enqueue((namedType, childPath));
+        ctx.Queue.Enqueue((namedType, childPath));
+    }
+
+    private static void TryRecordTestDouble(ITypeSymbol type, WalkContext ctx)
+    {
+        if (!LeafTypeClassifier.IsGeneratedTestDoubleEligible(type, ctx.TestDoublesEnabled))
+            return;
+
+        var interfaceType = (INamedTypeSymbol)type;
+
+        if (!ctx.VisitedTestDoubleInterfaces.Add(interfaceType))
+            return;
+
+        ctx.TestDoubles.Add(TestDoubleAnalyzer.Analyze(interfaceType, ctx.Compilation, ctx.Location));
     }
 
     // Every generated collection plan is emitted as a `file`-scoped top-level type
@@ -337,5 +304,53 @@ internal static class TransitiveClosureWalker
             EquatableArray<DiagnosticInfo>.Empty);
 
         return (success, selection.Constructor, requiredMembers.MemberTypes);
+    }
+
+    // Bundles Walk's mutable, per-call state - the walk had already grown past a plain parameter
+    // list's worth of collections/flags before ADR-0043 added a fourth kind of discovery
+    // (test-double-eligible interfaces) alongside types/collections; a context object keeps
+    // EnqueueRoot/EnqueueMember's own parameter lists from growing further with every new discovery
+    // kind this walker learns to recognize.
+    private sealed class WalkContext
+    {
+        public WalkContext(Compilation compilation, LocationInfo? location, bool testDoublesEnabled)
+        {
+            Compilation = compilation;
+            Location = location;
+            TestDoublesEnabled = testDoublesEnabled;
+            WellKnown = Compono.Generators.WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
+            CollectionTypes = CollectionWellKnownTypes.GetOrCreate(compilation);
+        }
+
+        public Compilation Compilation { get; }
+
+        public LocationInfo? Location { get; }
+
+        public bool TestDoublesEnabled { get; }
+
+        public WellKnownTypes.WellKnownTypes WellKnown { get; }
+
+        public CollectionWellKnownTypes CollectionTypes { get; }
+
+        // IncludeNullability, not Default - Default treats Box<string> and Box<string?> as the same
+        // symbol (nullable annotations don't affect its notion of symbol identity), which would
+        // silently drop the second variant here before it ever became its own DiscoveredTypeInfo -
+        // i.e. before ComponoIncrementalGenerator's cross-discovery conflict check (CMP0010) ever
+        // got a chance to see there were two disagreeing entries to compare. With IncludeNullability,
+        // both variants get walked and each produces its own entry, so a real conflict between them
+        // surfaces through that existing check instead of being erased one layer upstream of it.
+        public HashSet<INamedTypeSymbol> VisitedTypes { get; } = new(SymbolEqualityComparer.IncludeNullability);
+
+        public HashSet<ITypeSymbol> VisitedCollections { get; } = new(SymbolEqualityComparer.IncludeNullability);
+
+        public HashSet<INamedTypeSymbol> VisitedTestDoubleInterfaces { get; } = new(SymbolEqualityComparer.Default);
+
+        public List<DiscoveredTypeInfo> Results { get; } = [];
+
+        public List<DiscoveredCollectionInfo> Collections { get; } = [];
+
+        public List<DiscoveredTestDoubleInfo> TestDoubles { get; } = [];
+
+        public Queue<(INamedTypeSymbol Type, string? Path)> Queue { get; } = new();
     }
 }

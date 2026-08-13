@@ -9,4 +9,5 @@ namespace Compono.Generators.Models;
 /// </summary>
 internal sealed record TransitiveClosureResult(
     EquatableArray<DiscoveredTypeInfo> Types,
-    EquatableArray<DiscoveredCollectionInfo> Collections);
+    EquatableArray<DiscoveredCollectionInfo> Collections,
+    EquatableArray<DiscoveredTestDoubleInfo> TestDoubles);

@@ -19,8 +19,23 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // ADR-0043's ComponoGeneratedTestDoubles compile-time opt-in (default false) - declared as a
+        // CompilerVisibleProperty by core Compono's own packaged build asset (Amendment 4, Finding F),
+        // read once here and threaded into every discovery path below, so an interface leaf reached
+        // through any of them gets the same test-double-eligibility decision. False (the default)
+        // means every discovery path behaves exactly as it did before this feature existed - zero
+        // generated-output change.
+        var testDoublesEnabled = context.AnalyzerConfigOptionsProvider
+            .Select(static (provider, _) =>
+                provider.GlobalOptions.TryGetValue("build_property.ComponoGeneratedTestDoubles", out var value)
+                && bool.TryParse(value, out var enabled)
+                && enabled)
+            .WithTrackingName(TrackingNames.TestDoublesEnabled);
+
         var callSiteResults = context.SyntaxProvider
-            .CreateSyntaxProvider(CreateInvocationDiscovery.IsCandidate, CreateInvocationDiscovery.Transform)
+            .CreateSyntaxProvider(CreateInvocationDiscovery.IsCandidate, static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => CreateInvocationDiscovery.Transform(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.CreateInvocations)
             .Where(static result => result is not null)
             .Select(static (result, _) => result!)
@@ -33,14 +48,18 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 ComposableAttributeDiscovery.AttributeMetadataName,
                 static (node, _) => node is TypeDeclarationSyntax,
-                ComposableAttributeDiscovery.TransformTypeLevel)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposableAttributeDiscovery.TransformTypeLevel(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposableTypes);
 
         // [assembly: Composable(typeof(...))] (Phase 2) - assembly-level attributes aren't
         // reachable through ForAttributeWithMetadataName (it only matches attributes on
         // declarations), so this form gets its own syntax provider over `[assembly: ...]` lists.
         var assemblyComposableResults = context.SyntaxProvider
-            .CreateSyntaxProvider(ComposableAttributeDiscovery.IsAssemblyCandidate, ComposableAttributeDiscovery.TransformAssemblyLevel)
+            .CreateSyntaxProvider(ComposableAttributeDiscovery.IsAssemblyCandidate, static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposableAttributeDiscovery.TransformAssemblyLevel(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.AssemblyComposables)
             .Where(static result => result is not null)
             .Select(static (result, _) => result!)
@@ -57,7 +76,9 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.AttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
-                ComposeMethodDiscovery.TransformMethod)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeMethods);
 
         // [Compose<TProfile>] specifically - ForAttributeWithMetadataName matches an attribute
@@ -70,7 +91,9 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.GenericAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
-                ComposeMethodDiscovery.TransformMethod)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeGenericMethods);
 
         // [Compose<TProfile, TConfig>] specifically (ADR-0036) - same reasoning as the arity-1
@@ -82,7 +105,9 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
-                ComposeMethodDiscovery.TransformMethod)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethods);
 
         // Compono.TUnit's own [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed
@@ -96,21 +121,27 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.TUnitAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
-                ComposeMethodDiscovery.TransformMethod)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeMethodsTUnit);
 
         var composeGenericMethodResultsTUnit = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.TUnitGenericAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
-                ComposeMethodDiscovery.TransformMethod)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeGenericMethodsTUnit);
 
         var composeTwoTypeParameterMethodResultsTUnit = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.TUnitTwoTypeParameterAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
-                ComposeMethodDiscovery.TransformMethod)
+                static (ctx, _) => ctx)
+            .Combine(testDoublesEnabled)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethodsTUnit);
 
         // Every ComposeMethodDiscovery registration for one attribute family (non-generic, arity-1,
@@ -214,6 +245,38 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 return;
 
             CollectionPlanEmitter.Generate(productionContext, collection);
+        });
+
+        // ADR-0043's generated test doubles - dedup by interface identity across every discovery
+        // path exactly like Types/Collections above (a shared interface leaf reached via both a
+        // call site and [Composable] still gets exactly one double). When testDoublesEnabled is
+        // false, every discovery path above already returns an empty TestDoubles array, so this is
+        // always empty and RegisterSourceOutput below never runs - zero generated-output change.
+        var discoveredTestDoubles = callSiteResults.SelectMany(static (result, _) => result.TestDoubles)
+            .Collect()
+            .Combine(composableResults.SelectMany(static (result, _) => result.TestDoubles).Collect())
+            .Combine(assemblyComposableResults.SelectMany(static (result, _) => result.TestDoubles).Collect())
+            .Combine(composeMethodResultsAll.SelectMany(static (result, _) => result.TestDoubles).Collect())
+            .WithTrackingName(TrackingNames.DiscoveredTestDoublesCollected)
+            .SelectMany(static (testDoubles, _) =>
+            {
+                var (((callSites, composables), assemblyComposables), composeMethods) = testDoubles;
+
+                return callSites.Concat(composables).Concat(assemblyComposables).Concat(composeMethods)
+                    .GroupBy(static testDouble => testDouble.InterfaceFullyQualifiedName)
+                    .Select(static group => group.Distinct().First());
+            })
+            .WithTrackingName(TrackingNames.DiscoveredTestDoublesDistinct);
+
+        context.RegisterSourceOutput(discoveredTestDoubles, static (productionContext, testDouble) =>
+        {
+            foreach (var diagnostic in testDouble.Diagnostics)
+                diagnostic.Report(productionContext);
+
+            if (testDouble.Diagnostics.Count > 0)
+                return;
+
+            TestDoubleEmitter.Generate(productionContext, testDouble);
         });
 
         // All discovery paths produce equivalent plan-generation requests - merge before deduping
@@ -342,6 +405,9 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
 /// </summary>
 internal static class TrackingNames
 {
+    public const string TestDoublesEnabled = "TestDoublesEnabled";
+    public const string DiscoveredTestDoublesCollected = "DiscoveredTestDoubles.Collected";
+    public const string DiscoveredTestDoublesDistinct = "DiscoveredTestDoubles.Distinct";
     public const string CreateInvocations = "CreateInvocations";
     public const string CreateInvocationsNotNull = "CreateInvocations.NotNull";
     public const string CreateInvocationsTypes = "CreateInvocations.Types";

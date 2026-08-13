@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (14,65)-(14,91),
+      Message: 'TestNamespace.IRepository' declares its own member named 'Configure', which would silently shadow the generated Configure() extension the double's configuration surface depends on. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0023,
+        Title: Test-double interface member collides with the generated Configure() bridge,
+        MessageFormat: '{0}' declares its own member named 'Configure', which would silently shadow the generated Configure() extension the double's configuration surface depends on. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

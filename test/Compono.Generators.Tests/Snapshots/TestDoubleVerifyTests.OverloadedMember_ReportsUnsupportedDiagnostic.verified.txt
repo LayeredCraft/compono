@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (15,65)-(15,91),
+      Message: 'TestNamespace.IRepository' declares an overloaded member 'Get' - a generated test double's configuration extension is always zero-argument, and can't disambiguate between overloads. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0022,
+        Title: Overloaded test-double member,
+        MessageFormat: '{0}' declares an overloaded member '{1}' - a generated test double's configuration extension is always zero-argument, and can't disambiguate between overloads. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

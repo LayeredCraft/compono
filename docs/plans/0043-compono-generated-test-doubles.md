@@ -56,19 +56,19 @@ worth its own phase if it turns out to need more than that.
       known v1 limitation for multi-assembly same-interface scenarios, not
       something this phase needs to solve) — always present in core, inert
       unless a factory is ever registered.
-- [ ] Extend `LeafTypeClassifier` with the compile-time-gated third
+- [x] Extend `LeafTypeClassifier` with the compile-time-gated third
       classification outcome (ADR-0043's "Generator architecture").
-- [ ] Ship a `CompilerVisibleProperty` declaration for
+- [x] Ship a `CompilerVisibleProperty` declaration for
       `ComponoGeneratedTestDoubles` via core `Compono`'s own packaged build
       assets (Amendment 4 Finding F — a custom MSBuild property is
       **not** automatically visible to `AnalyzerConfigOptionsProvider`
       the way a built-in one like `InterceptorsNamespaces` is; without this
       declaration the opt-in can never activate, regardless of what a
       consumer sets).
-- [ ] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
+- [x] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
       confirm zero generated-output diff when unset/`false` (a compile-diff
       regression test, not just a manual check).
-- [ ] Emit, per discovered interface, **one single generated file, no
+- [x] Emit, per discovered interface, **one single generated file, no
       namespace declaration (global namespace)** — Amendment 11 Finding AA:
       `internal` accessibility alone doesn't make `Configure()`/the
       per-member extensions reachable from an arbitrary consumer namespace
@@ -159,7 +159,7 @@ worth its own phase if it turns out to need more than that.
       - Deduplicated per distinct interface symbol across the compilation
         (same `.Collect()` + `SymbolEqualityComparer` pattern used
         elsewhere in the generator).
-- [ ] Compile-time diagnostic for an interface **inaccessible to a
+- [x] Compile-time diagnostic for an interface **inaccessible to a
       top-level generated type** (Amendment 8 Finding T — a `private`/
       `protected` nested interface is a legal call-site request but a
       top-level double can never implement it) — reuse the existing
@@ -167,7 +167,7 @@ worth its own phase if it turns out to need more than that.
       generated collection plans and row-invoker registrations
       (`TransitiveClosureWalker.ToDiscoveredCollectionInfo`), not a new
       mechanism; leaf still defers to the unchanged runtime-provider path.
-- [ ] Deterministic-default logic per ADR-0043's "Deterministic defaults"
+- [x] Deterministic-default logic per ADR-0043's "Deterministic defaults"
       (primitives, nullable refs, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`,
       empty collections never `null`). **Non-nullable reference returns
       (`string`, a non-nullable `Customer`, `Task<Customer>`) have no
@@ -175,20 +175,20 @@ worth its own phase if it turns out to need more than that.
       reject, per the decision below; do not emit `null` (violates the
       interface's own nullable annotation) or attempt real composition
       (out of scope, confirmed with the requester).
-- [ ] Compile-time diagnostics for unsupported member shapes (indexers,
+- [x] Compile-time diagnostics for unsupported member shapes (indexers,
       events, generic methods, `ref`/`out`/`in`, static abstract members,
       **overloaded members** — Amendment 3 Finding D: a zero-argument
       configuration extension can't disambiguate `Get(int)` from
       `Get(string)`, diagnose and reject rather than emit a duplicate-
       signature compile error) — leaf still defers to the unchanged
       runtime-provider path.
-- [ ] Compile-time diagnostic for an interface that declares its own
+- [x] Compile-time diagnostic for an interface that declares its own
       member named `Configure` with a colliding signature (Amendment 3
       Finding E — an instance member always wins over the generated
       extension in overload resolution, silently making the bridge
       unreachable) — leaf still defers to the unchanged runtime-provider
       path.
-- [ ] Compile-time diagnostics for unsupported **return** shapes — ref-like
+- [x] Compile-time diagnostics for unsupported **return** shapes — ref-like
       (`Span<byte> Read()`, can't close the unconstrained generic
       `ReturnConfig<T>` at all), by-ref-returning members, pointer, and
       function-pointer returns (Amendment 4 Finding I — the original list
@@ -197,7 +197,7 @@ worth its own phase if it turns out to need more than that.
       exists for these; diagnose and reject rather than emit `null` or
       attempt real composition) — leaf still defers to the unchanged
       runtime-provider path.
-- [ ] Compile-time diagnostics for unsupported **parameter** shapes —
+- [x] Compile-time diagnostics for unsupported **parameter** shapes —
       pointer and function-pointer parameters (Amendment 10 Finding Y — the
       direct parameter-side counterpart to Amendment 4 Finding I's
       return-side check; an unhandled pointer/function-pointer parameter
@@ -205,7 +205,7 @@ worth its own phase if it turns out to need more than that.
       in this design emits, producing `CS0214` instead of a clean
       diagnostic) — leaf still defers to the unchanged runtime-provider
       path.
-- [ ] Compile-time diagnostic for an interface member whose **generated,
+- [x] Compile-time diagnostic for an interface member whose **generated,
       zero-argument extension** collides with an inherited `object` member
       (`GetHashCode()`, `ToString()`, `Equals(object)`, `GetType()` —
       Amendment 5 Finding L, corrected by Amendment 6 Finding N) — same
@@ -551,3 +551,46 @@ than through further prediction against a design that doesn't compile
 anything yet.
 
 This plan's task list above already reflects the fully-corrected shape.
+
+## Phase 0 implementation notes (2026-08-13)
+
+Phase 0 is implemented and every task above is checked off: core primitives
+(`ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`/`Unit`),
+the packaged `CompilerVisibleProperty` opt-in, `LeafTypeClassifier`'s third
+outcome threaded through `TransitiveClosureWalker` via a new `WalkContext`
+(introduced to keep `EnqueueRoot`/`EnqueueMember`'s own parameter lists from
+growing further — a fourth discovery kind alongside types/collections needed
+somewhere to live), `TestDoubleAnalyzer` (fail-fast, one diagnostic per
+interface leaf, matching `RequiredMemberCollector`/`ConstructorSelector`'s
+existing convention), `TestDoubleDefaults`, `TestDoubleIdentifierNaming`, and
+`TestDoubleEmitter` + `TestDouble.scriban`. Real end-to-end `Verify()` tests
+(`TestDoubleVerifyTests`) prove: the opt-in-off zero-diff regression, a real
+generated double actually compiling, `Configure()` reachable from a different
+namespace with no `using` (Amendment 11's global-namespace claim), and five
+of the diagnostics (event, `Configure` collision, set-only property, overload,
+non-nullable-reference return). Full solution build + 1719-test run (every
+project, both this feature's own tests and every pre-existing test) is green.
+
+Two things this pass deliberately left for empirical follow-up rather than
+designing further ahead of real feedback, per this plan's own closing
+decision to move pre-implementation prediction into real build/test/PR-review:
+
+- **Diagnostic test coverage is representative, not exhaustive** — one test
+  per diagnostic *category* (member-kind, collision, return-shape), not one
+  per every shape Amendment 3–10 individually named (e.g. `ref`/`out`/`in`
+  parameters, static abstract members, pointer/function-pointer returns, and
+  `init`-accessor preservation each have analyzer logic but no dedicated
+  `VerifyFailure` test yet). The analyzer logic itself directly mirrors each
+  Amendment's decided shape.
+- **Same interface discovered from two call sites with two different,
+  disagreeing diagnostics**: the merge step in `ComponoIncrementalGenerator`
+  (`discoveredTestDoubles`) takes `group.Distinct().First()` rather than
+  preserving every distinct failure at its own location, unlike
+  `DiscoveredCollectionInfo`'s/`DiscoveredTypeInfo`'s own conflict-preserving
+  merge. Low-impact (only matters if the same interface is independently
+  reached from two request sites where the interface's *own* shape differs
+  in accessibility between them, which it structurally can't), but worth
+  tightening to match the existing pattern if Phase 2's real sample ever
+  exercises it.
+
+Phase 1 (`Compono.TestDoubles` runtime package) is next.
