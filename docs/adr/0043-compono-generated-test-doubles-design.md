@@ -1398,6 +1398,78 @@ defers to the unchanged runtime-provider path.
 PLAN-0043 is updated in the same pass as this Amendment to reflect all
 three corrections above.
 
+## Amendment 11 (2026-08-13): walk the full base-interface closure, place generated types in the global namespace
+
+A tenth PR #82 review pass (Codex, two more P1 findings, still before any
+implementation code existed) caught two structural gaps more fundamental
+than the escaping/diagnostic refinements the previous several rounds
+converged on — worth fixing before treating this design as ready for
+implementation, unlike the smaller edge cases from here on, which are
+expected to keep surfacing during real implementation and get resolved
+there instead (per the requester's own explicit decision to switch modes
+after this Amendment — see the note at the end). All prior Amendment text
+is left exactly as written, per the same immutability rule already
+followed nine times above.
+
+**Finding Z — interface inheritance was never addressed.** Every sketch in
+this ADR discovers a leaf interface's own declared members
+(`GetMembers()`-shaped), never its base interfaces. For `IChild : IBase`
+where only `IBase` declares `int Get()`, `IChild.GetMembers()` does not
+return the inherited member — a double emitted by walking only `IChild`'s
+own members would implement `IChild` incompletely, `CS0535`.
+
+**Corrected:** discovery walks the full transitive base-interface closure
+(`ITypeSymbol.AllInterfaces`, the same closure Roslyn itself uses to
+determine "does this type implement this interface") — every member
+reachable through `IChild` or any interface it (transitively) extends gets
+its own `ReturnConfig<T>` slot, explicit-implementation accessor, and
+configuration extension. The full closure also participates in the
+overload-collision (Amendment 3 Finding D) and `object`-member-collision
+(Amendment 5 Finding L, corrected by Amendment 6 Finding N) diagnostics
+already decided — a collision reachable only through an inherited member is
+exactly as real as one declared directly. One nuance the closure walk
+surfaces that a single-interface walk never could: an explicit
+interface-implementation accessor for an *inherited* member must qualify
+against the interface that actually **declares** it (`ReturnType
+IBase.Get()`), not the leaf interface requested (`IChild`) — explicit
+interface implementation syntax requires the declaring interface, and
+using the wrong one doesn't compile.
+
+**Finding AA — no namespace was ever decided for the generated types, and
+the design's own current state can't work without one.** Amendment 4
+retired the `global using Compono.TestDoubles.Generated;` injection
+(Finding G) on the reasoning that ordinary extension-method lookup needs no
+import — true only if the generated types themselves are visible without
+one. `internal` accessibility alone doesn't grant that; a consumer test
+file in `namespace MyApp.Tests` would not find `repository.Configure()` or
+any per-member configuration extension unless the generated types share
+its namespace (not generally true — the interface being discovered can be
+declared anywhere) or live in the global namespace.
+
+**Corrected:** every type this feature generates — the double, its
+configuration extensions, the `Configure()` bridge, the module-initializer
+registration — is emitted with **no namespace declaration at all** (the
+global namespace), matching `RowInvokerRegistry`-adjacent generated-code
+precedent for anything that must be reachable from an arbitrary consumer
+namespace with zero import. This is what actually makes Amendment 4
+Finding G's retraction correct: there was never a missing `using` to
+restore, because there's no namespace to import in the first place once
+this correction is applied — Amendment 4's own reasoning is validated, not
+reversed, by this fix.
+
+**This is also the last Amendment from pure pre-implementation review.**
+Ten review rounds surfaced real, load-bearing defects — this Amendment's
+two findings were structural; several since Amendment 5 had narrowed to
+edge-case escaping/diagnostic coverage with real but diminishing severity.
+Confirmed directly with the requester: further refinement continues during
+actual implementation (`tasks/implement.md`'s own build/test/PR-review
+cycle), which surfaces and resolves remaining gaps empirically — a real
+`dotnet build` against real generated output — rather than continuing this
+same text-review cycle indefinitely against code that doesn't exist yet.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect both
+corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the

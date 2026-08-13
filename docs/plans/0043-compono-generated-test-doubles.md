@@ -68,11 +68,28 @@ worth its own phase if it turns out to need more than that.
 - [ ] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
       confirm zero generated-output diff when unset/`false` (a compile-diff
       regression test, not just a manual check).
-- [ ] Emit, per discovered interface, **one single generated file**
-      containing (Amendment 2's verified-by-spike shape — do not
-      file-scope any of the first three; `CS9051` blocks a file-local type
-      from appearing in any non-file-local member's signature, even
-      co-located):
+- [ ] Emit, per discovered interface, **one single generated file, no
+      namespace declaration (global namespace)** — Amendment 11 Finding AA:
+      `internal` accessibility alone doesn't make `Configure()`/the
+      per-member extensions reachable from an arbitrary consumer namespace
+      without an import, and Amendment 4 Finding G already retired the
+      global-using injection on the assumption no import would ever be
+      needed — true only once every generated type is unconditionally
+      visible, i.e. in the global namespace. Containing (Amendment 2's
+      verified-by-spike shape — do not file-scope any of the first three;
+      `CS9051` blocks a file-local type from appearing in any
+      non-file-local member's signature, even co-located):
+      - **Discovery walks the interface's full transitive base-interface
+        closure (`ITypeSymbol.AllInterfaces`), not just its own declared
+        members** (Amendment 11 Finding Z — `IChild.GetMembers()` doesn't
+        return a member `IChild : IBase` only inherits from `IBase`; a
+        double emitted from `IChild`'s own members alone would fail to
+        implement it, `CS0535`). Every unsupported-shape/collision
+        diagnostic below applies across the full closure, not just the
+        leaf interface. An inherited member's explicit-implementation
+        accessor is qualified against the interface that actually
+        **declares** it (`ReturnType IBase.Get()`), not the leaf interface
+        requested (`ReturnType IChild.Get()` would not compile).
       - `internal sealed class <Hash>_Double : IRepository` — explicit
         interface implementation, one `ReturnConfig<T>` field per member.
         A `void` member's field is `ReturnConfig<Compono.Unit>`, where
@@ -221,11 +238,13 @@ worth its own phase if it turns out to need more than that.
       order produces the documented result, not just prose.
 - [ ] **No global-using declaration.** Amendment 1's original
       `global using Compono.TestDoubles.Generated;` idea is retired by
-      Amendment 4 Finding G — Amendment 2's per-interface `internal` types
-      are found by ordinary extension-method lookup with no namespace
-      import needed at all, and an unconditional `global using` for a
-      namespace nothing ever populates would itself be a compile error
-      gate-off. Do not add this back during implementation.
+      Amendment 4 Finding G, and validated (not just assumed) by Amendment
+      11 Finding AA's global-namespace-placement fix: every type this
+      feature generates lives in the global namespace (Phase 0), which is
+      exactly what makes "no import needed at all" true rather than merely
+      hoped-for. A real cross-namespace consumer test (Phase 2) is what
+      actually proves this, not just the design sketch. Do not add a
+      global-using back during implementation.
 
 ### Phase 2 — End-to-end verification
 
@@ -235,7 +254,13 @@ worth its own phase if it turns out to need more than that.
       interface dependency, `[Shared] IRepository` reuse into the SUT, and
       `repository.Configure().Member().Returns(...)`/`.Throws(...)` called
       from the *test* file — the real cross-file case Amendment 2's spike
-      verified in isolation, now proven against the actual generator.
+      verified in isolation, now proven against the actual generator. **The
+      sample's test type lives in a real, non-global namespace**
+      (Amendment 11 Finding AA) — this is what actually proves
+      `Configure()` is reachable with no import, not just the design intent.
+      **The composed interface dependency extends a base interface**
+      (Amendment 11 Finding Z) — proves the full-closure walk, not just a
+      single flat interface.
   - [ ] `dotnet publish -p:PublishAot=true` + real execution against that
         sample — the "prove it, don't assume it" standard `Compono.TUnit`
         (PLAN-0040) already set for this repo, applied here.
@@ -493,5 +518,36 @@ still before any implementation code was written:
 3. Unsafe pointer/function-pointer parameter shapes were never diagnosed,
    only the return-side equivalent was (Amendment 4) — fixed by adding the
    parameter-side counterpart to the same diagnostic list.
+
+A tenth review pass caught two structural gaps — more fundamental than the
+escaping/diagnostic refinements the previous several rounds had converged
+on — corrected via
+[ADR-0043 Amendment 11](../adr/0043-compono-generated-test-doubles-design.md#amendment-11-2026-08-13-walk-the-full-base-interface-closure-place-generated-types-in-the-global-namespace),
+still before any implementation code was written:
+
+1. Interface inheritance was never addressed — every sketch discovered
+   only a leaf interface's own declared members, never its base
+   interfaces (`IChild.GetMembers()` doesn't return what `IChild : IBase`
+   inherits from `IBase`). Fixed by walking the full transitive
+   base-interface closure (`AllInterfaces`), with every diagnostic already
+   decided applying across that closure too, and inherited-member explicit
+   implementations qualified against the interface that actually declares
+   them.
+2. No namespace was ever decided for the generated types, and Amendment 4's
+   retirement of the global-using injection only holds if they're
+   universally visible without one — fixed by placing every generated type
+   in the global namespace, which is what actually validates (not just
+   assumes) Amendment 4's "no import needed" reasoning.
+
+**This closes the pure pre-implementation design-review loop.** Ten review
+rounds surfaced real, load-bearing defects across ADR-0043 and its
+Amendments — confirmed directly with the requester after this round that
+severity had shifted from structural (Amendments 2-3, this round) toward
+narrower edge-case escaping/diagnostic coverage (Amendments 5-10), and
+that further refinement continues during actual implementation instead,
+where `tasks/implement.md`'s build/test/PR-review cycle surfaces and
+resolves remaining gaps empirically against real generated code rather
+than through further prediction against a design that doesn't compile
+anything yet.
 
 This plan's task list above already reflects the fully-corrected shape.
