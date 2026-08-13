@@ -1342,6 +1342,62 @@ Amendment 6 happened to fix first.
 PLAN-0043 is updated in the same pass as this Amendment to reflect both
 corrections above.
 
+## Amendment 10 (2026-08-13): set-only properties diagnosed, parameter names escaped, unsafe parameter shapes diagnosed
+
+A ninth PR #82 review pass (Codex, three more P1 findings, still before
+any implementation code existed) caught one shape this ADR's accessor-kind
+decision never considered and two more instances of "escape/diagnose
+every emission site, not just the first one found" — the same lesson
+Amendments 6 and 9 already learned twice. All prior Amendment text is left
+exactly as written, per the same immutability rule already followed eight
+times above.
+
+**Finding W — set-only properties (`int Value { set; }`) were never
+specified.** Amendment 9's accessor-kind list covers `get`-only, `get`/
+`set`, and `get`/`init` — not a property with a setter and no getter at
+all, which is legal C# and would fail explicit-interface implementation
+either way (emitting a getter the interface doesn't declare is a compile
+error; omitting the property entirely leaves the class incomplete).
+
+**Decided (confirmed directly with the requester): diagnose and reject.**
+Unlike the read/write and get-only cases, a set-only property has no
+meaningful v1 behavior available at all — v1 has no call recording or
+verification (per ADR-0042's Non-Goals, unchanged throughout this design),
+so nothing could ever observe what was written through the double, making
+storage pointless rather than merely limited. This is the same reasoning
+Finding Q's decision already established (reject a stub that can't do
+anything real) applied to a shape where *nothing* real is possible, not
+just deferred.
+
+**Finding X — explicit-implementation method parameter names were never
+escaped.** Amendment 9 Finding V escaped a member's own name at every
+emission site, but a method's *parameter* names were never covered —
+`void Save(int @class)`'s parameter symbol name is the bare `class`
+(the `@` is source-text syntax, not part of the identifier value itself),
+so the generated explicit implementation would emit an invalid `class`
+parameter declaration even though the configuration extension itself takes
+no arguments to escape.
+
+**Corrected:** the same `EscapeIdentifier` convention applies to every
+emitted parameter name in the explicit interface implementation, not just
+member names.
+
+**Finding Y — unsafe pointer/function-pointer *parameter* shapes were
+never diagnosed, only *return* shapes were.** Amendment 4 Finding I added
+diagnostics for ref-like, by-ref-returning, pointer, and function-pointer
+**returns** — but a parameter of the same shape (`byte* value`, a
+function-pointer parameter) needs the generated method wrapped in an
+`unsafe` context, which nothing in this design emits or diagnoses against;
+left as-is, this produces `CS0214`, not a clean diagnostic.
+
+**Corrected:** the unsupported-shape diagnostic list gains pointer and
+function-pointer **parameter** shapes, the direct parameter-side
+counterpart to Amendment 4 Finding I's return-side check — that leaf still
+defers to the unchanged runtime-provider path.
+
+PLAN-0043 is updated in the same pass as this Amendment to reflect all
+three corrections above.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the

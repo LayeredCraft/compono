@@ -98,7 +98,12 @@ worth its own phase if it turns out to need more than that.
         writes — corrected by Amendment 8 Finding S) — both construct a
         `ReturnConfigBuilder<T>` (public constructor) and call its public
         `Returns` method, the same public surface the external
-        `Configure()` path already uses.
+        `Configure()` path already uses. **A set-only property (a setter
+        with no getter at all) is diagnosed as unsupported, not emitted**
+        (Amendment 10 Finding W, confirmed with the requester) — v1's
+        already-decided lack of call recording/verification means nothing
+        could ever observe a value written through a set-only property, so
+        there's no meaningful behavior to give it, not just a limited one.
       - `internal static class <Hash>_DoubleConfiguration` — per-member
         configuration extensions (`FindAsync()`/`Save()`/property names,
         no parameters — argument-independent per Amendment 2 Finding 4;
@@ -114,7 +119,10 @@ worth its own phase if it turns out to need more than that.
         interface implementation too** (Amendment 9 Finding V — Amendment 6
         only covered the configuration extension; `int IFoo.new()` is
         still invalid without it), not just the type-name half Amendment 5
-        Finding J covers.
+        Finding J covers. **And to every emitted method *parameter* name**
+        (Amendment 10 Finding X — `void Save(int @class)`'s parameter
+        symbol name is the bare `class`; escaping only the member name
+        left the parameter list itself invalid).
       - `internal static class <Hash>_ConfigureExtension` — the
         `Configure(this IRepository)` bridge (Amendment 1, corrected
         target type by Amendment 2), whose cast-failure exception message
@@ -172,6 +180,14 @@ worth its own phase if it turns out to need more than that.
       exists for these; diagnose and reject rather than emit `null` or
       attempt real composition) — leaf still defers to the unchanged
       runtime-provider path.
+- [ ] Compile-time diagnostics for unsupported **parameter** shapes —
+      pointer and function-pointer parameters (Amendment 10 Finding Y — the
+      direct parameter-side counterpart to Amendment 4 Finding I's
+      return-side check; an unhandled pointer/function-pointer parameter
+      would need the generated method wrapped in `unsafe`, which nothing
+      in this design emits, producing `CS0214` instead of a clean
+      diagnostic) — leaf still defers to the unchanged runtime-provider
+      path.
 - [ ] Compile-time diagnostic for an interface member whose **generated,
       zero-argument extension** collides with an inherited `object` member
       (`GetHashCode()`, `ToString()`, `Equals(object)`, `GetType()` —
@@ -459,5 +475,23 @@ still before any implementation code was written:
    IFoo.new()` was still invalid. Fixed by applying the same escaping at
    every site a member name is emitted, not just the one Amendment 6
    happened to fix first.
+
+A ninth review pass caught one shape never considered and two more
+instances of "escape/diagnose every emission site," corrected via
+[ADR-0043 Amendment 10](../adr/0043-compono-generated-test-doubles-design.md#amendment-10-2026-08-13-set-only-properties-diagnosed-parameter-names-escaped-unsafe-parameter-shapes-diagnosed),
+still before any implementation code was written:
+
+1. Set-only properties (`int Value { set; }`) were never specified —
+   confirmed with the requester as diagnose-and-reject, since v1's already-
+   decided lack of call recording/verification means nothing could ever
+   observe a value written through one; there's no meaningful behavior to
+   give it.
+2. Explicit-implementation method parameter names were never escaped —
+   `void Save(int @class)` would still emit an invalid bare `class`
+   parameter. Fixed by extending the same escaping convention to
+   parameters.
+3. Unsafe pointer/function-pointer parameter shapes were never diagnosed,
+   only the return-side equivalent was (Amendment 4) — fixed by adding the
+   parameter-side counterpart to the same diagnostic list.
 
 This plan's task list above already reflects the fully-corrected shape.
