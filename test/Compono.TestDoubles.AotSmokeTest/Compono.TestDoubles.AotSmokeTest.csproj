@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PLAN-0043 Phase 2's real Native AOT publish-and-run proof, through the actual packaged
+       Compono.TestDoubles dependency chain (not just PR #83 round 3's own narrower proof, which
+       drove a generated double directly through GeneratedTestDoubleRegistry/Configure() since this
+       package's runtime provider didn't exist yet at that point). A single throwaway console app
+       that composes a real interface leaf through composer.Create<T>() + UseGeneratedTestDoubles(),
+       configures it via the generator-emitted Configure() bridge, and asserts the composed value is
+       real - `dotnet publish -c Release -p:PublishAot=true` + run is this project's whole purpose,
+       not incremental inner-loop iteration. Mirrors test/Compono.TUnit.AotSmokeTest's own .csproj
+       almost verbatim - see that project's comments for the full reasoning behind each choice below. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Overrides test/Directory.Build.props' multi-TFM sweep (net8.0;net9.0;net10.0;net11.0) - this
+         is a one-shot AOT publish-and-run proof, not a matrix run; a single current TFM is enough. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- test/Directory.Build.targets gates the xUnit-v3-only Using/PackageReference ItemGroups on
+         IsTestProject - already false above, so this project gets none of them. Belt-and-suspenders:
+         explicit even though IsTestProject=false should already exclude these usings, matching
+         Compono.AotSmokeTest's own defensive shape. -->
+
+    <!-- Same compile-time opt-in Compono.TestDoubles.SampleTests sets - without it, LeafTypeClassifier's
+         test-double classification outcome never activates and IRepository below would fail
+         composition instead of getting a generated double. -->
+    <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
+    <!-- The repo's central Directory.Packages.props doesn't (and shouldn't) know about the
+         throwaway "1.0.0" version pack-compono.sh stamps onto its local-feed-only nupkgs - opting
+         this one project out of CPM instead of adding a fake pin to the shared file. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Isolates this restore from NuGet's shared global packages folder entirely - NuGet treats a
+         package id+version already present in a packages folder as immutable and never re-extracts
+         it, so rerunning pack-compono.sh with different source under the same fixed "1.0.0" version
+         would otherwise let a stale global-cache entry silently satisfy a later restore/publish,
+         printing PASS without ever exercising the current generator/registry/provider. Mirrors
+         Compono.TUnit.AotSmokeTest's own RestorePackagesPath isolation - no per-run GUID scoping
+         needed there, since this harness is a manual one-shot, never run concurrently with itself. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <!-- test/Directory.Build.props' global usings assume every project under test/ references
+       Xunit/NSubstitute/AwesomeAssertions (true for every other project here, all real test
+       projects) - this one deliberately doesn't, so those usings would fail to compile. -->
+  <ItemGroup>
+    <Using Remove="Xunit" />
+    <Using Remove="NSubstitute" />
+    <Using Remove="AwesomeAssertions" />
+  </ItemGroup>
+
+  <!-- A PackageReference, not a ProjectReference to src/Compono.TestDoubles/Compono.TestDoubles.csproj -
+       the same consumption shape any real consumer uses (Compono.TestDoubles.SampleTests' own
+       local-feed pattern), and required here specifically: a ProjectReference's global properties
+       (PublishAot/RuntimeIdentifier/SelfContained) flow down into Compono.csproj's own analyzer-only
+       ProjectReference to Compono.Generators.csproj (netstandard2.0), failing
+       `dotnet publish -p:PublishAot=true` with NETSDK1207 ("AOT is not supported for the target
+       framework") for a project that's never actually part of the published app. A PackageReference
+       has no such project-graph propagation - the generator analyzer just rides along as a plain
+       `analyzers/dotnet/cs` asset inside the packed .nupkg, exactly like a real consumer gets it.
+       Packed into ../../.local-nuget-feed-testdoubles-aot-smoke by pack-compono.sh (run before
+       publish, not an MSBuild pre-restore target - this project's publish is a deliberate, manual,
+       one-shot proof, not part of the ordinary inner-loop restore). -->
+  <ItemGroup>
+    <PackageReference Include="Compono.TestDoubles" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

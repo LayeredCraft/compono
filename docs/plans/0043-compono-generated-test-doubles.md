@@ -248,7 +248,7 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 2 — End-to-end verification
 
-- [ ] A real packaged-consumer sample (matching `Compono.XunitV3.SampleTests`/
+- [x] A real packaged-consumer sample (matching `Compono.XunitV3.SampleTests`/
       `Compono.TUnit.SampleTests`' existing pattern) exercising
       `composer.Create<T>()` with a generated double satisfying an
       interface dependency, `[Shared] IRepository` reuse into the SUT, and
@@ -261,7 +261,7 @@ worth its own phase if it turns out to need more than that.
       **The composed interface dependency extends a base interface**
       (Amendment 11 Finding Z) — proves the full-closure walk, not just a
       single flat interface.
-  - [ ] `dotnet publish -p:PublishAot=true` + real execution against that
+  - [x] `dotnet publish -p:PublishAot=true` + real execution against that
         sample — the "prove it, don't assume it" standard `Compono.TUnit`
         (PLAN-0040) already set for this repo, applied here.
 - [x] Public-API-surface approval test for `Compono.TestDoubles` (now a
@@ -875,3 +875,74 @@ sample project, which is Phase 2's job. Full solution (562 tests across every pr
 Phase 2 (end-to-end verification: a real packaged-consumer sample, cross-namespace `Configure()`
 reachability, and a real `PublishAot=true` run — `Compono.TestDoubles`' own public-API-surface
 approval test already landed in this phase, above) is next.
+
+## Phase 2 implementation notes (2026-08-13)
+
+Phase 2 is implemented and every task above is checked off.
+
+`test/Compono.TestDoubles.SampleTests` mirrors `Compono.XunitV3.SampleTests`'/`Compono.TUnit.SampleTests`'
+own local-feed packed-consumer pattern exactly (`PackageReference`, never `ProjectReference`, to
+`Compono.XunitV3` and `Compono.TestDoubles`, packed into the shared `.local-nuget-feed` by its own
+`pack-to-local-feed.sh`) - the real "does the packaged dependency chain actually work" proof this
+phase exists to give, not another `Compono.Generators.Tests` snapshot. `Domain.cs` declares
+`IRepository : IClock` (a base-interface leaf, proving Amendment 11 Finding Z's full-closure walk -
+`UtcNow` is only ever declared on `IClock`, never on `IRepository` itself) and `OrderService`, the
+SUT. `GeneratedDoubleTests.cs` (namespace `Compono.TestDoubles.SampleTests`, a real non-global
+namespace, proving Amendment 11 Finding AA's "no import needed" claim for real rather than by
+inspection) has two tests: one configures `CountAsync()`/`UtcNow()` via `Returns(...)` and asserts the
+SUT observes exactly those values through its own `[Shared] IRepository` constructor parameter, the
+other configures `CountAsync()` via `Throws(...)` and asserts the SUT's own `async`/`await` call
+surfaces it. Confirmed via `strings` on the built assembly that a real generator-emitted
+`..._IRepository_<hash>_Double` type exists, not just that the tests happened to pass. The compile-time
+opt-in (`<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`) is set directly in the
+sample's own `.csproj`, exercising the real packaged `CompilerVisibleProperty` declaration
+(Amendment 4 Finding F) rather than an in-memory `AdditionalFiles` shortcut a `ProjectReference` would
+allow. `Directory.Packages.props` gained a `Compono.TestDoubles` `PackageVersion` pin (`1.0.0`,
+matching every other local-feed sample dependency's own pin) - this project is Central-Package-Managed
+like every other real test project, unlike the throwaway AOT harness below.
+`.github/workflows/package-validation.yaml` gained a "Local-feed packed-consumer smoke test
+(Compono.TestDoubles)" step, matching the existing `Compono.TUnit.SampleTests` step's shape (no
+deliberately-failing proof tests in this project, so no `--filter-not-class` needed). Not added to
+`Compono.slnx` - deliberate, matching every other `*.SampleTests`/`*.AotSmokeTest` project's own
+omission (`package-validation.yaml`'s own comment on why).
+
+`test/Compono.TestDoubles.AotSmokeTest` mirrors `test/Compono.AotSmokeTest`/`test/Compono.TUnit.AotSmokeTest`'s
+own shape almost verbatim: a single throwaway `net10.0`-only console app, `PackageReference`
+(never `ProjectReference`, for the same `NETSDK1207` reason those two projects' own comments already
+document) to `Compono.TestDoubles` packed by its own `pack-compono.sh` into a dedicated
+`.local-nuget-feed-testdoubles-aot-smoke`, opted out of Central Package Management (the throwaway
+`Version="1.0.0"` `pack-compono.sh` stamps has no business in the shared `Directory.Packages.props`).
+`Program.cs` composes the same `IRepository : IClock` shape as the sample project (independently
+declared - this harness has no reference to `Compono.TestDoubles.SampleTests`), configures both
+members via the generated `Configure()` bridge, and asserts the composed values are real. A real
+`dotnet publish -c Release -f net10.0 -p:PublishAot=true` produced zero `IL2xxx`/`IL3xxx` trim/AOT-analyzer
+warnings, and the published native binary ran standalone and printed
+`PASS: generated double (composer.Create<T>() + UseGeneratedTestDoubles(), full base-interface closure)
+survived Native AOT - CountAsync()=7, UtcNow=08/13/2026 00:00:00 +00:00.` - not a claim, a run,
+matching PR #83 round 3's own narrower proof of the same standard (that round scoped to the
+generated-code-and-core-primitives path alone, since Phase 1's runtime provider didn't exist yet;
+this one runs the real `Compono.TestDoubles` package end to end). Like the two existing AOT harnesses,
+not wired into CI (`package-validation.yaml`'s own local-feed smoke test above already covers ordinary
+JIT execution through the packaged chain for CI purposes) - a manual, one-shot proof, matching
+`Compono.AotSmokeTest`'s/`Compono.TUnit.AotSmokeTest`'s own disposition.
+
+A real, pre-existing bug was found and fixed along the way, unrelated to this feature but blocking
+this phase's own AOT proof: `test/Directory.Build.targets`' xUnit-v3-only global-`Using` `ItemGroup`
+(`Xunit`/`NSubstitute`/`AwesomeAssertions`) was never scoped to `IsTestProject`, only to
+`ComponoTestFramework != 'TUnit'` - since this `.targets` file imports *after* a project's own body
+(documented in its own comment, for exactly the opposite reason: so a project's own
+`ComponoTestFramework` override is visible in time), a throwaway console app's own
+`<Using Remove="Xunit"/>` etc. (set in its own `PropertyGroup`, evaluated *before* this file's
+`Include`) could never actually cancel it. This silently broke `dotnet build`/`dotnet publish` for the
+*pre-existing* `Compono.AotSmokeTest` project too (`CS0246` for `Xunit`/`NSubstitute`/`AwesomeAssertions`,
+none of which it references) - confirmed by reproducing the failure on that project directly before
+touching anything, and confirming the fix (scoping the `ItemGroup` to `IsTestProject == true`, matching
+the `PackageReference` `ItemGroup` immediately below it in the same file) resolves it with a clean full-
+solution rebuild (1987/1987 tests still green) afterward. `Compono.TUnit.AotSmokeTest` was never
+affected (its own `ComponoTestFramework=TUnit` already skipped the `Include` outright, for unrelated
+reasons), which is presumably why this had gone unnoticed until a *third* AOT harness needed the same
+`Using Remove` pattern to actually work.
+
+Phase 3 (docs and skill alignment: the Package Guide, `docs/packages/index.md`, `skills/compono/`
+detection table and reference file, `future-packages.md` graduation, ADR/Plan `README.md` status
+flips, and the `GeneratedTestDoubleRegistry` ALC-rooting doc note) is next.
