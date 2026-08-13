@@ -6,7 +6,7 @@
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Configure;
-    internal global::Compono.ReturnConfig<string> __GetName;
+    internal global::Compono.ReturnConfig<string?> __GetName;
 
     void global::TestNamespace.IRepository.Configure(int mode)
     {
@@ -14,7 +14,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
             throw __Configure.ConfiguredException;
     }
 
-    string global::TestNamespace.IRepository.GetName() =>
+    string? global::TestNamespace.IRepository.GetName() =>
         __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
         : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
         : default;
@@ -25,8 +25,8 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Configure);
 
-    public static global::Compono.ReturnConfigBuilder<string> GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<string>(ref self.__GetName);
+    public static global::Compono.ReturnConfigBuilder<string?> GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::Compono.ReturnConfigBuilder<string?>(ref self.__GetName);
 
 }
 

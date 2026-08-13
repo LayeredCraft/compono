@@ -5,18 +5,21 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::System.Collections.Generic.List<int>?> __GetValues;
+    internal global::Compono.ReturnConfig<int> __Value;
 
-    global::System.Collections.Generic.List<int>? global::TestNamespace.IRepository.GetValues() =>
-        __GetValues.HasConfiguredException ? throw __GetValues.ConfiguredException
-        : __GetValues.HasConfiguredValue ? __GetValues.ConfiguredValue
-        : [];
+    int global::TestNamespace.IRepository.Value
+    {
+        get =>
+            __Value.HasConfiguredException ? throw __Value.ConfiguredException
+            : __Value.HasConfiguredValue ? __Value.ConfiguredValue
+            : default;
+    }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?> GetValues(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?>(ref self.__GetValues);
+    public static global::Compono.ReturnConfigBuilder<int> Value(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::Compono.ReturnConfigBuilder<int>(ref self.__Value);
 
 }
 

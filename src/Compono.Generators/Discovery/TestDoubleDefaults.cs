@@ -14,6 +14,18 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class TestDoubleDefaults
 {
+    // SymbolDisplayFormat.FullyQualifiedFormat alone omits the `?` nullable-reference-type modifier -
+    // every type reference emitted into generated code needs it too, or a member declared to return
+    // e.g. `Task<string?>` gets emitted as `Task<string>`, and the generated default-value expression
+    // (a legitimate `null` for the nullable case) ends up assigned to a declared-non-nullable slot,
+    // producing spurious nullable warnings in the consumer's own build. Used anywhere a *type argument*
+    // gets interpolated into emitted code text (TestDoubleAnalyzer uses the same format for member
+    // return/parameter/slot types). PR #83 review round 5.
+    internal static readonly SymbolDisplayFormat NullableAwareFullyQualifiedFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+            SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions
+            | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
     public static bool TryGetDefaultExpression(ITypeSymbol type, out string expression)
     {
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
@@ -45,7 +57,7 @@ internal static class TestDoubleDefaults
                     return false;
                 }
 
-                var typeArgument = named.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                var typeArgument = named.TypeArguments[0].ToDisplayString(NullableAwareFullyQualifiedFormat);
                 expression = $"global::System.Threading.Tasks.Task.FromResult<{typeArgument}>({inner})";
                 return true;
             }
@@ -64,8 +76,22 @@ internal static class TestDoubleDefaults
                     return false;
                 }
 
-                var typeArgument = named.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                var typeArgument = named.TypeArguments[0].ToDisplayString(NullableAwareFullyQualifiedFormat);
                 expression = $"new global::System.Threading.Tasks.ValueTask<{typeArgument}>({inner})";
+                return true;
+            }
+
+            // IDictionary<TKey, TValue>/IReadOnlyDictionary<TKey, TValue> aren't "constructible
+            // collection types" under C#'s collection-expression rules (unlike concrete
+            // Dictionary<TKey, TValue> and the other interfaces below) - `[]` targeting either
+            // produces CS9174, "type is not constructible". A concrete empty Dictionary is assignable
+            // to both, so construct one explicitly instead of using the shared `[]` literal below.
+            // Verified directly with a real compile spike before fixing. PR #83 review round 5.
+            if (IsDictionaryInterfaceShape(named))
+            {
+                var keyType = named.TypeArguments[0].ToDisplayString(NullableAwareFullyQualifiedFormat);
+                var valueType = named.TypeArguments[1].ToDisplayString(NullableAwareFullyQualifiedFormat);
+                expression = $"new global::System.Collections.Generic.Dictionary<{keyType}, {valueType}>()";
                 return true;
             }
 
@@ -120,6 +146,15 @@ internal static class TestDoubleDefaults
         return false;
     }
 
+    private static bool IsDictionaryInterfaceShape(INamedTypeSymbol type)
+    {
+        var originalDefinition = type.OriginalDefinition.ToDisplayString();
+
+        return originalDefinition is
+            "System.Collections.Generic.IDictionary<TKey, TValue>" or
+            "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>";
+    }
+
     private static bool IsKnownCollectionShape(INamedTypeSymbol type)
     {
         var originalDefinition = type.OriginalDefinition.ToDisplayString();
@@ -132,8 +167,6 @@ internal static class TestDoubleDefaults
             "System.Collections.Generic.IList<T>" or
             "System.Collections.Generic.List<T>" or
             "System.Collections.Generic.HashSet<T>" or
-            "System.Collections.Generic.Dictionary<TKey, TValue>" or
-            "System.Collections.Generic.IDictionary<TKey, TValue>" or
-            "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>";
+            "System.Collections.Generic.Dictionary<TKey, TValue>";
     }
 }

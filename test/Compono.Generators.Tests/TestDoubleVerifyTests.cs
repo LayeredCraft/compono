@@ -646,4 +646,83 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0023",
             TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task NullableReferenceReturnAndParameter_PreservesAnnotationInGeneratedCode() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    System.Threading.Tasks.Task<string?> FindNameAsync(System.Guid id);
+
+                    void Save(string? name);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task IDictionaryReturn_GeneratesDoubleWithConcreteEmptyDictionary() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    System.Collections.Generic.IDictionary<string, int> GetCounts();
+
+                    System.Collections.Generic.IReadOnlyDictionary<string, int> GetReadOnlyCounts();
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task PropertyWithNonPublicDefaultSetter_GeneratesGetOnlyDouble() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    int Value { get => 0; private set { } }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }

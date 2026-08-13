@@ -201,7 +201,7 @@ internal static class TestDoubleAnalyzer
 
                         if (!isVoid)
                         {
-                            returnTypeFullyQualifiedName = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                            returnTypeFullyQualifiedName = method.ReturnType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat);
 
                             if (!TestDoubleDefaults.TryGetDefaultExpression(method.ReturnType, out defaultExpression))
                             {
@@ -213,7 +213,7 @@ internal static class TestDoubleAnalyzer
                         var parameters = method.Parameters
                             .Select(p => new TestDoubleParameterInfo(
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
-                                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                                p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)))
                             .ToEquatableArray();
 
                         members.Add(new TestDoubleMemberInfo(
@@ -309,8 +309,13 @@ internal static class TestDoubleAnalyzer
                         }
 
                         // set vs. init are non-interchangeable - the write accessor emitted must match
-                        // exactly what the interface declares. Amendment 9, Finding U.
-                        var accessorKind = property.SetMethod is null
+                        // exactly what the interface declares. Amendment 9, Finding U. A setter that
+                        // exists but isn't public (a default-implemented `private set` alongside a
+                        // default-implemented `get`, e.g. `int Value { get => 0; private set { ... } }`)
+                        // is, like a private default method, not part of the implementable contract -
+                        // explicitly implementing it is invalid, so it's treated the same as no setter
+                        // at all rather than selecting GetSet. PR #83 review round 5.
+                        var accessorKind = property.SetMethod is not { DeclaredAccessibility: Accessibility.Public }
                             ? TestDoublePropertyAccessorKind.GetOnly
                             : property.SetMethod.IsInitOnly
                                 ? TestDoublePropertyAccessorKind.GetInit
@@ -322,7 +327,7 @@ internal static class TestDoubleAnalyzer
                             declaringInterfaceFullyQualifiedName,
                             TestDoubleMemberKind.Property,
                             accessorKind,
-                            property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            property.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
                             false,
                             propertyDefault,
                             EquatableArray<TestDoubleParameterInfo>.Empty));

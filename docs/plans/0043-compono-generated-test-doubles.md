@@ -793,4 +793,45 @@ Codex caught three more real gaps:
 
 Five new tests. Full solution: 1957/1957 tests pass.
 
+## PR #83 review round 5 (2026-08-13)
+
+Codex caught three more real gaps:
+
+1. **(P2)** `SymbolDisplayFormat.FullyQualifiedFormat` omits the `?`
+   nullable-reference-type modifier - every emitted member return type,
+   parameter type, and slot type lost its nullable annotation (`Task<string?>`
+   emitted as `Task<string>`), which explains a `CS8603`/nullable warning
+   already visible (unremarked-on) in earlier build output. The default-value
+   *decision* was never wrong (it reads the real symbol's
+   `NullableAnnotation`, not the display string), only the *emitted text*
+   was. Fixed with a shared `NullableAwareFullyQualifiedFormat`
+   (`IncludeNullableReferenceTypeModifier` added) used everywhere a type
+   reference is emitted into generated code - deliberately **not** used for
+   `InterfaceFullyQualifiedName`/hint-name/emission-identity purposes, which
+   must stay nullability-blind per round 3's conflict-merge design.
+2. **(P2)** `IDictionary<TKey, TValue>`/`IReadOnlyDictionary<TKey, TValue>`
+   (added in round 4) aren't "constructible collection types" under C#'s
+   collection-expression rules, unlike concrete `Dictionary<TKey, TValue>` -
+   `[]` targeting either produces `CS9174`. Verified directly with a real
+   compile spike before fixing. Fixed by constructing a concrete empty
+   `Dictionary<TKey, TValue>` (assignable to both interfaces) instead of
+   reusing the shared `[]` literal for this specific shape.
+3. **(P2)** A property's `SetMethod` can exist but not be part of the
+   implementable contract - a default-implemented `private set` alongside a
+   default-implemented `get` (`int Value { get => 0; private set { ... } }`,
+   confirmed compilable via a real spike after two invalid variants) - the
+   accessor-kind selection only checked whether `SetMethod` was non-null, not
+   its accessibility, so it selected `GetSet` and tried to explicitly
+   implement an inaccessible private setter. Fixed to require
+   `DeclaredAccessibility: Public`, same principle as round 3's private
+   default-method fix, just for property accessors.
+
+Three of these five review rounds now (2, 3, 4 partially, 5) have been
+"narrow, real, fixable" rather than structural - a good signal the generator
+core is converging, though not yet exhausted (this round alone found a
+nullable-annotation-loss bug affecting *every* emitted member, missed by all
+four prior rounds).
+
+Six new tests. Full solution: 1963/1963 tests pass.
+
 Phase 1 (`Compono.TestDoubles` runtime package) is next.

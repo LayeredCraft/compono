@@ -7,26 +7,16 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 {
     internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<string?>> __FindNameAsync;
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Save;
-    internal global::Compono.ReturnConfig<int> __Count;
 
     global::System.Threading.Tasks.Task<string?> global::TestNamespace.IRepository.FindNameAsync(global::System.Guid id) =>
         __FindNameAsync.HasConfiguredException ? throw __FindNameAsync.ConfiguredException
         : __FindNameAsync.HasConfiguredValue ? __FindNameAsync.ConfiguredValue
         : global::System.Threading.Tasks.Task.FromResult<string?>(default);
 
-    void global::TestNamespace.IRepository.Save(string name)
+    void global::TestNamespace.IRepository.Save(string? name)
     {
         if (__Save.HasConfiguredException)
             throw __Save.ConfiguredException;
-    }
-
-    int global::TestNamespace.IRepository.Count
-    {
-        get =>
-            __Count.HasConfiguredException ? throw __Count.ConfiguredException
-            : __Count.HasConfiguredValue ? __Count.ConfiguredValue
-            : default;
-        set => new global::Compono.ReturnConfigBuilder<int>(ref __Count).Returns(value);
     }
 }
 
@@ -37,9 +27,6 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Save);
-
-    public static global::Compono.ReturnConfigBuilder<int> Count(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<int>(ref self.__Count);
 
 }
 
