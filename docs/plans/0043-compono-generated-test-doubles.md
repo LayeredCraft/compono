@@ -759,4 +759,38 @@ Codex caught four more real gaps:
 Four new tests (one for each of findings 2-4; finding 1 is docs-only). Full
 solution: 1951/1951 tests pass.
 
+## PR #83 review round 4 (2026-08-13)
+
+Codex caught three more real gaps:
+
+1. **(P1)** `TestDouble.scriban` never `global::`-qualified references to the
+   generated double type itself (only to `Compono`/BCL types) - the
+   `Configure()` bridge's cast, the module initializer's `new`, and every
+   configuration extension's `this` parameter all referenced
+   `{safe_identifier}_Double` unqualified, violating this repo's own
+   "every type reference emitted into generated code is `global::`-qualified"
+   rule (`coding-standards.md`'s "Generated code" section - the same rule
+   already flagged for the interface/BCL references, just missed for the
+   double's own type). A consumer with a global alias matching the
+   hash-suffixed identifier could bind incorrectly. Fixed by qualifying all
+   four reference sites; the type's own declaration doesn't need
+   qualification, only references to it. Every existing `TestDouble.g.verified.cs`
+   snapshot (6 of them) changed as a result and was re-accepted after
+   confirming the diff was exactly this and nothing else.
+2. **(P2)** The `Configure()`-collision check (already corrected once in
+   round 2 to compare arity, not just name) still checked raw
+   `Parameters.Length`, not real zero-argument *applicability* -
+   `Configure(int mode = 0)` and `Configure(params int[] modes)` both have
+   `Parameters.Length > 0` but are genuinely callable with zero arguments, so
+   both actually do collide with the generated bridge exactly like a
+   zero-parameter method does. Fixed with a proper applicability check
+   (every parameter optional, or trailing `params`) - the same rule the C#
+   compiler itself uses.
+3. **(P2)** `Dictionary<TKey, TValue>` (and `IDictionary`/`IReadOnlyDictionary`)
+   were missing from `TestDoubleDefaults`'s known-collection-shapes whitelist -
+   wrongly rejected instead of getting `[]` (a valid, already-established
+   pattern elsewhere in this repo's own code).
+
+Five new tests. Full solution: 1957/1957 tests pass.
+
 Phase 1 (`Compono.TestDoubles` runtime package) is next.

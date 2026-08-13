@@ -131,6 +131,9 @@ internal static class TestDoubleDefaults
             "System.Collections.Generic.ICollection<T>" or
             "System.Collections.Generic.IList<T>" or
             "System.Collections.Generic.List<T>" or
-            "System.Collections.Generic.HashSet<T>";
+            "System.Collections.Generic.HashSet<T>" or
+            "System.Collections.Generic.Dictionary<TKey, TValue>" or
+            "System.Collections.Generic.IDictionary<TKey, TValue>" or
+            "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>";
     }
 }

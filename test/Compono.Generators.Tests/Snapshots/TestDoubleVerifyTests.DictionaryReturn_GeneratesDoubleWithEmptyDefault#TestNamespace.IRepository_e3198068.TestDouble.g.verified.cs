@@ -5,18 +5,18 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::System.Collections.Generic.List<int>> __GetValues;
+    internal global::Compono.ReturnConfig<global::System.Collections.Generic.Dictionary<string, int>> __GetCounts;
 
-    global::System.Collections.Generic.List<int> global::TestNamespace.IRepository.GetValues() =>
-        __GetValues.HasConfiguredException ? throw __GetValues.ConfiguredException
-        : __GetValues.HasConfiguredValue ? __GetValues.ConfiguredValue
+    global::System.Collections.Generic.Dictionary<string, int> global::TestNamespace.IRepository.GetCounts() =>
+        __GetCounts.HasConfiguredException ? throw __GetCounts.ConfiguredException
+        : __GetCounts.HasConfiguredValue ? __GetCounts.ConfiguredValue
         : [];
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>> GetValues(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>>(ref self.__GetValues);
+    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.Dictionary<string, int>> GetCounts(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.Dictionary<string, int>>(ref self.__GetCounts);
 
 }
 

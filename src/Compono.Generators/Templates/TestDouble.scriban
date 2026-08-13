@@ -42,7 +42,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 internal static class {{ safe_identifier }}_DoubleConfiguration
 {
 {{~ for member in members ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this {{ safe_identifier }}_Double self) =>
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self) =>
         new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }});
 
 {{~ end ~}}
@@ -50,8 +50,8 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
 
 internal static class {{ safe_identifier }}_ConfigureExtension
 {
-    public static {{ safe_identifier }}_Double Configure(this {{ interface_fully_qualified_name }} self) =>
-        self as {{ safe_identifier }}_Double
+    public static global::{{ safe_identifier }}_Double Configure(this {{ interface_fully_qualified_name }} self) =>
+        self as global::{{ safe_identifier }}_Double
             ?? throw new global::System.InvalidOperationException(
                 $"'{self.GetType()}' is not the '{{ interface_fully_qualified_name }}' test double generated for this assembly. " +
                 "If another assembly in this process also generated a double for '{{ interface_fully_qualified_name }}', only one " +
@@ -64,5 +64,5 @@ file static class {{ safe_identifier }}_DoubleRegistration
     [global::System.Runtime.CompilerServices.ModuleInitializer]
     internal static void Register() =>
         global::Compono.GeneratedTestDoubleRegistry.RegisterFactory<{{ interface_fully_qualified_name }}>(
-            () => new {{ safe_identifier }}_Double());
+            () => new global::{{ safe_identifier }}_Double());
 }

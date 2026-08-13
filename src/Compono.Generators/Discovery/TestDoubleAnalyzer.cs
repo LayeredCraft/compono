@@ -38,15 +38,19 @@ internal static class TestDoubleAnalyzer
         // A member literally named "Configure" only actually shadows the generated, always-zero-
         // argument Configure() bridge extension when it's itself applicable to a zero-argument call -
         // a property/field/event named Configure always collides (member lookup finds it and never
-        // falls back to extension methods for that name at all), but a *method* named Configure with
-        // one or more parameters does not: C# only falls back to extension-method resolution when
-        // ordinary member lookup finds no *applicable* candidate, not merely "no candidate with this
-        // name" - verified directly with a real compile spike (an explicitly-implemented
-        // `IFoo.Configure(int mode)` alongside a zero-argument `Configure(this IFoo)` extension: calling
-        // `foo.Configure()` on an IFoo-typed receiver resolves to the extension without ambiguity).
-        // Amendment 3, Finding E; corrected to compare arity, not just name, PR #83 review round 2.
+        // falls back to extension methods for that name at all), but a *method* named Configure does
+        // so only if a zero-argument call is actually applicable to it: C# only falls back to
+        // extension-method resolution when ordinary member lookup finds no *applicable* candidate, not
+        // merely "no candidate with this name" - verified directly with a real compile spike (an
+        // explicitly-implemented `IFoo.Configure(int mode)` alongside a zero-argument
+        // `Configure(this IFoo)` extension: calling `foo.Configure()` on an IFoo-typed receiver
+        // resolves to the extension without ambiguity). Amendment 3, Finding E; corrected to compare
+        // arity, not just name, PR #83 review round 2 - and corrected again to check *applicability*,
+        // not raw parameter count, PR #83 review round 4: `Configure(int mode = 0)` and
+        // `Configure(params int[] modes)` both have Parameters.Length > 0 but are still applicable to
+        // a zero-argument call, so they collide exactly like a genuinely zero-parameter method does.
         if (closure.SelectMany(i => i.GetMembers())
-            .Any(m => m.Name == "Configure" && m is not IMethodSymbol { Parameters.Length: > 0 }))
+            .Any(m => m.Name == "Configure" && (m is not IMethodSymbol method || IsApplicableToZeroArguments(method))))
         {
             return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                 DiagnosticDescriptors.TestDoubleConfigureMemberCollision, location, interfaceType.ToDisplayString()));
@@ -334,6 +338,23 @@ internal static class TestDoubleAnalyzer
 
     private static DiscoveredTestDoubleInfo Failure(string fullyQualifiedName, string safeIdentifier, DiagnosticInfo diagnostic) =>
         new(fullyQualifiedName, safeIdentifier, EquatableArray<TestDoubleMemberInfo>.Empty, new[] { diagnostic }.ToEquatableArray());
+
+    // Every parameter must either have a default value, or be the trailing `params` parameter (an
+    // empty array is a valid argument for it) - the same rule the C# compiler itself applies when
+    // deciding whether a zero-argument call is applicable to a method. PR #83 review round 4.
+    private static bool IsApplicableToZeroArguments(IMethodSymbol method)
+    {
+        for (var i = 0; i < method.Parameters.Length; i++)
+        {
+            var parameter = method.Parameters[i];
+            var isLast = i == method.Parameters.Length - 1;
+
+            if (!parameter.IsOptional && !(isLast && parameter.IsParams))
+                return false;
+        }
+
+        return true;
+    }
 
     private static DiagnosticInfo UnsupportedMember(INamedTypeSymbol interfaceType, ISymbol member, string shape, LocationInfo? location) =>
         new(DiagnosticDescriptors.UnsupportedTestDoubleMemberKind, location, interfaceType.ToDisplayString(), member.Name, shape);

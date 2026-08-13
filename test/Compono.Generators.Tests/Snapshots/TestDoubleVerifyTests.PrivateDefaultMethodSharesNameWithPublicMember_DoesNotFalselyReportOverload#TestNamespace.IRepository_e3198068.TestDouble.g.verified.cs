@@ -16,15 +16,15 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this TestNamespace_IRepository_e3198068_Double self) =>
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Get);
 
 }
 
 internal static class TestNamespace_IRepository_e3198068_ConfigureExtension
 {
-    public static TestNamespace_IRepository_e3198068_Double Configure(this global::TestNamespace.IRepository self) =>
-        self as TestNamespace_IRepository_e3198068_Double
+    public static global::TestNamespace_IRepository_e3198068_Double Configure(this global::TestNamespace.IRepository self) =>
+        self as global::TestNamespace_IRepository_e3198068_Double
             ?? throw new global::System.InvalidOperationException(
                 $"'{self.GetType()}' is not the 'global::TestNamespace.IRepository' test double generated for this assembly. " +
                 "If another assembly in this process also generated a double for 'global::TestNamespace.IRepository', only one " +
@@ -37,5 +37,5 @@ file static class TestNamespace_IRepository_e3198068_DoubleRegistration
     [global::System.Runtime.CompilerServices.ModuleInitializer]
     internal static void Register() =>
         global::Compono.GeneratedTestDoubleRegistry.RegisterFactory<global::TestNamespace.IRepository>(
-            () => new TestNamespace_IRepository_e3198068_Double());
+            () => new global::TestNamespace_IRepository_e3198068_Double());
 }
