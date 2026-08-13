@@ -14,7 +14,7 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class ComposedTypeAnalyzer
 {
-    public static TransitiveClosureResult Analyze(ITypeSymbol requestedType, Compilation compilation, LocationInfo? location)
+    public static TransitiveClosureResult Analyze(ITypeSymbol requestedType, Compilation compilation, LocationInfo? location, bool testDoublesEnabled)
     {
         // Three ways a requested type can fail to be a genuine closed type, all needing the same
         // diagnostic: `composer.Create<T>()` where `T` is the enclosing generic method's own type
@@ -37,7 +37,7 @@ internal static class ComposedTypeAnalyzer
         // previous root-type fix only covered List<T>/HashSet<T>/Dictionary<TKey, TValue> roots
         // (all INamedTypeSymbol), missing arrays entirely.
         if (CollectionWellKnownTypes.GetOrCreate(compilation).TryClassify(requestedType, out _))
-            return TransitiveClosureWalker.Walk(requestedType, compilation, location);
+            return TransitiveClosureWalker.Walk(requestedType, compilation, location, testDoublesEnabled);
 
         // Anything that isn't an INamedTypeSymbol - a pointer, a function pointer, an unsupported
         // array rank - has no constructors for ConstructorSelector to select from, and `new T(...)`
@@ -61,7 +61,7 @@ internal static class ComposedTypeAnalyzer
         // Walks the requested type's constructor parameters recursively (Phase 1) - the returned
         // array holds the requested type itself plus every type in its transitive closure that's
         // eligible for its own generated plan (LeafTypeClassifier), not just the top-level type.
-        return TransitiveClosureWalker.Walk(composedType, compilation, location);
+        return TransitiveClosureWalker.Walk(composedType, compilation, location, testDoublesEnabled);
     }
 
     // Shared by every "the requested type itself is unusable" failure - none of these have a
@@ -82,7 +82,8 @@ internal static class ComposedTypeAnalyzer
             EquatableArray<RequiredMemberInfo>.Empty,
             new[] { new DiagnosticInfo(descriptor, location, type.ToDisplayString()) }.ToEquatableArray());
 
-        return new TransitiveClosureResult(new[] { failure }.ToEquatableArray(), EquatableArray<DiscoveredCollectionInfo>.Empty);
+        return new TransitiveClosureResult(
+            new[] { failure }.ToEquatableArray(), EquatableArray<DiscoveredCollectionInfo>.Empty, EquatableArray<DiscoveredTestDoubleInfo>.Empty);
     }
 
     /// <summary>

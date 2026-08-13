@@ -128,7 +128,14 @@ list). The load-bearing ones:
 
 - Every emitted type is `file`-scoped — generated plans are reached
   through `PlanCache<T>.Instance`, never by name, so there's no reason to
-  risk a collision.
+  risk a collision. **Exception: ADR-0043's generated test doubles** - the
+  double, its configuration extensions, and its `Configure()` bridge
+  reference each other in public signatures, which `file`-scoping any of
+  them breaks with `CS9051` (proven by two failed drafts during design
+  review). They're `internal` + hash-suffixed names instead; only the
+  `[ModuleInitializer]` registration class stays `file`-scoped. See
+  `references/coding-standards.md`'s "Generated code" section for the
+  full account before "fixing" this back.
 - Every type reference is `global::`-qualified
   (`SymbolDisplayFormat.FullyQualifiedFormat`) — collision-proof
   regardless of a consumer's `using`s or shadowed namespace segments.

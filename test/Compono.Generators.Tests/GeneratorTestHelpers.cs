@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Compono.Generators.Tests;
 
@@ -18,6 +19,47 @@ internal sealed class CodeGenerationOptions
     /// only matter across an assembly boundary).
     /// </summary>
     internal IReadOnlyList<MetadataReference> ExtraReferences { get; init; } = [];
+
+    /// <summary>
+    /// Simulates a consumer's own MSBuild property settings (e.g. <c>ComponoGeneratedTestDoubles</c>,
+    /// ADR-0043) - each entry is exposed to <see cref="Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptionsProvider"/>
+    /// under the real <c>build_property.&lt;Name&gt;</c> key a packaged <c>CompilerVisibleProperty</c>
+    /// declaration produces. Empty by default, matching an ordinary consumer who never opted into
+    /// anything.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string> MSBuildProperties { get; init; } = new Dictionary<string, string>();
+}
+
+/// <summary>
+/// A minimal <see cref="AnalyzerConfigOptionsProvider"/> exposing a fixed set of
+/// <c>build_property.*</c> global options - what a real MSBuild-driven build exposes to the
+/// generator once a <c>CompilerVisibleProperty</c> declares the property (ADR-0043 Amendment 4,
+/// Finding F), without needing a real MSBuild invocation in this test harness.
+/// </summary>
+internal sealed class TestAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
+{
+    public TestAnalyzerConfigOptionsProvider(IReadOnlyDictionary<string, string> msBuildProperties)
+    {
+        GlobalOptions = new TestAnalyzerConfigOptions(msBuildProperties);
+    }
+
+    public override AnalyzerConfigOptions GlobalOptions { get; }
+
+    public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => GlobalOptions;
+
+    public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => GlobalOptions;
+
+    private sealed class TestAnalyzerConfigOptions : AnalyzerConfigOptions
+    {
+        private readonly Dictionary<string, string> _values;
+
+        public TestAnalyzerConfigOptions(IReadOnlyDictionary<string, string> msBuildProperties)
+        {
+            _values = msBuildProperties.ToDictionary(kvp => $"build_property.{kvp.Key}", kvp => kvp.Value);
+        }
+
+        public override bool TryGetValue(string key, out string value) => _values.TryGetValue(key, out value!);
+    }
 }
 
 internal static partial class GeneratorTestHelpers
@@ -165,7 +207,8 @@ internal static partial class GeneratorTestHelpers
         var compilation = CSharpCompilation.Create("TestsAssembly", [syntaxTree], references, compilationOptions);
 
         var generator = new ComponoIncrementalGenerator().AsSourceGenerator();
-        var driver = CSharpGeneratorDriver.Create(generator);
+        var optionsProvider = new TestAnalyzerConfigOptionsProvider(options.MSBuildProperties);
+        var driver = ((GeneratorDriver)CSharpGeneratorDriver.Create(generator)).WithUpdatedAnalyzerConfigOptions(optionsProvider);
         var updatedDriver = driver.RunGenerators(compilation, cancellationToken);
 
         return (updatedDriver, compilation);

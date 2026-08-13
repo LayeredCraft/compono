@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (14,65)-(14,91),
+      Message: 'TestNamespace.IRepository' declares set-only property 'Value' - with no call recording or verification in v1, nothing could ever observe a value written through it. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0027,
+        Title: Set-only test-double property is unsupported,
+        MessageFormat: '{0}' declares set-only property '{1}' - with no call recording or verification in v1, nothing could ever observe a value written through it. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

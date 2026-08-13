@@ -76,18 +76,20 @@ internal static class ComposeMethodDiscovery
     /// <remarks><c>Compono.TUnit.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
     public const string TUnitTwoTypeParameterAttributeMetadataName = "Compono.TUnit.ComposeAttribute`2";
 
-    public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, bool testDoublesEnabled, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)
         {
             return new ComposeMethodDiscoveryResult(
-                new TransitiveClosureResult(EquatableArray<DiscoveredTypeInfo>.Empty, EquatableArray<DiscoveredCollectionInfo>.Empty),
+                new TransitiveClosureResult(
+                    EquatableArray<DiscoveredTypeInfo>.Empty, EquatableArray<DiscoveredCollectionInfo>.Empty, EquatableArray<DiscoveredTestDoubleInfo>.Empty),
                 EquatableArray<RowInvokerTypeInfo>.Empty);
         }
 
         var compilation = context.SemanticModel.Compilation;
         var types = new List<DiscoveredTypeInfo>();
         var collections = new List<DiscoveredCollectionInfo>();
+        var testDoubles = new List<DiscoveredTestDoubleInfo>();
         var rowInvokerTypes = new List<RowInvokerTypeInfo>();
 
         foreach (var parameter in method.Parameters)
@@ -96,16 +98,17 @@ internal static class ComposeMethodDiscovery
                 continue;
 
             var location = LocationOf(parameter, cancellationToken);
-            var result = ComposedTypeAnalyzer.Analyze(parameter.Type, compilation, location);
+            var result = ComposedTypeAnalyzer.Analyze(parameter.Type, compilation, location, testDoublesEnabled);
             types.AddRange(result.Types);
             collections.AddRange(result.Collections);
+            testDoubles.AddRange(result.TestDoubles);
 
             if (RowInvokerTypeOf(parameter.Type, compilation, location) is { } rowInvokerType)
                 rowInvokerTypes.Add(rowInvokerType);
         }
 
         return new ComposeMethodDiscoveryResult(
-            new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray()),
+            new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray(), testDoubles.ToEquatableArray()),
             rowInvokerTypes.ToEquatableArray());
     }
 

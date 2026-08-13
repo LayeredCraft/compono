@@ -1,6 +1,6 @@
 # [PLAN-0043] Compono-Generated Test Doubles
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** ADR-0043 (design), ADR-0042 (admitted problem)
 
@@ -39,7 +39,7 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 0 — Core primitives and generator foundation
 
-- [ ] **Core `Compono`** (not `Compono.TestDoubles` — Amendment 2 moved
+- [x] **Core `Compono`** (not `Compono.TestDoubles` — Amendment 2 moved
       these to fix a cross-assembly reference the original design got
       backwards): `ReturnConfig<T>` (`internal` backing fields, `public`
       readonly accessors — `HasConfiguredValue`/`HasConfiguredException`/
@@ -56,19 +56,19 @@ worth its own phase if it turns out to need more than that.
       known v1 limitation for multi-assembly same-interface scenarios, not
       something this phase needs to solve) — always present in core, inert
       unless a factory is ever registered.
-- [ ] Extend `LeafTypeClassifier` with the compile-time-gated third
+- [x] Extend `LeafTypeClassifier` with the compile-time-gated third
       classification outcome (ADR-0043's "Generator architecture").
-- [ ] Ship a `CompilerVisibleProperty` declaration for
+- [x] Ship a `CompilerVisibleProperty` declaration for
       `ComponoGeneratedTestDoubles` via core `Compono`'s own packaged build
       assets (Amendment 4 Finding F — a custom MSBuild property is
       **not** automatically visible to `AnalyzerConfigOptionsProvider`
       the way a built-in one like `InterceptorsNamespaces` is; without this
       declaration the opt-in can never activate, regardless of what a
       consumer sets).
-- [ ] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
+- [x] Read `ComponoGeneratedTestDoubles` via `AnalyzerConfigOptionsProvider`;
       confirm zero generated-output diff when unset/`false` (a compile-diff
       regression test, not just a manual check).
-- [ ] Emit, per discovered interface, **one single generated file, no
+- [x] Emit, per discovered interface, **one single generated file, no
       namespace declaration (global namespace)** — Amendment 11 Finding AA:
       `internal` accessibility alone doesn't make `Configure()`/the
       per-member extensions reachable from an arbitrary consumer namespace
@@ -159,7 +159,7 @@ worth its own phase if it turns out to need more than that.
       - Deduplicated per distinct interface symbol across the compilation
         (same `.Collect()` + `SymbolEqualityComparer` pattern used
         elsewhere in the generator).
-- [ ] Compile-time diagnostic for an interface **inaccessible to a
+- [x] Compile-time diagnostic for an interface **inaccessible to a
       top-level generated type** (Amendment 8 Finding T — a `private`/
       `protected` nested interface is a legal call-site request but a
       top-level double can never implement it) — reuse the existing
@@ -167,7 +167,7 @@ worth its own phase if it turns out to need more than that.
       generated collection plans and row-invoker registrations
       (`TransitiveClosureWalker.ToDiscoveredCollectionInfo`), not a new
       mechanism; leaf still defers to the unchanged runtime-provider path.
-- [ ] Deterministic-default logic per ADR-0043's "Deterministic defaults"
+- [x] Deterministic-default logic per ADR-0043's "Deterministic defaults"
       (primitives, nullable refs, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`,
       empty collections never `null`). **Non-nullable reference returns
       (`string`, a non-nullable `Customer`, `Task<Customer>`) have no
@@ -175,20 +175,20 @@ worth its own phase if it turns out to need more than that.
       reject, per the decision below; do not emit `null` (violates the
       interface's own nullable annotation) or attempt real composition
       (out of scope, confirmed with the requester).
-- [ ] Compile-time diagnostics for unsupported member shapes (indexers,
+- [x] Compile-time diagnostics for unsupported member shapes (indexers,
       events, generic methods, `ref`/`out`/`in`, static abstract members,
       **overloaded members** — Amendment 3 Finding D: a zero-argument
       configuration extension can't disambiguate `Get(int)` from
       `Get(string)`, diagnose and reject rather than emit a duplicate-
       signature compile error) — leaf still defers to the unchanged
       runtime-provider path.
-- [ ] Compile-time diagnostic for an interface that declares its own
+- [x] Compile-time diagnostic for an interface that declares its own
       member named `Configure` with a colliding signature (Amendment 3
       Finding E — an instance member always wins over the generated
       extension in overload resolution, silently making the bridge
       unreachable) — leaf still defers to the unchanged runtime-provider
       path.
-- [ ] Compile-time diagnostics for unsupported **return** shapes — ref-like
+- [x] Compile-time diagnostics for unsupported **return** shapes — ref-like
       (`Span<byte> Read()`, can't close the unconstrained generic
       `ReturnConfig<T>` at all), by-ref-returning members, pointer, and
       function-pointer returns (Amendment 4 Finding I — the original list
@@ -197,7 +197,7 @@ worth its own phase if it turns out to need more than that.
       exists for these; diagnose and reject rather than emit `null` or
       attempt real composition) — leaf still defers to the unchanged
       runtime-provider path.
-- [ ] Compile-time diagnostics for unsupported **parameter** shapes —
+- [x] Compile-time diagnostics for unsupported **parameter** shapes —
       pointer and function-pointer parameters (Amendment 10 Finding Y — the
       direct parameter-side counterpart to Amendment 4 Finding I's
       return-side check; an unhandled pointer/function-pointer parameter
@@ -205,7 +205,7 @@ worth its own phase if it turns out to need more than that.
       in this design emits, producing `CS0214` instead of a clean
       diagnostic) — leaf still defers to the unchanged runtime-provider
       path.
-- [ ] Compile-time diagnostic for an interface member whose **generated,
+- [x] Compile-time diagnostic for an interface member whose **generated,
       zero-argument extension** collides with an inherited `object` member
       (`GetHashCode()`, `ToString()`, `Equals(object)`, `GetType()` —
       Amendment 5 Finding L, corrected by Amendment 6 Finding N) — same
@@ -551,3 +551,287 @@ than through further prediction against a design that doesn't compile
 anything yet.
 
 This plan's task list above already reflects the fully-corrected shape.
+
+## Phase 0 implementation notes (2026-08-13)
+
+Phase 0 is implemented and every task above is checked off: core primitives
+(`ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`/`Unit`),
+the packaged `CompilerVisibleProperty` opt-in, `LeafTypeClassifier`'s third
+outcome threaded through `TransitiveClosureWalker` via a new `WalkContext`
+(introduced to keep `EnqueueRoot`/`EnqueueMember`'s own parameter lists from
+growing further — a fourth discovery kind alongside types/collections needed
+somewhere to live), `TestDoubleAnalyzer` (fail-fast, one diagnostic per
+interface leaf, matching `RequiredMemberCollector`/`ConstructorSelector`'s
+existing convention), `TestDoubleDefaults`, `TestDoubleIdentifierNaming`, and
+`TestDoubleEmitter` + `TestDouble.scriban`. Real end-to-end `Verify()` tests
+(`TestDoubleVerifyTests`) prove: the opt-in-off zero-diff regression, a real
+generated double actually compiling, `Configure()` reachable from a different
+namespace with no `using` (Amendment 11's global-namespace claim), and five
+of the diagnostics (event, `Configure` collision, set-only property, overload,
+non-nullable-reference return). Full solution build + 1719-test run (every
+project, both this feature's own tests and every pre-existing test) is green.
+
+Two things this pass deliberately left for empirical follow-up rather than
+designing further ahead of real feedback, per this plan's own closing
+decision to move pre-implementation prediction into real build/test/PR-review:
+
+- **Diagnostic test coverage is representative, not exhaustive** — one or two
+  tests per diagnostic *category* (member-kind, collision, return-shape), not
+  one per every shape Amendment 3–10 individually named (e.g. `ref`/`out`/`in`
+  parameters, pointer/function-pointer returns, and `init`-accessor
+  preservation each have analyzer logic but no dedicated `VerifyFailure` test
+  yet — static abstract properties/operators do now, added during PR #83
+  review round 1 below). The analyzer logic itself directly mirrors each
+  Amendment's decided shape.
+- **Same interface discovered from two call sites with two different,
+  disagreeing diagnostics**: the merge step in `ComponoIncrementalGenerator`
+  (`discoveredTestDoubles`) takes `group.Distinct().First()` rather than
+  preserving every distinct failure at its own location, unlike
+  `DiscoveredCollectionInfo`'s/`DiscoveredTypeInfo`'s own conflict-preserving
+  merge. Low-impact (only matters if the same interface is independently
+  reached from two request sites where the interface's *own* shape differs
+  in accessibility between them, which it structurally can't), but worth
+  tightening to match the existing pattern if Phase 2's real sample ever
+  exercises it.
+
+## PR #83 review round 1 (2026-08-13)
+
+Codex caught five real gaps, all fixed before merge:
+
+1. **(P1)** The Phase 0 notes above claimed verification but every check ran
+   through the in-process generator test harness only, never the packaged
+   `.nupkg` itself — an incorrectly packaged `build/Compono.props` (wrong
+   `PackagePath`, missing from the `.nuspec`, whatever) could ship invisible
+   and every existing test would still pass, since none of them go through
+   real NuGet restore. Fixed by actually doing it: `dotnet pack` on core
+   `Compono`, a throwaway consumer project referencing the packed `.nupkg`
+   from a local feed with `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`,
+   real `dotnet restore` + `dotnet build`. This caught a real, if
+   environment-local, failure mode along the way: a stale global NuGet cache
+   entry for a previously-restored `Compono 1.0.0` silently shadowed the
+   newly packed content (NuGet trusts a cached id+version pair without
+   re-inspecting bytes) — clearing `~/.nuget/packages/compono/1.0.0` and
+   re-restoring produced the real `<Import Project="...buildTransitive/Compono.props">`
+   and the property became visible. `IRepository_<hash>.TestDouble.g.cs` was
+   generated for real, through the real packaged analyzer. (The subsequent
+   `CompositionException` at runtime is expected and correct — Phase 1's
+   `GeneratedTestDoubleProvider` doesn't exist yet.) `.github/scripts/inspect-packed-nupkgs.sh`
+   also needed its own fix here (unrelated to Codex, caught by this PR's own
+   CI): its hardcoded expected-file-listing allowlist didn't yet know about
+   `build/Compono.props`/`buildTransitive/Compono.props`.
+2. **(P2)** The overload/collision pre-pass only considered `IMethodSymbol`,
+   so two same-named properties inherited from different base interfaces (a
+   diamond shape) both passed through un-diagnosed and would have emitted
+   the same backing field and configuration extension twice — a duplicate-
+   member compile error instead of the intended `CMP0022`. Fixed by folding
+   properties into the same duplicate-name pre-pass methods already used.
+3. **(P2)** A static abstract property was silently skipped (`if (property.IsStatic) continue;`
+   with no `IsAbstract` check), leaving the double failing to implement it
+   (`CS0535`) instead of getting the `CMP0021` diagnostic every other
+   unsupported shape gets. Fixed — mirrors the method-side static-abstract
+   check that already existed.
+4. **(P2)** A static abstract *operator* has `MethodKind.UserDefinedOperator`,
+   not `Ordinary` — the existing `MethodKind: not Ordinary → continue` filter
+   ran before the static-abstract check ever saw it, silently dropping it the
+   same way. Fixed by moving the static-abstract check ahead of the
+   `MethodKind` filter (excluding property/event accessor `MethodKind`s, so
+   a static abstract property's own diagnostic still names the property, not
+   its accessor method).
+5. **(P2)** The `object`-member collision check (`ToString`/`GetHashCode`/`GetType`)
+   was only applied to methods — a property with one of those names silently
+   lost its `Configure()` surface to the inherited `object` member instead of
+   getting `CMP0024`. Fixed by applying the same check to properties.
+
+Four new `VerifyFailure` regression tests cover findings 2–5 directly (the
+diamond-property collision, both static-abstract shapes, and the property-
+side object collision) — `TestDoubleVerifyTests` is now 11 tests, all green
+on both target frameworks.
+
+Also fixed in this round, required by this PR's own CI rather than by Codex:
+`AnalyzerReleases.Unshipped.md` needed entries for `CMP0020`-`CMP0027`
+(Roslyn's release-tracking analyzer requires every declared diagnostic ID to
+be listed), a handful of missing `<param>` XML doc tags on the new model
+records, and `docs/reference/api/` needed regenerating for the new public
+`Compono.ReturnConfig<T>`/`ReturnConfigBuilder<T>`/`GeneratedTestDoubleRegistry`/`Unit` surface.
+
+## PR #83 review round 2 (2026-08-13)
+
+Codex caught five more real gaps in `TestDoubleDefaults`/`TestDoubleAnalyzer`,
+all fixed:
+
+1. **`ValueTask<T>`/`ValueTask` are themselves structs**, so the generic
+   `type.IsValueType → default` fallback fired before the `ValueTask`-specific
+   branch further down the method ever ran - `ValueTask<string>` silently
+   returned a `ValueTask` wrapping `null` instead of either the deterministic
+   default for `string`'s own shape or the non-nullable-reference diagnostic.
+   Fixed by moving the `Task`/`ValueTask` checks ahead of the generic
+   value-type fallback.
+2. **A nullable-annotated collection (`List<int>?`, `int[]?`) hit the
+   nullable-reference fallback first** and returned `null`, contradicting
+   "empty collections never null." Fixed by moving the collection-shape
+   checks ahead of the nullable-reference fallback - a nullable-annotated
+   collection now gets `[]` same as a non-nullable one.
+3. **A multi-dimensional array (`int[,]`) matched the same `IArrayTypeSymbol → []`
+   branch as an ordinary array**, but C# collection expressions only target
+   rank-1 arrays - the generated double would have failed to compile. Fixed
+   by restricting the `[]` default to `Rank: 1` and falling through to the
+   unsupported-return-shape diagnostic otherwise.
+4. **A private default-implemented interface method** (`private int Helper() => 1;`,
+   a C# 8+ default interface member) was only excluded by the *static* check,
+   not by accessibility - a private (or otherwise non-public) instance
+   default member isn't part of any implementing type's contract and can't
+   be explicitly implemented at all, so the double failed to compile. Fixed
+   by skipping any non-abstract, non-public member (both methods and
+   properties, for the same reason).
+5. **The `Configure`-name collision check was name-only, not arity-aware.**
+   Verified directly with a real compile spike before fixing (not taken on
+   faith): an interface's own `Configure(int mode)`, explicitly implemented
+   on a concrete type, alongside a zero-argument `Configure(this IFoo)`
+   extension - `foo.Configure()` on an `IFoo`-typed receiver resolves to the
+   extension without ambiguity or error. C# only falls back to extension-method
+   resolution when ordinary member lookup finds no *applicable* candidate,
+   not merely "no candidate with this name," so a differently-shaped
+   `Configure` member never actually shadows the bridge. The blanket
+   name-only check over-rejected valid interfaces. Fixed to flag a collision
+   only when the interface's own `Configure` member is non-method (property/
+   field/event - always collides, since member lookup never falls back to
+   extensions for a non-method name at all) or a zero-parameter method.
+
+Six new tests added (one Verify() golden-path test for finding 5's fix
+doubled as proof both `Configure()` extensions - the bridge and the member's
+own config extension - coexist without ambiguity, since they have different
+receiver types). `TestDoubleVerifyTests` is now 16 tests, all green on both
+target frameworks. Full solution: 1945/1945 tests pass.
+
+## PR #83 review round 3 (2026-08-13)
+
+A real `dotnet publish -p:PublishAot=true` verification (against the packed
+`Compono` `.nupkg`, driving a generated double directly through
+`GeneratedTestDoubleRegistry`/`Configure()` since Phase 1's runtime provider
+doesn't exist yet) confirmed the AOT-safety claim empirically, not just by
+inspection: zero `IL2xxx`/`IL3xxx` trim/AOT-analyzer warnings during native
+code generation, and the published native binary ran standalone and passed.
+Not a substitute for Phase 2's own real end-to-end `PublishAot` test against
+the full sample (still unchecked in the Phase 2 task list above) - this was
+scoped narrowly to "does the generated-code-and-core-primitives path itself
+survive AOT," which is exactly the risk surface Phase 0 introduced.
+
+Codex caught four more real gaps:
+
+1. **(P1, docs)** `AGENTS.md`/`coding-standards.md`'s "every generator-
+   emitted type is `file`-scoped" rule was never updated to record ADR-0043's
+   own exception (test-double types reference each other across signatures,
+   which `file`-scoping breaks with `CS9051` - already proven twice during
+   design review). Left unchanged, a future change following that stale
+   blanket rule would "fix" this back into a compile error. Documented the
+   exception in both `AGENTS.md` and `references/coding-standards.md`'s
+   "Generated code" section.
+2. **(P2)** `TransitiveClosureWalker`'s `VisitedTestDoubleInterfaces` used
+   `SymbolEqualityComparer.Default`, not `IncludeNullability` like the
+   adjacent `VisitedTypes` field - `IProvider<string>` and `IProvider<string?>`
+   collapsed to whichever was discovered first, silently deciding (by
+   traversal order) whether the double was rejected or emitted with a
+   possibly-wrong default. Fixed to `IncludeNullability`, matching
+   `VisitedTypes`. This alone would have turned the bug into a worse one - a
+   duplicate `AddSource` hint-name crash - since `ToDisplayString(FullyQualifiedFormat)`
+   doesn't include nullable annotations either (verified directly with a
+   real compile spike before touching anything: `IProvider<string>` and
+   `IProvider<string?>` both display as `global::IProvider<string>`). Fixed
+   properly by mirroring `DiscoveredTypeInfo`'s own `CMP0010` conflict-merge
+   pattern exactly: `ComponoIncrementalGenerator`'s `discoveredTestDoubles`
+   merge now groups by emission identity, passes through real per-location
+   diagnostics when any exist (so two discoveries that disagree - one fails,
+   one would succeed - now deterministically report the real failure,
+   instead of an order-dependent silent pick), and only synthesizes the new
+   `CMP0028` when every surviving entry succeeded but still disagrees
+   structurally.
+3. **(P2)** `HashSet<T>` was missing from `TestDoubleDefaults`'s known-
+   collection-shapes whitelist - a member returning `HashSet<int>` was
+   wrongly rejected (`CMP0025`) instead of getting `[]`. Added.
+4. **(P2)** The overload/duplicate-name pre-pass in `TestDoubleAnalyzer`
+   counted members the main emission loop already silently skips (a private
+   or non-abstract-static default-interface member) - a public `Get()`
+   sharing a name with an unrelated private default `Get()` helper falsely
+   tripped `CMP0022` even though only one of them would ever generate
+   anything. Fixed by filtering the pre-pass to the same instance-contract
+   eligibility the emission loop already applies.
+
+Four new tests (one for each of findings 2-4; finding 1 is docs-only). Full
+solution: 1951/1951 tests pass.
+
+## PR #83 review round 4 (2026-08-13)
+
+Codex caught three more real gaps:
+
+1. **(P1)** `TestDouble.scriban` never `global::`-qualified references to the
+   generated double type itself (only to `Compono`/BCL types) - the
+   `Configure()` bridge's cast, the module initializer's `new`, and every
+   configuration extension's `this` parameter all referenced
+   `{safe_identifier}_Double` unqualified, violating this repo's own
+   "every type reference emitted into generated code is `global::`-qualified"
+   rule (`coding-standards.md`'s "Generated code" section - the same rule
+   already flagged for the interface/BCL references, just missed for the
+   double's own type). A consumer with a global alias matching the
+   hash-suffixed identifier could bind incorrectly. Fixed by qualifying all
+   four reference sites; the type's own declaration doesn't need
+   qualification, only references to it. Every existing `TestDouble.g.verified.cs`
+   snapshot (6 of them) changed as a result and was re-accepted after
+   confirming the diff was exactly this and nothing else.
+2. **(P2)** The `Configure()`-collision check (already corrected once in
+   round 2 to compare arity, not just name) still checked raw
+   `Parameters.Length`, not real zero-argument *applicability* -
+   `Configure(int mode = 0)` and `Configure(params int[] modes)` both have
+   `Parameters.Length > 0` but are genuinely callable with zero arguments, so
+   both actually do collide with the generated bridge exactly like a
+   zero-parameter method does. Fixed with a proper applicability check
+   (every parameter optional, or trailing `params`) - the same rule the C#
+   compiler itself uses.
+3. **(P2)** `Dictionary<TKey, TValue>` (and `IDictionary`/`IReadOnlyDictionary`)
+   were missing from `TestDoubleDefaults`'s known-collection-shapes whitelist -
+   wrongly rejected instead of getting `[]` (a valid, already-established
+   pattern elsewhere in this repo's own code).
+
+Five new tests. Full solution: 1957/1957 tests pass.
+
+## PR #83 review round 5 (2026-08-13)
+
+Codex caught three more real gaps:
+
+1. **(P2)** `SymbolDisplayFormat.FullyQualifiedFormat` omits the `?`
+   nullable-reference-type modifier - every emitted member return type,
+   parameter type, and slot type lost its nullable annotation (`Task<string?>`
+   emitted as `Task<string>`), which explains a `CS8603`/nullable warning
+   already visible (unremarked-on) in earlier build output. The default-value
+   *decision* was never wrong (it reads the real symbol's
+   `NullableAnnotation`, not the display string), only the *emitted text*
+   was. Fixed with a shared `NullableAwareFullyQualifiedFormat`
+   (`IncludeNullableReferenceTypeModifier` added) used everywhere a type
+   reference is emitted into generated code - deliberately **not** used for
+   `InterfaceFullyQualifiedName`/hint-name/emission-identity purposes, which
+   must stay nullability-blind per round 3's conflict-merge design.
+2. **(P2)** `IDictionary<TKey, TValue>`/`IReadOnlyDictionary<TKey, TValue>`
+   (added in round 4) aren't "constructible collection types" under C#'s
+   collection-expression rules, unlike concrete `Dictionary<TKey, TValue>` -
+   `[]` targeting either produces `CS9174`. Verified directly with a real
+   compile spike before fixing. Fixed by constructing a concrete empty
+   `Dictionary<TKey, TValue>` (assignable to both interfaces) instead of
+   reusing the shared `[]` literal for this specific shape.
+3. **(P2)** A property's `SetMethod` can exist but not be part of the
+   implementable contract - a default-implemented `private set` alongside a
+   default-implemented `get` (`int Value { get => 0; private set { ... } }`,
+   confirmed compilable via a real spike after two invalid variants) - the
+   accessor-kind selection only checked whether `SetMethod` was non-null, not
+   its accessibility, so it selected `GetSet` and tried to explicitly
+   implement an inaccessible private setter. Fixed to require
+   `DeclaredAccessibility: Public`, same principle as round 3's private
+   default-method fix, just for property accessors.
+
+Three of these five review rounds now (2, 3, 4 partially, 5) have been
+"narrow, real, fixable" rather than structural - a good signal the generator
+core is converging, though not yet exhausted (this round alone found a
+nullable-annotation-loss bug affecting *every* emitted member, missed by all
+four prior rounds).
+
+Six new tests. Full solution: 1963/1963 tests pass.
+
+Phase 1 (`Compono.TestDoubles` runtime package) is next.

@@ -126,4 +126,97 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // CMP002x: Generated-test-double diagnostics (ADR-0043) - a leaf interface that hits any of
+    // these still defers to the unchanged runtime-provider path (context.Resolve<T>()), never a hard
+    // generator error; the opt-in only ever adds a double, it never removes the fallback.
+
+    public static readonly DiagnosticDescriptor InaccessibleTestDoubleInterface = new(
+        "CMP0020",
+        "Test-double interface is not accessible",
+        "'{0}' cannot have a generated test double - the double is emitted as a top-level type " +
+        "outside any containing type, so a private or protected interface can never be implemented " +
+        "by it, even from a call site that could otherwise see it. This leaf falls back to the " +
+        "ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnsupportedTestDoubleMemberKind = new(
+        "CMP0021",
+        "Unsupported test-double member kind",
+        "'{0}' declares member '{1}' {2}, which Compono cannot generate a test double for. This " +
+        "leaf falls back to the ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor OverloadedTestDoubleMember = new(
+        "CMP0022",
+        "Overloaded test-double member",
+        "'{0}' declares an overloaded member '{1}' - a generated test double's configuration " +
+        "extension is always zero-argument, and can't disambiguate between overloads. This leaf " +
+        "falls back to the ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleConfigureMemberCollision = new(
+        "CMP0023",
+        "Test-double interface member collides with the generated Configure() bridge",
+        "'{0}' declares its own member named 'Configure', which would silently shadow the generated " +
+        "Configure() extension the double's configuration surface depends on. This leaf falls back " +
+        "to the ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleObjectMemberCollision = new(
+        "CMP0024",
+        "Test-double member collides with an inherited object member",
+        "'{0}' declares member '{1}', whose generated, always-zero-argument configuration extension " +
+        "collides with 'object.{1}()'. This leaf falls back to the ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnsupportedTestDoubleReturnShape = new(
+        "CMP0025",
+        "Unsupported test-double return shape",
+        "'{0}' declares member '{1}' returning {2}, which Compono cannot generate a test double for. " +
+        "This leaf falls back to the ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnsupportedTestDoubleParameterShape = new(
+        "CMP0026",
+        "Unsupported test-double parameter shape",
+        "'{0}' declares member '{1}' with parameter '{2}' {3}, which Compono cannot generate a test " +
+        "double for. This leaf falls back to the ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor SetOnlyTestDoubleProperty = new(
+        "CMP0027",
+        "Set-only test-double property is unsupported",
+        "'{0}' declares set-only property '{1}' - with no call recording or verification in v1, " +
+        "nothing could ever observe a value written through it. This leaf falls back to the " +
+        "ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConflictingTestDoubleMetadata = new(
+        "CMP0028",
+        "Conflicting test-double metadata across discoveries",
+        "'{0}' was discovered multiple times with different generic-argument nullability (for example, " +
+        "a member typed IProvider<string> and one typed IProvider<string?> in the same compilation) - " +
+        "Compono generates exactly one test double per interface and can't guarantee it correctly " +
+        "reflects every discovery. Request this interface with consistent nullability everywhere it's " +
+        "composed, or disable ComponoGeneratedTestDoubles for this leaf.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

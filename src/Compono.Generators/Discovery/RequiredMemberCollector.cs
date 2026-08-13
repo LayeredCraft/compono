@@ -143,7 +143,10 @@ internal static class RequiredMemberCollector
     // re-escaped with `@` before emission - contextual keywords (`var`, `async`, ...) are legal
     // identifiers unescaped and must NOT get an `@` prefix, so this checks the real reserved-keyword
     // set via SyntaxFacts rather than a hand-maintained list.
-    private static string EscapeIdentifier(string name) =>
+    // Internal, not private: ADR-0043's generated-test-double emission (TestDoubleAnalyzer) reuses
+    // this exact convention for member/parameter names rather than duplicating it - Amendment 6,
+    // Finding O.
+    internal static string EscapeIdentifier(string name) =>
         SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
 
     private static IEnumerable<INamedTypeSymbol> EnumerateTypeAndBases(INamedTypeSymbol type)
