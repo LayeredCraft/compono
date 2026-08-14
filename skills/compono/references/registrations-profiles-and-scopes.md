@@ -131,7 +131,7 @@ real self-reference with an explicit `Register<T>()` factory that
 supplies the recursive edge deliberately (e.g. `null`, or a pre-built
 instance) instead of asking Compono to silently omit it.
 
-## `[Shared]` (`Compono.XunitV3` only)
+## `[Shared]` (`Compono.XunitV3`/`Compono.TUnit` only)
 
 ```csharp
 [Theory]
@@ -153,8 +153,12 @@ public void ServiceUsesTheSharedRepository(
 - Two `[Shared]` parameters of the same type on one method is an error —
   there's no way to know which one is "the" shared value.
 - **Not a core `Compono` concept** — plain `composer.Create<T>()` has no
-  notion of a "row" to scope sharing to. `[Shared]` only exists inside
-  `Compono.XunitV3`'s `[Compose]` row. Don't suggest `[Shared]` for a
+  notion of a "row" to scope sharing to. `[Shared]` only exists inside a
+  `[Compose]` row — `Compono.XunitV3`'s `SharedAttribute` and
+  `Compono.TUnit`'s own distinct `SharedAttribute` (same binding rules,
+  duplicated rather than shared per ADR-0040's "Row-binding logic:
+  duplicated, not extracted" — see `references/tunit.md`), whichever
+  package the project references. Don't suggest `[Shared]` for a
   programmatic (non-`[Compose]`) composition — use a `Register<T>()`
   factory that returns the same captured instance instead.
 

@@ -43,8 +43,12 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 - **Deterministic defaults** for any unconfigured member: primitives,
   nullable references, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`, and
   known collection shapes return their deterministic default (empty
-  collections, never `null`). A member with **no** deterministic default —
-  a non-nullable reference return (`string`, a non-nullable class) — is a
+  collections, never `null`). `Task<T>`/`ValueTask<T>` recurse into `T` —
+  `Task<int>` is fine, but `Task<Customer>` (a non-nullable reference `T`)
+  has no deterministic default for its result and hits the same diagnostic
+  as a bare non-nullable reference return. A member with **no**
+  deterministic default — a non-nullable reference return (`string`, a
+  non-nullable class), or a `Task<T>`/`ValueTask<T>` wrapping one — is a
   compile-time diagnostic instead; the generator never emits `null` for a
   non-nullable-annotated return.
 

@@ -58,7 +58,7 @@ generated-double candidates.
 | CMP0021 | An unsupported member kind (indexer, event, generic method, static abstract member, etc.) |
 | CMP0022 | An overloaded member — the generated configuration extension is always zero-argument and can't disambiguate |
 | CMP0023 | The interface declares its own `Configure` member that would shadow the generated `Configure()` bridge |
-| CMP0024 | A member's generated, zero-argument configuration extension collides with an inherited `object` member (`ToString`/`GetHashCode`/`Equals`/`GetType`) |
+| CMP0024 | A member's generated, zero-argument configuration extension collides with an inherited `object` member (`ToString`/`GetHashCode`/`GetType` — not `Equals`: `object.Equals(object)` takes one argument, so a zero-argument generated `Equals` extension never collides with it) |
 | CMP0025 | An unsupported return shape (ref-like, by-ref-returning, pointer/function-pointer, or a non-nullable reference type with no deterministic default) |
 | CMP0026 | An unsupported parameter shape (pointer/function-pointer) |
 | CMP0027 | A set-only property — nothing could observe a value written through it, so it's unsupported rather than emitted as a no-op |

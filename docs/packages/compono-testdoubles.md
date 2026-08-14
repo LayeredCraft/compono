@@ -68,10 +68,13 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 - **Deterministic defaults for unconfigured members** — primitives,
   nullable references, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`, and
   known collection shapes (arrays, `List<T>`, `Dictionary<TKey,TValue>`,
-  etc.) return their deterministic default rather than throwing. A
-  non-nullable reference return (`string`, a non-nullable class) has no
-  deterministic default and is a compile-time diagnostic instead — see
-  below.
+  etc.) return their deterministic default rather than throwing. For
+  `Task<T>`/`ValueTask<T>` this recurses into `T` — `Task<int>` defaults
+  fine, but `Task<Customer>` (a non-nullable reference result) has no
+  deterministic default for `T` and hits the same diagnostic as a bare
+  non-nullable reference return, below. A non-nullable reference return
+  (`string`, a non-nullable class) has no deterministic default and is a
+  compile-time diagnostic instead — see below.
 - **Combine with `[Shared]`** (`Compono.XunitV3`/`Compono.TUnit`) to
   configure the exact double instance wired into a composed system under
   test — see [Shared Values](../concepts/shared-values.md).
