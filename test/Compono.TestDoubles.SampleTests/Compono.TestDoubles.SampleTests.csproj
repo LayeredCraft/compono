@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.TestDoubles.SampleTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- PLAN-0043 Phase 2's own compile-time opt-in - without this, LeafTypeClassifier's
+         test-double classification outcome never activates regardless of UseGeneratedTestDoubles()
+         below, and every [Shared] IRepository leaf here would fail composition instead of getting a
+         generated double. Only visible to the generator at all because core Compono's packaged build
+         assets declare it CompilerVisibleProperty (ADR-0043 Amendment 4 Finding F) - this project
+         restores Compono via the local-feed PackageReference below specifically to exercise that
+         packaged declaration for real, not a ProjectReference's own in-memory AdditionalFiles. -->
+    <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
+    <!-- Deliberately no ProjectReference to Compono/Compono.TestDoubles anywhere in this project -
+         the whole point is consuming Compono.TestDoubles exactly the way an external consumer would,
+         via the PackageReference below, so packaging mistakes (a missing dependency, wrong
+         PrivateAssets, the generator analyzer not flowing transitively) surface here instead of
+         being masked by a ProjectReference build. Mirrors Compono.XunitV3.SampleTests (PLAN-0004
+         Phase 3, ADR-0022's Testing Strategy) - this is PLAN-0043 Phase 2's own equivalent proof that
+         a real generated double, reached only through the packaged Compono -> Compono.TestDoubles
+         dependency chain, actually satisfies composition end-to-end. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
+    <!-- Isolated restore path, same reasoning as Compono.XunitV3.SampleTests' own (see that
+         project's csproj comment for the full account of why: NuGet never re-extracts an
+         already-present package id+version, so a shared/fixed path would let a stale entry silently
+         satisfy a later restore even after this project's own local feed content changes). -->
+    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Compono.XunitV3" />
+    <PackageReference Include="Compono.TestDoubles" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Self-healing on a clean checkout and always tests today's Compono/Compono.TestDoubles source,
+       which is the point of a "real packaged consumer" test: a regression in packaging (a missing
+       dependency, wrong PrivateAssets, the generator analyzer not flowing transitively, the
+       CompilerVisibleProperty declaration going missing) fails this project's own restore/build/run
+       rather than being masked by a stale package.
+
+       Delegates to pack-to-local-feed.sh, which serializes the three `dotnet pack` calls behind a
+       cross-process lock - CI (and any concurrent TFM run of this project) can trigger this target
+       independently for each TargetFramework, and two unsynchronized `dotnet pack` invocations
+       racing on the same shared .local-nuget-feed/ and src/Compono*/bin/obj output corrupts both. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.TestDoubles/Compono.TestDoubles.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+  </Target>
+
+</Project>

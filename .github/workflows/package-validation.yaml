@@ -152,3 +152,12 @@ jobs:
         run: |
           dotnet test test/Compono.TUnit.SampleTests/Compono.TUnit.SampleTests.csproj \
             -c Release
+
+      - name: Local-feed packed-consumer smoke test (Compono.TestDoubles)
+        # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
+        # source into .local-nuget-feed, restores as a real consumer would) - PLAN-0043 Phase 2's own
+        # real generated-double-through-the-packaged-dependency-chain proof. No deliberately-failing
+        # proof tests exist in this project either, so no --filter-not-class is needed.
+        run: |
+          dotnet test test/Compono.TestDoubles.SampleTests/Compono.TestDoubles.SampleTests.csproj \
+            -c Release

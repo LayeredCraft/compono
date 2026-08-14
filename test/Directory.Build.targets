@@ -15,8 +15,16 @@
   <!-- Every TUnit-run test project needs neither xUnit v3's own test-execution packages nor a
        `using Xunit;` global usable in a project with no xunit reference at all - mixing two
        Microsoft.Testing.Platform entry points (xUnit v3's and TUnit's own) in one test project
-       doesn't work (PLAN-0040 Phase 0's real build verification). -->
-  <ItemGroup Condition="'$(ComponoTestFramework)' != 'TUnit'">
+       doesn't work (PLAN-0040 Phase 0's real build verification). Also scoped to IsTestProject
+       (PLAN-0043 Phase 2 fix) - a non-test throwaway console app under test/ (Compono.AotSmokeTest,
+       Compono.TUnit.AotSmokeTest, Compono.TestDoubles.AotSmokeTest) sets IsTestProject=false and its
+       own <Using Remove="Xunit"/> etc, but that Remove is evaluated as part of the project body,
+       which is imported *before* this file - a Remove can never cancel an Include that hasn't
+       happened yet, so the unscoped version of this condition silently broke every such project
+       regardless of its own Remove (CS0246 for Xunit/NSubstitute/AwesomeAssertions, none of which
+       these projects reference). Matches the IsTestProject scoping the PackageReference ItemGroup
+       below already has. -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND '$(ComponoTestFramework)' != 'TUnit'">
     <Using Include="Xunit" />
     <Using Include="NSubstitute" />
     <Using Include="AwesomeAssertions" />
