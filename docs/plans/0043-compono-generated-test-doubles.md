@@ -1,6 +1,6 @@
 # [PLAN-0043] Compono-Generated Test Doubles
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** ADR-0043 (design), ADR-0042 (admitted problem)
 
@@ -293,14 +293,14 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 3 — Docs and skill alignment
 
-- [ ] `docs/packages/compono-testdoubles.md` (new Package Guide).
-- [ ] `docs/packages/index.md` row.
-- [ ] `skills/compono/SKILL.md` detection table + `references/testdoubles.md`
+- [x] `docs/packages/compono-testdoubles.md` (new Package Guide).
+- [x] `docs/packages/index.md` row.
+- [x] `skills/compono/SKILL.md` detection table + `references/testdoubles.md`
       (new reference file, following `references/nsubstitute.md`'s shape).
-- [ ] `docs/roadmap/future-packages.md` — move this entry to shipped once
+- [x] `docs/roadmap/future-packages.md` — move this entry to shipped once
       the package exists, matching `Compono.TUnit`'s own graduation edit.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` status flips to `Done`.
-- [ ] `docs/architecture/current/generated-plans-and-discovery.md`'s "Open
+- [x] `docs/adr/README.md`/`docs/plans/README.md` status flips to `Done`.
+- [x] `docs/architecture/current/generated-plans-and-discovery.md`'s "Open
       questions" section gains a fourth item for
       `GeneratedTestDoubleRegistry`, matching `RowInvokerRegistry`'s
       existing collectible-`AssemblyLoadContext`-rooting entry (Amendment 5

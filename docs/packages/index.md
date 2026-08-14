@@ -1,6 +1,6 @@
 # Package Guides
 
-Compono ships as five independently-installable NuGet packages. Pick which
+Compono ships as six independently-installable NuGet packages. Pick which
 ones you need before reading any single guide in depth — most projects only
 need the first two.
 
@@ -11,6 +11,7 @@ need the first two.
 | [`Compono.NSubstitute`](compono-nsubstitute.md) | Automatic substitute composition for interface, delegate, and (optionally) abstract-class parameters. | Your composed types depend on interfaces you'd otherwise stub by hand with NSubstitute. |
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
 | [`Compono.TUnit`](compono-tunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` data source attributes and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
+| [`Compono.TestDoubles`](compono-testdoubles.md) | A source-generated, AOT-safe double for an otherwise-unresolvable interface leaf, with per-member `Configure().Member().Returns(...)`/`.Throws(...)`. | You want a generated interface double without `Compono.NSubstitute`'s runtime-proxy dependency, or need the composed path to survive `PublishAot`. |
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and, until the
 first stable `1.0` release, publishes as a `0.x.y-preview.N` prerelease —

@@ -5,7 +5,7 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0012` or `CompositionException` failures, deciding on
@@ -15,7 +15,8 @@ description: >-
   DO NOT USE FOR: ordinary xUnit/NUnit/MSTest, NSubstitute, or Bogus work
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
-  SCOPES TO: only load `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`
+  SCOPES TO: only load
+  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -46,6 +47,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/tunit.md` |
 | `<PackageReference Include="Compono.NSubstitute"` | `.csproj` | Definitive | `UseNSubstitute()` available — load `references/nsubstitute.md` |
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
+| `<PackageReference Include="Compono.TestDoubles"` + `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` | `.csproj` | Definitive | `UseGeneratedTestDoubles()`/generated `Configure()` bridge available — load `references/testdoubles.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -90,7 +92,11 @@ user to make test-by-test, not something to do as a drive-by.
      performance win; ordinary composition is already cheap.
    - Interface/abstract-class/delegate needs a real test double →
      `Compono.NSubstitute`'s `UseNSubstitute()`, not a hand-rolled stub,
-     if that package is referenced.
+     if that package is referenced. An **interface** leaf that only needs
+     configured returns/exceptions (no call verification, no argument
+     matchers) and must survive `PublishAot` → `Compono.TestDoubles`'s
+     `UseGeneratedTestDoubles()` instead, if that package is referenced and
+     the compile-time opt-in is set — see `references/testdoubles.md`.
    - A `string` member needs a realistic value (email, name, address) →
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
@@ -185,10 +191,12 @@ undermines the reason Compono exists in this project.
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
-  `Compono.NSubstitute`, and `Compono.Bogus` ship as packages today
-  (`Compono.TUnit` ships the full attribute family —
+  `Compono.NSubstitute`, `Compono.Bogus`, and `Compono.TestDoubles` ship as
+  packages today (`Compono.TUnit` ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
-  see `references/tunit.md`) — there is no `Compono.NUnit`,
+  see `references/tunit.md`; `Compono.TestDoubles` requires both the
+  package reference and the `ComponoGeneratedTestDoubles` compile-time
+  opt-in, see `references/testdoubles.md`) — there is no `Compono.NUnit`,
   `Compono.MSTest`, `Compono.FakeItEasy`, `Compono.Moq`, or
   `Compono.DependencyInjection`, and never invent a plausible-looking API
   for one. That doesn't always mean the underlying capability is
@@ -252,4 +260,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
+| `references/testdoubles.md` | `Compono.TestDoubles` is referenced and `ComponoGeneratedTestDoubles` is set — `UseGeneratedTestDoubles()`/generated `Configure()` work |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |
