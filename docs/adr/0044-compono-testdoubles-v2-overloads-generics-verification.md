@@ -1730,6 +1730,39 @@ collision name list with its own test, and a generic `Configure<T>()`/
 `ToString<T>()` non-collision test is added to Phase 1 (once generic
 methods exist to construct the case with).
 
+## Amendment 15 (2026-08-14): pre-implementation design-review loop closed
+
+Fourteen review rounds against this ADR (Amendments 1-14, plus several
+plan-only process/wording fixes) surfaced real, load-bearing defects
+every round — but the shape of what they found shifted over that span,
+the same way it did during ADR-0043's own pre-implementation review
+(that ADR's Amendment 11 recorded the identical transition, at a similar
+round count): Amendments 1-4 caught structural problems (cross-assembly
+field/counter accessibility, `CS0460`/`CS0111`/`CS0214`-class compile
+failures in the core generated-code shapes, a genuine field-emission gap,
+phase-sequencing contradictions). Amendments 5-14 narrowed steadily into
+edge-case corrections against helper logic and canonicalization rules
+that don't exist as compiled code yet — real, worth fixing, but
+individually smaller and increasingly about *how precisely* an
+already-decided mechanism handles one more C# corner case, not *whether*
+the mechanism itself is sound.
+
+**Confirmed directly with the requester: this is the same signal
+ADR-0043 hit, and the same response applies.** Further refinement
+continues during actual implementation instead — `tasks/implement.md`'s
+own build/test/PR-review cycle surfaces and resolves remaining gaps
+empirically against real generated code and a real compiler, rather than
+this text-review cycle continuing indefinitely against a design that
+doesn't compile anything yet. PLAN-0044's own phased structure (each
+generator-facing phase gated on a real packaged-consumer smoke test,
+added specifically because this review kept finding cross-assembly
+compile failures a design-only review can't fully rule out) is the
+concrete mechanism that carries this discipline into implementation.
+
+This closes the pure pre-implementation design-review loop for ADR-0044.
+PLAN-0044 (`Not Started`) is ready; implementation begins with Phase 0
+once explicitly requested.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

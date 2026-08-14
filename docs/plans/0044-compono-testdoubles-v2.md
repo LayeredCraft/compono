@@ -562,3 +562,19 @@ several published package versions with a stale Package Guide. Each doc
 task now lives in the phase introducing its own behavior; Phase 4 shrank
 to a genuinely cross-cutting consistency pass over content that was
 necessarily written incrementally across three separate PRs.
+
+**Pre-implementation design-review loop closed (2026-08-14).** Fourteen
+review rounds against ADR-0044 (Amendments 1-14, plus the two plan-only
+process fixes above) found real defects every round, but the pattern
+shifted from structural (early rounds: cross-assembly accessibility,
+core generated-code compile failures, field-emission gaps, phase-
+sequencing contradictions) to narrow edge-case corrections against helper
+logic that doesn't exist as compiled code yet (later rounds:
+canonicalization cases, collision-detection refinements) — the same
+transition ADR-0043's own pre-implementation review hit at a similar
+round count. Confirmed directly with the requester: further refinement
+continues during actual implementation (`tasks/implement.md`'s build/
+test/PR-review cycle) rather than this text-review cycle continuing
+indefinitely. This plan's task list above already reflects every
+correction from all fourteen rounds — Phase 0 is next once implementation
+is explicitly requested.
