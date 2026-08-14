@@ -2,7 +2,7 @@
 
 ## By diagnostic code (compile-time)
 
-Every `CMP0001`–`CMP0013` error is a compile-time diagnostic from
+Every `CMP0001`–`CMP0013` code is a compile-time **error** from
 `Compono.Generators` — see [Reference: Diagnostics](../reference/diagnostics.md)
 for the full message/cause/fix for each code. The one you'll hit most
 often in practice:
@@ -14,6 +14,13 @@ often in practice:
   it instead — see
   [Migrating from AutoFixture](../migrating-from-autofixture.md) for a
   real worked example of exactly this.
+
+`CMP0020`–`CMP0028` are a separate, **informational** family — they only
+apply if `ComponoGeneratedTestDoubles=true` is set (see
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md)), never fail
+the build, and just mean one interface leaf's generated double couldn't be
+emitted and fell back to the ordinary runtime-provider path. See
+[Reference: Diagnostics](../reference/diagnostics.md) for each code.
 
 A missing provider for an interface, abstract class, or delegate is
 **not** a `CMP` code at all — it always surfaces as a runtime

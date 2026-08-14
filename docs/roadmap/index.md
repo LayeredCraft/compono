@@ -7,12 +7,14 @@ today.
 - **Today.** Compono's shipped package set —
   [`Compono`](../packages/compono.md), [`Compono.XunitV3`](../packages/compono-xunitv3.md),
   [`Compono.NSubstitute`](../packages/compono-nsubstitute.md),
-  [`Compono.Bogus`](../packages/compono-bogus.md), and
-  [`Compono.TUnit`](../packages/compono-tunit.md) — covers the full MVP
-  package set (`docs/mvp.md`'s "MVP Package Set") plus `Compono.TUnit`,
-  the first candidate to graduate the whole way through
-  [Future Packages](future-packages.md)' admission model
-  ([PLAN-0040](../plans/0040-compono-tunit-package-design.md)). If a
+  [`Compono.Bogus`](../packages/compono-bogus.md),
+  [`Compono.TUnit`](../packages/compono-tunit.md), and
+  [`Compono.TestDoubles`](../packages/compono-testdoubles.md) — covers the
+  full MVP package set (`docs/mvp.md`'s "MVP Package Set") plus
+  `Compono.TUnit` and `Compono.TestDoubles`, the two candidates to graduate
+  the whole way through [Future Packages](future-packages.md)' admission
+  model ([PLAN-0040](../plans/0040-compono-tunit-package-design.md),
+  [PLAN-0043](../plans/0043-compono-generated-test-doubles.md)). If a
   capability isn't documented in [Concepts](../concepts/index.md),
   [How-to Guides](../how-to/index.md), or a
   [Package Guide](../packages/index.md), it isn't available yet — see

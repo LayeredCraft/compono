@@ -145,6 +145,7 @@ nav:
     - Compono.NSubstitute: packages/compono-nsubstitute.md
     - Compono.Bogus: packages/compono-bogus.md
     - Compono.TUnit: packages/compono-tunit.md
+    - Compono.TestDoubles: packages/compono-testdoubles.md
   - Best Practices:
     - Overview: best-practices/index.md
     - Organizing Profiles: best-practices/organizing-profiles.md

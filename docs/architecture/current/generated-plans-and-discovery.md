@@ -103,5 +103,22 @@ to. Same disposition as the collision item and the case above: deferred,
 for the same reason - neither `docs/mvp.md`'s scope nor Compono's primary
 xUnit/TUnit-test-runner consumers currently exercise collectible-ALC
 hosting. Revisit together if collectible-ALC hosting becomes an actual
-target; no design has been chosen for any of the three related items on
+target; no design has been chosen for any of the four related items on
+this page.
+
+**`GeneratedTestDoubleRegistry` has the identical shape and consequence as
+`RowInvokerRegistry` above.** [ADR-0043](../../adr/0043-compono-generated-test-doubles-design.md)
+Amendment 5 Finding M/[PLAN-0043](../../plans/0043-compono-generated-test-doubles.md)
+introduced a plain `Type`-keyed dictionary in core `Compono`, populated via
+a `[ModuleInitializer]`-registered `RegisterFactory<T>(Func<T> factory)`
+per generated double. Like `RowInvokerRegistry`, it has no closed-generic-
+instantiation home-context tie at all - a dictionary entry is an ordinary
+GC root regardless of which ALC its key `Type` or factory-delegate target
+assembly came from, so every registered generated double roots its factory
+delegate (and the generating consumer assembly) for the process's
+lifetime. Same disposition as the three items above: deferred, for the
+same reason - neither `docs/mvp.md`'s scope nor Compono's primary
+xUnit/TUnit-test-runner consumers currently exercise collectible-ALC
+hosting. Revisit together if collectible-ALC hosting becomes an actual
+target; no design has been chosen for any of the four related items on
 this page.

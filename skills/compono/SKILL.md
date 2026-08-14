@@ -5,17 +5,20 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
-  `CMP0001`-`CMP0012` or `CompositionException` failures, deciding on
+  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0028` (generated-test-double
+  opt-in informational diagnostics), or `CompositionException` failures,
+  deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
   when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
   Compono/`Composer`/`[Compose]` question.
   DO NOT USE FOR: ordinary xUnit/NUnit/MSTest, NSubstitute, or Bogus work
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
-  SCOPES TO: only load `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`
+  SCOPES TO: only load
+  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -46,6 +49,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/tunit.md` |
 | `<PackageReference Include="Compono.NSubstitute"` | `.csproj` | Definitive | `UseNSubstitute()` available — load `references/nsubstitute.md` |
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
+| `<PackageReference Include="Compono.TestDoubles"` or `UseGeneratedTestDoubles()` in `*.cs` | `.csproj`/`*.cs` | Definitive | Test-double intent present — load `references/testdoubles.md`, which explains that `UseGeneratedTestDoubles()` also needs `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` set (check separately; its absence is the most common setup mistake, not a reason to skip loading the reference) |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -90,7 +94,11 @@ user to make test-by-test, not something to do as a drive-by.
      performance win; ordinary composition is already cheap.
    - Interface/abstract-class/delegate needs a real test double →
      `Compono.NSubstitute`'s `UseNSubstitute()`, not a hand-rolled stub,
-     if that package is referenced.
+     if that package is referenced. An **interface** leaf that only needs
+     configured returns/exceptions (no call verification, no argument
+     matchers) and must survive `PublishAot` → `Compono.TestDoubles`'s
+     `UseGeneratedTestDoubles()` instead, if that package is referenced and
+     the compile-time opt-in is set — see `references/testdoubles.md`.
    - A `string` member needs a realistic value (email, name, address) →
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
@@ -118,12 +126,18 @@ user to make test-by-test, not something to do as a drive-by.
    Prefer existing project conventions (an established profile, an
    existing member-rule pattern) over introducing a new mechanism for the
    same problem.
-6. **Compile and run.** A compile-time failure is a `CMP0001`-`CMP0012`
+6. **Compile and run.** A compile-time failure is a `CMP0001`-`CMP0013`
    diagnostic from `Compono.Generators` — look it up in
-   `references/diagnostics.md` before guessing a fix. A test-time failure
-   is a `CompositionException` — read its tree-shaped path and `Seed:`
-   line (also see `references/diagnostics.md`) to find exactly which
-   nested dependency failed, rather than guessing from the root type.
+   `references/diagnostics.md` before guessing a fix. If
+   `ComponoGeneratedTestDoubles=true` is set — the generator is embedded in
+   core `Compono.Generators`, so this can surface even without
+   `Compono.TestDoubles` referenced — a `CMP0020`-`CMP0028` diagnostic is
+   informational, not a failure — it means that one interface leaf fell
+   back to the ordinary runtime-provider path, not that the build broke. A
+   test-time failure is a `CompositionException` — read its tree-shaped
+   path and `Seed:` line (also see `references/diagnostics.md`) to find
+   exactly which nested dependency failed, rather than guessing from the
+   root type.
 
 ## Guardrails
 
@@ -166,7 +180,7 @@ undermines the reason Compono exists in this project.
   Determinism holds for a given Compono version, not across versions.
   Only assert on values you explicitly pinned (inline values, member
   rules, `[Shared]` reference equality).
-- **Never bypass a `CMP0001`-`CMP0012` compile error by working around
+- **Never bypass a `CMP0001`-`CMP0013` compile error by working around
   the generator** (e.g. hand-writing a plan, suppressing the diagnostic,
   or switching the type to be constructed manually elsewhere just to
   dodge it). Fix the underlying shape, or compose an interface/wrapper
@@ -185,10 +199,12 @@ undermines the reason Compono exists in this project.
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
-  `Compono.NSubstitute`, and `Compono.Bogus` ship as packages today
-  (`Compono.TUnit` ships the full attribute family —
+  `Compono.NSubstitute`, `Compono.Bogus`, and `Compono.TestDoubles` ship as
+  packages today (`Compono.TUnit` ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
-  see `references/tunit.md`) — there is no `Compono.NUnit`,
+  see `references/tunit.md`; `Compono.TestDoubles` requires both the
+  package reference and the `ComponoGeneratedTestDoubles` compile-time
+  opt-in, see `references/testdoubles.md`) — there is no `Compono.NUnit`,
   `Compono.MSTest`, `Compono.FakeItEasy`, `Compono.Moq`, or
   `Compono.DependencyInjection`, and never invent a plausible-looking API
   for one. That doesn't always mean the underlying capability is
@@ -247,9 +263,10 @@ Load only what the Detection table says is relevant to the current task.
 |---|---|
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
-| `references/diagnostics.md` | A `CMP0001`-`CMP0012` build error, or a runtime `CompositionException` needs diagnosing |
+| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0028` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
+| `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()` work, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

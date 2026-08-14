@@ -1,6 +1,6 @@
 # [PLAN-0043] Compono-Generated Test Doubles
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** ADR-0043 (design), ADR-0042 (admitted problem)
 
@@ -293,14 +293,17 @@ worth its own phase if it turns out to need more than that.
 
 ### Phase 3 — Docs and skill alignment
 
-- [ ] `docs/packages/compono-testdoubles.md` (new Package Guide).
-- [ ] `docs/packages/index.md` row.
-- [ ] `skills/compono/SKILL.md` detection table + `references/testdoubles.md`
+- [x] `docs/packages/compono-testdoubles.md` (new Package Guide).
+- [x] `docs/packages/index.md` row.
+- [x] `skills/compono/SKILL.md` detection table + `references/testdoubles.md`
       (new reference file, following `references/nsubstitute.md`'s shape).
-- [ ] `docs/roadmap/future-packages.md` — move this entry to shipped once
+- [x] `docs/roadmap/future-packages.md` — move this entry to shipped once
       the package exists, matching `Compono.TUnit`'s own graduation edit.
-- [ ] `docs/adr/README.md`/`docs/plans/README.md` status flips to `Done`.
-- [ ] `docs/architecture/current/generated-plans-and-discovery.md`'s "Open
+- [x] `docs/plans/README.md` status flip to `Done` (ADR-0043 itself stays
+      `Accepted` in `docs/adr/README.md` — ADRs don't transition to the
+      plan-only `Done` status, so there is no corresponding ADR-index
+      change to make here).
+- [x] `docs/architecture/current/generated-plans-and-discovery.md`'s "Open
       questions" section gains a fourth item for
       `GeneratedTestDoubleRegistry`, matching `RowInvokerRegistry`'s
       existing collectible-`AssemblyLoadContext`-rooting entry (Amendment 5
@@ -354,8 +357,11 @@ claim, a run, per this repo's established AOT-verification standard.
 
 ## Notes
 
-Not started. ADR-0043 is `Accepted`; this plan stays `Not Started` until
-implementation is explicitly requested.
+Historical note: before implementation began, this plan stayed
+`Not Started` pending ADR-0043 review closure and an explicit
+implementation request. See "Phase 0 implementation notes" below for where
+that changed; the plan's current status is recorded at the top of this
+document, not here.
 
 Pre-implementation review (Codex, PR #82) caught three P1 defects and one
 P2 defect in ADR-0043's original design, all corrected via
@@ -982,6 +988,12 @@ affected (its own `ComponoTestFramework=TUnit` already skipped the `Include` out
 reasons), which is presumably why this had gone unnoticed until a *third* AOT harness needed the same
 `Using Remove` pattern to actually work.
 
-Phase 3 (docs and skill alignment: the Package Guide, `docs/packages/index.md`, `skills/compono/`
-detection table and reference file, `future-packages.md` graduation, ADR/Plan `README.md` status
-flips, and the `GeneratedTestDoubleRegistry` ALC-rooting doc note) is next.
+## Phase 3 implementation notes (2026-08-14)
+
+Phase 3 is implemented and every task above is checked off: the Package Guide
+(`docs/packages/compono-testdoubles.md`), `docs/packages/index.md` and `mkdocs.yml` nav rows,
+`skills/compono/`'s detection table/default-workflow routing/guardrails/references table and its new
+`references/testdoubles.md`, `future-packages.md`'s graduation out of the roadmap section (mirroring
+`Compono.TUnit`'s own PLAN-0040 closeout), the `docs/plans/README.md`/this plan's own `Status: Done`
+flip, and `docs/architecture/current/generated-plans-and-discovery.md`'s fourth Open Questions item for
+`GeneratedTestDoubleRegistry`'s ALC-rooting. PLAN-0043 is now fully `Done` - all four phases (0-3) complete.
