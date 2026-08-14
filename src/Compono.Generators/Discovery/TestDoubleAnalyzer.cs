@@ -480,16 +480,23 @@ internal static class TestDoubleAnalyzer
                             .Select(p => new TestDoubleParameterInfo(
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
                                 p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                                // "scoped" must be restated too when the interface declares it on a
-                                // ref/in/ref-readonly parameter - the explicit implementation's
-                                // ref-safety contract has to match the interface member's exactly, or
-                                // the consumer gets CS8987, not a supported double or a diagnostic.
-                                // Not for "out": every out parameter is unconditionally scoped by the
-                                // language itself (ScopedKind.ScopedRef even with no "scoped" written
-                                // in source), so restating it is always redundant - and would spam
-                                // "scoped out" onto every ordinary out parameter this feature already
-                                // supports. Codex review, PR #88.
-                                (p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out ? "scoped " : "") +
+                                // "scoped" must be restated too when the interface declares it - the
+                                // explicit implementation's ref-safety contract has to match the
+                                // interface member's exactly, or the consumer gets CS8987, not a
+                                // supported double or a diagnostic. Two distinct cases, verified with a
+                                // real compile spike (Codex review, PR #88):
+                                //  - ScopedKind.ScopedRef on a ref/in/ref-readonly parameter: restate,
+                                //    *except* for "out" - every out parameter is unconditionally
+                                //    ScopedRef even with no "scoped" written in source, so restating it
+                                //    there is always redundant (confirmed: `out int x` and
+                                //    `scoped out int x` both report ScopedKind.ScopedRef).
+                                //  - ScopedKind.ScopedValue on an ordinary by-value ref-like parameter
+                                //    (e.g. `scoped Span<int> value`): always restate - by-value ref-like
+                                //    parameters get *no* implicit scoping by default (confirmed: a plain
+                                //    `Span<int> value` reports ScopedKind.None, only `scoped Span<int>
+                                //    value` reports ScopedValue), so this one is never redundant.
+                                ((p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out) ||
+                                 p.ScopedKind == ScopedKind.ScopedValue ? "scoped " : "") +
                                 (p.RefKind switch
                                 {
                                     RefKind.Ref => "ref ",

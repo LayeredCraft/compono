@@ -93,7 +93,12 @@ internal static class TestDoubleOverloadIdentity
 
         if (type.TypeKind == TypeKind.Dynamic)
         {
-            builder.Append("object");
+            // Must match exactly what AppendNamedType below would write for a real `object`
+            // parameter ("global::System.Object") - a bare "object" here canonicalized `dynamic`
+            // and a real `object` parameter to two *different* strings, so IA.M(dynamic)/IB.M(object)
+            // were never actually recognized as the same diamond-colliding identity the ADR always
+            // claimed they'd be. Codex review, PR #88.
+            builder.Append("global::System.Object");
             return;
         }
 

@@ -125,10 +125,11 @@ Two edge cases stay narrower than full per-overload support:
   name, is unaffected.
 - **A `ref`/`out`/`in` parameter** on one overload falls back to a
   deterministic-default dispatch body with no configuration surface for
-  *that* overload (an informational `CMP0026`) — its sibling overloads keep
+  *that* overload (an informational `CMP0030`) — its sibling overloads keep
   their own surface unaffected. A return type (or `out` parameter) with no
   deterministic default still has no constructible body at any granularity
-  and rejects the whole interface, same as the non-overloaded case.
+  and rejects the whole interface, same as the non-overloaded case
+  (`CMP0026`).
 
 ## Precedence with `Compono.NSubstitute`
 

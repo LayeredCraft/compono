@@ -14,13 +14,13 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.kind == "Method" ~}}
 {{~ if member.has_configuration_surface ~}}
 {{~ if member.is_void ~}}
-    void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         if ({{ member.field_name }}.HasConfiguredException)
             throw {{ member.field_name }}.ConfiguredException;
     }
 {{~ else ~}}
-    {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }}) =>
+    {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }}) =>
         {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
         : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
         : {{ member.default_expression }};

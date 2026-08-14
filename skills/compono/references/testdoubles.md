@@ -84,7 +84,7 @@ builder.Configure().Speak(new ISsml[] { ssml });
 Two things still don't get a surface: a **diamond collision** (the exact
 same signature independently declared by two different base interfaces —
 nothing to disambiguate) and a `ref`/`out`/`in` parameter's own overload
-(falls back to a deterministic default, informational `CMP0026`) — in both
+(falls back to a deterministic default, informational `CMP0030`) — in both
 cases only that one identity loses its surface, every other member and
 overload of the interface is unaffected.
 

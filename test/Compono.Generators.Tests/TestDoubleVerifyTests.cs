@@ -1493,4 +1493,82 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: the dynamic-canonicalization branch wrote a bare "object", while a real
+    // `object` parameter goes through the named-type path and writes "global::System.Object" - two
+    // different strings for what should be the same identity, so IA.M(dynamic)/IB.M(object) were
+    // never actually recognized as a diamond collision despite the ADR's explicit claim that they
+    // would be.
+    [Fact]
+    public Task DiamondInheritedDynamicAndObjectOverload_ReportsScopedOverloadedDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        void M(dynamic value);
+                    }
+
+                    public interface IBaseB
+                    {
+                        void M(object value);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0022",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: a by-value ref-like parameter gets no implicit scoping by default -
+    // `scoped Span<int> value` must restate "scoped" on the explicit implementation to match the
+    // interface's ref-safety contract, verified with a real compile spike
+    // (ScopedKind.ScopedValue only when "scoped" is actually written in source). Unlike ref/out/in,
+    // this parameter shape is RefKind.None, so the member keeps its own Configure() surface entirely
+    // - proving the fix applies to the has-configuration-surface dispatch body too, not just the
+    // ref/out/in fallback body.
+    [Fact]
+    public Task OverloadWithScopedByValueRefLikeParameter_GeneratesDoubleWithMatchingRefSafetyContract() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void Seek(scoped System.Span<int> value);
+
+                    void Seek(int value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Seek(1);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }
