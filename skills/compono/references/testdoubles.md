@@ -29,8 +29,11 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   needed** — every generated type lives in the global namespace by design.
   Don't add an import "just in case"; if `Configure()` doesn't resolve, the
   interface likely never got a generated double at all (check the
-  compile-time opt-in is set and the interface is actually reached by a
-  `composer.Create<T>()`/`CreateMany<T>()` call site).
+  compile-time opt-in is set and the interface is actually reached by
+  something the generator's discovery walk covers — a
+  `composer.Create<T>()`/`CreateMany<T>()` call site, a `[Compose]` theory/
+  test method parameter, or a `[Composable]` declaration all feed the same
+  closure walk).
 - **`.Returns(...)`/`.Throws(...)`** per member. Argument-independent —
   there is no `Arg.Any<T>()`/argument-matcher equivalent; configuration
   applies to every call to that member regardless of arguments. Last

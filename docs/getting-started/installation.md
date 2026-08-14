@@ -41,9 +41,15 @@ when to add it.
 
 `Compono` embeds its source generator as a Roslyn analyzer inside its own
 package (`analyzers/dotnet/cs`) — adding the `Compono` `PackageReference` is
-the only step needed to enable source generation. There's no separate
-generator package to add, no `nuget.config` entry beyond your normal NuGet
-feed, and no MSBuild property required to opt in.
+the only step needed to enable ordinary composition-plan generation.
+There's no separate generator package to add, no `nuget.config` entry
+beyond your normal NuGet feed, and no MSBuild property required to opt in
+to that.
+
+`Compono.TestDoubles` is the one exception: it needs an explicit
+`<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` MSBuild
+property set in your project in addition to the package reference — see
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md#compile-time-opt-in).
 
 If your test project doesn't already reference an xUnit v3 (or TUnit) test
 host, `Compono.XunitV3` (or `Compono.TUnit`) doesn't add one for you — each

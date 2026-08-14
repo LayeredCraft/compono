@@ -41,6 +41,7 @@ Compono determines **how** those requirements are satisfied.
   `Compono.TUnit`         TUnit integration
   `Compono.NSubstitute`   Automatic NSubstitute composition
   `Compono.Bogus`         Semantic fake data integration
+  `Compono.TestDoubles`   Source-generated, AOT-safe interface doubles
 
 ## Example
 
