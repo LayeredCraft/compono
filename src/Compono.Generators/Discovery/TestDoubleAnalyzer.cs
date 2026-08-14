@@ -339,6 +339,12 @@ internal static class TestDoubleAnalyzer
                                     RefKind.Ref => "ref ",
                                     RefKind.Out => "out ",
                                     RefKind.In => "in ",
+                                    // A C# 12 `ref readonly` parameter - distinct from RefKind.RefReadOnly,
+                                    // which describes a by-ref-readonly *return*, not a parameter. Omitting
+                                    // this case would silently emit the explicit interface implementation
+                                    // with no ref modifier at all, producing a signature that doesn't match
+                                    // the interface member it's implementing (CS0535).
+                                    RefKind.RefReadOnlyParameter => "ref readonly ",
                                     _ => "",
                                 },
                                 p.IsParams))

@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.IRepository' declares member 'Seek' with parameter 'offset' as a ref/out/in parameter - this overload falls back to a deterministic-default body with no Configure()/Verify() surface. Its sibling overloads are unaffected, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0026,
+        Title: Unsupported test-double parameter shape,
+        MessageFormat: '{0}' declares member '{1}' with parameter '{2}' {3}, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

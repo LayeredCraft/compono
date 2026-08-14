@@ -21,11 +21,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> Equals(this global::TestNamespace_IRepository_e3198068_Double self, global::System.Span<int> value) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref self.__Equals_8ebfbd98);
+    public static global::Compono.ReturnConfigBuilder<bool> Equals(this global::TestNamespace_IRepository_e3198068_Double __self, global::System.Span<int> value) =>
+        new global::Compono.ReturnConfigBuilder<bool>(ref __self.__Equals_8ebfbd98);
 
-    public static global::Compono.ReturnConfigBuilder<bool> Equals(this global::TestNamespace_IRepository_e3198068_Double self, int a, int b) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref self.__Equals_a7455c84);
+    public static global::Compono.ReturnConfigBuilder<bool> Equals(this global::TestNamespace_IRepository_e3198068_Double __self, int a, int b) =>
+        new global::Compono.ReturnConfigBuilder<bool>(ref __self.__Equals_a7455c84);
 
 }
 

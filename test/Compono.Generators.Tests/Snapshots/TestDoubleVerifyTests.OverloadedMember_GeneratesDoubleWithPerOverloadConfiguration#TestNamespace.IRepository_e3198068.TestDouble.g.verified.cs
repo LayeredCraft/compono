@@ -23,11 +23,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double self, int id) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Get_987ab372);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double __self, int id) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Get_987ab372);
 
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double self, string id) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Get_f41bb3fa);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double __self, string id) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Get_f41bb3fa);
 
 }
 

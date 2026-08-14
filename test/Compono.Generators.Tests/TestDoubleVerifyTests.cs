@@ -1021,4 +1021,81 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0022",
             TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: an overloaded member's configuration extension carries the real overload's
+    // own parameter names alongside the "this" receiver - a real parameter literally named "self"
+    // would collide with a receiver also named "self" (CS0100, duplicate parameter), if the receiver
+    // weren't renamed to something a real parameter can't produce via EscapeIdentifier's @-escaping.
+    [Fact]
+    public Task OverloadedMemberWithParameterNamedSelf_GeneratesDoubleWithoutParameterNameCollision() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void Save(int self);
+
+                    void Save(string self);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Save(1);
+                        repository.Configure().Save("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: RefKind.RefReadOnlyParameter (a C# 12 `ref readonly` parameter) is a
+    // distinct enum value from RefKind.RefReadOnly (a by-ref-readonly *return*) - the ref-kind-prefix
+    // switch must map it to "ref readonly ", or the generated explicit interface implementation's
+    // signature silently drops the modifier and no longer matches the interface member (CS0535).
+    // ref readonly still routes through the ref/out/in overload-set-internal-unsupported fallback
+    // (no Configure()/Verify() surface), same as ref/out/in - only the explicit-impl signature itself
+    // is under test here.
+    [Fact]
+    public Task RefReadOnlyParameter_GeneratesDoubleWithMatchingExplicitImplementationSignature() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void Seek(ref readonly int offset);
+
+                        void Seek(int offset);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Seek();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
 }

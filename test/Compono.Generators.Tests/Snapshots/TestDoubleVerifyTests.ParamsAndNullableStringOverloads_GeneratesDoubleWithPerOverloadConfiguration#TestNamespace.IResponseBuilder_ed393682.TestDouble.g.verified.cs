@@ -23,11 +23,11 @@ internal sealed class TestNamespace_IResponseBuilder_ed393682_Double : global::T
 
 internal static class TestNamespace_IResponseBuilder_ed393682_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double self, string? text) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Speak_f41bb3fa);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, string? text) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_f41bb3fa);
 
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double self, params global::TestNamespace.ISsml[] parts) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Speak_22f1fe0a);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, params global::TestNamespace.ISsml[] parts) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_22f1fe0a);
 
 }
 

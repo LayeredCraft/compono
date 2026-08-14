@@ -5,27 +5,29 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<string?> __ToString_1ccd22c1;
-    internal global::Compono.ReturnConfig<string?> __ToString_987ab372;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save_987ab372;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save_f41bb3fa;
 
-    string? global::TestNamespace.IRepository.ToString(object[] values) =>
-        __ToString_1ccd22c1.HasConfiguredException ? throw __ToString_1ccd22c1.ConfiguredException
-        : __ToString_1ccd22c1.HasConfiguredValue ? __ToString_1ccd22c1.ConfiguredValue
-        : default;
+    void global::TestNamespace.IRepository.Save(int self)
+    {
+        if (__Save_987ab372.HasConfiguredException)
+            throw __Save_987ab372.ConfiguredException;
+    }
 
-    string? global::TestNamespace.IRepository.ToString(int format) =>
-        __ToString_987ab372.HasConfiguredException ? throw __ToString_987ab372.ConfiguredException
-        : __ToString_987ab372.HasConfiguredValue ? __ToString_987ab372.ConfiguredValue
-        : default;
+    void global::TestNamespace.IRepository.Save(string self)
+    {
+        if (__Save_f41bb3fa.HasConfiguredException)
+            throw __Save_f41bb3fa.ConfiguredException;
+    }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, params object[] values) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_1ccd22c1);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double __self, int self) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save_987ab372);
 
-    public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, int format) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_987ab372);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double __self, string self) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save_f41bb3fa);
 
 }
 
