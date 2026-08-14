@@ -64,7 +64,7 @@ generated-double candidates.
 |---|---|
 | CMP0020 | The interface (or a private/protected nested interface) isn't accessible to a top-level generated type |
 | CMP0021 | An unsupported member kind (indexer, event, generic method, static abstract member, etc.) |
-| CMP0022 | An overloaded member — the generated configuration extension is always zero-argument and can't disambiguate |
+| CMP0022 | A name collision between eligible members — either a true C# overload, or two same-named members inherited from different base interfaces in the full closure (even with identical signatures — no real overload required); either way the generated configuration extension is always zero-argument and can't disambiguate |
 | CMP0023 | The interface declares its own `Configure` member that would shadow the generated `Configure()` bridge |
 | CMP0024 | A member's generated, zero-argument configuration extension collides with an inherited `object` member (`ToString`/`GetHashCode`/`GetType` — not `Equals`: `object.Equals(object)` takes one argument, so a zero-argument generated `Equals` extension never collides with it) |
 | CMP0025 | An unsupported return shape (ref-like, by-ref-returning, pointer/function-pointer, or a non-nullable reference type with no deterministic default) |

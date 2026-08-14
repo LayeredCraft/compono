@@ -60,6 +60,16 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   (`this IRepository`) reachable with **no `using` needed**, regardless of
   which namespace the call site is in — every generated type lives in the
   global namespace specifically so this holds without an import.
+- **Known v1 limitation: first-registration-wins across assemblies.**
+  `GeneratedTestDoubleRegistry` is `Type`-keyed. If two separately-compiled
+  consumer assemblies loaded into the same process both discover a
+  generated double for the *same* shared interface, whichever assembly's
+  `[ModuleInitializer]` runs first wins the registration — the other
+  assembly's `Configure()` bridge then throws a cast exception at runtime
+  (its message names this scenario explicitly). If you hit this in a
+  multi-project test host, it's this documented limitation, not a missing
+  `using` or a generation failure — see
+  [ADR-0043 Amendment 3 Finding C](../adr/0043-compono-generated-test-doubles-design.md#amendment-3-2026-08-13-public-cross-assembly-state-contract-overloadname-collision-diagnostics-documented-multi-assembly-registry-limitation).
 - **Per-member `.Returns(...)`/`.Throws(...)`** — configure a method or
   property's behavior; last configuration wins (calling `.Returns(...)`
   after an earlier `.Throws(...)` on the same member clears the exception,
