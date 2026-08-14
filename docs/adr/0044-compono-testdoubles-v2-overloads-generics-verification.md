@@ -1598,6 +1598,49 @@ PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
 a `params`-shaped-object-named-member test proving the overload keeps its
 surface; Critical Files now says `RecordCall()`.
 
+## Amendment 13 (2026-08-14): a return-type-dependent generic method has no constructible body and triggers whole-interface rejection, not member-scoped exclusion
+
+A twelfth Codex review pass caught a genuine inconsistency in Amendment
+1's own "Scope boundary" illustration — the original Decision Outcome and
+every other Amendment's text is left exactly as written, per the
+immutability rule already followed twelve times above; this Amendment
+corrects Amendment 1's own example.
+
+**Finding — Amendment 1 claims a return-type-dependent generic method
+(`T Get<T>(T seed)`) doesn't block a differently-named sibling
+(`void Reset<T>(T value)`), but this both misuses "sibling overload" (the
+two methods don't share a name, so they were never overloads of each
+other to begin with) and, more substantively, contradicts this ADR's own
+already-established rule for the underlying condition.** A return-type-
+dependent generic method has no constructible body **at all** — the exact
+same root cause ("no way to fix a concrete slot type/deterministic
+default") as a non-nullable-reference return with no default (Amendment
+1's own correction: "no constructible body at any granularity... triggers
+today's existing whole-interface rejection, unchanged from v1") and a
+pointer-typed parameter (Amendment 5 Finding 12, for the same reason).
+Amendment 1's illustration treated `Get<T>(T seed)`'s exclusion as if it
+belonged to the *other* bucket — an overload with a constructible fallback
+body that just lacks a `Configure()` extension — without checking which
+bucket it actually falls in.
+
+**Corrected: a return-type-dependent generic method is in the
+no-constructible-body bucket, and its whole interface falls back to the
+runtime-provider path — the same disposition every other no-constructible-
+body shape already gets, not a new one.** This does not touch the ADR's
+actual evidence or motivating case at all: `ILogger<T>`'s own two methods
+(`Log<TState>`, `BeginScope<TState>`) neither has a return type depending
+on its own type parameter, so `ILogger<T>` remains fully supported
+regardless of this correction — the mis-scoped claim was only ever in an
+illustrative, made-up example, never in anything the real evidence
+required. **What Amendment 1's "overload-set-internal partial support"
+genuinely still applies to, unchanged:** an *overload* (same name, same
+member) with a `ref`/`out`/`in` parameter, which *does* have a
+constructible fallback body — that case, and only that case, keeps its
+sibling overloads and the rest of the interface generating normally.
+
+PLAN-0044 needs no change from this Amendment — it never repeated the
+mis-scoped illustration, only the ADR's own "Scope boundary" bullet did.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

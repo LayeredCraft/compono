@@ -191,9 +191,20 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 ### Phase 1 — Generic-method support
 
 - [ ] `TestDoubleAnalyzer`: replace the blanket `IsGenericMethod → reject`
-      check with "does the return type's syntax tree reference any of the
-      method's own type parameters" — reject only that case, under a
-      refined diagnostic (next available code after `CMP0028`). **Also
+      check with "does the return type's **symbol graph** reference any of
+      the method's own type-parameter symbols" — walk `ITypeSymbol`
+      structure (generic type arguments, array/tuple element types,
+      recursively) and compare against `method.TypeParameters` via
+      `SymbolEqualityComparer`, **not** a syntax-tree/`SyntaxNode` check
+      (corrected per Codex review — a metadata-defined interface like the
+      actual `ILogger<T>` from a referenced assembly has no syntax tree in
+      the consumer's own compilation at all; a syntax-based check would
+      silently fail to classify it, exactly the real-world motivating
+      case this ADR exists for). Reject only the type-parameter-dependent
+      case, under a refined diagnostic (next available code after
+      `CMP0028`); cover a metadata-defined interface (not just a
+      source-declared one) in this phase's own packaged-consumer smoke
+      test. **Also
       diagnose and exclude a method using `T?` on one of its own type
       parameters, in a parameter or its own declaration — constrained or
       unconstrained, regardless of which constraint** (Amendment 6 Finding
