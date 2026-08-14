@@ -16,11 +16,14 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 - `GeneratedTestDoubleProvider` runs at the test-double provider stage,
   same as `NSubstituteProvider`. It resolves a requested interface type to
   a **generated** double only if `Compono.Generators` actually emitted one
-  for that interface at compile time — an interface the compile-time
+  for that interface at compile time. For an interface the compile-time
   opt-in never reached (project doesn't set
   `ComponoGeneratedTestDoubles=true`, or the interface was never requested
-  anywhere the generator could discover it) still fails composition, it
-  does not silently fall back to anything.
+  anywhere the generator could discover it), `TryProvide` returns
+  `NotHandled` — the pipeline moves on to the next registered provider
+  (e.g. `NSubstituteProvider`, if also registered) exactly as it would if
+  this provider weren't installed at all. It's only a genuine composition
+  failure if no other provider claims the request either.
 - **`Configure()`** — a generator-emitted extension bridge
   (`this IRepository`), reachable from **any namespace with no `using`
   needed** — every generated type lives in the global namespace by design.
@@ -59,14 +62,23 @@ call — that's fighting the framework, not using it.
 
 ## Unsupported shapes are compile-time diagnostics, not silent gaps
 
-Classes, delegates, indexers, events, generic methods, `ref`/`out`/`in`
-parameters, static abstract members, overloaded members, and a handful of
-narrower shapes (set-only properties, pointer/function-pointer parameters
-or returns, ref-like returns) are all diagnosed at compile time
-(`CMP0020`-`CMP0028`) rather than emitted incorrectly or silently skipped.
-If a member hits one of these, the fix is the same as any other Compono
-diagnostic — see `references/diagnostics.md` — not a manual workaround
-bolted onto the generated double.
+**Classes and delegates are not test-double candidates at all** —
+`LeafTypeClassifier` only ever admits interfaces for generated-double
+eligibility, so neither one is diagnosed here or falls back to this
+package's provider; a concrete class still composes through ordinary
+constructor selection, and a delegate leaf stays provider-resolved (a
+runtime `CompositionException` if no provider handles it, not a `CMP002x`
+diagnostic).
+
+For an eligible **interface**, indexers, events, generic methods,
+`ref`/`out`/`in` parameters, static abstract members, overloaded members,
+and a handful of narrower shapes (set-only properties, pointer/function-
+pointer parameters or returns, ref-like returns) are all diagnosed at
+compile time (`CMP0020`-`CMP0028`, informational severity — they don't
+fail the build) rather than emitted incorrectly or silently skipped: the
+interface still falls back to the ordinary runtime-provider path, same as
+any interface the compile-time opt-in never reached. See
+`references/diagnostics.md` for the full code table before guessing a fix.
 
 ## Precedence with `Compono.NSubstitute`
 

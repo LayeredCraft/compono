@@ -2,8 +2,11 @@
 
 Two completely different failure classes — don't confuse them:
 
-- **Compile-time**: `CMP0001`-`CMP0012`, emitted by `Compono.Generators`
-  (a Roslyn analyzer). Fails `dotnet build`. Look up the code below.
+- **Compile-time**: `CMP0001`-`CMP0012` (errors — fail `dotnet build`) and
+  `CMP0020`-`CMP0028` (informational — `Compono.TestDoubles`-only, never
+  fail the build, only relevant if `ComponoGeneratedTestDoubles=true`),
+  both emitted by `Compono.Generators` (a Roslyn analyzer). Look up the
+  code below.
 - **Runtime**: `CompositionException`, thrown from `composer.Create<T>()`
   or a `[Compose]` theory row when the code compiled fine but the
   pipeline couldn't satisfy a request — most commonly a missing provider
@@ -31,9 +34,40 @@ and then threw is runtime (the tree-path section).
 | CMP0011 | The same closed collection type was discovered with conflicting element/key nullability | Make every member/parameter of that collection type consistent |
 | CMP0012 | A collection's element/key type isn't accessible (private/protected) from the generated collection-plan type | Use an accessible element/key type |
 
-This is the complete MVP diagnostic set — CMP0001 through CMP0012, no
-more, no fewer. If something references a `CMP00xx` code outside this
-range, it isn't real; don't invent one.
+This is the complete core diagnostic set — CMP0001 through CMP0012, no
+more, no fewer. `CMP0020`-`CMP0028` (below) are real too, but belong to
+`Compono.TestDoubles`, not core composition. If something references a
+`CMP00xx` code outside these two ranges, it isn't real; don't invent one.
+
+## Compile-time, `Compono.TestDoubles`-only: CMP0020-CMP0028
+
+Only relevant if the project references `Compono.TestDoubles` and sets
+`ComponoGeneratedTestDoubles=true` — see `references/testdoubles.md`.
+Every code here is `DiagnosticSeverity.Info`, not `Error`: it never fails
+`dotnet build`. It reports that a specific interface leaf couldn't get a
+generated double and silently falls back to the ordinary runtime-provider
+path (`UseNSubstitute()`, `Register<T>()`, `.For<T>()`, or a runtime
+`CompositionException` if nothing else handles it) — the opt-in only ever
+adds a double, it never removes that fallback. Classes and delegates never
+appear here at all — `LeafTypeClassifier` only admits interfaces as
+generated-double candidates.
+
+| Code | Meaning |
+|---|---|
+| CMP0020 | The interface (or a private/protected nested interface) isn't accessible to a top-level generated type |
+| CMP0021 | An unsupported member kind (indexer, event, generic method, static abstract member, etc.) |
+| CMP0022 | An overloaded member — the generated configuration extension is always zero-argument and can't disambiguate |
+| CMP0023 | The interface declares its own `Configure` member that would shadow the generated `Configure()` bridge |
+| CMP0024 | A member's generated, zero-argument configuration extension collides with an inherited `object` member (`ToString`/`GetHashCode`/`Equals`/`GetType`) |
+| CMP0025 | An unsupported return shape (ref-like, by-ref-returning, pointer/function-pointer, or a non-nullable reference type with no deterministic default) |
+| CMP0026 | An unsupported parameter shape (pointer/function-pointer) |
+| CMP0027 | A set-only property — nothing could observe a value written through it, so it's unsupported rather than emitted as a no-op |
+| CMP0028 | The same interface was discovered multiple times with conflicting generic-argument nullability across call sites |
+
+Fix: address the interface's shape if you want a generated double, or
+otherwise ignore it — the interface still works exactly as it did before
+`ComponoGeneratedTestDoubles` existed, just without a generated double for
+that one leaf.
 
 ## Runtime: `CompositionException` tree path and seed
 

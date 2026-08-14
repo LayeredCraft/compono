@@ -8,7 +8,8 @@ description: >-
   `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
-  `CMP0001`-`CMP0012` or `CompositionException` failures, deciding on
+  `CMP0001`-`CMP0012` (errors), `CMP0020`-`CMP0028` (`Compono.TestDoubles`
+  informational diagnostics), or `CompositionException` failures, deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
   when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
   Compono/`Composer`/`[Compose]` question.
@@ -126,10 +127,14 @@ user to make test-by-test, not something to do as a drive-by.
    same problem.
 6. **Compile and run.** A compile-time failure is a `CMP0001`-`CMP0012`
    diagnostic from `Compono.Generators` — look it up in
-   `references/diagnostics.md` before guessing a fix. A test-time failure
-   is a `CompositionException` — read its tree-shaped path and `Seed:`
-   line (also see `references/diagnostics.md`) to find exactly which
-   nested dependency failed, rather than guessing from the root type.
+   `references/diagnostics.md` before guessing a fix. If
+   `Compono.TestDoubles` is referenced, a `CMP0020`-`CMP0028` diagnostic is
+   informational, not a failure — it means that one interface leaf fell
+   back to the ordinary runtime-provider path, not that the build broke. A
+   test-time failure is a `CompositionException` — read its tree-shaped
+   path and `Seed:` line (also see `references/diagnostics.md`) to find
+   exactly which nested dependency failed, rather than guessing from the
+   root type.
 
 ## Guardrails
 
@@ -255,7 +260,7 @@ Load only what the Detection table says is relevant to the current task.
 |---|---|
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
-| `references/diagnostics.md` | A `CMP0001`-`CMP0012` build error, or a runtime `CompositionException` needs diagnosing |
+| `references/diagnostics.md` | A `CMP0001`-`CMP0012` build error, a `CMP0020`-`CMP0028` (`Compono.TestDoubles`) informational diagnostic, or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
