@@ -2,7 +2,7 @@
   Diagnostics: [
     {
       Location: Program.cs: (16,65)-(16,91),
-      Message: 'TestNamespace.IRepository' declares member 'TryGet' with parameter 'value' as an out parameter of a non-nullable reference type with no deterministic default, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+      Message: 'TestNamespace.IRepository' declares member 'Seek' with parameter 'offset' as a ref/out/in parameter, which Compono cannot compose a value for, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
       Severity: Info,
       WarningLevel: 1,
       Descriptor: {

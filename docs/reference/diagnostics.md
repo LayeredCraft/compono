@@ -333,17 +333,22 @@ deterministic default.
 **Severity:** Informational — never fails the build. **Scope depends on
 the parameter kind (v2, ADR-0044):**
 
-- **A `ref`/`out`/`in` parameter** withholds only *that overload's*
-  `Configure()`/`Verify()` surface — it still dispatches, via a
-  deterministic-default body (every `out` parameter is assigned its own
-  deterministic default before every return path). Sibling overloads, and
-  the rest of the interface, are unaffected. If an `out` parameter's own
-  type has no deterministic default (e.g. a non-nullable reference type),
-  there's no constructible fallback body at all and the **whole interface**
-  falls back instead — same as any other no-deterministic-default case.
+- **A `ref`/`out`/`in` parameter on a member with a same-named sibling of
+  any shape** withholds only *that overload's* `Configure()`/`Verify()`
+  surface — it still dispatches, via a deterministic-default body (every
+  `out` parameter is assigned its own deterministic default before every
+  return path). Sibling overloads, and the rest of the interface, are
+  unaffected. If an `out` parameter's own type has no deterministic default
+  (e.g. a non-nullable reference type), there's no constructible fallback
+  body at all and the **whole interface** falls back instead — same as any
+  other no-deterministic-default case.
+- **A `ref`/`out`/`in` parameter on a *solo* member (no same-named sibling
+  at all)** rejects the **whole interface** — "overload-set-internal
+  partial support" presupposes an overload set; a solo member has no set to
+  preserve, so it keeps v1's original disposition unchanged.
 - **A pointer or function-pointer parameter** still rejects the **whole
-  interface** — it requires the method to be declared `unsafe`, which this
-  feature never emits.
+  interface** regardless of siblings — it requires the method to be
+  declared `unsafe`, which this feature never emits.
 
 **Message:** `'{Interface}' declares member '{Member}' with parameter
 '{Parameter}' {Shape}, which Compono cannot generate a test double for`
@@ -385,6 +390,31 @@ compilation — there's no per-interface switch to disable it for just this
 leaf; if you can't make every call site consistent, the interface will
 need to fall back to a different provider (e.g. `UseNSubstitute()`) for
 the whole project instead.
+
+## CMP0029 — Test-double members generate colliding zero-argument extensions
+
+**Severity:** Informational — never fails the build. **Scope (v2,
+ADR-0044): the colliding identities only** — every other member of the
+interface, including a genuine overload of the same name with its own
+non-zero parameter list, is unaffected.
+
+**Message:** `'{Interface}' declares member '{Member}', whose generated
+configuration extension has no parameters to disambiguate it from another
+same-named member's own generated extension`
+
+**Cause:** Two or more same-named members inherited through the
+interface's transitive closure don't share a full signature (so
+`CMP0022`'s diamond-collision check doesn't catch them — a property vs. a
+method, or two methods with a different real parameter list), but each
+one's own generated configuration extension is genuinely zero-parameter —
+a property's extension always is; a method's is unless it's part of a real
+overload set with its own distinguishing parameter list. Two identical
+zero-parameter extension signatures are an unresolvable `CS0111` collision
+if both kept their surface.
+
+**Fix:** None needed — the colliding identities fall back to a
+deterministic default; any other overload of the same name that keeps a
+real parameter list is unaffected.
 
 ## Next
 

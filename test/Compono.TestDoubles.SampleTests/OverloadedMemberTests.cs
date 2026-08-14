@@ -16,6 +16,12 @@ public interface IGateway
     void Send(int retryCount, string message);
 
     bool TryParse(string input, out int value);
+
+    // TryParse's own overload-set-internal fallback treatment (ADR-0044 Amendment 5) requires a
+    // same-named sibling to exist at all - "overload-set-internal partial support" presupposes an
+    // overload set. This sibling is that set; without it, TryParse would be a solo ref/out/in member
+    // and reject the whole interface instead (Codex review, PR #88).
+    bool TryParse(string input);
 }
 
 public sealed class GatewayConsumer

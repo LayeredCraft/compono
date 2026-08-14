@@ -110,7 +110,71 @@ internal static class TestDoubleAnalyzer
             .Select(g => g.Key)
             .ToHashSet();
 
+        // A ref/out/in parameter only gets the fallback-body-without-surface treatment (below) when
+        // this member actually has a same-named sibling of *some* shape - "an overload... does not
+        // reject its sibling overloads" (this ADR's Decision Outcome, "Overload-set-internal partial
+        // support") presupposes an overload set exists. A solo ref/out/in member (no sibling at all)
+        // isn't part of any set to preserve and keeps v1's original whole-interface-rejection
+        // disposition, unchanged. Deliberately broader than `overloadedNames` above (which only
+        // counts *surface-worthy* siblings) - a solo ref/out/in member paired only with a diamond-
+        // colliding sibling still has a real sibling, just not a surfaced one. Codex review, PR #88.
+        var namesWithAnySibling = eligibleCandidates
+            .GroupBy(m => m.Name)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet();
+
+        // A property and a method (or two methods with no shared full signature) sharing a name can
+        // still collide even though the diamond-collision check above doesn't catch them - if both
+        // end up with a genuinely zero-parameter generated extension, the two extensions are the
+        // exact same C# signature (`Foo(this Double)`), a duplicate-declaration compile error
+        // (CS0111). A property's extension is always zero-parameter; a method's is zero-parameter
+        // unless it's part of a real (surfaced) overload set, in which case its own real parameter
+        // list disambiguates it instead. Codex review, PR #88.
+        var zeroArgExtensionSharers = new Dictionary<string, List<ISymbol>>();
+
+        foreach (var candidate in eligibleCandidates)
+        {
+            if (diamondCollisionIdentities.Contains((candidate.Name, Hash: IdentityHashFor(candidate))))
+                continue;
+
+            int effectiveArity;
+
+            if (candidate is IPropertySymbol)
+            {
+                effectiveArity = 0;
+            }
+            else if (candidate is IMethodSymbol candidateMethod)
+            {
+                if (candidateMethod.Parameters.Any(p => p.RefKind != RefKind.None))
+                    continue;
+
+                effectiveArity = overloadedNames.Contains(candidateMethod.Name) ? candidateMethod.Parameters.Length : 0;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (effectiveArity != 0)
+                continue;
+
+            if (!zeroArgExtensionSharers.TryGetValue(candidate.Name, out var sharers))
+                zeroArgExtensionSharers[candidate.Name] = sharers = new List<ISymbol>();
+
+            sharers.Add(candidate);
+        }
+
+        var zeroArgCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var sharers in zeroArgExtensionSharers.Values.Where(s => s.Count > 1))
+        {
+            foreach (var sharer in sharers)
+                zeroArgCollisionMembers.Add(sharer);
+        }
+
         var reportedDiamondIdentities = new HashSet<(string Name, string Hash)>();
+        var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
         var infoDiagnostics = new List<DiagnosticInfo>();
 
@@ -222,9 +286,32 @@ internal static class TestDoubleAnalyzer
                         // A ref/out/in parameter is an overload-set-internal-unsupported shape
                         // (ADR-0044 Amendment 5): this one overload gets a deterministic-default
                         // fallback body and an informational diagnostic, but its sibling overloads
-                        // (and the rest of the interface) are unaffected.
+                        // (and the rest of the interface) are unaffected - only when a sibling of
+                        // this name actually exists (see namesWithAnySibling above). A *solo*
+                        // ref/out/in member has no overload set to preserve and still rejects the
+                        // whole interface, matching v1's original disposition and every other no-
+                        // constructible-body shape (a pointer parameter, a non-nullable-no-default
+                        // return). Codex review, PR #88.
                         var hasRefOutInParameter = method.Parameters.Any(p => p.RefKind != RefKind.None);
-                        var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter;
+
+                        if (hasRefOutInParameter && !namesWithAnySibling.Contains(method.Name))
+                        {
+                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
+                                interfaceType.ToDisplayString(), method.Name,
+                                method.Parameters.First(p => p.RefKind != RefKind.None).Name,
+                                "as a ref/out/in parameter, which Compono cannot compose a value for"));
+                        }
+
+                        var isZeroArgCollision = zeroArgCollisionMembers.Contains(method);
+                        var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter && !isZeroArgCollision;
+
+                        if (isZeroArgCollision && reportedZeroArgCollisionNames.Add(method.Name))
+                        {
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.ZeroArgumentTestDoubleExtensionCollision, null,
+                                interfaceType.ToDisplayString(), method.Name));
+                        }
 
                         if (method.ReturnsByRef || method.ReturnsByRefReadonly)
                         {
@@ -405,6 +492,20 @@ internal static class TestDoubleAnalyzer
                                 interfaceType.ToDisplayString(), property.Name, ""));
                         }
 
+                        // A property's own generated extension is always zero-parameter - it collides
+                        // with any same-named method whose own extension also ends up zero-parameter
+                        // (a non-overloaded method, or a genuinely zero-parameter overload), the exact
+                        // same CS0111 risk the method branch's own zero-arg-collision check guards
+                        // against. Codex review, PR #88.
+                        var isZeroArgCollision = !isDiamondCollision && zeroArgCollisionMembers.Contains(property);
+
+                        if (isZeroArgCollision && reportedZeroArgCollisionNames.Add(property.Name))
+                        {
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.ZeroArgumentTestDoubleExtensionCollision, null,
+                                interfaceType.ToDisplayString(), property.Name));
+                        }
+
                         // Same object-collision rule as the method branch above (properties can't be
                         // overloaded by type, so their generated extension is always zero-argument).
                         if (!isDiamondCollision && property.Name is "ToString" or "GetHashCode" or "GetType")
@@ -470,7 +571,7 @@ internal static class TestDoubleAnalyzer
                             false,
                             propertyDefault,
                             EquatableArray<TestDoubleParameterInfo>.Empty,
-                            !isDiamondCollision,
+                            !isDiamondCollision && !isZeroArgCollision,
                             false,
                             ""));
 

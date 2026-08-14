@@ -825,6 +825,8 @@ public sealed class TestDoubleVerifyTests
                     public interface IRepository
                     {
                         bool TryGet(int id, out string value);
+
+                        bool TryGet(int id);
                     }
 
                     public sealed class OrderService
@@ -1097,5 +1099,122 @@ public sealed class TestDoubleVerifyTests
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
             "CMP0026",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: "Overload-set-internal partial support" (ADR-0044's own name for this
+    // feature) presupposes an overload set - a *solo* ref/out/in member (no same-named sibling of
+    // any shape) has no set to preserve, and must keep v1's original whole-interface-rejection
+    // disposition, not the per-overload fallback treatment a real overload gets.
+    [Fact]
+    public Task SoloRefOutInMemberWithNoSibling_ReportsUnsupportedParameterShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void Seek(ref int offset);
+
+                        string? GetName();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: a property and a same-named zero-parameter method inherited from two
+    // different base interfaces don't share a full signature (so the diamond-collision check doesn't
+    // catch them), but both generate the exact same zero-argument extension shape
+    // (`Value(this Double)`) - an unresolvable CS0111 collision if both kept their surface.
+    [Fact]
+    public Task PropertyAndZeroParameterMethodShareName_ReportsZeroArgumentExtensionCollisionDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        int Value { get; }
+                    }
+
+                    public interface IBaseB
+                    {
+                        int Value();
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0029",
+            TestContext.Current.CancellationToken);
+
+    // The zero-argument-extension collision is scoped to the colliding identity only - a genuine
+    // overload of the same name that keeps a real, non-zero parameter list is unaffected and keeps
+    // its own per-overload surface.
+    [Fact]
+    public Task PropertyCollidesWithZeroParameterOverloadButSiblingOverloadIsUnaffected() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        int Value { get; }
+                    }
+
+                    public interface IBaseB
+                    {
+                        int Value();
+
+                        int Value(int offset);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Value(1).Returns(5);
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0029",
             TestContext.Current.CancellationToken);
 }

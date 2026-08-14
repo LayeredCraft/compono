@@ -220,4 +220,15 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ZeroArgumentTestDoubleExtensionCollision = new(
+        "CMP0029",
+        "Test-double members generate colliding zero-argument extensions",
+        "'{0}' declares member '{1}', whose generated configuration extension has no parameters to " +
+        "disambiguate it from another same-named member's own generated extension - Compono can't " +
+        "tell them apart, so none of them get a Configure()/Verify() surface. Every other member of " +
+        "'{0}' is unaffected.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }
