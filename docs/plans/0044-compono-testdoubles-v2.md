@@ -158,19 +158,17 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       check with "does the return type's syntax tree reference any of the
       method's own type parameters" — reject only that case, under a
       refined diagnostic (next available code after `CMP0028`). **Also
-      diagnose and exclude a method using `T?` on one of its own
-      *unconstrained* type parameters, in a parameter or its own
-      declaration** (Amendment 6 Finding 15, a distinct, narrower
-      diagnostic from the return-type-dependency one above) — modeling
-      C#'s `where T : default` constraint-disambiguation rule correctly
-      isn't something this ADR has a verified answer for, and the real
+      diagnose and exclude a method using `T?` on one of its own type
+      parameters, in a parameter or its own declaration — constrained or
+      unconstrained, regardless of which constraint** (Amendment 6 Finding
+      15, unified with Amendment 9's withdrawal of a narrower
+      constrained-only exception Amendment 8 briefly introduced and
+      Amendment 9 retracted) — modeling C#'s exact permitted constraint-
+      restatement rules for this case correctly isn't something this ADR
+      has a verified answer for (two review rounds gave conflicting
+      answers for the exact permitted keyword set), and the real
       motivating shape (`ILogger<T>.Log<TState>`) never uses `TState?` at
-      all, so there's no evidence forcing the more complex alternative.
-      **A `T?`-using type parameter that's already *constrained* to
-      `class`/`struct`/`notnull`/`unmanaged` on the interface does *not*
-      get this diagnostic** (Amendment 8 Finding 18, narrower and lower-
-      risk than the unconstrained case) — see the constraint-propagation
-      task below for the mechanical fix.
+      all, so there's no evidence forcing a guess either way.
 - [ ] Constraint-clause propagation: emit each type parameter's
       `where T : ...` clause verbatim (reference-type/value-type/`notnull`/
       base-type/interface constraints), extending the existing
@@ -179,14 +177,12 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       only** (Amendment 1's overloaded-generic case) — never on the
       explicit interface implementation, which inherits its constraints
       automatically and cannot redeclare them (`CS0460`, corrected per
-      ADR-0044 Amendment 2 Finding 2). **One narrow exception, added per
-      Amendment 8 Finding 18:** if a type parameter's interface-declared
-      constraint is exactly `class`, `struct`, `notnull`, or `unmanaged`,
-      and that type parameter appears as `T?` anywhere in the member's
-      signature, restate that single keyword — and only that keyword,
-      never a base-type/interface constraint — on the explicit
-      implementation too. Every other case keeps the "no `where` clause at
-      all" rule unchanged.
+      ADR-0044 Amendment 2 Finding 2), **with no exception** — Amendment 8
+      briefly introduced a narrow nullable-disambiguation exception here,
+      which Amendment 9 withdrew after a second review round disputed the
+      exact permitted keyword set; the corresponding type-parameter shape
+      is diagnosed and excluded instead (see the task above), so this
+      emitter task never reaches a case needing one.
 - [ ] Nullable-annotation preservation on type-parameter-referencing text,
       reusing `NullableAwareFullyQualifiedFormat`.
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface

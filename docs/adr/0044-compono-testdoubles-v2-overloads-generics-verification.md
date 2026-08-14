@@ -1361,6 +1361,96 @@ its own no-deterministic-default exclusion, plus a packaged-smoke-test
 case for a mixed overload set containing a non-default-assignable `out`
 parameter.
 
+## Amendment 9 (2026-08-14): withdraw the constrained-nullable-constraint exception; corrected overload-selection example
+
+An eighth Codex review pass caught a real problem with Amendment 8's own
+Finding 18 fix, a direct consequence of that same problem in the plan,
+and a genuine correctness error in Amendment 1's own worked example. All
+prior text is left exactly as written, per the immutability rule already
+followed eight times above — this Amendment **withdraws** part of
+Amendment 8's fix rather than further narrowing it, which the rule
+permits (a later Amendment correcting an earlier one, not editing it).
+
+**Finding 21 — the exact set of constraint keywords permitted on an
+explicit interface implementation for nullable disambiguation is genuinely
+uncertain, and Amendment 8's `class`/`struct`/`notnull`/`unmanaged` list
+is very likely wrong.** Codex's own finding here disputes part of what
+Codex itself suggested in the finding Amendment 8 fixed: `class` and
+`struct` may be legitimately restatable for this purpose, but `notnull`
+and `unmanaged` are not part of the same permitted set. Cross-checking
+this against Amendment 6 Finding 15's own reasoning (`where T : default`
+for the unconstrained case) exposes the real problem: this is deep,
+easily-misremembered C# nullable-generics surface, and Amendment 8 made
+exactly the mistake Amendment 6 explicitly declined to make for the
+unconstrained case — guessing at specific constraint syntax without a
+verified answer. Two rounds of review disagreeing with each other about
+the precise permitted keyword set is itself strong evidence that guessing
+further (e.g. trimming the list to just `class`/`struct`) risks a third
+wrong guess rather than a correct one.
+
+**Decided: withdraw Amendment 8 Finding 18 entirely, not narrow it.**
+Every type parameter used as `T?` in a generic method's own signature —
+constrained or unconstrained, regardless of which constraint — is
+diagnosed and excluded, unifying with Amendment 6 Finding 15's existing
+disposition for the unconstrained case rather than carving out a
+special-cased exception this ADR cannot verify compiles. This costs a
+small amount of additional excluded surface (a constrained `T?` method
+that might genuinely be supportable with the exact right syntax) in
+exchange for never emitting generated code on an unverified guess — the
+same trade this ADR already made once, deliberately, for the harder case.
+Revisit only with a verified answer (a real compiler check during
+implementation, or authoritative confirmation of the exact permitted
+form), not a third review-round guess.
+
+**Finding 22 (moot as a direct consequence of Finding 21, not a separate
+fix) — a Codex finding that PLAN-0044's emitter task never synchronized
+Amendment 8's exception.** Withdrawing the exception (Finding 21, above)
+removes what that task would have needed to synchronize in the first
+place — there is no longer any constraint-restatement exception for the
+explicit interface implementation to carry forward. PLAN-0044's emitter
+task text is corrected to match the withdrawal, not to add the sync fix
+Finding 22 originally asked for.
+
+**Finding 23 — Requirement 1/Amendment 1's own worked example incorrectly
+claims implicit type inference selects the `IEnumerable<T>` overload.**
+The example (`Configure().Process(Array.Empty<string>()).Returns(default)`,
+commented "T inferred string -> IEnumerable<T> overload") is wrong: C#
+overload-resolution betterness prefers an **identity conversion** over an
+**implicit reference conversion** — `Array.Empty<string>()` (type
+`string[]`) has an identity conversion to the unconstrained `T value`
+parameter (`T = string[]`) but only a reference conversion to
+`IEnumerable<T> values` (`T = string`), so the `T`-value overload wins,
+not the enumerable one. This isn't a one-off bad example choice: an
+unconstrained `T` parameter's identity conversion is available for
+**every** possible argument, so implicit inference can **never** select
+the `IEnumerable<T>` overload over a sibling `T`-value overload for this
+shape — a real, structural fact about this specific overload pair,
+already true of the real interface member itself (Compono's discriminator
+selection isn't introducing a new ambiguity, only inheriting an existing
+one), not previously stated plainly.
+
+**Corrected example:**
+
+```csharp
+widget.Configure().Process(0).Throws(new InvalidOperationException());        // T inferred int -> only Process<T>(T) is applicable
+widget.Configure().Process<string>(Array.Empty<string>()).Returns(default);   // explicit <string> required - implicit inference can
+                                                                               // never select Process<T>(IEnumerable<T>) here: the
+                                                                               // T-value overload's identity conversion always wins
+                                                                               // when both are applicable, for any argument
+```
+
+The third line from the original sample (explicit type argument on a
+placeholder variable) already demonstrated the correct form — it's kept,
+now consistent with the corrected second line rather than contradicting
+it. No design/mechanism content changes: the discriminator selection
+mechanism (Requirement 1) was always correct; only this illustrative
+example and its accompanying claim were wrong.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 1's
+diagnostic task and constraint-propagation task both drop the withdrawn
+constrained-nullable exception, reverting to "diagnose and exclude any
+`T?`-using type parameter, constrained or not."
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
