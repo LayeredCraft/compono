@@ -67,10 +67,17 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       naming/hint-name scheme. Reuses `TestDoubleIdentifierNaming`'s
       existing sanitizer + FNV-1a-hash convention (sibling helper, not a
       modification).
-- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: emit one `ReturnConfig<T>`
-      field and one typed-parameter configuration extension per overload;
-      dispatch bodies for every overload regardless of whether that
-      specific overload's own shape is independently supported.
+- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: dispatch bodies for every
+      overload, regardless of whether that specific overload's own shape
+      is independently supported. **A `ReturnConfig<T>` field and typed-
+      parameter configuration extension are emitted only for an overload
+      that actually gets a `Configure()` surface** (corrected per
+      ADR-0044 Amendment 4 Finding 9 — an unconditional "one field per
+      overload" would duplicate-declare a field for two diamond-colliding
+      identities, which withhold `Configure()`/`Verify()` for both without
+      rejecting the interface). An overload with no configuration surface
+      — unsupported shape or diamond collision alike — gets an inline
+      deterministic-default dispatch body with no backing field at all.
 - [ ] Overload-set-internal partial support: an overload whose own shape
       is unsupported *and has a constructible fallback body*
       (`ref`/`out`/`in`, pointer/function-pointer parameters) gets a
@@ -106,11 +113,16 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] Nullable-annotation preservation on type-parameter-referencing text,
       reusing `NullableAwareFullyQualifiedFormat`.
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface
-      implementation stays generic (type parameters + constraints);
+      implementation stays generic (type parameters **only** — never
+      constraints, which are inherited automatically and redeclaring them
+      is `CS0460`; corrected per ADR-0044 Amendment 4 Finding 10, a plan-
+      text sync fix for the rule Amendment 2 Finding 2 already decided);
       configuration extension stays non-generic, member-level, exactly
       like an ordinary member — **unless the member is also overloaded**
       (see the combined-interaction task below), in which case the
-      extension becomes generic too, per ADR-0044 Amendment 1.
+      extension becomes generic too, per ADR-0044 Amendment 1, and *does*
+      carry the full constraint clauses (it's an ordinary standalone
+      method, not an interface implementation).
 - [ ] **Overloaded generic methods (ADR-0044 Amendment 1):** when a
       generic method's name is shared by another overload, its
       configuration/verification extension becomes generic itself —

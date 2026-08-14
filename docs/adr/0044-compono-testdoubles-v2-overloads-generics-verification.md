@@ -1004,6 +1004,65 @@ closure (not per-interface) and must keep passing the existing diamond
 property test (adapted to the new scoped-not-whole-interface outcome), not
 treat cross-interface collisions as unreachable.
 
+## Amendment 4 (2026-08-14): a backing field exists only where a configuration surface does, and a stale plan-text sync fix
+
+A third Codex review pass, against PLAN-0044's own task text rather than
+this ADR's, caught one real design gap this ADR left unstated, and one
+place PLAN-0044 failed to propagate an already-decided fix everywhere it
+applied. All prior text is left exactly as written, per
+`design-decisions.md`'s immutability rule; this Amendment fills the gap
+and records the correction.
+
+**Finding 9 (P1) — this ADR never decided whether an overload without a
+`Configure()`/`Verify()` surface still gets a backing `ReturnConfig<T>`
+field.** Requirement 1's "overload-set-internal partial support" says an
+unsupported overload "gets a deterministic-default dispatch body" but
+never says whether that body is backed by a field. PLAN-0044's own task
+text filled the gap on its own, unreviewed, with "emit one `ReturnConfig<T>`
+field ... per overload" — unconditionally. Amendment 3 Finding 8 then
+established that a diamond-inherited collision withholds the
+`Configure()`/`Verify()` surface for **both** colliding members without
+rejecting the interface — but if each of those two members still gets its
+own field under the plan's unconditional reading, both fields resolve to
+the *same* discriminator identity (same name, same signature — that's
+the definition of the collision) and the generated class declares the
+same field name twice: `CS0102`, uncompilable code, for a scenario this
+ADR's own worked example (the diamond property test) is supposed to keep
+generating successfully.
+
+**Decided: a backing field exists if and only if the member also gets a
+`Configure()` extension.** A member with no configuration surface —
+whether because its own shape is unsupported (`ref`/`out`/`in`, pointer)
+or because it collides with another member's identity (diamond) — needs
+no state at all: its dispatch body evaluates the plain deterministic-
+default expression inline (the same expression `TestDoubleDefaults`
+already computes for any unconfigured member), with no field, no
+`RecordCall()`, nothing to collide on. This isn't a new mechanism; it's
+narrowing an unstated assumption (every overload gets a field,
+regardless of whether anything could ever configure or observe it) down
+to what the architecture actually needs a field *for*. It also resolves
+Finding 9 by construction rather than by adding a "shared slot" special
+case: two colliding diamond members simply both end up in the
+no-field, inline-default bucket, exactly like an unsupported-shape
+overload already does — no duplicate declaration is possible because
+neither declares anything.
+
+**Finding 10 (documentation-sync, not a new decision) — PLAN-0044's Phase
+1 emitter task still said "type parameters + constraints" for the
+explicit interface implementation**, two tasks below the correctly-worded
+constraint-propagation task Amendment 2 Finding 2 already fixed. Amendment
+2 decided the rule; this specific task bullet was simply never updated to
+match it, leaving a live contradiction pointing an implementer straight
+at the `CS0460` this ADR already ruled out. No new design content — a
+plan-text correction, recorded here only because it's the kind of leftover
+inconsistency worth naming explicitly so it doesn't get treated as a
+second, competing decision during implementation.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's field-
+emission task is now conditioned on the member actually getting a
+`Configure()` extension, and Phase 1's emitter task drops "constraints"
+from the explicit-implementation half of its own sentence.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
