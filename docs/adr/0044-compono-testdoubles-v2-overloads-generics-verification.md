@@ -1763,6 +1763,76 @@ This closes the pure pre-implementation design-review loop for ADR-0044.
 PLAN-0044 (`Not Started`) is ready; implementation begins with Phase 0
 once explicitly requested.
 
+## Amendment 16 (2026-08-14): Amendment 14's escape hatch requires the extension itself to be generic; `Equals` collision requires real object-convertibility
+
+The outstanding Codex review requested before Amendment 15 closed the
+loop landed two more real findings against Amendment 14's own fix — both
+confirmed before implementation begins, consistent with treating this as
+the genuine last pre-implementation round. All prior text is left exactly
+as written, per the immutability rule already followed fifteen times
+above.
+
+**Finding — Amendment 14's "a generic member never collides" rule
+checked the wrong thing: the *real interface member's* genericity, not
+the *generated discriminator extension's*.** The escape hatch Amendment
+14 relies on (an explicit type argument disambiguates arity against a
+non-generic `object` member) only exists if the **extension itself**
+accepts a type argument. For an **overloaded** generic method, Amendment
+1 makes the extension generic too — the escape hatch is real. For a
+**solo** (non-overloaded) generic method, Requirement 2's original,
+unchanged design keeps the extension non-generic and zero-argument
+(member-level, argument-independent, matching every other solo member) —
+there is no escape hatch, because the extension was never given one. A
+solo `ToString<T>()` under Amendment 14's rule as written would neither
+collide (the real method is generic) nor actually be reachable
+(`Configure().ToString<int>()` fails — the non-generic extension doesn't
+accept a type argument at all) nor fall back to `object.ToString()`
+cleanly — a genuinely broken, unreachable-either-way state, worse than
+the collision it was meant to avoid.
+
+**Corrected:** the escape-hatch exception applies only when the
+*generated discriminator extension* is itself generic — in practice,
+only the overloaded-generic case (Amendment 1). A solo generic method
+sharing a name with `ToString`/`GetHashCode`/`GetType`/`Equals` keeps
+v1's original disposition unchanged: its (non-generic, zero-argument)
+extension collides exactly like any other zero-parameter member, and is
+diagnosed accordingly — Amendment 14's fix never actually applied to this
+case in the first place, once stated correctly.
+
+**Finding — not every type converts to `object`; ref-like types
+(`Span<T>`, other `ref struct`s) categorically don't, and Amendment 14's
+`Equals` collision claim assumed otherwise.** `object.Equals(object)` is
+only applicable to a call whose argument actually has a conversion (
+reference or boxing) to `object` — a ref-like type has neither (the CLR
+forbids boxing a `ref struct`, by design, the same restriction that
+already makes a ref-like *return* type diagnosed-and-excluded elsewhere
+in this ADR). An overload like `Equals(Span<int> value)` is therefore
+**not** shadowed by `object.Equals(object)` at all — the generated
+discriminator extension remains fully reachable, and Amendment 14's
+blanket "any non-generic one-argument overload named `Equals` collides"
+claim over-rejects this shape. (Pointer-typed parameters have the same
+non-convertibility property, but are already excluded for an unrelated
+reason — Amendment 5 Finding 12's `unsafe`-context rule — before this
+check would ever run, so they don't need a second exclusion here.)
+
+**Corrected:** the `Equals` collision check additionally verifies the
+discriminator's parameter type is not ref-like
+(`!parameterType.IsRefLikeType`, the same property `TestDoubleAnalyzer`
+already uses for the existing ref-like-return-type check) before
+concluding a collision. A ref-like-typed `Equals` parameter keeps its
+`Configure()`/`Verify()` surface.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 1's
+generic-method task clarifies the escape hatch is extension-genericity-
+gated, not method-genericity-gated, with a solo-generic-`ToString<T>()`
+still-collides test; Phase 0's `Equals` collision task gains the
+ref-like-parameter exclusion and its own non-colliding test
+(`Equals(Span<int> value)`).
+
+This is the genuine close of the pre-implementation design-review loop —
+confirmed directly with the requester, who is treating this as the last
+round before Phase 0 implementation begins.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

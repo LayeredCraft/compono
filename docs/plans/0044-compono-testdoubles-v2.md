@@ -134,15 +134,23 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       value parameters — in practice, any generic member with zero
       required value parameters is never an implicit zero-argument
       candidate, since implicit type inference has nothing to infer from.
-      This closes two gaps at once: a generic `Configure<T>()`/`Verify<T>()`
-      interface member no longer wrongly collides with the bridge (nothing
-      to infer `T` from at a bare `Configure()` call, so per this repo's
-      own compile-spike-verified "applicability, not name-existence" rule
-      — PLAN-0043 PR #83 review round 2 — extension search proceeds
-      normally); a generic, zero-value-parameter `ToString<T>()`-shaped
-      overload no longer wrongly loses its `Configure()`/`Verify()`
-      surface (an explicit-type-argument call like `ToString<int>()`
-      doesn't match `object.ToString()`'s arity, so no collision).
+      This fixes a generic `Configure<T>()`/`Verify<T>()` interface member
+      no longer wrongly colliding with the bridge (nothing to infer `T`
+      from at a bare `Configure()` call, so per this repo's own compile-
+      spike-verified "applicability, not name-existence" rule — PLAN-0043
+      PR #83 review round 2 — extension search proceeds normally). **This
+      escape hatch requires the *generated discriminator extension* to
+      itself be generic — corrected per Amendment 16, which caught that
+      the rule as first stated checked the wrong genericity.** Only an
+      *overloaded* generic method's extension is generic (Amendment 1); a
+      *solo* generic method's extension stays non-generic and zero-
+      argument (Requirement 2's original design, unchanged) and therefore
+      has no real escape hatch — it keeps colliding with
+      `ToString`/`GetHashCode`/`GetType`/`Equals` exactly like any other
+      zero-parameter member, unaffected by this fix. Test both: a solo
+      `ToString<T>()` still collides (diagnosed); an *overloaded*
+      `ToString<T>()` (sharing a name with another `ToString` overload)
+      does not, reachable via `Configure().ToString<int>()`.
 - [ ] `TestDoubleAnalyzer`'s existing `object`-member collision check
       (`ToString`/`GetHashCode`/`GetType`, **plus `Equals` — new, per
       Amendment 14**) withholds the `Configure()`/`Verify()` surface only
@@ -155,9 +163,21 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       parameters *and* zero type parameters. For `Equals` specifically —
       `object.Equals(object)` accepts any type via boxing/reference
       conversion, so a **non-generic** discriminator applicable to exactly
-      one implicit argument (e.g. `Equals(int format)`) always collides,
-      with no escape hatch; a **generic** `Equals<T>(T value)` keeps its
-      surface, reachable via `Equals<int>(5)`. A non-overloaded member's
+      one implicit argument (e.g. `Equals(int format)`) collides, with no
+      escape hatch, **unless the parameter's own type is ref-like**
+      (`parameterType.IsRefLikeType` — corrected per Amendment 16: a
+      `Span<T>`/`ref struct` parameter has no boxing or reference
+      conversion to `object` at all, the same restriction that already
+      excludes a ref-like *return* type elsewhere, so `object.Equals(object)`
+      is never actually applicable to it and the surface is kept — test
+      `Equals(Span<int> value)` explicitly). Pointer-typed parameters need
+      no equivalent check here — they're already excluded before this
+      point by Amendment 5 Finding 12's `unsafe`-context rule. A
+      **generic** `Equals<T>(T value)` keeps its surface too, reachable
+      via `Equals<int>(5)` (per the shared-helper task above — only when
+      the extension itself is generic, i.e. an overloaded `Equals`; a
+      solo generic `Equals<T>(T value)` still collides). A non-overloaded
+      member's
       extension is still always zero-parameter, zero-type-parameter
       (unchanged behavior, still always collides for the original three
       names; `Equals` was never a collision risk for a non-overloaded,
