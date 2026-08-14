@@ -1148,6 +1148,78 @@ parameters from the fallback-body bucket, restoring v1's existing
 whole-interface-rejection disposition for that shape unchanged; Phase 2's
 `RecordCall()` task is conditioned on the backing field's existence.
 
+## Amendment 6 (2026-08-14): nullable annotations excluded from overload identity, unconstrained nullable type-parameter shapes diagnosed rather than guessed at
+
+A fifth Codex review pass caught two more real defects in this ADR's own
+identity/constraint reasoning, plus one process gap addressed in
+PLAN-0044 only (see that plan's own Notes — a pure test-sequencing
+concern has no ADR decision content per `design-decisions.md`'s "keep the
+ADR itself to decision content" rule, so it's not repeated here). All
+prior text is left exactly as written, per the immutability rule already
+followed five times above.
+
+**Finding 14 — nullable-reference annotation is not part of a C# method
+signature and must be excluded from discriminator identity, same family
+as Amendment 5 Finding 11's generic-parameter-name fix.** `IA.M(string)`
+and `IB.M(string?)` can coexist across two unrelated base interfaces (a
+diamond) because nullable annotations are compiler-tracked metadata, not
+part of the CLR signature the compiler uses to detect duplicate
+declarations. Hashing each parameter's *displayed* type (which includes
+the `?`, per this feature's own `NullableAwareFullyQualifiedFormat`, used
+deliberately for emitted *code* to avoid spurious warnings) would treat
+these as different identities, missing the diamond collision and emitting
+two configuration extensions the compiler considers genuinely identical —
+`CS0111`.
+
+**Corrected:** the discriminator hash strips nullable-reference annotations
+(and any other decoration that isn't part of true signature identity) from
+each parameter type before hashing — a third canonicalization step
+alongside Amendment 2/3's ref-kind-and-arity fix and Amendment 5's
+generic-parameter-ordinal fix. `NullableAwareFullyQualifiedFormat` stays
+exactly as-is for *emitted code text* (nothing about how source is
+generated changes) — this correction is scoped entirely to the hash
+*input*, a separate concern from what gets printed into the `.g.cs` file.
+
+**Finding 15 — an unconstrained generic type parameter used as `T?` in a
+parameter can require a C# 9+ "default constraint"
+(`where T : default`/permitted `class?`/`struct?` forms) on the explicit
+implementation, an exception to the otherwise-blanket "never emit a
+`where` clause" rule Amendment 2 Finding 2 established.** This is real —
+C# added the `default` constraint specifically so an override or explicit
+interface implementation can disambiguate an inherited, unconstrained
+`T?`'s oblivious reference-or-value-type meaning, an exception folded
+into the same constraint-inheritance family `CS0460` governs. It does
+**not** affect this ADR's own motivating shape — the real
+`ILogger<T>.Log<TState>` is unconstrained but its own parameter is plain
+`TState`, never `TState?`, so the concrete evidence this ADR was built
+from never exercises this corner.
+
+**Decided: diagnose and exclude, not attempt to reproduce.** Correctly
+modeling exactly when a `default`/`class?`/`struct?` constraint is
+*required* (as opposed to merely permitted, or unnecessary because the
+compiler can infer it) is real, deep C# nullable-feature surface this ADR
+has no verified, checkable answer for — and getting it wrong risks
+emitting generated code that fails to compile in exactly the silent,
+narrow way this whole review has been catching one case at a time.
+Consistent with this ADR's own established pattern for a genuinely
+uncertain corner (the overload+generic interaction's own three-way
+framing: clean representation, narrower subset, or a diagnostic) and with
+`design-decisions.md`'s "no reflection/no invented complexity for a case
+the evidence doesn't require" posture: a generic method with a parameter
+(or, for symmetry, the method's own declaration) using `T?` on an
+unconstrained type parameter is diagnosed and excluded, deferring to the
+ordinary runtime-provider path — the same disposition every other
+narrowly-scoped-out shape in this ADR already gets. Revisit only if real
+evidence (a future dogfooding pass hitting this exact shape) justifies
+the added complexity of modeling the constraint correctly.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+identity-hash task adds nullable-annotation stripping as a third
+canonicalization step; Phase 1's constraint-propagation task gains the
+unconstrained-`T?`-parameter exclusion as a new diagnosed shape, distinct
+from (and narrower than) the return-type-dependency exclusion already
+established.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

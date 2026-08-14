@@ -66,8 +66,14 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       same signature under C#'s own rules despite the different declared
       names, and hashing the displayed name as-is would miss this diamond
       collision, risking a `CS0111` duplicate-extension declaration.
-      Include ref-kind, arity, and canonical generic-parameter identity in
-      the hash from this phase on, even though every Phase-0-supported
+      **Strip nullable-reference annotations before hashing too**
+      (Amendment 6 Finding 14) — `IA.M(string)`/`IB.M(string?)` is the
+      same real signature (nullable annotation isn't part of a C# method's
+      true identity), and the emitted-code-facing
+      `NullableAwareFullyQualifiedFormat` (which deliberately preserves
+      `?`) must not be reused for the hash input. Include ref-kind, arity,
+      canonical generic-parameter identity, and nullable-stripped parameter
+      types in the hash from this phase on, even though every Phase-0-supported
       overload has arity zero and no `ref`/`out`/`in` support until later,
       so later phases never have to change an already-shipped
       naming/hint-name scheme. Reuses `TestDoubleIdentifierNaming`'s
@@ -107,13 +113,37 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
       overload.
+- [ ] **Packaged-consumer smoke test, this phase's own shape only**
+      (added per ADR-0044 Amendment 6's process finding — see this plan's
+      Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
+      into a local feed, a throwaway consumer project referencing the
+      packed `.nupkg` (never a `ProjectReference`, matching every existing
+      `*.SampleTests` project's own pattern) with
+      `ComponoGeneratedTestDoubles=true`, exercising an overloaded
+      interface end to end and a real `dotnet build`/`dotnet run`. Every
+      defect this review round found (`CS0122`, `CS0460`, `CS0111`,
+      `CS0214`) is exactly the class of cross-assembly compile failure an
+      in-process `Verify()` snapshot test cannot catch, since it only
+      diffs generated source text against a golden file rather than
+      actually compiling it into a genuinely separate consumer assembly.
+      This phase does not ship (its own PR does not merge) until this
+      smoke test is green.
 
 ### Phase 1 — Generic-method support
 
 - [ ] `TestDoubleAnalyzer`: replace the blanket `IsGenericMethod → reject`
       check with "does the return type's syntax tree reference any of the
       method's own type parameters" — reject only that case, under a
-      refined diagnostic (next available code after `CMP0028`).
+      refined diagnostic (next available code after `CMP0028`). **Also
+      diagnose and exclude a method using `T?` on one of its own
+      unconstrained type parameters, in a parameter or its own
+      declaration** (Amendment 6 Finding 15, a distinct, narrower
+      diagnostic from the return-type-dependency one above) — modeling
+      C#'s `default`/`class?`/`struct?` constraint-disambiguation rules
+      correctly isn't something this ADR has a verified answer for, and
+      the real motivating shape (`ILogger<T>.Log<TState>`) never uses
+      `TState?` at all, so there's no evidence forcing the more complex
+      alternative.
 - [ ] Constraint-clause propagation: emit each type parameter's
       `where T : ...` clause verbatim (reference-type/value-type/`notnull`/
       base-type/interface constraints), extending the existing
@@ -155,6 +185,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       required per ADR-0044 Amendment 1 so Phase 0's overload support and
       this phase's generic support don't each pass independently while
       their combination produces invalid generated code.
+- [ ] **Packaged-consumer smoke test, this phase's own shape** (same
+      rationale as Phase 0's own task above): an `ILogger<T>`-shaped
+      interface through a real packed `.nupkg` + throwaway consumer
+      project, real `dotnet build`/`dotnet run`. This phase does not ship
+      until it's green.
 
 ### Phase 2 — Minimal call recording and verification
 
@@ -220,6 +255,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       message), a verified call that also has configured `Returns`/`Throws`
       behavior (proving counting and configured-behavior dispatch don't
       interfere), overload-scoped verification.
+- [ ] **Packaged-consumer smoke test, this phase's own shape** (same
+      rationale as Phases 0/1's own tasks): `Verify().Member().Once()`
+      through a real packed `.nupkg` + throwaway consumer project, real
+      `dotnet build`/`dotnet run`. This phase does not ship until it's
+      green.
 
 ### Phase 3 — AOT, performance, and package verification
 
@@ -231,7 +271,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] `test/Compono.TestDoubles.SampleTests`: extend the packaged-consumer
       sample with the same three shapes, proving the real NuGet-packaged
       path (not just the in-process generator harness), matching PLAN-0043
-      Phase 2's local-feed pattern.
+      Phase 2's local-feed pattern — this is the combined-shapes proof;
+      Phases 0-2 already each proved their own shape individually via
+      their own lighter packaged smoke test (added per Amendment 6's
+      process finding, see Notes), so this phase isn't the first point
+      any of the three shapes gets compiled as a real external consumer.
 - [ ] Targeted benchmarks only (per ADR-0044's "AOT and performance"
       section — not a general competitive suite): `Interlocked.Increment`
       overhead per verified call, and overload-dispatch overhead for a
@@ -333,3 +377,24 @@ exist, matching PLAN-0043's own "prove the whole thing together" AOT
 phase rather than three separate partial AOT proofs. Phase 5 (re-dogfood)
 is last by construction — it measures the other phases' real-world effect
 and can't run before they ship.
+
+**Packaged verification moved into Phases 0-2 themselves, not deferred
+entirely to Phase 3** (added during PR #87's own design review, a Codex
+finding against this plan's original draft). The original draft deferred
+*all* real packaged-consumer compilation to Phase 3, relying on in-process
+`Verify()` generator-output snapshot tests for Phases 0-2 — but every
+defect that same design-review process found along the way (`CallCount`
+cross-assembly write/read access, `CS0460` constraint redeclaration,
+`CS0111` duplicate discriminator declarations, `CS0214` unsafe-context
+requirements) was exactly the class of cross-assembly compile failure a
+snapshot test *cannot* catch, since it only diffs generated source text
+against a golden file rather than compiling it as a genuinely separate
+consumer assembly. Given each of Phases 0/1/2 ships as its own PR/release
+(the phase-per-PR rule above), shipping any of them without packaged
+verification would mean the exact defect class this review spent multiple
+rounds catching by hand could just as easily reach a real consumer
+instead. Each of Phases 0-2 now ends with its own lightweight packaged
+smoke test (a real `dotnet pack` + local-feed consumer, not the full
+`PublishAot` proof) and does not ship until it's green; Phase 3's own
+sample/AOT extension stays the *combined*, all-three-shapes-together
+proof, not the first point any individual shape gets compiled externally.
