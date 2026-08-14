@@ -620,6 +620,143 @@ three capabilities this ADR explicitly adds:
   throw-with-message ergonomics without inventing assertion-framework-
   specific behavior in a core-`Compono` type.
 
+## Amendment 1 (2026-08-14): overloaded generic methods, and a correction to overload-partial-support's return-shape claim
+
+Requester review of this ADR (before any implementation code existed) asked
+for the combined overload+generic case to be explicitly resolved — an
+interaction Requirements 1 and 2's Decision Outcome text above designed
+independently, and which can genuinely conflict:
+
+```csharp
+void Process<T>(T value);
+void Process<T>(IEnumerable<T> values);
+```
+
+Requirement 1 needs each overload's configuration extension to carry a
+discriminator parameter matching the real overload's parameter type.
+Requirement 2 decided a supported generic method's configuration extension
+stays non-generic, because the slot's type is fixed regardless of the
+method's own type parameter. Here, the discriminator parameter types
+(`T`, `IEnumerable<T>`) reference `Process`'s own type parameter — which a
+non-generic extension has no way to spell. The original Decision Outcome
+text above is left exactly as written, per `design-decisions.md`'s
+immutability rule — this Amendment resolves the interaction those two
+sections didn't individually anticipate, without changing either one's
+own decision.
+
+**Decided: the configuration (and verification) extension for an
+overloaded generic member becomes generic itself, reusing the overload's
+own type parameters and constraint clauses verbatim — purely as a
+compile-time overload-selection mechanism. The backing slot's type stays
+fixed per Requirement 2's existing rule (return type independent of the
+method's own type parameter), so every closed `T` still shares exactly
+one slot per overload — no per-closed-generic storage is introduced.**
+This is not a third mechanism: it is Requirement 1's per-overload
+discriminator rule and Requirement 2's generic-constraint-propagation rule
+composed together, each exactly as already decided, applied to the same
+member at once.
+
+```csharp
+internal sealed class IWidget_a1b2c3d4_Double : IWidget
+{
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __process_9f8e; // Process<T>(T value)
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __process_2c1d; // Process<T>(IEnumerable<T> values)
+
+    void IWidget.Process<T>(T value)
+    {
+        global::System.Threading.Interlocked.Increment(ref __process_9f8e.CallCount);
+        if (__process_9f8e.HasConfiguredException) throw __process_9f8e.ConfiguredException;
+    }
+
+    void IWidget.Process<T>(global::System.Collections.Generic.IEnumerable<T> values)
+    {
+        global::System.Threading.Interlocked.Increment(ref __process_2c1d.CallCount);
+        if (__process_2c1d.HasConfiguredException) throw __process_2c1d.ConfiguredException;
+    }
+}
+
+internal static class IWidget_a1b2c3d4_DoubleConfiguration
+{
+    // Generic purely for overload selection - T is never stored anywhere, matching
+    // Requirement 2's "slot type independent of the method's own type parameter" rule
+    // exactly; T is inferred from the discriminator argument the same way it would be
+    // inferred at a real call site against the actual interface member.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Process<T>(
+        this global::IWidget_a1b2c3d4_Double self, T value) => new(ref self.__process_9f8e);
+
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Process<T>(
+        this global::IWidget_a1b2c3d4_Double self, global::System.Collections.Generic.IEnumerable<T> values) =>
+        new(ref self.__process_2c1d);
+}
+```
+
+```csharp
+widget.Configure().Process(0).Throws(new InvalidOperationException());        // T inferred int -> T-value overload
+widget.Configure().Process(Array.Empty<string>()).Returns(default);           // T inferred string -> IEnumerable<T> overload
+widget.Configure().Process<string>(someIEnumerableOfString).Returns(default); // explicit type argument, same as a real call site
+```
+
+**Why this stays correct without new machinery:** because the
+discriminator's parameter type (and constraints) are copied verbatim from
+the real overload — exactly Requirement 1's existing rule — C#'s own
+overload-resolution "betterness" rules pick between `Process<T>(T)` and
+`Process<T>(IEnumerable<T>)` identically to how they'd resolve a real call
+to the interface member with the same argument. The discriminator can
+never disagree with which real overload a consumer is actually exercising,
+by construction — not a property this Amendment has to separately prove
+correct case by case. No new AOT-risk surface either: the extension is an
+ordinary static generic method, the same shape as any BCL generic
+extension method; the slot type stays concrete.
+
+**Scope boundary — both requirements' existing constraints still apply
+independently, per overload, unchanged:**
+
+- An overload whose return type *does* depend on its own type parameter
+  (`T Get<T>(T seed)`) stays diagnosed and unsupported under Requirement
+  2's existing rule, checked per-overload — it does not block a sibling
+  overload of the same name that satisfies Requirement 2
+  (`void Reset<T>(T value)`, say), per Requirement 1's own overload-set-
+  internal partial support.
+- This combination is only reachable when the member name is actually
+  overloaded (≥2 members sharing the name); a solo generic method keeps
+  Requirement 2's original zero-argument, non-generic configuration
+  extension unchanged — the generic discriminator extension described
+  here only appears when overload disambiguation genuinely needs it.
+- No new diagnostic category is introduced for the combined case itself —
+  a discriminator signature collision between two overloads can't arise
+  for shapes the C# language itself would already accept as distinct
+  overloads (identical erased parameter-type sequences aren't legal
+  overloads to begin with), so nothing here needed inventing a new
+  rejection rule.
+
+**Correction — "return type with no deterministic default" does not
+belong in the overload-partial-support list.** Requirement 1's Decision
+Outcome text lists "a return type with no deterministic default" alongside
+`ref`/`out`/`in` and pointer parameters as shapes that "get a
+deterministic-default dispatch body" when only one overload among several
+has the unsupported shape. That's correct for `ref`/`out`/`in` and pointer
+parameters (the body can simply not touch the parameter meaningfully,
+or — for `out` — assign it a default, and still return the member's own
+deterministic default) but **wrong** for a return type with no
+deterministic default: by definition, there is no value to construct a
+body around at all — the same reason ADR-0043 Amendment 5 Finding K
+decided **diagnose and reject** for this shape in the first place. Caught
+while working through this Amendment's own analysis, not a new finding
+about overloads specifically — it was always true, just mis-stated.
+**Corrected:** overload-set-internal partial support applies only to
+shapes where a trivial fallback body is actually constructible
+(`ref`/`out`/`in`, pointer/function-pointer parameters). An overload
+returning a type with no deterministic default has no constructible body
+at any granularity and triggers today's existing whole-interface
+rejection outcome, unchanged from v1 — not a new decision, a correction to
+this ADR's own mis-statement.
+
+PLAN-0044 is updated in the same pass as this Amendment: a new Phase 1
+task covering the combined overload+generic interaction with its own
+`Verify()`-snapshot test (so Phases 0 and 1 don't each pass independently
+while their combination produces invalid generated code), and Phase 0's
+overload-partial-support task text corrected to match the fix above.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

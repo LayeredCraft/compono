@@ -51,10 +51,14 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       dispatch bodies for every overload regardless of whether that
       specific overload's own shape is independently supported.
 - [ ] Overload-set-internal partial support: an overload whose own shape
-      is unsupported (`ref`/`out`/`in`, pointer, non-nullable-no-default
-      return) gets a deterministic-default dispatch body and an
-      informational diagnostic, but does **not** reject its sibling
-      overloads.
+      is unsupported *and has a constructible fallback body*
+      (`ref`/`out`/`in`, pointer/function-pointer parameters) gets a
+      deterministic-default dispatch body and an informational diagnostic,
+      but does **not** reject its sibling overloads. A return type with no
+      deterministic default has no constructible body at any granularity
+      and still triggers today's existing whole-interface rejection,
+      unchanged from v1 — corrected per ADR-0044 Amendment 1, not the
+      "gets a fallback body" treatment an earlier plan draft implied.
 - [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
@@ -78,11 +82,27 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface
       implementation stays generic (type parameters + constraints);
       configuration extension stays non-generic, member-level, exactly
-      like an ordinary member.
+      like an ordinary member — **unless the member is also overloaded**
+      (see the combined-interaction task below), in which case the
+      extension becomes generic too, per ADR-0044 Amendment 1.
+- [ ] **Overloaded generic methods (ADR-0044 Amendment 1):** when a
+      generic method's name is shared by another overload, its
+      configuration/verification extension becomes generic itself —
+      reusing the overload's own type parameters and constraint clauses
+      verbatim, purely for compile-time overload selection — while the
+      backing slot stays fixed per Requirement 2's existing rule (no
+      per-closed-generic storage). Depends on both Phase 0's per-overload
+      discriminator mechanism and this phase's constraint-propagation
+      work, so it can only land once both exist.
 - [ ] `Verify()`-tests: an `ILogger<T>`-shaped interface (`Log<TState>`,
       `BeginScope<TState>` — the actual motivating shape), a
       multi-type-parameter generic method, a still-unsupported
-      generic-return-type method (diagnosed, not emitted).
+      generic-return-type method (diagnosed, not emitted), **and a
+      dedicated overloaded-generic-method test** (`void Process<T>(T value)`
+      / `void Process<T>(IEnumerable<T> values)` on the same interface) —
+      required per ADR-0044 Amendment 1 so Phase 0's overload support and
+      this phase's generic support don't each pass independently while
+      their combination produces invalid generated code.
 
 ### Phase 2 — Minimal call recording and verification
 
