@@ -299,7 +299,8 @@ compiler itself uses for overload resolution.
 **Severity:** Informational — never fails the build.
 
 **Message:** `'{Interface}' declares member '{Member}', whose generated
-configuration extension collides with 'object.{Member}()'`
+configuration extension collides with an inherited 'object.{Member}'
+member of the same arity`
 
 **Cause:** A member's generated configuration extension collides with an
 inherited `object` member. For a non-overloaded member the extension is
@@ -309,9 +310,11 @@ zero-argument generated `Equals` extension never collides with it). For an
 **overloaded** member (v2, ADR-0044) the extension carries the real
 overload's own parameter list instead: a genuinely zero-parameter overload
 of `ToString`/`GetHashCode`/`GetType` still collides, and a non-generic,
-single-parameter overload of `Equals` collides too — unless that
-parameter's type is ref-like (e.g. `Span<T>`), which has no boxing or
-reference conversion to `object` at all.
+single-*required*-parameter overload of `Equals` collides too — unless
+that parameter's type is ref-like (e.g. `Span<T>`), which has no boxing or
+reference conversion to `object` at all, or the parameter is the overload's
+own trailing `params` array (`Equals(params int[] values)`), which keeps a
+reachable spelling at every arity except exactly one.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 

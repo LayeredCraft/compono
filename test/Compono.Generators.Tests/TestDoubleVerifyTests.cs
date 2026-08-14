@@ -1380,4 +1380,117 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: a differently-named real member can literally be named after another
+    // overload's generated hash suffix - M(int)'s own discriminator hashes to "b9dfaa09", so a solo
+    // member M_b9dfaa09() would generate the exact same field name ("__M_b9dfaa09") unless suffix
+    // uniqueness is checked globally, not just within the "M" name group.
+    [Fact]
+    public Task OverloadSuffixCollidesWithDifferentlyNamedRealMember_GeneratesDoubleWithDistinctFieldNames() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void M(int value);
+
+                    void M(string value);
+
+                    void M_b9dfaa09();
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().M(1);
+                        repository.Configure().M("value");
+                        repository.Configure().M_b9dfaa09();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: "scoped" must be restated on the explicit implementation's ref/out/in
+    // parameter to match the interface member's ref-safety contract, or the consumer gets CS8987 -
+    // this overload has no Configure() surface either way (ref/out/in fallback), but its dispatch
+    // body's own signature still has to compile.
+    [Fact]
+    public Task OverloadWithScopedRefParameter_GeneratesDoubleWithMatchingRefSafetyContract() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void Seek(scoped ref System.Span<int> value);
+
+                        void Seek(int value);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Seek();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0030",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: object.Equals(object) is inapplicable to a zero-argument or two-plus-
+    // argument call, so an overloaded Equals(params int[] values) keeps a reachable spelling via
+    // Configure().Equals() or Configure().Equals(a, b) even though a literal one-argument call still
+    // collides - it's not genuinely a one-required-argument overload, same "params keeps the surface"
+    // reasoning Amendment 12 already applies to ToString/GetHashCode/GetType.
+    [Fact]
+    public Task OverloadedEqualsWithParamsArray_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Equals(params int[] values);
+
+                    bool Equals(long a, long b, long c);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Equals().Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }

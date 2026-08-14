@@ -175,8 +175,9 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor TestDoubleObjectMemberCollision = new(
         "CMP0024",
         "Test-double member collides with an inherited object member",
-        "'{0}' declares member '{1}', whose generated, always-zero-argument configuration extension " +
-        "collides with 'object.{1}()'. This leaf falls back to the ordinary runtime-provider path.",
+        "'{0}' declares member '{1}', whose generated configuration extension collides with an " +
+        "inherited 'object.{1}' member of the same arity. This leaf falls back to the ordinary " +
+        "runtime-provider path.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);

@@ -180,8 +180,22 @@ internal static class TestDoubleAnalyzer
         // eligibleCandidates in its already-deterministic order (closure order, then each
         // interface's own GetMembers() order) makes the disambiguation counter's assignment stable
         // across incremental-generator re-runs. Codex review, PR #88.
+        //
+        // usedFieldNames is reserved *globally*, not per overloaded-name group - a differently-named
+        // real member can literally be named after another overload's generated hash suffix (e.g. an
+        // interface declaring both M(int)/M(string) and a solo member M_<thatHash>()) - so plain,
+        // non-overloaded field names are reserved first (stable, never renamed for a rare collision
+        // elsewhere), and every generated suffix is checked against the same shared pool. Codex
+        // review, PR #88.
+        var usedFieldNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var candidate in eligibleCandidates)
+        {
+            if (!overloadedNames.Contains(candidate.Name))
+                usedFieldNames.Add($"__{candidate.Name}");
+        }
+
         var discriminatorSuffixByIdentity = new Dictionary<(string Name, string Canonical), string>();
-        var usedSuffixesByName = new Dictionary<string, HashSet<string>>();
 
         foreach (var candidate in eligibleCandidates)
         {
@@ -193,14 +207,11 @@ internal static class TestDoubleAnalyzer
             if (discriminatorSuffixByIdentity.ContainsKey(key))
                 continue;
 
-            if (!usedSuffixesByName.TryGetValue(candidateMethod.Name, out var used))
-                usedSuffixesByName[candidateMethod.Name] = used = new HashSet<string>();
-
             var baseHash = TestDoubleOverloadIdentity.StableHash(key.Canonical);
             var suffix = $"_{baseHash}";
             var disambiguator = 2;
 
-            while (!used.Add(suffix))
+            while (!usedFieldNames.Add($"__{candidateMethod.Name}{suffix}"))
                 suffix = $"_{baseHash}_{disambiguator++}";
 
             discriminatorSuffixByIdentity[key] = suffix;
@@ -448,7 +459,16 @@ internal static class TestDoubleAnalyzer
                                     interfaceType.ToDisplayString(), method.Name));
                             }
 
-                            if (method.Name is "Equals" && extensionArity == 1 && !method.Parameters[0].Type.IsRefLikeType)
+                            // A params-shaped single parameter (Equals(params int[] values)) is not
+                            // genuinely a one-required-argument overload - same "applicable to zero
+                            // arguments" reasoning Amendment 12 already applies to ToString/GetHashCode/
+                            // GetType's own params case, mirrored here: object.Equals(object) is
+                            // inapplicable to a zero-argument or two-plus-argument call either way, so
+                            // this overload keeps a reachable spelling via Configure().Equals() or
+                            // Configure().Equals(a, b) even though a literal one-argument call still
+                            // collides. Codex review, PR #88.
+                            if (method.Name is "Equals" && extensionArity == 1 &&
+                                !method.Parameters[0].Type.IsRefLikeType && !method.Parameters[0].IsParams)
                             {
                                 return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                     DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
@@ -460,7 +480,17 @@ internal static class TestDoubleAnalyzer
                             .Select(p => new TestDoubleParameterInfo(
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
                                 p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                                p.RefKind switch
+                                // "scoped" must be restated too when the interface declares it on a
+                                // ref/in/ref-readonly parameter - the explicit implementation's
+                                // ref-safety contract has to match the interface member's exactly, or
+                                // the consumer gets CS8987, not a supported double or a diagnostic.
+                                // Not for "out": every out parameter is unconditionally scoped by the
+                                // language itself (ScopedKind.ScopedRef even with no "scoped" written
+                                // in source), so restating it is always redundant - and would spam
+                                // "scoped out" onto every ordinary out parameter this feature already
+                                // supports. Codex review, PR #88.
+                                (p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out ? "scoped " : "") +
+                                (p.RefKind switch
                                 {
                                     RefKind.Ref => "ref ",
                                     RefKind.Out => "out ",
@@ -472,7 +502,7 @@ internal static class TestDoubleAnalyzer
                                     // the interface member it's implementing (CS0535).
                                     RefKind.RefReadOnlyParameter => "ref readonly ",
                                     _ => "",
-                                },
+                                }),
                                 p.IsParams))
                             .ToEquatableArray();
 
