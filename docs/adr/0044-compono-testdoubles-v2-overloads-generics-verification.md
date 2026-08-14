@@ -1641,6 +1641,95 @@ sibling overloads and the rest of the interface generating normally.
 PLAN-0044 needs no change from this Amendment — it never repeated the
 mis-scoped illustration, only the ADR's own "Scope boundary" bullet did.
 
+## Amendment 14 (2026-08-14): generic members are never implicit zero-argument candidates, closing two related collision gaps at once; `Equals` added to the object-collision check
+
+A thirteenth Codex review pass caught two related gaps in this ADR's
+collision-detection logic, both stemming from the same missing
+consideration: once Requirement 2 admits generic interface members for
+the first time, both the `object`-member collision check (Amendment 11/12)
+and the `Configure`/`Verify` bridge-name collision check (ADR-0043
+Amendment 3 Finding E, generalized by this ADR's Amendment 2 Finding 4)
+need to account for **type inference**, not just parameter count. All
+prior text is left exactly as written, per the immutability rule already
+followed thirteen times above.
+
+**The shared root cause.** Both checks ultimately ask "is this real
+member applicable to a call with no explicit type arguments and (for the
+`object`-collision check) some small fixed number of value arguments?" —
+and both currently answer that question using `IsApplicableToZeroArguments`-
+shaped logic that only inspects parameter optionality, never generic
+arity. A generic method's own type parameters can only be resolved by
+inference from **supplied, non-omitted** value arguments (or by explicit
+type arguments at the call site) — never from nothing. A generic member
+with no value parameters to infer from, or with only optional/`params`
+parameters a caller could omit, is therefore **never** a valid implicit
+(no-explicit-type-argument) zero/near-zero-argument candidate, regardless
+of what a parameter-optionality-only check concludes.
+
+**Finding (`object`-collision) — an overloaded, generic `ToString<T>()`
+(no value parameters) is wrongly withheld.** Amendment 12's corrected rule
+("collide only when the discriminator has genuinely zero parameters") did
+not also check generic arity. `object.ToString()` has zero type
+parameters; a call `Configure().ToString<int>()` supplies an explicit
+type argument, which `object.ToString()` cannot match (arity mismatch) —
+member lookup finds no applicable instance candidate, and extension
+search proceeds normally, reaching the generated discriminator. Amendment
+12's check, as stated, still withholds the surface for this case, an
+unnecessary loss of otherwise-real support.
+
+**Finding (`object`-collision) — `Equals` was never added to the checked
+name set, but overloaded discriminators can now collide with it too.**
+ADR-0043 Amendment 6 Finding N correctly excluded `Equals` from v1's
+collision check, because `object.Equals(object)` is one-argument and v1's
+extensions were always zero-argument — no collision was ever possible.
+Requirement 1 changes this: an overloaded, **non-generic** member like
+`Equals(int format)` generates a one-argument discriminator, and
+`object.Equals(object)` is applicable to **any** single-argument call
+(every type has a reference or boxing conversion to `object`) — with no
+escape hatch, since a non-generic method has no explicit-type-argument
+form to disambiguate with. This is a real, previously-nonexistent
+collision risk this ADR's own overload work introduced without updating
+the object-member name list to match.
+
+**Finding (`Configure`/`Verify` bridge collision) — a generic
+`Configure<T>()`/`Verify<T>()` interface member is wrongly treated as
+colliding with the bridge.** The existing `IsApplicableToZeroArguments`
+helper (ADR-0043, refined by PR #83 review rounds 2 and 4) only checks
+parameter optionality; it has no reason today to consider generic arity,
+because v1 never emitted or analyzed generic interface members. Once
+Requirement 2 admits them, a zero-value-parameter generic member like
+`Configure<T>()` has nothing for the compiler to infer `T` from at a bare
+`Configure()` call site — type inference fails, the candidate is excluded,
+and (per this repo's own compile-spike-verified "applicability, not
+name-existence" precedent, PLAN-0043 PR #83 review round 2) extension
+search proceeds normally, reaching the `Configure()`/`Verify()` bridge
+successfully. The existing helper, unchanged, incorrectly reports this as
+"applicable to zero arguments" and rejects the interface.
+
+**Corrected, once, for all three checks together:** `IsApplicableToZeroArguments`
+(and the `object`-collision check, which adopts the identical rule)
+returns `false` immediately for any generic member (`IsGenericMethod`)
+whose type parameters aren't all inferable from its own **required**
+(non-optional, non-`params`) value parameters — in practice, for this
+feature's purposes, any generic member with zero required value
+parameters is never an implicit zero-argument candidate, full stop,
+regardless of what its optional/`params` parameters might otherwise
+suggest. A generic member therefore only ever collides with the bridge or
+with an `object` member when called with **explicit** type arguments
+matching that member's own arity — which the bridge/`object`-collision
+check doesn't need to model at all, since the generated discriminator
+extension (also generic, per Amendment 1) is exactly what such an
+explicit-type-argument call reaches; there is no remaining case where a
+generic member genuinely, unconditionally shadows the generated surface
+the way a non-generic zero-arg member does.
+
+PLAN-0044 is updated in the same pass as this Amendment: the shared
+`IsApplicableToZeroArguments`-generalization task is added to Phase 0
+(used by both collision checks), `Equals` is added to the object-member
+collision name list with its own test, and a generic `Configure<T>()`/
+`ToString<T>()` non-collision test is added to Phase 1 (once generic
+methods exist to construct the case with).
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

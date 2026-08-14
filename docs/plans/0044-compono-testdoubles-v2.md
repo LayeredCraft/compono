@@ -126,21 +126,45 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       they're never required to be written.
 - [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
+- [ ] **Shared helper, extended for generics (Amendment 14):** the
+      existing `IsApplicableToZeroArguments` helper (reused by both the
+      `Configure`/`Verify` bridge collision check and the `object`-member
+      collision check) returns `false` immediately for any generic member
+      whose type parameters aren't all inferable from its own *required*
+      value parameters — in practice, any generic member with zero
+      required value parameters is never an implicit zero-argument
+      candidate, since implicit type inference has nothing to infer from.
+      This closes two gaps at once: a generic `Configure<T>()`/`Verify<T>()`
+      interface member no longer wrongly collides with the bridge (nothing
+      to infer `T` from at a bare `Configure()` call, so per this repo's
+      own compile-spike-verified "applicability, not name-existence" rule
+      — PLAN-0043 PR #83 review round 2 — extension search proceeds
+      normally); a generic, zero-value-parameter `ToString<T>()`-shaped
+      overload no longer wrongly loses its `Configure()`/`Verify()`
+      surface (an explicit-type-argument call like `ToString<int>()`
+      doesn't match `object.ToString()`'s arity, so no collision).
 - [ ] `TestDoubleAnalyzer`'s existing `object`-member collision check
-      (`ToString`/`GetHashCode`/`GetType`) withholds the `Configure()`/
-      `Verify()` surface only when the generated discriminator extension
-      has **genuinely zero parameters** (`Parameters.Length == 0` —
-      corrected per Amendment 12 to this simpler, narrower check, not
-      Amendment 11's original "applicable to a zero-argument call," which
-      over-rejected a `params`/all-optional-shaped overload that still has
-      a fully working non-empty-argument spelling). A non-overloaded
-      member's extension is still always zero-parameter (unchanged
-      behavior, still always collides); an overloaded member's typed
-      discriminator extension with any required, optional, or `params`
-      parameter is not genuinely zero-parameter and therefore keeps its
-      surface — genuinely widening supported surface, per this repo's own
-      compile-spike-verified precedent for the analogous `Configure`-
-      collision case (PLAN-0043, PR #83 review round 2).
+      (`ToString`/`GetHashCode`/`GetType`, **plus `Equals` — new, per
+      Amendment 14**) withholds the `Configure()`/`Verify()` surface only
+      when the generated discriminator extension is genuinely applicable
+      to an implicit (no explicit type argument) call of the matching
+      arity, using the extended helper above — **not** simply
+      `Parameters.Length == 0` (Amendment 12's rule, now folded into the
+      shared helper together with the generic-arity fix). For
+      `ToString`/`GetHashCode`/`GetType` this means genuinely zero
+      parameters *and* zero type parameters. For `Equals` specifically —
+      `object.Equals(object)` accepts any type via boxing/reference
+      conversion, so a **non-generic** discriminator applicable to exactly
+      one implicit argument (e.g. `Equals(int format)`) always collides,
+      with no escape hatch; a **generic** `Equals<T>(T value)` keeps its
+      surface, reachable via `Equals<int>(5)`. A non-overloaded member's
+      extension is still always zero-parameter, zero-type-parameter
+      (unchanged behavior, still always collides for the original three
+      names; `Equals` was never a collision risk for a non-overloaded,
+      zero-argument extension and stays that way) — genuinely widening
+      supported surface, per this repo's own compile-spike-verified
+      precedent for the analogous `Configure`-collision case (PLAN-0043,
+      PR #83 review round 2).
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
@@ -160,7 +184,10 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       `ToString(params object[] values)`-shaped overload** (Amendment 12 —
       proves the surface is kept, not withheld, for a params/all-optional
       overload that's applicable to zero arguments but not genuinely
-      zero-parameter).
+      zero-parameter), **and an overloaded, non-generic `Equals(int
+      format)`-shaped member** (Amendment 14 — proves the new `Equals`
+      collision check withholds the surface, since `object.Equals(object)`
+      accepts any boxable/convertible type with no escape hatch).
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per ADR-0044 Amendment 6's process finding — see this plan's
       Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
@@ -263,7 +290,13 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       / `void Process<T>(IEnumerable<T> values)` on the same interface) —
       required per ADR-0044 Amendment 1 so Phase 0's overload support and
       this phase's generic support don't each pass independently while
-      their combination produces invalid generated code.
+      their combination produces invalid generated code, **and a generic,
+      zero-value-parameter `Configure<T>()`/`ToString<T>()`-shaped
+      collision non-case** (Amendment 14 — proves the extended
+      `IsApplicableToZeroArguments` helper correctly does *not* flag
+      either the bridge or the `object`-collision check for a generic
+      member with nothing for the compiler to infer from at an implicit
+      call site).
 - [ ] **Packaged-consumer smoke test, this phase's own shape** (same
       rationale as Phase 0's own task above): an `ILogger<T>`-shaped
       interface through a real packed `.nupkg` + throwaway consumer
