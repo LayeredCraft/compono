@@ -38,20 +38,35 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 ### Phase 0 — Overloaded-member support
 
 - [ ] `TestDoubleAnalyzer`: replace whole-name `duplicateConfigurationMemberNames`
-      rejection with per-overload analysis — group by name, but only flag
-      a genuine ambiguity (identical parameter-type signature, which C#
-      itself can't produce, so effectively unreachable) rather than every
-      repeated name.
+      rejection with per-overload analysis — group by **full signature
+      identity** (see the identity-hash task below) **across the whole
+      transitive closure** (`closure.SelectMany(i => i.GetMembers())`, the
+      same iteration the existing pre-pass already uses — not scoped to
+      one declaring interface at a time), flagging any group with more
+      than one member. Two real overloads within one interface never
+      share a full-signature identity (the compiler enforces that), but
+      two same-named, same-shaped members inherited from *different* base
+      interfaces (a diamond) genuinely do — corrected per ADR-0044
+      Amendment 3 Finding 8, which also caught that an earlier plan draft
+      mischaracterized this as "effectively unreachable." The existing
+      `TestDoubleVerifyTests.DiamondInheritedSameNameProperty_ReportsOverloadedDiagnostic`
+      must keep passing, adapted to this phase's new *scoped* outcome
+      (Configure()/Verify() surface withheld for the colliding identity
+      only, not the whole interface — a real improvement over v1's
+      blanket rejection for this case, not a regression).
 - [ ] Per-overload field/extension identity: a new identifier-hash helper
-      keyed on the overload's full parameter-type list **and its generic
-      arity (type-parameter count)** — not parameter types alone,
-      corrected per ADR-0044 Amendment 2 Finding 3 (`M()`/`M<T>()` both
-      have an empty parameter list but are distinct legal overloads).
-      Include arity in the hash from this phase on, even though every
-      Phase-0-supported overload has arity zero until Phase 1 ships, so
-      Phase 1 never has to change an already-shipped naming/hint-name
-      scheme. Reuses `TestDoubleIdentifierNaming`'s existing sanitizer +
-      FNV-1a-hash convention (sibling helper, not a modification).
+      keyed on the overload's full parameter-type list, **each
+      parameter's `RefKind`, and generic arity (type-parameter count)** —
+      not parameter types alone. `M()`/`M<T>()` (Amendment 2 Finding 3)
+      and `M(int)`/`M(ref int)` (Amendment 3 Finding 7) are both legal
+      overload pairs an identity keyed on parameter types alone would
+      collapse to the same identity. Include ref-kind and arity in the
+      hash from this phase on, even though every Phase-0-supported
+      overload has arity zero and no `ref`/`out`/`in` support until later,
+      so later phases never have to change an already-shipped
+      naming/hint-name scheme. Reuses `TestDoubleIdentifierNaming`'s
+      existing sanitizer + FNV-1a-hash convention (sibling helper, not a
+      modification).
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: emit one `ReturnConfig<T>`
       field and one typed-parameter configuration extension per overload;
       dispatch bodies for every overload regardless of whether that
@@ -151,7 +166,16 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       wrapper type `Verify()` returns, avoiding `Configure()`/`Verify()`
       extension-resolution ambiguity), `<Hash>_DoubleVerification`
       (per-member/per-overload `CallVerifier`-returning extensions, reusing
-      Phase 0's overload-discriminator mechanism where applicable).
+      Phase 0's overload-discriminator mechanism where applicable). Each
+      generated verification extension reads `ConfiguredCallCount` (never
+      the internal `CallCount` field directly — same cross-assembly
+      accessibility rule as everywhere else) and constructs `CallVerifier`
+      with **both** required arguments: the observed count and a
+      compile-time member-description string (the declaring interface's
+      display name + member name) — corrected per ADR-0044 Amendment 3
+      Findings 5 and 6, which caught this exact generated line reading an
+      inaccessible field *and* under-supplying `CallVerifier`'s
+      constructor.
 - [ ] Public-API-surface approval test update (`Compono.Tests` and/or
       `Compono.TestDoubles.Tests`, matching the existing pattern) for
       `CallVerifier`/`TestDoubleVerificationException`/`ReturnConfig<T>`'s

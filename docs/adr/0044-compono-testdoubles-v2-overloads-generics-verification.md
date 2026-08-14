@@ -892,6 +892,118 @@ never receive constraint clauses; Phase 2 gains the `RecordCall()`
 bridge method task in place of a raw field increment, and a task for the
 generalized `Configure`/`Verify` collision check.
 
+## Amendment 3 (2026-08-14): verifier read-path and constructor-arity fixes, ref-kind in overload identity, closure-wide collision detection preserved
+
+A fresh Codex review pass against Amendment 2's own fixes caught four more
+real defects — two P1, two P2, three of them in code Amendment 2 itself
+introduced or left untouched. All prior text is left exactly as written,
+per `design-decisions.md`'s immutability rule; this Amendment corrects the
+affected sketches only.
+
+**Finding 5 (P1) — the `Verify()` extension reads `CallCount` directly,
+the same cross-assembly defect Amendment 2 only fixed for the write
+side.** Amendment 2's `RecordCall()` fix repaired generated *dispatch*
+code's write access to the counter, but Requirement 3's own `Verify()`
+extension sample — untouched by that Amendment — still reads
+`self.Instance.__send.CallCount` directly, the `internal` field, from
+generated code in the consumer assembly. Same defect class, different
+call site, missed because Amendment 2 was scoped to the write path that
+prompted it.
+
+**Finding 6 (P1) — the generated `Verify()` extension supplies the wrong
+number of constructor arguments.** `CallVerifier`'s decided shape takes
+`(int observedCount, string memberDescription)`, but the sample calls
+`new(self.Instance.__send.CallCount)` with one argument — every generated
+verification member as sketched fails to compile, independent of Finding
+5's accessibility problem.
+
+**Corrected together** (both defects are on the same generated line):
+
+```csharp
+internal static class IMediator_a1b2c3d4_DoubleVerification
+{
+    public static global::Compono.CallVerifier Send(this global::IMediator_a1b2c3d4_DoubleVerifier self) =>
+        new(self.Instance.__send.ConfiguredCallCount, "IMediator.Send");
+}
+```
+
+The member-description string is a compile-time literal the generator
+already has everything it needs to produce (the declaring interface's
+display name plus the member's own name, the same text already used in
+this feature's various cast-failure exception messages) — no new data
+flows into the emitter to support it.
+
+**Finding 7 (P2) — parameter ref-kind is missing from overload identity,
+the same gap class as Amendment 2 Finding 3's generic-arity fix.**
+`void M(int value)` and `void M(ref int value)` are a legal C# overload
+pair with identical parameter *types* and identical generic arity (zero,
+for both) — Amendment 2's corrected hash still collapses them to the same
+identity. This matters even though the `ref` overload never gets a
+`Configure()` extension (Requirement 1's existing per-parameter
+`ref`/`out`/`in` exclusion still applies) — PLAN-0044's own Phase 0 task
+commits to emitting a `ReturnConfig<T>` field for *every* overload
+uniformly, supported or not, so both overloads still need distinct field
+identities even though only one gets a configuration surface.
+
+**Corrected:** the discriminator hash's input is the member's full
+signature shape — parameter types, each parameter's `RefKind`, **and**
+generic arity (Amendment 2 Finding 3) — stated together here as the
+complete, final input, so no fourth axis gets discovered piecemeal later.
+
+**Finding 8 (P2) — the rewritten duplicate-name check's own justification
+overclaims, and risks weakening real, already-covered collision
+detection.** Requirement 1's Decision Outcome text describes the new
+per-overload check as flagging "a genuine ambiguity (identical
+parameter-type signature, which C# itself can't produce, so effectively
+unreachable)." That parenthetical is wrong: identical signatures **are**
+reachable — not within one interface's own declared overload set (where
+the compiler does enforce uniqueness), but **across the transitive
+base-interface closure**, when two unrelated base interfaces each
+independently declare a same-named, same-shaped member (a diamond).
+`test/Compono.Generators.Tests`' existing `TestDoubleVerifyTests.DiamondInheritedSameNameProperty_ReportsOverloadedDiagnostic`
+already covers exactly this scenario for properties — real, not
+hypothetical, and the same shape is equally possible for methods, not
+just properties.
+
+**Decided: the underlying mechanism was always correct, only the prose
+justifying it was wrong.** Grouping by full signature identity
+(name + parameter types + ref-kinds + generic arity, per Finding 7 above)
+**across the whole closure** (not per declaring interface — the existing
+`duplicateConfigurationMemberNames` pre-pass already iterates
+`closure.SelectMany(i => i.GetMembers())`, and the corrected identity
+scheme must keep doing so) still correctly flags a diamond collision: two
+distinct symbols from different declaring interfaces that happen to
+produce the same discriminator identity fail this check exactly like two
+literal duplicate declarations would, while two genuinely different
+real overloads within one interface never share a full-signature identity
+to begin with. Nothing about Requirement 1's actual mechanism needed to
+change — only the mis-stated "effectively unreachable" characterization,
+corrected here so an implementer doesn't read it as license to weaken or
+skip closure-wide grouping.
+
+**One real, intentional policy change, distinct from the above
+correction:** under v1, this collision (`CMP0022`) rejected the *whole
+interface*. Under Requirement 1's already-decided overload-set-internal
+partial support, a collision now costs `Configure()`/`Verify()` surface
+only for the specific colliding identity — both colliding members still
+get explicit-interface-implementation dispatch bodies (qualified against
+their own declaring interface, per ADR-0043 Amendment 11 Finding Z, no
+new mechanism), and the rest of the interface generates normally. This is
+a real improvement over v1's blanket rejection for this scenario, not a
+regression — but it does mean `DiamondInheritedSameNameProperty_ReportsOverloadedDiagnostic`'s
+existing assertion (the whole interface falls back) needs updating during
+Phase 0 implementation to match the new scoped outcome; noted as a task
+correction below, not a new design question.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 2's
+`Verify()`-extension task now specifies the corrected `ConfiguredCallCount`
+read plus the two-argument `CallVerifier` construction; Phase 0's identity-
+hash task folds in parameter ref-kind alongside generic arity; Phase 0's
+duplicate-name task is corrected to state the check runs across the full
+closure (not per-interface) and must keep passing the existing diamond
+property test (adapted to the new scoped-not-whole-interface outcome), not
+treat cross-interface collisions as unreachable.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
