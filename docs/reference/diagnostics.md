@@ -248,8 +248,9 @@ want a generated double for it.
 Compono cannot generate a test double for`
 
 **Cause:** The interface declares an indexer, event, generic method,
-`ref`/`out`/`in` parameter, static abstract member, or another shape
-outside v1's supported set.
+static abstract member, or another member-kind shape outside v1's
+supported set. (A `ref`/`out`/`in`/pointer/function-pointer *parameter* on
+an otherwise-supported method is `CMP0026`, not this code.)
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -275,9 +276,13 @@ between them.
 **Message:** `'{Interface}' declares its own member named 'Configure'`
 
 **Cause:** The interface declares its own `Configure` member with a
-signature that would shadow the generated `Configure()` bridge (a
-zero-argument method, or any non-method member of that name — ordinary
-member lookup always wins over an extension method).
+signature that would shadow the generated `Configure()` bridge — any
+non-method member of that name (property/field/event, which always wins
+over an extension), or a method callable with zero arguments. "Callable
+with zero arguments" is broader than "zero-parameter": `Configure(int
+mode = 0)` (all parameters optional) and `Configure(params int[] modes)`
+(trailing `params`) both collide too, the same applicability rule the C#
+compiler itself uses for overload resolution.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -348,7 +353,11 @@ exactly one test double per interface and can't guarantee it correctly
 reflects every discovery.
 
 **Fix:** Request the interface with consistent nullability everywhere it's
-composed, or disable `ComponoGeneratedTestDoubles` for this leaf.
+composed. `ComponoGeneratedTestDoubles` is read once for the whole
+compilation — there's no per-interface switch to disable it for just this
+leaf; if you can't make every call site consistent, the interface will
+need to fall back to a different provider (e.g. `UseNSubstitute()`) for
+the whole project instead.
 
 ## Next
 

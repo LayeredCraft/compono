@@ -1,10 +1,13 @@
 # Compono.TestDoubles
 
-Only relevant if the project references `Compono.TestDoubles` **and** sets
+Only relevant if the project references `Compono.TestDoubles`, sets
 `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` in its own
-`.csproj`. Both gates are required — the package alone does nothing;
-`UseGeneratedTestDoubles()` without the compile-time property has no
-generated doubles to register. Never suggest either half alone.
+`.csproj`, **and** calls `UseGeneratedTestDoubles()` when building the
+composer. All three are required — the compile-time property alone only
+generates the doubles, without `UseGeneratedTestDoubles()` nothing
+registers them into the pipeline; the package reference alone does
+nothing without the property set. Never suggest any one or two of the
+three alone.
 
 ```csharp
 var composer = Composer.Create(builder => builder.UseGeneratedTestDoubles());
