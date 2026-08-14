@@ -1472,6 +1472,66 @@ ordinal canonicalization. PLAN-0044 is updated in the same pass: Phase
 0's identity-hash task gains this fifth step and its own diamond test
 (`IA.M(nint)`/`IB.M(System.IntPtr)`).
 
+## Amendment 11 (2026-08-14): `object`-member collision re-evaluated against the generated discriminator signature, not just the member's name
+
+A tenth Codex review pass caught a real over-broadening gap in v1's
+existing `object`-member collision check, now that Requirement 1 gives
+overloaded members typed (non-zero-argument) discriminator extensions.
+All prior text is left exactly as written, per the immutability rule
+already followed ten times above.
+
+**Finding — v1's blanket "`ToString`/`GetHashCode`/`GetType` always
+collides" check no longer holds once an overload's discriminator
+extension takes real parameters.** ADR-0043 Amendment 6 Finding N
+decided this check compares the *generated* extension's signature against
+`object`'s own members, correctly noting the generated extension was
+*always* zero-argument in v1 (argument-independent configuration, no
+overloads existed yet) — so checking by name alone was equivalent to
+checking by signature. Requirement 1 breaks that equivalence: an
+overloaded member like `string ToString(int format)` now generates a
+typed, one-argument discriminator extension (`ToString(this <Double>
+self, int format)`), which is **not applicable** to a zero-argument call
+and therefore does not collide with `object.ToString()` at all — but the
+existing `TestDoubleAnalyzer` branch still rejects it unconditionally by
+name, needlessly falling this otherwise-fully-supportable overload (and,
+per Requirement 1's whole-interface-vs-overload-scoped design, potentially
+its whole interface) back to the runtime-provider path.
+
+**Verified against this repo's own established, compile-spike-confirmed
+precedent, not assumed:** `ADR-0043`'s own implementation history (PR #83
+review round 2, recorded in PLAN-0043) already proved directly — via a
+real compile spike, not inference from the C# spec — that "C# only falls
+back to extension-method resolution when ordinary member lookup finds no
+*applicable* candidate, not merely 'no candidate with this name'": an
+interface's own `Configure(int mode)` does not shadow a zero-argument
+`Configure()` extension, because the one-argument real member isn't
+applicable to a zero-argument call. The same rule, applied in the other
+direction, settles this finding: `object.ToString()` (zero-argument) does
+not shadow a one-argument generated `ToString(int)` extension, because
+the *zero-argument real member* isn't applicable to a call this specific
+overload's own discriminator extension expects.
+
+**Corrected:** the `object`-member collision check evaluates the
+*generated discriminator extension's own applicability to a zero-argument
+call* — reusing the same `IsApplicableToZeroArguments`-shaped logic the
+`Configure`-collision check already applies (every parameter optional, or
+a trailing `params`) — rather than checking the member's bare name. A
+non-overloaded member (still always a zero-argument extension, Amendment
+2 Finding 4's argument-independence rule unchanged) keeps today's exact
+v1 behavior — always collides when named `ToString`/`GetHashCode`/
+`GetType`, no regression there. An overloaded member whose discriminator
+extension takes required, non-optional parameters is **not** applicable
+to a zero-argument call and therefore does **not** collide — genuinely
+widening supported surface for exactly the shape this ADR's own Requirement
+1 introduced, not merely fixing a defect.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+object-collision handling (already an existing `TestDoubleAnalyzer`
+check, not previously called out as its own plan task) gains an explicit
+task reusing the applicability-check pattern, with a `ToString(int
+format)`-shaped overload test proving the corrected, narrower collision
+scope.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

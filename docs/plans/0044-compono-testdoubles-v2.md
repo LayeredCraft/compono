@@ -126,6 +126,19 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       they're never required to be written.
 - [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
+- [ ] `TestDoubleAnalyzer`'s existing `object`-member collision check
+      (`ToString`/`GetHashCode`/`GetType`) is re-evaluated against the
+      *generated discriminator extension's* applicability to a
+      zero-argument call, not the member's bare name (Amendment 11) —
+      reusing the same `IsApplicableToZeroArguments`-shaped logic the
+      `Configure`-collision check already applies. A non-overloaded
+      member's extension is still always zero-argument (unchanged
+      behavior, still always collides); an overloaded member's typed
+      discriminator extension with required parameters is not applicable
+      to a zero-argument call and therefore does not collide — genuinely
+      widening supported surface, per this repo's own compile-spike-
+      verified precedent for the analogous `Configure`-collision case
+      (PLAN-0043, PR #83 review round 2).
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
@@ -137,7 +150,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       **and a mixed overload set with an `out` parameter of a type with no
       deterministic default** (whole-interface rejection, Amendment 8
       Finding 20), alongside one with an `out` parameter that does have a
-      default (definitely-assigned fallback body, same finding).
+      default (definitely-assigned fallback body, same finding), **and an
+      overloaded `ToString(int format)`-shaped member** (Amendment 11 —
+      proves the corrected `object`-collision check supports an overloaded
+      member sharing a name with an `object` method, where the
+      non-overloaded case still correctly collides).
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per ADR-0044 Amendment 6's process finding — see this plan's
       Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
