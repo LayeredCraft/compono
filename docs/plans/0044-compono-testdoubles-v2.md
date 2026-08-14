@@ -60,8 +60,14 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       not parameter types alone. `M()`/`M<T>()` (Amendment 2 Finding 3)
       and `M(int)`/`M(ref int)` (Amendment 3 Finding 7) are both legal
       overload pairs an identity keyed on parameter types alone would
-      collapse to the same identity. Include ref-kind and arity in the
-      hash from this phase on, even though every Phase-0-supported
+      collapse to the same identity. **Canonicalize references to the
+      member's own type parameters by ordinal position before hashing**
+      (Amendment 5 Finding 11) — `IA.M<T>(T)` and `IB.M<U>(U)` are the
+      same signature under C#'s own rules despite the different declared
+      names, and hashing the displayed name as-is would miss this diamond
+      collision, risking a `CS0111` duplicate-extension declaration.
+      Include ref-kind, arity, and canonical generic-parameter identity in
+      the hash from this phase on, even though every Phase-0-supported
       overload has arity zero and no `ref`/`out`/`in` support until later,
       so later phases never have to change an already-shipped
       naming/hint-name scheme. Reuses `TestDoubleIdentifierNaming`'s
@@ -79,14 +85,22 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       — unsupported shape or diamond collision alike — gets an inline
       deterministic-default dispatch body with no backing field at all.
 - [ ] Overload-set-internal partial support: an overload whose own shape
-      is unsupported *and has a constructible fallback body*
-      (`ref`/`out`/`in`, pointer/function-pointer parameters) gets a
-      deterministic-default dispatch body and an informational diagnostic,
-      but does **not** reject its sibling overloads. A return type with no
-      deterministic default has no constructible body at any granularity
-      and still triggers today's existing whole-interface rejection,
-      unchanged from v1 — corrected per ADR-0044 Amendment 1, not the
-      "gets a fallback body" treatment an earlier plan draft implied.
+      is unsupported *and has a constructible fallback body* — **`ref`/
+      `out`/`in` parameters only** — gets a deterministic-default dispatch
+      body and an informational diagnostic, but does **not** reject its
+      sibling overloads. Pointer/function-pointer parameters do **not**
+      get this treatment, removed per ADR-0044 Amendment 5 Finding 12: a
+      pointer-typed parameter requires the method to be declared `unsafe`
+      regardless of whether the body touches it, and this feature never
+      emits `unsafe` generated code or requires a consumer to set
+      `AllowUnsafeBlocks` — restoring
+      [ADR-0043 Amendment 10 Finding Y](../adr/0043-compono-generated-test-doubles-design.md#amendment-10-2026-08-13-set-only-properties-diagnosed-parameter-names-escaped-unsafe-parameter-shapes-diagnosed)'s
+      existing, unchanged v1 disposition for this shape (whole-interface
+      rejection). A return type with no deterministic default has no
+      constructible body at any granularity and still triggers today's
+      existing whole-interface rejection, unchanged from v1 — corrected
+      per ADR-0044 Amendment 1, not the "gets a fallback body" treatment
+      an earlier plan draft implied.
 - [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
@@ -161,9 +175,14 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       (plain `Exception` subtype, matching `CompositionException`'s
       convention — no xUnit/TUnit/AwesomeAssertions reference from core).
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: `__member.RecordCall()` at
-      the top of every dispatch body (methods and property accessors
-      alike), unconditionally — a call counts whether it hits configured,
-      default, or throw behavior.
+      the top of every dispatch body **that has a backing field** (methods
+      and property accessors alike) — a call counts whether it hits
+      configured, default, or throw behavior. **Not emitted for a member
+      with no `Configure()` surface** (corrected per ADR-0044 Amendment 5
+      Finding 13, matching Phase 0/Amendment 4's "no field ⇒ nothing to
+      increment" rule): an unsupported-shape or diamond-colliding overload
+      has no `Verify()` surface either (Amendment 1), so nothing could
+      ever read a count for it.
 - [ ] `TestDoubleAnalyzer`: generalize the existing `Configure`-collision
       check (ADR-0043 Amendment 3 Finding E) to a reserved-name set
       (`Configure`, `Verify`) using the same zero-argument-applicability

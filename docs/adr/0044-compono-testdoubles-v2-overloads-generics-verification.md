@@ -1063,6 +1063,91 @@ emission task is now conditioned on the member actually getting a
 `Configure()` extension, and Phase 1's emitter task drops "constraints"
 from the explicit-implementation half of its own sentence.
 
+## Amendment 5 (2026-08-14): canonical generic-parameter identity, pointer parameters removed from the fallback-body bucket, conditional `RecordCall()`
+
+A fourth Codex review pass caught three more real defects, all P1, two
+against this ADR's own original Decision Outcome text and one a leftover
+plan-text contradiction from Amendment 4's own fix. All prior text is
+left exactly as written, per `design-decisions.md`'s immutability rule;
+this Amendment corrects the affected sketches only.
+
+**Finding 11 — inherited generic overloads with differently-named type
+parameters would evade diamond-collision detection.** `IA.M<T>(T)` and
+`IB.M<U>(U)` are the same signature under C#'s own rules (type-parameter
+*names* aren't part of a method's identity, only their ordinal position
+is), but the discriminator hash described so far serializes each
+parameter's *displayed* type — which renders a type-parameter reference
+using its own declared name (`"T"` vs `"U"`). Two structurally identical
+inherited generic overloads would hash differently, missing the diamond
+collision Amendment 3 Finding 8 already established the check must catch,
+and the generator would emit two configuration extensions with genuinely
+identical real signatures — `CS0111`, a duplicate-declaration compile
+error, not a diagnosed fallback.
+
+**Corrected:** before hashing, every reference to one of the *method's
+own* type parameters is replaced with a position-based canonical token
+(the type parameter's ordinal index among the method's own type
+parameters — the same "name doesn't matter, position does" identity rule
+the CLR's own metadata encoding already uses for method-level generics),
+not its declared name. `IA.M<T>(T)` and `IB.M<U>(U)` both canonicalize to
+the same identity (`M`, one type parameter, parameter list `[!0]`),
+correctly triggering the diamond check.
+
+**Finding 12 — pointer/function-pointer *parameter* shapes cannot
+actually get a fallback body without emitting `unsafe`, which this
+feature has never decided to do.** The original Decision Outcome text
+above lists "a pointer parameter" alongside `ref`/`out`/`in` as shapes
+with a "constructible fallback body." That's wrong: any method whose
+signature contains a pointer or function-pointer-typed parameter must
+itself be declared `unsafe` — a C# requirement regardless of whether the
+body ever touches the parameter — and this feature has never emitted
+`unsafe` generated code, nor decided to require a consumer's project to
+set `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` (a real, consumer-
+visible project-wide setting this feature has no business silently
+requiring). This also directly contradicts already-`Accepted`,
+already-shipped v1 behavior: [ADR-0043 Amendment 10 Finding Y](0043-compono-generated-test-doubles-design.md#amendment-10-2026-08-13-set-only-properties-diagnosed-parameter-names-escaped-unsafe-parameter-shapes-diagnosed)
+already decided pointer/function-pointer parameters get **no** fallback
+and defer to the ordinary runtime-provider path (whole-interface,
+matching the return-side disposition) — this ADR's original text
+introduced a new claim that silently reversed a shipped v1 decision
+without saying so.
+
+**Corrected: pointer/function-pointer parameter shapes are removed from
+the fallback-body bucket entirely, restoring v1's existing disposition
+unchanged.** Only `ref`/`out`/`in` parameters remain in the "constructible
+fallback body" bucket — none of them require `unsafe`, a plain assignment
+or an ignored-parameter body is always legal C#. An overload with a
+pointer/function-pointer parameter has no constructible body under this
+feature's "never emit `unsafe`" boundary (stated explicitly here for the
+first time, though implicit in every prior design) and triggers today's
+existing whole-interface rejection, the same bucket a non-nullable-no-
+default return already occupies.
+
+**Finding 13 (plan-text contradiction, not a new decision) —
+Requirement 3's `RecordCall()` call is unconditional in PLAN-0044's own
+task text, but Amendment 4 Finding 9 already decided a member with no
+`Configure()` surface gets no backing field at all.** `__member.RecordCall()`
+on a field that was never emitted doesn't compile — the same "an edit
+wasn't propagated to every task bullet it touches" pattern as Amendment 4
+Finding 10.
+
+**Corrected:** `RecordCall()` is emitted only for a member/overload that
+has a backing `ReturnConfig<T>` field — exactly the members that have a
+`Configure()` extension, per Amendment 4's own rule. A member with no
+configuration surface has no `Verify()` surface either (Amendment 1: it
+reuses the same discriminator mechanism), so nothing could ever read a
+count for it anyway — no observable capability is lost by not counting
+calls to it.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+identity-hash task canonicalizes generic-parameter references by ordinal
+before hashing (defensively, same "get it right before Phase 1 makes it
+observable" reasoning as Amendment 2/3's arity and ref-kind fixes);
+Phase 0's overload-partial-support task drops pointer/function-pointer
+parameters from the fallback-body bucket, restoring v1's existing
+whole-interface-rejection disposition for that shape unchanged; Phase 2's
+`RecordCall()` task is conditioned on the backing field's existence.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
