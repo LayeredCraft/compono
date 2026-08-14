@@ -299,7 +299,10 @@ worth its own phase if it turns out to need more than that.
       (new reference file, following `references/nsubstitute.md`'s shape).
 - [x] `docs/roadmap/future-packages.md` — move this entry to shipped once
       the package exists, matching `Compono.TUnit`'s own graduation edit.
-- [x] `docs/adr/README.md`/`docs/plans/README.md` status flips to `Done`.
+- [x] `docs/plans/README.md` status flip to `Done` (ADR-0043 itself stays
+      `Accepted` in `docs/adr/README.md` — ADRs don't transition to the
+      plan-only `Done` status, so there is no corresponding ADR-index
+      change to make here).
 - [x] `docs/architecture/current/generated-plans-and-discovery.md`'s "Open
       questions" section gains a fourth item for
       `GeneratedTestDoubleRegistry`, matching `RowInvokerRegistry`'s
