@@ -14,9 +14,11 @@ semantics, customization override, reflection-based construction. The
 skill teaches the agent Compono's actual model: source-generated
 composition, `[Composable]`'s narrow scope, registration/rule precedence,
 `[Shared]`, deterministic seeding, the real `CMP0001`-`CMP0013` diagnostic
-set, and the package-specific surface of `Compono.XunitV3`/
-`Compono.NSubstitute`/`Compono.Bogus` — only recommending an integration's
-API when that package is actually referenced in your project.
+set plus `CMP0020`-`CMP0028`'s generated-test-double opt-in diagnostics,
+and the package-specific surface of `Compono.XunitV3`/`Compono.TUnit`/
+`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles` — only
+recommending an integration's API when that package is actually
+referenced in your project.
 
 It also carries guardrails: it won't suggest reflection-based workarounds,
 won't silently substitute AutoFixture, and won't add `[Composable]`
@@ -42,9 +44,9 @@ npx skills add https://github.com/LayeredCraft/compono/tree/main/skills
 This installs the `compono` skill into your project's agent-skill
 directory (e.g. `.claude/skills/compono` for Claude Code). No NuGet
 package, no `.csproj` change, no `dotnet` command — this is entirely
-separate from installing the `Compono`/`Compono.XunitV3`/
-`Compono.NSubstitute`/`Compono.Bogus` packages themselves (see
-[Installation](installation.md) for those).
+separate from installing the `Compono`/`Compono.XunitV3`/`Compono.TUnit`/
+`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles` packages
+themselves (see [Installation](installation.md) for those).
 
 ## Update
 

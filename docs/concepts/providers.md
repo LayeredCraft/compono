@@ -20,7 +20,7 @@ apply to, or `CompositionProviderResult.Handled(value)` for a value it
 produces — it's a "maybe I can help with this one" rule, not a required
 handler for every type.
 
-## The two built-in providers
+## The built-in providers
 
 - **`Compono.Bogus`'s `BogusMemberNameProvider`** matches `string`-typed
   members by exact name against a known convention list (`FirstName`,
@@ -30,10 +30,19 @@ handler for every type.
   or delegate type (and, optionally, unsealed abstract classes), producing
   a configured `Substitute.For(...)` instead of requiring a hand-written
   fake implementation.
+- **`Compono.TestDoubles`'s `GeneratedTestDoubleProvider`** matches an
+  interface type `Compono.Generators` emitted a double for at compile time
+  (the `ComponoGeneratedTestDoubles` opt-in), producing that generated,
+  AOT-safe double instead of a runtime proxy. It runs at the same
+  test-double stage as `NSubstituteProvider` — registration order between
+  `UseGeneratedTestDoubles()` and `UseNSubstitute()` decides which one
+  resolves an interface request first if both are installed. See
+  [`Compono.TestDoubles`](../packages/compono-testdoubles.md).
 
-Neither is wired in by default — `UseBogus()`/`UseNSubstitute()` add them
-to the pipeline explicitly, which is also why the core `Compono` package
-has zero dependency on either `Bogus` or `NSubstitute`.
+None of these are wired in by default —
+`UseBogus()`/`UseNSubstitute()`/`UseGeneratedTestDoubles()` add them to the
+pipeline explicitly, which is also why the core `Compono` package has zero
+dependency on `Bogus`, `NSubstitute`, or `Compono.TestDoubles`.
 
 ## Why two provider stages
 
@@ -53,7 +62,8 @@ claimed the value.
 ## Next
 
 - Providers that ship today → [`Compono.NSubstitute`](../packages/compono-nsubstitute.md),
-  [`Compono.Bogus`](../packages/compono-bogus.md) Package Guides.
+  [`Compono.Bogus`](../packages/compono-bogus.md),
+  [`Compono.TestDoubles`](../packages/compono-testdoubles.md) Package Guides.
 - Write your own → [The Provider Pipeline](../architecture/current/provider-pipeline.md)'s
   provider extensibility contract.
 - The full pipeline a provider participates in → [The Provider Pipeline](../architecture/current/provider-pipeline.md).

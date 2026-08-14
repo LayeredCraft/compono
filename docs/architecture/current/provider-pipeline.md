@@ -17,16 +17,16 @@ providers reordering themselves:
 | 3 | Exact registrations | **Hybrid**: a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if `UseServiceProvider(...)` was configured — a fallback `IServiceProvider.GetService(typeof(T))` call. |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile. |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection. Public registration surface: `builder.AddSemanticProvider(ICompositionValueProvider)`. `Compono.Bogus`'s `BogusMemberNameProvider` is this stage's first real registrant. |
-| 6 | Test-double providers | Ordered `ICompositionProvider` collection. Public registration surface: `builder.AddTestDoubleProvider(ICompositionValueProvider)`. `Compono.NSubstitute`'s `NSubstituteProvider` is a real registrant. |
+| 6 | Test-double providers | Ordered `ICompositionProvider` collection. Public registration surface: `builder.AddTestDoubleProvider(ICompositionValueProvider)`. `Compono.NSubstitute`'s `NSubstituteProvider` and `Compono.TestDoubles`'s `GeneratedTestDoubleProvider` are real registrants — registration order between `UseNSubstitute()` and `UseGeneratedTestDoubles()` decides which one resolves an interface request first when both are installed, same as any other stage. |
 | 7 | Built-in value providers | **Hybrid**: an ordered provider collection (primitives, enums, nullable value types) tried first, followed by a context-owned deterministic dispatch through `CollectionPlanCache<T>` for the five built-in collection shapes. |
 | 8 | Generated composition plans | Context-owned deterministic dispatch via `PlanCache<T>` — **not** an `ICompositionProvider`; see [Generated Plans and Discovery](generated-plans-and-discovery.md). |
 | 9 | Diagnostic failure | Context-owned terminal stage |
 
 Only stage 7 has anything registered *unconditionally*
 (`BuiltInProviders.Default`); every other stage is opt-in, populated only
-when a consumer actually calls `.For<T>()` (stage 4), `UseNSubstitute()`
-(stage 6), `UseBogus()` (stage 5), or registers a hand-written provider
-directly. Provider order *within* an extensible stage is registration
+when a consumer actually calls `.For<T>()` (stage 4), `UseNSubstitute()`/
+`UseGeneratedTestDoubles()` (stage 6), `UseBogus()` (stage 5), or registers
+a hand-written provider directly. Provider order *within* an extensible stage is registration
 order — stage 7 alone holds three real providers
 (`PrimitiveValueProvider`, `EnumValueProvider`, `NullableValueProvider`),
 so "no stage has more than one provider" isn't true today. No *richer*
