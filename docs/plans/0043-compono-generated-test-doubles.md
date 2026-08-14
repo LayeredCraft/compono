@@ -982,6 +982,12 @@ affected (its own `ComponoTestFramework=TUnit` already skipped the `Include` out
 reasons), which is presumably why this had gone unnoticed until a *third* AOT harness needed the same
 `Using Remove` pattern to actually work.
 
-Phase 3 (docs and skill alignment: the Package Guide, `docs/packages/index.md`, `skills/compono/`
-detection table and reference file, `future-packages.md` graduation, ADR/Plan `README.md` status
-flips, and the `GeneratedTestDoubleRegistry` ALC-rooting doc note) is next.
+## Phase 3 implementation notes (2026-08-14)
+
+Phase 3 is implemented and every task above is checked off: the Package Guide
+(`docs/packages/compono-testdoubles.md`), `docs/packages/index.md` and `mkdocs.yml` nav rows,
+`skills/compono/`'s detection table/default-workflow routing/guardrails/references table and its new
+`references/testdoubles.md`, `future-packages.md`'s graduation out of the roadmap section (mirroring
+`Compono.TUnit`'s own PLAN-0040 closeout), the `docs/plans/README.md`/this plan's own `Status: Done`
+flip, and `docs/architecture/current/generated-plans-and-discovery.md`'s fourth Open Questions item for
+`GeneratedTestDoubleRegistry`'s ALC-rooting. PLAN-0043 is now fully `Done` - all three phases complete.

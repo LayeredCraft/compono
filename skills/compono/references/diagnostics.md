@@ -39,11 +39,18 @@ more, no fewer. `CMP0020`-`CMP0028` (below) are real too, but belong to
 `Compono.TestDoubles`, not core composition. If something references a
 `CMP00xx` code outside these two ranges, it isn't real; don't invent one.
 
-## Compile-time, `Compono.TestDoubles`-only: CMP0020-CMP0028
+## Compile-time, generated-test-double opt-in only: CMP0020-CMP0028
 
-Only relevant if the project references `Compono.TestDoubles` and sets
-`ComponoGeneratedTestDoubles=true` — see `references/testdoubles.md`.
-Every code here is `DiagnosticSeverity.Info`, not `Error`: it never fails
+Only relevant if the project sets
+`ComponoGeneratedTestDoubles=true` — see `references/testdoubles.md`. The
+generator is embedded in core `Compono` and gates discovery solely on that
+MSBuild property (`ComponoIncrementalGenerator.Initialize`); these codes
+can surface even in a project that never references `Compono.TestDoubles`
+at all (the runtime package is only required for
+`UseGeneratedTestDoubles()` to actually resolve a request to the generated
+double — see the "Both gates are required" note in
+`references/testdoubles.md`). Every code here is `DiagnosticSeverity.Info`,
+not `Error`: it never fails
 `dotnet build`. It reports that a specific interface leaf couldn't get a
 generated double and silently falls back to the ordinary runtime-provider
 path (`UseNSubstitute()`, `Register<T>()`, `.For<T>()`, or a runtime
@@ -60,7 +67,7 @@ generated-double candidates.
 | CMP0023 | The interface declares its own `Configure` member that would shadow the generated `Configure()` bridge |
 | CMP0024 | A member's generated, zero-argument configuration extension collides with an inherited `object` member (`ToString`/`GetHashCode`/`GetType` — not `Equals`: `object.Equals(object)` takes one argument, so a zero-argument generated `Equals` extension never collides with it) |
 | CMP0025 | An unsupported return shape (ref-like, by-ref-returning, pointer/function-pointer, or a non-nullable reference type with no deterministic default) |
-| CMP0026 | An unsupported parameter shape (pointer/function-pointer) |
+| CMP0026 | An unsupported parameter shape (`ref`/`out`/`in`, pointer/function-pointer) |
 | CMP0027 | A set-only property — nothing could observe a value written through it, so it's unsupported rather than emitted as a no-op |
 | CMP0028 | The same interface was discovered multiple times with conflicting generic-argument nullability across call sites |
 
