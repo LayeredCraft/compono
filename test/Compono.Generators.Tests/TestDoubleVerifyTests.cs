@@ -1606,4 +1606,43 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0021",
             TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: [UnscopedRef] on an out parameter is the *inverse* of out's normal
+    // implicit scoping - verified with a real compile spike that it reports ScopedKind.None instead
+    // of the usual ScopedRef. A plain generated "out" parameter would still be implicitly scoped,
+    // disagreeing with the interface's explicitly unscoped contract (CS8987) - the attribute itself
+    // has to be restated on the explicit implementation.
+    [Fact]
+    public Task OverloadWithUnscopedRefOutParameter_GeneratesDoubleWithMatchingRefSafetyContract() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void Seek([System.Diagnostics.CodeAnalysis.UnscopedRef] out int value);
+
+                        void Seek(int value);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Seek();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0030",
+            TestContext.Current.CancellationToken);
 }
