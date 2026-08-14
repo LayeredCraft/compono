@@ -304,10 +304,14 @@ internal static class TestDoubleAnalyzer
                         // regardless of whether the body touches it, and this feature never emits
                         // `unsafe` generated code or requires a consumer to set AllowUnsafeBlocks.
                         // Restores ADR-0043 Amendment 10 Finding Y's original v1 disposition (whole-
-                        // interface rejection) for this shape. Amendment 5, Finding 12.
+                        // interface rejection) for this shape. Amendment 5, Finding 12. Checked
+                        // recursively through array element types (`int*[]` has TypeKind.Array at the
+                        // top level, not Pointer) - C#'s CS0306 already forbids a pointer type as a
+                        // generic type argument, so an array of pointers is the only nesting shape
+                        // that can hide one. Codex review, PR #88.
                         foreach (var parameter in method.Parameters)
                         {
-                            if (parameter.Type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer)
+                            if (ContainsPointerType(parameter.Type))
                             {
                                 return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                     DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
@@ -352,7 +356,7 @@ internal static class TestDoubleAnalyzer
                                 ReturnShapeUnsupported(interfaceType, method, "a by-ref return", location));
                         }
 
-                        if (method.ReturnType.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer)
+                        if (ContainsPointerType(method.ReturnType))
                         {
                             return Failure(fullyQualifiedName, safeIdentifier,
                                 ReturnShapeUnsupported(interfaceType, method, "a pointer or function-pointer return type", location));
@@ -579,7 +583,7 @@ internal static class TestDoubleAnalyzer
                                 ReturnShapeUnsupported(interfaceType, property, "a by-ref return", location));
                         }
 
-                        if (property.Type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer)
+                        if (ContainsPointerType(property.Type))
                         {
                             return Failure(fullyQualifiedName, safeIdentifier,
                                 ReturnShapeUnsupported(interfaceType, property, "a pointer or function-pointer type", location));
@@ -659,6 +663,21 @@ internal static class TestDoubleAnalyzer
             candidate = "_" + candidate;
 
         return candidate;
+    }
+
+    // Checked recursively through array element types - `int*[]` (an array of pointers) has
+    // TypeKind.Array at the top level, not Pointer, so a top-level-only check silently accepts it,
+    // emitting both the explicit implementation and (for an overloaded member) a discriminator
+    // extension containing a pointer type with no `unsafe` context (CS0214 in the consumer). No
+    // other nesting shape can hide a pointer type - C#'s CS0306 already forbids a pointer as a
+    // generic type argument (so it can never hide inside a constructed generic type or a tuple
+    // element), only an array of them is legal. Codex review, PR #88.
+    private static bool ContainsPointerType(ITypeSymbol type)
+    {
+        while (type is IArrayTypeSymbol array)
+            type = array.ElementType;
+
+        return type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer;
     }
 
     // The full canonical signature text - never the hash - for any identity/equality decision

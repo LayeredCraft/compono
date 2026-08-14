@@ -1303,4 +1303,39 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: `int*[]` (an array of pointers) has TypeKind.Array at the top level, not
+    // Pointer - a top-level-only check would accept it as an overload's own parameter type,
+    // generating a discriminator extension containing a pointer type with no unsafe context (CS0214
+    // in the consumer). This overload's sibling M(int) proves it's the pointer-array parameter
+    // specifically that rejects the whole interface, not overloading itself.
+    [Fact]
+    public Task OverloadWithArrayOfPointersParameter_ReportsUnsupportedParameterShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public unsafe interface IRepository
+                    {
+                        void M(int value);
+
+                        void M(int*[] values);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
 }
