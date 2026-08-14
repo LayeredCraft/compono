@@ -155,6 +155,15 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       separate consumer assembly. This phase does not ship (its own PR
       does not merge) until this
       smoke test is green.
+- [ ] **Docs, this phase's own shape** (moved here from the original
+      single Phase 4, per Codex review — `references/documentation.md`'s
+      "update the relevant doc in the same PR" rule means Phases 0-2
+      shipping independently can't leave shipped behavior undocumented
+      until Phase 4 catches up):
+      `docs/packages/compono-testdoubles.md` and
+      `skills/compono/references/testdoubles.md` gain the overload-
+      discriminator section; `docs/reference/diagnostics.md` gains the
+      overload-scoped `CMP0022` message update.
 
 ### Phase 1 — Generic-method support
 
@@ -226,6 +235,12 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       interface through a real packed `.nupkg` + throwaway consumer
       project, real `dotnet build`/`dotnet run`. This phase does not ship
       until it's green.
+- [ ] **Docs, this phase's own shape** (same rationale as Phase 0's own
+      doc task above): `docs/packages/compono-testdoubles.md` and
+      `skills/compono/references/testdoubles.md` gain the generic-method
+      scope section (the `ILogger<T>` motivating case, and what stays
+      excluded); `docs/reference/diagnostics.md` gains the new generic-
+      return-type-dependent diagnostic code.
 
 ### Phase 2 — Minimal call recording and verification
 
@@ -296,6 +311,16 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       through a real packed `.nupkg` + throwaway consumer project, real
       `dotnet build`/`dotnet run`. This phase does not ship until it's
       green.
+- [ ] **Docs, this phase's own shape** (same rationale as Phases 0/1's own
+      doc tasks): `docs/packages/compono-testdoubles.md` and
+      `skills/compono/references/testdoubles.md` gain the `Verify()`/
+      `Never`/`Once`/`Exactly(n)` section, including the updated
+      "AutoFixture/NSubstitute-habit trap" framing — verification exists
+      now, but stays deliberately minimal, not general — and explicit
+      guidance on when a shape still needs `Compono.NSubstitute` (argument
+      matchers, call-order, class mocking). No `diagnostics.md` task here
+      — verification introduces a runtime exception
+      (`TestDoubleVerificationException`), not a new compile diagnostic.
 
 ### Phase 3 — AOT, performance, and package verification
 
@@ -319,19 +344,30 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       existing benchmark-suite policy (ADR-0034), non-misleading
       comparisons only.
 
-### Phase 4 — Docs and skill alignment
+### Phase 4 — Documentation consistency pass
 
-- [ ] `docs/packages/compono-testdoubles.md` — document overload
-      discriminators, generic-method scope, `Verify()`/`Never`/`Once`/
-      `Exactly(n)`, and the still-excluded shapes (updated "AutoFixture/
-      NSubstitute-habit trap" section — verification exists now, but
-      remains deliberately minimal, not general).
-- [ ] `skills/compono/references/testdoubles.md` — same content, skill
-      shape; explicit guidance on when a shape still needs
-      `Compono.NSubstitute` (argument matchers, call-order, class mocking).
-- [ ] `docs/reference/diagnostics.md` — new/narrowed diagnostic entries
-      (overload-scoped `CMP0022`, the new generic-return-type-dependent
-      code).
+Retitled and reduced from an original "write all the docs here" phase,
+per Codex review: `references/documentation.md`'s "update the relevant
+doc in the same PR that changes the behavior it describes" rule means
+Phases 0-2, each shipping as its own PR, can't leave their own shipped
+behavior undocumented until this phase catches up later — a doc lagging
+shipped code is exactly the rot that rule exists to prevent, and with
+three independent phase releases in between, "later" could mean several
+real, published package versions with an inaccurate Package Guide. Each
+doc task now lives in the phase that actually introduces the behavior it
+describes (see Phases 0-2's own new doc tasks above). What's left here is
+genuinely cross-cutting, only possible once all three shapes' content
+already exists from those phases:
+
+- [ ] Read `docs/packages/compono-testdoubles.md` and
+      `skills/compono/references/testdoubles.md` end-to-end, written
+      incrementally across three separate phases/PRs — fix any structural,
+      ordering, or cross-referencing issues that only become visible once
+      the full v2 picture is assembled (e.g. the overload/generic/
+      verification sections should read as one coherent package, not three
+      independently-written additions).
+- [ ] `docs/reference/diagnostics.md` — same consistency check across the
+      Phase 0/1 diagnostic entries added incrementally.
 
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
@@ -444,3 +480,16 @@ smoke test (a real `dotnet pack` + local-feed consumer, not the full
 `PublishAot` proof) and does not ship until it's green; Phase 3's own
 sample/AOT extension stays the *combined*, all-three-shapes-together
 proof, not the first point any individual shape gets compiled externally.
+
+**Documentation moved into Phases 0-2 as well, for the same underlying
+reason** (a later Codex finding against this same draft, same review
+cycle): the original single "Phase 4 — docs and skill alignment" would
+have left each of Phases 0/1/2's shipped behavior undocumented in
+`docs/packages/compono-testdoubles.md`/`skills/compono/references/testdoubles.md`
+until Phase 4 caught up — directly against `references/documentation.md`'s
+"update the relevant doc in the same PR" rule, and with three independent
+phase releases possibly landing before Phase 4 runs, "later" could mean
+several published package versions with a stale Package Guide. Each doc
+task now lives in the phase introducing its own behavior; Phase 4 shrank
+to a genuinely cross-cutting consistency pass over content that was
+necessarily written incrementally across three separate PRs.
