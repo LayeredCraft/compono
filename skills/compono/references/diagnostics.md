@@ -2,11 +2,11 @@
 
 Two completely different failure classes — don't confuse them:
 
-- **Compile-time**: `CMP0001`-`CMP0012` (errors — fail `dotnet build`) and
-  `CMP0020`-`CMP0028` (informational — `Compono.TestDoubles`-only, never
-  fail the build, only relevant if `ComponoGeneratedTestDoubles=true`),
-  both emitted by `Compono.Generators` (a Roslyn analyzer). Look up the
-  code below.
+- **Compile-time**: `CMP0001`-`CMP0013` (errors — fail `dotnet build`) and
+  `CMP0020`-`CMP0028` (informational — never fail the build, only relevant
+  if `ComponoGeneratedTestDoubles=true` is set, whether or not
+  `Compono.TestDoubles` is referenced), both emitted by
+  `Compono.Generators` (a Roslyn analyzer). Look up the code below.
 - **Runtime**: `CompositionException`, thrown from `composer.Create<T>()`
   or a `[Compose]` theory row when the code compiled fine but the
   pipeline couldn't satisfy a request — most commonly a missing provider
@@ -17,7 +17,7 @@ Always check *which* class you're looking at first: a red squiggle /
 build failure is compile-time (this doc's table); a test that compiled
 and then threw is runtime (the tree-path section).
 
-## Compile-time: CMP0001-CMP0012
+## Compile-time: CMP0001-CMP0013
 
 | Code | Meaning | Fix |
 |---|---|---|
@@ -33,10 +33,11 @@ and then threw is runtime (the tree-path section).
 | CMP0010 | The same type was discovered multiple times with conflicting nullability metadata across call sites | Make every request for the type use consistent nullability |
 | CMP0011 | The same closed collection type was discovered with conflicting element/key nullability | Make every member/parameter of that collection type consistent |
 | CMP0012 | A collection's element/key type isn't accessible (private/protected) from the generated collection-plan type | Use an accessible element/key type |
+| CMP0013 | A `[Compose]`-attributed parameter type isn't accessible (private/protected) from the generated row-binding dispatch type | Use an accessible parameter type, or widen the type's accessibility |
 
-This is the complete core diagnostic set — CMP0001 through CMP0012, no
+This is the complete core diagnostic set — CMP0001 through CMP0013, no
 more, no fewer. `CMP0020`-`CMP0028` (below) are real too, but belong to
-`Compono.TestDoubles`, not core composition. If something references a
+generated test doubles, not core composition. If something references a
 `CMP00xx` code outside these two ranges, it isn't real; don't invent one.
 
 ## Compile-time, generated-test-double opt-in only: CMP0020-CMP0028

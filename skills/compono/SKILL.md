@@ -8,7 +8,7 @@ description: >-
   `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
-  `CMP0001`-`CMP0012` (errors), `CMP0020`-`CMP0028` (generated-test-double
+  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0028` (generated-test-double
   opt-in informational diagnostics), or `CompositionException` failures,
   deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
@@ -126,7 +126,7 @@ user to make test-by-test, not something to do as a drive-by.
    Prefer existing project conventions (an established profile, an
    existing member-rule pattern) over introducing a new mechanism for the
    same problem.
-6. **Compile and run.** A compile-time failure is a `CMP0001`-`CMP0012`
+6. **Compile and run.** A compile-time failure is a `CMP0001`-`CMP0013`
    diagnostic from `Compono.Generators` — look it up in
    `references/diagnostics.md` before guessing a fix. If
    `ComponoGeneratedTestDoubles=true` is set — the generator is embedded in
@@ -180,7 +180,7 @@ undermines the reason Compono exists in this project.
   Determinism holds for a given Compono version, not across versions.
   Only assert on values you explicitly pinned (inline values, member
   rules, `[Shared]` reference equality).
-- **Never bypass a `CMP0001`-`CMP0012` compile error by working around
+- **Never bypass a `CMP0001`-`CMP0013` compile error by working around
   the generator** (e.g. hand-writing a plan, suppressing the diagnostic,
   or switching the type to be constructed manually elsewhere just to
   dodge it). Fix the underlying shape, or compose an interface/wrapper
@@ -263,10 +263,10 @@ Load only what the Detection table says is relevant to the current task.
 |---|---|
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
-| `references/diagnostics.md` | A `CMP0001`-`CMP0012` build error, a `CMP0020`-`CMP0028` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
+| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0028` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
-| `references/testdoubles.md` | `Compono.TestDoubles` is referenced and `ComponoGeneratedTestDoubles` is set — `UseGeneratedTestDoubles()`/generated `Configure()` work |
+| `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()` work, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |
