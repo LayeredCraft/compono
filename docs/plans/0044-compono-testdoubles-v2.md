@@ -127,18 +127,20 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
 - [ ] `TestDoubleAnalyzer`'s existing `object`-member collision check
-      (`ToString`/`GetHashCode`/`GetType`) is re-evaluated against the
-      *generated discriminator extension's* applicability to a
-      zero-argument call, not the member's bare name (Amendment 11) —
-      reusing the same `IsApplicableToZeroArguments`-shaped logic the
-      `Configure`-collision check already applies. A non-overloaded
-      member's extension is still always zero-argument (unchanged
+      (`ToString`/`GetHashCode`/`GetType`) withholds the `Configure()`/
+      `Verify()` surface only when the generated discriminator extension
+      has **genuinely zero parameters** (`Parameters.Length == 0` —
+      corrected per Amendment 12 to this simpler, narrower check, not
+      Amendment 11's original "applicable to a zero-argument call," which
+      over-rejected a `params`/all-optional-shaped overload that still has
+      a fully working non-empty-argument spelling). A non-overloaded
+      member's extension is still always zero-parameter (unchanged
       behavior, still always collides); an overloaded member's typed
-      discriminator extension with required parameters is not applicable
-      to a zero-argument call and therefore does not collide — genuinely
-      widening supported surface, per this repo's own compile-spike-
-      verified precedent for the analogous `Configure`-collision case
-      (PLAN-0043, PR #83 review round 2).
+      discriminator extension with any required, optional, or `params`
+      parameter is not genuinely zero-parameter and therefore keeps its
+      surface — genuinely widening supported surface, per this repo's own
+      compile-spike-verified precedent for the analogous `Configure`-
+      collision case (PLAN-0043, PR #83 review round 2).
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
@@ -154,7 +156,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       overloaded `ToString(int format)`-shaped member** (Amendment 11 —
       proves the corrected `object`-collision check supports an overloaded
       member sharing a name with an `object` method, where the
-      non-overloaded case still correctly collides).
+      non-overloaded case still correctly collides), **and a
+      `ToString(params object[] values)`-shaped overload** (Amendment 12 —
+      proves the surface is kept, not withheld, for a params/all-optional
+      overload that's applicable to zero arguments but not genuinely
+      zero-parameter).
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per ADR-0044 Amendment 6's process finding — see this plan's
       Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
@@ -431,7 +437,9 @@ here would have happened before the last phase even ran).
 - `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
   `src/Compono.Generators/Templates/TestDouble.scriban` — per-overload
   fields/extensions, generic method/constraint emission, `Verify()`
-  bridge + verifier extension classes, `Interlocked.Increment` dispatch.
+  bridge + verifier extension classes, `RecordCall()` dispatch (not a raw
+  `Interlocked.Increment` — Amendment 2 Finding 1 routes it through the
+  public bridge for cross-assembly accessibility).
 - `src/Compono.Generators/Models/TestDoubleMemberInfo.cs` and siblings —
   new fields for overload-discriminator identity and generic type
   parameter/constraint data.

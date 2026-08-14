@@ -1532,6 +1532,72 @@ task reusing the applicability-check pattern, with a `ToString(int
 format)`-shaped overload test proving the corrected, narrower collision
 scope.
 
+## Amendment 12 (2026-08-14): `object`-collision withheld only for a truly zero-parameter discriminator; stale phase cross-references corrected
+
+An eleventh Codex review pass caught a real over-narrowing in Amendment
+11's own fix, plus two stale cross-references to earlier plan structure.
+All prior text is left exactly as written, per the immutability rule
+already followed eleven times above.
+
+**Finding — Amendment 11's `IsApplicableToZeroArguments` reuse
+over-withholds for a `params`/all-optional-parameter overload.** A member
+like `ToString(params object[] values)` generates a discriminator
+extension that *is* applicable to a zero-argument call (that's exactly
+what `params` means) — but it's *also* applicable to any non-zero-argument
+call (`Configure().ToString(Array.Empty<object>())`), and only the bare,
+argument-omitted spelling is actually shadowed by `object.ToString()`.
+Amendment 11's rule ("applicable to zero arguments → withhold the whole
+overload's surface") withholds the entire `Configure()`/`Verify()`
+surface for this overload, even though a fully working, unambiguous
+non-empty-argument spelling remains reachable — a real, if narrow,
+over-rejection Amendment 11 didn't anticipate because it reused an
+existing helper (`IsApplicableToZeroArguments`) built for a different
+question (Configure-name collision, where *any* zero-argument
+applicability is disqualifying) without checking whether the same
+threshold was correct here too.
+
+**Corrected: withhold the `object`-collision surface only when the
+discriminator extension has genuinely zero parameters** — no required, no
+optional, no `params` — not merely "applicable to a zero-argument call."
+`object.ToString()`/`GetHashCode()`/`GetType()` are all fixed-arity,
+zero-parameter methods with no overloads of their own; the *only* way an
+interface member's generated extension can be entirely, unconditionally
+shadowed by one of them is if the extension itself can *only* ever be
+called with zero arguments — the exact case a non-overloaded member
+already is (Amendment 2 Finding 4's argument-independence, unchanged), and
+the only case v1 itself ever had to consider. A `params`/all-optional
+overload keeps its full surface; a consumer simply can't reach it via the
+bare zero-argument spelling, which resolves to `object`'s own member
+instead — a real but ordinary C# ambiguity a consumer would already hit
+calling the real interface member the same way, not something Compono
+needs to diagnose specially. This check is simpler than Amendment 11's
+own (`Parameters.Length == 0`, not the multi-branch applicability check),
+not just more correct.
+
+**Two stale cross-references, corrected without new decision content**
+(the underlying facts were already decided by earlier Amendments; only
+the pointers to them had gone stale):
+
+- This ADR's own Links section still says
+  `docs/packages/compono-testdoubles.md`/`skills/compono/references/testdoubles.md`
+  are "updated once implemented (PLAN-0044 Phase 4)" — stale since the
+  packaged-verification/documentation-scheduling process fix (recorded in
+  PLAN-0044 directly, not as an ADR Amendment, per that fix's own content-
+  separation reasoning) moved each phase's own docs into Phases 0-2, with
+  Phase 4 reduced to a cross-cutting consistency pass. The doc updates
+  happen where the behavior ships, not in one later phase.
+- PLAN-0044's own Critical Files section still described
+  `TestDoubleEmitter.cs`/`TestDouble.scriban` as producing "`Interlocked.Increment`
+  dispatch" — stale since Amendment 2 Finding 1 routed the counter
+  increment through the public `RecordCall()` bridge instead, to fix the
+  exact cross-assembly accessibility failure a raw `Interlocked.Increment(ref
+  __member.CallCount)` would hit.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+`object`-collision task is corrected to the zero-parameter-only rule, with
+a `params`-shaped-object-named-member test proving the overload keeps its
+surface; Critical Files now says `RecordCall()`.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
