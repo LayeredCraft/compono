@@ -757,6 +757,141 @@ task covering the combined overload+generic interaction with its own
 while their combination produces invalid generated code), and Phase 0's
 overload-partial-support task text corrected to match the fix above.
 
+## Amendment 2 (2026-08-14): cross-assembly counter mutation, explicit-implementation constraint redeclaration, generic-arity overload identity, `Verify()` collision diagnostic
+
+A Codex review pass against this ADR's original push (before any
+implementation code existed) caught four real defects — two P1, two P2.
+All prior text (the original Decision Outcome and Amendment 1) is left
+exactly as written, per `design-decisions.md`'s immutability rule; this
+Amendment corrects the affected sketches only.
+
+**Finding 1 (P1) — `CallCount` is unwritable from generated dispatch
+code.** Requirement 3's sketch adds `internal int CallCount` to
+`ReturnConfig<T>` (core `Compono`) and has generated dispatch code (the
+consumer's own assembly) call `Interlocked.Increment(ref __send.CallCount)`
+directly. `internal` doesn't cross assembly boundaries — the exact same
+class of defect ADR-0043 Amendment 3 Finding A already found and fixed
+for `Value`/`Exception`, and Amendment 8 Finding S found again for a
+property setter that reached for the internal fields directly instead of
+routing through the public surface. This sketch made the identical
+mistake for the call counter.
+
+**Corrected:** `CallCount` stays `internal`, but `ReturnConfig<T>` itself
+gains a `public` instance method to mutate it — an instance method
+declared *inside* `ReturnConfig<T>` has ordinary access to its own type's
+`internal` members regardless of which assembly calls it, the same
+"public write surface over private state" shape `ReturnConfigBuilder<T>`
+already established, just as a method on the struct itself instead of a
+separate builder type (no `ref`-struct indirection needed here, since the
+call site already holds the field by reference through ordinary struct
+field access):
+
+```csharp
+public struct ReturnConfig<T>
+{
+    internal bool HasValue;
+    internal T? Value;
+    internal Exception? Exception;
+    internal int CallCount;
+
+    public readonly int ConfiguredCallCount => CallCount;
+
+    /// <summary>Thread-safe call-count increment, callable from generated dispatch code in any assembly.</summary>
+    public void RecordCall() => global::System.Threading.Interlocked.Increment(ref CallCount);
+
+    // ... existing HasConfiguredValue/HasConfiguredException/ConfiguredValue/ConfiguredException unchanged
+}
+```
+
+```csharp
+Task IMediator.Send(Request request)
+{
+    __send.RecordCall();
+    return __send.HasConfiguredException ? throw __send.ConfiguredException
+        : __send.HasConfiguredValue ? __send.ConfiguredValue
+        : global::System.Threading.Tasks.Task.CompletedTask;
+}
+```
+
+**Finding 2 (P1) — an explicit interface implementation cannot redeclare
+inherited generic constraints.** Requirement 2's `BeginScope` sample
+writes `where TState : notnull` directly on the explicit interface
+implementation. C# constraints for an explicit interface implementation
+are always inherited automatically from the interface declaration and
+**cannot** be restated — doing so is `CS0460`. The original sample does
+not compile.
+
+**Corrected:** the explicit interface implementation never emits a
+`where` clause, for any member, under any of this ADR's shapes — the
+constraint still applies (inherited, enforced by the compiler and CLR
+exactly as if written), it's simply never spelled out in generated source:
+
+```csharp
+IDisposable? ILogger.BeginScope<TState>(TState state) =>
+    __beginScope.HasConfiguredException ? throw __beginScope.ConfiguredException
+    : __beginScope.HasConfiguredValue ? __beginScope.ConfiguredValue
+    : default;
+```
+
+This affects only the explicit interface implementation. It does **not**
+affect Requirement 2's own non-generic configuration extension (no type
+parameter, nothing to constrain) or Amendment 1's overloaded-generic
+configuration extension (`Process<T>(this ..., T value)`) — that extension
+is an ordinary, standalone generic method, not an interface
+implementation, so it both *can* and *must* declare its own `where`
+clauses explicitly to stay type-safe; Amendment 1's own sample never
+happened to show a constrained example, so it wasn't wrong, just
+untested against this exact question. **Rule, stated once for
+implementation:** copy constraint clauses verbatim onto a generated
+generic *extension* method; never emit them on a generated explicit
+interface implementation, generic or not.
+
+**Finding 3 (P2) — overload identity must include generic arity, not
+just parameter types.** C# permits overloading purely by generic arity —
+`int M()` and `int M<T>()` are distinct, legal overloads even though both
+have an empty parameter list. Both are independently supported under this
+ADR (`M<T>()`'s return doesn't depend on `T`), but hashing discriminator
+identity from parameter types alone (Requirement 1's original scheme)
+gives them the same empty-list identity — colliding backing fields and
+colliding zero-argument configuration extensions.
+
+**Corrected:** the discriminator hash's input is the member's full
+signature shape — parameter types **and** generic arity (type-parameter
+count) — not parameter types alone. No new call-site ambiguity results
+once identity is fixed: `Configure().M()` (no explicit type argument) is
+only ever a candidate call for the non-generic `M()` — `M<T>()` has
+nothing to infer `T` from and requires an explicit type argument
+(`Configure().M<int>()`) at any call site, real or generated, exactly
+mirroring how a caller would have to invoke the real interface member
+itself. No new diagnostic is needed for this shape once the identity
+scheme is corrected — the ambiguity Codex flagged was a generator-internal
+naming collision, not a real consumer-facing one.
+
+**Finding 4 (P2) — no collision diagnostic exists for an interface that
+declares its own `Verify` member.** ADR-0043 Amendment 3 Finding E
+diagnoses an interface whose own member would shadow the generated
+`Configure()` bridge (instance-member lookup always wins over extension
+resolution). Requirement 3 introduces a second bridge, `Verify()`, with
+the identical shadowing exposure, but no symmetric check was added.
+
+**Corrected:** the existing `Configure`-collision check generalizes to a
+small reserved-name set (`Configure`, `Verify`) using the exact same
+zero-argument-applicability logic already established (Amendment 3
+Finding E, refined by PR #83 review round 2's arity/applicability fix) —
+not a new mechanism, not a new diagnostic code, the existing one's scope
+widens to cover both bridge names.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+identity-hash task now includes generic arity in the hash input from the
+start (even though it has no observable effect until Phase 1 ships any
+generic-method support) specifically so Phase 1 never has to change an
+already-shipped Phase-0 naming/hint-name scheme out from under early
+adopters; Phase 1's constraint-propagation task is scoped to generated
+generic *extension* methods only, explicit interface implementations
+never receive constraint clauses; Phase 2 gains the `RecordCall()`
+bridge method task in place of a raw field increment, and a task for the
+generalized `Configure`/`Verify` collision check.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

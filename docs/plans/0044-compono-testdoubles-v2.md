@@ -43,9 +43,15 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       itself can't produce, so effectively unreachable) rather than every
       repeated name.
 - [ ] Per-overload field/extension identity: a new identifier-hash helper
-      keyed on the overload's full parameter-type list, reusing
-      `TestDoubleIdentifierNaming`'s existing sanitizer + FNV-1a-hash
-      convention (sibling helper, not a modification).
+      keyed on the overload's full parameter-type list **and its generic
+      arity (type-parameter count)** — not parameter types alone,
+      corrected per ADR-0044 Amendment 2 Finding 3 (`M()`/`M<T>()` both
+      have an empty parameter list but are distinct legal overloads).
+      Include arity in the hash from this phase on, even though every
+      Phase-0-supported overload has arity zero until Phase 1 ships, so
+      Phase 1 never has to change an already-shipped naming/hint-name
+      scheme. Reuses `TestDoubleIdentifierNaming`'s existing sanitizer +
+      FNV-1a-hash convention (sibling helper, not a modification).
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: emit one `ReturnConfig<T>`
       field and one typed-parameter configuration extension per overload;
       dispatch bodies for every overload regardless of whether that
@@ -76,7 +82,12 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       `where T : ...` clause verbatim (reference-type/value-type/`notnull`/
       base-type/interface constraints), extending the existing
       `SymbolDisplay`-based type-reference emission rather than inventing
-      new text-building logic.
+      new text-building logic. **Generated generic *extension* methods
+      only** (Amendment 1's overloaded-generic case) — never on the
+      explicit interface implementation, which inherits its constraints
+      automatically and cannot redeclare them (`CS0460`, corrected per
+      ADR-0044 Amendment 2 Finding 2). The explicit implementation emits
+      no `where` clause at all, for any member, generic or not.
 - [ ] Nullable-annotation preservation on type-parameter-referencing text,
       reusing `NullableAwareFullyQualifiedFormat`.
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface
@@ -107,17 +118,33 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 ### Phase 2 — Minimal call recording and verification
 
 - [ ] Core `Compono`: add `internal int CallCount` + `public readonly int
-      ConfiguredCallCount` to `ReturnConfig<T>` (same internal-write/
-      public-read split as `HasValue`/`Value`/`Exception`, per ADR-0043
-      Amendment 3 — no new per-member field).
+      ConfiguredCallCount` + a **public `RecordCall()` instance method**
+      (`Interlocked.Increment(ref CallCount)`, declared on `ReturnConfig<T>`
+      itself) to `ReturnConfig<T>` (same internal-write/public-mutation-
+      surface split as `HasValue`/`Value`/`Exception`, per ADR-0043
+      Amendment 3 — no new per-member field). Generated dispatch code
+      calls `__member.RecordCall()`, never `Interlocked.Increment(ref
+      __member.CallCount)` directly — the raw field is `internal` to core
+      `Compono` and unwritable from the consumer assembly generated code
+      actually lives in, the same cross-assembly defect class ADR-0043
+      Amendment 3/8 already fixed twice, caught again here per ADR-0044
+      Amendment 2 Finding 1.
 - [ ] Core `Compono`: new `CallVerifier` (public readonly struct,
       `Never()`/`Once()`/`Exactly(int)`) and `TestDoubleVerificationException`
       (plain `Exception` subtype, matching `CompositionException`'s
       convention — no xUnit/TUnit/AwesomeAssertions reference from core).
-- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: `Interlocked.Increment(ref
-      __member.CallCount)` at the top of every dispatch body (methods and
-      property accessors alike), unconditionally — a call counts whether
-      it hits configured, default, or throw behavior.
+- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: `__member.RecordCall()` at
+      the top of every dispatch body (methods and property accessors
+      alike), unconditionally — a call counts whether it hits configured,
+      default, or throw behavior.
+- [ ] `TestDoubleAnalyzer`: generalize the existing `Configure`-collision
+      check (ADR-0043 Amendment 3 Finding E) to a reserved-name set
+      (`Configure`, `Verify`) using the same zero-argument-applicability
+      logic already established — an interface declaring its own `Verify`
+      member would otherwise silently shadow the new bridge exactly like
+      an undiagnosed `Configure` collision would have, per ADR-0044
+      Amendment 2 Finding 4. Not a new diagnostic code, the existing one's
+      scope widens.
 - [ ] New per-interface generated shape: `<Hash>_VerifyExtension`
       (`Verify(this TInterface)` bridge, same cast-failure-message
       convention as `Configure()`), `<Hash>_DoubleVerifier` (the distinct
