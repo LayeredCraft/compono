@@ -18,22 +18,26 @@ public interface IRepository : IClock
 
 public sealed record Order(int Total, DateTimeOffset PlacedAt);
 
-// Reached only through GeneratedDoubleTests' own [Compose<GeneratedTestDoubleProfile>] theory
-// parameters - no [Composable], no Create<T>()/CreateMany<T>() call site anywhere else in this
-// project. Proves a real generated double, reached only through the packaged
-// Compono -> Compono.TestDoubles dependency chain, satisfies an interface leaf and is reused (via
-// [Shared]) into a constructor parameter exactly like Compono.XunitV3.SampleTests' own
-// SharedTests.SharedRepositoryIsReusedByTheService proves for a concrete type.
+// Reached through GeneratedDoubleTests' own [Compose<GeneratedTestDoubleProfile>] theory
+// parameters (repository as a sibling [Shared] parameter, reused into OrderService's own
+// constructor - same shape Compono.XunitV3.SampleTests' own
+// SharedTests.SharedRepositoryIsReusedByTheService proves for a concrete type) and, separately, a
+// direct composer.Create<OrderService>() call (Create_OrderService_test.cs) that never composes
+// IRepository as a call-site parameter at all - proving the composition engine discovers and
+// satisfies OrderService's own nested IRepository dependency purely through the generated-double
+// provider. Repository is exposed as a public property (mirroring
+// Compono.XunitV3.SampleTests.OrderService's own identical property) so both proofs can configure
+// the exact double instance actually wired into the service.
 public sealed class OrderService
 {
-    private readonly IRepository _repository;
+    public OrderService(IRepository repository) => Repository = repository;
 
-    public OrderService(IRepository repository) => _repository = repository;
+    public IRepository Repository { get; }
 
     public async Task<Order> PlaceAsync(int amount)
     {
-        var count = await _repository.CountAsync();
-        _repository.Save(amount);
-        return new Order(count + amount, _repository.UtcNow);
+        var count = await Repository.CountAsync();
+        Repository.Save(amount);
+        return new Order(count + amount, Repository.UtcNow);
     }
 }

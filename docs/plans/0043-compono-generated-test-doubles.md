@@ -261,9 +261,26 @@ worth its own phase if it turns out to need more than that.
       **The composed interface dependency extends a base interface**
       (Amendment 11 Finding Z) — proves the full-closure walk, not just a
       single flat interface.
-  - [x] `dotnet publish -p:PublishAot=true` + real execution against that
-        sample — the "prove it, don't assume it" standard `Compono.TUnit`
-        (PLAN-0040) already set for this repo, applied here.
+  - [x] `dotnet publish -p:PublishAot=true` + real execution proving the
+        same generated-double path the sample exercises — via a dedicated
+        AOT-only sibling project (`test/Compono.TestDoubles.AotSmokeTest`),
+        **not** a literal publish of the sample project itself. PLAN-0040's
+        own identical checklist item already hedges this exact choice
+        ("`test/Compono.TUnit.SampleTests` (or a dedicated AOT-only sibling
+        project)") and picked the sibling for the same reason: verified
+        directly (PR #85 review) that `dotnet publish -p:PublishAot=true`
+        against an `IsTestProject=true` xUnit v3/MTP project fails with
+        `MSB3030` ("Could not copy the file '.../apphost' because it was
+        not found") regardless of TFM/RID/`--self-contained` — isolated the
+        cause to `IsTestProject=true` itself (not the MTP-specific
+        properties, which made no difference once isolated):
+        `Microsoft.NET.Test.Sdk`'s own targets skip apphost generation for
+        any test project, a real SDK-level incompatibility between "is a
+        test project" and `PublishAot`, not a local misconfiguration. The
+        "prove it, don't assume it" standard `Compono.TUnit` (PLAN-0040)
+        already set for this repo is still satisfied — the sibling harness
+        drives the same `composer.Create<T>()` + `UseGeneratedTestDoubles()`
+        + `Configure()` path the sample proves under ordinary JIT execution.
 - [x] Public-API-surface approval test for `Compono.TestDoubles` (now a
       much smaller surface post-Amendment-2: just the provider type and
       `UseGeneratedTestDoubles()`), matching
@@ -892,8 +909,16 @@ namespace, proving Amendment 11 Finding AA's "no import needed" claim for real r
 inspection) has two tests: one configures `CountAsync()`/`UtcNow()` via `Returns(...)` and asserts the
 SUT observes exactly those values through its own `[Shared] IRepository` constructor parameter, the
 other configures `CountAsync()` via `Throws(...)` and asserts the SUT's own `async`/`await` call
-surfaces it. Confirmed via `strings` on the built assembly that a real generator-emitted
-`..._IRepository_<hash>_Double` type exists, not just that the tests happened to pass. The compile-time
+surfaces it. `CreateOrderServiceTests.cs` (added in PR #85 review) adds a third test that calls
+`composer.Create<OrderService>()` directly, never composing `IRepository` as its own call-site
+parameter at all - proving the composition engine discovers and satisfies `OrderService`'s *nested*
+`IRepository` dependency purely through the generated-double provider, not only that a sibling
+`[Shared] IRepository` theory parameter happens to compose correctly alongside it. `OrderService`
+gained a public `Repository` property (mirroring `Compono.XunitV3.SampleTests.OrderService`'s own
+identical property) so both this test and `GeneratedDoubleTests` can reach the exact double instance
+actually wired into the service. Confirmed via `strings` on the built assembly that a real
+generator-emitted `..._IRepository_<hash>_Double` type exists, not just that the tests happened to
+pass. The compile-time
 opt-in (`<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`) is set directly in the
 sample's own `.csproj`, exercising the real packaged `CompilerVisibleProperty` declaration
 (Amendment 4 Finding F) rather than an in-memory `AdditionalFiles` shortcut a `ProjectReference` would
@@ -925,6 +950,20 @@ this one runs the real `Compono.TestDoubles` package end to end). Like the two e
 not wired into CI (`package-validation.yaml`'s own local-feed smoke test above already covers ordinary
 JIT execution through the packaged chain for CI purposes) - a manual, one-shot proof, matching
 `Compono.AotSmokeTest`'s/`Compono.TUnit.AotSmokeTest`'s own disposition.
+
+A dedicated sibling project, not a literal `dotnet publish -p:PublishAot=true` of
+`Compono.TestDoubles.SampleTests` itself - confirmed this isn't just a matter of choice (PR #85
+review): publishing the sample directly fails with `MSB3030` ("Could not copy the file
+'.../apphost' because it was not found"), reproduced with every combination of explicit
+`-r osx-arm64 --self-contained true` and with the MTP-specific properties
+(`TestingPlatformDotnetTestSupport`/`UseMicrosoftTestingPlatformRunner`) stripped out entirely -
+neither changed the failure. Isolating `IsTestProject` itself (rather than the MTP properties) as
+the variable flips the failure mode from `MSB3030` to a plain `CS0246` (the xUnit package references
+`IsTestProject=true` pulls in disappear), confirming `Microsoft.NET.Test.Sdk`'s own targets are what
+skip apphost generation for any test project - a real SDK-level incompatibility between "is a test
+project" and `PublishAot`, not a fixable local misconfiguration. PLAN-0040's own identical checklist
+item already anticipated exactly this choice ("`test/Compono.TUnit.SampleTests` (or a dedicated
+AOT-only sibling project)") and picked the sibling for the same reason.
 
 A real, pre-existing bug was found and fixed along the way, unrelated to this feature but blocking
 this phase's own AOT proof: `test/Directory.Build.targets`' xUnit-v3-only global-`Using` `ItemGroup`
