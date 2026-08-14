@@ -133,10 +133,27 @@ instance) instead of asking Compono to silently omit it.
 
 ## `[Shared]` (`Compono.XunitV3`/`Compono.TUnit` only)
 
+`Compono.XunitV3`:
+
 ```csharp
 [Theory]
 [Compose]
 public void ServiceUsesTheSharedRepository(
+    [Shared] Repository repository,
+    OrderService service)
+{
+    // `service`'s internally-composed Repository dependency
+    // is reference-equal to `repository`.
+}
+```
+
+`Compono.TUnit` — same shape, `[Test]` instead of `[Theory]` (TUnit's own
+attribute, not xUnit's):
+
+```csharp
+[Test]
+[Compose]
+public async Task ServiceUsesTheSharedRepository(
     [Shared] Repository repository,
     OrderService service)
 {

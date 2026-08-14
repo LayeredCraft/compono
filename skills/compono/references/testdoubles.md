@@ -104,8 +104,23 @@ specifically.
 
 ## Combining with `[Shared]`
 
+`Compono.XunitV3`:
+
 ```csharp
 [Theory]
+[Compose<GeneratedTestDoubleProfile>]
+public async Task Saves_order([Shared] IRepository repository, OrderService service)
+{
+    repository.Configure().CountAsync().Returns(Task.FromResult(4));
+    var order = await service.PlaceAsync(6);
+    // repository is the exact double `service` was composed with
+}
+```
+
+`Compono.TUnit` — same shape, `[Test]` instead of `[Theory]`:
+
+```csharp
+[Test]
 [Compose<GeneratedTestDoubleProfile>]
 public async Task Saves_order([Shared] IRepository repository, OrderService service)
 {

@@ -357,8 +357,11 @@ claim, a run, per this repo's established AOT-verification standard.
 
 ## Notes
 
-Not started. ADR-0043 is `Accepted`; this plan stays `Not Started` until
-implementation is explicitly requested.
+Historical note: before implementation began, this plan stayed
+`Not Started` pending ADR-0043 review closure and an explicit
+implementation request. See "Phase 0 implementation notes" below for where
+that changed; the plan's current status is recorded at the top of this
+document, not here.
 
 Pre-implementation review (Codex, PR #82) caught three P1 defects and one
 P2 defect in ADR-0043's original design, all corrected via
@@ -993,4 +996,4 @@ Phase 3 is implemented and every task above is checked off: the Package Guide
 `references/testdoubles.md`, `future-packages.md`'s graduation out of the roadmap section (mirroring
 `Compono.TUnit`'s own PLAN-0040 closeout), the `docs/plans/README.md`/this plan's own `Status: Done`
 flip, and `docs/architecture/current/generated-plans-and-discovery.md`'s fourth Open Questions item for
-`GeneratedTestDoubleRegistry`'s ALC-rooting. PLAN-0043 is now fully `Done` - all three phases complete.
+`GeneratedTestDoubleRegistry`'s ALC-rooting. PLAN-0043 is now fully `Done` - all four phases (0-3) complete.
