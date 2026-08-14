@@ -1261,6 +1261,106 @@ identity-hash task gains the `dynamic`→`object` normalization step, and a
 `IB.M(object)`) alongside the existing nullable and generic-parameter
 diamond cases.
 
+## Amendment 8 (2026-08-14): identity canonicalization generalized, constrained-nullable type parameters partially unblocked, `out` parameters definitely assigned in fallback bodies
+
+A seventh Codex review pass caught a third consecutive instance of the
+identity-canonicalization gap (Amendments 5-7's own pattern), plus two
+new, unrelated defects. All prior text is left exactly as written, per
+the immutability rule already followed seven times above.
+
+**Finding 19 — tuple element names are the fourth non-signature-affecting
+decoration found in three consecutive review rounds; the hash is
+corrected once, structurally, instead of patched a fifth time.** Tuple
+element names (`(int X, int Y)` vs `(int A, int B)`) are compiler
+metadata (a `TupleElementNamesAttribute`), not part of a tuple's real
+underlying `System.ValueTuple<...>` signature — the same
+"compiler-tracked, not CLR-real" shape as Amendments 5, 6, and 7's
+generic-parameter-name, nullable-annotation, and `dynamic` findings.
+Patching a fifth ad hoc special case would very likely not be the last
+one (`params` is a fourth real candidate: `void M(int[] a)` and
+`void M(params int[] a)` are also the same signature, differing only in a
+calling-convention attribute — not independently confirmed as a live
+Codex finding, but the same shape, offered here as evidence the pattern
+isn't closed).
+
+**Decided: the discriminator hash's canonicalization step is redefined as
+one recursive type-transform, not an enumerated list of exceptions.**
+Before hashing, every parameter type is walked — through generic type
+arguments, array element types, and tuple element types, at every nesting
+level, not just the top level — applying: strip nullable-reference
+annotation; replace `dynamic` with `object`; replace a named tuple with
+its underlying `ValueTuple<...>` form; replace a reference to the
+member's own type parameter with its ordinal-position token (Amendment
+5's fix, restated as one case of this same principle). This closes the
+whole class at once — `IEnumerable<(int X, int Y)>` vs
+`IEnumerable<(int A, int B)>`, or `List<string?>` vs `List<string>`
+nested inside a larger generic parameter type, are now covered by the
+same recursive pass rather than needing their own future Amendment.
+**Explicitly stated as an open principle, not a closed enumeration:** the
+rule is "exclude anything the C# compiler itself doesn't treat as
+signature-affecting," and implementation should treat every case found so
+far (generic-parameter naming, nullable annotation, `dynamic`, tuple
+names) as illustrative, testing each with its own diamond-collision case,
+rather than assuming a fifth can't exist.
+
+**Finding 18 — a *constrained* nullable type parameter (`M<T>(T? value)
+where T : class` or `where T : struct`) needs its constraint restated on
+the explicit implementation, unlike the fully unconstrained case Amendment
+6 Finding 15 already excludes.** C#'s narrow exception to `CS0460`
+specifically permits (and here, requires) restating exactly one of the
+`class`/`struct`/`notnull`/`unmanaged` keyword-only constraints — never a
+base-type or interface constraint — when a type parameter's own `T?`
+usage needs disambiguating and the interface's own declaration already
+constrains it to one of those forms.
+
+**Decided: unblock this narrower, mechanically verifiable case; the fully
+unconstrained case (Amendment 6 Finding 15) stays excluded.** Unlike
+`where T : default` for the unconstrained case — genuinely deep surface
+this ADR still has no confidently-verified answer for — restating a
+`class`/`struct`/`notnull`/`unmanaged` keyword the interface *already
+declares*, verbatim and alone (no other constraint ever gets restated,
+matching every other rule in this ADR), is a small, mechanical, low-risk
+operation directly grounded in a documented C# 9+ feature. **Corrected
+rule:** the explicit interface implementation emits no `where` clause at
+all *except* this one narrow case — when the interface's own declared
+constraint for a type parameter is exactly `class`, `struct`, `notnull`,
+or `unmanaged`, and that type parameter appears as `T?` anywhere in the
+member's signature, restate that single keyword on the explicit
+implementation. Every other constrained-generic-method shape (including
+still-unconstrained `T?`) keeps Amendment 6 Finding 15's existing
+diagnose-and-exclude disposition, unchanged.
+
+**Finding 20 — a fallback dispatch body for an `out`-parameter overload
+never assigns the `out` parameter, which C# requires on every return
+path (`CS0177`).** Requirement 1's overload-partial-support text
+describes `ref`/`out`/`in` parameters as getting "a deterministic-default
+dispatch body" without specifying what that body actually does with an
+`out` parameter — a real, plain gap (not a subtle corner case; `out`
+parameters have always required definite assignment).
+
+**Corrected:** for an `out` parameter, the fallback body assigns it
+`TestDoubleDefaults`'s own deterministic-default expression for that
+parameter's type — the same lookup already used for return types, not new
+logic. **If that lookup fails for even one `out` parameter** (the
+parameter's own type has no deterministic default, the identical
+condition that already excludes a return type from the fallback bucket),
+**the whole overload has no constructible body**, joining the existing
+"return type with no deterministic default" bucket and triggering the
+same whole-interface-rejection disposition — not a silent `default`
+assignment that could violate the parameter's own non-nullable contract.
+`ref`/`in` parameters need no such handling — they're never required to
+be written, so their own types never gate fallback-body constructibility.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+identity-hash task is rewritten around the recursive canonicalization
+principle (with a tuple-name diamond test) rather than listing a fifth
+special case; Phase 1's constraint-propagation task gains the narrow
+constrained-nullable-type-parameter exception; Phase 0's overload-partial-
+support task gains the `out`-parameter definite-assignment requirement and
+its own no-deterministic-default exclusion, plus a packaged-smoke-test
+case for a mixed overload set containing a non-default-assignable `out`
+parameter.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

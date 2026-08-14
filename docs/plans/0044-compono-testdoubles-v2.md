@@ -56,32 +56,29 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       blanket rejection for this case, not a regression).
 - [ ] Per-overload field/extension identity: a new identifier-hash helper
       keyed on the overload's full parameter-type list, **each
-      parameter's `RefKind`, and generic arity (type-parameter count)** —
-      not parameter types alone. `M()`/`M<T>()` (Amendment 2 Finding 3)
-      and `M(int)`/`M(ref int)` (Amendment 3 Finding 7) are both legal
-      overload pairs an identity keyed on parameter types alone would
-      collapse to the same identity. **Canonicalize references to the
-      member's own type parameters by ordinal position before hashing**
-      (Amendment 5 Finding 11) — `IA.M<T>(T)` and `IB.M<U>(U)` are the
-      same signature under C#'s own rules despite the different declared
-      names, and hashing the displayed name as-is would miss this diamond
-      collision, risking a `CS0111` duplicate-extension declaration.
-      **Strip nullable-reference annotations before hashing too**
-      (Amendment 6 Finding 14) — `IA.M(string)`/`IB.M(string?)` is the
-      same real signature (nullable annotation isn't part of a C# method's
-      true identity), and the emitted-code-facing
-      `NullableAwareFullyQualifiedFormat` (which deliberately preserves
-      `?`) must not be reused for the hash input. **Normalize `dynamic` to
-      `object` before hashing too** (Amendment 7 Finding 17) — `dynamic`
-      erases to `object` at the CLR level, the same "compiler metadata,
-      not real signature" shape as nullable annotation, so
-      `IA.M(dynamic)`/`IB.M(object)` must hash identically. Treat this as
-      one canonicalization *principle* (exclude anything the C# compiler
-      itself doesn't treat as signature-affecting), not a closed list of
-      exactly four cases — test for each found so far, but don't assume a
-      fifth can't exist. Include ref-kind, arity, canonical generic-
-      parameter identity, nullable-stripped, and `dynamic`-normalized
-      parameter types in the hash from this phase on, even though every
+      parameter's `RefKind`, and generic arity (type-parameter count)**.
+      `M()`/`M<T>()` (Amendment 2 Finding 3) and `M(int)`/`M(ref int)`
+      (Amendment 3 Finding 7) are both legal overload pairs an identity
+      keyed on parameter types alone would collapse to the same identity.
+      **Each parameter type is canonicalized via one recursive transform
+      before hashing, not a list of special cases** (Amendment 8 Finding
+      19 — three consecutive review rounds each found one more
+      non-signature-affecting decoration, so the fix generalizes instead
+      of adding a fifth): walk the type through every generic type
+      argument, array element type, and tuple element type, at every
+      nesting level, and (a) strip nullable-reference annotation, (b)
+      replace `dynamic` with `object`, (c) replace a named tuple with its
+      underlying `ValueTuple<...>` form, (d) replace a reference to the
+      member's own type parameter with its ordinal-position token
+      (Amendment 5 Finding 11). This covers `IA.M<T>(T)`/`IB.M<U>(U)`,
+      `IA.M(string)`/`IB.M(string?)`, `IA.M(dynamic)`/`IB.M(object)`,
+      `IA.M((int X, int Y))`/`IB.M((int A, int B))`, and nested cases
+      (`IEnumerable<(int X, int Y)>` vs `IEnumerable<(int A, int B)>`)
+      uniformly. **Treat this as an open principle** ("exclude anything
+      the C# compiler doesn't treat as signature-affecting"), not a closed
+      enumeration — add a diamond-collision test for each case above, and
+      don't assume a fifth can't surface during implementation. Include
+      ref-kind and arity in the hash from this phase on, even though every
       Phase-0-supported overload has arity zero and no `ref`/`out`/`in`
       support until later, so later phases never have to change an
       already-shipped naming/hint-name scheme. Reuses
@@ -114,16 +111,29 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       constructible body at any granularity and still triggers today's
       existing whole-interface rejection, unchanged from v1 — corrected
       per ADR-0044 Amendment 1, not the "gets a fallback body" treatment
-      an earlier plan draft implied.
+      an earlier plan draft implied. **Every `out` parameter in a fallback
+      body must be definitely assigned before every return path** (`CS0177`
+      otherwise) — assign it `TestDoubleDefaults`'s own deterministic-
+      default expression for its type, the same lookup already used for
+      return types, not new logic (Amendment 8 Finding 20). **If that
+      lookup fails for even one `out` parameter, the whole overload joins
+      the no-constructible-body bucket above** (whole-interface rejection)
+      rather than silently assigning `default` and risking a non-nullable-
+      contract violation. `ref`/`in` parameters need no such handling —
+      they're never required to be written.
 - [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
       overload, **and one diamond test per identity-canonicalization case**
-      (nullable annotation, `dynamic`/`object` — Amendment 6/7 Findings 14
-      and 17; the generic-parameter-name case moves to Phase 1, once
-      generic methods exist to test it with).
+      (nullable annotation, `dynamic`/`object`, tuple element names —
+      Amendment 6/7/8 Findings 14, 17, and 19; the generic-parameter-name
+      case moves to Phase 1, once generic methods exist to test it with),
+      **and a mixed overload set with an `out` parameter of a type with no
+      deterministic default** (whole-interface rejection, Amendment 8
+      Finding 20), alongside one with an `out` parameter that does have a
+      default (definitely-assigned fallback body, same finding).
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per ADR-0044 Amendment 6's process finding — see this plan's
       Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
@@ -131,13 +141,15 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       packed `.nupkg` (never a `ProjectReference`, matching every existing
       `*.SampleTests` project's own pattern) with
       `ComponoGeneratedTestDoubles=true`, exercising an overloaded
-      interface end to end and a real `dotnet build`/`dotnet run`. Every
-      defect this review round found (`CS0122`, `CS0460`, `CS0111`,
-      `CS0214`) is exactly the class of cross-assembly compile failure an
-      in-process `Verify()` snapshot test cannot catch, since it only
-      diffs generated source text against a golden file rather than
-      actually compiling it into a genuinely separate consumer assembly.
-      This phase does not ship (its own PR does not merge) until this
+      interface end to end (including a supported `out`-parameter overload
+      alongside it, per Amendment 8 Finding 20) and a real `dotnet build`/
+      `dotnet run`. Every defect this review round found (`CS0122`,
+      `CS0460`, `CS0111`, `CS0214`, `CS0177`) is exactly the class of
+      cross-assembly compile failure an in-process `Verify()` snapshot
+      test cannot catch, since it only diffs generated source text against
+      a golden file rather than actually compiling it into a genuinely
+      separate consumer assembly. This phase does not ship (its own PR
+      does not merge) until this
       smoke test is green.
 
 ### Phase 1 — Generic-method support
@@ -147,14 +159,18 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       method's own type parameters" — reject only that case, under a
       refined diagnostic (next available code after `CMP0028`). **Also
       diagnose and exclude a method using `T?` on one of its own
-      unconstrained type parameters, in a parameter or its own
+      *unconstrained* type parameters, in a parameter or its own
       declaration** (Amendment 6 Finding 15, a distinct, narrower
       diagnostic from the return-type-dependency one above) — modeling
-      C#'s `default`/`class?`/`struct?` constraint-disambiguation rules
-      correctly isn't something this ADR has a verified answer for, and
-      the real motivating shape (`ILogger<T>.Log<TState>`) never uses
-      `TState?` at all, so there's no evidence forcing the more complex
-      alternative.
+      C#'s `where T : default` constraint-disambiguation rule correctly
+      isn't something this ADR has a verified answer for, and the real
+      motivating shape (`ILogger<T>.Log<TState>`) never uses `TState?` at
+      all, so there's no evidence forcing the more complex alternative.
+      **A `T?`-using type parameter that's already *constrained* to
+      `class`/`struct`/`notnull`/`unmanaged` on the interface does *not*
+      get this diagnostic** (Amendment 8 Finding 18, narrower and lower-
+      risk than the unconstrained case) — see the constraint-propagation
+      task below for the mechanical fix.
 - [ ] Constraint-clause propagation: emit each type parameter's
       `where T : ...` clause verbatim (reference-type/value-type/`notnull`/
       base-type/interface constraints), extending the existing
@@ -163,8 +179,14 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       only** (Amendment 1's overloaded-generic case) — never on the
       explicit interface implementation, which inherits its constraints
       automatically and cannot redeclare them (`CS0460`, corrected per
-      ADR-0044 Amendment 2 Finding 2). The explicit implementation emits
-      no `where` clause at all, for any member, generic or not.
+      ADR-0044 Amendment 2 Finding 2). **One narrow exception, added per
+      Amendment 8 Finding 18:** if a type parameter's interface-declared
+      constraint is exactly `class`, `struct`, `notnull`, or `unmanaged`,
+      and that type parameter appears as `T?` anywhere in the member's
+      signature, restate that single keyword — and only that keyword,
+      never a base-type/interface constraint — on the explicit
+      implementation too. Every other case keeps the "no `where` clause at
+      all" rule unchanged.
 - [ ] Nullable-annotation preservation on type-parameter-referencing text,
       reusing `NullableAwareFullyQualifiedFormat`.
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface
