@@ -5,29 +5,29 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Get_987ab372;
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Get_f41bb3fa;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Get_b9dfaa09;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Get_1a56931a;
 
     void global::TestNamespace.IRepository.Get(int id)
     {
-        if (__Get_987ab372.HasConfiguredException)
-            throw __Get_987ab372.ConfiguredException;
+        if (__Get_b9dfaa09.HasConfiguredException)
+            throw __Get_b9dfaa09.ConfiguredException;
     }
 
     void global::TestNamespace.IRepository.Get(string id)
     {
-        if (__Get_f41bb3fa.HasConfiguredException)
-            throw __Get_f41bb3fa.ConfiguredException;
+        if (__Get_1a56931a.HasConfiguredException)
+            throw __Get_1a56931a.ConfiguredException;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double __self, int id) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Get_987ab372);
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Get_b9dfaa09);
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double __self, string id) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Get_f41bb3fa);
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Get_1a56931a);
 
 }
 

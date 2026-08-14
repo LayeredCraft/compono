@@ -5,7 +5,7 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<int> __Value_987ab372;
+    internal global::Compono.ReturnConfig<int> __Value_b9dfaa09;
 
     int global::TestNamespace.IBaseA.Value
     {
@@ -18,15 +18,15 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     }
 
     int global::TestNamespace.IBaseB.Value(int offset) =>
-        __Value_987ab372.HasConfiguredException ? throw __Value_987ab372.ConfiguredException
-        : __Value_987ab372.HasConfiguredValue ? __Value_987ab372.ConfiguredValue
+        __Value_b9dfaa09.HasConfiguredException ? throw __Value_b9dfaa09.ConfiguredException
+        : __Value_b9dfaa09.HasConfiguredValue ? __Value_b9dfaa09.ConfiguredValue
         : default;
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<int> Value(this global::TestNamespace_IRepository_e3198068_Double __self, int offset) =>
-        new global::Compono.ReturnConfigBuilder<int>(ref __self.__Value_987ab372);
+        new global::Compono.ReturnConfigBuilder<int>(ref __self.__Value_b9dfaa09);
 
 }
 

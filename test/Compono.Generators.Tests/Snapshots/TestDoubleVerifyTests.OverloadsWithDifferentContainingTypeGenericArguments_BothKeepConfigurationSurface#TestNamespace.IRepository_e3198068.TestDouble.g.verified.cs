@@ -5,27 +5,29 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<bool> __Equals_37c3f22f;
-    internal global::Compono.ReturnConfig<bool> __Equals_693d6b44;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Handle_50c4849c;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Handle_3b0d1db3;
 
-    bool global::TestNamespace.IRepository.Equals(global::System.Span<int> value) =>
-        __Equals_37c3f22f.HasConfiguredException ? throw __Equals_37c3f22f.ConfiguredException
-        : __Equals_37c3f22f.HasConfiguredValue ? __Equals_37c3f22f.ConfiguredValue
-        : default;
+    void global::TestNamespace.IRepository.Handle(global::TestNamespace.Outer<int>.Inner value)
+    {
+        if (__Handle_50c4849c.HasConfiguredException)
+            throw __Handle_50c4849c.ConfiguredException;
+    }
 
-    bool global::TestNamespace.IRepository.Equals(int a, int b) =>
-        __Equals_693d6b44.HasConfiguredException ? throw __Equals_693d6b44.ConfiguredException
-        : __Equals_693d6b44.HasConfiguredValue ? __Equals_693d6b44.ConfiguredValue
-        : default;
+    void global::TestNamespace.IRepository.Handle(global::TestNamespace.Outer<string>.Inner value)
+    {
+        if (__Handle_3b0d1db3.HasConfiguredException)
+            throw __Handle_3b0d1db3.ConfiguredException;
+    }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> Equals(this global::TestNamespace_IRepository_e3198068_Double __self, global::System.Span<int> value) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref __self.__Equals_37c3f22f);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Outer<int>.Inner value) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Handle_50c4849c);
 
-    public static global::Compono.ReturnConfigBuilder<bool> Equals(this global::TestNamespace_IRepository_e3198068_Double __self, int a, int b) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref __self.__Equals_693d6b44);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Outer<string>.Inner value) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Handle_3b0d1db3);
 
 }
 

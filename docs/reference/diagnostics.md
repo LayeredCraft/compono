@@ -331,25 +331,22 @@ deterministic default.
 
 ## CMP0026 — Unsupported test-double parameter shape
 
-**Severity:** Informational — never fails the build. **Scope depends on
-the parameter kind (v2, ADR-0044):**
+**Severity:** Informational — never fails the build. **Scope: always the
+whole interface.** (A `ref`/`out`/`in` parameter on a member with a
+same-named sibling is scoped instead — see `CMP0030` below, not this
+code.)
 
-- **A `ref`/`out`/`in` parameter on a member with a same-named sibling of
-  any shape** withholds only *that overload's* `Configure()` surface — it
-  still dispatches, via a deterministic-default body (every
-  `out` parameter is assigned its own deterministic default before every
-  return path). Sibling overloads, and the rest of the interface, are
-  unaffected. If an `out` parameter's own type has no deterministic default
-  (e.g. a non-nullable reference type), there's no constructible fallback
-  body at all and the **whole interface** falls back instead — same as any
-  other no-deterministic-default case.
-- **A `ref`/`out`/`in` parameter on a *solo* member (no same-named sibling
-  at all)** rejects the **whole interface** — "overload-set-internal
-  partial support" presupposes an overload set; a solo member has no set to
-  preserve, so it keeps v1's original disposition unchanged.
-- **A pointer or function-pointer parameter** still rejects the **whole
-  interface** regardless of siblings — it requires the method to be
-  declared `unsafe`, which this feature never emits.
+- **A pointer or function-pointer parameter, at any nesting depth**
+  (including inside an array, e.g. `int*[]`) — it requires the method to
+  be declared `unsafe`, which this feature never emits.
+- **A `ref`/`out`/`in` parameter on a *solo* member** (no same-named
+  sibling at all) — "overload-set-internal partial support" presupposes
+  an overload set; a solo member has no set to preserve, so it keeps v1's
+  original disposition unchanged.
+- **An `out` parameter whose own type has no deterministic default**
+  (e.g. a non-nullable reference type) — there's no constructible
+  fallback body at all, even for an overload with a surfaced sibling; same
+  as any other no-deterministic-default case.
 
 **Message:** `'{Interface}' declares member '{Member}' with parameter
 '{Parameter}' {Shape}, which Compono cannot generate a test double for`
@@ -357,8 +354,7 @@ the parameter kind (v2, ADR-0044):**
 **Cause:** A method parameter is `ref`/`out`/`in`, a pointer, or a
 function pointer.
 
-**Fix:** None needed — falls back to the ordinary runtime-provider path
-(for a `ref`/`out`/`in` parameter, only that one overload's own surface).
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
 
 ## CMP0027 — Set-only test-double property is unsupported
 
@@ -416,6 +412,27 @@ if both kept their surface.
 **Fix:** None needed — the colliding identities fall back to a
 deterministic default; any other overload of the same name that keeps a
 real parameter list is unaffected.
+
+## CMP0030 — Overload-scoped unsupported test-double parameter shape
+
+**Severity:** Informational — never fails the build. **Scope (v2,
+ADR-0044): this one overload only** — every other member of the
+interface, including this overload's own dispatch body and its sibling
+overloads, is unaffected. (This is the scoped counterpart to `CMP0026`'s
+whole-interface `ref`/`out`/`in`-with-no-sibling case — the two are kept
+as separate diagnostics rather than one message with two different
+"does this fall back to the runtime-provider path" meanings.)
+
+**Message:** `'{Interface}' declares member '{Member}' with parameter
+'{Parameter}' as a ref/out/in parameter. This overload has no
+Configure() surface, but it still dispatches via a deterministic default -
+its sibling overloads, and the rest of the interface, are unaffected.`
+
+**Cause:** A `ref`/`out`/`in` parameter on a member that has at least one
+same-named sibling of any shape.
+
+**Fix:** None needed — this overload still dispatches deterministically;
+its sibling overloads keep their own `Configure()` surface.
 
 ## Next
 

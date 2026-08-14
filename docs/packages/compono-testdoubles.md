@@ -152,7 +152,7 @@ Non-Goals for the full scope boundary. Overloaded members and a
 `ref`/`out`/`in` parameter's own overload are now supported per-overload
 (see above, [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
 An unsupported member shape is a compile-time diagnostic
-(`CMP0020`-`CMP0028`), not a silent gap.
+(`CMP0020`-`CMP0030`), not a silent gap.
 
 ## Next
 

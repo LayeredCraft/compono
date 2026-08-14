@@ -28,3 +28,4 @@ CMP0026 | Compono.TestDoubles | Info | A test-double member has an unsupported p
 CMP0027 | Compono.TestDoubles | Info | A test-double interface declares a set-only property, which is unsupported (no call recording/verification in v1)
 CMP0028 | Compono.TestDoubles | Info | The same test-double-eligible interface was discovered multiple times with conflicting generic-argument nullability
 CMP0029 | Compono.TestDoubles | Info | Two same-named test-double members (e.g. a property and a method, or two methods) both generate a genuinely zero-parameter configuration extension, an unresolvable collision (ADR-0044)
+CMP0030 | Compono.TestDoubles | Info | A test-double overload has a ref/out/in parameter but a same-named sibling exists - this overload's own Configure() surface is withheld, but it still dispatches and the rest of the interface is unaffected (ADR-0044, scoped counterpart to CMP0026)

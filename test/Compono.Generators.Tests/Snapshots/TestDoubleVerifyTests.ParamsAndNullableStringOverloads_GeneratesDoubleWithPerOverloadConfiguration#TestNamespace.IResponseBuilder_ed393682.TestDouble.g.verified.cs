@@ -5,13 +5,13 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IResponseBuilder_ed393682_Double : global::TestNamespace.IResponseBuilder
 {
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Speak_f41bb3fa;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Speak_1a56931a;
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Speak_22f1fe0a;
 
     void global::TestNamespace.IResponseBuilder.Speak(string? text)
     {
-        if (__Speak_f41bb3fa.HasConfiguredException)
-            throw __Speak_f41bb3fa.ConfiguredException;
+        if (__Speak_1a56931a.HasConfiguredException)
+            throw __Speak_1a56931a.ConfiguredException;
     }
 
     void global::TestNamespace.IResponseBuilder.Speak(global::TestNamespace.ISsml[] parts)
@@ -24,7 +24,7 @@ internal sealed class TestNamespace_IResponseBuilder_ed393682_Double : global::T
 internal static class TestNamespace_IResponseBuilder_ed393682_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, string? text) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_f41bb3fa);
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_1a56931a);
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, params global::TestNamespace.ISsml[] parts) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_22f1fe0a);

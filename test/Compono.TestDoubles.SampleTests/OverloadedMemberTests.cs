@@ -54,7 +54,7 @@ public sealed class OverloadedMemberTests
     {
         gateway.Configure().Send("hello");
 
-        // TryParse(string, out int) has no Configure()/Verify() surface (an overload-set-internal
+        // TryParse(string, out int) has no Configure() surface (an overload-set-internal
         // unsupported shape, ADR-0044 Amendment 5) - it still dispatches, deterministically, without
         // rejecting Send's own configuration surface above.
         var parsed = consumer.Gateway.TryParse("42", out var value);

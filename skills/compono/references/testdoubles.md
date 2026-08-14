@@ -114,7 +114,7 @@ For an eligible **interface**, indexers, events, generic methods,
 static abstract members, and a handful of narrower shapes (set-only
 properties, pointer/function-pointer parameters or returns, ref-like
 returns) still reject the **whole interface** at compile time
-(`CMP0020`-`CMP0028`, informational severity — they don't fail the build):
+(`CMP0020`-`CMP0030`, informational severity — they don't fail the build):
 it falls back to the ordinary runtime-provider path, same as any interface
 the compile-time opt-in never reached. Overloaded members and a
 `ref`/`out`/`in` parameter are narrower now (see above) — only the specific

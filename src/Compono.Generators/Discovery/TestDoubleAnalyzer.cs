@@ -414,13 +414,15 @@ internal static class TestDoubleAnalyzer
 
                             // Call-site-independent, same reasoning as the diamond-collision
                             // InfoDiagnostics.Add above - this describes the overload's own
-                            // declared shape, not the call site.
+                            // declared shape, not the call site. A distinct descriptor (CMP0030,
+                            // not CMP0026) from the whole-interface-rejecting pointer/no-sibling
+                            // case above - that shared message wrongly claims the whole leaf falls
+                            // back to the runtime-provider path, which isn't true here. Codex
+                            // review, PR #88.
                             infoDiagnostics.Add(new DiagnosticInfo(
-                                DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, null,
+                                DiagnosticDescriptors.OverloadScopedUnsupportedParameterShape, null,
                                 interfaceType.ToDisplayString(), method.Name,
-                                method.Parameters.First(p => p.RefKind != RefKind.None).Name,
-                                "as a ref/out/in parameter - this overload falls back to a deterministic-default body " +
-                                "with no Configure()/Verify() surface. Its sibling overloads are unaffected"));
+                                method.Parameters.First(p => p.RefKind != RefKind.None).Name));
                         }
 
                         // Object-collision check compares the generated discriminator extension's

@@ -5,27 +5,27 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<string?> __ToString_987ab372;
-    internal global::Compono.ReturnConfig<string?> __ToString_f41bb3fa;
+    internal global::Compono.ReturnConfig<string?> __ToString_b9dfaa09;
+    internal global::Compono.ReturnConfig<string?> __ToString_1a56931a;
 
     string? global::TestNamespace.IRepository.ToString(int format) =>
-        __ToString_987ab372.HasConfiguredException ? throw __ToString_987ab372.ConfiguredException
-        : __ToString_987ab372.HasConfiguredValue ? __ToString_987ab372.ConfiguredValue
+        __ToString_b9dfaa09.HasConfiguredException ? throw __ToString_b9dfaa09.ConfiguredException
+        : __ToString_b9dfaa09.HasConfiguredValue ? __ToString_b9dfaa09.ConfiguredValue
         : default;
 
     string? global::TestNamespace.IRepository.ToString(string format) =>
-        __ToString_f41bb3fa.HasConfiguredException ? throw __ToString_f41bb3fa.ConfiguredException
-        : __ToString_f41bb3fa.HasConfiguredValue ? __ToString_f41bb3fa.ConfiguredValue
+        __ToString_1a56931a.HasConfiguredException ? throw __ToString_1a56931a.ConfiguredException
+        : __ToString_1a56931a.HasConfiguredValue ? __ToString_1a56931a.ConfiguredValue
         : default;
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, int format) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_987ab372);
+        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_b9dfaa09);
 
     public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, string format) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_f41bb3fa);
+        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_1a56931a);
 
 }
 

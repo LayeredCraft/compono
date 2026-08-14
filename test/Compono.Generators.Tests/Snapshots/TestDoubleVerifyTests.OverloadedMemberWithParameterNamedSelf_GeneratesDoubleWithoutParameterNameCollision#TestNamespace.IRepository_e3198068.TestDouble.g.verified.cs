@@ -5,29 +5,29 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save_987ab372;
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save_f41bb3fa;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save_b9dfaa09;
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save_1a56931a;
 
     void global::TestNamespace.IRepository.Save(int self)
     {
-        if (__Save_987ab372.HasConfiguredException)
-            throw __Save_987ab372.ConfiguredException;
+        if (__Save_b9dfaa09.HasConfiguredException)
+            throw __Save_b9dfaa09.ConfiguredException;
     }
 
     void global::TestNamespace.IRepository.Save(string self)
     {
-        if (__Save_f41bb3fa.HasConfiguredException)
-            throw __Save_f41bb3fa.ConfiguredException;
+        if (__Save_1a56931a.HasConfiguredException)
+            throw __Save_1a56931a.ConfiguredException;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double __self, int self) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save_987ab372);
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save_b9dfaa09);
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double __self, string self) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save_f41bb3fa);
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save_1a56931a);
 
 }
 

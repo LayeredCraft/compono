@@ -111,27 +111,47 @@ internal static class TestDoubleOverloadIdentity
 
         if (type is INamedTypeSymbol named)
         {
-            builder.Append(named.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-
-            if (named.TypeArguments.Length > 0)
-            {
-                builder.Append('<');
-
-                for (var i = 0; i < named.TypeArguments.Length; i++)
-                {
-                    if (i > 0)
-                        builder.Append(',');
-
-                    AppendCanonical(builder, named.TypeArguments[i], owningMethod);
-                }
-
-                builder.Append('>');
-            }
-
+            AppendNamedType(builder, named, owningMethod);
             return;
         }
 
         builder.Append(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    }
+
+    // Walks the ContainingType chain and canonicalizes each level's own type arguments separately -
+    // INamedTypeSymbol.TypeArguments only ever holds a nested type's *own* generic parameters, never
+    // an outer type's substitution, so M(Outer<int>.Inner) and M(Outer<string>.Inner) would otherwise
+    // canonicalize identically (both "Outer<T>.Inner", since Inner itself declares no type parameters)
+    // and be misdiagnosed as a diamond collision instead of two legal, distinct overloads. Codex
+    // review, PR #88.
+    private static void AppendNamedType(StringBuilder builder, INamedTypeSymbol named, IMethodSymbol owningMethod)
+    {
+        if (named.ContainingType is { } containingType)
+        {
+            AppendNamedType(builder, containingType, owningMethod);
+            builder.Append('.');
+        }
+        else if (!named.ContainingNamespace.IsGlobalNamespace)
+        {
+            builder.Append(named.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).Append('.');
+        }
+
+        builder.Append(named.Name);
+
+        if (named.TypeArguments.Length > 0)
+        {
+            builder.Append('<');
+
+            for (var i = 0; i < named.TypeArguments.Length; i++)
+            {
+                if (i > 0)
+                    builder.Append(',');
+
+                AppendCanonical(builder, named.TypeArguments[i], owningMethod);
+            }
+
+            builder.Append('>');
+        }
     }
 
     // Same FNV-1a algorithm as TestDoubleIdentifierNaming.StableHash/GeneratedFileNaming.StableHash -

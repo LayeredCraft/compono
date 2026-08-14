@@ -774,9 +774,9 @@ public sealed class TestDoubleVerifyTests
         }, TestContext.Current.CancellationToken);
 
     // ADR-0044 Amendment 5: an overload whose own shape is unsupported (a ref/out/in parameter)
-    // falls back to a deterministic-default body without a Configure()/Verify() surface, but its
-    // sibling overload is unaffected - and reports an informational CMP0026, not a whole-interface
-    // rejection.
+    // falls back to a deterministic-default body without a Configure() surface, but its
+    // sibling overload is unaffected - and reports an informational CMP0030, not a whole-interface
+    // rejection (CMP0026).
     [Fact]
     public Task OverloadWithOutParameterHavingDefault_FallsBackWithoutRejectingSiblingOverload() =>
         GeneratorTestHelpers.VerifyWithInfoDiagnostic(
@@ -808,7 +808,7 @@ public sealed class TestDoubleVerifyTests
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0026",
+            "CMP0030",
             TestContext.Current.CancellationToken);
 
     // Amendment 8, Finding 20: an out parameter with no deterministic default (a non-nullable
@@ -1098,7 +1098,7 @@ public sealed class TestDoubleVerifyTests
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0026",
+            "CMP0030",
             TestContext.Current.CancellationToken);
 
     // Codex review, PR #88: "Overload-set-internal partial support" (ADR-0044's own name for this
@@ -1338,4 +1338,46 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0026",
             TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: INamedTypeSymbol.TypeArguments only ever holds a nested type's *own*
+    // generic parameters, never an outer type's substitution - Outer<int>.Inner and Outer<string>.Inner
+    // would otherwise canonicalize identically (both "Outer<T>.Inner", since Inner itself declares no
+    // type parameters) and be misdiagnosed as a diamond collision instead of two legal, distinct
+    // overloads.
+    [Fact]
+    public Task OverloadsWithDifferentContainingTypeGenericArguments_BothKeepConfigurationSurface() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public sealed class Outer<T>
+                {
+                    public sealed class Inner;
+                }
+
+                public interface IRepository
+                {
+                    void Handle(Outer<int>.Inner value);
+
+                    void Handle(Outer<string>.Inner value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Handle(new TestNamespace.Outer<int>.Inner());
+                        repository.Configure().Handle(new TestNamespace.Outer<string>.Inner());
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }

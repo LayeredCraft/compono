@@ -231,4 +231,20 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    // A distinct descriptor from UnsupportedTestDoubleParameterShape (CMP0026, whole-interface
+    // rejection) rather than reusing its message with a different Info-vs-blocking meaning - that
+    // shared descriptor unconditionally says "which Compono cannot generate a test double for" and
+    // "this leaf falls back to the ordinary runtime-provider path", both false for this scoped case:
+    // the double still generates, and every other member (including this one's own dispatch body)
+    // is unaffected. Codex review, PR #88.
+    public static readonly DiagnosticDescriptor OverloadScopedUnsupportedParameterShape = new(
+        "CMP0030",
+        "Overload-scoped unsupported test-double parameter shape",
+        "'{0}' declares member '{1}' with parameter '{2}' as a ref/out/in parameter. This overload " +
+        "has no Configure() surface, but it still dispatches via a deterministic default - its " +
+        "sibling overloads, and the rest of the interface, are unaffected.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }
