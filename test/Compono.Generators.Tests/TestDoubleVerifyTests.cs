@@ -1571,4 +1571,39 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: IMethodSymbol.Parameters excludes the __arglist sentinel entirely for a
+    // C-style variable-argument method, so it would otherwise be silently treated as an ordinary
+    // fixed-arity overload and get an explicit implementation with the wrong signature (CS0535 - it
+    // doesn't actually implement the vararg interface member). Verified with a real compile spike
+    // (IsVararg is true, Parameters.Length doesn't include the sentinel).
+    [Fact]
+    public Task VarargOverload_ReportsUnsupportedMemberKindDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void M(int x, __arglist);
+
+                        void M(string x);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0021",
+            TestContext.Current.CancellationToken);
 }

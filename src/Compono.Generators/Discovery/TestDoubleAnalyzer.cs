@@ -285,6 +285,19 @@ internal static class TestDoubleAnalyzer
                                 UnsupportedMember(interfaceType, member, "a generic method", location));
                         }
 
+                        // A C-style variable-argument method (`void M(int x, __arglist)`) - IMethodSymbol
+                        // .Parameters excludes the __arglist sentinel entirely, so every check below
+                        // would silently treat this as an ordinary fixed-arity method and emit an
+                        // explicit implementation with the wrong signature (CS0535 - it doesn't actually
+                        // implement the vararg interface member). Checked before any parameter-shape
+                        // logic runs, verified with a real compile spike (`IsVararg` is true,
+                        // `Parameters.Length` doesn't include the sentinel). Codex review, PR #88.
+                        if (method.IsVararg)
+                        {
+                            return Failure(fullyQualifiedName, safeIdentifier,
+                                UnsupportedMember(interfaceType, member, "a variable-argument (__arglist) method", location));
+                        }
+
                         var identity = (method.Name, Canonical: IdentityFor(method));
                         var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
                         var isOverloaded = overloadedNames.Contains(method.Name);
