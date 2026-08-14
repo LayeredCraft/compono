@@ -42,7 +42,7 @@ internal static class TestDoubleEmitter
                 Kind = m.Kind.ToString(),
                 AccessorKind = m.AccessorKind.ToString(),
                 Parameters = m.Parameters
-                    .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.IsParams })
+                    .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.IsParams, p.DefaultValueExpression })
                     .ToArray(),
                 OutParameterAssignments = m.OutParameterAssignments.ToArray(),
             }).ToArray(),

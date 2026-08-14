@@ -1645,4 +1645,41 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0030",
             TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: M(int value = 0) is callable as M() on the real interface, but the
+    // generated discriminator extension emitted it as a required parameter, so Configure().M()
+    // failed to compile - optionality wasn't preserved, unlike params (Amendment 12/16). The
+    // default value is now mirrored onto the extension too.
+    [Fact]
+    public Task OverloadedMemberWithOptionalParameter_ConfigureIsCallableWithoutTheOptionalArgument() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void M(int value = 0);
+
+                    void M(string value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().M();
+                        repository.Configure().M(5);
+                        repository.Configure().M("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }

@@ -111,9 +111,13 @@ public interface IResponseBuilder
     void Speak(params ISsml[] parts);
 }
 
-builder.Configure().Speak("hello");                 // configures the string? overload
-builder.Configure().Speak(new ISsml[] { ssml });     // configures the params overload
+builder.Configure().Speak("hello").Throws(new InvalidOperationException());   // the string? overload
+builder.Configure().Speak(new ISsml[] { ssml }).Throws(new InvalidOperationException()); // the params overload
 ```
+
+`.Speak(...)` alone only *selects* an overload's configuration handle
+(`ReturnConfigBuilder<Unit>`) — like any `Configure()` call, it does
+nothing to the double until you chain `.Returns(...)` or `.Throws(...)`.
 
 Two edge cases stay narrower than full per-overload support:
 

@@ -3,6 +3,7 @@ using Compono.Generators.Emitters;
 using Compono.Generators.Models;
 using Compono.Generators.Types;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Compono.Generators.Discovery;
 
@@ -532,7 +533,13 @@ internal static class TestDoubleAnalyzer
                                     RefKind.RefReadOnlyParameter => "ref readonly ",
                                     _ => "",
                                 }),
-                                p.IsParams))
+                                p.IsParams,
+                                // Mirrored onto an overloaded member's own extension so a real
+                                // optional-parameter call shape (M() against M(int value = 0)) stays
+                                // reachable through Configure() too - same "keep every real call
+                                // shape reachable" reasoning already applied to params. Codex review,
+                                // PR #88.
+                                DefaultValueExpressionFor(p)))
                             .ToEquatableArray();
 
                         var discriminatorSuffix = hasConfigurationSurface && isOverloaded
@@ -739,6 +746,24 @@ internal static class TestDoubleAnalyzer
             type = array.ElementType;
 
         return type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer;
+    }
+
+    // A C# literal expression for a parameter's optional default value, only ever rendered onto an
+    // overloaded member's generated extension (never the explicit interface implementation, which
+    // can't usefully redeclare one - callers always go through the interface's own default, not the
+    // implementation's). `null` covers both a reference-type `= null` default and a non-primitive
+    // value-type `= default` default - `default` is a valid literal for either. Enum-typed defaults
+    // other than the implicit zero member aren't reconstructed here (ExplicitDefaultValue only ever
+    // exposes the boxed underlying numeric value, not the enum member) - left as a required parameter,
+    // the same (not worse) behavior as before this fix. Codex review, PR #88.
+    private static string DefaultValueExpressionFor(IParameterSymbol parameter)
+    {
+        if (!parameter.HasExplicitDefaultValue)
+            return "";
+
+        var value = parameter.ExplicitDefaultValue;
+
+        return value is null ? "default" : SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false) ?? "default";
     }
 
     // The full canonical signature text - never the hash - for any identity/equality decision

@@ -77,9 +77,13 @@ public interface IResponseBuilder
     void Speak(params ISsml[] parts);
 }
 
-builder.Configure().Speak("hello");
-builder.Configure().Speak(new ISsml[] { ssml });
+builder.Configure().Speak("hello").Throws(new InvalidOperationException());
+builder.Configure().Speak(new ISsml[] { ssml }).Throws(new InvalidOperationException());
 ```
+
+`.Speak(...)` alone only selects an overload's configuration handle -
+nothing is configured on the double until `.Returns(...)`/`.Throws(...)`
+is chained, same as any non-overloaded `Configure()` call.
 
 Two things still don't get a surface: a **diamond collision** (the exact
 same signature independently declared by two different base interfaces —
