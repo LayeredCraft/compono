@@ -25,8 +25,16 @@ namespace Compono.Generators.Models;
 /// an unsupported member shape, a naming collision, ...) - the leaf still defers entirely to the
 /// unchanged runtime-provider path in that case.
 /// </param>
+/// <param name="InfoDiagnostics">
+/// Non-blocking, per-member/per-overload diagnostics reported alongside a double that still gets
+/// emitted (ADR-0044 Amendment 3/5) - a diamond-colliding identity or an overload-set-internal
+/// unsupported shape (<see langword="ref"/>/<see langword="out"/>/<see langword="in"/>) withholds
+/// that one member's <c>Configure()</c>/<c>Verify()</c> surface without rejecting the whole
+/// interface, unlike <paramref name="Diagnostics"/>.
+/// </param>
 internal sealed record DiscoveredTestDoubleInfo(
     string InterfaceFullyQualifiedName,
     string SafeIdentifier,
     EquatableArray<TestDoubleMemberInfo> Members,
-    EquatableArray<DiagnosticInfo> Diagnostics);
+    EquatableArray<DiagnosticInfo> Diagnostics,
+    EquatableArray<DiagnosticInfo> InfoDiagnostics = default);

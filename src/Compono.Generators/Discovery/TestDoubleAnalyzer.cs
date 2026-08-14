@@ -15,6 +15,14 @@ namespace Compono.Generators.Discovery;
 /// convention <see cref="RequiredMemberCollector"/>/<c>ConstructorSelector</c> already use. A leaf that
 /// fails here still defers entirely to the unchanged runtime-provider path; nothing here is a hard
 /// generator error.
+///
+/// ADR-0044 (v2) narrows the granularity of two of these checks from whole-interface to per-overload:
+/// an overloaded member (two members sharing a name but not a full signature identity,
+/// <see cref="TestDoubleOverloadIdentity"/>) gets its own <c>Configure()</c>/<c>Verify()</c> surface per
+/// overload instead of being rejected outright, and a <see langword="ref"/>/<see langword="out"/>/
+/// <see langword="in"/> parameter withholds only that one overload's surface (an
+/// overload-set-internal-unsupported shape, Amendment 5) rather than the whole interface. Both keep
+/// producing a dispatch body - see <see cref="DiscoveredTestDoubleInfo.InfoDiagnostics"/>.
 /// </summary>
 internal static class TestDoubleAnalyzer
 {
@@ -49,6 +57,10 @@ internal static class TestDoubleAnalyzer
         // not raw parameter count, PR #83 review round 4: `Configure(int mode = 0)` and
         // `Configure(params int[] modes)` both have Parameters.Length > 0 but are still applicable to
         // a zero-argument call, so they collide exactly like a genuinely zero-parameter method does.
+        // ADR-0044 Amendment 14: a *generic* Configure<T>() interface member has nothing to infer T
+        // from at a bare, no-explicit-type-argument call, so it's never applicable to zero arguments
+        // either, and doesn't collide - IsApplicableToZeroArguments itself now excludes any generic
+        // method.
         if (closure.SelectMany(i => i.GetMembers())
             .Any(m => m.Name == "Configure" && (m is not IMethodSymbol method || IsApplicableToZeroArguments(method))))
         {
@@ -56,26 +68,51 @@ internal static class TestDoubleAnalyzer
                 DiagnosticDescriptors.TestDoubleConfigureMemberCollision, location, interfaceType.ToDisplayString()));
         }
 
-        // A zero-argument configuration extension can't disambiguate an overloaded member - and
-        // that's not just a method-vs-method concern: two properties of the same name inherited
-        // from different base interfaces (a diamond shape) would emit the same backing field and
-        // the same zero-argument configuration extension just as surely as an overloaded method
-        // would, so both member kinds feed the same name-collision check together. Filtered to the
-        // same instance-contract eligibility the emission loop below applies (abstract, or a public
-        // non-static default implementation) - a private or non-abstract-static default-interface
-        // member never gets its own field/extension at all, so counting it here would falsely flag a
-        // real, public, emitted member as "overloaded" against a same-named member that generates
-        // nothing. PR #83 review round 3.
-        var duplicateConfigurationMemberNames = closure
+        // Per-overload identity (ADR-0044): grouped by full signature identity across the whole
+        // transitive closure, not scoped to one declaring interface at a time - two real overloads
+        // within one interface never share a full-signature identity (the compiler enforces that),
+        // but two same-named, same-shaped members inherited from *different* base interfaces (a
+        // diamond) genuinely do (Amendment 3 Finding 8). Filtered to the same instance-contract
+        // eligibility the emission loop below applies (abstract, or a public non-static default
+        // implementation) - a private or non-abstract-static default-interface member never gets its
+        // own field/extension at all, so counting it here would falsely flag a real, public, emitted
+        // member as "overloaded" against a same-named member that generates nothing. PR #83 review
+        // round 3.
+        var eligibleCandidates = closure
             .SelectMany(i => i.GetMembers())
             .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
             .Where(m => m.IsAbstract || (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public))
+            .ToArray();
+
+        var identityGroups = eligibleCandidates
+            .GroupBy(m => (m.Name, Hash: IdentityHashFor(m)))
+            .ToArray();
+
+        // A diamond collision: the *same* full-signature identity reached more than once (two
+        // different base interfaces independently declaring the same-named, same-shaped member).
+        // This identity gets no Configure()/Verify() surface at all - not a whole-interface rejection
+        // (Amendment 3 Finding 8, a real improvement over v1's blanket rejection for this case).
+        var diamondCollisionIdentities = identityGroups
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet();
+
+        // A name shared by more than one member that would *otherwise* get a Configure()/Verify()
+        // surface - a zero-argument configuration extension can only fail to disambiguate when more
+        // than one surfaced identity shares it. A name shared only with a diamond-colliding or
+        // ref/out/in-fallback sibling (which never gets an extension at all, surfaced or not) has
+        // nothing to disambiguate against, so it keeps the ordinary, non-overloaded zero-argument
+        // extension shape.
+        var overloadedNames = eligibleCandidates
+            .Where(m => WouldGetConfigurationSurface(m, diamondCollisionIdentities))
             .GroupBy(m => m.Name)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
             .ToHashSet();
 
+        var reportedDiamondIdentities = new HashSet<(string Name, string Hash)>();
         var members = new List<TestDoubleMemberInfo>();
+        var infoDiagnostics = new List<DiagnosticInfo>();
 
         foreach (var declaringInterface in closure)
         {
@@ -132,29 +169,47 @@ internal static class TestDoubleAnalyzer
                         if (!method.IsAbstract && method.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
-                        if (duplicateConfigurationMemberNames.Contains(method.Name))
-                        {
-                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
-                                DiagnosticDescriptors.OverloadedTestDoubleMember, location,
-                                interfaceType.ToDisplayString(), method.Name));
-                        }
-
+                        // Generic-method support ships in Phase 1 (ADR-0044) - unchanged v1 whole-
+                        // interface rejection for now.
                         if (method.IsGenericMethod)
                         {
                             return Failure(fullyQualifiedName, safeIdentifier,
                                 UnsupportedMember(interfaceType, member, "a generic method", location));
                         }
 
+                        var identity = (method.Name, Hash: IdentityHashFor(method));
+                        var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
+                        var isOverloaded = overloadedNames.Contains(method.Name);
+
+                        if (isDiamondCollision)
+                        {
+                            if (reportedDiamondIdentities.Add(identity))
+                            {
+                                var signature = $"({string.Join(", ", method.Parameters.Select(p => p.Type.ToDisplayString()))})";
+
+                                // Unlike a whole-interface-rejecting DiagnosticInfo (deliberately
+                                // reported at each call site's own request Location - see the merge
+                                // comment in ComponoIncrementalGenerator), this describes a structural
+                                // property of the interface's own declaration, not the call site -
+                                // it must be call-site-*independent* so the same interface discovered
+                                // from two different call sites still produces byte-identical
+                                // DiscoveredTestDoubleInfo values (DiagnosticInfo.Equals includes
+                                // Location) and doesn't spuriously trip the CMP0028
+                                // conflicting-metadata merge path.
+                                infoDiagnostics.Add(new DiagnosticInfo(
+                                    DiagnosticDescriptors.OverloadedTestDoubleMember, null,
+                                    interfaceType.ToDisplayString(), method.Name, signature));
+                            }
+                        }
+
+                        // Pointer/function-pointer parameters are never given a fallback body -
+                        // a pointer-typed parameter requires the method to be declared `unsafe`
+                        // regardless of whether the body touches it, and this feature never emits
+                        // `unsafe` generated code or requires a consumer to set AllowUnsafeBlocks.
+                        // Restores ADR-0043 Amendment 10 Finding Y's original v1 disposition (whole-
+                        // interface rejection) for this shape. Amendment 5, Finding 12.
                         foreach (var parameter in method.Parameters)
                         {
-                            if (parameter.RefKind != RefKind.None)
-                            {
-                                return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
-                                    DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
-                                    interfaceType.ToDisplayString(), method.Name, parameter.Name,
-                                    "as a ref/out/in parameter, which Compono cannot compose a value for"));
-                            }
-
                             if (parameter.Type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer)
                             {
                                 return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
@@ -163,6 +218,13 @@ internal static class TestDoubleAnalyzer
                                     "as a pointer or function-pointer type, which cannot be used as a generic type argument"));
                             }
                         }
+
+                        // A ref/out/in parameter is an overload-set-internal-unsupported shape
+                        // (ADR-0044 Amendment 5): this one overload gets a deterministic-default
+                        // fallback body and an informational diagnostic, but its sibling overloads
+                        // (and the rest of the interface) are unaffected.
+                        var hasRefOutInParameter = method.Parameters.Any(p => p.RefKind != RefKind.None);
+                        var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter;
 
                         if (method.ReturnsByRef || method.ReturnsByRefReadonly)
                         {
@@ -182,19 +244,6 @@ internal static class TestDoubleAnalyzer
                                 ReturnShapeUnsupported(interfaceType, method, "a ref struct (ref-like type) return type", location));
                         }
 
-                        // Object-collision check compares the generated, always-zero-argument
-                        // configuration extension's name against object's own zero-argument members -
-                        // not the interface member's own declared signature. GetHashCode()/ToString()/
-                        // GetType() are all zero-argument on object; Equals(object) is one-argument,
-                        // so a zero-argument generated "Equals" extension does NOT collide with it.
-                        // Amendment 6, Finding N.
-                        if (method.Name is "ToString" or "GetHashCode" or "GetType")
-                        {
-                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
-                                DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
-                                interfaceType.ToDisplayString(), method.Name));
-                        }
-
                         var isVoid = method.ReturnsVoid;
                         var returnTypeFullyQualifiedName = "";
                         var defaultExpression = "";
@@ -210,10 +259,89 @@ internal static class TestDoubleAnalyzer
                             }
                         }
 
+                        // Every out parameter in a fallback body must be definitely assigned before
+                        // every return path (CS0177 otherwise) - assigned its own deterministic
+                        // default via the same TestDoubleDefaults lookup return types use. If that
+                        // lookup fails for even one out parameter, the whole overload has no
+                        // constructible body at any granularity and joins whole-interface rejection
+                        // instead of silently assigning `default` and risking a non-nullable-contract
+                        // violation. ref/in parameters need no such handling - they're never required
+                        // to be written. Amendment 8, Finding 20.
+                        var outParameterAssignments = new List<string>();
+
+                        if (hasRefOutInParameter)
+                        {
+                            foreach (var parameter in method.Parameters)
+                            {
+                                if (parameter.RefKind != RefKind.Out)
+                                    continue;
+
+                                if (!TestDoubleDefaults.TryGetDefaultExpression(parameter.Type, out var outDefault))
+                                {
+                                    return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                        DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
+                                        interfaceType.ToDisplayString(), method.Name, parameter.Name,
+                                        "as an out parameter of a non-nullable reference type with no deterministic default"));
+                                }
+
+                                outParameterAssignments.Add(
+                                    $"{RequiredMemberCollector.EscapeIdentifier(parameter.Name)} = {outDefault};");
+                            }
+
+                            // Call-site-independent, same reasoning as the diamond-collision
+                            // InfoDiagnostics.Add above - this describes the overload's own
+                            // declared shape, not the call site.
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, null,
+                                interfaceType.ToDisplayString(), method.Name,
+                                method.Parameters.First(p => p.RefKind != RefKind.None).Name,
+                                "as a ref/out/in parameter - this overload falls back to a deterministic-default body " +
+                                "with no Configure()/Verify() surface. Its sibling overloads are unaffected"));
+                        }
+
+                        // Object-collision check compares the generated discriminator extension's
+                        // own applicability to an implicit (no explicit type argument) call at its
+                        // real arity - not the interface member's own declared signature. A
+                        // non-overloaded member's extension is always zero-argument
+                        // (ToString/GetHashCode/GetType collide; Equals(object) is one-argument, so a
+                        // zero-argument generated "Equals" extension does not collide with it,
+                        // Amendment 6 Finding N). An *overloaded* member's extension carries the real
+                        // parameter list (Amendment 1), so an overloaded, non-generic, single-
+                        // parameter Equals(T) collides too, unless T can never convert to object
+                        // (a ref-like type, Amendment 16). Only checked for a member that would
+                        // otherwise get a Configure()/Verify() surface - a diamond-colliding or
+                        // ref/out/in-fallback member never gets one regardless.
+                        if (hasConfigurationSurface)
+                        {
+                            var extensionArity = isOverloaded ? method.Parameters.Length : 0;
+
+                            if (method.Name is "ToString" or "GetHashCode" or "GetType" && extensionArity == 0)
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                    DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
+                                    interfaceType.ToDisplayString(), method.Name));
+                            }
+
+                            if (method.Name is "Equals" && extensionArity == 1 && !method.Parameters[0].Type.IsRefLikeType)
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                    DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
+                                    interfaceType.ToDisplayString(), method.Name));
+                            }
+                        }
+
                         var parameters = method.Parameters
                             .Select(p => new TestDoubleParameterInfo(
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
-                                p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)))
+                                p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                p.RefKind switch
+                                {
+                                    RefKind.Ref => "ref ",
+                                    RefKind.Out => "out ",
+                                    RefKind.In => "in ",
+                                    _ => "",
+                                },
+                                p.IsParams))
                             .ToEquatableArray();
 
                         members.Add(new TestDoubleMemberInfo(
@@ -225,7 +353,11 @@ internal static class TestDoubleAnalyzer
                             returnTypeFullyQualifiedName,
                             isVoid,
                             defaultExpression,
-                            parameters));
+                            parameters,
+                            hasConfigurationSurface,
+                            isOverloaded,
+                            hasConfigurationSurface && isOverloaded ? $"_{IdentityHashFor(method)}" : "",
+                            outParameterAssignments.ToEquatableArray()));
 
                         break;
                     }
@@ -255,20 +387,21 @@ internal static class TestDoubleAnalyzer
                         if (!property.IsAbstract && property.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
-                        if (duplicateConfigurationMemberNames.Contains(property.Name))
+                        var identity = (property.Name, Hash: IdentityHashFor(property));
+                        var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
+
+                        if (isDiamondCollision && reportedDiamondIdentities.Add(identity))
                         {
-                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
-                                DiagnosticDescriptors.OverloadedTestDoubleMember, location,
-                                interfaceType.ToDisplayString(), property.Name));
+                            // Call-site-independent, same reasoning as the method-branch
+                            // InfoDiagnostics.Add calls above.
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.OverloadedTestDoubleMember, null,
+                                interfaceType.ToDisplayString(), property.Name, ""));
                         }
 
-                        // Same object-collision rule as the method branch above: the generated,
-                        // always-zero-argument configuration extension's name is what can collide
-                        // with an inherited object member, not the property's own declared shape.
-                        // Previously only checked for methods - a property named ToString/GetHashCode/
-                        // GetType silently lost its Configure() surface to the inherited object member
-                        // instead of getting this diagnostic. Amendment 6, Finding N.
-                        if (property.Name is "ToString" or "GetHashCode" or "GetType")
+                        // Same object-collision rule as the method branch above (properties can't be
+                        // overloaded by type, so their generated extension is always zero-argument).
+                        if (!isDiamondCollision && property.Name is "ToString" or "GetHashCode" or "GetType")
                         {
                             return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                 DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
@@ -330,7 +463,10 @@ internal static class TestDoubleAnalyzer
                             property.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
                             false,
                             propertyDefault,
-                            EquatableArray<TestDoubleParameterInfo>.Empty));
+                            EquatableArray<TestDoubleParameterInfo>.Empty,
+                            !isDiamondCollision,
+                            false,
+                            ""));
 
                         break;
                     }
@@ -338,8 +474,26 @@ internal static class TestDoubleAnalyzer
             }
         }
 
-        return new DiscoveredTestDoubleInfo(fullyQualifiedName, safeIdentifier, members.ToEquatableArray(), EquatableArray<DiagnosticInfo>.Empty);
+        return new DiscoveredTestDoubleInfo(
+            fullyQualifiedName, safeIdentifier, members.ToEquatableArray(), EquatableArray<DiagnosticInfo>.Empty,
+            infoDiagnostics.ToEquatableArray());
     }
+
+    private static bool WouldGetConfigurationSurface(
+        ISymbol member, HashSet<(string Name, string Hash)> diamondCollisionIdentities)
+    {
+        if (diamondCollisionIdentities.Contains((member.Name, Hash: IdentityHashFor(member))))
+            return false;
+
+        return member is not IMethodSymbol method || !method.Parameters.Any(p => p.RefKind != RefKind.None);
+    }
+
+    private static string IdentityHashFor(ISymbol member) => member switch
+    {
+        IMethodSymbol method => TestDoubleOverloadIdentity.DiscriminatorHashFor(method),
+        IPropertySymbol property => TestDoubleOverloadIdentity.DiscriminatorHashFor(property),
+        _ => "",
+    };
 
     private static DiscoveredTestDoubleInfo Failure(string fullyQualifiedName, string safeIdentifier, DiagnosticInfo diagnostic) =>
         new(fullyQualifiedName, safeIdentifier, EquatableArray<TestDoubleMemberInfo>.Empty, new[] { diagnostic }.ToEquatableArray());
@@ -347,8 +501,17 @@ internal static class TestDoubleAnalyzer
     // Every parameter must either have a default value, or be the trailing `params` parameter (an
     // empty array is a valid argument for it) - the same rule the C# compiler itself applies when
     // deciding whether a zero-argument call is applicable to a method. PR #83 review round 4.
+    // A generic method is never applicable to an implicit (no explicit type argument) zero-argument
+    // call - there's nothing for the compiler to infer its type parameter(s) from. ADR-0044
+    // Amendment 14, corrected by Amendment 16 to key off the *generated extension's* own genericity
+    // rather than the real member's - callers of this helper already only ever check it against a
+    // real interface member for the Configure()/Verify() bridge-collision check, which is unaffected
+    // by overloading, so the real member's own genericity is the right thing to check here.
     private static bool IsApplicableToZeroArguments(IMethodSymbol method)
     {
+        if (method.IsGenericMethod)
+            return false;
+
         for (var i = 0; i < method.Parameters.Length; i++)
         {
             var parameter = method.Parameters[i];

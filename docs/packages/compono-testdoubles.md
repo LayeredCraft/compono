@@ -92,6 +92,42 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   a real `dotnet publish -p:PublishAot=true` execution, not just static
   analysis.
 
+## Overloaded members
+
+An interface declaring overloaded members is no longer an all-or-nothing
+rejection (v2, [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)):
+each overload gets its **own** `Configure()`/`Verify()` surface, disambiguated
+by ordinary C# overload resolution — the generated configuration extension
+for an overloaded member takes the same real parameter types the interface
+overload declares (the values themselves are discarded, exactly like the
+non-overloaded, zero-argument case):
+
+```csharp
+public interface IResponseBuilder
+{
+    void Speak(string? text);
+    void Speak(params ISsml[] parts);
+}
+
+builder.Configure().Speak("hello");                 // configures the string? overload
+builder.Configure().Speak(new ISsml[] { ssml });     // configures the params overload
+```
+
+Two edge cases stay narrower than full per-overload support:
+
+- **A diamond collision** — the exact same signature independently declared
+  by two different base interfaces — can't be disambiguated at all (both
+  identities are structurally identical). That one identity gets no
+  `Configure()`/`Verify()` surface (an informational `CMP0022`), but every
+  other member of the interface, including any other overload sharing the
+  same name, is unaffected.
+- **A `ref`/`out`/`in` parameter** on one overload falls back to a
+  deterministic-default dispatch body with no configuration surface for
+  *that* overload (an informational `CMP0026`) — its sibling overloads keep
+  their own surface unaffected. A return type (or `out` parameter) with no
+  deterministic default still has no constructible body at any granularity
+  and rejects the whole interface, same as the non-overloaded case.
+
 ## Precedence with `Compono.NSubstitute`
 
 If both packages are installed and both providers registered, registration
@@ -104,12 +140,17 @@ cases the other.
 
 ## What it deliberately doesn't do
 
-No call recording, no verification (`Received()`-style assertions), no
-argument matchers, and no support for classes, delegates, indexers,
-events, generic methods, `ref`/`out`/`in` parameters, or static abstract
-members — see [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals for the full v1 scope boundary. An unsupported member shape is a
-compile-time diagnostic (`CMP0020`-`CMP0028`), not a silent gap.
+Still no call recording, no verification (`Received()`-style assertions),
+no argument matchers, and no support for classes, delegates, indexers,
+events, generic methods (tracked, not yet shipped —
+[PLAN-0044](../plans/0044-compono-testdoubles-v2.md) Phase 1), or static
+abstract members — see
+[ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
+Non-Goals for the full scope boundary. Overloaded members and a
+`ref`/`out`/`in` parameter's own overload are now supported per-overload
+(see above, [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
+An unsupported member shape is a compile-time diagnostic
+(`CMP0020`-`CMP0028`), not a silent gap.
 
 ## Next
 

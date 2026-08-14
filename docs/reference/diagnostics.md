@@ -254,20 +254,27 @@ an otherwise-supported method is `CMP0026`, not this code.)
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
-## CMP0022 — Test-double member name collision
+## CMP0022 — Diamond-colliding test-double member
 
-**Severity:** Informational — never fails the build.
+**Severity:** Informational — never fails the build. **Scope (v2,
+ADR-0044): this one identity only** — every other member of the interface,
+including any other overload sharing the same name, is unaffected.
 
-**Message:** `'{Interface}' declares an overloaded member '{Member}'`
+**Message:** `'{Interface}' declares member '{Member}{Signature}', whose
+signature is also independently declared by another base interface (a
+diamond collision) - Compono can't tell the two identities apart, so
+neither gets a Configure()/Verify() surface`
 
-**Cause:** Two or more eligible members share the same name across the
-interface's full base-interface closure — either a true C# overload, or
-two same-named members inherited from different base interfaces (even
-with identical signatures, no real overload required). The generated
-configuration extension is always zero-argument and can't disambiguate
-between them.
+**Cause:** The exact same full signature (parameter types, `ref`/`out`/`in`
+kind, and generic arity) is declared by two different base interfaces
+reached through the interface's transitive closure — a genuine C# overload
+(two members of the same name but a *different* signature) is unaffected
+by this diagnostic; it gets its own per-overload `Configure()`/`Verify()`
+surface instead (see `docs/packages/compono-testdoubles.md`'s "Overloaded
+members" section).
 
-**Fix:** None needed — falls back to the ordinary runtime-provider path.
+**Fix:** None needed — that one identity falls back to a deterministic
+default; the rest of the double is unaffected.
 
 ## CMP0023 — Test-double interface member collides with `Configure()`
 
@@ -293,11 +300,17 @@ compiler itself uses for overload resolution.
 **Message:** `'{Interface}' declares member '{Member}', whose generated
 configuration extension collides with 'object.{Member}()'`
 
-**Cause:** A member's generated, always-zero-argument configuration
-extension collides with an inherited `object` member — `ToString`,
-`GetHashCode`, or `GetType` (not `Equals`: `object.Equals(object)` takes
-one argument, so a zero-argument generated `Equals` extension never
-collides with it).
+**Cause:** A member's generated configuration extension collides with an
+inherited `object` member. For a non-overloaded member the extension is
+always zero-argument — `ToString`, `GetHashCode`, and `GetType` collide;
+`Equals` doesn't (`object.Equals(object)` takes one argument, so a
+zero-argument generated `Equals` extension never collides with it). For an
+**overloaded** member (v2, ADR-0044) the extension carries the real
+overload's own parameter list instead: a genuinely zero-parameter overload
+of `ToString`/`GetHashCode`/`GetType` still collides, and a non-generic,
+single-parameter overload of `Equals` collides too — unless that
+parameter's type is ref-like (e.g. `Span<T>`), which has no boxing or
+reference conversion to `object` at all.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -317,7 +330,20 @@ deterministic default.
 
 ## CMP0026 — Unsupported test-double parameter shape
 
-**Severity:** Informational — never fails the build.
+**Severity:** Informational — never fails the build. **Scope depends on
+the parameter kind (v2, ADR-0044):**
+
+- **A `ref`/`out`/`in` parameter** withholds only *that overload's*
+  `Configure()`/`Verify()` surface — it still dispatches, via a
+  deterministic-default body (every `out` parameter is assigned its own
+  deterministic default before every return path). Sibling overloads, and
+  the rest of the interface, are unaffected. If an `out` parameter's own
+  type has no deterministic default (e.g. a non-nullable reference type),
+  there's no constructible fallback body at all and the **whole interface**
+  falls back instead — same as any other no-deterministic-default case.
+- **A pointer or function-pointer parameter** still rejects the **whole
+  interface** — it requires the method to be declared `unsafe`, which this
+  feature never emits.
 
 **Message:** `'{Interface}' declares member '{Member}' with parameter
 '{Parameter}' {Shape}, which Compono cannot generate a test double for`
@@ -325,7 +351,8 @@ deterministic default.
 **Cause:** A method parameter is `ref`/`out`/`in`, a pointer, or a
 function pointer.
 
-**Fix:** None needed — falls back to the ordinary runtime-provider path.
+**Fix:** None needed — falls back to the ordinary runtime-provider path
+(for a `ref`/`out`/`in` parameter, only that one overload's own surface).
 
 ## CMP0027 — Set-only test-double property is unsupported
 

@@ -159,34 +159,40 @@ public sealed class TestDoubleVerifyTests
             "CMP0027",
             TestContext.Current.CancellationToken);
 
+    // ADR-0044: a real overload (two members sharing a name but not a full signature identity) now
+    // gets its own Configure()/Verify() surface per overload instead of rejecting the whole
+    // interface - each overload's configuration extension takes real, value-discarded parameters
+    // mirroring the real overload, so ordinary C# overload resolution picks the right one.
     [Fact]
-    public Task OverloadedMember_ReportsUnsupportedDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
-            new CodeGenerationOptions
-            {
-                SourceCode = """
-                    namespace TestNamespace;
+    public Task OverloadedMember_GeneratesDoubleWithPerOverloadConfiguration() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
 
-                    public interface IRepository
-                    {
-                        void Get(int id);
-                        void Get(string id);
-                    }
+                public interface IRepository
+                {
+                    void Get(int id);
+                    void Get(string id);
+                }
 
-                    public sealed class OrderService
-                    {
-                        public OrderService(IRepository repository) { }
-                    }
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
 
-                    public static class EntryPoint
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
                     {
-                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Get(1);
+                        repository.Configure().Get("value");
                     }
-                    """,
-                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
-            },
-            "CMP0022",
-            TestContext.Current.CancellationToken);
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 
     [Fact]
     public Task NonNullableReferenceReturn_ReportsUnsupportedReturnShapeDiagnostic() =>
@@ -216,9 +222,13 @@ public sealed class TestDoubleVerifyTests
             "CMP0025",
             TestContext.Current.CancellationToken);
 
+    // ADR-0044 Amendment 3, Finding 8: a diamond collision (the same signature independently
+    // declared by two different base interfaces) now withholds Configure()/Verify() surface for
+    // that one identity only - the double still generates (both explicit implementations get an
+    // inline deterministic default), not a whole-interface rejection like v1.
     [Fact]
-    public Task DiamondInheritedSameNameProperty_ReportsOverloadedDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
+    public Task DiamondInheritedSameNameProperty_ReportsScopedOverloadedDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
             new CodeGenerationOptions
             {
                 SourceCode = """
@@ -725,4 +735,290 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // The real IResponseBuilder-shaped motivating case from the lightsaber-skill dogfooding finding
+    // (docs/roadmap/post-mvp.md): a nullable-string overload alongside a params overload of a
+    // different element type, both distinct identities under ADR-0044's discriminator hash.
+    [Fact]
+    public Task ParamsAndNullableStringOverloads_GeneratesDoubleWithPerOverloadConfiguration() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface ISsml;
+
+                public interface IResponseBuilder
+                {
+                    void Speak(string? text);
+
+                    void Speak(params ISsml[] parts);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IResponseBuilder builder) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IResponseBuilder builder)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        builder.Configure().Speak("hello");
+                        builder.Configure().Speak();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // ADR-0044 Amendment 5: an overload whose own shape is unsupported (a ref/out/in parameter)
+    // falls back to a deterministic-default body without a Configure()/Verify() surface, but its
+    // sibling overload is unaffected - and reports an informational CMP0026, not a whole-interface
+    // rejection.
+    [Fact]
+    public Task OverloadWithOutParameterHavingDefault_FallsBackWithoutRejectingSiblingOverload() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        bool TryGet(int id, out string? value);
+
+                        bool TryGet(int id);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().TryGet().Returns(true);
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
+
+    // Amendment 8, Finding 20: an out parameter with no deterministic default (a non-nullable
+    // reference type) has no constructible fallback body at all - the whole interface still falls
+    // back to the ordinary runtime-provider path, unlike the case above.
+    [Fact]
+    public Task OutParameterWithNoDeterministicDefault_ReportsUnsupportedParameterShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        bool TryGet(int id, out string value);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
+
+    // Amendment 11: the object-collision check now compares the *generated discriminator
+    // extension's* own applicability, not the interface member's raw name - an overloaded
+    // ToString(int) sharing a name with another ToString overload keeps its surface, since its own
+    // extension carries a real, non-zero parameter list and never collides with the always-
+    // zero-argument object.ToString().
+    [Fact]
+    public Task OverloadedToStringSharingNameWithAnotherOverload_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    string? ToString(int format);
+
+                    string? ToString(string format);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().ToString(1).Returns("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Amendment 12: a params/all-optional overload is applicable to a zero-argument call, but the
+    // corrected check requires a genuinely zero-parameter extension for the ToString/GetHashCode/
+    // GetType collision - so this overload keeps its surface, unlike a truly zero-parameter
+    // ToString() would. (A genuinely zero-*argument* call site, e.g. `.ToString()`, still always
+    // binds to the inherited object.ToString() regardless - ordinary member lookup finds it
+    // applicable before extension-method fallback is even considered - so reaching this overload's
+    // own extension needs an explicit argument, same as any other non-zero-parameter overload.)
+    [Fact]
+    public Task OverloadedToStringWithParamsArray_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    string? ToString(params object[] values);
+
+                    string? ToString(int format);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().ToString(new object[] { "value" }).Returns("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Amendment 14: unlike ToString/GetHashCode/GetType (which need a genuinely zero-parameter
+    // extension to collide), object.Equals(object) is one-argument - an overloaded, non-generic
+    // Equals(int) whose own extension carries exactly one, non-ref-like-typed parameter collides
+    // with it, with no escape hatch (boxing/reference conversion to object always applies).
+    [Fact]
+    public Task OverloadedEqualsWithConvertibleParameter_ReportsObjectMemberCollisionDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        bool Equals(int format);
+
+                        bool Equals(long format);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0024",
+            TestContext.Current.CancellationToken);
+
+    // Amendment 16: a ref-like-typed (ref struct) parameter has no boxing or reference conversion
+    // to object at all, so object.Equals(object) is never actually applicable to it - the surface
+    // is kept, unlike the boxable-int case above.
+    [Fact]
+    public Task OverloadedEqualsWithRefLikeParameter_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Equals(System.Span<int> value);
+
+                    bool Equals(int a, int b);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Equals(default(System.Span<int>)).Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // ADR-0044 Amendment 10: nint/nuint canonicalize to System.IntPtr/System.UIntPtr for
+    // discriminator-hash purposes - the same type via a different keyword collapses to the same
+    // identity, so this is a genuine diamond collision, not two independent overloads.
+    [Fact]
+    public Task DiamondInheritedNintAndIntPtrOverload_ReportsScopedOverloadedDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        void Seek(nint offset);
+                    }
+
+                    public interface IBaseB
+                    {
+                        void Seek(System.IntPtr offset);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0022",
+            TestContext.Current.CancellationToken);
 }

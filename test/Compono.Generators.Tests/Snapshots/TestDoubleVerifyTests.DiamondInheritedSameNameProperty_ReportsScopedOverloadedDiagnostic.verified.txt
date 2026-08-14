@@ -1,7 +1,6 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (21,65)-(21,91),
       Message: 'TestNamespace.IRepository' declares member 'Value', whose signature is also independently declared by another base interface (a diamond collision) - Compono can't tell the two identities apart, so neither gets a Configure()/Verify() surface. Every other member of 'TestNamespace.IRepository', including any other overload of 'Value', is unaffected.,
       Severity: Info,
       WarningLevel: 1,

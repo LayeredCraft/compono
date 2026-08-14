@@ -154,9 +154,10 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor OverloadedTestDoubleMember = new(
         "CMP0022",
         "Overloaded test-double member",
-        "'{0}' declares an overloaded member '{1}' - a generated test double's configuration " +
-        "extension is always zero-argument, and can't disambiguate between overloads. This leaf " +
-        "falls back to the ordinary runtime-provider path.",
+        "'{0}' declares member '{1}{2}', whose signature is also independently declared by another " +
+        "base interface (a diamond collision) - Compono can't tell the two identities apart, so " +
+        "neither gets a Configure()/Verify() surface. Every other member of '{0}', including any " +
+        "other overload of '{1}', is unaffected.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);

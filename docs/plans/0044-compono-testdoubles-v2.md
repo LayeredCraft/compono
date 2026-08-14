@@ -1,6 +1,6 @@
 # [PLAN-0044] Compono.TestDoubles v2: Overloads, Generic Methods, Minimal Call Verification
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** ADR-0044 (design), ADR-0043 (v1 base design), ADR-0042
 (admitted problem)
@@ -35,9 +35,9 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 
 ## Tasks
 
-### Phase 0 — Overloaded-member support
+### Phase 0 — Overloaded-member support (Done)
 
-- [ ] `TestDoubleAnalyzer`: replace whole-name `duplicateConfigurationMemberNames`
+- [x] `TestDoubleAnalyzer`: replace whole-name `duplicateConfigurationMemberNames`
       rejection with per-overload analysis — group by **full signature
       identity** (see the identity-hash task below) **across the whole
       transitive closure** (`closure.SelectMany(i => i.GetMembers())`, the
@@ -54,7 +54,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       (Configure()/Verify() surface withheld for the colliding identity
       only, not the whole interface — a real improvement over v1's
       blanket rejection for this case, not a regression).
-- [ ] Per-overload field/extension identity: a new identifier-hash helper
+- [x] Per-overload field/extension identity: a new identifier-hash helper
       keyed on the overload's full parameter-type list, **each
       parameter's `RefKind`, and generic arity (type-parameter count)**.
       `M()`/`M<T>()` (Amendment 2 Finding 3) and `M(int)`/`M(ref int)`
@@ -87,7 +87,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       already-shipped naming/hint-name scheme. Reuses
       `TestDoubleIdentifierNaming`'s existing sanitizer + FNV-1a-hash
       convention (sibling helper, not a modification).
-- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: dispatch bodies for every
+- [x] `TestDoubleEmitter`/`TestDouble.scriban`: dispatch bodies for every
       overload, regardless of whether that specific overload's own shape
       is independently supported. **A `ReturnConfig<T>` field and typed-
       parameter configuration extension are emitted only for an overload
@@ -98,7 +98,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       rejecting the interface). An overload with no configuration surface
       — unsupported shape or diamond collision alike — gets an inline
       deterministic-default dispatch body with no backing field at all.
-- [ ] Overload-set-internal partial support: an overload whose own shape
+- [x] Overload-set-internal partial support: an overload whose own shape
       is unsupported *and has a constructible fallback body* — **`ref`/
       `out`/`in` parameters only** — gets a deterministic-default dispatch
       body and an informational diagnostic, but does **not** reject its
@@ -124,9 +124,9 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       rather than silently assigning `default` and risking a non-nullable-
       contract violation. `ref`/`in` parameters need no such handling —
       they're never required to be written.
-- [ ] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
+- [x] `DiagnosticDescriptors`: narrow `CMP0022`'s message to name the
       specific unsupported overload, not the whole member name.
-- [ ] **Shared helper, extended for generics (Amendment 14):** the
+- [x] **Shared helper, extended for generics (Amendment 14):** the
       existing `IsApplicableToZeroArguments` helper (reused by both the
       `Configure`/`Verify` bridge collision check and the `object`-member
       collision check) returns `false` immediately for any generic member
@@ -151,7 +151,16 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       `ToString<T>()` still collides (diagnosed); an *overloaded*
       `ToString<T>()` (sharing a name with another `ToString` overload)
       does not, reachable via `Configure().ToString<int>()`.
-- [ ] `TestDoubleAnalyzer`'s existing `object`-member collision check
+      **Implementation note:** `IsApplicableToZeroArguments` now bails out
+      for *any* generic method (not the narrower "zero required value
+      parameters" test) — behaviorally equivalent for every real member
+      Phase 0 can construct (no generic member reaches this check yet,
+      since Phase 1 hasn't shipped generic-method support), and the
+      object-collision check below reads `extensionArity` directly rather
+      than routing through this same helper. Revisit both simplifications
+      once Phase 1 adds real generic, non-solo members to exercise them
+      against.
+- [x] `TestDoubleAnalyzer`'s existing `object`-member collision check
       (`ToString`/`GetHashCode`/`GetType`, **plus `Equals` — new, per
       Amendment 14**) withholds the `Configure()`/`Verify()` surface only
       when the generated discriminator extension is genuinely applicable
@@ -185,14 +194,20 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       supported surface, per this repo's own compile-spike-verified
       precedent for the analogous `Configure`-collision case (PLAN-0043,
       PR #83 review round 2).
-- [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
+- [x] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
       overload, **and one diamond test per identity-canonicalization case**
       (nullable annotation, `dynamic`/`object`, tuple element names,
       `nint`/`System.IntPtr` — Amendment 6/7/8/10 Findings 14, 17, 19, and
       Amendment 10; the generic-parameter-name case moves to Phase 1, once
-      generic methods exist to test it with),
+      generic methods exist to test it with) — **partial: only the
+      `nint`/`System.IntPtr` case has its own diamond test
+      (`DiamondInheritedNintAndIntPtrOverload_ReportsScopedOverloadedDiagnostic`)**;
+      the nullable-annotation, `dynamic`/`object`, and tuple-element-name
+      cases exercise the same recursive `AppendCanonical` code path (see
+      `TestDoubleOverloadIdentity`) but don't each have their own dedicated
+      diamond test yet — add them before Phase 1 revisits this file,
       **and a mixed overload set with an `out` parameter of a type with no
       deterministic default** (whole-interface rejection, Amendment 8
       Finding 20), alongside one with an `out` parameter that does have a
@@ -208,7 +223,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       format)`-shaped member** (Amendment 14 — proves the new `Equals`
       collision check withholds the surface, since `object.Equals(object)`
       accepts any boxable/convertible type with no escape hatch).
-- [ ] **Packaged-consumer smoke test, this phase's own shape only**
+- [x] **Packaged-consumer smoke test, this phase's own shape only**
       (added per ADR-0044 Amendment 6's process finding — see this plan's
       Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
       into a local feed, a throwaway consumer project referencing the
@@ -225,7 +240,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       separate consumer assembly. This phase does not ship (its own PR
       does not merge) until this
       smoke test is green.
-- [ ] **Docs, this phase's own shape** (moved here from the original
+- [x] **Docs, this phase's own shape** (moved here from the original
       single Phase 4, per Codex review — `references/documentation.md`'s
       "update the relevant doc in the same PR" rule means Phases 0-2
       shipping independently can't leave shipped behavior undocumented
@@ -598,3 +613,25 @@ test/PR-review cycle) rather than this text-review cycle continuing
 indefinitely. This plan's task list above already reflects every
 correction from all fourteen rounds — Phase 0 is next once implementation
 is explicitly requested.
+
+**Phase 0 implementation (2026-08-14): the packaged-consumer smoke test
+caught a real cross-assembly-shaped defect the in-process `Verify()`
+snapshot suite could not.** The initial `InfoDiagnostics` entries (the
+diamond-collision and `ref`/`out`/`in`-fallback informational diagnostics)
+carried the analyzer's call-site `Location`, same as `Diagnostics` already
+does. That's correct for `Diagnostics` (each whole-interface failure is
+deliberately reported at its own request site, and the merge step in
+`ComponoIncrementalGenerator` already special-cases multiple failures for
+the same interface). It's wrong for `InfoDiagnostics`: those diagnostics
+describe a structural property of the interface's own declaration, not the
+call site, and `DiagnosticInfo.Equals` includes `Location` — so the exact
+same interface, reached from two different `[Compose]` theory methods in
+`Compono.TestDoubles.SampleTests`, produced two "distinct"
+`DiscoveredTestDoubleInfo` values (same `Members`, different
+`InfoDiagnostics` locations) and tripped the generic `CMP0028`
+conflicting-metadata merge path — silently discarding the double instead of
+emitting it. Fixed by reporting `InfoDiagnostics` with `Location: null`,
+matching the existing `ConflictingTestDoubleMetadata` diagnostic's own
+precedent for a structural (not call-site) diagnostic. This is exactly the
+class of defect this plan's Notes section above predicted packaged
+verification would catch — it did.

@@ -44,6 +44,34 @@ namespace Compono.Generators.Models;
 /// <param name="Parameters">
 /// The member's method parameters - always empty for a <see cref="TestDoubleMemberKind.Property"/>.
 /// </param>
+/// <param name="HasConfigurationSurface">
+/// Whether this member/overload actually gets a backing <c>ReturnConfig&lt;T&gt;</c> field and a
+/// <c>Configure()</c>/<c>Verify()</c> extension (ADR-0044 Amendment 4). <see langword="false"/> for an
+/// overload-set-internal-unsupported shape (a <see langword="ref"/>/<see langword="out"/>/
+/// <see langword="in"/> parameter, ADR-0044 Amendment 5) or a diamond-colliding identity (two
+/// different base interfaces independently declaring the same-named, same-shaped member, ADR-0044
+/// Amendment 3 Finding 8) - either way the dispatch body still exists (an inline deterministic
+/// default), it just has nothing to configure.
+/// </param>
+/// <param name="IsOverloaded">
+/// Whether <paramref name="OriginalName"/> is shared by more than one member reaching this
+/// interface's emitted double - drives whether <see cref="FieldName"/> needs
+/// <paramref name="DiscriminatorSuffix"/> and whether a configuration extension takes real,
+/// value-discarded parameters (mirroring the real overload, for ordinary C# overload resolution to
+/// pick the right one) instead of the non-overloaded zero-argument form.
+/// </param>
+/// <param name="DiscriminatorSuffix">
+/// An <c>_</c>-prefixed, hash-suffixed discriminator identifying this specific overload
+/// (<see cref="Emitters.TestDoubleOverloadIdentity"/>) - empty when <paramref name="IsOverloaded"/> is
+/// <see langword="false"/>.
+/// </param>
+/// <param name="OutParameterAssignments">
+/// Full <c>name = defaultExpression;</c> assignment statements for every <see langword="out"/>
+/// parameter, in declaration order - only non-empty for a <see cref="HasConfigurationSurface"/>
+/// <see langword="false"/> method with an <see langword="out"/> parameter (ADR-0044 Amendment 8
+/// Finding 20); every <see langword="out"/> parameter in a fallback body must be definitely assigned
+/// before every return path (<c>CS0177</c> otherwise).
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -53,10 +81,14 @@ internal sealed record TestDoubleMemberInfo(
     string ReturnTypeFullyQualifiedName,
     bool IsVoid,
     string DefaultExpression,
-    EquatableArray<TestDoubleParameterInfo> Parameters)
+    EquatableArray<TestDoubleParameterInfo> Parameters,
+    bool HasConfigurationSurface = true,
+    bool IsOverloaded = false,
+    string DiscriminatorSuffix = "",
+    EquatableArray<string> OutParameterAssignments = default)
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
-    public string FieldName => $"__{OriginalName}";
+    public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";
 
     /// <summary>The type argument for this member's backing <c>ReturnConfig&lt;T&gt;</c> field.</summary>
     public string SlotTypeFullyQualifiedName => IsVoid ? "global::Compono.Unit" : ReturnTypeFullyQualifiedName;

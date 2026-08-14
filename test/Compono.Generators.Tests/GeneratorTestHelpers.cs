@@ -115,6 +115,39 @@ internal static partial class GeneratorTestHelpers
         return VerifyDriver(driver);
     }
 
+    // ADR-0044: a diamond-colliding identity or an overload-set-internal unsupported ref/out/in
+    // shape reports a non-blocking, Info-severity diagnostic *and* still emits a working double -
+    // unlike VerifyFailure (which asserts the leaf produces zero members), this asserts the
+    // expected diagnostic is present *and* the generated code still compiles, matching Verify's own
+    // "should compile without errors" check.
+    internal static Task VerifyWithInfoDiagnostic(
+        CodeGenerationOptions options, string expectedDiagnosticId, CancellationToken cancellationToken = default)
+    {
+        var (driver, originalCompilation) = GenerateFromSource(options, cancellationToken);
+        var result = driver.GetRunResult();
+
+        result.Diagnostics.Should().Contain(
+            d => d.Id == expectedDiagnosticId,
+            $"expected diagnostic {expectedDiagnosticId} to be present, but found:\n" +
+            string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+
+        var parseOptions = originalCompilation.SyntaxTrees.First().Options;
+        var reparsedTrees = result.GeneratedTrees
+            .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)parseOptions, tree.FilePath))
+            .ToArray();
+
+        var outputCompilation = originalCompilation.AddSyntaxTrees(reparsedTrees);
+        var errors = outputCompilation.GetDiagnostics(cancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        errors.Should().BeEmpty(
+            "generated code should compile without errors, but found:\n" +
+            string.Join("\n---\n", errors.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+
+        return VerifyDriver(driver);
+    }
+
     /// <summary>
     /// Compiles <paramref name="options"/>' source plus the real generated output into an in-memory
     /// assembly, loads it, and invokes <paramref name="methodName"/> on the static type named

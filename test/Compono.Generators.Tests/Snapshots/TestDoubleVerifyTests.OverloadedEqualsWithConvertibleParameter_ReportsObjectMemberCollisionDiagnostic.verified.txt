@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (16,65)-(16,91),
+      Message: 'TestNamespace.IRepository' declares member 'Equals', whose generated, always-zero-argument configuration extension collides with 'object.Equals()'. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0024,
+        Title: Test-double member collides with an inherited object member,
+        MessageFormat: '{0}' declares member '{1}', whose generated, always-zero-argument configuration extension collides with 'object.{1}()'. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

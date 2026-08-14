@@ -317,6 +317,12 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (testDouble.Diagnostics.Count > 0)
                 return;
 
+            // Non-blocking, per-overload diagnostics (a diamond-colliding identity or an
+            // overload-set-internal unsupported ref/out/in shape, ADR-0044 Amendment 3/5) - the
+            // double still gets emitted, just without that one member's Configure()/Verify() surface.
+            foreach (var infoDiagnostic in testDouble.InfoDiagnostics)
+                infoDiagnostic.Report(productionContext);
+
             TestDoubleEmitter.Generate(productionContext, testDouble);
         });
 
