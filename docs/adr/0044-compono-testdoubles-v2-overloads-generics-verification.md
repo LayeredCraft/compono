@@ -1451,6 +1451,27 @@ diagnostic task and constraint-propagation task both drop the withdrawn
 constrained-nullable exception, reverting to "diagnose and exclude any
 `T?`-using type parameter, constrained or not."
 
+## Amendment 10 (2026-08-14): native-integer aliases normalized, confirming Amendment 8's identity principle rather than reopening it
+
+A ninth Codex review pass found `nint`/`nuint` (C# 9+ native-sized integer
+types, compiler sugar for `System.IntPtr`/`System.UIntPtr` at the CLR
+level — the same "source-level spelling, same real signature" shape as
+every case Amendment 8 already generalized around) missing from the
+discriminator hash's canonicalization transform. All prior text is left
+exactly as written, per the immutability rule already followed nine times
+above.
+
+This is not a new gap in the *principle* Amendment 8 established — it's
+exactly the kind of case that Amendment already said not to assume
+couldn't exist ("test for each found so far, but don't assume a fifth
+can't exist"). **Corrected:** the recursive canonicalization transform
+gains a fifth concrete step — normalize `nint`/`nuint` to
+`System.IntPtr`/`System.UIntPtr` — alongside nullable-annotation
+stripping, `dynamic`→`object`, tuple-name stripping, and generic-parameter
+ordinal canonicalization. PLAN-0044 is updated in the same pass: Phase
+0's identity-hash task gains this fifth step and its own diamond test
+(`IA.M(nint)`/`IB.M(System.IntPtr)`).
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1

@@ -70,14 +70,17 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       replace `dynamic` with `object`, (c) replace a named tuple with its
       underlying `ValueTuple<...>` form, (d) replace a reference to the
       member's own type parameter with its ordinal-position token
-      (Amendment 5 Finding 11). This covers `IA.M<T>(T)`/`IB.M<U>(U)`,
-      `IA.M(string)`/`IB.M(string?)`, `IA.M(dynamic)`/`IB.M(object)`,
-      `IA.M((int X, int Y))`/`IB.M((int A, int B))`, and nested cases
-      (`IEnumerable<(int X, int Y)>` vs `IEnumerable<(int A, int B)>`)
-      uniformly. **Treat this as an open principle** ("exclude anything
-      the C# compiler doesn't treat as signature-affecting"), not a closed
-      enumeration — add a diamond-collision test for each case above, and
-      don't assume a fifth can't surface during implementation. Include
+      (Amendment 5 Finding 11), (e) normalize `nint`/`nuint` to
+      `System.IntPtr`/`System.UIntPtr` (Amendment 10). This covers
+      `IA.M<T>(T)`/`IB.M<U>(U)`, `IA.M(string)`/`IB.M(string?)`,
+      `IA.M(dynamic)`/`IB.M(object)`, `IA.M((int X, int Y))`/
+      `IB.M((int A, int B))`, `IA.M(nint)`/`IB.M(System.IntPtr)`, and
+      nested cases (`IEnumerable<(int X, int Y)>` vs
+      `IEnumerable<(int A, int B)>`) uniformly. **Treat this as an open
+      principle** ("exclude anything the C# compiler doesn't treat as
+      signature-affecting"), not a closed enumeration — add a
+      diamond-collision test for each case above, and don't assume a
+      sixth can't surface during implementation. Include
       ref-kind and arity in the hash from this phase on, even though every
       Phase-0-supported overload has arity zero and no `ref`/`out`/`in`
       support until later, so later phases never have to change an
@@ -127,9 +130,10 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
       overload, **and one diamond test per identity-canonicalization case**
-      (nullable annotation, `dynamic`/`object`, tuple element names —
-      Amendment 6/7/8 Findings 14, 17, and 19; the generic-parameter-name
-      case moves to Phase 1, once generic methods exist to test it with),
+      (nullable annotation, `dynamic`/`object`, tuple element names,
+      `nint`/`System.IntPtr` — Amendment 6/7/8/10 Findings 14, 17, 19, and
+      Amendment 10; the generic-parameter-name case moves to Phase 1, once
+      generic methods exist to test it with),
       **and a mixed overload set with an `out` parameter of a type with no
       deterministic default** (whole-interface rejection, Amendment 8
       Finding 20), alongside one with an `out` parameter that does have a
