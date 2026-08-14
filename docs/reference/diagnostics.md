@@ -1,11 +1,16 @@
 # Diagnostics
 
 Every `CMP` diagnostic code Compono's source generator can report, one
-entry each. All are compile-time errors raised by `Compono.Generators`
-during a normal build — they appear in your IDE's error list and fail
-`dotnet build`, the same as any other compiler error. For a *runtime*
-composition failure (a `CompositionException` thrown from
-`composer.Create<T>()`), see
+entry each. `CMP0001`–`CMP0013` are compile-time **errors** raised by
+`Compono.Generators` during a normal build — they appear in your IDE's
+error list and fail `dotnet build`, the same as any other compiler error.
+`CMP0020`–`CMP0028` are a separate, **informational** family — they only
+apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
+is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md)),
+never fail the build, and report that one interface leaf's generated
+double couldn't be emitted — the leaf falls back to the ordinary runtime-
+provider path instead. For a *runtime* composition failure (a
+`CompositionException` thrown from `composer.Create<T>()`), see
 [Troubleshooting: Common Errors](../troubleshooting/common-errors.md#runtime-composition-failures)
 instead — runtime failures have no diagnostic code, only a path-annotated
 message.
@@ -15,7 +20,9 @@ governed by [ADR-0002](../adr/0002-constructor-selection-algorithm.md);
 the collection/discovery-conflict diagnostics (`CMP0010`–`CMP0012`) by the
 generator's own discovery-merge logic; `CMP0013` by
 [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)'s row-binding
-dispatch-eligibility guard.
+dispatch-eligibility guard; the generated-test-double diagnostics
+(`CMP0020`–`CMP0028`) by
+[ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)'s design.
 
 ## CMP0001 — Ambiguous construction path
 
@@ -215,6 +222,133 @@ parameter.
 
 **Fix:** Use a parameter of an accessible (`public`/`internal`) type, or
 widen the parameter type's own accessibility.
+
+## CMP0020 — Test-double interface is not accessible
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' cannot have a generated test double`
+
+**Cause:** The interface (or a `private`/`protected` nested interface
+reached through it) isn't accessible to a top-level generated type — the
+double is always emitted outside any containing type, so it can never
+implement a private/protected interface, even from a call site that could
+otherwise see it.
+
+**Fix:** None needed to keep the interface working — it falls back to the
+ordinary runtime-provider path (`UseNSubstitute()`, `Register<T>()`,
+`.For<T>()`). Widen the interface's accessibility only if you specifically
+want a generated double for it.
+
+## CMP0021 — Unsupported test-double member kind
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares member '{Member}' {Kind}, which
+Compono cannot generate a test double for`
+
+**Cause:** The interface declares an indexer, event, generic method,
+`ref`/`out`/`in` parameter, static abstract member, or another shape
+outside v1's supported set.
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0022 — Test-double member name collision
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares an overloaded member '{Member}'`
+
+**Cause:** Two or more eligible members share the same name across the
+interface's full base-interface closure — either a true C# overload, or
+two same-named members inherited from different base interfaces (even
+with identical signatures, no real overload required). The generated
+configuration extension is always zero-argument and can't disambiguate
+between them.
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0023 — Test-double interface member collides with `Configure()`
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares its own member named 'Configure'`
+
+**Cause:** The interface declares its own `Configure` member with a
+signature that would shadow the generated `Configure()` bridge (a
+zero-argument method, or any non-method member of that name — ordinary
+member lookup always wins over an extension method).
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0024 — Test-double member collides with an inherited `object` member
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares member '{Member}', whose generated
+configuration extension collides with 'object.{Member}()'`
+
+**Cause:** A member's generated, always-zero-argument configuration
+extension collides with an inherited `object` member — `ToString`,
+`GetHashCode`, or `GetType` (not `Equals`: `object.Equals(object)` takes
+one argument, so a zero-argument generated `Equals` extension never
+collides with it).
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0025 — Unsupported test-double return shape
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares member '{Member}' returning {Shape},
+which Compono cannot generate a test double for`
+
+**Cause:** The member's return type is ref-like (e.g. `Span<byte>`),
+by-ref-returning, a pointer or function pointer, or a non-nullable
+reference type (or a `Task<T>`/`ValueTask<T>` wrapping one) with no
+deterministic default.
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0026 — Unsupported test-double parameter shape
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares member '{Member}' with parameter
+'{Parameter}' {Shape}, which Compono cannot generate a test double for`
+
+**Cause:** A method parameter is `ref`/`out`/`in`, a pointer, or a
+function pointer.
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0027 — Set-only test-double property is unsupported
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' declares set-only property '{Property}'`
+
+**Cause:** The property has a setter but no getter. With no call recording
+or verification in v1, nothing could ever observe a value written through
+it, so it's diagnosed rather than emitted as a no-op.
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0028 — Conflicting test-double metadata across discoveries
+
+**Severity:** Informational — never fails the build.
+
+**Message:** `'{Interface}' was discovered multiple times with different
+generic-argument nullability`
+
+**Cause:** The same interface was reached from two call sites with
+different generic-argument nullability (e.g. a member typed
+`IProvider<string>` and one typed `IProvider<string?>`). Compono generates
+exactly one test double per interface and can't guarantee it correctly
+reflects every discovery.
+
+**Fix:** Request the interface with consistent nullability everywhere it's
+composed, or disable `ComponoGeneratedTestDoubles` for this leaf.
 
 ## Next
 
