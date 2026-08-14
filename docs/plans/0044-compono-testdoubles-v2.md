@@ -71,14 +71,22 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       same real signature (nullable annotation isn't part of a C# method's
       true identity), and the emitted-code-facing
       `NullableAwareFullyQualifiedFormat` (which deliberately preserves
-      `?`) must not be reused for the hash input. Include ref-kind, arity,
-      canonical generic-parameter identity, and nullable-stripped parameter
-      types in the hash from this phase on, even though every Phase-0-supported
-      overload has arity zero and no `ref`/`out`/`in` support until later,
-      so later phases never have to change an already-shipped
-      naming/hint-name scheme. Reuses `TestDoubleIdentifierNaming`'s
-      existing sanitizer + FNV-1a-hash convention (sibling helper, not a
-      modification).
+      `?`) must not be reused for the hash input. **Normalize `dynamic` to
+      `object` before hashing too** (Amendment 7 Finding 17) — `dynamic`
+      erases to `object` at the CLR level, the same "compiler metadata,
+      not real signature" shape as nullable annotation, so
+      `IA.M(dynamic)`/`IB.M(object)` must hash identically. Treat this as
+      one canonicalization *principle* (exclude anything the C# compiler
+      itself doesn't treat as signature-affecting), not a closed list of
+      exactly four cases — test for each found so far, but don't assume a
+      fifth can't exist. Include ref-kind, arity, canonical generic-
+      parameter identity, nullable-stripped, and `dynamic`-normalized
+      parameter types in the hash from this phase on, even though every
+      Phase-0-supported overload has arity zero and no `ref`/`out`/`in`
+      support until later, so later phases never have to change an
+      already-shipped naming/hint-name scheme. Reuses
+      `TestDoubleIdentifierNaming`'s existing sanitizer + FNV-1a-hash
+      convention (sibling helper, not a modification).
 - [ ] `TestDoubleEmitter`/`TestDouble.scriban`: dispatch bodies for every
       overload, regardless of whether that specific overload's own shape
       is independently supported. **A `ReturnConfig<T>` field and typed-
@@ -112,7 +120,10 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] `Verify()`-tests (generator-output snapshots): `IResponseBuilder`-shaped
       interface (`Speak(string?)`/`Speak(params ISsml[])`), a mixed
       supported/unsupported overload set, a diamond-shaped inherited
-      overload.
+      overload, **and one diamond test per identity-canonicalization case**
+      (nullable annotation, `dynamic`/`object` — Amendment 6/7 Findings 14
+      and 17; the generic-parameter-name case moves to Phase 1, once
+      generic methods exist to test it with).
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per ADR-0044 Amendment 6's process finding — see this plan's
       Notes section): `dotnet pack` core `Compono`/`Compono.Generators`
@@ -179,8 +190,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] `Verify()`-tests: an `ILogger<T>`-shaped interface (`Log<TState>`,
       `BeginScope<TState>` — the actual motivating shape), a
       multi-type-parameter generic method, a still-unsupported
-      generic-return-type method (diagnosed, not emitted), **and a
-      dedicated overloaded-generic-method test** (`void Process<T>(T value)`
+      generic-return-type method (diagnosed, not emitted), **the
+      inherited-generic-parameter-name diamond case** (`IA.M<T>(T)` /
+      `IB.M<U>(U)`, moved from Phase 0 now that generic methods exist to
+      test it with — Amendment 5 Finding 11), **and a dedicated
+      overloaded-generic-method test** (`void Process<T>(T value)`
       / `void Process<T>(IEnumerable<T> values)` on the same interface) —
       required per ADR-0044 Amendment 1 so Phase 0's overload support and
       this phase's generic support don't each pass independently while
@@ -296,10 +310,13 @@ still-unsupported shapes, class/protected/static-abstract-member support.
 - [ ] `docs/reference/diagnostics.md` — new/narrowed diagnostic entries
       (overload-scoped `CMP0022`, the new generic-return-type-dependent
       code).
-- [ ] `docs/roadmap/post-mvp.md` — move the `lightsaber-skill` finding from
-      "outstanding" to "shipped," matching the existing `ComposeAttribute`
-      graduation entry's shape, once Phase 5 confirms real improvement.
-- [ ] `docs/plans/README.md` status flip to `Done`.
+
+This phase completes and ships on its own — the roadmap-graduation and
+plan-status tasks originally listed here move to Phase 5 below, where
+they're actually completable (corrected per Codex review, Finding 18: as
+written, this phase couldn't finish in its own PR since one of its own
+tasks explicitly waited on Phase 5, and flipping the whole plan to `Done`
+here would have happened before the last phase even ran).
 
 ### Phase 5 — Re-dogfood against `lightsaber-skill`
 
@@ -311,14 +328,21 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       `Received(1)` sites now migrate to `Verify().Send().Once()`; whether
       any test still needs both `Compono.NSubstitute` and
       `Compono.TestDoubles` side by side.
-- [ ] Record the result in `docs/roadmap/post-mvp.md`'s finding entry
-      (graduated per Phase 4's task) — success criterion is **material
-      improvement** ("small minority, no practical dependency reduction" →
-      "viable for a meaningful portion of the suite"), not zero remaining
-      NSubstitute usage. Any residual gap goes back through this repo's
-      normal evidence-based roadmap process (a new `docs/research/*.md`
-      finding or a fresh roadmap-candidate ADR), not folded into this plan
-      after the fact.
+- [ ] Record the result in `docs/roadmap/post-mvp.md`'s finding entry.
+      **`docs/roadmap/post-mvp.md` — move the `lightsaber-skill` finding
+      from "outstanding" to "shipped,"** matching the existing
+      `ComposeAttribute` graduation entry's shape (moved here from Phase 4
+      per Codex review Finding 18 — it can't graduate until this phase's
+      own analysis exists to graduate it with). Success criterion is
+      **material improvement** ("small minority, no practical dependency
+      reduction" → "viable for a meaningful portion of the suite"), not
+      zero remaining NSubstitute usage. Any residual gap goes back through
+      this repo's normal evidence-based roadmap process (a new
+      `docs/research/*.md` finding or a fresh roadmap-candidate ADR), not
+      folded into this plan after the fact.
+- [ ] **`docs/plans/README.md` status flip to `Done`** (moved here from
+      Phase 4 per Codex review Finding 18 — the plan as a whole isn't done
+      until its last phase is).
 
 ## Critical Files
 

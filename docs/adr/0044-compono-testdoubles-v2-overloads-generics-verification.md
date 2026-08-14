@@ -1220,6 +1220,47 @@ unconstrained-`T?`-parameter exclusion as a new diagnosed shape, distinct
 from (and narrower than) the return-type-dependency exclusion already
 established.
 
+## Amendment 7 (2026-08-14): `dynamic`/`object` excluded from overload identity
+
+A sixth Codex review pass caught one more real defect in this ADR's
+identity-canonicalization reasoning (a design-content fix, recorded here)
+and one plan-only sequencing bug (fixed in PLAN-0044 directly, per the
+same content-separation judgment as Amendment 6's process finding — no
+ADR content changes as a result, not repeated here). All prior text is
+left exactly as written, per the immutability rule already followed six
+times above.
+
+**Finding 17 — `dynamic` and `object` are the same signature at the CLR
+level, the same excluded-decoration family as Amendment 6 Finding 14's
+nullable-annotation fix.** `dynamic` has no runtime representation of its
+own — it erases to `System.Object` decorated with a compile-time-only
+`DynamicAttribute`, exactly the same "compiler metadata, not real
+signature" shape nullable annotations have. `IA.M(dynamic)` and
+`IB.M(object)` can coexist across a diamond of two base interfaces for
+the same reason `IA.M(string)`/`IB.M(string?)` can — but the discriminator
+hash, as corrected through Amendment 6, still serializes `dynamic` and
+`object` as different displayed types, missing the collision and risking
+the same `CS0111` duplicate-extension failure.
+
+**Corrected:** the discriminator hash's canonicalization step (already
+stripping nullable annotations and generic-parameter names, per Amendment
+5/6) also normalizes `dynamic` to `object` before hashing — a fourth, and
+likely final, instance of the same underlying principle: any type
+decoration that C#'s own compiler treats as non-signature-affecting must
+be excluded from discriminator identity, not just the two instances
+found so far. Implementation should treat this list (nullable annotation,
+generic-parameter naming, `dynamic`/`object`) as illustrative of the
+*principle*, not necessarily exhaustive — the identity scheme's job is
+"match what the C# compiler considers the same signature," and Phase 0's
+own test suite should include a case for each decoration found here
+rather than assuming no fourth one exists.
+
+PLAN-0044 is updated in the same pass as this Amendment: Phase 0's
+identity-hash task gains the `dynamic`→`object` normalization step, and a
+`Verify()`-test covering the inherited-diamond case (`IA.M(dynamic)`/
+`IB.M(object)`) alongside the existing nullable and generic-parameter
+diamond cases.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
