@@ -96,11 +96,13 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 
 An interface declaring overloaded members is no longer an all-or-nothing
 rejection (v2, [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)):
-each overload gets its **own** `Configure()`/`Verify()` surface, disambiguated
-by ordinary C# overload resolution — the generated configuration extension
+each overload gets its **own** `Configure()` surface, disambiguated by
+ordinary C# overload resolution — the generated configuration extension
 for an overloaded member takes the same real parameter types the interface
 overload declares (the values themselves are discarded, exactly like the
-non-overloaded, zero-argument case):
+non-overloaded, zero-argument case). (`Verify()` call-recording ships
+separately — [PLAN-0044](../plans/0044-compono-testdoubles-v2.md) Phase 2,
+not yet available.)
 
 ```csharp
 public interface IResponseBuilder
@@ -118,9 +120,9 @@ Two edge cases stay narrower than full per-overload support:
 - **A diamond collision** — the exact same signature independently declared
   by two different base interfaces — can't be disambiguated at all (both
   identities are structurally identical). That one identity gets no
-  `Configure()`/`Verify()` surface (an informational `CMP0022`), but every
-  other member of the interface, including any other overload sharing the
-  same name, is unaffected.
+  `Configure()` surface (an informational `CMP0022`), but every other
+  member of the interface, including any other overload sharing the same
+  name, is unaffected.
 - **A `ref`/`out`/`in` parameter** on one overload falls back to a
   deterministic-default dispatch body with no configuration surface for
   *that* overload (an informational `CMP0026`) — its sibling overloads keep

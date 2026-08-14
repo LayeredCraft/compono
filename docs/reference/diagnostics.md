@@ -263,15 +263,16 @@ including any other overload sharing the same name, is unaffected.
 **Message:** `'{Interface}' declares member '{Member}{Signature}', whose
 signature is also independently declared by another base interface (a
 diamond collision) - Compono can't tell the two identities apart, so
-neither gets a Configure()/Verify() surface`
+neither gets a Configure() surface`
 
 **Cause:** The exact same full signature (parameter types, `ref`/`out`/`in`
 kind, and generic arity) is declared by two different base interfaces
 reached through the interface's transitive closure — a genuine C# overload
 (two members of the same name but a *different* signature) is unaffected
-by this diagnostic; it gets its own per-overload `Configure()`/`Verify()`
+by this diagnostic; it gets its own per-overload `Configure()`
 surface instead (see `docs/packages/compono-testdoubles.md`'s "Overloaded
-members" section).
+members" section). (`Verify()` call recording isn't shipped yet —
+PLAN-0044 Phase 2.)
 
 **Fix:** None needed — that one identity falls back to a deterministic
 default; the rest of the double is unaffected.
@@ -334,8 +335,8 @@ deterministic default.
 the parameter kind (v2, ADR-0044):**
 
 - **A `ref`/`out`/`in` parameter on a member with a same-named sibling of
-  any shape** withholds only *that overload's* `Configure()`/`Verify()`
-  surface — it still dispatches, via a deterministic-default body (every
+  any shape** withholds only *that overload's* `Configure()` surface — it
+  still dispatches, via a deterministic-default body (every
   `out` parameter is assigned its own deterministic default before every
   return path). Sibling overloads, and the rest of the interface, are
   unaffected. If an `out` parameter's own type has no deterministic default

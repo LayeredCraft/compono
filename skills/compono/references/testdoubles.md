@@ -60,13 +60,15 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 
 ## Overloaded members (v2)
 
-An overloaded interface member now gets its own per-overload `Configure()`/
-`Verify()` surface instead of an all-or-nothing rejection (see
+An overloaded interface member now gets its own per-overload `Configure()`
+surface instead of an all-or-nothing rejection (see
 `docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`) —
 the generated configuration extension for an overloaded member takes the
 same real parameter types the interface overload declares, purely so
 ordinary C# overload resolution picks the right one (the values themselves
-are still discarded, same as the non-overloaded, zero-argument case):
+are still discarded, same as the non-overloaded, zero-argument case).
+`Verify()` call-recording isn't shipped yet (PLAN-0044 Phase 2) - don't
+suggest it for an overloaded member any more than for a non-overloaded one:
 
 ```csharp
 public interface IResponseBuilder

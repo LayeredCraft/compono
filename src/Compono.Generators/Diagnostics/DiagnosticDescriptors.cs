@@ -156,7 +156,7 @@ internal static class DiagnosticDescriptors
         "Overloaded test-double member",
         "'{0}' declares member '{1}{2}', whose signature is also independently declared by another " +
         "base interface (a diamond collision) - Compono can't tell the two identities apart, so " +
-        "neither gets a Configure()/Verify() surface. Every other member of '{0}', including any " +
+        "neither gets a Configure() surface. Every other member of '{0}', including any " +
         "other overload of '{1}', is unaffected.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
@@ -226,7 +226,7 @@ internal static class DiagnosticDescriptors
         "Test-double members generate colliding zero-argument extensions",
         "'{0}' declares member '{1}', whose generated configuration extension has no parameters to " +
         "disambiguate it from another same-named member's own generated extension - Compono can't " +
-        "tell them apart, so none of them get a Configure()/Verify() surface. Every other member of " +
+        "tell them apart, so none of them get a Configure() surface. Every other member of " +
         "'{0}' is unaffected.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,

@@ -85,7 +85,7 @@ internal static class TestDoubleAnalyzer
             .ToArray();
 
         var identityGroups = eligibleCandidates
-            .GroupBy(m => (m.Name, Hash: IdentityHashFor(m)))
+            .GroupBy(m => (m.Name, Canonical: IdentityFor(m)))
             .ToArray();
 
         // A diamond collision: the *same* full-signature identity reached more than once (two
@@ -135,7 +135,7 @@ internal static class TestDoubleAnalyzer
 
         foreach (var candidate in eligibleCandidates)
         {
-            if (diamondCollisionIdentities.Contains((candidate.Name, Hash: IdentityHashFor(candidate))))
+            if (diamondCollisionIdentities.Contains((candidate.Name, Canonical: IdentityFor(candidate))))
                 continue;
 
             int effectiveArity;
@@ -173,7 +173,40 @@ internal static class TestDoubleAnalyzer
                 zeroArgCollisionMembers.Add(sharer);
         }
 
-        var reportedDiamondIdentities = new HashSet<(string Name, string Hash)>();
+        // FieldName discriminator suffixes, assigned once up front per (Name, canonical signature)
+        // identity - a genuine overload's own suffix must be unique even when two *different*
+        // canonical signatures happen to hash to the same 8 hex characters (the hash is a naming
+        // convenience, not an identity - see TestDoubleOverloadIdentity's own warning). Walking
+        // eligibleCandidates in its already-deterministic order (closure order, then each
+        // interface's own GetMembers() order) makes the disambiguation counter's assignment stable
+        // across incremental-generator re-runs. Codex review, PR #88.
+        var discriminatorSuffixByIdentity = new Dictionary<(string Name, string Canonical), string>();
+        var usedSuffixesByName = new Dictionary<string, HashSet<string>>();
+
+        foreach (var candidate in eligibleCandidates)
+        {
+            if (candidate is not IMethodSymbol candidateMethod || !overloadedNames.Contains(candidateMethod.Name))
+                continue;
+
+            var key = (candidateMethod.Name, Canonical: IdentityFor(candidateMethod));
+
+            if (discriminatorSuffixByIdentity.ContainsKey(key))
+                continue;
+
+            if (!usedSuffixesByName.TryGetValue(candidateMethod.Name, out var used))
+                usedSuffixesByName[candidateMethod.Name] = used = new HashSet<string>();
+
+            var baseHash = TestDoubleOverloadIdentity.StableHash(key.Canonical);
+            var suffix = $"_{baseHash}";
+            var disambiguator = 2;
+
+            while (!used.Add(suffix))
+                suffix = $"_{baseHash}_{disambiguator++}";
+
+            discriminatorSuffixByIdentity[key] = suffix;
+        }
+
+        var reportedDiamondIdentities = new HashSet<(string Name, string Canonical)>();
         var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
         var infoDiagnostics = new List<DiagnosticInfo>();
@@ -241,7 +274,7 @@ internal static class TestDoubleAnalyzer
                                 UnsupportedMember(interfaceType, member, "a generic method", location));
                         }
 
-                        var identity = (method.Name, Hash: IdentityHashFor(method));
+                        var identity = (method.Name, Canonical: IdentityFor(method));
                         var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
                         var isOverloaded = overloadedNames.Contains(method.Name);
 
@@ -437,6 +470,21 @@ internal static class TestDoubleAnalyzer
                                 p.IsParams))
                             .ToEquatableArray();
 
+                        var discriminatorSuffix = hasConfigurationSurface && isOverloaded
+                            ? discriminatorSuffixByIdentity[(method.Name, Canonical: identity.Canonical)]
+                            : "";
+
+                        // A real overload's own parameter names are never guaranteed to avoid any
+                        // particular leading-underscore convention - a real parameter can be named
+                        // "self" or even "__self" (RequiredMemberCollector.EscapeIdentifier only
+                        // @-escapes reserved keywords, it never renames a leading-underscore
+                        // identifier). Only an overloaded, surfaced member's extension carries real
+                        // parameters alongside its receiver, so only that case needs a genuinely
+                        // collision-checked name. Codex review, PR #88.
+                        var extensionReceiverName = hasConfigurationSurface && isOverloaded
+                            ? SafeReceiverName(parameters.Select(p => p.EscapedName))
+                            : "self";
+
                         members.Add(new TestDoubleMemberInfo(
                             method.Name,
                             RequiredMemberCollector.EscapeIdentifier(method.Name),
@@ -449,8 +497,9 @@ internal static class TestDoubleAnalyzer
                             parameters,
                             hasConfigurationSurface,
                             isOverloaded,
-                            hasConfigurationSurface && isOverloaded ? $"_{IdentityHashFor(method)}" : "",
-                            outParameterAssignments.ToEquatableArray()));
+                            discriminatorSuffix,
+                            outParameterAssignments.ToEquatableArray(),
+                            extensionReceiverName));
 
                         break;
                     }
@@ -480,7 +529,7 @@ internal static class TestDoubleAnalyzer
                         if (!property.IsAbstract && property.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
-                        var identity = (property.Name, Hash: IdentityHashFor(property));
+                        var identity = (property.Name, Canonical: IdentityFor(property));
                         var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
 
                         if (isDiamondCollision && reportedDiamondIdentities.Add(identity))
@@ -587,18 +636,40 @@ internal static class TestDoubleAnalyzer
     }
 
     private static bool WouldGetConfigurationSurface(
-        ISymbol member, HashSet<(string Name, string Hash)> diamondCollisionIdentities)
+        ISymbol member, HashSet<(string Name, string Canonical)> diamondCollisionIdentities)
     {
-        if (diamondCollisionIdentities.Contains((member.Name, Hash: IdentityHashFor(member))))
+        if (diamondCollisionIdentities.Contains((member.Name, Canonical: IdentityFor(member))))
             return false;
 
         return member is not IMethodSymbol method || !method.Parameters.Any(p => p.RefKind != RefKind.None);
     }
 
-    private static string IdentityHashFor(ISymbol member) => member switch
+    // Genuinely collision-proof against this specific overload's own real (escaped) parameter names -
+    // unlike a fixed "__self" (which a real parameter can still be named, since EscapeIdentifier only
+    // @-escapes reserved keywords, never a leading-underscore identifier), this keeps lengthening the
+    // candidate until it isn't one of the real parameter names. Terminates because
+    // escapedParameterNames is finite and each iteration strictly lengthens the candidate. Codex
+    // review, PR #88.
+    private static string SafeReceiverName(IEnumerable<string> escapedParameterNames)
     {
-        IMethodSymbol method => TestDoubleOverloadIdentity.DiscriminatorHashFor(method),
-        IPropertySymbol property => TestDoubleOverloadIdentity.DiscriminatorHashFor(property),
+        var used = new HashSet<string>(escapedParameterNames, StringComparer.Ordinal);
+        var candidate = "__self";
+
+        while (used.Contains(candidate))
+            candidate = "_" + candidate;
+
+        return candidate;
+    }
+
+    // The full canonical signature text - never the hash - for any identity/equality decision
+    // (diamond-collision grouping, zero-arg-extension-collision grouping). A 32-bit hash can collide
+    // between two genuinely different signatures; the discriminator-suffix pre-pass above is the only
+    // place allowed to hash this text (TestDoubleOverloadIdentity.StableHash), and only with its own
+    // collision-disambiguation fallback. Codex review, PR #88.
+    private static string IdentityFor(ISymbol member) => member switch
+    {
+        IMethodSymbol method => TestDoubleOverloadIdentity.CanonicalSignatureFor(method),
+        IPropertySymbol property => TestDoubleOverloadIdentity.CanonicalSignatureFor(property),
         _ => "",
     };
 

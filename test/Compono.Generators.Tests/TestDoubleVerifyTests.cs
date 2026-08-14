@@ -1217,4 +1217,90 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0029",
             TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: `Collision.hgQWPcvxVjdw` and `Collision.cTtIHWbVrHlp` genuinely different
+    // parameter types both hash to the same 8-hex-character FNV-1a value (60724af7) under this
+    // canonicalization scheme - a real, demonstrated 32-bit hash collision, not a hypothetical one.
+    // Identity/equality decisions (diamond-collision grouping) must compare the full canonical
+    // signature, never the hash, or these two genuinely different overloads would be misclassified as
+    // a diamond collision and both would wrongly lose their Configure() surface.
+    [Fact]
+    public Task OverloadsWithHashCollidingParameterTypes_BothKeepConfigurationSurface() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace.Collision
+                {
+                    public sealed class hgQWPcvxVjdw;
+
+                    public sealed class cTtIHWbVrHlp;
+                }
+
+                namespace TestNamespace
+                {
+                    public interface IBaseA
+                    {
+                        void Handle(Collision.hgQWPcvxVjdw value);
+                    }
+
+                    public interface IBaseB
+                    {
+                        void Handle(Collision.cTtIHWbVrHlp value);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Handle(new TestNamespace.Collision.hgQWPcvxVjdw());
+                            repository.Configure().Handle(new TestNamespace.Collision.cTtIHWbVrHlp());
+                        }
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: a real parameter can be named "__self" (EscapeIdentifier only @-escapes
+    // reserved keywords, it never renames a leading-underscore identifier) - the extension receiver
+    // must keep lengthening past it, not just past "self".
+    [Fact]
+    public Task OverloadedMemberWithParameterNamedDunderSelf_GeneratesDoubleWithoutParameterNameCollision() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void Save(int __self);
+
+                    void Save(string __self);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Save(1);
+                        repository.Configure().Save("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }

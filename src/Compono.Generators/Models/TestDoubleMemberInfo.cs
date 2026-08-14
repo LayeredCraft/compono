@@ -72,6 +72,13 @@ namespace Compono.Generators.Models;
 /// Finding 20); every <see langword="out"/> parameter in a fallback body must be definitely assigned
 /// before every return path (<c>CS0177</c> otherwise).
 /// </param>
+/// <param name="ExtensionReceiverName">
+/// The configuration extension's <see langword="this"/>-receiver parameter name - <c>"self"</c>
+/// unless <paramref name="IsOverloaded"/> is <see langword="true"/>, in which case it's chosen to
+/// avoid colliding with any of this overload's own real parameter names (which, unlike synthetic
+/// identifiers, are never guaranteed to avoid a leading-underscore convention - a real parameter can
+/// be named <c>self</c> or even <c>__self</c>). Codex review, PR #88.
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -85,7 +92,8 @@ internal sealed record TestDoubleMemberInfo(
     bool HasConfigurationSurface = true,
     bool IsOverloaded = false,
     string DiscriminatorSuffix = "",
-    EquatableArray<string> OutParameterAssignments = default)
+    EquatableArray<string> OutParameterAssignments = default,
+    string ExtensionReceiverName = "self")
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
     public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";
