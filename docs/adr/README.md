@@ -105,3 +105,4 @@ the mechanics: numbering, status, and the index.
 | [0041](0041-aot-safe-row-binding-dispatch.md) | AOT-Safe Row-Binding Dispatch | Accepted |
 | [0042](0042-compono-owned-source-generated-test-doubles.md) | Compono-Owned Source-Generated Test Doubles | Accepted |
 | [0043](0043-compono-generated-test-doubles-design.md) | Compono-Generated Test Doubles: Design | Accepted |
+| [0044](0044-compono-testdoubles-v2-overloads-generics-verification.md) | Compono.TestDoubles v2: Overloaded Members, Generic Methods, Minimal Call Verification | Accepted |

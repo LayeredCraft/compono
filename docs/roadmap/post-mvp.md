@@ -12,13 +12,13 @@ acceptable alternatives do not become roadmap items" — this page is not a
 general findings log, and non-candidate findings belong in the research
 record and their governing ADR's Amendments, not here.
 
-## Current state: no roadmap candidates
+## Current state: one outstanding roadmap candidate
 
 Per `docs/roadmap/index.md`, this page is a status-filtered index of
 capability gaps that are **not yet available** — a shipped capability
 doesn't stay listed here once it's implemented, even though the evidence
 that motivated it remains a permanent part of the record elsewhere (the
-ADR, the research doc, the plan). Two dogfooding passes have run so far:
+ADR, the research doc, the plan). Three dogfooding passes have run so far:
 
 - Milestone 7's pass (migrating `ncipollina/cosmere-tracker`'s
   AutoFixture-based test kit to Compono) surfaced ten findings, **none**
@@ -43,8 +43,24 @@ ADR, the research doc, the plan). Two dogfooding passes have run so far:
   is the current-state usage documentation — `ComposeAttribute<TProfile, TConfig>`
   is available today, not planned.
 
-That two dogfooding passes together produced zero *outstanding* roadmap
-items is itself a real, evidence-backed outcome, not a shortfall in the
-process — it doesn't mean Compono is "done": a different real-world
-project, or a future package, may surface a finding neither of these two
-did (each is one data point, not an exhaustive survey).
+- A third pass — an explicit dogfooding attempt migrating
+  `ncipollina/lightsaber-skill`'s test suite from `Compono.NSubstitute` to
+  the newly-shipped `Compono.TestDoubles` v1 — surfaced one finding
+  classified roadmap candidate: v1's interface-only, overload-free,
+  generic-method-free, verification-free scope blocked the two interfaces
+  (`IResponseBuilder`, `ILogger<T>`) that dominate the suite's substitution
+  surface, plus two `Received(1)`-style assertions with no v1 equivalent.
+  That finding has been designed and `Accepted`:
+  [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
+  records the decision (overloaded-member support, a narrow class of
+  generic-method support, and minimal `Never`/`Once`/`Exactly(n)` call
+  verification); [PLAN-0044](../plans/0044-compono-testdoubles-v2.md)
+  tracks the implementation, not yet started. This page keeps listing it
+  until it's actually shipped — "designed" is not "available."
+
+That two of these three dogfooding passes together produced zero
+*outstanding* roadmap items (the third produced exactly one, above) is
+itself a real, evidence-backed outcome, not a shortfall in the process —
+it doesn't mean Compono is "done": a different real-world project, or a
+future package, may surface a finding these three didn't (each is one
+data point, not an exhaustive survey).
