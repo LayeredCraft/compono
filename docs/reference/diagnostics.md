@@ -4,14 +4,14 @@ Every `CMP` diagnostic code Compono's source generator can report, one
 entry each. `CMP0001`–`CMP0013` are compile-time **errors** raised by
 `Compono.Generators` during a normal build — they appear in your IDE's
 error list and fail `dotnet build`, the same as any other compiler error.
-`CMP0020`–`CMP0030` are a separate, **informational** family — they only
+`CMP0020`–`CMP0031` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
 is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
-and never fail the build. Most (`CMP0020`, `CMP0021`, `CMP0023`–`CMP0028`)
-report that an entire interface leaf's generated double couldn't be
-emitted — the leaf falls back to the ordinary runtime-provider path.
-A newer, narrower subset (v2, ADR-0044) is **scoped to one overload or
-identity instead**: `CMP0022`, `CMP0029`, and `CMP0030` withhold just
+and never fail the build. Most (`CMP0020`, `CMP0021`, `CMP0023`–`CMP0028`,
+`CMP0031`) report that an entire interface leaf's generated double
+couldn't be emitted — the leaf falls back to the ordinary runtime-provider
+path. A newer, narrower subset (v2, ADR-0044) is **scoped to one overload
+or identity instead**: `CMP0022`, `CMP0029`, and `CMP0030` withhold just
 that one overload's or identity's `Configure()` surface while the double
 still generates and every other member is unaffected; each entry below
 says which scope applies. For a *runtime* composition failure (a
@@ -26,10 +26,10 @@ the collection/discovery-conflict diagnostics (`CMP0010`–`CMP0012`) by the
 generator's own discovery-merge logic; `CMP0013` by
 [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)'s row-binding
 dispatch-eligibility guard; the generated-test-double diagnostics
-(`CMP0020`–`CMP0030`) by
+(`CMP0020`–`CMP0031`) by
 [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)'s design,
 extended by [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
-for `CMP0022`, `CMP0029`, and `CMP0030`.
+for `CMP0022`, `CMP0029`, `CMP0030`, and `CMP0031`.
 
 ## CMP0001 — Ambiguous construction path
 
@@ -254,10 +254,13 @@ want a generated double for it.
 **Message:** `'{Interface}' declares member '{Member}' {Kind}, which
 Compono cannot generate a test double for`
 
-**Cause:** The interface declares an indexer, event, generic method,
-static abstract member, or another member-kind shape outside v1's
-supported set. (A `ref`/`out`/`in`/pointer/function-pointer *parameter* on
-an otherwise-supported method is `CMP0026`, not this code.)
+**Cause:** The interface declares an indexer, event, static abstract
+member, a variable-argument (`__arglist`) method, or another member-kind
+shape outside v1's supported set. (A `ref`/`out`/`in`/pointer/function-
+pointer *parameter* on an otherwise-supported method is `CMP0026`, not
+this code; a generic method whose return type depends on its own type
+parameter is `CMP0031`, not this code either — a generic method is
+supported as of v2, ADR-0044 Requirement 2.)
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -360,12 +363,20 @@ code.)
   (e.g. a non-nullable reference type) — there's no constructible
   fallback body at all, even for an overload with a surfaced sibling; same
   as any other no-deterministic-default case.
+- **A generic method's own unconstrained type parameter used as `T?`**
+  (v2, ADR-0044 Amendment 6 Finding 15) — an unconstrained `T?` can
+  require C#'s `default` constraint on the explicit interface
+  implementation to disambiguate its inherited, oblivious reference-or-
+  value-type meaning; correctly modeling exactly when that's *required*
+  isn't attempted, so this shape is diagnosed and excluded instead. A
+  type parameter with any constraint (`class`, `class?`, `struct`,
+  `unmanaged`, `notnull`) is unaffected.
 
 **Message:** `'{Interface}' declares member '{Member}' with parameter
 '{Parameter}' {Shape}, which Compono cannot generate a test double for`
 
-**Cause:** A method parameter is `ref`/`out`/`in`, a pointer, or a
-function pointer.
+**Cause:** A method parameter is `ref`/`out`/`in`, a pointer, a function
+pointer, or an unconstrained generic type parameter used as `T?`.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -446,6 +457,30 @@ same-named sibling of any shape.
 
 **Fix:** None needed — this overload still dispatches deterministically;
 its sibling overloads keep their own `Configure()` surface.
+
+## CMP0031 — Unsupported test-double generic return shape
+
+**Severity:** Informational — never fails the build. **Scope: always the
+whole interface** — same no-constructible-body bucket as `CMP0025`, under
+its own code rather than reusing that one's "returning {Shape}" message
+shape (a generic-return dependency is a relationship to the method's own
+type parameters, not itself a return "shape").
+
+**Message:** `'{Interface}' declares generic method '{Member}' whose
+return type references its own type parameter, which Compono cannot
+generate a deterministic default for. This leaf falls back to the
+ordinary runtime-provider path.`
+
+**Cause:** A generic method's return type references its own type
+parameter anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`,
+`IEnumerable<T> Filter<T>()`) — there's no concrete slot type or
+deterministic default to construct a body around, regardless of what the
+caller ultimately closes the type parameter to. A generic method whose
+return type *doesn't* depend on its own type parameter (`ILogger<T>`'s own
+`Log<TState>`/`BeginScope<TState>`) is unaffected — see
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md#generic-methods).
+
+**Fix:** None needed — falls back to the ordinary runtime-provider path.
 
 ## Next
 

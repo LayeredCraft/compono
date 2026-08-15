@@ -39,6 +39,8 @@ internal static class TestDoubleEmitter
                 m.HasConfigurationSurface,
                 m.IsOverloaded,
                 m.ExtensionReceiverName,
+                m.GenericSuffix,
+                m.ConstraintClausesText,
                 Kind = m.Kind.ToString(),
                 AccessorKind = m.AccessorKind.ToString(),
                 Parameters = m.Parameters

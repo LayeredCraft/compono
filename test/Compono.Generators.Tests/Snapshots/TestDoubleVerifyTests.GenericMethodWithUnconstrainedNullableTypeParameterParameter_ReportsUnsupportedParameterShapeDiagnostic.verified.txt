@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (14,65)-(14,91),
+      Message: 'TestNamespace.IHandler' declares member 'Handle' with parameter 'value' as an unconstrained generic type parameter used with a nullable annotation (T?), which may require a `default` constraint Compono cannot correctly determine, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0026,
+        Title: Unsupported test-double parameter shape,
+        MessageFormat: '{0}' declares member '{1}' with parameter '{2}' {3}, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

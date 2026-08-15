@@ -278,12 +278,44 @@ internal static class TestDoubleAnalyzer
                         if (!method.IsAbstract && method.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
-                        // Generic-method support ships in Phase 1 (ADR-0044) - unchanged v1 whole-
-                        // interface rejection for now.
+                        // ADR-0044 Requirement 2: a generic method is supported only when its return
+                        // type doesn't reference its own type parameter(s) anywhere in its symbol
+                        // graph (generic type arguments, array element types, recursively) - a
+                        // syntax-tree check would silently miss a metadata-defined interface like the
+                        // real ILogger<T> (no syntax tree in the consumer's own compilation at all).
+                        // A return type that does depend on its own type parameter has no
+                        // constructible body at any granularity (Amendment 13) - the same
+                        // no-constructible-body bucket a non-nullable-no-default return already
+                        // occupies, so it triggers whole-interface rejection, not member-scoped
+                        // exclusion.
+                        if (method.IsGenericMethod && TypeReferencesOwnTypeParameter(method.ReturnType, method))
+                        {
+                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                DiagnosticDescriptors.UnsupportedTestDoubleGenericReturnShape, location,
+                                interfaceType.ToDisplayString(), method.Name));
+                        }
+
+                        // Amendment 6 Finding 15: an unconstrained type parameter used as `T?` in a
+                        // parameter can require a C# 9+ "default constraint" on the explicit
+                        // implementation to disambiguate its inherited, oblivious reference-or-value-
+                        // type meaning - correctly modeling exactly when that constraint is *required*
+                        // (vs. merely permitted, or unnecessary) isn't something this ADR has a
+                        // verified answer for, so this shape is diagnosed and excluded rather than
+                        // guessed at. A type parameter with any constraint (class/class?/struct/
+                        // unmanaged/notnull) is unaffected - only genuinely unconstrained.
                         if (method.IsGenericMethod)
                         {
-                            return Failure(fullyQualifiedName, safeIdentifier,
-                                UnsupportedMember(interfaceType, member, "a generic method", location));
+                            var unconstrainedNullableParameter = method.Parameters.FirstOrDefault(
+                                p => ContainsUnconstrainedNullableTypeParameter(p.Type, method));
+
+                            if (unconstrainedNullableParameter is not null)
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                    DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
+                                    interfaceType.ToDisplayString(), method.Name, unconstrainedNullableParameter.Name,
+                                    "as an unconstrained generic type parameter used with a nullable annotation (T?), " +
+                                    "which may require a `default` constraint Compono cannot correctly determine"));
+                            }
                         }
 
                         // A C-style variable-argument method (`void M(int x, __arglist)`) - IMethodSymbol
@@ -461,8 +493,18 @@ internal static class TestDoubleAnalyzer
                         // parameter Equals(T) collides too, unless T can never convert to object
                         // (a ref-like type, Amendment 16). Only checked for a member that would
                         // otherwise get a Configure()/Verify() surface - a diamond-colliding or
-                        // ref/out/in-fallback member never gets one regardless.
-                        if (hasConfigurationSurface)
+                        // ref/out/in-fallback member never gets one regardless. The escape hatch a
+                        // *generic* member gets (Amendment 14, corrected by Amendment 16) is gated on
+                        // the *generated extension's* own genericity, not the real member's: an
+                        // explicit-type-argument call can only disambiguate against the non-generic
+                        // object member when the extension itself accepts a type argument, which is
+                        // true only for an overloaded generic member (Amendment 1 makes that
+                        // extension generic too). A solo generic member's extension stays non-generic
+                        // and zero-argument (Requirement 2), so it has no escape hatch at all and
+                        // keeps v1's original disposition unchanged - Amendment 16's own
+                        // "genuinely broken, unreachable-either-way" finding for the naive
+                        // method-genericity-gated version of this fix.
+                        if (hasConfigurationSurface && !(method.IsGenericMethod && isOverloaded))
                         {
                             var extensionArity = isOverloaded ? method.Parameters.Length : 0;
 
@@ -564,6 +606,25 @@ internal static class TestDoubleAnalyzer
                             ? SafeReceiverName(parameters.Select(p => p.EscapedName))
                             : "self";
 
+                        // Type parameters flow onto the explicit interface implementation whenever
+                        // the method is generic (ADR-0044 Requirement 2). Constraint clauses only
+                        // flow onto the generated *extension* - and only when that extension is
+                        // itself generic, i.e. an overloaded generic member (Amendment 1) - never onto
+                        // the explicit interface implementation, which can't redeclare an inherited
+                        // constraint (CS0460, Amendment 2 Finding 2).
+                        var typeParameterNames = method.IsGenericMethod
+                            ? method.TypeParameters
+                                .Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name))
+                                .ToEquatableArray()
+                            : EquatableArray<string>.Empty;
+
+                        var constraintClauses = method.IsGenericMethod && hasConfigurationSurface && isOverloaded
+                            ? method.TypeParameters
+                                .Select(ConstraintClauseFor)
+                                .Where(clause => clause.Length > 0)
+                                .ToEquatableArray()
+                            : EquatableArray<string>.Empty;
+
                         members.Add(new TestDoubleMemberInfo(
                             method.Name,
                             RequiredMemberCollector.EscapeIdentifier(method.Name),
@@ -578,7 +639,10 @@ internal static class TestDoubleAnalyzer
                             isOverloaded,
                             discriminatorSuffix,
                             outParameterAssignments.ToEquatableArray(),
-                            extensionReceiverName));
+                            extensionReceiverName,
+                            method.IsGenericMethod,
+                            typeParameterNames,
+                            constraintClauses));
 
                         break;
                     }
@@ -760,6 +824,86 @@ internal static class TestDoubleAnalyzer
             type = array.ElementType;
 
         return type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer;
+    }
+
+    // Walks a type's full symbol graph (generic type arguments, array element types, pointed-at
+    // types, recursively) looking for a reference to one of the owning method's own type parameters -
+    // deliberately symbol-based, not syntax-based, since a metadata-defined interface (the real
+    // ILogger<T> from a referenced assembly) has no syntax tree in the consumer's own compilation at
+    // all. ADR-0044 Requirement 2 / Amendment 13.
+    private static bool TypeReferencesOwnTypeParameter(ITypeSymbol type, IMethodSymbol method)
+    {
+        if (type is ITypeParameterSymbol typeParameter)
+            return method.TypeParameters.Any(tp => SymbolEqualityComparer.Default.Equals(tp, typeParameter));
+
+        if (type is IArrayTypeSymbol array)
+            return TypeReferencesOwnTypeParameter(array.ElementType, method);
+
+        if (type is IPointerTypeSymbol pointer)
+            return TypeReferencesOwnTypeParameter(pointer.PointedAtType, method);
+
+        if (type is INamedTypeSymbol named)
+            return named.TypeArguments.Any(argument => TypeReferencesOwnTypeParameter(argument, method));
+
+        return false;
+    }
+
+    // Same symbol-graph walk as TypeReferencesOwnTypeParameter, but looking specifically for a
+    // nullable-annotated (`T?`) reference to an unconstrained one of the owning method's own type
+    // parameters (ADR-0044 Amendment 6 Finding 15) - a type parameter with any constraint
+    // (class/class?/struct/unmanaged/notnull) already has a well-defined `T?` meaning and isn't
+    // affected.
+    private static bool ContainsUnconstrainedNullableTypeParameter(ITypeSymbol type, IMethodSymbol method)
+    {
+        if (type is ITypeParameterSymbol typeParameter)
+        {
+            if (type.NullableAnnotation != NullableAnnotation.Annotated)
+                return false;
+
+            if (!method.TypeParameters.Any(tp => SymbolEqualityComparer.Default.Equals(tp, typeParameter)))
+                return false;
+
+            return !typeParameter.HasReferenceTypeConstraint && !typeParameter.HasValueTypeConstraint &&
+                   !typeParameter.HasUnmanagedTypeConstraint && !typeParameter.HasNotNullConstraint;
+        }
+
+        if (type is IArrayTypeSymbol array)
+            return ContainsUnconstrainedNullableTypeParameter(array.ElementType, method);
+
+        if (type is INamedTypeSymbol named)
+            return named.TypeArguments.Any(argument => ContainsUnconstrainedNullableTypeParameter(argument, method));
+
+        return false;
+    }
+
+    // Full "where T : ..." clause text for one type parameter, verbatim - only ever spliced onto a
+    // generated generic *extension* method (an overloaded generic member, ADR-0044 Amendment 1),
+    // never onto the explicit interface implementation (CS0460, Amendment 2 Finding 2). Primary
+    // constraint first (mutually exclusive: unmanaged supersedes struct, which is otherwise
+    // implied), then each constraint type, then the constructor constraint last - the only order C#
+    // itself accepts. Empty when the type parameter has no constraint at all.
+    private static string ConstraintClauseFor(ITypeParameterSymbol typeParameter)
+    {
+        var parts = new List<string>();
+
+        if (typeParameter.HasUnmanagedTypeConstraint)
+            parts.Add("unmanaged");
+        else if (typeParameter.HasValueTypeConstraint)
+            parts.Add("struct");
+        else if (typeParameter.HasReferenceTypeConstraint)
+            parts.Add(typeParameter.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?" : "class");
+        else if (typeParameter.HasNotNullConstraint)
+            parts.Add("notnull");
+
+        parts.AddRange(typeParameter.ConstraintTypes.Select(
+            constraintType => constraintType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)));
+
+        if (typeParameter.HasConstructorConstraint)
+            parts.Add("new()");
+
+        return parts.Count == 0
+            ? ""
+            : $"where {RequiredMemberCollector.EscapeIdentifier(typeParameter.Name)} : {string.Join(", ", parts)}";
     }
 
     // A C# literal expression for a parameter's optional default value, only ever rendered onto an
