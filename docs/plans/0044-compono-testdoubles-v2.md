@@ -251,9 +251,9 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       discriminator section; `docs/reference/diagnostics.md` gains the
       overload-scoped `CMP0022` message update.
 
-### Phase 1 — Generic-method support
+### Phase 1 — Generic-method support (Done)
 
-- [ ] `TestDoubleAnalyzer`: replace the blanket `IsGenericMethod → reject`
+- [x] `TestDoubleAnalyzer`: replace the blanket `IsGenericMethod → reject`
       check with "does the return type's **symbol graph** reference any of
       the method's own type-parameter symbols" — walk `ITypeSymbol`
       structure (generic type arguments, array/tuple element types,
@@ -278,8 +278,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       has a verified answer for (two review rounds gave conflicting
       answers for the exact permitted keyword set), and the real
       motivating shape (`ILogger<T>.Log<TState>`) never uses `TState?` at
-      all, so there's no evidence forcing a guess either way.
-- [ ] Constraint-clause propagation: emit each type parameter's
+      all, so there's no evidence forcing a guess either way. Landed as
+      `CMP0031` (return-type dependency, whole-interface) and a
+      `CMP0026`-reusing diagnostic (unconstrained `T?` parameter,
+      whole-interface).
+- [x] Constraint-clause propagation: emit each type parameter's
       `where T : ...` clause verbatim (reference-type/value-type/`notnull`/
       base-type/interface constraints), extending the existing
       `SymbolDisplay`-based type-reference emission rather than inventing
@@ -293,9 +296,12 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       exact permitted keyword set; the corresponding type-parameter shape
       is diagnosed and excluded instead (see the task above), so this
       emitter task never reaches a case needing one.
-- [ ] Nullable-annotation preservation on type-parameter-referencing text,
-      reusing `NullableAwareFullyQualifiedFormat`.
-- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface
+- [x] Nullable-annotation preservation on type-parameter-referencing text,
+      reusing `NullableAwareFullyQualifiedFormat`. Already correct with no
+      code change needed - `SymbolDisplay`-based emission preserves
+      nullable annotations on any type reference, including a
+      type-parameter one, with no special-casing.
+- [x] `TestDoubleEmitter`/`TestDouble.scriban`: explicit interface
       implementation stays generic (type parameters **only** — never
       constraints, which are inherited automatically and redeclaring them
       is `CS0460`; corrected per ADR-0044 Amendment 4 Finding 10, a plan-
@@ -306,7 +312,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       extension becomes generic too, per ADR-0044 Amendment 1, and *does*
       carry the full constraint clauses (it's an ordinary standalone
       method, not an interface implementation).
-- [ ] **Overloaded generic methods (ADR-0044 Amendment 1):** when a
+- [x] **Overloaded generic methods (ADR-0044 Amendment 1):** when a
       generic method's name is shared by another overload, its
       configuration/verification extension becomes generic itself —
       reusing the overload's own type parameters and constraint clauses
@@ -315,7 +321,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       per-closed-generic storage). Depends on both Phase 0's per-overload
       discriminator mechanism and this phase's constraint-propagation
       work, so it can only land once both exist.
-- [ ] `Verify()`-tests: an `ILogger<T>`-shaped interface (`Log<TState>`,
+- [x] `Verify()`-tests: an `ILogger<T>`-shaped interface (`Log<TState>`,
       `BeginScope<TState>` — the actual motivating shape), a
       multi-type-parameter generic method, a still-unsupported
       generic-return-type method (diagnosed, not emitted), **the
@@ -332,18 +338,26 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       `IsApplicableToZeroArguments` helper correctly does *not* flag
       either the bridge or the `object`-collision check for a generic
       member with nothing for the compiler to infer from at an implicit
-      call site).
-- [ ] **Packaged-consumer smoke test, this phase's own shape** (same
+      call site). Implementing this test caught a real gap Amendment 16
+      already flagged but Phase 0 hadn't actually fixed yet: the
+      `object`-collision check's escape hatch has to be gated on the
+      *generated extension's* own genericity (only true for an overloaded
+      generic member), not the real member's - a solo generic
+      `ToString<T>()` still collides with `object.ToString()` (its own
+      extension stays non-generic, no escape hatch exists), while an
+      *overloaded* generic `ToString<T>()` does not. Both cases now have
+      their own dedicated test.
+- [x] **Packaged-consumer smoke test, this phase's own shape** (same
       rationale as Phase 0's own task above): an `ILogger<T>`-shaped
       interface through a real packed `.nupkg` + throwaway consumer
       project, real `dotnet build`/`dotnet run`. This phase does not ship
       until it's green.
-- [ ] **Docs, this phase's own shape** (same rationale as Phase 0's own
+- [x] **Docs, this phase's own shape** (same rationale as Phase 0's own
       doc task above): `docs/packages/compono-testdoubles.md` and
       `skills/compono/references/testdoubles.md` gain the generic-method
       scope section (the `ILogger<T>` motivating case, and what stays
       excluded); `docs/reference/diagnostics.md` gains the new generic-
-      return-type-dependent diagnostic code.
+      return-type-dependent diagnostic code (`CMP0031`).
 
 ### Phase 2 — Minimal call recording and verification
 

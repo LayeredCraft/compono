@@ -135,6 +135,68 @@ Two edge cases stay narrower than full per-overload support:
   and rejects the whole interface, same as the non-overloaded case
   (`CMP0026`).
 
+## Generic methods
+
+A generic method whose return type doesn't reference its own type
+parameter is supported (v2, [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
+Requirement 2) — the motivating shape is
+`Microsoft.Extensions.Logging.ILogger`'s own `Log<TState>`/`BeginScope<TState>`:
+
+```csharp
+public interface ILoggerLike
+{
+    void Log<TState>(int logLevel, TState state, Exception? exception);
+
+    IDisposable? BeginScope<TState>(TState state) where TState : notnull;
+}
+
+logger.Configure().Log().Throws(new InvalidOperationException());
+logger.Configure().BeginScope().Returns(myScope);
+// Applies regardless of what TState the real caller closes BeginScope<TState> to - the
+// configuration extension stays non-generic, member-level, exactly like an ordinary member.
+```
+
+The explicit interface implementation stays generic — type parameters
+copied, constraints left unstated (they're inherited automatically from
+the interface and can't be redeclared, `CS0460`). The
+`Configure()`/`Verify()` extension itself stays **non-generic** for a solo
+generic member: the backing slot's type never depends on the method's own
+type parameter, so one slot covers every closed instantiation a real
+caller exercises.
+
+**Overloaded *and* generic together** (Amendment 1) — when a generic
+method's name is also shared by another overload, its configuration
+extension becomes generic too, purely for compile-time overload selection
+(the backing slot still doesn't vary per closed type) — this extension
+*does* carry its constraint clauses, copied verbatim, since it's an
+ordinary standalone generic method rather than an interface
+implementation and has no other way to stay type-safe:
+
+```csharp
+public interface IWidget
+{
+    void Process<T>(T value);
+    void Process<T>(IEnumerable<T> values);
+}
+
+widget.Configure().Process(0).Throws(new InvalidOperationException());        // T inferred int
+widget.Configure().Process<string>(someListOfString).Returns(default);        // explicit type argument
+```
+
+**What stays unsupported:**
+
+- A generic method whose return type references its own type parameter
+  anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`,
+  `IEnumerable<T> Filter<T>()`) — no constructible fallback body, so the
+  whole interface falls back to the runtime-provider path (`CMP0031`).
+- **Any** type parameter used as `T?` in a parameter (or the method's own
+  declaration) — constrained or unconstrained, regardless of which
+  constraint. Correctly modeling exactly when (and with which keyword) a
+  C# 9+ constraint restatement is required on the explicit implementation
+  isn't something this feature attempts — two review rounds gave
+  conflicting answers even for the constrained case — so every `T?`-using
+  type parameter is diagnosed and excluded alike (`CMP0026`).
+
 ## Precedence with `Compono.NSubstitute`
 
 If both packages are installed and both providers registered, registration
@@ -149,15 +211,15 @@ cases the other.
 
 Still no call recording, no verification (`Received()`-style assertions),
 no argument matchers, and no support for classes, delegates, indexers,
-events, generic methods (tracked, not yet shipped —
-[PLAN-0044](../plans/0044-compono-testdoubles-v2.md) Phase 1), or static
-abstract members — see
+events, a generic method whose return type depends on its own type
+parameter, or static abstract members — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals for the full scope boundary. Overloaded members and a
-`ref`/`out`/`in` parameter's own overload are now supported per-overload
-(see above, [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
+Non-Goals for the full scope boundary. Overloaded members, a `ref`/`out`/`in`
+parameter's own overload, and generic methods independent of their own type
+parameter are now supported (see above,
+[ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
 An unsupported member shape is a compile-time diagnostic
-(`CMP0020`-`CMP0030`), not a silent gap.
+(`CMP0020`-`CMP0031`), not a silent gap.
 
 ## Next
 

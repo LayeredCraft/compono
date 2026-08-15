@@ -79,6 +79,25 @@ namespace Compono.Generators.Models;
 /// identifiers, are never guaranteed to avoid a leading-underscore convention - a real parameter can
 /// be named <c>self</c> or even <c>__self</c>). Codex review, PR #88.
 /// </param>
+/// <param name="IsGenericMethod">
+/// Whether this method declares its own type parameters (ADR-0044 Requirement 2) - never true for a
+/// <see cref="TestDoubleMemberKind.Property"/>. Drives whether the explicit interface implementation
+/// carries a <see cref="GenericSuffix"/> at all.
+/// </param>
+/// <param name="TypeParameterNames">
+/// This method's own type parameter names, escaped, in declaration order - emitted on the explicit
+/// interface implementation (<see cref="GenericSuffix"/>) whenever <see cref="IsGenericMethod"/> is
+/// <see langword="true"/>, and, additionally, on the generated configuration/verification extension
+/// only when <paramref name="IsOverloaded"/> is also <see langword="true"/> (ADR-0044 Amendment 1) -
+/// a solo generic method's extension stays non-generic (Requirement 2's own rule: the slot type never
+/// depends on the method's own type parameter).
+/// </param>
+/// <param name="ConstraintClauses">
+/// Full <c>where T : ...</c> clause text, one per constrained type parameter - copied verbatim onto
+/// the generated generic *extension* method only (ADR-0044 Amendment 2 Finding 2). Never emitted on
+/// the explicit interface implementation, which inherits its constraints automatically and cannot
+/// redeclare them (<c>CS0460</c>).
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -93,11 +112,27 @@ internal sealed record TestDoubleMemberInfo(
     bool IsOverloaded = false,
     string DiscriminatorSuffix = "",
     EquatableArray<string> OutParameterAssignments = default,
-    string ExtensionReceiverName = "self")
+    string ExtensionReceiverName = "self",
+    bool IsGenericMethod = false,
+    EquatableArray<string> TypeParameterNames = default,
+    EquatableArray<string> ConstraintClauses = default)
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
     public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";
 
     /// <summary>The type argument for this member's backing <c>ReturnConfig&lt;T&gt;</c> field.</summary>
     public string SlotTypeFullyQualifiedName => IsVoid ? "global::Compono.Unit" : ReturnTypeFullyQualifiedName;
+
+    /// <summary><c>"&lt;T, U&gt;"</c> when <see cref="IsGenericMethod"/>, otherwise empty.</summary>
+    public string GenericSuffix => IsGenericMethod ? $"<{string.Join(", ", TypeParameterNames)}>" : "";
+
+    /// <summary>
+    /// Whether the generated extension (not the explicit interface implementation) is itself generic -
+    /// only true for an overloaded generic member (ADR-0044 Amendment 1); a solo generic method's
+    /// extension stays non-generic per Requirement 2.
+    /// </summary>
+    public bool ExtensionIsGeneric => IsGenericMethod && IsOverloaded;
+
+    /// <summary>Space-joined <c>where</c> clauses, ready to splice after the extension's parameter list.</summary>
+    public string ConstraintClausesText => ConstraintClauses.Count == 0 ? "" : " " + string.Join(" ", ConstraintClauses);
 }

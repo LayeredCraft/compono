@@ -127,12 +127,19 @@ internal static class TestDoubleAnalyzer
 
         // A property and a method (or two methods with no shared full signature) sharing a name can
         // still collide even though the diamond-collision check above doesn't catch them - if both
-        // end up with a genuinely zero-parameter generated extension, the two extensions are the
-        // exact same C# signature (`Foo(this Double)`), a duplicate-declaration compile error
-        // (CS0111). A property's extension is always zero-parameter; a method's is zero-parameter
+        // end up with a genuinely zero-*value*-parameter generated extension of the same generic
+        // arity, the two extensions are the exact same C# signature (`Foo(this Double)` or
+        // `Foo<T>(this Double)`), a duplicate-declaration compile error (CS0111). A property's
+        // extension is always zero-parameter and non-generic; a method's is zero-value-parameter
         // unless it's part of a real (surfaced) overload set, in which case its own real parameter
-        // list disambiguates it instead. Codex review, PR #88.
-        var zeroArgExtensionSharers = new Dictionary<string, List<ISymbol>>();
+        // list disambiguates it instead. Codex review, PR #88. Generic arity is part of that same
+        // disambiguation once an overloaded member can also be generic (ADR-0044 Amendment 1) - two
+        // overloaded, zero-value-parameter generic methods of *different* arity (`M<T>()`/
+        // `M<T, U>()`) emit distinguishable `M<T>(this Double)`/`M<T, U>(this Double)` extensions,
+        // not a real collision, so the generic arity the extension will actually carry (zero unless
+        // this member is both generic and overloaded, mirroring TestDoubleMemberInfo.ExtensionIsGeneric)
+        // is folded into the same grouping key. Codex review, PR #89.
+        var zeroArgExtensionSharers = new Dictionary<(string Name, int GenericArity), List<ISymbol>>();
 
         foreach (var candidate in eligibleCandidates)
         {
@@ -140,6 +147,7 @@ internal static class TestDoubleAnalyzer
                 continue;
 
             int effectiveArity;
+            var effectiveGenericArity = 0;
 
             if (candidate is IPropertySymbol)
             {
@@ -150,7 +158,9 @@ internal static class TestDoubleAnalyzer
                 if (candidateMethod.Parameters.Any(p => p.RefKind != RefKind.None))
                     continue;
 
-                effectiveArity = overloadedNames.Contains(candidateMethod.Name) ? candidateMethod.Parameters.Length : 0;
+                var isOverloadedCandidate = overloadedNames.Contains(candidateMethod.Name);
+                effectiveArity = isOverloadedCandidate ? candidateMethod.Parameters.Length : 0;
+                effectiveGenericArity = isOverloadedCandidate ? candidateMethod.TypeParameters.Length : 0;
             }
             else
             {
@@ -160,8 +170,10 @@ internal static class TestDoubleAnalyzer
             if (effectiveArity != 0)
                 continue;
 
-            if (!zeroArgExtensionSharers.TryGetValue(candidate.Name, out var sharers))
-                zeroArgExtensionSharers[candidate.Name] = sharers = new List<ISymbol>();
+            var key = (candidate.Name, GenericArity: effectiveGenericArity);
+
+            if (!zeroArgExtensionSharers.TryGetValue(key, out var sharers))
+                zeroArgExtensionSharers[key] = sharers = new List<ISymbol>();
 
             sharers.Add(candidate);
         }
@@ -278,12 +290,45 @@ internal static class TestDoubleAnalyzer
                         if (!method.IsAbstract && method.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
-                        // Generic-method support ships in Phase 1 (ADR-0044) - unchanged v1 whole-
-                        // interface rejection for now.
+                        // ADR-0044 Requirement 2: a generic method is supported only when its return
+                        // type doesn't reference its own type parameter(s) anywhere in its symbol
+                        // graph (generic type arguments, array element types, recursively) - a
+                        // syntax-tree check would silently miss a metadata-defined interface like the
+                        // real ILogger<T> (no syntax tree in the consumer's own compilation at all).
+                        // A return type that does depend on its own type parameter has no
+                        // constructible body at any granularity (Amendment 13) - the same
+                        // no-constructible-body bucket a non-nullable-no-default return already
+                        // occupies, so it triggers whole-interface rejection, not member-scoped
+                        // exclusion.
+                        if (method.IsGenericMethod && TypeReferencesOwnTypeParameter(method.ReturnType, method))
+                        {
+                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                DiagnosticDescriptors.UnsupportedTestDoubleGenericReturnShape, location,
+                                interfaceType.ToDisplayString(), method.Name));
+                        }
+
+                        // Amendment 6 Finding 15, withdrawn-and-unified by Amendment 9: a type
+                        // parameter used as `T?` in a parameter can require a C# 9+ constraint
+                        // restatement on the explicit implementation to disambiguate its inherited,
+                        // oblivious reference-or-value-type meaning - correctly modeling exactly when
+                        // that's *required*, and with which exact keyword, isn't something this ADR
+                        // has a verified answer for (two review rounds gave conflicting answers for
+                        // the permitted keyword set even in the constrained case), so this shape is
+                        // diagnosed and excluded rather than guessed at, regardless of whether the
+                        // type parameter carries a constraint at all. Codex review, PR #89.
                         if (method.IsGenericMethod)
                         {
-                            return Failure(fullyQualifiedName, safeIdentifier,
-                                UnsupportedMember(interfaceType, member, "a generic method", location));
+                            var nullableTypeParameterParameter = method.Parameters.FirstOrDefault(
+                                p => ContainsNullableOwnTypeParameter(p.Type, method));
+
+                            if (nullableTypeParameterParameter is not null)
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                    DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
+                                    interfaceType.ToDisplayString(), method.Name, nullableTypeParameterParameter.Name,
+                                    "as a generic type parameter used with a nullable annotation (T?), " +
+                                    "which may require a constraint restatement Compono cannot correctly determine"));
+                            }
                         }
 
                         // A C-style variable-argument method (`void M(int x, __arglist)`) - IMethodSymbol
@@ -461,8 +506,18 @@ internal static class TestDoubleAnalyzer
                         // parameter Equals(T) collides too, unless T can never convert to object
                         // (a ref-like type, Amendment 16). Only checked for a member that would
                         // otherwise get a Configure()/Verify() surface - a diamond-colliding or
-                        // ref/out/in-fallback member never gets one regardless.
-                        if (hasConfigurationSurface)
+                        // ref/out/in-fallback member never gets one regardless. The escape hatch a
+                        // *generic* member gets (Amendment 14, corrected by Amendment 16) is gated on
+                        // the *generated extension's* own genericity, not the real member's: an
+                        // explicit-type-argument call can only disambiguate against the non-generic
+                        // object member when the extension itself accepts a type argument, which is
+                        // true only for an overloaded generic member (Amendment 1 makes that
+                        // extension generic too). A solo generic member's extension stays non-generic
+                        // and zero-argument (Requirement 2), so it has no escape hatch at all and
+                        // keeps v1's original disposition unchanged - Amendment 16's own
+                        // "genuinely broken, unreachable-either-way" finding for the naive
+                        // method-genericity-gated version of this fix.
+                        if (hasConfigurationSurface && !(method.IsGenericMethod && isOverloaded))
                         {
                             var extensionArity = isOverloaded ? method.Parameters.Length : 0;
 
@@ -553,16 +608,40 @@ internal static class TestDoubleAnalyzer
                             ? discriminatorSuffixByIdentity[(method.Name, Canonical: identity.Canonical)]
                             : "";
 
+                        // Type parameters flow onto the explicit interface implementation whenever
+                        // the method is generic (ADR-0044 Requirement 2). Constraint clauses only
+                        // flow onto the generated *extension* - and only when that extension is
+                        // itself generic, i.e. an overloaded generic member (Amendment 1) - never onto
+                        // the explicit interface implementation, which can't redeclare an inherited
+                        // constraint (CS0460, Amendment 2 Finding 2).
+                        var typeParameterNames = method.IsGenericMethod
+                            ? method.TypeParameters
+                                .Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name))
+                                .ToEquatableArray()
+                            : EquatableArray<string>.Empty;
+
                         // A real overload's own parameter names are never guaranteed to avoid any
                         // particular leading-underscore convention - a real parameter can be named
                         // "self" or even "__self" (RequiredMemberCollector.EscapeIdentifier only
                         // @-escapes reserved keywords, it never renames a leading-underscore
                         // identifier). Only an overloaded, surfaced member's extension carries real
                         // parameters alongside its receiver, so only that case needs a genuinely
-                        // collision-checked name. Codex review, PR #88.
+                        // collision-checked name. Codex review, PR #88. When the extension is also
+                        // generic (an overloaded generic member, Amendment 1), its own type-parameter
+                        // names share the same declaration-level identifier space as the receiver
+                        // parameter too - a type parameter named "__self" collides with a receiver
+                        // literally named "__self" (CS0412) exactly like a value parameter would.
+                        // Codex review, PR #89.
                         var extensionReceiverName = hasConfigurationSurface && isOverloaded
-                            ? SafeReceiverName(parameters.Select(p => p.EscapedName))
+                            ? SafeReceiverName(parameters.Select(p => p.EscapedName).Concat(typeParameterNames))
                             : "self";
+
+                        var constraintClauses = method.IsGenericMethod && hasConfigurationSurface && isOverloaded
+                            ? method.TypeParameters
+                                .Select(ConstraintClauseFor)
+                                .Where(clause => clause.Length > 0)
+                                .ToEquatableArray()
+                            : EquatableArray<string>.Empty;
 
                         members.Add(new TestDoubleMemberInfo(
                             method.Name,
@@ -578,7 +657,10 @@ internal static class TestDoubleAnalyzer
                             isOverloaded,
                             discriminatorSuffix,
                             outParameterAssignments.ToEquatableArray(),
-                            extensionReceiverName));
+                            extensionReceiverName,
+                            method.IsGenericMethod,
+                            typeParameterNames,
+                            constraintClauses));
 
                         break;
                     }
@@ -760,6 +842,94 @@ internal static class TestDoubleAnalyzer
             type = array.ElementType;
 
         return type.TypeKind is TypeKind.Pointer or TypeKind.FunctionPointer;
+    }
+
+    // Walks a type's full symbol graph (generic type arguments, array element types, pointed-at
+    // types, recursively) looking for a reference to one of the owning method's own type parameters -
+    // deliberately symbol-based, not syntax-based, since a metadata-defined interface (the real
+    // ILogger<T> from a referenced assembly) has no syntax tree in the consumer's own compilation at
+    // all. ADR-0044 Requirement 2 / Amendment 13.
+    private static bool TypeReferencesOwnTypeParameter(ITypeSymbol type, IMethodSymbol method)
+    {
+        if (type is ITypeParameterSymbol typeParameter)
+            return method.TypeParameters.Any(tp => SymbolEqualityComparer.Default.Equals(tp, typeParameter));
+
+        if (type is IArrayTypeSymbol array)
+            return TypeReferencesOwnTypeParameter(array.ElementType, method);
+
+        if (type is IPointerTypeSymbol pointer)
+            return TypeReferencesOwnTypeParameter(pointer.PointedAtType, method);
+
+        if (type is INamedTypeSymbol named)
+            return named.TypeArguments.Any(argument => TypeReferencesOwnTypeParameter(argument, method));
+
+        return false;
+    }
+
+    // Same symbol-graph walk as TypeReferencesOwnTypeParameter, but looking specifically for a
+    // nullable-annotated (`T?`) reference to one of the owning method's own type parameters -
+    // constrained or unconstrained, regardless of which constraint (ADR-0044 Amendment 9, which
+    // withdrew Amendment 8's narrower constrained-only exception after a second review round
+    // disputed the exact permitted keyword set C# allows restating on the explicit interface
+    // implementation for that case - two rounds disagreeing with each other is itself strong
+    // evidence against guessing a third time). A constrained `T?` (`where T : class`, `where T :
+    // struct`, ...) may genuinely be supportable with the exact right syntax, but this ADR has no
+    // verified answer for it, so every `T?`-using type parameter is diagnosed and excluded alike.
+    // Codex review, PR #89.
+    private static bool ContainsNullableOwnTypeParameter(ITypeSymbol type, IMethodSymbol method)
+    {
+        if (type is ITypeParameterSymbol typeParameter)
+        {
+            if (type.NullableAnnotation != NullableAnnotation.Annotated)
+                return false;
+
+            return method.TypeParameters.Any(tp => SymbolEqualityComparer.Default.Equals(tp, typeParameter));
+        }
+
+        if (type is IArrayTypeSymbol array)
+            return ContainsNullableOwnTypeParameter(array.ElementType, method);
+
+        if (type is INamedTypeSymbol named)
+            return named.TypeArguments.Any(argument => ContainsNullableOwnTypeParameter(argument, method));
+
+        return false;
+    }
+
+    // Full "where T : ..." clause text for one type parameter, verbatim - only ever spliced onto a
+    // generated generic *extension* method (an overloaded generic member, ADR-0044 Amendment 1),
+    // never onto the explicit interface implementation (CS0460, Amendment 2 Finding 2). Primary
+    // constraint first (mutually exclusive: unmanaged supersedes struct, which is otherwise
+    // implied), then each constraint type, then the constructor constraint, then the C# 13
+    // `allows ref struct` anti-constraint last - the only order C# itself accepts. Without it, a
+    // real interface method declared `where T : allows ref struct` would let a caller close T over
+    // a ref-like type (Span<int>) at the real call site, but the generated extension - missing the
+    // anti-constraint - would reject that same call (CS8377), silently narrowing what the real
+    // member permits. Empty when the type parameter has no constraint at all. Codex review, PR #89.
+    private static string ConstraintClauseFor(ITypeParameterSymbol typeParameter)
+    {
+        var parts = new List<string>();
+
+        if (typeParameter.HasUnmanagedTypeConstraint)
+            parts.Add("unmanaged");
+        else if (typeParameter.HasValueTypeConstraint)
+            parts.Add("struct");
+        else if (typeParameter.HasReferenceTypeConstraint)
+            parts.Add(typeParameter.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?" : "class");
+        else if (typeParameter.HasNotNullConstraint)
+            parts.Add("notnull");
+
+        parts.AddRange(typeParameter.ConstraintTypes.Select(
+            constraintType => constraintType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)));
+
+        if (typeParameter.HasConstructorConstraint)
+            parts.Add("new()");
+
+        if (typeParameter.AllowsRefLikeType)
+            parts.Add("allows ref struct");
+
+        return parts.Count == 0
+            ? ""
+            : $"where {RequiredMemberCollector.EscapeIdentifier(typeParameter.Name)} : {string.Join(", ", parts)}";
     }
 
     // A C# literal expression for a parameter's optional default value, only ever rendered onto an

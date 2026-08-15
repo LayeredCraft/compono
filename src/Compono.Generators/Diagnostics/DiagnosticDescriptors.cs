@@ -248,4 +248,21 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    // ADR-0044 Requirement 2 / Amendment 13: a generic method whose return type references its own
+    // type parameter has no constructible body at any granularity (no concrete slot type, no
+    // deterministic default) - the same no-constructible-body bucket a non-nullable-no-default return
+    // (CMP0025) already occupies, so it gets the same whole-interface-rejection disposition, just
+    // under its own diagnostic code rather than reusing CMP0025's "returning {2}" message shape (a
+    // generic-return dependency isn't itself a "shape", it's a relationship to the method's own type
+    // parameters).
+    public static readonly DiagnosticDescriptor UnsupportedTestDoubleGenericReturnShape = new(
+        "CMP0031",
+        "Unsupported test-double generic return shape",
+        "'{0}' declares generic method '{1}' whose return type references its own type parameter, " +
+        "which Compono cannot generate a deterministic default for. This leaf falls back to the " +
+        "ordinary runtime-provider path.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

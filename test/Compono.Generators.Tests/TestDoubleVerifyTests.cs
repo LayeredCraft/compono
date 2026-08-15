@@ -1997,4 +1997,461 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // PLAN-0044 Phase 1: the ADR's own motivating shape - ILogger<T>'s Log<TState> (return
+    // independent of TState) and BeginScope<TState> (return independent of TState, constrained
+    // `notnull`) - neither returns TState or anything built from it, so both are fully supported.
+    // The explicit interface implementation stays generic (type parameters copied, never
+    // constraints - CS0460); the configuration extension is ordinary, non-generic, member-level
+    // (Requirement 2's own rule: the slot type never depends on the method's own type parameter).
+    [Fact]
+    public Task GenericMethodsIndependentOfTypeParameter_GeneratesDoubleWithNonGenericConfigurationExtensions() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface ILoggerLike
+                {
+                    void Log<TState>(int logLevel, TState state, System.Exception? exception);
+
+                    System.IDisposable? BeginScope<TState>(TState state) where TState : notnull;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(ILoggerLike logger) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(ILoggerLike logger)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        logger.Configure().Log().Throws(new System.InvalidOperationException());
+                        logger.Configure().BeginScope().Returns(null);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // A multi-type-parameter generic method, one of them constrained - proves constraint
+    // propagation isn't hardcoded to a single type parameter, and that a constrained type parameter
+    // stays fully supported (Amendment 9 withdrew any special-casing beyond the genuinely-
+    // unconstrained-T?-parameter exclusion).
+    [Fact]
+    public Task MultiTypeParameterGenericMethod_GeneratesDoubleWithConstrainedExplicitImplementation() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IMultiMapper
+                {
+                    void Map<TKey, TValue>(TKey key, TValue value) where TKey : notnull;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IMultiMapper mapper) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IMultiMapper mapper)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        mapper.Configure().Map().Throws(new System.InvalidOperationException());
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // ADR-0044 Requirement 2 / Amendment 13: a generic method whose return type references its own
+    // type parameter has no constructible body at any granularity - diagnosed and excluded, whole
+    // interface falls back to the runtime-provider path.
+    [Fact]
+    public Task GenericMethodWithReturnTypeDependentOnOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T Create<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Amendment 5 Finding 11, moved here from Phase 0 now that generic methods exist to construct
+    // the case with: type-parameter *names* aren't part of a method's identity, only their ordinal
+    // position - IA.M<T>(T) and IB.M<U>(U) are the same signature and must still trigger the
+    // diamond-collision check even though the discriminator hash canonicalizes each by ordinal
+    // rather than declared name.
+    [Fact]
+    public Task InheritedGenericOverloadsWithDifferentlyNamedTypeParameters_ReportsScopedOverloadedDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        void M<T>(T value);
+                    }
+
+                    public interface IBaseB
+                    {
+                        void M<U>(U value);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0022",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0044 Amendment 1: the combined overload+generic interaction. Process<T>(T)/
+    // Process<T>(IEnumerable<T>) share a name (Requirement 1's per-overload discriminator applies)
+    // and are each generic (Requirement 2's constraint-propagation applies) - the configuration
+    // extension for each becomes generic itself, reusing the overload's own type parameter purely
+    // for compile-time overload selection, while the backing slot stays fixed per Requirement 2.
+    [Fact]
+    public Task OverloadedGenericMethod_GeneratesDoubleWithPerOverloadGenericConfigurationExtensions() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IWidget
+                {
+                    void Process<T>(T value);
+
+                    void Process<T>(System.Collections.Generic.IEnumerable<T> values);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IWidget widget) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IWidget widget)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        widget.Configure().Process(0).Throws(new System.InvalidOperationException());
+                        widget.Configure().Process(System.Array.Empty<string>()).Returns(default);
+                        widget.Configure().Process<string>(System.Array.Empty<string>()).Returns(default);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Amendment 14: a solo generic member with zero required value parameters is never an implicit
+    // zero-argument candidate (nothing for the compiler to infer its type parameter from) - a bare
+    // `Configure()` call is inapplicable to the real, generic `Configure<T>()` interface member, so
+    // member lookup falls through to extension search and reaches the bridge normally.
+    [Fact]
+    public Task SoloGenericConfigureMember_DoesNotCollideWithBridge() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IThing
+                {
+                    void Configure<T>();
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IThing thing) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IThing thing)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        // Configure<T>() is solo (not overloaded), so its own generated extension
+                        // stays non-generic/zero-argument per Requirement 2 - calling it with no
+                        // explicit type argument is the point: it proves the real interface member
+                        // never shadowed the Configure() bridge it shares a name with.
+                        thing.Configure().Configure().Throws(new System.InvalidOperationException());
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Amendment 16: Amendment 14's object-collision escape hatch is gated on the *generated
+    // extension's* own genericity, not the real member's - a solo generic ToString<T>() gets a
+    // non-generic, zero-argument extension (Requirement 2), which has no escape hatch at all and
+    // collides with object.ToString() exactly like a non-generic solo ToString() would. Explicitly
+    // called out in Amendment 16 as its own required test.
+    [Fact]
+    public Task SoloGenericToStringMember_StillCollidesWithObjectMemberDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IThing
+                    {
+                        string? ToString<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IThing thing) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0024",
+            TestContext.Current.CancellationToken);
+
+    // Amendment 14's actual finding, corrected by Amendment 16: an *overloaded* generic ToString<T>()
+    // gets a generic discriminator extension too (Amendment 1) - an explicit-type-argument call can
+    // never match the non-generic object.ToString(), so the real escape hatch exists here and no
+    // collision is reported.
+    [Fact]
+    public Task OverloadedGenericToStringMember_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IThing
+                {
+                    string? ToString<T>();
+
+                    string? ToString<T>(T value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IThing thing) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IThing thing)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        thing.Configure().ToString<int>().Returns("value");
+                        thing.Configure().ToString(0).Returns("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Amendment 6 Finding 15: an unconstrained type parameter used as `T?` in a parameter can
+    // require a C# 9+ "default constraint" on the explicit implementation to disambiguate its
+    // inherited, oblivious reference-or-value-type meaning - diagnosed and excluded rather than
+    // guessed at.
+    [Fact]
+    public Task GenericMethodWithUnconstrainedNullableTypeParameterParameter_ReportsUnsupportedParameterShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IHandler
+                    {
+                        void Handle<T>(T? value);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IHandler handler) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
+
+    // Amendment 9 (withdrawing Amendment 8's narrower constrained-only exception): a *constrained*
+    // `T?` (`where T : class`) is excluded exactly like the unconstrained case - two review rounds
+    // disagreed about the exact permitted constraint-restatement keyword set even for the
+    // constrained case, so this ADR never attempts to guess it. Codex review, PR #89.
+    [Fact]
+    public Task GenericMethodWithConstrainedNullableTypeParameterParameter_ReportsUnsupportedParameterShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IHandler
+                    {
+                        void Handle<T>(T? value) where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IHandler handler) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0026",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #89: an overloaded generic member constrained with C# 13's `allows ref
+    // struct` anti-constraint must carry it onto the generated extension too - omitting it would
+    // silently narrow what the real interface member permits (a caller closing T over Span<int>
+    // would compile against the real member but fail against the generated extension, CS8377).
+    [Fact]
+    public Task OverloadedGenericMethodWithAllowsRefStructConstraint_GeneratesDoubleWithAntiConstraintPreserved() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IWidget
+                {
+                    void Process<T>(T value) where T : allows ref struct;
+
+                    void Process<T>(string label, T value) where T : allows ref struct;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IWidget widget) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IWidget widget)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        widget.Configure().Process(0).Throws(new System.InvalidOperationException());
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #89: two overloaded, zero-value-parameter generic methods of *different*
+    // generic arity (M<T>()/M<T, U>()) emit distinguishable M<T>(this Double)/M<T, U>(this Double)
+    // extensions - not a real CS0111 collision - so the zero-argument-extension-collision check
+    // (CMP0029) must fold generic arity into its own grouping, not just real value-parameter count.
+    [Fact]
+    public Task OverloadedGenericMethodsOfDifferentArity_DoNotCollideAsZeroArgumentExtensions() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IThing
+                {
+                    void M<T>();
+
+                    void M<T, U>();
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IThing thing) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IThing thing)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        thing.Configure().M<int>().Throws(new System.InvalidOperationException("single"));
+                        thing.Configure().M<int, string>().Throws(new System.InvalidOperationException("double"));
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #89: SafeReceiverName only checked real value-parameter names for a
+    // collision, but an overloaded generic member's extension declares its own type parameters in
+    // the same identifier space as the receiver parameter - a type parameter literally named
+    // "__self" must also be avoided, or the generated extension declares both a type parameter and
+    // a receiver parameter named "__self" (CS0412).
+    [Fact]
+    public Task OverloadedGenericMethodWithTypeParameterNamedDunderSelf_GeneratesDoubleWithDistinctReceiverName() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IWidget
+                {
+                    void Process<__self>(__self value);
+
+                    void Process<__self>(System.Collections.Generic.IEnumerable<__self> values);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IWidget widget) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IWidget widget)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        widget.Configure().Process(0).Throws(new System.InvalidOperationException());
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }
