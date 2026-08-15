@@ -473,16 +473,18 @@ internal static class TestDoubleAnalyzer
                                     interfaceType.ToDisplayString(), method.Name));
                             }
 
-                            // A params-shaped single parameter (Equals(params int[] values)) is not
-                            // genuinely a one-required-argument overload - same "applicable to zero
-                            // arguments" reasoning Amendment 12 already applies to ToString/GetHashCode/
-                            // GetType's own params case, mirrored here: object.Equals(object) is
-                            // inapplicable to a zero-argument or two-plus-argument call either way, so
-                            // this overload keeps a reachable spelling via Configure().Equals() or
-                            // Configure().Equals(a, b) even though a literal one-argument call still
-                            // collides. Codex review, PR #88.
+                            // A params-shaped or optional single parameter (Equals(params int[]
+                            // values), Equals(int value = 0)) is not genuinely a one-required-argument
+                            // overload - same "applicable to zero arguments" reasoning Amendment 12
+                            // already applies to ToString/GetHashCode/GetType's own params case,
+                            // mirrored here: object.Equals(object) is inapplicable to a zero-argument
+                            // or two-plus-argument call either way, so this overload keeps a reachable
+                            // spelling via Configure().Equals() (now that the default value itself is
+                            // mirrored onto the extension too) even though a literal one-argument call
+                            // still collides. Codex review, PR #88.
                             if (method.Name is "Equals" && extensionArity == 1 &&
-                                !method.Parameters[0].Type.IsRefLikeType && !method.Parameters[0].IsParams)
+                                !method.Parameters[0].Type.IsRefLikeType && !method.Parameters[0].IsParams &&
+                                !method.Parameters[0].HasExplicitDefaultValue)
                             {
                                 return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                     DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
@@ -752,10 +754,7 @@ internal static class TestDoubleAnalyzer
     // overloaded member's generated extension (never the explicit interface implementation, which
     // can't usefully redeclare one - callers always go through the interface's own default, not the
     // implementation's). `null` covers both a reference-type `= null` default and a non-primitive
-    // value-type `= default` default - `default` is a valid literal for either. Enum-typed defaults
-    // other than the implicit zero member aren't reconstructed here (ExplicitDefaultValue only ever
-    // exposes the boxed underlying numeric value, not the enum member) - left as a required parameter,
-    // the same (not worse) behavior as before this fix. Codex review, PR #88.
+    // value-type `= default` default - `default` is a valid literal for either.
     private static string DefaultValueExpressionFor(IParameterSymbol parameter)
     {
         if (!parameter.HasExplicitDefaultValue)
@@ -763,7 +762,20 @@ internal static class TestDoubleAnalyzer
 
         var value = parameter.ExplicitDefaultValue;
 
-        return value is null ? "default" : SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false) ?? "default";
+        if (value is null)
+            return "default";
+
+        // An enum-typed default is exposed as its boxed *underlying* numeric value, not the enum
+        // member itself (e.g. `Mode mode = Mode.Active` surfaces as the boxed int 1) - emitting that
+        // raw primitive directly (`Mode mode = 1`) fails consumer compilation (CS1750, no standard
+        // conversion from int to Mode). A cast to the fully qualified enum type is a legal constant
+        // default-parameter-value expression regardless of which member (if any) the value names -
+        // verified with a real compile spike. Codex review, PR #88.
+        var formatted = SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false) ?? "default";
+
+        return parameter.Type.TypeKind == TypeKind.Enum
+            ? $"({parameter.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)}){formatted}"
+            : formatted;
     }
 
     // The full canonical signature text - never the hash - for any identity/equality decision

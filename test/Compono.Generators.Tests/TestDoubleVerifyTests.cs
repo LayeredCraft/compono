@@ -1682,4 +1682,83 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: an enum-typed default is exposed as its boxed *underlying* numeric value
+    // (e.g. Mode.Active surfaces as the boxed int 1) - emitting that raw primitive directly
+    // (`Mode mode = 1`) fails consumer compilation (CS1750, no standard conversion from int to Mode).
+    // Verified with a real compile spike that a cast to the enum type is a legal constant
+    // default-parameter-value expression.
+    [Fact]
+    public Task OverloadedMemberWithNonZeroEnumDefault_GeneratesDoubleWithTypeCompatibleDefault() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public enum Mode
+                {
+                    None = 0,
+                    Active = 1,
+                }
+
+                public interface IRepository
+                {
+                    void M(Mode mode = Mode.Active);
+
+                    void M(string value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().M();
+                        repository.Configure().M(Mode.None);
+                        repository.Configure().M("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: Equals(int value = 0) is not genuinely a one-required-argument overload,
+    // same reasoning as the params case - Configure().Equals() reaches the generated extension fine
+    // (object.Equals(object) is inapplicable to zero arguments), so this overload keeps a reachable
+    // spelling and its surface, unlike a genuinely-required-one-argument Equals(int).
+    [Fact]
+    public Task OverloadedEqualsWithOptionalParameter_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Equals(int value = 0);
+
+                    bool Equals(long a, long b, long c);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Equals().Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }
