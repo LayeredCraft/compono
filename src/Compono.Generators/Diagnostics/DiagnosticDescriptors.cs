@@ -154,9 +154,10 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor OverloadedTestDoubleMember = new(
         "CMP0022",
         "Overloaded test-double member",
-        "'{0}' declares an overloaded member '{1}' - a generated test double's configuration " +
-        "extension is always zero-argument, and can't disambiguate between overloads. This leaf " +
-        "falls back to the ordinary runtime-provider path.",
+        "'{0}' declares member '{1}{2}', whose signature is also independently declared by another " +
+        "base interface (a diamond collision) - Compono can't tell the two identities apart, so " +
+        "neither gets a Configure() surface. Every other member of '{0}', including any " +
+        "other overload of '{1}', is unaffected.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
@@ -174,8 +175,9 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor TestDoubleObjectMemberCollision = new(
         "CMP0024",
         "Test-double member collides with an inherited object member",
-        "'{0}' declares member '{1}', whose generated, always-zero-argument configuration extension " +
-        "collides with 'object.{1}()'. This leaf falls back to the ordinary runtime-provider path.",
+        "'{0}' declares member '{1}', whose generated configuration extension collides with an " +
+        "inherited 'object.{1}' member of the same arity. This leaf falls back to the ordinary " +
+        "runtime-provider path.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
@@ -216,6 +218,33 @@ internal static class DiagnosticDescriptors
         "Compono generates exactly one test double per interface and can't guarantee it correctly " +
         "reflects every discovery. Request this interface with consistent nullability everywhere it's " +
         "composed, or disable ComponoGeneratedTestDoubles for this leaf.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ZeroArgumentTestDoubleExtensionCollision = new(
+        "CMP0029",
+        "Test-double members generate colliding zero-argument extensions",
+        "'{0}' declares member '{1}', whose generated configuration extension has no parameters to " +
+        "disambiguate it from another same-named member's own generated extension - Compono can't " +
+        "tell them apart, so none of them get a Configure() surface. Every other member of " +
+        "'{0}' is unaffected.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    // A distinct descriptor from UnsupportedTestDoubleParameterShape (CMP0026, whole-interface
+    // rejection) rather than reusing its message with a different Info-vs-blocking meaning - that
+    // shared descriptor unconditionally says "which Compono cannot generate a test double for" and
+    // "this leaf falls back to the ordinary runtime-provider path", both false for this scoped case:
+    // the double still generates, and every other member (including this one's own dispatch body)
+    // is unaffected. Codex review, PR #88.
+    public static readonly DiagnosticDescriptor OverloadScopedUnsupportedParameterShape = new(
+        "CMP0030",
+        "Overload-scoped unsupported test-double parameter shape",
+        "'{0}' declares member '{1}' with parameter '{2}' as a ref/out/in parameter. This overload " +
+        "has no Configure() surface, but it still dispatches via a deterministic default - its " +
+        "sibling overloads, and the rest of the interface, are unaffected.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);

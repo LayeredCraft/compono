@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.IRepository' declares member 'Value', whose signature is also independently declared by another base interface (a diamond collision) - Compono can't tell the two identities apart, so neither gets a Configure() surface. Every other member of 'TestNamespace.IRepository', including any other overload of 'Value', is unaffected.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0022,
+        Title: Overloaded test-double member,
+        MessageFormat: '{0}' declares member '{1}{2}', whose signature is also independently declared by another base interface (a diamond collision) - Compono can't tell the two identities apart, so neither gets a Configure() surface. Every other member of '{0}', including any other overload of '{1}', is unaffected.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

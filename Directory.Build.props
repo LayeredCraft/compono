@@ -4,7 +4,7 @@
     <RepositoryUrl>https://github.com/LayeredCraft/compono</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Authors>Nick Cipollina</Authors>
-    <PackageProjectUrl>https://github.com/LayeredCraft/compono</PackageProjectUrl>
+    <PackageProjectUrl>https://compono.layeredcraft.dev</PackageProjectUrl>
     <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
@@ -13,11 +13,13 @@
          RepositoryUrl/PackageIcon/PackageReadmeFile above) - no per-package tag differentiation
          (e.g. xunit/nsubstitute/bogus), since the package name itself already carries that. -->
     <PackageTags>testing;test-data;source-generator;dotnet</PackageTags>
-    <!-- Points at the repo's stable releases index, not a per-version tag URL - a per-version
-         .../releases/tag/v$(Version) link would 404 for every preview build publish-preview.yaml
-         pushes on a plain main push, since no GitHub Release/tag exists for those, only for
-         versions published through publish-release.yaml. -->
-    <PackageReleaseNotes>$(PackageProjectUrl)/releases</PackageReleaseNotes>
+    <!-- Points at the repo's stable releases index on GitHub, not a per-version tag URL (a
+         per-version .../releases/tag/v$(Version) link would 404 for every preview build
+         publish-preview.yaml pushes on a plain main push, since no GitHub Release/tag exists for
+         those, only for versions published through publish-release.yaml) - deliberately keyed off
+         RepositoryUrl, not PackageProjectUrl, since the latter now points at the docs site
+         (https://compono.layeredcraft.dev), which has no /releases route of its own. -->
+    <PackageReleaseNotes>$(RepositoryUrl)/releases</PackageReleaseNotes>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <CheckEolTargetFramework>false</CheckEolTargetFramework>

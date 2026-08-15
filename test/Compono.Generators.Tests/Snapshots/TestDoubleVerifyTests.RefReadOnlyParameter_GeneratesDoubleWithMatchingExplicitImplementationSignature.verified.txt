@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.IRepository' declares member 'Seek' with parameter 'offset' as a ref/out/in parameter. This overload has no Configure() surface, but it still dispatches via a deterministic default - its sibling overloads, and the rest of the interface, are unaffected.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0030,
+        Title: Overload-scoped unsupported test-double parameter shape,
+        MessageFormat: '{0}' declares member '{1}' with parameter '{2}' as a ref/out/in parameter. This overload has no Configure() surface, but it still dispatches via a deterministic default - its sibling overloads, and the rest of the interface, are unaffected.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

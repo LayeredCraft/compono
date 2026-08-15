@@ -4,12 +4,17 @@ Every `CMP` diagnostic code Compono's source generator can report, one
 entry each. `CMP0001`–`CMP0013` are compile-time **errors** raised by
 `Compono.Generators` during a normal build — they appear in your IDE's
 error list and fail `dotnet build`, the same as any other compiler error.
-`CMP0020`–`CMP0028` are a separate, **informational** family — they only
+`CMP0020`–`CMP0030` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
-is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md)),
-never fail the build, and report that one interface leaf's generated
-double couldn't be emitted — the leaf falls back to the ordinary runtime-
-provider path instead. For a *runtime* composition failure (a
+is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
+and never fail the build. Most (`CMP0020`, `CMP0021`, `CMP0023`–`CMP0028`)
+report that an entire interface leaf's generated double couldn't be
+emitted — the leaf falls back to the ordinary runtime-provider path.
+A newer, narrower subset (v2, ADR-0044) is **scoped to one overload or
+identity instead**: `CMP0022`, `CMP0029`, and `CMP0030` withhold just
+that one overload's or identity's `Configure()` surface while the double
+still generates and every other member is unaffected; each entry below
+says which scope applies. For a *runtime* composition failure (a
 `CompositionException` thrown from `composer.Create<T>()`), see
 [Troubleshooting: Common Errors](../troubleshooting/common-errors.md#runtime-composition-failures)
 instead — runtime failures have no diagnostic code, only a path-annotated
@@ -21,8 +26,10 @@ the collection/discovery-conflict diagnostics (`CMP0010`–`CMP0012`) by the
 generator's own discovery-merge logic; `CMP0013` by
 [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)'s row-binding
 dispatch-eligibility guard; the generated-test-double diagnostics
-(`CMP0020`–`CMP0028`) by
-[ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)'s design.
+(`CMP0020`–`CMP0030`) by
+[ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)'s design,
+extended by [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
+for `CMP0022`, `CMP0029`, and `CMP0030`.
 
 ## CMP0001 — Ambiguous construction path
 
@@ -254,20 +261,28 @@ an otherwise-supported method is `CMP0026`, not this code.)
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
-## CMP0022 — Test-double member name collision
+## CMP0022 — Diamond-colliding test-double member
 
-**Severity:** Informational — never fails the build.
+**Severity:** Informational — never fails the build. **Scope (v2,
+ADR-0044): this one identity only** — every other member of the interface,
+including any other overload sharing the same name, is unaffected.
 
-**Message:** `'{Interface}' declares an overloaded member '{Member}'`
+**Message:** `'{Interface}' declares member '{Member}{Signature}', whose
+signature is also independently declared by another base interface (a
+diamond collision) - Compono can't tell the two identities apart, so
+neither gets a Configure() surface`
 
-**Cause:** Two or more eligible members share the same name across the
-interface's full base-interface closure — either a true C# overload, or
-two same-named members inherited from different base interfaces (even
-with identical signatures, no real overload required). The generated
-configuration extension is always zero-argument and can't disambiguate
-between them.
+**Cause:** The exact same full signature (parameter types, `ref`/`out`/`in`
+kind, and generic arity) is declared by two different base interfaces
+reached through the interface's transitive closure — a genuine C# overload
+(two members of the same name but a *different* signature) is unaffected
+by this diagnostic; it gets its own per-overload `Configure()`
+surface instead (see `docs/packages/compono-testdoubles.md`'s "Overloaded
+members" section). (`Verify()` call recording isn't shipped yet —
+PLAN-0044 Phase 2.)
 
-**Fix:** None needed — falls back to the ordinary runtime-provider path.
+**Fix:** None needed — that one identity falls back to a deterministic
+default; the rest of the double is unaffected.
 
 ## CMP0023 — Test-double interface member collides with `Configure()`
 
@@ -288,16 +303,28 @@ compiler itself uses for overload resolution.
 
 ## CMP0024 — Test-double member collides with an inherited `object` member
 
-**Severity:** Informational — never fails the build.
+**Severity:** Informational — never fails the build. **Scope: always the
+whole interface** — an object-member collision has no constructible
+fallback body at any granularity, the same disposition as any other
+no-constructible-body shape.
 
 **Message:** `'{Interface}' declares member '{Member}', whose generated
-configuration extension collides with 'object.{Member}()'`
+configuration extension collides with an inherited 'object.{Member}'
+member of the same arity`
 
-**Cause:** A member's generated, always-zero-argument configuration
-extension collides with an inherited `object` member — `ToString`,
-`GetHashCode`, or `GetType` (not `Equals`: `object.Equals(object)` takes
-one argument, so a zero-argument generated `Equals` extension never
-collides with it).
+**Cause:** A member's generated configuration extension collides with an
+inherited `object` member. For a non-overloaded member the extension is
+always zero-argument — `ToString`, `GetHashCode`, and `GetType` collide;
+`Equals` doesn't (`object.Equals(object)` takes one argument, so a
+zero-argument generated `Equals` extension never collides with it). For an
+**overloaded** member (v2, ADR-0044) the extension carries the real
+overload's own parameter list instead: a genuinely zero-parameter overload
+of `ToString`/`GetHashCode`/`GetType` still collides, and a non-generic,
+single-*required*-parameter overload of `Equals` collides too — unless
+that parameter's type is ref-like (e.g. `Span<T>`), which has no boxing or
+reference conversion to `object` at all, or the parameter is the overload's
+own trailing `params` array (`Equals(params int[] values)`), which keeps a
+reachable spelling at every arity except exactly one.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -317,7 +344,22 @@ deterministic default.
 
 ## CMP0026 — Unsupported test-double parameter shape
 
-**Severity:** Informational — never fails the build.
+**Severity:** Informational — never fails the build. **Scope: always the
+whole interface.** (A `ref`/`out`/`in` parameter on a member with a
+same-named sibling is scoped instead — see `CMP0030` below, not this
+code.)
+
+- **A pointer or function-pointer parameter, at any nesting depth**
+  (including inside an array, e.g. `int*[]`) — it requires the method to
+  be declared `unsafe`, which this feature never emits.
+- **A `ref`/`out`/`in` parameter on a *solo* member** (no same-named
+  sibling at all) — "overload-set-internal partial support" presupposes
+  an overload set; a solo member has no set to preserve, so it keeps v1's
+  original disposition unchanged.
+- **An `out` parameter whose own type has no deterministic default**
+  (e.g. a non-nullable reference type) — there's no constructible
+  fallback body at all, even for an overload with a surfaced sibling; same
+  as any other no-deterministic-default case.
 
 **Message:** `'{Interface}' declares member '{Member}' with parameter
 '{Parameter}' {Shape}, which Compono cannot generate a test double for`
@@ -358,6 +400,52 @@ compilation — there's no per-interface switch to disable it for just this
 leaf; if you can't make every call site consistent, the interface will
 need to fall back to a different provider (e.g. `UseNSubstitute()`) for
 the whole project instead.
+
+## CMP0029 — Test-double members generate colliding zero-argument extensions
+
+**Severity:** Informational — never fails the build. **Scope (v2,
+ADR-0044): the colliding identities only** — every other member of the
+interface, including a genuine overload of the same name with its own
+non-zero parameter list, is unaffected.
+
+**Message:** `'{Interface}' declares member '{Member}', whose generated
+configuration extension has no parameters to disambiguate it from another
+same-named member's own generated extension`
+
+**Cause:** Two or more same-named members inherited through the
+interface's transitive closure don't share a full signature (so
+`CMP0022`'s diamond-collision check doesn't catch them — a property vs. a
+method, or two methods with a different real parameter list), but each
+one's own generated configuration extension is genuinely zero-parameter —
+a property's extension always is; a method's is unless it's part of a real
+overload set with its own distinguishing parameter list. Two identical
+zero-parameter extension signatures are an unresolvable `CS0111` collision
+if both kept their surface.
+
+**Fix:** None needed — the colliding identities fall back to a
+deterministic default; any other overload of the same name that keeps a
+real parameter list is unaffected.
+
+## CMP0030 — Overload-scoped unsupported test-double parameter shape
+
+**Severity:** Informational — never fails the build. **Scope (v2,
+ADR-0044): this one overload only** — every other member of the
+interface, including this overload's own dispatch body and its sibling
+overloads, is unaffected. (This is the scoped counterpart to `CMP0026`'s
+whole-interface `ref`/`out`/`in`-with-no-sibling case — the two are kept
+as separate diagnostics rather than one message with two different
+"does this fall back to the runtime-provider path" meanings.)
+
+**Message:** `'{Interface}' declares member '{Member}' with parameter
+'{Parameter}' as a ref/out/in parameter. This overload has no
+Configure() surface, but it still dispatches via a deterministic default -
+its sibling overloads, and the rest of the interface, are unaffected.`
+
+**Cause:** A `ref`/`out`/`in` parameter on a member that has at least one
+same-named sibling of any shape.
+
+**Fix:** None needed — this overload still dispatches deterministically;
+its sibling overloads keep their own `Configure()` surface.
 
 ## Next
 

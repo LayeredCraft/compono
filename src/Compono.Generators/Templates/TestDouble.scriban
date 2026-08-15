@@ -5,26 +5,41 @@
 internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualified_name }}
 {
 {{~ for member in members ~}}
+{{~ if member.has_configuration_surface ~}}
     internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> {{ member.field_name }};
+{{~ end ~}}
 {{~ end ~}}
 {{~ for member in members ~}}
 
 {{~ if member.kind == "Method" ~}}
+{{~ if member.has_configuration_surface ~}}
 {{~ if member.is_void ~}}
-    void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         if ({{ member.field_name }}.HasConfiguredException)
             throw {{ member.field_name }}.ConfiguredException;
     }
 {{~ else ~}}
-    {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }}) =>
+    {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }}) =>
         {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
         : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
         : {{ member.default_expression }};
 {{~ end ~}}
 {{~ else ~}}
+    {{ if member.is_void }}void{{ else }}{{ member.return_type_fully_qualified_name }}{{ end }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    {
+{{~ for assignment in member.out_parameter_assignments ~}}
+        {{ assignment }}
+{{~ end ~}}
+{{~ if !member.is_void ~}}
+        return {{ member.default_expression }};
+{{~ end ~}}
+    }
+{{~ end ~}}
+{{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}
     {
+{{~ if member.has_configuration_surface ~}}
         get =>
             {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
             : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
@@ -34,6 +49,14 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ else if member.accessor_kind == "GetInit" ~}}
         init => new global::Compono.ReturnConfigBuilder<{{ member.return_type_fully_qualified_name }}>(ref {{ member.field_name }}).Returns(value);
 {{~ end ~}}
+{{~ else ~}}
+        get => {{ member.default_expression }};
+{{~ if member.accessor_kind == "GetSet" ~}}
+        set { }
+{{~ else if member.accessor_kind == "GetInit" ~}}
+        init { }
+{{~ end ~}}
+{{~ end ~}}
     }
 {{~ end ~}}
 {{~ end ~}}
@@ -42,9 +65,16 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 internal static class {{ safe_identifier }}_DoubleConfiguration
 {
 {{~ for member in members ~}}
+{{~ if member.has_configuration_surface ~}}
+{{~ if member.is_overloaded ~}}
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}) =>
+        new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.extension_receiver_name }}.{{ member.field_name }});
+{{~ else ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self) =>
         new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }});
+{{~ end ~}}
 
+{{~ end ~}}
 {{~ end ~}}
 }
 

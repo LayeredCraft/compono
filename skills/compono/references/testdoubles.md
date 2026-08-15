@@ -58,6 +58,40 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   compile-time diagnostic instead; the generator never emits `null` for a
   non-nullable-annotated return.
 
+## Overloaded members (v2)
+
+An overloaded interface member now gets its own per-overload `Configure()`
+surface instead of an all-or-nothing rejection (see
+`docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`) —
+the generated configuration extension for an overloaded member takes the
+same real parameter types the interface overload declares, purely so
+ordinary C# overload resolution picks the right one (the values themselves
+are still discarded, same as the non-overloaded, zero-argument case).
+`Verify()` call-recording isn't shipped yet (PLAN-0044 Phase 2) - don't
+suggest it for an overloaded member any more than for a non-overloaded one:
+
+```csharp
+public interface IResponseBuilder
+{
+    void Speak(string? text);
+    void Speak(params ISsml[] parts);
+}
+
+builder.Configure().Speak("hello").Throws(new InvalidOperationException());
+builder.Configure().Speak(new ISsml[] { ssml }).Throws(new InvalidOperationException());
+```
+
+`.Speak(...)` alone only selects an overload's configuration handle -
+nothing is configured on the double until `.Returns(...)`/`.Throws(...)`
+is chained, same as any non-overloaded `Configure()` call.
+
+Two things still don't get a surface: a **diamond collision** (the exact
+same signature independently declared by two different base interfaces —
+nothing to disambiguate) and a `ref`/`out`/`in` parameter's own overload
+(falls back to a deterministic default, informational `CMP0030`) — in both
+cases only that one identity loses its surface, every other member and
+overload of the interface is unaffected.
+
 ## The #1 AutoFixture/NSubstitute-habit trap: not a general mocking framework
 
 There is **no** call recording, **no** verification (`Received()`-style
@@ -81,14 +115,16 @@ runtime `CompositionException` if no provider handles it, not a `CMP002x`
 diagnostic).
 
 For an eligible **interface**, indexers, events, generic methods,
-`ref`/`out`/`in` parameters, static abstract members, overloaded members,
-and a handful of narrower shapes (set-only properties, pointer/function-
-pointer parameters or returns, ref-like returns) are all diagnosed at
-compile time (`CMP0020`-`CMP0028`, informational severity — they don't
-fail the build) rather than emitted incorrectly or silently skipped: the
-interface still falls back to the ordinary runtime-provider path, same as
-any interface the compile-time opt-in never reached. See
-`references/diagnostics.md` for the full code table before guessing a fix.
+static abstract members, and a handful of narrower shapes (set-only
+properties, pointer/function-pointer parameters or returns, ref-like
+returns) still reject the **whole interface** at compile time
+(`CMP0020`-`CMP0030`, informational severity — they don't fail the build):
+it falls back to the ordinary runtime-provider path, same as any interface
+the compile-time opt-in never reached. Overloaded members and a
+`ref`/`out`/`in` parameter are narrower now (see above) — only the specific
+colliding/unsupported overload loses its surface, not the whole interface.
+See `references/diagnostics.md` for the full code table before guessing a
+fix.
 
 ## Precedence with `Compono.NSubstitute`
 

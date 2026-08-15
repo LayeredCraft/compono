@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (16,65)-(16,91),
+      Message: 'TestNamespace.IRepository' declares member 'Equals', whose generated configuration extension collides with an inherited 'object.Equals' member of the same arity. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0024,
+        Title: Test-double member collides with an inherited object member,
+        MessageFormat: '{0}' declares member '{1}', whose generated configuration extension collides with an inherited 'object.{1}' member of the same arity. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

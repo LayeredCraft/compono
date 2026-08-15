@@ -36,9 +36,15 @@ internal static class TestDoubleEmitter
                 m.ReturnTypeFullyQualifiedName,
                 m.IsVoid,
                 m.DefaultExpression,
+                m.HasConfigurationSurface,
+                m.IsOverloaded,
+                m.ExtensionReceiverName,
                 Kind = m.Kind.ToString(),
                 AccessorKind = m.AccessorKind.ToString(),
-                Parameters = m.Parameters.Select(p => new { p.EscapedName, p.FullyQualifiedTypeName }).ToArray(),
+                Parameters = m.Parameters
+                    .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.IsParams, p.DefaultValueExpression })
+                    .ToArray(),
+                OutParameterAssignments = m.OutParameterAssignments.ToArray(),
             }).ToArray(),
             GeneratorVersion,
         };

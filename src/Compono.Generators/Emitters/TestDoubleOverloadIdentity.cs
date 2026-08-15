@@ -1,0 +1,178 @@
+using System.Text;
+using Microsoft.CodeAnalysis;
+
+namespace Compono.Generators.Emitters;
+
+/// <summary>
+/// Sibling helper to <see cref="TestDoubleIdentifierNaming"/> (ADR-0044): a stable, collision-safe
+/// discriminator for one overload's full signature - parameter types, each parameter's
+/// <see cref="RefKind"/>, and the member's own generic arity - so two overloads that share a name
+/// (<c>M(int)</c>/<c>M(string)</c>) or would otherwise collapse under a naive parameter-type-only
+/// key (<c>M()</c>/<c>M&lt;T&gt;()</c>, ADR-0044 Amendment 2 Finding 3; <c>M(int)</c>/<c>M(ref int)</c>,
+/// Amendment 3 Finding 7) each get their own field/extension identity.
+/// </summary>
+internal static class TestDoubleOverloadIdentity
+{
+    /// <summary>
+    /// The full canonical signature text for a method overload - parameter <see cref="RefKind"/>s,
+    /// each parameter's canonicalized type (see <see cref="AppendCanonical"/>), and the method's own
+    /// generic arity. Two members with the same name and the same canonical signature are the same
+    /// overload identity - either the same real overload (impossible within one interface, the
+    /// compiler already prevents it) or a diamond collision: the same signature inherited from two
+    /// different base interfaces (ADR-0044 Amendment 3 Finding 8). <b>Use this, not
+    /// <see cref="StableHash"/> of it, for any identity/equality decision</b> - a 32-bit hash can
+    /// collide between two genuinely different signatures (Codex review, PR #88); the hash is only
+    /// safe for generating a human-scannable, best-effort-unique naming suffix (with its own
+    /// disambiguation fallback for when it does collide - see <c>TestDoubleAnalyzer</c>'s
+    /// discriminator-suffix pre-pass), never for deciding whether two overloads are the same identity.
+    /// </summary>
+    public static string CanonicalSignatureFor(IMethodSymbol method)
+    {
+        var builder = new StringBuilder();
+        builder.Append("arity:").Append(method.TypeParameters.Length).Append('|');
+
+        foreach (var parameter in method.Parameters)
+        {
+            builder.Append(parameter.RefKind).Append(':');
+            AppendCanonical(builder, parameter.Type, method);
+            builder.Append(';');
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// The canonical signature for a property - properties can never be overloaded by type in C# (no
+    /// parameter list outside an indexer, which is already excluded upstream), so every property's
+    /// canonical signature is constant; two properties collide under this key only when they share a
+    /// name, which is exactly the diamond-inherited-same-name-property case (ADR-0043's existing
+    /// <c>DiamondInheritedSameNameProperty</c> coverage).
+    /// </summary>
+    public static string CanonicalSignatureFor(IPropertySymbol property) => "property";
+
+    // Walks the type through every generic type argument, array element type, and tuple element
+    // type, at every nesting level, treating anything the C# compiler doesn't consider
+    // signature-affecting as identical - an open-ended principle (ADR-0044 Amendment 8 Finding 19),
+    // not a closed list of special cases:
+    //  - nullable-reference annotation is never read here, so it never affects the hash
+    //  - `dynamic` canonicalizes to `object` (both are `object` at the metadata level)
+    //  - a named tuple canonicalizes to its underlying `ValueTuple<...>` shape
+    //  - a reference to the member's own type parameter canonicalizes to its ordinal position, not
+    //    its name (`IA.M<T>(T)` and `IB.M<U>(U)` are the same overload identity)
+    //  - `nint`/`nuint` canonicalize to `System.IntPtr`/`System.UIntPtr` (same type, different keyword)
+    private static void AppendCanonical(StringBuilder builder, ITypeSymbol type, IMethodSymbol owningMethod)
+    {
+        if (type is ITypeParameterSymbol typeParameter)
+        {
+            for (var i = 0; i < owningMethod.TypeParameters.Length; i++)
+            {
+                if (SymbolEqualityComparer.Default.Equals(owningMethod.TypeParameters[i], typeParameter))
+                {
+                    builder.Append("T#").Append(i);
+                    return;
+                }
+            }
+
+            // A type parameter belonging to some enclosing type, not this method - not affected by
+            // the ordinal-token rule above, but still needs a stable textual identity.
+            builder.Append(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            return;
+        }
+
+        if (type.SpecialType == SpecialType.System_IntPtr)
+        {
+            builder.Append("System.IntPtr");
+            return;
+        }
+
+        if (type.SpecialType == SpecialType.System_UIntPtr)
+        {
+            builder.Append("System.UIntPtr");
+            return;
+        }
+
+        if (type.TypeKind == TypeKind.Dynamic)
+        {
+            // Must match exactly what AppendNamedType below would write for a real `object`
+            // parameter ("global::System.Object") - a bare "object" here canonicalized `dynamic`
+            // and a real `object` parameter to two *different* strings, so IA.M(dynamic)/IB.M(object)
+            // were never actually recognized as the same diamond-colliding identity the ADR always
+            // claimed they'd be. Codex review, PR #88.
+            builder.Append("global::System.Object");
+            return;
+        }
+
+        if (type is IArrayTypeSymbol array)
+        {
+            builder.Append('[').Append(array.Rank).Append(']');
+            AppendCanonical(builder, array.ElementType, owningMethod);
+            return;
+        }
+
+        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
+        {
+            type = tuple.TupleUnderlyingType ?? tuple;
+        }
+
+        if (type is INamedTypeSymbol named)
+        {
+            AppendNamedType(builder, named, owningMethod);
+            return;
+        }
+
+        builder.Append(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    }
+
+    // Walks the ContainingType chain and canonicalizes each level's own type arguments separately -
+    // INamedTypeSymbol.TypeArguments only ever holds a nested type's *own* generic parameters, never
+    // an outer type's substitution, so M(Outer<int>.Inner) and M(Outer<string>.Inner) would otherwise
+    // canonicalize identically (both "Outer<T>.Inner", since Inner itself declares no type parameters)
+    // and be misdiagnosed as a diamond collision instead of two legal, distinct overloads. Codex
+    // review, PR #88.
+    private static void AppendNamedType(StringBuilder builder, INamedTypeSymbol named, IMethodSymbol owningMethod)
+    {
+        if (named.ContainingType is { } containingType)
+        {
+            AppendNamedType(builder, containingType, owningMethod);
+            builder.Append('.');
+        }
+        else if (!named.ContainingNamespace.IsGlobalNamespace)
+        {
+            builder.Append(named.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).Append('.');
+        }
+
+        builder.Append(named.Name);
+
+        if (named.TypeArguments.Length > 0)
+        {
+            builder.Append('<');
+
+            for (var i = 0; i < named.TypeArguments.Length; i++)
+            {
+                if (i > 0)
+                    builder.Append(',');
+
+                AppendCanonical(builder, named.TypeArguments[i], owningMethod);
+            }
+
+            builder.Append('>');
+        }
+    }
+
+    // Same FNV-1a algorithm as TestDoubleIdentifierNaming.StableHash/GeneratedFileNaming.StableHash -
+    // never string.GetHashCode(), which is randomized per process on modern runtimes.
+    // Internal, not private: TestDoubleAnalyzer's suffix-disambiguation pre-pass needs to re-hash
+    // when two different canonical signatures collide under the base 8-hex hash.
+    internal static string StableHash(string value)
+    {
+        const uint offsetBasis = 2166136261;
+        const uint prime = 16777619;
+
+        var hash = offsetBasis;
+
+        foreach (var c in value)
+            hash = (hash ^ c) * prime;
+
+        return hash.ToString("x8");
+    }
+}
