@@ -631,7 +631,14 @@ internal static class TestDoubleAnalyzer
 
                         // Same object-collision rule as the method branch above (properties can't be
                         // overloaded by type, so their generated extension is always zero-argument).
-                        if (!isDiamondCollision && property.Name is "ToString" or "GetHashCode" or "GetType")
+                        // Also guarded on !isZeroArgCollision - a property already withheld for
+                        // colliding with a same-named zero-parameter method (CMP0029) has no surface
+                        // to collide with object left either; without this guard, this check
+                        // redundantly rejected the whole interface even though the method branch's
+                        // own object-collision check already correctly skips itself in that case
+                        // (guarded by `hasConfigurationSurface`, which zero-arg collision also clears).
+                        // Codex review, PR #88.
+                        if (!isDiamondCollision && !isZeroArgCollision && property.Name is "ToString" or "GetHashCode" or "GetType")
                         {
                             return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                 DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,

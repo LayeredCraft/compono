@@ -1761,4 +1761,44 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: a property named "ToString" and a same-named zero-parameter method
+    // "ToString()" inherited from different base interfaces are already correctly withheld by the
+    // zero-argument-extension collision check (CMP0029) - the property branch's own separate
+    // object-collision check must skip itself in that case too, or it redundantly rejects the whole
+    // interface (CMP0024) even though the double would otherwise compile fine.
+    [Fact]
+    public Task PropertyAndMethodBothNamedToStringCollideOnlyViaZeroArgumentCheck() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        string? ToString { get; }
+                    }
+
+                    public interface IBaseB
+                    {
+                        string? ToString();
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0029",
+            TestContext.Current.CancellationToken);
 }
