@@ -775,13 +775,20 @@ internal static class TestDoubleAnalyzer
         // An enum-typed default is exposed as its boxed *underlying* numeric value, not the enum
         // member itself (e.g. `Mode mode = Mode.Active` surfaces as the boxed int 1) - emitting that
         // raw primitive directly (`Mode mode = 1`) fails consumer compilation (CS1750, no standard
-        // conversion from int to Mode). A cast to the fully qualified enum type is a legal constant
+        // conversion from int to Mode). A cast to the underlying enum type is a legal constant
         // default-parameter-value expression regardless of which member (if any) the value names -
-        // verified with a real compile spike. Codex review, PR #88.
+        // verified with a real compile spike, including that a cast to the non-nullable enum type
+        // (not the nullable wrapper) is what's needed for a `Mode?`-typed parameter, since `(Mode)1`
+        // converts implicitly to `Mode?` in this context. `Nullable<T>` has to be unwrapped first -
+        // parameter.Type.TypeKind is Struct, not Enum, for a nullable-enum-typed parameter, so the
+        // unguarded check missed this shape entirely. Codex review, PR #88.
         var formatted = SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false) ?? "default";
+        var underlyingType = parameter.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
+            ? nullable.TypeArguments[0]
+            : parameter.Type;
 
-        return parameter.Type.TypeKind == TypeKind.Enum
-            ? $"({parameter.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)}){formatted}"
+        return underlyingType.TypeKind == TypeKind.Enum
+            ? $"({underlyingType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)}){formatted}"
             : formatted;
     }
 

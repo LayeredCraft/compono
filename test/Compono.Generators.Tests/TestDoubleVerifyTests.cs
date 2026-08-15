@@ -1801,4 +1801,48 @@ public sealed class TestDoubleVerifyTests
             },
             "CMP0029",
             TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: for a nullable-enum-typed parameter (Mode? mode = Mode.Active),
+    // parameter.Type.TypeKind is Struct (Nullable<T> itself is a struct), not Enum - the unguarded
+    // enum check missed this shape entirely and still emitted the raw underlying integer
+    // (`Mode? mode = 1`, CS1750). Verified with a real compile spike that a cast to the *non-nullable*
+    // enum type ((Mode)1) is what's needed - it converts implicitly to Mode? in this context.
+    [Fact]
+    public Task OverloadedMemberWithNonZeroNullableEnumDefault_GeneratesDoubleWithTypeCompatibleDefault() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public enum Mode
+                {
+                    None = 0,
+                    Active = 1,
+                }
+
+                public interface IRepository
+                {
+                    void M(Mode? mode = Mode.Active);
+
+                    void M(string value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().M();
+                        repository.Configure().M(Mode.None);
+                        repository.Configure().M("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }
