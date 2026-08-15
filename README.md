@@ -34,14 +34,14 @@ Compono determines **how** those requirements are satisfied.
 
 ## Packages
 
-  Package                 Description
-  ----------------------- --------------------------------------------------------
-  `Compono`               Core composition engine with built-in source generator
-  `Compono.XunitV3`        xUnit v3 integration
-  `Compono.TUnit`         TUnit integration
-  `Compono.NSubstitute`   Automatic NSubstitute composition
-  `Compono.Bogus`         Semantic fake data integration
-  `Compono.TestDoubles`   Source-generated, AOT-safe interface doubles
+| Package | Description | NuGet | Downloads |
+| --- | --- | --- | --- |
+| `Compono` | Core composition engine with built-in source generator | [![NuGet](https://img.shields.io/nuget/v/Compono.svg)](https://www.nuget.org/packages/Compono) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.svg)](https://www.nuget.org/packages/Compono) |
+| `Compono.XunitV3` | xUnit v3 integration | [![NuGet](https://img.shields.io/nuget/v/Compono.XunitV3.svg)](https://www.nuget.org/packages/Compono.XunitV3) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.XunitV3.svg)](https://www.nuget.org/packages/Compono.XunitV3) |
+| `Compono.TUnit` | TUnit integration | [![NuGet](https://img.shields.io/nuget/v/Compono.TUnit.svg)](https://www.nuget.org/packages/Compono.TUnit) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.TUnit.svg)](https://www.nuget.org/packages/Compono.TUnit) |
+| `Compono.NSubstitute` | Automatic NSubstitute composition | [![NuGet](https://img.shields.io/nuget/v/Compono.NSubstitute.svg)](https://www.nuget.org/packages/Compono.NSubstitute) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.NSubstitute.svg)](https://www.nuget.org/packages/Compono.NSubstitute) |
+| `Compono.Bogus` | Semantic fake data integration | [![NuGet](https://img.shields.io/nuget/v/Compono.Bogus.svg)](https://www.nuget.org/packages/Compono.Bogus) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Bogus.svg)](https://www.nuget.org/packages/Compono.Bogus) |
+| `Compono.TestDoubles` | Source-generated, AOT-safe interface doubles | [![NuGet](https://img.shields.io/nuget/v/Compono.TestDoubles.svg)](https://www.nuget.org/packages/Compono.TestDoubles) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.TestDoubles.svg)](https://www.nuget.org/packages/Compono.TestDoubles) |
 
 ## Example
 
