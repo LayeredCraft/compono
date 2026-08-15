@@ -7,16 +7,14 @@ error list and fail `dotnet build`, the same as any other compiler error.
 `CMP0020`–`CMP0030` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
 is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
-and never fail the build. Most (`CMP0020`, `CMP0021`, `CMP0023`,
-`CMP0025`–`CMP0028`, and `CMP0026`/`CMP0024` in their whole-interface
-cases) report that an entire interface leaf's generated double couldn't
-be emitted — the leaf falls back to the ordinary runtime-provider path.
+and never fail the build. Most (`CMP0020`, `CMP0021`, `CMP0023`–`CMP0028`)
+report that an entire interface leaf's generated double couldn't be
+emitted — the leaf falls back to the ordinary runtime-provider path.
 A newer, narrower subset (v2, ADR-0044) is **scoped to one overload or
-identity instead**: `CMP0022`, `CMP0029`, and `CMP0030` — and `CMP0026`/
-`CMP0024` in their overload-scoped cases — withhold just that one
-overload's or identity's `Configure()` surface while the double still
-generates and every other member is unaffected; each entry below says
-which scope applies. For a *runtime* composition failure (a
+identity instead**: `CMP0022`, `CMP0029`, and `CMP0030` withhold just
+that one overload's or identity's `Configure()` surface while the double
+still generates and every other member is unaffected; each entry below
+says which scope applies. For a *runtime* composition failure (a
 `CompositionException` thrown from `composer.Create<T>()`), see
 [Troubleshooting: Common Errors](../troubleshooting/common-errors.md#runtime-composition-failures)
 instead — runtime failures have no diagnostic code, only a path-annotated
@@ -31,8 +29,7 @@ dispatch-eligibility guard; the generated-test-double diagnostics
 (`CMP0020`–`CMP0030`) by
 [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)'s design,
 extended by [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
-for `CMP0022`, `CMP0029`, `CMP0030`, and `CMP0026`/`CMP0024`'s
-overload-scoped cases.
+for `CMP0022`, `CMP0029`, and `CMP0030`.
 
 ## CMP0001 — Ambiguous construction path
 
@@ -306,7 +303,10 @@ compiler itself uses for overload resolution.
 
 ## CMP0024 — Test-double member collides with an inherited `object` member
 
-**Severity:** Informational — never fails the build.
+**Severity:** Informational — never fails the build. **Scope: always the
+whole interface** — an object-member collision has no constructible
+fallback body at any granularity, the same disposition as any other
+no-constructible-body shape.
 
 **Message:** `'{Interface}' declares member '{Member}', whose generated
 configuration extension collides with an inherited 'object.{Member}'

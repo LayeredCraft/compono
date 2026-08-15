@@ -1845,4 +1845,156 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: PLAN-0044 Phase 0's own task text admitted this canonicalization case
+    // (nullable-reference annotation excluded from identity, ADR-0044 Amendment 6 Finding 14) had no
+    // dedicated diamond test - only the recursive AppendCanonical code path exercised it indirectly.
+    // Nullable-reference annotation is compiler-tracked metadata, not part of a method's real
+    // signature, so IA.M(string) and IB.M(string?) are the same overload identity - a genuine diamond
+    // collision, not two independent overloads.
+    [Fact]
+    public Task DiamondInheritedNullableAnnotationOverload_ReportsScopedOverloadedDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        void M(string value);
+                    }
+
+                    public interface IBaseB
+                    {
+                        void M(string? value);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0022",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: PLAN-0044 Phase 0's own task text admitted this canonicalization case
+    // (named-tuple element names excluded from identity, ADR-0044 Amendment 8 Finding 19) had no
+    // dedicated diamond test either. A named tuple's element names aren't part of a method's real
+    // signature - only its underlying ValueTuple<...> shape is - so IA.M((int X, int Y)) and
+    // IB.M((int A, int B)) are the same overload identity.
+    [Fact]
+    public Task DiamondInheritedTupleElementNameOverload_ReportsScopedOverloadedDiagnostic() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        void M((int X, int Y) value);
+                    }
+
+                    public interface IBaseB
+                    {
+                        void M((int A, int B) value);
+                    }
+
+                    public interface IRepository : IBaseA, IBaseB;
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0022",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: a parameter can be optional purely via [Optional] (common on metadata
+    // imported from COM-flavored or VB-compiled assemblies) with no explicit default value at all -
+    // verified with a real compile spike that IsOptional is true while HasExplicitDefaultValue stays
+    // false, and that the real interface still allows the argument to be omitted entirely. The
+    // generated discriminator extension needs to stay reachable the same way.
+    [Fact]
+    public Task OverloadedMemberWithAttributeOnlyOptionalParameter_ConfigureIsCallableWithoutTheOptionalArgument() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void M([System.Runtime.InteropServices.Optional] int value);
+
+                    void M(string value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().M();
+                        repository.Configure().M(5);
+                        repository.Configure().M("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #88: the Equals-collision check's own "optional single parameter keeps the
+    // surface" exception needs the same IsOptional (not HasExplicitDefaultValue) fix.
+    [Fact]
+    public Task OverloadedEqualsWithAttributeOnlyOptionalParameter_DoesNotCollideWithObjectMember() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Equals([System.Runtime.InteropServices.Optional] int value);
+
+                    bool Equals(long a, long b, long c);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Equals().Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 }

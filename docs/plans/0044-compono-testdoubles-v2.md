@@ -201,14 +201,15 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       (nullable annotation, `dynamic`/`object`, tuple element names,
       `nint`/`System.IntPtr` — Amendment 6/7/8/10 Findings 14, 17, 19, and
       Amendment 10; the generic-parameter-name case moves to Phase 1, once
-      generic methods exist to test it with) — **partial: only the
-      `nint`/`System.IntPtr` case has its own diamond test
-      (`DiamondInheritedNintAndIntPtrOverload_ReportsScopedOverloadedDiagnostic`)**;
-      the nullable-annotation, `dynamic`/`object`, and tuple-element-name
-      cases exercise the same recursive `AppendCanonical` code path (see
-      `TestDoubleOverloadIdentity`) but don't each have their own dedicated
-      diamond test yet — add them before Phase 1 revisits this file,
-      **and a mixed overload set with an `out` parameter of a type with no
+      generic methods exist to test it with) — all four cases now have
+      their own dedicated diamond test
+      (`DiamondInheritedNintAndIntPtrOverload_ReportsScopedOverloadedDiagnostic`,
+      `DiamondInheritedDynamicAndObjectOverload_ReportsScopedOverloadedDiagnostic`,
+      `DiamondInheritedNullableAnnotationOverload_ReportsScopedOverloadedDiagnostic`,
+      `DiamondInheritedTupleElementNameOverload_ReportsScopedOverloadedDiagnostic`
+      — the last two added during PR #88's own review, Codex review round,
+      after this task was initially checked off with only two of the four
+      covered), **and a mixed overload set with an `out` parameter of a type with no
       deterministic default** (whole-interface rejection, Amendment 8
       Finding 20), alongside one with an `out` parameter that does have a
       default (definitely-assigned fallback body, same finding), **and an

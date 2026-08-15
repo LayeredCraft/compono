@@ -482,9 +482,14 @@ internal static class TestDoubleAnalyzer
                             // spelling via Configure().Equals() (now that the default value itself is
                             // mirrored onto the extension too) even though a literal one-argument call
                             // still collides. Codex review, PR #88.
+                            // IsOptional, not HasExplicitDefaultValue - a parameter can be optional
+                            // purely via [Optional] with no explicit default value at all (verified
+                            // with a real compile spike: HasExplicitDefaultValue is false but
+                            // IsOptional is still true, and Configure().Equals() is still reachable).
+                            // Codex review, PR #88.
                             if (method.Name is "Equals" && extensionArity == 1 &&
                                 !method.Parameters[0].Type.IsRefLikeType && !method.Parameters[0].IsParams &&
-                                !method.Parameters[0].HasExplicitDefaultValue)
+                                !method.Parameters[0].IsOptional)
                             {
                                 return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                     DiagnosticDescriptors.TestDoubleObjectMemberCollision, location,
@@ -764,8 +769,17 @@ internal static class TestDoubleAnalyzer
     // value-type `= default` default - `default` is a valid literal for either.
     private static string DefaultValueExpressionFor(IParameterSymbol parameter)
     {
-        if (!parameter.HasExplicitDefaultValue)
+        if (!parameter.IsOptional)
             return "";
+
+        // A parameter can be optional purely via [Optional] (common on metadata imported from
+        // COM-flavored or VB-compiled assemblies) with no explicit default value at all -
+        // HasExplicitDefaultValue is false but IsOptional is still true. Verified with a real compile
+        // spike that the real interface still allows omitting the argument entirely (the compiler
+        // substitutes default(T) for the caller) - "default" mirrors that substitution exactly, same
+        // as the null-default case below. Codex review, PR #88.
+        if (!parameter.HasExplicitDefaultValue)
+            return "default";
 
         var value = parameter.ExplicitDefaultValue;
 
