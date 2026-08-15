@@ -363,20 +363,21 @@ code.)
   (e.g. a non-nullable reference type) — there's no constructible
   fallback body at all, even for an overload with a surfaced sibling; same
   as any other no-deterministic-default case.
-- **A generic method's own unconstrained type parameter used as `T?`**
-  (v2, ADR-0044 Amendment 6 Finding 15) — an unconstrained `T?` can
-  require C#'s `default` constraint on the explicit interface
-  implementation to disambiguate its inherited, oblivious reference-or-
-  value-type meaning; correctly modeling exactly when that's *required*
-  isn't attempted, so this shape is diagnosed and excluded instead. A
-  type parameter with any constraint (`class`, `class?`, `struct`,
-  `unmanaged`, `notnull`) is unaffected.
+- **A generic method's own type parameter used as `T?` in a parameter**
+  (v2, ADR-0044 Amendment 6 Finding 15, unified by Amendment 9) —
+  constrained or unconstrained, regardless of which constraint. A `T?`
+  usage can require a C# 9+ constraint restatement on the explicit
+  interface implementation to disambiguate its inherited, oblivious
+  reference-or-value-type meaning; correctly modeling exactly when that's
+  *required*, and with which exact keyword, isn't attempted (two review
+  rounds gave conflicting answers even for the constrained case), so
+  every `T?`-using type parameter is diagnosed and excluded alike.
 
 **Message:** `'{Interface}' declares member '{Member}' with parameter
 '{Parameter}' {Shape}, which Compono cannot generate a test double for`
 
 **Cause:** A method parameter is `ref`/`out`/`in`, a pointer, a function
-pointer, or an unconstrained generic type parameter used as `T?`.
+pointer, or a generic type parameter used as `T?`.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 

@@ -156,8 +156,9 @@ logger.Configure().BeginScope().Returns(myScope);
 // configuration extension stays non-generic, member-level, exactly like an ordinary member.
 ```
 
-The explicit interface implementation stays generic — type parameters and
-constraint clauses copied verbatim from the interface. The
+The explicit interface implementation stays generic — type parameters
+copied, constraints left unstated (they're inherited automatically from
+the interface and can't be redeclared, `CS0460`). The
 `Configure()`/`Verify()` extension itself stays **non-generic** for a solo
 generic member: the backing slot's type never depends on the method's own
 type parameter, so one slot covers every closed instantiation a real
@@ -166,7 +167,10 @@ caller exercises.
 **Overloaded *and* generic together** (Amendment 1) — when a generic
 method's name is also shared by another overload, its configuration
 extension becomes generic too, purely for compile-time overload selection
-(the backing slot still doesn't vary per closed type):
+(the backing slot still doesn't vary per closed type) — this extension
+*does* carry its constraint clauses, copied verbatim, since it's an
+ordinary standalone generic method rather than an interface
+implementation and has no other way to stay type-safe:
 
 ```csharp
 public interface IWidget
@@ -185,12 +189,13 @@ widget.Configure().Process<string>(someListOfString).Returns(default);        //
   anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`,
   `IEnumerable<T> Filter<T>()`) — no constructible fallback body, so the
   whole interface falls back to the runtime-provider path (`CMP0031`).
-- An unconstrained type parameter used as `T?` in a parameter (or the
-  method's own declaration) — correctly modeling exactly when C#'s
-  `default` constraint is required on the explicit implementation isn't
-  something this feature attempts; diagnosed and excluded instead
-  (`CMP0026`). A constrained type parameter (`class`, `class?`, `struct`,
-  `unmanaged`, `notnull`) is unaffected.
+- **Any** type parameter used as `T?` in a parameter (or the method's own
+  declaration) — constrained or unconstrained, regardless of which
+  constraint. Correctly modeling exactly when (and with which keyword) a
+  C# 9+ constraint restatement is required on the explicit implementation
+  isn't something this feature attempts — two review rounds gave
+  conflicting answers even for the constrained case — so every `T?`-using
+  type parameter is diagnosed and excluded alike (`CMP0026`).
 
 ## Precedence with `Compono.NSubstitute`
 

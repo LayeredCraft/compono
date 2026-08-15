@@ -97,7 +97,8 @@ overload of the interface is unaffected.
 A generic method is supported when its return type doesn't reference its
 own type parameter (Requirement 2) - `ILogger<T>`'s `Log<TState>`/
 `BeginScope<TState>` is the motivating shape. The explicit implementation
-stays generic (type parameters and constraints copied verbatim); the
+stays generic (type parameters copied, constraints left unstated - they're
+inherited automatically and redeclaring them is `CS0460`); the
 `Configure()` extension itself stays **non-generic** for a solo generic
 member - one backing slot covers every closed instantiation:
 
@@ -114,17 +115,20 @@ logger.Configure().BeginScope().Returns(myScope);
 
 **Overloaded and generic together** (Amendment 1): the configuration
 extension becomes generic too, purely for compile-time overload selection
-- the backing slot still doesn't vary per closed type. An explicit type
+- the backing slot still doesn't vary per closed type. This extension
+*does* carry its constraint clauses verbatim (it's an ordinary standalone
+generic method, not an interface implementation). An explicit type
 argument is needed at the call site whenever ordinary overload-resolution
 betterness rules wouldn't otherwise pick that overload (same as a real
 call to the interface member itself).
 
 **Still unsupported:** a generic method whose return type depends on its
 own type parameter (`T Get<T>()`) - no constructible fallback body, whole
-interface falls back (`CMP0031`). An unconstrained type parameter used as
-`T?` in a parameter is diagnosed and excluded too (`CMP0026`) - correctly
-modeling exactly when C#'s `default` constraint is required isn't
-attempted; a constrained type parameter is unaffected.
+interface falls back (`CMP0031`). **Any** type parameter used as `T?` in a
+parameter is diagnosed and excluded too (`CMP0026`) - constrained or
+unconstrained, regardless of which constraint; correctly modeling exactly
+when (and with which keyword) a constraint restatement is required isn't
+attempted.
 
 ## The #1 AutoFixture/NSubstitute-habit trap: not a general mocking framework
 
@@ -149,12 +153,13 @@ runtime `CompositionException` if no provider handles it, not a `CMP002x`
 diagnostic).
 
 For an eligible **interface**, indexers, events, static abstract members,
-a generic method whose return type depends on its own type parameter, an
-unconstrained type parameter used as `T?`, and a handful of narrower
-shapes (set-only properties, pointer/function-pointer parameters or
-returns, ref-like returns) still reject the **whole interface** at compile
-time (`CMP0020`-`CMP0031`, informational severity — they don't fail the
-build): it falls back to the ordinary runtime-provider path, same as any
+a generic method whose return type depends on its own type parameter, a
+generic type parameter used as `T?` (constrained or not), and a handful
+of narrower shapes (set-only properties, pointer/function-pointer
+parameters or returns, ref-like returns) still reject the **whole
+interface** at compile time (`CMP0020`-`CMP0031`, informational severity —
+they don't fail the build): it falls back to the ordinary runtime-provider
+path, same as any
 interface the compile-time opt-in never reached. Overloaded members, a
 `ref`/`out`/`in` parameter, and a generic method independent of its own
 type parameter are narrower now (see above) — only the specific
