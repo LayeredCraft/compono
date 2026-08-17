@@ -458,14 +458,21 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       collision diagnostic this phase's reserved-name widening actually
       changed the behavior of.
 
-### Phase 3 — AOT, performance, and package verification
+### Phase 3 — AOT, performance, and package verification (Done)
 
-- [ ] `test/Compono.TestDoubles.AotSmokeTest`: extend to exercise all
+- [x] `test/Compono.TestDoubles.AotSmokeTest`: extend to exercise all
       three new shapes together (an overloaded member, a covered generic
       method, a verified call) in the same `dotnet publish
       -p:PublishAot=true` run — zero `IL2xxx`/`IL3xxx` warnings, real
       execution, matching PLAN-0043 Phase 2's own standard.
-- [ ] `test/Compono.TestDoubles.SampleTests`: extend the packaged-consumer
+      `Program.cs` now also declares `IGateway` (overloaded `Send`) and
+      `ILoggerLike` (`Log<TState>`), and verifies all of `IRepository`,
+      `IGateway`, and `ILoggerLike`'s calls via `Verify()`. Ran
+      `dotnet publish -c Release -f net10.0 -p:PublishAot=true` manually
+      (this project isn't CI-wired, matching PLAN-0043's own AOT-harness
+      disposition) — zero `IL2xxx`/`IL3xxx` warnings, and the published
+      native binary printed `PASS: ...` and exited 0.
+- [x] `test/Compono.TestDoubles.SampleTests`: extend the packaged-consumer
       sample with the same three shapes, proving the real NuGet-packaged
       path (not just the in-process generator harness), matching PLAN-0043
       Phase 2's local-feed pattern — this is the combined-shapes proof;
@@ -473,12 +480,81 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       their own lighter packaged smoke test (added per Amendment 6's
       process finding, see Notes), so this phase isn't the first point
       any of the three shapes gets compiled as a real external consumer.
-- [ ] Targeted benchmarks only (per ADR-0044's "AOT and performance"
+      Added `CombinedShapesTests.cs` (`INotifier`: an overloaded `Notify`
+      plus a generic `Publish<TEvent>`), configuring, calling, and
+      verifying all three shapes together. Runs automatically in CI via
+      `package-validation.yaml`'s existing "Local-feed packed-consumer
+      smoke test (Compono.TestDoubles)" step — no workflow change needed.
+      All 4 TFMs green (11/11 tests, up from 10).
+- [x] Targeted benchmarks only (per ADR-0044's "AOT and performance"
       section — not a general competitive suite): `Interlocked.Increment`
       overhead per verified call, and overload-dispatch overhead for a
       member with several sibling overloads — both following this repo's
       existing benchmark-suite policy (ADR-0034), non-misleading
       comparisons only.
+      Added `benchmarks/Compono.Benchmarks/FeatureOverhead/VerificationOverheadBenchmarks.cs`
+      (isolates `Interlocked.Increment` vs. a plain field increment — the
+      exact primitive `RecordCall()` uses) and
+      `.../FeatureOverhead/OverloadDispatchOverheadBenchmarks.cs` (calls
+      the same `Send(string)` shape on a solo-member interface vs. one
+      with four sibling overloads). `Compono.Benchmarks.csproj` gained a
+      `ProjectReference` to `Compono.TestDoubles` and an explicit
+      `<CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />`
+      — a `ProjectReference` consumer bypasses `Compono`'s packaged
+      `build/Compono.props` (which declares that visibility for a
+      `PackageReference` consumer), so it must declare it itself.
+
+      **Real `BenchmarkDotNet` run** (Apple M3 Max, arm64, .NET 10.0.3,
+      `DefaultJob`, not a dry run) — full results, honestly published per
+      ADR-0034 rule 5 regardless of how unremarkable they are:
+
+      | Method | Mean | Ratio |
+      |---|---|---|
+      | `PlainIncrement` (baseline) | 0.489 ns | 1.00 |
+      | `InterlockedIncrement` | 0.485 ns | 0.99 |
+
+      | Method | Mean | Ratio |
+      |---|---|---|
+      | `SingleOverloadMember` (baseline) | 0.930 ns | 1.00 |
+      | `MemberWithFourSiblingOverloads` | 0.979 ns | 1.05 |
+
+      Both differences are within measurement noise (RatioSD 0.05-0.07) —
+      no meaningful overhead from either verification's counter or from
+      adding sibling overloads to a member, on this hardware. One real
+      finding from getting this run right: the `PlainIncrement` baseline's
+      first draft used a bare `++_count` and measured 0.000 ns — the JIT
+      silently collapsed the write across BenchmarkDotNet's unrolled-
+      iteration loop since nothing reads the field between calls,
+      understating the baseline and violating ADR-0034's baseline-parity
+      rule (the two arms weren't doing equivalent real work). Fixed by
+      forcing a real memory write every call via `Volatile.Write` in the
+      baseline, differing from the `Interlocked.Increment` arm only in
+      atomicity, as intended.
+
+      **Beyond the plan's original two benchmarks** — with both
+      `Compono.TestDoubles` and `Compono.NSubstitute` now available side
+      by side, added
+      `benchmarks/Compono.Benchmarks/FeatureOverhead/GeneratedTestDoubleVsNSubstituteBenchmarks.cs`:
+      the concrete number behind `Compono.TestDoubles`'
+      `docs/packages/compono-testdoubles.md`'s own stated rationale (an
+      AOT-safe alternative to `Compono.NSubstitute`'s runtime-proxy
+      dependency for the common case). Both arms compose the identical
+      `IClock` leaf, varying only which provider satisfies it — same
+      baseline-vs-alternative shape as the pre-existing
+      `NSubstituteOverheadBenchmarks`, not a general "which mock framework
+      wins" exercise (which ADR-0034 disallows).
+
+      | Method | Mean | Ratio | Allocated | Alloc Ratio |
+      |---|---|---|---|---|
+      | `ClockViaGeneratedTestDouble` (baseline) | 135.6 ns | 1.00 | 1.3 KB | 1.00 |
+      | `ClockViaNSubstitute` | 914.4 ns | 6.75 | 6.52 KB | 4.99 |
+
+      A real, meaningful result this time (unlike the two benchmarks
+      above): the generated double is ~6.75x faster and allocates ~5x
+      less than resolving the same interface through NSubstitute's
+      runtime proxy, on this hardware — proxy generation/interception
+      machinery costs real time and memory that a compile-time-emitted
+      double simply doesn't pay.
 
 ### Phase 4 — Documentation consistency pass
 

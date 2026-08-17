@@ -12,10 +12,14 @@ itself, never a comparative headline like "faster than AutoFixture."
 Every current table on this page — Consumer Scenarios, External
 Comparison, Feature Overhead, Scalability, Source Generation — comes from
 one full suite run (see Methodology below); none mixes results from
-different runs. The one exception is explicitly marked: the Feature
+different runs, other than two explicitly marked exceptions. The Feature
 Overhead section's `UseBogus()` discussion cites historical, pre-fix
 figures alongside the current ones, because that history is the record
-of a real engineering finding, not a live result.
+of a real engineering finding, not a live result. The Feature Overhead
+section's call-verification, overloaded-member, and generated-test-double
+rows were captured in their own dedicated runs (same hardware and
+methodology, see below) rather than the shared full-suite run, since
+those benchmarks were added afterward.
 
 ## What Compono optimizes for
 
@@ -143,6 +147,12 @@ Isolates one mechanism's marginal cost at a time (full detail: [ADR-0034](../../
 | `UseNSubstitute()` | NSubstitute provider | 1,206.9 ns | 12.61 ns | 11.79 ns | 3.64× | 0.8698 | 0.0114 | 7.12 KB | 4.30× |
 | `UseBogus()` | Member rule (baseline) | 333.4 ns | 4.51 ns | 4.22 ns | 1.00× | 0.2027 | 0.0010 | 1.66 KB | 1.00× |
 | `UseBogus()` | Bogus convention provider | 2,254.2 ns | 15.50 ns | 13.74 ns | 6.76× | 0.4425 | - | 3.62 KB | 2.18× |
+| Call verification (`Verify()`) | Field write (baseline) | 0.489 ns | 0.026 ns | 0.024 ns | 1.00× | - | - | - | - |
+| Call verification (`Verify()`) | Interlocked increment (counter update) | 0.485 ns | 0.012 ns | 0.011 ns | 0.99× (noise) | - | - | - | - |
+| Overloaded members | Single overload (baseline) | 0.930 ns | 0.008 ns | 0.007 ns | 1.00× | - | - | - | - |
+| Overloaded members | Member with 4 sibling overloads | 0.979 ns | 0.040 ns | 0.048 ns | 1.05× (noise) | - | - | - | - |
+| Generated test double vs. `UseNSubstitute()` | Generated test double (baseline) | 135.6 ns | 1.02 ns | 0.85 ns | 1.00× | 0.1595 | 0.0005 | 1.3 KB | 1.00× |
+| Generated test double vs. `UseNSubstitute()` | NSubstitute provider | 914.4 ns | 5.85 ns | 5.18 ns | 6.75× | 0.7973 | 0.0105 | 6.52 KB | 4.99× |
 
 **`UseBogus()`: a finding, a root cause, a fix, a confirmation.** An
 earlier run of this benchmark measured `UseBogus()` at ~865× a plain
@@ -165,6 +175,33 @@ the fix, the benchmark confirms the result: ~865× dropped to ~6.76×
 (this table), and the full-profile Consumer Scenario cost dropped from
 903.4 μs / 2,229.31 KB to 5.870 μs / 7.04 KB (Consumer-facing results,
 above).
+
+**Call verification.** `Verify()`'s call counter adds one
+`Interlocked.Increment` per configured member call. Measured against a
+plain field write doing the same job, the difference is within
+measurement noise — an uncontended atomic increment costs the same as an
+ordinary memory write on the hardware this suite runs on. Verifying that
+a member was called doesn't cost anything beyond the write it would
+already need to make to track that fact at all.
+
+**Overloaded members.** Each overload of a member gets its own backing
+slot in a generated test double. Comparing a member with no sibling
+overloads against one with four siblings shows no meaningful difference
+in dispatch cost — a real overload resolves through its own dedicated
+generated method regardless of how many other overloads share its name;
+having more of them doesn't slow down calling any one of them.
+
+**Generated test double vs. `UseNSubstitute()`.** Composing an interface
+through a generated test double is markedly cheaper than composing the
+same interface through `UseNSubstitute()`'s runtime proxy — about 6.75×
+faster and allocating about 5× less on the hardware this suite runs on.
+A generated double is emitted at compile time and simply implements the
+interface directly; a runtime proxy has to build and dispatch through
+interception machinery on every call, which is real, measurable cost. If
+an interface only needs configurable return values and call verification
+(not argument matchers, call-order verification, or a familiar
+runtime-proxy substitute), the generated double is the cheaper choice for
+that case.
 
 ## Scalability
 
