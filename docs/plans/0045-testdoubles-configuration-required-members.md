@@ -114,14 +114,19 @@ depends on its own type parameter); special-casing fluent self-return
       unaffected, (e) `CMP0025` still fires unchanged for a genuinely
       unimplementable shape on a *different* interface (regression
       coverage — this ADR narrows `CMP0025`'s scope, doesn't remove its
-      remaining trigger), (f) **`CMP0025` also still fires unchanged for
-      the combined shapes Amendment 3 identifies** — an overloaded
-      `ref`/`out`/`in` member with a no-default return type, and a
-      diamond-colliding member with a no-default return type — each on an
-      interface that also has an unrelated, genuinely configuration-
-      required member, confirming the combined-shape gate doesn't
-      accidentally suppress `CMP0025` or leak a surfaceless member into
-      `CMP0032`'s count.
+      remaining trigger), (f) **`CMP0025`/`CMP0024` also still fire
+      unchanged for the combined shapes Amendments 3 and 5 identify** —
+      an overloaded `ref`/`out`/`in` member with a no-default return type,
+      a diamond-colliding member with a no-default return type, and an
+      object-member-collision-shaped method (`ToString`/`GetHashCode`/
+      `GetType`/`Equals`) with a no-default return type (Amendment 5 —
+      this one relies on `Failure(...)` unconditionally discarding any
+      provisional configuration-required marking, so it's worth proving
+      empirically, not just trusting the Amendment's own reasoning) —
+      each on an interface that also has an unrelated, genuinely
+      configuration-required member, confirming the combined-shape gate
+      doesn't accidentally suppress `CMP0025`/`CMP0024` or leak a
+      surfaceless member into `CMP0032`'s count.
 - [ ] `test/Compono.TestDoubles.Tests/`: packaged-consumer behavior tests
       — a configuration-required member throws
       `TestDoubleNotConfiguredException` when unconfigured, returns the

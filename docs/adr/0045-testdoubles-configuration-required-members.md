@@ -638,6 +638,51 @@ superseded by this Amendment; the code-level task list (PLAN-0045 Phase
 0) is corrected in the same pass to stop describing a message-text
 change and instead describe the condition change this Amendment states.
 
+## Amendment 5 (2026-08-17): the object-member-collision check is a fourth surface-withholding condition, not covered by Amendment 3's named gate — but already safe by construction
+
+Codex review caught that Amendment 3's gate — "would `HasConfigurationSurface`
+independently be `true`," checked via `isDiamondCollision`/
+`isZeroArgCollision`/`hasRefOutInParameter` — omits a fourth existing
+condition that also withholds a member's configuration surface: the
+object-member-collision check (`TestDoubleObjectMemberCollision`,
+`CMP0024` — a method shaped like `ToString`/`GetHashCode`/`GetType`/
+`Equals` colliding with `object`'s own member). A method combining "no
+deterministic default return" with an object-member collision (e.g. a
+hypothetical `Stream ToString()`) would, under Amendment 3's gate as
+literally stated, be provisionally marked configuration-required (none of
+the three named flags are true), before the object-collision check —
+which runs *later* in `TestDoubleAnalyzer`'s per-member sequence, and is
+itself gated on `hasConfigurationSurface` being true — has a chance to
+run and reject it via `CMP0024`.
+
+**Finding — this is already safe by construction, but only because of an
+invariant this ADR hadn't stated explicitly.** `TestDoubleAnalyzer`'s
+`Failure(...)` helper (`TestDoubleAnalyzer.cs:995-996`) constructs a
+brand-new `DiscoveredTestDoubleInfo` with an *empty* member list,
+completely independent of whatever `members`/`infoDiagnostics`/the
+per-interface configuration-required count had already accumulated in the
+enclosing method before `Failure(...)` was called. Every rejection in
+`TestDoubleAnalyzer`, including the object-collision check, is a
+`return Failure(...)` statement — so if the object-collision check fires
+*after* a member was provisionally marked configuration-required, that
+provisional marking is discarded along with everything else the moment
+`Failure(...)` returns; the whole interface rejects via `CMP0024`,
+unchanged from today, exactly as if the provisional marking never
+happened. The two states can't both survive to the final result — only
+one `return` statement ever executes for a given `Analyze` call.
+
+**Decision:** no design change — Amendment 3's gate doesn't need a fourth
+named flag, because the object-collision check's own unconditional
+`Failure(...)` already makes any upstream provisional marking moot. This
+Amendment exists to state that invariant explicitly (so a future reader —
+including whoever implements Phase 0 — doesn't have to re-derive it from
+`Failure(...)`'s implementation) and to add regression coverage proving
+it empirically rather than resting on this Amendment's own reasoning
+alone. PLAN-0045's Phase 0 combined-shape regression tests gain a third
+case: an object-member-collision-shaped method (`ToString`/`GetHashCode`/
+`GetType`/`Equals`) with a no-default return type, confirming `CMP0024`
+still fires unchanged and `CMP0032`'s count is unaffected.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
