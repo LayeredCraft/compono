@@ -1,0 +1,450 @@
+# [ADR-0045] Compono.TestDoubles: Configuration-Required Members for Non-Deterministic-Default Returns
+
+**Status:** Accepted
+
+**Date:** 2026-08-17
+
+**Decision Makers:** Nick Cipollina, Claude (design deep dive)
+
+## Context
+
+[RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md)
+re-ran the `lightsaber-skill` dogfooding migration against the shipped
+`Compono.TestDoubles` v2 package ([ADR-0044](0044-compono-testdoubles-v2-overloads-generics-verification.md),
+`Accepted`, [PLAN-0044](../plans/0044-compono-testdoubles-v2.md), `Done`)
+and found v2's overload/generic-method/verification work landed exactly as
+designed — `ILogger<T>` now generates cleanly, direct proof the generic-
+method Requirement works — but it wasn't the suite's actual dominant
+blocker. Six of the suite's seven load-bearing interfaces
+(`IResponseBuilder`, `IAmazonS3`, `ISkillMediator`, `IOptions<T>`,
+`ILambdaContext`, `IHandlerInput`) are still rejected outright by
+`CMP0025` ("Unsupported test-double return shape") — a rule that predates
+ADR-0044 entirely (`Compono.TestDoubles` v1, [ADR-0043](0043-compono-generated-test-doubles-design.md)
+Amendment 5, Finding K): any member (property or method, including
+recursively through `Task<T>`/`ValueTask<T>`'s inner `T`) that returns a
+non-nullable reference type with no deterministic default rejects the
+*entire* interface at generation time, regardless of whether a test author
+would have configured that specific member with `Returns(...)`/`Throws(...)`
+before ever calling it. Practical result: zero tests in the suite can drop
+`Compono.NSubstitute`, because every test using the now-working `ILogger<T>`
+also uses at least one still-`CMP0025`-rejected interface.
+
+This ADR does **not** reopen ADR-0044 or PLAN-0044 — both stand exactly as
+`Accepted`/`Done`. Their three Requirements (overloaded members, return-
+type-independent generic methods, minimal call verification) are real,
+implemented, and validated. This is a new decision about a different,
+pre-existing constraint that RESEARCH-0004's evidence shows is now the
+more consequential one.
+
+`CMP0025` is a single descriptor currently covering four distinct sub-
+cases with genuinely different implementability properties (see
+`TestDoubleAnalyzer.cs` around the return-shape checks): a by-ref return, a
+pointer/function-pointer return, a ref-like (`ref struct`) return, and a
+non-nullable reference return with no deterministic default. The first
+three have no possible `ReturnConfig<T>` representation at all — a `ref
+struct` cannot be used as a generic type argument in C#, and a by-ref
+return has no storable value to hold — these are hard language
+constraints, not missing-default gaps. The fourth sub-case is different:
+the member is perfectly implementable (a plain property getter or method
+body returning a `T`), Compono just doesn't know a *safe unconfigured*
+value for it. This ADR is about that fourth sub-case only.
+
+## Decision Drivers
+
+- Real, evidenced dogfooding data (RESEARCH-0004), per
+  [ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md)'s
+  evidence-over-prediction bias — not a hypothetical gap.
+- Must not reintroduce what [ADR-0042](0042-compono-owned-source-generated-test-doubles.md)'s
+  Non-Goals and ADR-0043 Finding K already rejected: manufacturing an
+  arbitrary non-null value, or any reflection-based fallback (ADR-0001,
+  "no reflection-by-default").
+- AOT-safety is a hard requirement, proven not assumed (ADR-0001, the same
+  standard PLAN-0044 Phase 3 already met for v2's three shapes together).
+- Zero semantic drift for already-shipped behavior — a member that already
+  has a safe deterministic default (`bool`, `int`, a nullable reference,
+  `Task`, a known collection shape) must keep behaving exactly as it does
+  today; this is an additive expansion of which interfaces can generate,
+  not a rewrite of v1/v2's existing dispatch semantics.
+- Minimal new runtime surface — prefer reusing `Compono`'s existing
+  `ReturnConfig<T>`/`ReturnConfigBuilder<T>` state machinery
+  (`src/Compono/ReturnConfig.cs`, `ReturnConfigBuilder.cs`) over inventing
+  a parallel state type, if the existing one already fits.
+- Diagnostic honesty — a compile-time diagnostic should describe what's
+  actually true about the generated code (whether an interface generates
+  at all; whether a specific member needs configuration before use), not
+  conflate two different claims under one code.
+
+## Considered Options
+
+1. **Configuration-required member** — a member with no deterministic
+   default still generates; an unconfigured invocation throws a new,
+   clearly-messaged exception instead of the interface being rejected.
+2. **Status quo** — keep `CMP0025` as whole-interface rejection for this
+   sub-case, unchanged.
+3. **Manufacture or compose a return value** — construct *some* non-null
+   instance (via a public parameterless constructor, reflection, or
+   recursive nested-double generation) rather than requiring
+   configuration.
+4. **Special-case certain return shapes** — e.g., default a fluent, self-
+   returning method (`IResponseBuilder Speak(...)`) to `return this;`
+   while every other non-nullable reference return stays configuration-
+   required.
+
+## Decision Outcome
+
+Chosen option: **"Configuration-required member" (Option 1)**, with
+`CMP0025` narrowed to keep meaning "whole-interface rejection" only for
+the three genuinely unimplementable return shapes (by-ref, pointer, ref-
+like), and a new diagnostic, `CMP0032`, introduced for the configuration-
+required sub-case. Option 4's fluent self-return special case is
+considered and explicitly **rejected** — see "Fluent self-returning
+members" below; a self-returning method is configuration-required exactly
+like any other non-nullable reference return, no special case.
+
+### Why Option 1, and not the alternatives
+
+**Option 3 (manufacture/compose a value) is rejected outright**, per the
+Context section's own framing — this is not a close call. It would
+require either runtime reflection (a public-parameterless-constructor
+guess, violating ADR-0001's no-reflection-by-default default) or
+recursively generating a nested double for every reference-typed return
+(reintroducing the general-purpose object-composition scope ADR-0042's
+Non-Goals explicitly excluded — `Compono.TestDoubles` is deliberately not
+AutoFixture). Worse, a manufactured, default-valued `SkillResponse` (or
+similar) is *more* likely to produce a silent false pass than a loud,
+immediate exception — the failure mode gets worse, not better, exactly the
+scenario ADR-0043 Finding K already rejected once.
+
+**Option 4 (special-case fluent self-return) is rejected.** The generator
+can only observe that a method's return type is syntactically identical to
+the interface being doubled — it cannot know the member is *conventionally*
+fluent (some interfaces declare a same-typed return that isn't meant to be
+`this`, e.g. a factory-shaped method). Defaulting to `return this;` would
+be a *behavioral* guess, categorically different from the existing neutral
+defaults (`0`, `false`, `[]`, `Task.CompletedTask`) that are inert rather
+than assertive. It's also unnecessary: Option 1 alone already unblocks
+`IResponseBuilder` without it, and Option 4 was explicitly flagged as a
+temptation to adopt "merely because it makes the dogfood pass greener" —
+it doesn't need to be adopted for that, so it isn't.
+
+**Option 2 (status quo) is directly falsified by RESEARCH-0004** — it's
+the option that produced the evidence motivating this ADR in the first
+place.
+
+**Option 1 wins** because it's the only alternative that (a) doesn't
+violate the "don't manufacture a value" principle, (b) doesn't need a
+behavioral guess about interface semantics the generator can't verify, and
+(c) is implementable almost entirely by *reusing* existing shipped
+infrastructure — see "Member-level dispatch rule" below.
+
+### Member-level dispatch rule
+
+A member with no deterministic default gets exactly the dispatch order
+requested and confirmed during this design pass:
+
+```csharp
+Task<SkillResponse> ISkillMediator.Send(SkillRequest request, CancellationToken cancellationToken)
+{
+    __send.RecordCall();
+
+    if (__send.HasConfiguredException)
+        throw __send.ConfiguredException;
+
+    if (__send.HasConfiguredValue)
+        return __send.ConfiguredValue;
+
+    throw new global::Compono.TestDoubleNotConfiguredException(
+        "ISkillMediator.Send(SkillRequest, CancellationToken) has no deterministic default and " +
+        "must be configured before invocation - call Configure().Send(...).Returns(...) or " +
+        "Configure().Send(...).Throws(...) first.");
+}
+```
+
+This is **not a new dispatch shape** — it's the exact order every existing
+generated member already checks (`RecordCall()`, then
+`HasConfiguredException`, then `HasConfiguredValue`), with the *only*
+change being what happens when neither is configured: today's deterministic-
+default members return a computed default; a configuration-required member
+throws instead. The backing field type is `Compono.ReturnConfig<T>` for
+the member's own real return type `T` — unchanged from every other member,
+because `ReturnConfig<T>`/`ReturnConfigBuilder<T>` already carry
+`HasConfiguredValue`/`ConfiguredValue`/`HasConfiguredException`/
+`ConfiguredException` generically, with no dependency on `T` having a
+default at all. **No new runtime state type is needed** — only a new
+exception type (see "Exception API" below).
+
+### Interface generation: `CMP0025` narrowed, `CMP0032` introduced
+
+`CMP0025` keeps its current meaning — whole-interface rejection, "this
+leaf falls back to the ordinary runtime-provider path" — for exactly the
+three return shapes with no possible `ReturnConfig<T>` representation at
+all: a by-ref return, a pointer/function-pointer return, a ref-like
+(`ref struct`) return. These stay genuinely unimplementable; nothing in
+this ADR changes them.
+
+A new diagnostic, **`CMP0032`** ("Test-double member requires explicit
+configuration"), `DiagnosticSeverity.Info`, replaces `CMP0025` for the
+fourth sub-case (non-nullable reference return, or property, with no
+deterministic default). Unlike `CMP0025`, `CMP0032` is **member-scoped,
+not whole-interface** — the interface still generates, every other member
+keeps whatever disposition it already had, and `CMP0032`'s message makes
+clear the member is real and usable, just requires configuration first
+("...generates with a configuration-required member; call
+`Configure().{1}(...)` before this member is invoked, or it throws
+`TestDoubleNotConfiguredException`."). This mirrors the existing pattern
+`CMP0022`/`CMP0029`/`CMP0030` already establish (a member-scoped info
+diagnostic that doesn't reject the whole leaf) rather than inventing a
+new diagnostic category.
+
+This deliberately does **not** relax whole-interface rejection for any
+other currently-unsupported shape — pointer parameters, `ref`/`out`/`in`
+parameters without a sibling overload, unconstrained `T?` type parameters,
+a generic method whose return type depends on its own type parameter, and
+so on all keep exactly their current disposition. This ADR's scope is the
+one specific gap RESEARCH-0004's evidence identified: a return-shape
+problem, not a general "make more things generate" mandate.
+
+### Properties
+
+Identical treatment, via the property getter — `IOptions<LightsaberOptions>.Value`
+and `ILambdaContext.AwsRequestId` (RESEARCH-0004's own acceptance cases)
+both become configuration-required members once this ships:
+
+```csharp
+string ILambdaContext.AwsRequestId
+{
+    get
+    {
+        __awsRequestId.RecordCall();
+
+        if (__awsRequestId.HasConfiguredException)
+            throw __awsRequestId.ConfiguredException;
+
+        if (__awsRequestId.HasConfiguredValue)
+            return __awsRequestId.ConfiguredValue;
+
+        throw new global::Compono.TestDoubleNotConfiguredException(
+            "ILambdaContext.AwsRequestId has no deterministic default and must be configured " +
+            "before invocation - call Configure().AwsRequestId().Returns(...) or " +
+            "Configure().AwsRequestId().Throws(...) first.");
+    }
+}
+```
+
+Orthogonal to, and unaffected by, `CMP0027` (set-only property rejection)
+and the existing get-only/`init` accessor-kind handling (ADR-0043
+Amendments 7/9) — a property's *setter* story is untouched; this only
+changes what an unconfigured *getter* does when it has no deterministic
+default.
+
+### Async returns (`Task<T>`/`ValueTask<T>`)
+
+**No separate implementation is needed for this case.** `ReturnConfig<T>`
+is already generic over the member's *real* declared return type — for
+`ISkillMediator.Send` that's `Task<SkillResponse>` itself, not
+`SkillResponse`; `Configure().Send(request).Returns(Task.FromResult(response))`
+already configures the whole `Task<SkillResponse>` value today (see
+`docs/packages/compono-testdoubles.md`'s own `CountAsync()` example, which
+predates this ADR). `TestDoubleDefaults.TryGetDefaultExpression`'s
+recursion into `Task<T>`'s inner `T` only mattered for computing a
+*default* value — once "no default" means "configuration-required"
+instead of "reject the interface," that recursion simply stops mattering
+for this case: the member's dispatch body is `ReturnConfig<Task<SkillResponse>>`-shaped
+exactly like every synchronous non-nullable-reference member, with no
+`async`/`await` involved (the same "return an already-completed `Task`,
+no state machine" shape v1/v2 already use throughout). `ValueTask<T>`
+follows identically. This is confirmed by real test coverage (Phase 1),
+not asserted from design alone — but no new *generator* code path is
+predicted to be necessary, only new *test* coverage proving the existing
+one behaves correctly for this shape.
+
+This ADR makes **no change** to `Throws(...)`'s existing synchronous-throw
+semantics (ADR-0043 Amendment 7) — the new
+`TestDoubleNotConfiguredException` throws synchronously at invocation,
+exactly like a configured `Throws(...)` already does for every member type,
+sync or async.
+
+### Fluent self-returning members
+
+Covered under "Why Option 1, and not the alternatives" above — rejected.
+`IResponseBuilder.Speak(...)` (and every other self-returning fluent
+method) is configuration-required like any other non-nullable reference
+return; a test that needs the fluent chain to keep working configures each
+step's return, `Configure().Speak(text).Returns(mockResponseBuilder)`,
+exactly as the existing NSubstitute-based tests already do today (see
+RESEARCH-0004's cited `HandlerHelpers.CreateDefaultMockResponseBuilder()`
+for the equivalent existing pattern).
+
+### Exception API
+
+`Compono.TestDoubleNotConfiguredException` — a new `sealed` exception type
+in the core `Compono` package, alongside the existing
+`TestDoubleVerificationException` and following its exact shape (a plain
+message-only constructor, no reflection needed since the generated call
+site supplies a fully literal string — interface name, member name, and
+signature are all known at generation time):
+
+```csharp
+namespace Compono;
+
+/// <summary>
+/// Thrown when a generated test-double member with no deterministic default is invoked without
+/// first being configured via <c>Configure().Member().Returns(...)</c> or <c>.Throws(...)</c>.
+/// </summary>
+public sealed class TestDoubleNotConfiguredException : Exception
+{
+    public TestDoubleNotConfiguredException(string message) : base(message)
+    {
+    }
+}
+```
+
+The generated message names the interface, the member (with its real
+parameter list, matching how overload-scoped diagnostics already identify
+a member precisely), states the reason ("has no deterministic default"),
+and states the fix (`Configure().Member(...).Returns(...)` /
+`.Throws(...)`) — all supplied as generated string literals, matching
+`TestDoubleVerificationException`'s existing "no reflection to build the
+message" property.
+
+### AOT
+
+Native AOT/trimming remains a hard requirement, proven the same way
+PLAN-0044 Phase 3 proved v2's three shapes together: a real
+`dotnet publish -p:PublishAot=true` execution, not static analysis alone.
+This ADR's implementation plan (PLAN-0045) includes extending
+`test/Compono.TestDoubles.AotSmokeTest` to exercise at least one
+configuration-required synchronous member, one property, and one
+`Task<T>`-returning member — both the configured-success path and the
+throws-when-unconfigured path — under a real AOT-published binary,
+matching this repo's "prove it, don't assume it" standard
+([ADR-0001](0001-source-generation-first.md)). The change itself is
+expected to be trivially AOT-safe (a generated conditional branch plus a
+generated `throw new TestDoubleNotConfiguredException(literalString)` —
+no reflection, no dynamic code), but that expectation is a hypothesis to
+verify, not a substitute for the real publish-and-run proof.
+
+### Performance
+
+Expected negligible — one extra `bool` field read and a branch on an
+already-branchy dispatch body (every generated member already checks
+`HasConfiguredException` then `HasConfiguredValue` before reaching its
+final fallback; this only changes what the final fallback does). Per
+[ADR-0034](0034-benchmark-suite-strategy-and-redesign.md)'s "benchmark
+only if it measures a real risk, don't invent competitive benchmarks"
+policy, this ADR does **not** call for a new benchmark class — if
+implementation surfaces an actual measured concern, that's an amendment,
+not a speculative benchmark added up front.
+
+### Positive Consequences
+
+- Unblocks generation for interfaces the ecosystem actually has —
+  RESEARCH-0004's six blocked interfaces each become individually
+  assessable rather than blanket-rejected; whether the double is
+  *useful* for a given test still depends on whether that test configures
+  the members it calls, which is now a per-test question instead of a
+  permanently-closed door.
+- Reuses 100% of the existing `ReturnConfig<T>`/`ReturnConfigBuilder<T>`
+  state machinery — the only new runtime surface is one small exception
+  type, minimizing implementation and review risk.
+- `CMP0025`'s remaining scope (by-ref/pointer/ref-like) is now honestly
+  described — a whole-interface-fallback diagnostic that only fires for
+  shapes with literally no storable value, not conflated with "I don't
+  know a good default."
+- Sets up PLAN-0045 Phase 4's re-dogfood to test the real acceptance bar
+  RESEARCH-0004 established — whether real tests can drop
+  `Compono.NSubstitute`, not just how many interfaces generate.
+
+### Negative Consequences
+
+- A genuinely new test-double failure mode: an unconfigured invocation
+  that would previously have meant "this interface never generated at
+  all, you're using `Compono.NSubstitute` for it and know that going in"
+  now means "this interface generated, but *this specific call* needed
+  configuration you didn't provide" — a runtime surprise for a consumer
+  who assumed "it compiled, therefore every path is safe." Mitigated by
+  the exception message naming the exact fix, and by this being the same
+  failure shape NSubstitute users already experience today for an
+  unconfigured `Substitute.For<T>()` member returning a default-of-`T`
+  that's often equally unhelpful — this isn't a worse experience than the
+  status quo alternative, just a different one.
+- Documentation surface grows: `CMP0025`'s narrowed scope and `CMP0032`'s
+  new entry both need updates across `docs/packages/compono-testdoubles.md`,
+  `docs/reference/diagnostics.md`, `skills/compono/references/diagnostics.md`,
+  and `skills/compono/references/testdoubles.md` — tracked as its own
+  PLAN-0045 phase so it doesn't lag the code that introduces it.
+
+## Pros and Cons of the Options
+
+### Option 1 — Configuration-required member
+
+The interface still generates; a member with no deterministic default
+throws `TestDoubleNotConfiguredException` if invoked before being
+configured.
+
+- Good, because it reuses existing `ReturnConfig<T>` machinery unchanged.
+- Good, because it fails loudly and precisely at the exact call site that
+  needed configuration, rather than failing silently (a wrong value) or
+  failing globally (the whole interface never existing).
+- Good, because it's directly evidenced to help against RESEARCH-0004's
+  six blocked interfaces.
+- Bad, because it introduces a new runtime failure mode consumers haven't
+  seen from `Compono.TestDoubles` before (mitigated — see Negative
+  Consequences).
+
+### Option 2 — Status quo (keep `CMP0025` whole-interface rejection)
+
+- Good, because it's zero additional implementation risk.
+- Bad, because RESEARCH-0004 directly falsifies it as adequate for real
+  usage — this is the option that produced the evidence motivating this
+  ADR.
+- Bad, because it conflates "cannot implement this member's C# body at
+  all" with "can implement it, don't know a safe default" under one
+  all-or-nothing rejection.
+
+### Option 3 — Manufacture or compose a return value
+
+- Good, because every generated double would behave more like a
+  populated real object graph.
+- Bad, because it requires reflection (violates ADR-0001) or recursive
+  nested-double generation for arbitrary types (reintroduces the general-
+  purpose object-composition scope ADR-0042's Non-Goals excluded).
+- Bad, because a manufactured, default-valued object is more likely to
+  produce a silent false pass than a loud configuration-required
+  exception — a worse failure mode than either Option 1 or the status
+  quo.
+
+### Option 4 — Special-case certain return shapes (fluent self-return)
+
+- Good, because it would make `IResponseBuilder`'s chained-builder pattern
+  slightly more ergonomic by default.
+- Bad, because the generator cannot verify a same-typed return is
+  actually meant to be `this` — a behavioral guess, not a neutral
+  default, and not one the analyzer can prove correct.
+- Bad, because Option 1 alone already unblocks `IResponseBuilder` without
+  it — the special case buys nothing this ADR's evidence actually needs.
+
+## Links
+
+- [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
+  the dogfooding evidence this ADR responds to.
+- [ADR-0044](0044-compono-testdoubles-v2-overloads-generics-verification.md) —
+  the v2 work this ADR does not reopen; stays `Accepted` unchanged.
+- [ADR-0043](0043-compono-generated-test-doubles-design.md) Amendment 5,
+  Finding K — the v1 origin of `CMP0025`'s current whole-interface scope,
+  narrowed (not reversed) by this ADR.
+- [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — the
+  Non-Goals (no general object composition, no reflection) that rule out
+  Option 3.
+- [ADR-0001](0001-source-generation-first.md) — the no-reflection-by-
+  default rule, and the "prove it, don't assume it" AOT-verification
+  standard this ADR's implementation plan must meet.
+- [ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md) —
+  the evidence-over-prediction bias this ADR follows, same as ADR-0044.
+- [ADR-0034](0034-benchmark-suite-strategy-and-redesign.md) — the
+  benchmark-only-if-real-risk policy this ADR's "Performance" section
+  follows.
+- `src/Compono/ReturnConfig.cs`, `ReturnConfigBuilder.cs` — the existing
+  state machinery this ADR reuses unchanged.
+- [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md) —
+  the phased implementation plan for this decision.

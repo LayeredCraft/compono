@@ -6,8 +6,11 @@ capability-gap decision framework. This page exists per
 [PLAN-0007](../plans/0007-milestone-7-dogfooding.md) Phase 3's required
 deliverable — it lists **only** findings classified **roadmap candidate**:
 Compono genuinely needs a new capability, backed by real observed
-frequency and workaround cost, each with a `Proposed` ADR recording the
-problem. Per ADR-0029: "bugs get fixed, intentional design differences and
+frequency and workaround cost, each with at least a recorded ADR against
+the problem — `Proposed` while a candidate is still awaiting its design
+pass, `Accepted` once designed (a candidate can be listed either way; see
+the fourth bullet below for one that's `Accepted` but not yet shipped).
+Per ADR-0029: "bugs get fixed, intentional design differences and
 acceptable alternatives do not become roadmap items" — this page is not a
 general findings log, and non-candidate findings belong in the research
 record and their governing ADR's Amendments, not here.
@@ -71,11 +74,20 @@ ADR, the research doc, the plan). Four dogfooding passes have run so far:
   member with no deterministic default rejects its entire interface).
   Practical result: **zero tests in the suite can drop
   `Compono.NSubstitute`**, since every test using `ILogger<T>` also uses a
-  still-rejected interface. This is a new roadmap candidate — whether
-  `CMP0025` should still reject the whole interface, or let a double
-  generate with just that member requiring explicit configuration before
-  invocation — not yet designed (no ADR number assigned; the design pass
-  is the immediate next step, see RESEARCH-0004's "Recommendation").
+  still-rejected interface. This finding is a roadmap candidate that's
+  been designed and `Accepted`:
+  [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+  records the decision (`CMP0025` narrows to the three genuinely
+  unimplementable return shapes; a member with no deterministic default
+  instead generates as configuration-required, throwing
+  `TestDoubleNotConfiguredException` if invoked before `Returns(...)`/
+  `Throws(...)`); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
+  tracks the implementation, not yet started. This page keeps listing it
+  until it's actually shipped — same rule the third bullet's finding
+  followed before PLAN-0044 completed — and, per ADR-0045's own scope,
+  "shipped" still won't mean "graduated" here until PLAN-0045 Phase 4's
+  third `lightsaber-skill` dogfood confirms real tests can actually drop
+  `Compono.NSubstitute`, not just that more interfaces generate.
 
 That two of these four dogfooding passes together produced zero
 *outstanding* roadmap items is itself a real, evidence-backed outcome, not
