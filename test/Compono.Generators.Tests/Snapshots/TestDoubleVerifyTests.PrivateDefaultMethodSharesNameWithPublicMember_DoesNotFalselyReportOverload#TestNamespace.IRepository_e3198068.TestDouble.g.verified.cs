@@ -9,6 +9,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IRepository.Get()
     {
+        __Get.RecordCall();
         if (__Get.HasConfiguredException)
             throw __Get.ConfiguredException;
     }
@@ -18,6 +19,31 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Get(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Get);
+
+}
+
+internal readonly struct TestNamespace_IRepository_e3198068_DoubleVerifier
+{
+    internal global::TestNamespace_IRepository_e3198068_Double Instance { get; }
+
+    internal TestNamespace_IRepository_e3198068_DoubleVerifier(global::TestNamespace_IRepository_e3198068_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IRepository_e3198068_VerifyExtension
+{
+    public static global::TestNamespace_IRepository_e3198068_DoubleVerifier Verify(this global::TestNamespace.IRepository self) =>
+        new(self as global::TestNamespace_IRepository_e3198068_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IRepository' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IRepository', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IRepository_e3198068_DoubleVerification
+{
+    public static global::Compono.CallVerifier Get(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
+        new(self.Instance.__Get.ConfiguredCallCount, "global::TestNamespace.IRepository.Get");
 
 }
 

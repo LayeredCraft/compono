@@ -44,29 +44,33 @@ internal static class TestDoubleAnalyzer
         var closure = new List<INamedTypeSymbol> { interfaceType };
         closure.AddRange(interfaceType.AllInterfaces);
 
-        // A member literally named "Configure" only actually shadows the generated, always-zero-
-        // argument Configure() bridge extension when it's itself applicable to a zero-argument call -
-        // a property/field/event named Configure always collides (member lookup finds it and never
-        // falls back to extension methods for that name at all), but a *method* named Configure does
-        // so only if a zero-argument call is actually applicable to it: C# only falls back to
-        // extension-method resolution when ordinary member lookup finds no *applicable* candidate, not
-        // merely "no candidate with this name" - verified directly with a real compile spike (an
-        // explicitly-implemented `IFoo.Configure(int mode)` alongside a zero-argument
-        // `Configure(this IFoo)` extension: calling `foo.Configure()` on an IFoo-typed receiver
-        // resolves to the extension without ambiguity). Amendment 3, Finding E; corrected to compare
-        // arity, not just name, PR #83 review round 2 - and corrected again to check *applicability*,
-        // not raw parameter count, PR #83 review round 4: `Configure(int mode = 0)` and
-        // `Configure(params int[] modes)` both have Parameters.Length > 0 but are still applicable to
-        // a zero-argument call, so they collide exactly like a genuinely zero-parameter method does.
-        // ADR-0044 Amendment 14: a *generic* Configure<T>() interface member has nothing to infer T
-        // from at a bare, no-explicit-type-argument call, so it's never applicable to zero arguments
-        // either, and doesn't collide - IsApplicableToZeroArguments itself now excludes any generic
-        // method.
-        if (closure.SelectMany(i => i.GetMembers())
-            .Any(m => m.Name == "Configure" && (m is not IMethodSymbol method || IsApplicableToZeroArguments(method))))
+        // A member literally named "Configure" or "Verify" only actually shadows the generated,
+        // always-zero-argument Configure()/Verify() bridge extension when it's itself applicable to a
+        // zero-argument call - a property/field/event named Configure/Verify always collides (member
+        // lookup finds it and never falls back to extension methods for that name at all), but a
+        // *method* named Configure/Verify does so only if a zero-argument call is actually applicable
+        // to it: C# only falls back to extension-method resolution when ordinary member lookup finds
+        // no *applicable* candidate, not merely "no candidate with this name" - verified directly with
+        // a real compile spike (an explicitly-implemented `IFoo.Configure(int mode)` alongside a
+        // zero-argument `Configure(this IFoo)` extension: calling `foo.Configure()` on an IFoo-typed
+        // receiver resolves to the extension without ambiguity). Amendment 3, Finding E; corrected to
+        // compare arity, not just name, PR #83 review round 2 - and corrected again to check
+        // *applicability*, not raw parameter count, PR #83 review round 4: `Configure(int mode = 0)`
+        // and `Configure(params int[] modes)` both have Parameters.Length > 0 but are still applicable
+        // to a zero-argument call, so they collide exactly like a genuinely zero-parameter method
+        // does. ADR-0044 Amendment 14: a *generic* Configure<T>() interface member has nothing to
+        // infer T from at a bare, no-explicit-type-argument call, so it's never applicable to zero
+        // arguments either, and doesn't collide - IsApplicableToZeroArguments itself now excludes any
+        // generic method. ADR-0044 Requirement 3 widens this reserved-name set to also cover "Verify",
+        // reused by the new Verify() bridge - an interface declaring its own Verify member would
+        // otherwise silently shadow it exactly like an undiagnosed Configure collision would have.
+        var reservedNameCollision = closure.SelectMany(i => i.GetMembers())
+            .Where(m => m.Name is "Configure" or "Verify")
+            .FirstOrDefault(m => m is not IMethodSymbol method || IsApplicableToZeroArguments(method));
+        if (reservedNameCollision is not null)
         {
             return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
-                DiagnosticDescriptors.TestDoubleConfigureMemberCollision, location, interfaceType.ToDisplayString()));
+                DiagnosticDescriptors.TestDoubleConfigureMemberCollision, location, interfaceType.ToDisplayString(), reservedNameCollision.Name));
         }
 
         // Per-overload identity (ADR-0044): grouped by full signature identity across the whole

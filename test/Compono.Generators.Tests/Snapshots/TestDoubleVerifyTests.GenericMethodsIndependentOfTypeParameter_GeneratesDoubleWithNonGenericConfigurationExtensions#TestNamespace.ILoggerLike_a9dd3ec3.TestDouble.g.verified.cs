@@ -10,14 +10,18 @@ internal sealed class TestNamespace_ILoggerLike_a9dd3ec3_Double : global::TestNa
 
     void global::TestNamespace.ILoggerLike.Log<TState>(int logLevel, TState state, global::System.Exception? exception)
     {
+        __Log.RecordCall();
         if (__Log.HasConfiguredException)
             throw __Log.ConfiguredException;
     }
 
-    global::System.IDisposable? global::TestNamespace.ILoggerLike.BeginScope<TState>(TState state) =>
-        __BeginScope.HasConfiguredException ? throw __BeginScope.ConfiguredException
-        : __BeginScope.HasConfiguredValue ? __BeginScope.ConfiguredValue
-        : default;
+    global::System.IDisposable? global::TestNamespace.ILoggerLike.BeginScope<TState>(TState state)
+    {
+        __BeginScope.RecordCall();
+        return __BeginScope.HasConfiguredException ? throw __BeginScope.ConfiguredException
+            : __BeginScope.HasConfiguredValue ? __BeginScope.ConfiguredValue
+            : default;
+    }
 }
 
 internal static class TestNamespace_ILoggerLike_a9dd3ec3_DoubleConfiguration
@@ -27,6 +31,34 @@ internal static class TestNamespace_ILoggerLike_a9dd3ec3_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<global::System.IDisposable?> BeginScope(this global::TestNamespace_ILoggerLike_a9dd3ec3_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::System.IDisposable?>(ref self.__BeginScope);
+
+}
+
+internal readonly struct TestNamespace_ILoggerLike_a9dd3ec3_DoubleVerifier
+{
+    internal global::TestNamespace_ILoggerLike_a9dd3ec3_Double Instance { get; }
+
+    internal TestNamespace_ILoggerLike_a9dd3ec3_DoubleVerifier(global::TestNamespace_ILoggerLike_a9dd3ec3_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_ILoggerLike_a9dd3ec3_VerifyExtension
+{
+    public static global::TestNamespace_ILoggerLike_a9dd3ec3_DoubleVerifier Verify(this global::TestNamespace.ILoggerLike self) =>
+        new(self as global::TestNamespace_ILoggerLike_a9dd3ec3_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.ILoggerLike' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.ILoggerLike', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_ILoggerLike_a9dd3ec3_DoubleVerification
+{
+    public static global::Compono.CallVerifier Log(this global::TestNamespace_ILoggerLike_a9dd3ec3_DoubleVerifier self) =>
+        new(self.Instance.__Log.ConfiguredCallCount, "global::TestNamespace.ILoggerLike.Log");
+
+    public static global::Compono.CallVerifier BeginScope(this global::TestNamespace_ILoggerLike_a9dd3ec3_DoubleVerifier self) =>
+        new(self.Instance.__BeginScope.ConfiguredCallCount, "global::TestNamespace.ILoggerLike.BeginScope");
 
 }
 

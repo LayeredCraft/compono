@@ -10,12 +10,14 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IBaseA.Handle(global::TestNamespace.Collision.hgQWPcvxVjdw value)
     {
+        __Handle_3b7828aa.RecordCall();
         if (__Handle_3b7828aa.HasConfiguredException)
             throw __Handle_3b7828aa.ConfiguredException;
     }
 
     void global::TestNamespace.IBaseB.Handle(global::TestNamespace.Collision.cTtIHWbVrHlp value)
     {
+        __Handle_b5b0a4ae.RecordCall();
         if (__Handle_b5b0a4ae.HasConfiguredException)
             throw __Handle_b5b0a4ae.ConfiguredException;
     }
@@ -28,6 +30,34 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Collision.cTtIHWbVrHlp value) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Handle_b5b0a4ae);
+
+}
+
+internal readonly struct TestNamespace_IRepository_e3198068_DoubleVerifier
+{
+    internal global::TestNamespace_IRepository_e3198068_Double Instance { get; }
+
+    internal TestNamespace_IRepository_e3198068_DoubleVerifier(global::TestNamespace_IRepository_e3198068_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IRepository_e3198068_VerifyExtension
+{
+    public static global::TestNamespace_IRepository_e3198068_DoubleVerifier Verify(this global::TestNamespace.IRepository self) =>
+        new(self as global::TestNamespace_IRepository_e3198068_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IRepository' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IRepository', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IRepository_e3198068_DoubleVerification
+{
+    public static global::Compono.CallVerifier Handle(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::TestNamespace.Collision.hgQWPcvxVjdw value) =>
+        new(__self.Instance.__Handle_3b7828aa.ConfiguredCallCount, "global::TestNamespace.IBaseA.Handle");
+
+    public static global::Compono.CallVerifier Handle(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::TestNamespace.Collision.cTtIHWbVrHlp value) =>
+        new(__self.Instance.__Handle_b5b0a4ae.ConfiguredCallCount, "global::TestNamespace.IBaseB.Handle");
 
 }
 

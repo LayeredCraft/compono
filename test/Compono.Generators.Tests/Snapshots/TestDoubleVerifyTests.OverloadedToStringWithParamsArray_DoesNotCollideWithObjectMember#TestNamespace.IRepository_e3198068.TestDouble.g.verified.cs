@@ -8,15 +8,21 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     internal global::Compono.ReturnConfig<string?> __ToString_4a96ce8f;
     internal global::Compono.ReturnConfig<string?> __ToString_b9dfaa09;
 
-    string? global::TestNamespace.IRepository.ToString(object[] values) =>
-        __ToString_4a96ce8f.HasConfiguredException ? throw __ToString_4a96ce8f.ConfiguredException
-        : __ToString_4a96ce8f.HasConfiguredValue ? __ToString_4a96ce8f.ConfiguredValue
-        : default;
+    string? global::TestNamespace.IRepository.ToString(object[] values)
+    {
+        __ToString_4a96ce8f.RecordCall();
+        return __ToString_4a96ce8f.HasConfiguredException ? throw __ToString_4a96ce8f.ConfiguredException
+            : __ToString_4a96ce8f.HasConfiguredValue ? __ToString_4a96ce8f.ConfiguredValue
+            : default;
+    }
 
-    string? global::TestNamespace.IRepository.ToString(int format) =>
-        __ToString_b9dfaa09.HasConfiguredException ? throw __ToString_b9dfaa09.ConfiguredException
-        : __ToString_b9dfaa09.HasConfiguredValue ? __ToString_b9dfaa09.ConfiguredValue
-        : default;
+    string? global::TestNamespace.IRepository.ToString(int format)
+    {
+        __ToString_b9dfaa09.RecordCall();
+        return __ToString_b9dfaa09.HasConfiguredException ? throw __ToString_b9dfaa09.ConfiguredException
+            : __ToString_b9dfaa09.HasConfiguredValue ? __ToString_b9dfaa09.ConfiguredValue
+            : default;
+    }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
@@ -26,6 +32,34 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, int format) =>
         new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_b9dfaa09);
+
+}
+
+internal readonly struct TestNamespace_IRepository_e3198068_DoubleVerifier
+{
+    internal global::TestNamespace_IRepository_e3198068_Double Instance { get; }
+
+    internal TestNamespace_IRepository_e3198068_DoubleVerifier(global::TestNamespace_IRepository_e3198068_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IRepository_e3198068_VerifyExtension
+{
+    public static global::TestNamespace_IRepository_e3198068_DoubleVerifier Verify(this global::TestNamespace.IRepository self) =>
+        new(self as global::TestNamespace_IRepository_e3198068_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IRepository' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IRepository', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IRepository_e3198068_DoubleVerification
+{
+    public static global::Compono.CallVerifier ToString(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, params object[] values) =>
+        new(__self.Instance.__ToString_4a96ce8f.ConfiguredCallCount, "global::TestNamespace.IRepository.ToString");
+
+    public static global::Compono.CallVerifier ToString(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, int format) =>
+        new(__self.Instance.__ToString_b9dfaa09.ConfiguredCallCount, "global::TestNamespace.IRepository.ToString");
 
 }
 

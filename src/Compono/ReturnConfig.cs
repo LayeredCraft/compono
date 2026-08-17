@@ -12,6 +12,7 @@ public struct ReturnConfig<T>
     internal bool HasValue;
     internal T? Value;
     internal Exception? Exception;
+    internal int CallCount;
 
     /// <summary>Whether <see cref="ConfiguredValue"/> was set via <see cref="ReturnConfigBuilder{T}.Returns"/>.</summary>
     public readonly bool HasConfiguredValue => HasValue;
@@ -33,4 +34,15 @@ public struct ReturnConfig<T>
     /// </summary>
     // Safe: generated dispatch code only reads this when HasConfiguredException is true.
     public readonly Exception ConfiguredException => Exception!;
+
+    /// <summary>The number of times this member's dispatch body has actually run, read by <see cref="CallVerifier"/>.</summary>
+    public readonly int ConfiguredCallCount => CallCount;
+
+    /// <summary>
+    /// Records one call to this member. Generated dispatch code always calls this rather than
+    /// incrementing <see cref="CallCount"/> directly - that field is <see langword="internal"/> and
+    /// unwritable from the consumer assembly the generated code actually lives in. See ADR-0044
+    /// Amendment 2, Finding 1.
+    /// </summary>
+    public void RecordCall() => System.Threading.Interlocked.Increment(ref CallCount);
 }

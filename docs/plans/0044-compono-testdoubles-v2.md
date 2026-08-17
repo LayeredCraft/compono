@@ -359,9 +359,9 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       excluded); `docs/reference/diagnostics.md` gains the new generic-
       return-type-dependent diagnostic code (`CMP0031`).
 
-### Phase 2 — Minimal call recording and verification
+### Phase 2 — Minimal call recording and verification (Done)
 
-- [ ] Core `Compono`: add `internal int CallCount` + `public readonly int
+- [x] Core `Compono`: add `internal int CallCount` + `public readonly int
       ConfiguredCallCount` + a **public `RecordCall()` instance method**
       (`Interlocked.Increment(ref CallCount)`, declared on `ReturnConfig<T>`
       itself) to `ReturnConfig<T>` (same internal-write/public-mutation-
@@ -373,11 +373,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       actually lives in, the same cross-assembly defect class ADR-0043
       Amendment 3/8 already fixed twice, caught again here per ADR-0044
       Amendment 2 Finding 1.
-- [ ] Core `Compono`: new `CallVerifier` (public readonly struct,
+- [x] Core `Compono`: new `CallVerifier` (public readonly struct,
       `Never()`/`Once()`/`Exactly(int)`) and `TestDoubleVerificationException`
       (plain `Exception` subtype, matching `CompositionException`'s
       convention — no xUnit/TUnit/AwesomeAssertions reference from core).
-- [ ] `TestDoubleEmitter`/`TestDouble.scriban`: `__member.RecordCall()` at
+- [x] `TestDoubleEmitter`/`TestDouble.scriban`: `__member.RecordCall()` at
       the top of every dispatch body **that has a backing field** (methods
       and property accessors alike) — a call counts whether it hits
       configured, default, or throw behavior. **Not emitted for a member
@@ -385,16 +385,19 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       Finding 13, matching Phase 0/Amendment 4's "no field ⇒ nothing to
       increment" rule): an unsupported-shape or diamond-colliding overload
       has no `Verify()` surface either (Amendment 1), so nothing could
-      ever read a count for it.
-- [ ] `TestDoubleAnalyzer`: generalize the existing `Configure`-collision
+      ever read a count for it. Landed as a block-bodied `get`/`set`/`init`
+      (was expression-bodied) so `RecordCall()` can run as its own
+      statement before the existing configured/default expression.
+- [x] `TestDoubleAnalyzer`: generalize the existing `Configure`-collision
       check (ADR-0043 Amendment 3 Finding E) to a reserved-name set
       (`Configure`, `Verify`) using the same zero-argument-applicability
       logic already established — an interface declaring its own `Verify`
       member would otherwise silently shadow the new bridge exactly like
       an undiagnosed `Configure` collision would have, per ADR-0044
       Amendment 2 Finding 4. Not a new diagnostic code, the existing one's
-      scope widens.
-- [ ] New per-interface generated shape: `<Hash>_VerifyExtension`
+      scope widens (message now names the actual colliding reserved name,
+      `Configure` or `Verify`, via a new `{1}` message-format argument).
+- [x] New per-interface generated shape: `<Hash>_VerifyExtension`
       (`Verify(this TInterface)` bridge, same cast-failure-message
       convention as `Configure()`), `<Hash>_DoubleVerifier` (the distinct
       wrapper type `Verify()` returns, avoiding `Configure()`/`Verify()`
@@ -410,25 +413,37 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       Findings 5 and 6, which caught this exact generated line reading an
       inaccessible field *and* under-supplying `CallVerifier`'s
       constructor.
-- [ ] Public-API-surface approval test update (`Compono.Tests` and/or
-      `Compono.TestDoubles.Tests`, matching the existing pattern) for
-      `CallVerifier`/`TestDoubleVerificationException`/`ReturnConfig<T>`'s
-      new members.
-- [ ] Concurrency test: parallel calls to the same double member, asserted
-      via `Verify().Member().Exactly(n)` for a known `n`, proving
-      `Interlocked.Increment` correctness under real contention (not just
-      single-threaded).
-- [ ] `Verify()`-tests: `Once`/`Never`/`Exactly(n)` pass and fail paths
+- [x] Public-API-surface approval test update — **no test to update**: only
+      `Compono.TestDoubles.Tests.PublicApiSurfaceTests` exists, and it locks
+      the (deliberately tiny) `Compono.TestDoubles` assembly's own surface,
+      not core `Compono`'s — `ReturnConfig<T>`/`CallVerifier`/
+      `TestDoubleVerificationException` all live in core `Compono`, which
+      has no equivalent approval test today (its public surface is large
+      and not gated this way). Nothing in this phase's scope to update.
+- [x] Concurrency test: parallel calls to the same slot (`CallVerifierTests.
+      RecordCall_UnderConcurrentContention_CountsEveryCall`, 8 threads ×
+      1,000 calls via `Parallel.For`), asserted via
+      `ConfiguredCallCount` equaling the exact expected total, proving
+      `Interlocked.Increment` correctness under real contention.
+- [x] `Verify()`-tests: `Once`/`Never`/`Exactly(n)` pass and fail paths
       (fail path asserts the thrown `TestDoubleVerificationException`'s
-      message), a verified call that also has configured `Returns`/`Throws`
+      message), a verified call that also has configured `Returns`
       behavior (proving counting and configured-behavior dispatch don't
-      interfere), overload-scoped verification.
-- [ ] **Packaged-consumer smoke test, this phase's own shape** (same
-      rationale as Phases 0/1's own tasks): `Verify().Member().Once()`
-      through a real packed `.nupkg` + throwaway consumer project, real
-      `dotnet build`/`dotnet run`. This phase does not ship until it's
-      green.
-- [ ] **Docs, this phase's own shape** (same rationale as Phases 0/1's own
+      interfere), overload-scoped verification — landed as real end-to-end
+      `CompileAndExecute` execution tests
+      (`TestDoubleVerificationExecutionTests`), not generator-output
+      snapshots, since this task needs the generated `Verify()` bridge to
+      actually run and throw, not just compile. Uses
+      `GeneratedTestDoubleRegistry.TryCreate` directly rather than
+      `Compono.TestDoubles`'s own runtime provider, which lives in a
+      separate package this in-process test harness doesn't reference.
+- [x] **Packaged-consumer smoke test, this phase's own shape** (same
+      rationale as Phases 0/1's own tasks): `Verify().Member().Once()`/
+      `.Never()`/fail-path-with-message through a real packed `.nupkg` +
+      the existing `Compono.TestDoubles.SampleTests` consumer project
+      (`VerificationTests.cs`), real `dotnet build`/`dotnet run` across all
+      four target TFMs.
+- [x] **Docs, this phase's own shape** (same rationale as Phases 0/1's own
       doc tasks): `docs/packages/compono-testdoubles.md` and
       `skills/compono/references/testdoubles.md` gain the `Verify()`/
       `Never`/`Once`/`Exactly(n)` section, including the updated
@@ -437,7 +452,11 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       guidance on when a shape still needs `Compono.NSubstitute` (argument
       matchers, call-order, class mocking). No `diagnostics.md` task here
       — verification introduces a runtime exception
-      (`TestDoubleVerificationException`), not a new compile diagnostic.
+      (`TestDoubleVerificationException`), not a new compile diagnostic;
+      `docs/reference/diagnostics.md`'s existing `CMP0023` section was
+      still updated in place, since it's the pre-existing `Configure`-
+      collision diagnostic this phase's reserved-name widening actually
+      changed the behavior of.
 
 ### Phase 3 — AOT, performance, and package verification
 

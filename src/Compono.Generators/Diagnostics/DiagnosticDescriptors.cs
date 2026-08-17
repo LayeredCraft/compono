@@ -164,10 +164,10 @@ internal static class DiagnosticDescriptors
 
     public static readonly DiagnosticDescriptor TestDoubleConfigureMemberCollision = new(
         "CMP0023",
-        "Test-double interface member collides with the generated Configure() bridge",
-        "'{0}' declares its own member named 'Configure', which would silently shadow the generated " +
-        "Configure() extension the double's configuration surface depends on. This leaf falls back " +
-        "to the ordinary runtime-provider path.",
+        "Test-double interface member collides with a generated Configure()/Verify() bridge",
+        "'{0}' declares its own member named '{1}', which would silently shadow the generated " +
+        "{1}() extension the double's configuration/verification surface depends on. This leaf falls " +
+        "back to the ordinary runtime-provider path.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);

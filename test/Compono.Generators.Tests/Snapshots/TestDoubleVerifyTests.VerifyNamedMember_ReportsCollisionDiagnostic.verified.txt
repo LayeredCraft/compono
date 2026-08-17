@@ -2,7 +2,7 @@
   Diagnostics: [
     {
       Location: Program.cs: (14,65)-(14,91),
-      Message: 'TestNamespace.IRepository' declares its own member named 'Configure', which would silently shadow the generated Configure() extension the double's configuration/verification surface depends on. This leaf falls back to the ordinary runtime-provider path.,
+      Message: 'TestNamespace.IRepository' declares its own member named 'Verify', which would silently shadow the generated Verify() extension the double's configuration/verification surface depends on. This leaf falls back to the ordinary runtime-provider path.,
       Severity: Info,
       WarningLevel: 1,
       Descriptor: {

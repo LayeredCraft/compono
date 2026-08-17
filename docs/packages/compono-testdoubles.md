@@ -100,9 +100,8 @@ each overload gets its **own** `Configure()` surface, disambiguated by
 ordinary C# overload resolution — the generated configuration extension
 for an overloaded member takes the same real parameter types the interface
 overload declares (the values themselves are discarded, exactly like the
-non-overloaded, zero-argument case). (`Verify()` call-recording ships
-separately — [PLAN-0044](../plans/0044-compono-testdoubles-v2.md) Phase 2,
-not yet available.)
+non-overloaded, zero-argument case). `Verify()` call verification reuses
+this same per-overload surface — see "Call verification" below.
 
 ```csharp
 public interface IResponseBuilder
@@ -197,6 +196,40 @@ widget.Configure().Process<string>(someListOfString).Returns(default);        //
   conflicting answers even for the constrained case — so every `T?`-using
   type parameter is diagnosed and excluded alike (`CMP0026`).
 
+## Call verification
+
+`Verify()` — parallel to and independent from `Configure()` — asserts how
+many times a member was actually called (v2,
+[ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
+Requirement 3). `Never()`/`Once()`/`Exactly(n)` only:
+
+```csharp
+service.Repository.Configure().CountAsync().Returns(Task.FromResult(5));
+
+var order = await service.PlaceAsync(3);
+
+service.Repository.Verify().CountAsync().Once();
+service.Repository.Verify().Save().Once();
+service.Repository.Verify().UtcNow().Never(); // never read in this call path
+```
+
+A failing assertion throws `Compono.TestDoubleVerificationException` (a
+plain exception, not an xUnit/TUnit/AwesomeAssertions assertion type - core
+`Compono` has no reference to any of them) naming the expected and actual
+counts. A call counts whether it hits configured, default, or thrown
+behavior - counting and configured `Returns`/`Throws` dispatch never
+interfere with each other. Verification reuses the same per-overload
+discriminator mechanism `Configure()` does: `repository.Verify().Speak("x")`
+selects the same overload-specific counter `repository.Configure().Speak("x")`
+would.
+
+**Still deliberately minimal** - `Never`/`Once`/`Exactly(n)` only, no
+`AtLeast`/`AtMost`, no argument-aware recording (a member's count is
+argument-independent, same as its configured return value), no call-order
+verification, no `ReceivedCalls()`-style enumeration. If a test needs any
+of that, use `Compono.NSubstitute` for that interface instead - the two
+providers can coexist (see below).
+
 ## Precedence with `Compono.NSubstitute`
 
 If both packages are installed and both providers registered, registration
@@ -209,14 +242,15 @@ cases the other.
 
 ## What it deliberately doesn't do
 
-Still no call recording, no verification (`Received()`-style assertions),
-no argument matchers, and no support for classes, delegates, indexers,
-events, a generic method whose return type depends on its own type
-parameter, or static abstract members — see
+Still no argument matchers, no argument-aware call recording, no call-order
+verification, and no support for classes, delegates, indexers, events, a
+generic method whose return type depends on its own type parameter, or
+static abstract members — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
 Non-Goals for the full scope boundary. Overloaded members, a `ref`/`out`/`in`
-parameter's own overload, and generic methods independent of their own type
-parameter are now supported (see above,
+parameter's own overload, generic methods independent of their own type
+parameter, and minimal call verification (`Never`/`Once`/`Exactly(n)`) are
+now supported (see above,
 [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
 An unsupported member shape is a compile-time diagnostic
 (`CMP0020`-`CMP0031`), not a silent gap.
