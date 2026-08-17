@@ -663,6 +663,20 @@ already exists from those phases:
       style range caps or "generic methods unsupported" claims outside
       historical/ADR context — none found beyond what's already fixed.
 
+      A fifth Codex pass caught two more real accuracy gaps in the
+      skill-local table, both fixed: (1) `CMP0023`'s row didn't carry
+      `docs/reference/diagnostics.md`'s own "callable with zero arguments"
+      qualifier — a required-parameter method like `Verify(int mode)`
+      isn't callable with zero arguments and doesn't collide, so the whole
+      interface doesn't fall back for it; the skill row previously implied
+      otherwise. (2) `CMP0029`'s row didn't account for generic arity — two
+      same-named zero-parameter extensions of *different* generic arity
+      (e.g. a property `M` alongside `M<T>()`) don't collide, since
+      `TestDoubleAnalyzer` groups candidates by `(Name, GenericArity)`
+      before checking; the canonical `docs/reference/diagnostics.md`
+      description had the identical gap, so fixed it there too rather than
+      leave the two tables newly inconsistent with each other.
+
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
 they're actually completable (corrected per Codex review, Finding 18: as
