@@ -620,6 +620,21 @@ already exists from those phases:
       overload/identity-scoped v2 codes, matching the fuller table in
       `docs/reference/diagnostics.md`.
 
+      A second Codex pass on that fix caught two more misses, all now
+      fixed: (1) `SKILL.md` itself — its trigger metadata, workflow step 6,
+      and reference-routing table all still capped the diagnostic range at
+      `CMP0028` and step 6 claimed every code means whole-interface
+      fallback, which is false for the three scoped v2 codes; updated all
+      three spots to `CMP0031` and added the scoped-vs-whole-interface
+      caveat to step 6. (2) The skill-local table's `CMP0026`/`CMP0030`
+      rows didn't carry `docs/reference/diagnostics.md`'s own documented
+      exception — an `out` parameter with no deterministic default of its
+      own (e.g. a non-nullable reference type) stays whole-interface
+      `CMP0026` even when a sibling overload exists, it doesn't get
+      `CMP0030`'s overload-scoped treatment, since there's no constructible
+      fallback body regardless of scoping. Added that exception to both
+      rows.
+
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
 they're actually completable (corrected per Codex review, Finding 18: as
