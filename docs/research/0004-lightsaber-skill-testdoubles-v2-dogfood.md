@@ -146,11 +146,17 @@ The recommendation above fed a full design deep dive
 (`Accepted`): a member with no deterministic default no longer rejects
 its whole interface — it generates as **configuration-required**,
 throwing a new `TestDoubleNotConfiguredException` if invoked before
-`Configure().Member(...).Returns(...)`/`.Throws(...)`. `CMP0025` narrows
-to the three genuinely unimplementable return shapes (by-ref, pointer,
-ref-like); a new `CMP0032` — scoped to one informational diagnostic per
-interface, not per member, per ADR-0045 Amendment 1 — covers the
-configuration-required case. Manufacturing a value and special-casing
+`Configure().Member(...).Returns(...)`/`.Throws(...)`, provided it would
+otherwise have a real configuration surface. `CMP0025` still fires,
+unchanged, for the three genuinely unimplementable return shapes
+(by-ref, pointer, ref-like) *and* for that same non-nullable-reference
+case when the member also lacks a configuration surface for an unrelated
+reason (a diamond collision, a zero-argument-extension collision, an
+object-member collision, or an overloaded `ref`/`out`/`in` parameter,
+Amendments 3/4/6) — a new `CMP0032` — scoped to one informational
+diagnostic per interface, not per member, per Amendment 1 — covers the
+ordinary configuration-required case. Manufacturing a value and
+special-casing
 fluent self-return were both considered and rejected; the full comparison
 and every open question above is resolved in the ADR itself.
 [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)

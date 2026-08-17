@@ -77,11 +77,18 @@ ADR, the research doc, the plan). Four dogfooding passes have run so far:
   still-rejected interface. This finding is a roadmap candidate that's
   been designed and `Accepted`:
   [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
-  records the decision (`CMP0025` narrows to the three genuinely
-  unimplementable return shapes; a member with no deterministic default
-  instead generates as configuration-required, throwing
+  records the decision: a member with no deterministic default generates
+  as configuration-required instead, throwing
   `TestDoubleNotConfiguredException` if invoked before `Returns(...)`/
-  `Throws(...)`); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
+  `Throws(...)` — *provided* it would otherwise have a real `Configure()`/
+  `Verify()` surface. `CMP0025` still fires, unchanged, for the three
+  genuinely unimplementable return shapes (by-ref, pointer, ref-like)
+  **and** for that same non-nullable-reference case when the member also
+  has no configuration surface for an unrelated reason (a diamond
+  collision, a zero-argument-extension collision, an object-member
+  collision, or an overloaded `ref`/`out`/`in` parameter) — so no member
+  ever ends up throwing unconditionally with no way to configure it
+  (Amendments 3, 4, and 6); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
   tracks the implementation, not yet started. This page keeps listing it
   until it's actually shipped — same rule the third bullet's finding
   followed before PLAN-0044 completed — and, per ADR-0045's own scope,

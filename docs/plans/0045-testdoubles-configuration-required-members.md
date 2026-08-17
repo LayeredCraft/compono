@@ -125,9 +125,15 @@ depends on its own type parameter); special-casing fluent self-return
       coverage — this ADR narrows `CMP0025`'s scope, doesn't remove its
       remaining trigger), (f) **`CMP0025` also still fires unchanged
       (never `CMP0024`) for every combined shape Amendments 3 and 6
-      identify** — an overloaded `ref`/`out`/`in` member with a no-default
-      return type, a diamond-colliding member with a no-default return
-      type, and an object-member-collision-shaped method
+      identify — all four of them, not a subset**: an overloaded
+      `ref`/`out`/`in` member with a no-default return type, a
+      diamond-colliding member with a no-default return type, a
+      same-named zero-argument-extension-colliding member with a
+      no-default return type (Amendment 3's third named condition — a
+      naive gate checking only the other three would mark this one
+      configuration-required despite its `Configure()` surface being
+      withheld, generating a member that throws unconditionally forever),
+      and an object-member-collision-shaped method
       (`ToString`/`GetHashCode`/`GetType`/`Equals`) with a no-default
       return type (Amendment 6 — this one specifically asserts `CMP0025`,
       *not* `CMP0024`, since Amendment 5's original "it'll just fall
