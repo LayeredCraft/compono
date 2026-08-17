@@ -504,6 +504,33 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       `build/Compono.props` (which declares that visibility for a
       `PackageReference` consumer), so it must declare it itself.
 
+      **Real `BenchmarkDotNet` run** (Apple M3 Max, arm64, .NET 10.0.3,
+      `DefaultJob`, not a dry run) — full results, honestly published per
+      ADR-0034 rule 5 regardless of how unremarkable they are:
+
+      | Method | Mean | Ratio |
+      |---|---|---|
+      | `PlainIncrement` (baseline) | 0.489 ns | 1.00 |
+      | `InterlockedIncrement` | 0.485 ns | 0.99 |
+
+      | Method | Mean | Ratio |
+      |---|---|---|
+      | `SingleOverloadMember` (baseline) | 0.930 ns | 1.00 |
+      | `MemberWithFourSiblingOverloads` | 0.979 ns | 1.05 |
+
+      Both differences are within measurement noise (RatioSD 0.05-0.07) —
+      no meaningful overhead from either verification's counter or from
+      adding sibling overloads to a member, on this hardware. One real
+      finding from getting this run right: the `PlainIncrement` baseline's
+      first draft used a bare `++_count` and measured 0.000 ns — the JIT
+      silently collapsed the write across BenchmarkDotNet's unrolled-
+      iteration loop since nothing reads the field between calls,
+      understating the baseline and violating ADR-0034's baseline-parity
+      rule (the two arms weren't doing equivalent real work). Fixed by
+      forcing a real memory write every call via `Volatile.Write` in the
+      baseline, differing from the `Interlocked.Increment` arm only in
+      atomicity, as intended.
+
 ### Phase 4 — Documentation consistency pass
 
 Retitled and reduced from an original "write all the docs here" phase,
