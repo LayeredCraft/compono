@@ -11,6 +11,10 @@
              surface (documentation.md's XML-doc requirement is about the published package
              surface), same reasoning Directory.Build.targets already applies to test projects. -->
         <NoWarn>$(NoWarn);CS1591</NoWarn>
+        <!-- PLAN-0044 Phase 3: FeatureOverhead/VerificationOverheadBenchmarks and
+             FeatureOverhead/OverloadDispatchOverheadBenchmarks need a real generated double -
+             this compile-time opt-in is required for Compono.Generators to emit one at all. -->
+        <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
     </PropertyGroup>
 
     <ItemGroup>
@@ -54,6 +58,18 @@
              package. -->
         <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
         <ProjectReference Include="..\..\src\Compono.Bogus\Compono.Bogus.csproj" />
+        <!-- PLAN-0044 Phase 3: FeatureOverhead/VerificationOverheadBenchmarks and
+             FeatureOverhead/OverloadDispatchOverheadBenchmarks exercise UseGeneratedTestDoubles(). -->
+        <ProjectReference Include="..\..\src\Compono.TestDoubles\Compono.TestDoubles.csproj" />
+    </ItemGroup>
+
+    <!-- ComponoGeneratedTestDoubles (ADR-0043) is only automatically CompilerVisibleProperty for a
+         PackageReference consumer, via Compono's own packaged build/Compono.props - a ProjectReference
+         (this project's own choice, see the ItemGroup above) bypasses packaged build assets entirely,
+         so this project must declare the same visibility itself, matching
+         Compono.Generators.Tests/GeneratorTestHelpers.cs's own in-process test-harness pattern. -->
+    <ItemGroup>
+        <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
     </ItemGroup>
 
 </Project>

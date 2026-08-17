@@ -458,14 +458,21 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       collision diagnostic this phase's reserved-name widening actually
       changed the behavior of.
 
-### Phase 3 — AOT, performance, and package verification
+### Phase 3 — AOT, performance, and package verification (Done)
 
-- [ ] `test/Compono.TestDoubles.AotSmokeTest`: extend to exercise all
+- [x] `test/Compono.TestDoubles.AotSmokeTest`: extend to exercise all
       three new shapes together (an overloaded member, a covered generic
       method, a verified call) in the same `dotnet publish
       -p:PublishAot=true` run — zero `IL2xxx`/`IL3xxx` warnings, real
       execution, matching PLAN-0043 Phase 2's own standard.
-- [ ] `test/Compono.TestDoubles.SampleTests`: extend the packaged-consumer
+      `Program.cs` now also declares `IGateway` (overloaded `Send`) and
+      `ILoggerLike` (`Log<TState>`), and verifies all of `IRepository`,
+      `IGateway`, and `ILoggerLike`'s calls via `Verify()`. Ran
+      `dotnet publish -c Release -f net10.0 -p:PublishAot=true` manually
+      (this project isn't CI-wired, matching PLAN-0043's own AOT-harness
+      disposition) — zero `IL2xxx`/`IL3xxx` warnings, and the published
+      native binary printed `PASS: ...` and exited 0.
+- [x] `test/Compono.TestDoubles.SampleTests`: extend the packaged-consumer
       sample with the same three shapes, proving the real NuGet-packaged
       path (not just the in-process generator harness), matching PLAN-0043
       Phase 2's local-feed pattern — this is the combined-shapes proof;
@@ -473,12 +480,29 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       their own lighter packaged smoke test (added per Amendment 6's
       process finding, see Notes), so this phase isn't the first point
       any of the three shapes gets compiled as a real external consumer.
-- [ ] Targeted benchmarks only (per ADR-0044's "AOT and performance"
+      Added `CombinedShapesTests.cs` (`INotifier`: an overloaded `Notify`
+      plus a generic `Publish<TEvent>`), configuring, calling, and
+      verifying all three shapes together. Runs automatically in CI via
+      `package-validation.yaml`'s existing "Local-feed packed-consumer
+      smoke test (Compono.TestDoubles)" step — no workflow change needed.
+      All 4 TFMs green (11/11 tests, up from 10).
+- [x] Targeted benchmarks only (per ADR-0044's "AOT and performance"
       section — not a general competitive suite): `Interlocked.Increment`
       overhead per verified call, and overload-dispatch overhead for a
       member with several sibling overloads — both following this repo's
       existing benchmark-suite policy (ADR-0034), non-misleading
       comparisons only.
+      Added `benchmarks/Compono.Benchmarks/FeatureOverhead/VerificationOverheadBenchmarks.cs`
+      (isolates `Interlocked.Increment` vs. a plain field increment — the
+      exact primitive `RecordCall()` uses) and
+      `.../FeatureOverhead/OverloadDispatchOverheadBenchmarks.cs` (calls
+      the same `Send(string)` shape on a solo-member interface vs. one
+      with four sibling overloads). `Compono.Benchmarks.csproj` gained a
+      `ProjectReference` to `Compono.TestDoubles` and an explicit
+      `<CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />`
+      — a `ProjectReference` consumer bypasses `Compono`'s packaged
+      `build/Compono.props` (which declares that visibility for a
+      `PackageReference` consumer), so it must declare it itself.
 
 ### Phase 4 — Documentation consistency pass
 
