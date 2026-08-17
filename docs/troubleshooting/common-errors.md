@@ -15,11 +15,14 @@ often in practice:
   [Migrating from AutoFixture](../migrating-from-autofixture.md) for a
   real worked example of exactly this.
 
-`CMP0020`–`CMP0028` are a separate, **informational** family — they only
+`CMP0020`–`CMP0031` are a separate, **informational** family — they only
 apply if `ComponoGeneratedTestDoubles=true` is set (see
-[`Compono.TestDoubles`](../packages/compono-testdoubles.md)), never fail
-the build, and just mean one interface leaf's generated double couldn't be
-emitted and fell back to the ordinary runtime-provider path. See
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md)) and never fail
+the build. Most of them mean one interface leaf's generated double
+couldn't be emitted and fell back to the ordinary runtime-provider path —
+but `CMP0022`, `CMP0029`, and `CMP0030` are narrower: they withhold a
+`Configure()`/`Verify()` surface for just one overload or colliding
+identity while the rest of the double still generates normally. See
 [Reference: Diagnostics](../reference/diagnostics.md) for each code.
 
 A missing provider for an interface, abstract class, or delegate is

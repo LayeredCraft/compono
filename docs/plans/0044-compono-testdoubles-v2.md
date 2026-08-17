@@ -556,7 +556,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       machinery costs real time and memory that a compile-time-emitted
       double simply doesn't pay.
 
-### Phase 4 — Documentation consistency pass
+### Phase 4 — Documentation consistency pass (Done)
 
 Retitled and reduced from an original "write all the docs here" phase,
 per Codex review: `references/documentation.md`'s "update the relevant
@@ -571,15 +571,111 @@ describes (see Phases 0-2's own new doc tasks above). What's left here is
 genuinely cross-cutting, only possible once all three shapes' content
 already exists from those phases:
 
-- [ ] Read `docs/packages/compono-testdoubles.md` and
+- [x] Read `docs/packages/compono-testdoubles.md` and
       `skills/compono/references/testdoubles.md` end-to-end, written
       incrementally across three separate phases/PRs — fix any structural,
       ordering, or cross-referencing issues that only become visible once
       the full v2 picture is assembled (e.g. the overload/generic/
       verification sections should read as one coherent package, not three
       independently-written additions).
-- [ ] `docs/reference/diagnostics.md` — same consistency check across the
+      Both files already read as one coherent package end-to-end — each
+      phase's own doc task left the Overloaded members / Generic methods /
+      Call verification sections in the right order and free of
+      duplication, so no structural or ordering rewrite was needed. Verified
+      every markdown link in both files (plus `docs/reference/
+      diagnostics.md`, task below) resolves to a real file via a script
+      walking each `](...)` target relative to its own file — all clean.
+      Found and fixed one real cross-referencing bug from the incremental
+      writing: `skills/compono/references/testdoubles.md`'s "Unsupported
+      shapes" section pointed at `references/diagnostics.md`, a path that's
+      wrong relative to its own directory (`skills/compono/references/`) —
+      would resolve to a nonexistent `references/references/diagnostics.md`
+      instead of the sibling file one level up in the same directory
+      (confirmed against `composition-model.md`'s own correct
+      same-directory `diagnostics.md` reference for the established
+      convention). Fixed to the bare sibling filename.
+- [x] `docs/reference/diagnostics.md` — same consistency check across the
       Phase 0/1 diagnostic entries added incrementally.
+      `CMP0020`-`CMP0031`'s severity/scope framing in the intro already
+      correctly separates the whole-interface-fallback codes from v2's
+      three overload/identity-scoped codes (`CMP0022`, `CMP0029`,
+      `CMP0030`), and each entry's own "Scope" line is consistent with it.
+      Found and fixed one cross-referencing inconsistency: `CMP0022`'s
+      cause pointed at `docs/packages/compono-testdoubles.md`'s "Overloaded
+      members" section as a plain-text path, while every sibling entry
+      (e.g. `CMP0031`) uses a real markdown link with a heading anchor —
+      changed `CMP0022` to match (`[Compono.TestDoubles](../packages/
+      compono-testdoubles.md#overloaded-members)`).
+
+      Codex review on this phase's own PR caught a real miss: a second,
+      separate `diagnostics.md` lives at
+      `skills/compono/references/diagnostics.md` (distinct from
+      `docs/reference/diagnostics.md` above) and had gone fully stale — it
+      still capped its table at `CMP0020`-`CMP0028`, was missing all three
+      v2 codes (`CMP0022`'s diamond-collision-only scoping, `CMP0029`,
+      `CMP0030`, `CMP0031`), and its `CMP0021` row still listed "generic
+      method" as an unsupported member kind even though v2 supports one.
+      Rewrote its `CMP0020`-`CMP0031` table with a `Scope` column
+      distinguishing the nine whole-interface-fallback codes from the three
+      overload/identity-scoped v2 codes, matching the fuller table in
+      `docs/reference/diagnostics.md`.
+
+      A second Codex pass on that fix caught two more misses, all now
+      fixed: (1) `SKILL.md` itself — its trigger metadata, workflow step 6,
+      and reference-routing table all still capped the diagnostic range at
+      `CMP0028` and step 6 claimed every code means whole-interface
+      fallback, which is false for the three scoped v2 codes; updated all
+      three spots to `CMP0031` and added the scoped-vs-whole-interface
+      caveat to step 6. (2) The skill-local table's `CMP0026`/`CMP0030`
+      rows didn't carry `docs/reference/diagnostics.md`'s own documented
+      exception — an `out` parameter with no deterministic default of its
+      own (e.g. a non-nullable reference type) stays whole-interface
+      `CMP0026` even when a sibling overload exists, it doesn't get
+      `CMP0030`'s overload-scoped treatment, since there's no constructible
+      fallback body regardless of scoping. Added that exception to both
+      rows.
+
+      A third Codex pass caught two more, both fixed: (1) the CMP0026 row's
+      wording bundled pointer/function-pointer parameters into the
+      "solo-member" exception alongside `ref`/`out`/`in` — wrong: a
+      pointer/function-pointer parameter is **always** whole-interface
+      `CMP0026`, at any nesting depth (even `int*[]`), regardless of
+      whether a same-named sibling exists; only `ref`/`out`/`in` has the
+      solo-vs-sibling split. Reworded the row to state the pointer case
+      unconditionally, separate from the `ref`/`out`/`in` nuance. (2) this
+      note originally said the rewritten skill table distinguishes "six"
+      whole-interface-fallback codes — the actual count is nine (`CMP0020`,
+      `CMP0021`, `CMP0023`-`CMP0028`, `CMP0031`); corrected the count here.
+
+      A fourth Codex pass caught three more, all fixed: (1) the CMP0024
+      row's `Equals`-collision qualifier was still too broad — a generic
+      `Equals<T>(T)` overload stays distinguishable by explicit type
+      argument, and a ref-like-parameter overload (`Equals(Span<int>)`) has
+      no reference conversion to `object` at all, so neither actually
+      collides; reworded to a non-generic, non-ref-like single-required-
+      parameter qualifier, matching `docs/reference/diagnostics.md`'s own
+      language. (2)/(3) two more downstream doc summaries were still capped
+      at `CMP0028` and claiming universal whole-interface fallback:
+      `docs/getting-started/ai-agent-skill.md`'s "What it does" section and
+      `docs/troubleshooting/common-errors.md`'s diagnostic-code section —
+      updated both to `CMP0031` and added the scoped-code caveat to the
+      latter. Also swept the whole repo for any other `CMP0020`-`CMP0028`-
+      style range caps or "generic methods unsupported" claims outside
+      historical/ADR context — none found beyond what's already fixed.
+
+      A fifth Codex pass caught two more real accuracy gaps in the
+      skill-local table, both fixed: (1) `CMP0023`'s row didn't carry
+      `docs/reference/diagnostics.md`'s own "callable with zero arguments"
+      qualifier — a required-parameter method like `Verify(int mode)`
+      isn't callable with zero arguments and doesn't collide, so the whole
+      interface doesn't fall back for it; the skill row previously implied
+      otherwise. (2) `CMP0029`'s row didn't account for generic arity — two
+      same-named zero-parameter extensions of *different* generic arity
+      (e.g. a property `M` alongside `M<T>()`) don't collide, since
+      `TestDoubleAnalyzer` groups candidates by `(Name, GenericArity)`
+      before checking; the canonical `docs/reference/diagnostics.md`
+      description had the identical gap, so fixed it there too rather than
+      leave the two tables newly inconsistent with each other.
 
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where

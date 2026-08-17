@@ -280,8 +280,9 @@ kind, and generic arity) is declared by two different base interfaces
 reached through the interface's transitive closure — a genuine C# overload
 (two members of the same name but a *different* signature) is unaffected
 by this diagnostic; it gets its own per-overload `Configure()`
-surface instead (see `docs/packages/compono-testdoubles.md`'s "Overloaded
-members" section). Verification (`Verify()`) reuses this same per-overload
+surface instead — see
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md#overloaded-members)'s
+"Overloaded members" section. Verification (`Verify()`) reuses this same per-overload
 surface — a diamond-colliding identity has no `Verify()` surface either.
 
 **Fix:** None needed — that one identity falls back to a deterministic
@@ -427,15 +428,19 @@ non-zero parameter list, is unaffected.
 configuration extension has no parameters to disambiguate it from another
 same-named member's own generated extension`
 
-**Cause:** Two or more same-named members inherited through the
-interface's transitive closure don't share a full signature (so
-`CMP0022`'s diamond-collision check doesn't catch them — a property vs. a
-method, or two methods with a different real parameter list), but each
-one's own generated configuration extension is genuinely zero-parameter —
-a property's extension always is; a method's is unless it's part of a real
-overload set with its own distinguishing parameter list. Two identical
-zero-parameter extension signatures are an unresolvable `CS0111` collision
-if both kept their surface.
+**Cause:** Two or more same-named members of *equal generic arity*,
+inherited through the interface's transitive closure, don't share a full
+signature (so `CMP0022`'s diamond-collision check doesn't catch them — a
+property vs. a method, or two methods with a different real parameter
+list), but each one's own generated configuration extension is genuinely
+zero-parameter — a property's extension always is; a method's is unless
+it's part of a real overload set with its own distinguishing parameter
+list. Two identical zero-parameter extension signatures are an
+unresolvable `CS0111` collision if both kept their surface. A same-named
+member of *different* generic arity (a zero-parameter `M` alongside
+`M<T>()`, or `M<T>()` alongside `M<T, U>()`) never collides here — the
+generator groups candidates by `(Name, GenericArity)` before checking, and
+each arity keeps its own surface.
 
 **Fix:** None needed — the colliding identities fall back to a
 deterministic default; any other overload of the same name that keeps a

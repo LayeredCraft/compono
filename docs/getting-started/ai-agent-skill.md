@@ -14,7 +14,7 @@ semantics, customization override, reflection-based construction. The
 skill teaches the agent Compono's actual model: source-generated
 composition, `[Composable]`'s narrow scope, registration/rule precedence,
 `[Shared]`, deterministic seeding, the real `CMP0001`-`CMP0013` diagnostic
-set plus `CMP0020`-`CMP0028`'s generated-test-double opt-in diagnostics,
+set plus `CMP0020`-`CMP0031`'s generated-test-double opt-in diagnostics,
 and the package-specific surface of `Compono.XunitV3`/`Compono.TUnit`/
 `Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles` — only
 recommending an integration's API when that package is actually

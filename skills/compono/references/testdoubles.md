@@ -187,8 +187,7 @@ interface the compile-time opt-in never reached. Overloaded members, a
 `ref`/`out`/`in` parameter, and a generic method independent of its own
 type parameter are narrower now (see above) — only the specific
 colliding/unsupported overload loses its surface, not the whole interface.
-See `references/diagnostics.md` for the full code table before guessing a
-fix.
+See `diagnostics.md` for the full code table before guessing a fix.
 
 ## Precedence with `Compono.NSubstitute`
 
