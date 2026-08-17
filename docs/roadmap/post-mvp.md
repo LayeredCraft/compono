@@ -50,17 +50,40 @@ ADR, the research doc, the plan). Three dogfooding passes have run so far:
   generic-method-free, verification-free scope blocked the two interfaces
   (`IResponseBuilder`, `ILogger<T>`) that dominate the suite's substitution
   surface, plus two `Received(1)`-style assertions with no v1 equivalent.
-  That finding has been designed and `Accepted`:
-  [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
-  records the decision (overloaded-member support, a narrow class of
-  generic-method support, and minimal `Never`/`Once`/`Exactly(n)` call
-  verification); [PLAN-0044](../plans/0044-compono-testdoubles-v2.md)
-  tracks the implementation, not yet started. This page keeps listing it
-  until it's actually shipped — "designed" is not "available."
+  That finding was designed, `Accepted`
+  ([ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md):
+  overloaded-member support, a narrow class of generic-method support, and
+  minimal `Never`/`Once`/`Exactly(n)` call verification), and **shipped**
+  ([PLAN-0044](../plans/0044-compono-testdoubles-v2.md), `Done`) — all
+  three capabilities are implemented and real today, not planned. **This
+  finding is no longer listed here, but "shipped" is not the same as "the
+  suite fully migrated"** — see the next bullet for why.
+- A fourth pass — PLAN-0044 Phase 5's required re-dogfood of
+  `lightsaber-skill` against the shipped v2 package
+  ([RESEARCH-0003](../research/0003-lightsaber-skill-testdoubles-v2-dogfood.md))
+  — confirmed the third pass's shipped capabilities work exactly as
+  designed (`ILogger<T>` now generates, proving generic-method support),
+  but found they weren't the suite's actual dominant blocker. Of the seven
+  interfaces the suite depends on, six (`IResponseBuilder`, `IAmazonS3`,
+  `ISkillMediator`, `IOptions<T>`, `ILambdaContext`, `IHandlerInput`) are
+  still whole-interface-rejected — not by overloads or generics, but by
+  `CMP0025` (a pre-existing v1 rule: a non-nullable-reference-returning
+  member with no deterministic default rejects its entire interface).
+  Practical result: **zero tests in the suite can drop
+  `Compono.NSubstitute`**, since every test using `ILogger<T>` also uses a
+  still-rejected interface. This is a new roadmap candidate — whether
+  `CMP0025` should still reject the whole interface, or let a double
+  generate with just that member requiring explicit configuration before
+  invocation — not yet designed (no ADR number assigned; the design pass
+  is the immediate next step, see RESEARCH-0003's "Recommendation").
 
-That two of these three dogfooding passes together produced zero
-*outstanding* roadmap items (the third produced exactly one, above) is
-itself a real, evidence-backed outcome, not a shortfall in the process —
-it doesn't mean Compono is "done": a different real-world project, or a
-future package, may surface a finding these three didn't (each is one
-data point, not an exhaustive survey).
+That two of these four dogfooding passes together produced zero
+*outstanding* roadmap items is itself a real, evidence-backed outcome, not
+a shortfall in the process — it doesn't mean Compono is "done": a
+different real-world project, or a future package, may surface a finding
+these four didn't (each is one data point, not an exhaustive survey). The
+third and fourth passes together are also a concrete illustration of why
+that framing matters: shipping the third pass's finding didn't retire the
+`lightsaber-skill` gap, it relocated it — the fourth pass's evidence is
+what actually tells us whether `Compono.TestDoubles` materially helps this
+real project yet (as of today, no).
