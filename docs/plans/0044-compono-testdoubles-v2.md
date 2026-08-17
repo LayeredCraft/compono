@@ -607,6 +607,19 @@ already exists from those phases:
       changed `CMP0022` to match (`[Compono.TestDoubles](../packages/
       compono-testdoubles.md#overloaded-members)`).
 
+      Codex review on this phase's own PR caught a real miss: a second,
+      separate `diagnostics.md` lives at
+      `skills/compono/references/diagnostics.md` (distinct from
+      `docs/reference/diagnostics.md` above) and had gone fully stale — it
+      still capped its table at `CMP0020`-`CMP0028`, was missing all three
+      v2 codes (`CMP0022`'s diamond-collision-only scoping, `CMP0029`,
+      `CMP0030`, `CMP0031`), and its `CMP0021` row still listed "generic
+      method" as an unsupported member kind even though v2 supports one.
+      Rewrote its `CMP0020`-`CMP0031` table with a `Scope` column
+      distinguishing the six whole-interface-fallback codes from the three
+      overload/identity-scoped v2 codes, matching the fuller table in
+      `docs/reference/diagnostics.md`.
+
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
 they're actually completable (corrected per Codex review, Finding 18: as
