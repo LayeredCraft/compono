@@ -213,6 +213,17 @@ depends on its own type parameter); special-casing fluent self-return
       If this surfaces a real gap (contrary to the ADR's expectation),
       record it as an ADR-0045 Amendment before proceeding, per this
       repo's Amendment convention — don't silently patch around it.
+- [ ] **Fluent self-return, moved here from a later phase per Codex
+      review**: same `test/Compono.TestDoubles.SampleTests/` file, an
+      `IResponseBuilder`-shaped fluent self-returning member (a method
+      returning the interface itself, RESEARCH-0004's own motivating
+      example and this ADR's central "no special-casing" decision) —
+      confirm it's configuration-required like any other non-nullable
+      reference return, and that configuring it (`Returns(self)`) works
+      for a chained-call test. Phase 0 changes the analyzer for exactly
+      this shape and ships as its own mergeable PR; deferring its first
+      proof to Phase 1 would ship the capability's own central motivating
+      case unvalidated.
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per Codex review — matching PLAN-0044's own established
       pattern, added there for the identical reason: `dotnet pack` core
@@ -220,8 +231,9 @@ depends on its own type parameter); special-casing fluent self-return
       consumer project referencing the packed `.nupkg` (never a
       `ProjectReference`) with `ComponoGeneratedTestDoubles=true`,
       exercising a configuration-required method, property, an async
-      (`Task<TReference>`) member, and the combined-shape regression case
-      end to end with a real `dotnet build`/`dotnet run`. PLAN-0044's own
+      (`Task<TReference>`) member, a fluent self-returning member, and the
+      combined-shape regression case end to end with a real `dotnet
+      build`/`dotnet run`. PLAN-0044's own
       Notes record that every defect its review round found (`CS0122`,
       `CS0460`, `CS0111`, `CS0214`, `CS0177`) was exactly the class of
       cross-assembly compile failure an in-process snapshot test cannot
@@ -273,14 +285,8 @@ depends on its own type parameter); special-casing fluent self-return
     consumer- and agent-facing entry points describing a smaller
     diagnostic range than what Phase 0 actually ships.
 
-### Phase 1 — Fluent-return regression coverage (Not Started)
+### Phase 1 — Existing-behavior regression coverage (Not Started)
 
-- [ ] A fluent self-returning member (`IResponseBuilder`-shaped: a method
-      returning the interface itself) — confirm it's configuration-
-      required like any other non-nullable reference return (no special
-      case), and that configuring it (`Returns(self)`) works for a
-      chained-call test, matching ADR-0045's "Fluent self-returning
-      members" decision.
 - [ ] Confirm zero behavior change for every already-shipped
       deterministic-default member shape (`bool`, `int`, nullable
       reference, `Task`, known collection shapes) — existing v1/v2 tests
