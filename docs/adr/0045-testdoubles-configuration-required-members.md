@@ -595,6 +595,49 @@ interface as other genuinely configuration-required members) — confirming
 `CMP0025` still fires unchanged for these, unaffected by every other
 member's new disposition.
 
+## Amendment 4 (2026-08-17): `CMP0025`'s message text is not narrowed — only the condition for reaching it changes
+
+Codex review caught a direct contradiction this Amendment's own predecessor
+introduced: the original Decision Outcome ("Interface generation:
+`CMP0025` narrowed, `CMP0032` introduced") states `CMP0025`'s message
+narrows to describe only the three genuinely-unimplementable return
+shapes (by-ref, pointer, ref-like) — but Amendment 3, immediately above,
+requires `CMP0025` to keep firing, unchanged, for a member whose return
+type has no deterministic default *and* which also lacks a configuration
+surface for an unrelated reason (a diamond collision, a zero-argument-
+extension collision, an overloaded `ref`/`out`/`in` parameter). If
+`CMP0025`'s message text were actually narrowed to only three shape
+descriptions, firing it for that fourth, Amendment-3-preserved case would
+either use an inaccurate reason or require a second descriptor — exactly
+the contradiction Codex flagged.
+
+**Corrected:** `CMP0025`'s descriptor and message text are **not
+narrowed at all** — `UnsupportedTestDoubleReturnShape` keeps describing
+all four of its original shape sub-cases verbatim, unchanged code and
+unchanged text, including "a non-nullable reference type with no
+deterministic default." What changes is only the **condition** under
+which the analyzer reaches that fourth branch for a given member:
+
+- A member with no deterministic default that would **have** a real
+  configuration surface (the ordinary case) no longer reaches `CMP0025`
+  at all — it takes the new configuration-required path (`CMP0032`,
+  Amendment 1) instead.
+- A member with no deterministic default that would **not** have a real
+  configuration surface anyway (Amendment 3's combined-shape case) still
+  reaches `CMP0025`, with its existing, unnarrowed "a non-nullable
+  reference type with no deterministic default" message — completely
+  unchanged from today's shipped text and behavior for that specific
+  combination.
+
+So `CMP0025`'s scope is unchanged in the literal diagnostic-descriptor
+sense (same four shape descriptions, same message format) — what
+actually narrows is *how often* a member reaches the fourth branch, not
+what the branch says when it's reached. This ADR's earlier "Interface
+generation" section's claim that `CMP0025`'s message narrows is
+superseded by this Amendment; the code-level task list (PLAN-0045 Phase
+0) is corrected in the same pass to stop describing a message-text
+change and instead describe the condition change this Amendment states.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —

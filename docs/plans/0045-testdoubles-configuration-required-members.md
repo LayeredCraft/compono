@@ -9,12 +9,17 @@
 A `Compono.TestDoubles` member (property or method, including through
 `Task<T>`/`ValueTask<T>`) that returns a non-nullable reference type with
 no deterministic default no longer rejects its whole interface at
-generation time — the interface generates, and that specific member
-throws a clear `TestDoubleNotConfiguredException` if invoked before
-`Configure().Member(...).Returns(...)`/`.Throws(...)` is called. `CMP0025`
-narrows to cover only the three genuinely unimplementable return shapes
-(by-ref, pointer, ref-like); a new `CMP0032` covers the configuration-
-required case, member-scoped rather than whole-interface. A real
+generation time, **provided the member would otherwise have a real
+`Configure()`/`Verify()` surface** — the interface generates, and that
+specific member throws a clear `TestDoubleNotConfiguredException` if
+invoked before `Configure().Member(...).Returns(...)`/`.Throws(...)` is
+called, via the new `CMP0032` diagnostic (one per interface, not one per
+member). A member with no deterministic default that *also* has no
+configuration surface for an unrelated reason (a diamond collision, a
+zero-argument-extension collision, an overloaded `ref`/`out`/`in`
+parameter) is unaffected — it keeps its unchanged `CMP0025` whole-
+interface rejection, same as today, so no member ever ends up throwing
+unconditionally with no way to configure it. A real
 `dotnet publish -p:PublishAot=true` run proves the new dispatch shape
 stays AOT-safe, and a third `lightsaber-skill` dogfooding pass measures
 whether real tests can now actually drop `Compono.NSubstitute` — not just
@@ -54,10 +59,14 @@ depends on its own type parameter); special-casing fluent self-return
       supplied precisely by `TestDoubleNotConfiguredException` at the
       point a configuration-required member is actually invoked
       unconfigured, so the diagnostic doesn't need to enumerate members by
-      name to stay useful). Narrow `CMP0025`'s message text so it only
-      describes the three remaining genuinely-unimplementable shapes
-      (by-ref, pointer, ref-like) — the fourth sub-case moves to `CMP0032`
-      instead of sharing `CMP0025`'s text.
+      name to stay useful). **`CMP0025`'s message text/descriptor is
+      unchanged** (ADR-0045 Amendment 4 — it still describes all four of
+      its original shape sub-cases, including "a non-nullable reference
+      type with no deterministic default"): only the *condition* for
+      reaching that fourth branch changes, per the analyzer task below —
+      it now fires only when the member wouldn't have had a configuration
+      surface anyway (Amendment 3's combined-shape case); every other
+      no-default member takes the new `CMP0032` path instead.
 - [ ] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: at the
       method-return-type check (`TryGetDefaultExpression` failure for a
       method's return type) and the property-type check (same failure for
@@ -136,6 +145,39 @@ depends on its own type parameter); special-casing fluent self-return
       in-process snapshot test cannot catch — this phase does not ship
       (its own PR does not merge) until this smoke test is green, rather
       than deferring all packaged proof to Phase 2.
+- [ ] **Docs, this phase's own shape** (moved here from a later docs-only
+      phase per Codex review — matching PLAN-0044's own precedent for the
+      identical reason: `references/documentation.md`'s "update the
+      relevant doc in the same PR" rule means Phase 0 shipping the public
+      exception, the runtime behavior, and `CMP0032` as its own PR can't
+      leave `docs/packages/compono-testdoubles.md`/`docs/reference/diagnostics.md`
+      still describing `CMP0025` as unconditional whole-interface
+      rejection until some later PR):
+  - `docs/packages/compono-testdoubles.md`: new "Configuration-required
+    members" section (parallel to the existing "Overloaded members"/
+    "Generic methods"/"Call verification" sections) documenting the
+    dispatch rule and a real example using one of RESEARCH-0004's
+    acceptance interfaces. Update "Deterministic defaults for
+    unconfigured members" to cross-reference the new section rather than
+    imply every non-nullable-reference return is still a hard rejection.
+  - `docs/reference/diagnostics.md`: `CMP0025`'s entry is **not**
+    narrowed (ADR-0045 Amendment 4) — update its Cause text to note the
+    fourth sub-case now only fires when the member also has no
+    configuration surface for an unrelated reason, cross-referencing the
+    new "Configuration-required members" doc section for the ordinary
+    case. Add a `CMP0032` entry (Cause/Fix, matching the existing
+    entries' shape) explaining it's one diagnostic per interface (a
+    count), not whole-interface rejection.
+  - `skills/compono/references/diagnostics.md`: same two updates,
+    keeping the skill-local summary table consistent with the canonical
+    file (per the pattern PLAN-0044 Phase 4 already established for
+    keeping these two files in sync).
+  - `skills/compono/references/testdoubles.md`: document the new
+    configuration-required-member behavior for agent-facing migration
+    guidance — in particular, that an agent migrating a test off
+    `Compono.NSubstitute` should now expect some generated members to
+    require explicit `Returns(...)`/`Throws(...)` before use, rather than
+    assuming "it generated, therefore every call is safe unconfigured."
 
 ### Phase 1 — Async and fluent-return regression coverage (Not Started)
 
@@ -188,36 +230,25 @@ at all.
       during this phase, record it as an ADR-0045 Amendment and add a
       targeted benchmark then — not before.
 
-### Phase 3 — Docs and skill alignment (Not Started)
+### Phase 3 — Documentation consistency pass (Not Started)
 
-- [ ] `docs/packages/compono-testdoubles.md`: new "Configuration-required
-      members" section (parallel to the existing "Overloaded members"/
-      "Generic methods"/"Call verification" sections) documenting the
-      dispatch rule, the property/async/fluent-self-return decisions, and
-      a real example using one of RESEARCH-0004's acceptance interfaces.
-      Update "Deterministic defaults for unconfigured members" to
-      cross-reference the new section rather than imply every non-
-      nullable-reference return is still a hard rejection.
-- [ ] `docs/reference/diagnostics.md`: narrow `CMP0025`'s entry to its
-      remaining scope (by-ref/pointer/ref-like only); add a `CMP0032`
-      entry (Cause/Fix, matching the existing entries' shape) explaining
-      it's member-scoped, not whole-interface, and pointing at the new
-      "Configuration-required members" doc section.
-- [ ] `skills/compono/references/diagnostics.md`: same two updates,
-      keeping the skill-local summary table consistent with the canonical
-      file (per the pattern PLAN-0044 Phase 4 already established for
-      keeping these two files in sync).
-- [ ] `skills/compono/references/testdoubles.md`: document the new
-      configuration-required-member behavior for agent-facing migration
-      guidance — in particular, that an agent migrating a test off
-      `Compono.NSubstitute` should now expect some generated members to
-      require explicit `Returns(...)`/`Throws(...)` before use, rather
-      than assuming "it generated, therefore every call is safe
-      unconfigured."
+Every doc touch introducing this feature's own behavior already happened
+in Phase 0 (moved there per Codex review, matching PLAN-0044's own
+precedent — see Phase 0's "Docs, this phase's own shape" task). Unlike
+PLAN-0044 (which phased overloads/generics/verification across three
+separate PRs and needed a real cross-cutting consistency pass), this
+plan's only behavior-introducing phase is Phase 0 — so this phase is
+narrower: a final repo-wide sweep for anything Phase 0's own doc task
+wouldn't have touched directly.
+
 - [ ] Re-check `docs/troubleshooting/common-errors.md` and
       `docs/getting-started/ai-agent-skill.md` for the same stale-range-
       cap pattern PLAN-0044 Phase 4 found and fixed there (`CMP0020`-
       `CMP0031` ranges now need to include `CMP0032`).
+- [ ] Grep the repo for any other stale `CMP0020`-`CMP0031`-style range
+      caps or "returning a non-nullable reference always rejects" claims
+      outside historical/ADR context, matching the proactive sweep
+      PLAN-0044 Phase 4 ran before its own final push.
 
 ### Phase 4 — Third `lightsaber-skill` dogfood (Not Started)
 
@@ -250,7 +281,8 @@ at all.
 - `src/Compono/ReturnConfig.cs`, `ReturnConfigBuilder.cs` — unchanged,
   reused as-is; listed for reviewer visibility that nothing here changes.
 - `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` — new
-  `CMP0032` descriptor; `CMP0025`'s message text narrowed.
+  `CMP0032` descriptor; `CMP0025`'s own message text is unchanged
+  (Amendment 4) — only the analyzer condition for reaching it narrows.
 - `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs` — the method-
   return-type and property-type default-lookup failure branches change
   from whole-interface `Failure(...)` to member-scoped configuration-
@@ -263,9 +295,11 @@ at all.
   new coverage per phase above.
 - `docs/packages/compono-testdoubles.md`, `docs/reference/diagnostics.md`,
   `skills/compono/references/diagnostics.md`,
-  `skills/compono/references/testdoubles.md`,
-  `docs/troubleshooting/common-errors.md`,
-  `docs/getting-started/ai-agent-skill.md` — doc/skill alignment (Phase 3).
+  `skills/compono/references/testdoubles.md` — doc/skill alignment for
+  this feature's own behavior (Phase 0, per Codex review).
+- `docs/troubleshooting/common-errors.md`,
+  `docs/getting-started/ai-agent-skill.md` — final stale-range-cap sweep
+  (Phase 3).
 - `docs/roadmap/post-mvp.md`, a new `docs/research/000N-*.md` — Phase 4's
   dogfood result.
 
