@@ -496,6 +496,47 @@ configuration-required rather than rejecting its interface) is unchanged.
 PLAN-0045's Phase 0 task list is updated in the same pass as this
 Amendment to reflect the interface-scoped shape.
 
+## Amendment 2 (2026-08-17): corrected non-overloaded `Configure()` call-site examples
+
+Codex review on the PR carrying this ADR caught two of its own examples
+using a call shape that doesn't actually compile. Recorded here rather
+than edited in place, per this ADR's own immutability rule and this
+repo's established precedent for exactly this class of fix (ADR-0044
+Amendment 9: "corrected overload-selection example").
+
+**Finding:** `ISkillMediator.Send` has no sibling overload, so per the
+existing generated-`Configure()`-extension convention this ADR itself
+relies on elsewhere (an overloaded member's extension takes its real
+discriminator parameter list; a **non**-overloaded member's extension is
+always zero-argument — exactly the convention
+`docs/packages/compono-testdoubles.md`'s own `CountAsync()` example
+already documents, and the same `is_overloaded` branch `TestDouble.scriban`
+already implements), the real generated call is `Configure().Send()`, not
+`Configure().Send(request)`. Two places in this ADR's original text used
+the wrong (parameterized) form:
+
+- The "Member-level dispatch rule" example's thrown-exception hint text
+  read `Configure().Send(...).Returns(...)` / `Configure().Send(...).Throws(...)`
+  — corrected reading: `Configure().Send().Returns(...)` /
+  `Configure().Send().Throws(...)`.
+- The "Async returns" section's example read
+  `Configure().Send(request).Returns(Task.FromResult(response))` —
+  corrected reading: `Configure().Send().Returns(Task.FromResult(response))`.
+
+An *overloaded* configuration-required member's real generated message
+and call site would instead show that member's real discriminator
+argument list, matching how `Configure()` already works for any
+overloaded member today (ADR-0044 Amendment 1) — this Amendment doesn't
+change that established convention, only corrects this ADR's own
+non-overloaded example against it.
+
+Documentation/example correction only — no change to the dispatch-order
+rule, the `CMP0032` decision (Amendment 1), or PLAN-0045's scope. When
+Phase 0 implementation actually generates a configuration-required
+member's exception message, it should use the member's real generated
+call shape (zero-argument if not overloaded, its real parameter list if
+it is) rather than either of the incorrect literal strings above.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —

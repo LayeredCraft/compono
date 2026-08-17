@@ -1,6 +1,6 @@
 # [PLAN-0045] Compono.TestDoubles: Configuration-Required Members
 
-**Status:** In Progress
+**Status:** Not Started
 
 **Implements:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
 
@@ -39,7 +39,7 @@ depends on its own type parameter); special-casing fluent self-return
 
 ## Tasks
 
-### Phase 0 — Configuration-required return semantics (In Progress)
+### Phase 0 — Configuration-required return semantics (Not Started)
 
 - [ ] `src/Compono/TestDoubleNotConfiguredException.cs`: new `sealed`
       exception type, message-only constructor, matching
