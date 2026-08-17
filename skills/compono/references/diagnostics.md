@@ -3,7 +3,7 @@
 Two completely different failure classes — don't confuse them:
 
 - **Compile-time**: `CMP0001`-`CMP0013` (errors — fail `dotnet build`) and
-  `CMP0020`-`CMP0031` (informational — never fail the build, only relevant
+  `CMP0020`-`CMP0032` (informational — never fail the build, only relevant
   if `ComponoGeneratedTestDoubles=true` is set, whether or not
   `Compono.TestDoubles` is referenced), both emitted by
   `Compono.Generators` (a Roslyn analyzer). Look up the code below.
@@ -36,11 +36,11 @@ and then threw is runtime (the tree-path section).
 | CMP0013 | A `[Compose]`-attributed parameter type isn't accessible (private/protected) from the generated row-binding dispatch type | Use an accessible parameter type, or widen the type's accessibility |
 
 This is the complete core diagnostic set — CMP0001 through CMP0013, no
-more, no fewer. `CMP0020`-`CMP0031` (below) are real too, but belong to
+more, no fewer. `CMP0020`-`CMP0032` (below) are real too, but belong to
 generated test doubles, not core composition. If something references a
 `CMP00xx` code outside these two ranges, it isn't real; don't invent one.
 
-## Compile-time, generated-test-double opt-in only: CMP0020-CMP0031
+## Compile-time, generated-test-double opt-in only: CMP0020-CMP0032
 
 Only relevant if the project sets
 `ComponoGeneratedTestDoubles=true` — see `references/testdoubles.md`. The
@@ -63,7 +63,10 @@ nothing else handles it). A narrower, v2 subset (`CMP0022`, `CMP0029`,
 `CMP0030`) is scoped to **one overload or identity instead** — the double
 still generates, every other member keeps its own `Configure()`/`Verify()`
 surface, and only the colliding/unsupported one falls back to a
-deterministic default. Each row below says which applies.
+deterministic default. `CMP0032` is a third shape: interface-scoped like
+the first group, but purely informational about a member that *does* get
+a real `Configure()`/`Verify()` surface — see its own row. Each row below
+says which applies.
 
 | Code | Scope | Meaning |
 |---|---|---|
@@ -72,13 +75,14 @@ deterministic default. Each row below says which applies.
 | CMP0022 | One identity | A **diamond collision** — the exact same full signature independently declared by two different base interfaces, so the two identities can't be told apart. A genuine C# overload (same name, *different* signature) is unaffected — it gets its own per-overload `Configure()`/`Verify()` surface instead (v2) |
 | CMP0023 | Whole interface | The interface declares its own `Configure`/`Verify` member that would shadow the generated bridge — any non-method member of that name (property/field/event, which always wins over an extension), or a method *callable with zero arguments* (broader than zero-parameter: `Configure(int mode = 0)` and `Configure(params int[] modes)` both collide too). A required-parameter method like `Verify(int mode)` is **not** callable with zero arguments and doesn't collide — the generated bridge stays usable |
 | CMP0024 | Whole interface | A member's generated configuration extension collides with an inherited `object` member (`ToString`/`GetHashCode`/`GetType`; `Equals` collides only for a non-generic, single-*required*-parameter overload whose parameter isn't ref-like — `Equals<T>(T)` stays distinguishable by explicit type argument, and `Equals(Span<int>)` has no reference conversion to `object` at all) |
-| CMP0025 | Whole interface | An unsupported return shape (ref-like, by-ref-returning, pointer/function-pointer, or a non-nullable reference type — or `Task<T>`/`ValueTask<T>` wrapping one — with no deterministic default) |
+| CMP0025 | Whole interface | An unsupported return shape: ref-like, by-ref-returning, or pointer/function-pointer **always**; a non-nullable reference type (or `Task<T>`/`ValueTask<T>` wrapping one) with no deterministic default **only when the member also has no `Configure()`/`Verify()` surface for an unrelated reason** — a diamond collision, a zero-argument-extension collision, an overloaded `ref`/`out`/`in` parameter, or (method only) an `object`-member collision. Otherwise that shape generates as **configuration-required** instead (`CMP0032`) — see `references/testdoubles.md` |
 | CMP0026 | Whole interface | An unsupported parameter shape. A pointer or function-pointer parameter, at any nesting depth (even inside an array, e.g. `int*[]`), is **always** this code — it requires the method to be declared `unsafe`, which this feature never emits, regardless of whether a same-named sibling exists. A `ref`/`out`/`in` parameter is this code only on a *solo* member (no same-named sibling) — a sibling present routes to `CMP0030` instead, **except** an `out` parameter whose own type has no deterministic default (e.g. a non-nullable reference type), which stays this code even with a sibling present since there's no constructible fallback body at all. Also this code for a generic method's own type parameter used as `T?` (constrained or not) |
 | CMP0027 | Whole interface | A set-only property — nothing could observe a value written through it |
 | CMP0028 | Whole interface | The same interface was discovered multiple times with conflicting generic-argument nullability across call sites |
 | CMP0029 | Colliding identities only | Two or more same-named members of *equal generic arity* (a property vs. a method, or two methods with different real parameter lists) whose generated configuration extensions are each genuinely zero-parameter, so they'd collide (`CS0111`) — the colliding identities fall back; any sibling overload with its own real parameter list, or with a *different* generic arity (e.g. a zero-parameter `M` alongside `M<T>()`, or `M<T>()` alongside `M<T, U>()`), is unaffected — the generator groups candidates by `(Name, GenericArity)` before checking for a collision |
 | CMP0030 | One overload | A `ref`/`out`/`in` parameter on a member that *does* have a same-named sibling — this overload dispatches via a deterministic default with no `Configure()` surface; its sibling overloads are unaffected. Doesn't apply to an `out` parameter with no deterministic default of its own — that's `CMP0026` (whole interface) even with a sibling present |
 | CMP0031 | Whole interface | A generic method whose return type references its own type parameter anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`) — no constructible fallback body. A generic method whose return type *doesn't* depend on its own type parameter (`ILogger<T>`'s `Log<TState>`) is supported, not this code |
+| CMP0032 | Interface-scoped count, not blocking | One or more members have no deterministic default but generate as **configuration-required** instead of rejecting the interface — each throws `Compono.TestDoubleNotConfiguredException` if invoked before `Configure().Member(...).Returns(...)`/`.Throws(...)`. One diagnostic per interface (a count of how many members), not one per member — the exact member is already named by the exception at the point it's actually invoked unconfigured |
 
 Fix: for a whole-interface code, address the interface's shape if you want
 a generated double, or otherwise ignore it — the interface still works
@@ -86,7 +90,11 @@ exactly as it did before `ComponoGeneratedTestDoubles` existed, just
 without a generated double for that one leaf. For a scoped code
 (`CMP0022`/`CMP0029`/`CMP0030`), nothing needs fixing unless you want a
 `Configure()`/`Verify()` surface for that specific identity — the rest of
-the double already has one.
+the double already has one. For `CMP0032`, nothing needs fixing either —
+it's informational, telling you which members need
+`Configure().Member(...).Returns(...)`/`.Throws(...)` before their first
+call, same as any other member's `Configure()` surface, just without a
+usable deterministic default to fall back on if you forget.
 
 ## Runtime: `CompositionException` tree path and seed
 

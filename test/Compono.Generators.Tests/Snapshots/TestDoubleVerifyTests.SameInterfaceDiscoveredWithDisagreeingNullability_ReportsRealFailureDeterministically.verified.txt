@@ -1,14 +1,14 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (21,41)-(21,56),
-      Message: 'TestNamespace.IProvider<string>' declares member 'Get' returning a non-nullable reference type with no deterministic default, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+      Location: Program.cs: (22,41)-(22,56),
+      Message: 'TestNamespace.IProvider<string>' declares member 'Get' with parameter 'value' as an out parameter of a non-nullable reference type with no deterministic default, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
       Severity: Info,
       WarningLevel: 1,
       Descriptor: {
-        Id: CMP0025,
-        Title: Unsupported test-double return shape,
-        MessageFormat: '{0}' declares member '{1}' returning {2}, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
+        Id: CMP0026,
+        Title: Unsupported test-double parameter shape,
+        MessageFormat: '{0}' declares member '{1}' with parameter '{2}' {3}, which Compono cannot generate a test double for. This leaf falls back to the ordinary runtime-provider path.,
         Category: Compono.TestDoubles,
         DefaultSeverity: Info,
         IsEnabledByDefault: true

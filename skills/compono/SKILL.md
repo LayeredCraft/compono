@@ -8,7 +8,7 @@ description: >-
   `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
-  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0031` (generated-test-double
+  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` (generated-test-double
   opt-in informational diagnostics), or `CompositionException` failures,
   deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
@@ -131,7 +131,7 @@ user to make test-by-test, not something to do as a drive-by.
    `references/diagnostics.md` before guessing a fix. If
    `ComponoGeneratedTestDoubles=true` is set — the generator is embedded in
    core `Compono.Generators`, so this can surface even without
-   `Compono.TestDoubles` referenced — a `CMP0020`-`CMP0031` diagnostic is
+   `Compono.TestDoubles` referenced — a `CMP0020`-`CMP0032` diagnostic is
    informational, not a failure. Most of them mean that one interface leaf
    fell back to the ordinary runtime-provider path, not that the build
    broke — but `CMP0022`, `CMP0029`, and `CMP0030` are narrower: they
@@ -268,7 +268,7 @@ Load only what the Detection table says is relevant to the current task.
 |---|---|
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
-| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0031` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
+| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0032` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |

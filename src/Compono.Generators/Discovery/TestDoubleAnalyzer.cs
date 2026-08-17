@@ -238,6 +238,7 @@ internal static class TestDoubleAnalyzer
         var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
         var infoDiagnostics = new List<DiagnosticInfo>();
+        var configurationRequiredCount = 0;
 
         foreach (var declaringInterface in closure)
         {
@@ -352,6 +353,22 @@ internal static class TestDoubleAnalyzer
                         var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
                         var isOverloaded = overloadedNames.Contains(method.Name);
 
+                        // Hoisted ahead of the return-type default-lookup check below (ADR-0045
+                        // Amendment 6) - a method-shaped object-member collision must keep today's
+                        // whole-interface CMP0025 rejection when it also has no deterministic
+                        // default, not fall through and get relabeled CMP0024 by the (unchanged)
+                        // object-collision check further down. Same shape that check already uses
+                        // (extensionArity mirrors the generated extension's real arity: zero unless
+                        // this member is overloaded), just evaluated independent of
+                        // hasConfigurationSurface/defaultExpression so it's available this early.
+                        var objectCollisionExtensionArity = isOverloaded ? method.Parameters.Length : 0;
+                        var isObjectMemberCollisionShaped =
+                            !(method.IsGenericMethod && isOverloaded) &&
+                            ((method.Name is "ToString" or "GetHashCode" or "GetType" && objectCollisionExtensionArity == 0) ||
+                             (method.Name is "Equals" && objectCollisionExtensionArity == 1 &&
+                              !method.Parameters[0].Type.IsRefLikeType && !method.Parameters[0].IsParams &&
+                              !method.Parameters[0].IsOptional));
+
                         if (isDiamondCollision)
                         {
                             if (reportedDiamondIdentities.Add(identity))
@@ -445,6 +462,7 @@ internal static class TestDoubleAnalyzer
                         var isVoid = method.ReturnsVoid;
                         var returnTypeFullyQualifiedName = "";
                         var defaultExpression = "";
+                        var isConfigurationRequired = false;
 
                         if (!isVoid)
                         {
@@ -452,8 +470,25 @@ internal static class TestDoubleAnalyzer
 
                             if (!TestDoubleDefaults.TryGetDefaultExpression(method.ReturnType, out defaultExpression))
                             {
-                                return Failure(fullyQualifiedName, safeIdentifier, ReturnShapeUnsupported(
-                                    interfaceType, method, "a non-nullable reference type with no deterministic default", location));
+                                // ADR-0045: a non-nullable-reference-return member with no
+                                // deterministic default no longer rejects its whole interface -
+                                // it generates as configuration-required instead - but only when
+                                // it would otherwise have a real Configure()/Verify() surface
+                                // (Amendment 3). A member that also lacks a surface for an
+                                // unrelated reason (diamond, ref/out/in, zero-arg collision, or -
+                                // for a method specifically - an object-member collision,
+                                // Amendment 6) keeps today's unchanged whole-interface CMP0025
+                                // rejection, so no member ever ends up throwing unconditionally
+                                // with no way to configure it.
+                                if (hasConfigurationSurface && !isObjectMemberCollisionShaped)
+                                {
+                                    isConfigurationRequired = true;
+                                }
+                                else
+                                {
+                                    return Failure(fullyQualifiedName, safeIdentifier, ReturnShapeUnsupported(
+                                        interfaceType, method, "a non-nullable reference type with no deterministic default", location));
+                                }
                             }
                         }
 
@@ -647,6 +682,9 @@ internal static class TestDoubleAnalyzer
                                 .ToEquatableArray()
                             : EquatableArray<string>.Empty;
 
+                        if (isConfigurationRequired)
+                            configurationRequiredCount++;
+
                         members.Add(new TestDoubleMemberInfo(
                             method.Name,
                             RequiredMemberCollector.EscapeIdentifier(method.Name),
@@ -664,7 +702,8 @@ internal static class TestDoubleAnalyzer
                             extensionReceiverName,
                             method.IsGenericMethod,
                             typeParameterNames,
-                            constraintClauses));
+                            constraintClauses,
+                            IsConfigurationRequired: isConfigurationRequired));
 
                         break;
                     }
@@ -763,10 +802,27 @@ internal static class TestDoubleAnalyzer
                                 ReturnShapeUnsupported(interfaceType, property, "a ref struct (ref-like type)", location));
                         }
 
-                        if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, out var propertyDefault))
+                        // ADR-0045 Amendment 7: unlike the method branch, no additional hoisted
+                        // predicate is needed here - the object-collision check above already ran
+                        // (and would already have returned Failure with CMP0024) before this
+                        // return-type check is ever reached, so hasPropertyConfigurationSurface
+                        // accurately reflects "no deterministic default AND would otherwise have a
+                        // real surface" without checking for object-collision again.
+                        var hasPropertyConfigurationSurface = !isDiamondCollision && !isZeroArgCollision;
+                        var isPropertyConfigurationRequired = false;
+                        var propertyDefault = "";
+
+                        if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, out propertyDefault))
                         {
-                            return Failure(fullyQualifiedName, safeIdentifier, ReturnShapeUnsupported(
-                                interfaceType, property, "a non-nullable reference type with no deterministic default", location));
+                            if (hasPropertyConfigurationSurface)
+                            {
+                                isPropertyConfigurationRequired = true;
+                            }
+                            else
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier, ReturnShapeUnsupported(
+                                    interfaceType, property, "a non-nullable reference type with no deterministic default", location));
+                            }
                         }
 
                         // set vs. init are non-interchangeable - the write accessor emitted must match
@@ -782,6 +838,9 @@ internal static class TestDoubleAnalyzer
                                 ? TestDoublePropertyAccessorKind.GetInit
                                 : TestDoublePropertyAccessorKind.GetSet;
 
+                        if (isPropertyConfigurationRequired)
+                            configurationRequiredCount++;
+
                         members.Add(new TestDoubleMemberInfo(
                             property.Name,
                             RequiredMemberCollector.EscapeIdentifier(property.Name),
@@ -792,14 +851,27 @@ internal static class TestDoubleAnalyzer
                             false,
                             propertyDefault,
                             EquatableArray<TestDoubleParameterInfo>.Empty,
-                            !isDiamondCollision && !isZeroArgCollision,
+                            hasPropertyConfigurationSurface,
                             false,
-                            ""));
+                            "",
+                            IsConfigurationRequired: isPropertyConfigurationRequired));
 
                         break;
                     }
                 }
             }
+        }
+
+        // ADR-0045 Amendment 1: one CMP0032 per interface (a count), not one per member - avoids
+        // diagnostic-noise blowup on a large real-world interface (IAmazonS3-shaped) where many
+        // members might require configuration. The exact member identity is already reported
+        // precisely by TestDoubleNotConfiguredException at the point an unconfigured member is
+        // actually invoked, so this diagnostic doesn't need to enumerate members by name.
+        if (configurationRequiredCount > 0)
+        {
+            infoDiagnostics.Add(new DiagnosticInfo(
+                DiagnosticDescriptors.TestDoubleMemberRequiresConfiguration, null,
+                interfaceType.ToDisplayString(), configurationRequiredCount.ToString()));
         }
 
         return new DiscoveredTestDoubleInfo(

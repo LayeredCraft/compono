@@ -230,6 +230,56 @@ verification, no `ReceivedCalls()`-style enumeration. If a test needs any
 of that, use `Compono.NSubstitute` for that interface instead - the two
 providers can coexist (see below).
 
+## Configuration-required members
+
+A member returning a non-nullable reference type (or a `Task<T>`/
+`ValueTask<T>` wrapping one) with no deterministic default no longer
+rejects the whole interface at generation time (v2,
+[ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)) —
+provided it would otherwise have a real `Configure()`/`Verify()` surface,
+the double still generates and that specific member becomes
+**configuration-required**: it throws
+`Compono.TestDoubleNotConfiguredException` if invoked before
+`Configure().Member(...).Returns(...)`/`.Throws(...)` configures it,
+instead of falling back to a computed default:
+
+```csharp
+public interface ILambdaContext
+{
+    string AwsRequestId { get; }
+}
+
+// AwsRequestId has no deterministic default (a non-nullable string) - it
+// generates as configuration-required rather than rejecting the whole
+// interface. Configure it before the code under test reads it:
+context.Configure().AwsRequestId().Returns("test-request-id");
+
+// An unconfigured call throws instead of silently returning a made-up value:
+var act = () => context.AwsRequestId;
+act.Should().Throw<Compono.TestDoubleNotConfiguredException>();
+```
+
+`Configure()`/`Verify()` work exactly the same as any other member -
+`ReturnConfig<T>`/`ReturnConfigBuilder<T>` never depended on `T` having a
+default to begin with. This applies identically to a method, a property,
+an async (`Task<T>`/`ValueTask<T>`) method, and a fluent self-returning
+member (`IResponseBuilder`-shaped `Speak(...)` returning `IResponseBuilder`
+itself) - none of these get special-cased; a fluent member is
+configuration-required like any other non-nullable reference return, and
+`Configure().Speak(...).Returns(self)` works for a chained-call test.
+
+The generator reports `CMP0032` once per interface (a count of how many
+members require configuration, not one per member) so you know to expect
+this before your first unconfigured call - see
+[Diagnostics](../reference/diagnostics.md#cmp0032-test-double-members-require-explicit-configuration).
+`CMP0025` still rejects the whole interface, unchanged, for the shapes
+this doesn't apply to: a ref-like, by-ref, or pointer/function-pointer
+return **always**, and a no-default non-nullable reference return when the
+member *also* has no `Configure()` surface for an unrelated reason - a
+diamond collision, a zero-argument-extension collision, an overloaded
+`ref`/`out`/`in` parameter, or (for a method) a collision with an inherited
+`object` member.
+
 ## Precedence with `Compono.NSubstitute`
 
 If both packages are installed and both providers registered, registration
@@ -253,7 +303,7 @@ parameter, and minimal call verification (`Never`/`Once`/`Exactly(n)`) are
 now supported (see above,
 [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
 An unsupported member shape is a compile-time diagnostic
-(`CMP0020`-`CMP0031`), not a silent gap.
+(`CMP0020`-`CMP0032`), not a silent gap.
 
 ## Next
 

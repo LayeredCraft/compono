@@ -265,4 +265,23 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    // ADR-0045: a member with a non-nullable-reference return and no deterministic default no
+    // longer rejects its whole interface (CMP0025) provided it would otherwise have a real
+    // Configure()/Verify() surface - it generates as configuration-required instead, throwing
+    // Compono.TestDoubleNotConfiguredException if invoked before Returns(...)/Throws(...). This
+    // diagnostic is interface-scoped (one per interface, a count), not member-scoped (Amendment 1)
+    // - the exact member identity is already reported precisely by the thrown exception at the
+    // point an unconfigured member is actually invoked, so this diagnostic doesn't need to
+    // enumerate members by name to stay useful, and stays quiet on a large real-world interface
+    // like IAmazonS3 rather than emitting one diagnostic per member.
+    public static readonly DiagnosticDescriptor TestDoubleMemberRequiresConfiguration = new(
+        "CMP0032",
+        "Test-double member(s) require explicit configuration",
+        "'{0}' has {1} member(s) that require explicit configuration before use - each throws " +
+        "Compono.TestDoubleNotConfiguredException if invoked before Configure().Member(...).Returns(...) " +
+        "or .Throws(...). This does not block generation; every other member is unaffected.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }
