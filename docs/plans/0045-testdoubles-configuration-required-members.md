@@ -166,31 +166,41 @@ depends on its own type parameter); special-casing fluent self-return
       required member, confirming the combined-shape gate
       doesn't accidentally suppress `CMP0025`/`CMP0024` or leak a
       surfaceless member into `CMP0032`'s count.
-- [ ] `test/Compono.TestDoubles.Tests/Compono.TestDoubles.Tests.csproj`:
-      **enable generation in this project first** (per Codex review — its
-      current `.csproj` has neither `ComponoGeneratedTestDoubles=true`
-      nor a `CompilerVisibleProperty` declaration for it, and its
-      `ProjectReference`s bypass the packaged `buildTransitive/Compono.props`
-      that normally supplies that visibility for a real `PackageReference`
-      consumer — the existing tests in this project exercise
-      `GeneratedTestDoubleProvider`/`CompositionBuilderExtensions`/
-      precedence/public-API-surface without needing an actual generated
-      double, so this gap was never hit before). Add both, matching the
-      exact fix PLAN-0044 Phase 3 already made for
-      `benchmarks/Compono.Benchmarks.csproj` for the identical reason.
-      Without this, none of the new tests below can compile — no double
-      would ever generate.
-- [ ] `test/Compono.TestDoubles.Tests/`: packaged-consumer behavior tests
-      — a configuration-required member throws
-      `TestDoubleNotConfiguredException` when unconfigured, returns the
-      configured value after `Returns(...)`, throws the configured
-      exception after `Throws(...)` — same three-state coverage every
-      other member type already has. Note this project uses a
-      `ProjectReference` to `Compono.TestDoubles`, not a packaged
-      `.nupkg` consumer — see the packaged smoke test below for the
-      cross-assembly proof this alone doesn't provide.
+- [ ] **Do not enable generation in `test/Compono.TestDoubles.Tests`**
+      (superseding the previous round's plan, per Codex review — a real
+      correctness bug in that earlier fix, not just a missing property).
+      That project's `GeneratedTestDoubleProviderTests.cs`,
+      `PrecedenceTests.cs`, and `CompositionBuilderExtensionsTests.cs`
+      each declare their own trivially-generatable fixture interfaces
+      (`IRepository`, `IUnregisteredRepository`, `IGateway`, `IService`)
+      and hand-call `GeneratedTestDoubleRegistry.RegisterFactory<T>(...)`
+      *after* composition starts, specifically to test hand-managed
+      registry/precedence behavior — `RegisterFactory` is first-
+      registration-wins (ADR-0043 Amendment 3), and a `[ModuleInitializer]`
+      always runs before any test method, so enabling generation
+      project-wide would let the generator discover these same fixture
+      interfaces (each is referenced via a real `Composer.Create<T>()`
+      call, a real discovery root) and silently register generated
+      factories for them *before* the hand calls ever run — making the
+      hand registration a no-op and flipping `TryProvide_DoesNotHandle_AnInterfaceWithNoRegisteredFactory`
+      from "throws" to "succeeds". At least three existing test files
+      would break, silently, with no compile-time signal.
+- [ ] `test/Compono.TestDoubles.SampleTests/`: new
+      `ConfigurationRequiredMemberTests.cs` (matching the one-file-per-
+      shape pattern this project's sibling files already establish —
+      `GeneratedDoubleTests.cs`, `OverloadedMemberTests.cs`,
+      `GenericMemberTests.cs`, `VerificationTests.cs`) — a configuration-
+      required member throws `TestDoubleNotConfiguredException` when
+      unconfigured, returns the configured value after `Returns(...)`,
+      throws the configured exception after `Throws(...)` — same three-
+      state coverage every other member type already has. This project
+      is the right home: already `ComponoGeneratedTestDoubles=true`, a
+      real packaged `PackageReference` consumer (no `ProjectReference` to
+      `Compono`/`Compono.TestDoubles` at all, per its own `.csproj`
+      comment), and none of its existing files hand-manage the registry —
+      no risk of the interaction above.
 - [ ] **Async coverage, moved here from a later phase per Codex review**:
-      `test/Compono.TestDoubles.Tests/` (or `SampleTests`) tests for a
+      same `test/Compono.TestDoubles.SampleTests/` file, a
       `Task<TReference>`-returning configuration-required member and a
       `ValueTask<TReference>`-returning one, both states (unconfigured
       throws, configured returns/throws). Phase 0's own analyzer change
@@ -367,12 +377,11 @@ actually shipped and there's real code to check docs against.
 - `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
   `src/Compono.Generators/Templates/TestDouble.scriban` — new
   configuration-required dispatch-body branch.
-- `test/Compono.TestDoubles.Tests/Compono.TestDoubles.Tests.csproj` —
-  `ComponoGeneratedTestDoubles=true` plus its `CompilerVisibleProperty`
-  declaration, both currently missing (matches the fix PLAN-0044 Phase 3
-  already made for `benchmarks/Compono.Benchmarks.csproj`).
-- `test/Compono.Generators.Tests/`, `test/Compono.TestDoubles.Tests/`,
-  `test/Compono.TestDoubles.SampleTests/`, `test/Compono.TestDoubles.AotSmokeTest/Program.cs` —
+- `test/Compono.TestDoubles.Tests/` — **not modified** (generation stays
+  disabled there — see Phase 0's own task for why enabling it would
+  silently break three existing test files).
+- `test/Compono.Generators.Tests/`, `test/Compono.TestDoubles.SampleTests/`,
+  `test/Compono.TestDoubles.AotSmokeTest/Program.cs` —
   new coverage per phase above.
 - `docs/packages/compono-testdoubles.md`, `docs/reference/diagnostics.md`,
   `skills/compono/references/diagnostics.md`,
