@@ -280,8 +280,9 @@ kind, and generic arity) is declared by two different base interfaces
 reached through the interface's transitive closure — a genuine C# overload
 (two members of the same name but a *different* signature) is unaffected
 by this diagnostic; it gets its own per-overload `Configure()`
-surface instead (see `docs/packages/compono-testdoubles.md`'s "Overloaded
-members" section). Verification (`Verify()`) reuses this same per-overload
+surface instead — see
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md#overloaded-members)'s
+"Overloaded members" section. Verification (`Verify()`) reuses this same per-overload
 surface — a diamond-colliding identity has no `Verify()` surface either.
 
 **Fix:** None needed — that one identity falls back to a deterministic

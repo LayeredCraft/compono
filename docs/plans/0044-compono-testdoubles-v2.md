@@ -556,7 +556,7 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       machinery costs real time and memory that a compile-time-emitted
       double simply doesn't pay.
 
-### Phase 4 — Documentation consistency pass
+### Phase 4 — Documentation consistency pass (Done)
 
 Retitled and reduced from an original "write all the docs here" phase,
 per Codex review: `references/documentation.md`'s "update the relevant
@@ -571,15 +571,41 @@ describes (see Phases 0-2's own new doc tasks above). What's left here is
 genuinely cross-cutting, only possible once all three shapes' content
 already exists from those phases:
 
-- [ ] Read `docs/packages/compono-testdoubles.md` and
+- [x] Read `docs/packages/compono-testdoubles.md` and
       `skills/compono/references/testdoubles.md` end-to-end, written
       incrementally across three separate phases/PRs — fix any structural,
       ordering, or cross-referencing issues that only become visible once
       the full v2 picture is assembled (e.g. the overload/generic/
       verification sections should read as one coherent package, not three
       independently-written additions).
-- [ ] `docs/reference/diagnostics.md` — same consistency check across the
+      Both files already read as one coherent package end-to-end — each
+      phase's own doc task left the Overloaded members / Generic methods /
+      Call verification sections in the right order and free of
+      duplication, so no structural or ordering rewrite was needed. Verified
+      every markdown link in both files (plus `docs/reference/
+      diagnostics.md`, task below) resolves to a real file via a script
+      walking each `](...)` target relative to its own file — all clean.
+      Found and fixed one real cross-referencing bug from the incremental
+      writing: `skills/compono/references/testdoubles.md`'s "Unsupported
+      shapes" section pointed at `references/diagnostics.md`, a path that's
+      wrong relative to its own directory (`skills/compono/references/`) —
+      would resolve to a nonexistent `references/references/diagnostics.md`
+      instead of the sibling file one level up in the same directory
+      (confirmed against `composition-model.md`'s own correct
+      same-directory `diagnostics.md` reference for the established
+      convention). Fixed to the bare sibling filename.
+- [x] `docs/reference/diagnostics.md` — same consistency check across the
       Phase 0/1 diagnostic entries added incrementally.
+      `CMP0020`-`CMP0031`'s severity/scope framing in the intro already
+      correctly separates the whole-interface-fallback codes from v2's
+      three overload/identity-scoped codes (`CMP0022`, `CMP0029`,
+      `CMP0030`), and each entry's own "Scope" line is consistent with it.
+      Found and fixed one cross-referencing inconsistency: `CMP0022`'s
+      cause pointed at `docs/packages/compono-testdoubles.md`'s "Overloaded
+      members" section as a plain-text path, while every sibling entry
+      (e.g. `CMP0031`) uses a real markdown link with a heading anchor —
+      changed `CMP0022` to match (`[Compono.TestDoubles](../packages/
+      compono-testdoubles.md#overloaded-members)`).
 
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
