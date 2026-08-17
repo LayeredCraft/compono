@@ -616,7 +616,7 @@ already exists from those phases:
       `CMP0030`, `CMP0031`), and its `CMP0021` row still listed "generic
       method" as an unsupported member kind even though v2 supports one.
       Rewrote its `CMP0020`-`CMP0031` table with a `Scope` column
-      distinguishing the six whole-interface-fallback codes from the three
+      distinguishing the nine whole-interface-fallback codes from the three
       overload/identity-scoped v2 codes, matching the fuller table in
       `docs/reference/diagnostics.md`.
 
@@ -634,6 +634,18 @@ already exists from those phases:
       `CMP0030`'s overload-scoped treatment, since there's no constructible
       fallback body regardless of scoping. Added that exception to both
       rows.
+
+      A third Codex pass caught two more, both fixed: (1) the CMP0026 row's
+      wording bundled pointer/function-pointer parameters into the
+      "solo-member" exception alongside `ref`/`out`/`in` — wrong: a
+      pointer/function-pointer parameter is **always** whole-interface
+      `CMP0026`, at any nesting depth (even `int*[]`), regardless of
+      whether a same-named sibling exists; only `ref`/`out`/`in` has the
+      solo-vs-sibling split. Reworded the row to state the pointer case
+      unconditionally, separate from the `ref`/`out`/`in` nuance. (2) this
+      note originally said the rewritten skill table distinguishes "six"
+      whole-interface-fallback codes — the actual count is nine (`CMP0020`,
+      `CMP0021`, `CMP0023`-`CMP0028`, `CMP0031`); corrected the count here.
 
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
