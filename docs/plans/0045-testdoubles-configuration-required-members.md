@@ -1,6 +1,6 @@
 # [PLAN-0045] Compono.TestDoubles: Configuration-Required Members
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
 
@@ -39,18 +39,25 @@ depends on its own type parameter); special-casing fluent self-return
 
 ## Tasks
 
-### Phase 0 — Configuration-required return semantics (Not Started)
+### Phase 0 — Configuration-required return semantics (In Progress)
 
 - [ ] `src/Compono/TestDoubleNotConfiguredException.cs`: new `sealed`
       exception type, message-only constructor, matching
       `TestDoubleVerificationException`'s exact shape.
 - [ ] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
-      `CMP0032` ("Test-double member requires explicit configuration"),
-      `DiagnosticSeverity.Info`, member-scoped message text (does not
-      claim whole-interface fallback). Narrow `CMP0025`'s message text so
-      it only describes the three remaining genuinely-unimplementable
-      shapes (by-ref, pointer, ref-like) — the fourth sub-case moves to
-      `CMP0032` instead of sharing `CMP0025`'s text.
+      `CMP0032` ("Test-double member(s) require explicit configuration"),
+      `DiagnosticSeverity.Info`, **interface-scoped, count-only message
+      text** (per ADR-0045 Amendment 1: one diagnostic per interface,
+      fired once with a count of how many members require configuration,
+      not one per member — avoids diagnostic-noise blowup on a large
+      real-world interface like `IAmazonS3`; the exact member identity is
+      supplied precisely by `TestDoubleNotConfiguredException` at the
+      point a configuration-required member is actually invoked
+      unconfigured, so the diagnostic doesn't need to enumerate members by
+      name to stay useful). Narrow `CMP0025`'s message text so it only
+      describes the three remaining genuinely-unimplementable shapes
+      (by-ref, pointer, ref-like) — the fourth sub-case moves to `CMP0032`
+      instead of sharing `CMP0025`'s text.
 - [ ] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: at the
       method-return-type check (`TryGetDefaultExpression` failure for a
       method's return type) and the property-type check (same failure for
@@ -59,11 +66,14 @@ depends on its own type parameter); special-casing fluent self-return
       specifically — genuinely-unimplementable shapes (by-ref, pointer,
       ref-like, checked separately just above these two call sites) keep
       failing exactly as today. Instead, mark the member as
-      configuration-required (member-scoped, following the same shape
-      `CMP0030`'s out-parameter exclusion already uses to keep an
-      interface generating while excluding just one member's full
-      surface) and emit `CMP0032`, info-severity, naming the interface
-      and member.
+      configuration-required (member-scoped for *generation* purposes,
+      following the same shape `CMP0030`'s out-parameter exclusion
+      already uses to keep an interface generating while excluding just
+      one member's full surface) and collect it into a per-interface
+      count, the same "collect across the member-walk" shape `CMP0028`
+      already uses. After the full member walk, if that count is nonzero,
+      emit exactly one `CMP0032` for the interface, naming the interface
+      and the count — not one per member (Amendment 1).
 - [ ] `src/Compono.Generators/Emitters/TestDoubleEmitter.cs` /
       `src/Compono.Generators/Templates/TestDouble.scriban`: new dispatch-
       body branch for a configuration-required member — identical
@@ -79,11 +89,15 @@ depends on its own type parameter); special-casing fluent self-return
 - [ ] `test/Compono.Generators.Tests/`: generator snapshot/behavior tests
       — a configuration-required method member, a configuration-required
       property member, confirming (a) the interface still generates, (b)
-      `CMP0032` fires with correct interface/member text, (c) every other
-      member on the same interface is unaffected, (d) `CMP0025` still
-      fires unchanged for a genuinely unimplementable shape on a
-      *different* interface (regression coverage — this ADR narrows
-      `CMP0025`'s scope, doesn't remove its remaining trigger).
+      exactly **one** `CMP0032` fires for the interface with the correct
+      count in its text (not one per member), (c) an interface with
+      *multiple* configuration-required members (an `IAmazonS3`-shaped
+      regression case) still emits exactly one `CMP0032`, with the count
+      matching, (d) every other member on the same interface is
+      unaffected, (e) `CMP0025` still fires unchanged for a genuinely
+      unimplementable shape on a *different* interface (regression
+      coverage — this ADR narrows `CMP0025`'s scope, doesn't remove its
+      remaining trigger).
 - [ ] `test/Compono.TestDoubles.Tests/`: packaged-consumer behavior tests
       — a configuration-required member throws
       `TestDoubleNotConfiguredException` when unconfigured, returns the

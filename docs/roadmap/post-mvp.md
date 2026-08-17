@@ -89,13 +89,15 @@ ADR, the research doc, the plan). Four dogfooding passes have run so far:
   third `lightsaber-skill` dogfood confirms real tests can actually drop
   `Compono.NSubstitute`, not just that more interfaces generate.
 
-That two of these four dogfooding passes together produced zero
-*outstanding* roadmap items is itself a real, evidence-backed outcome, not
-a shortfall in the process — it doesn't mean Compono is "done": a
-different real-world project, or a future package, may surface a finding
-these four didn't (each is one data point, not an exhaustive survey). The
-third and fourth passes together are also a concrete illustration of why
-that framing matters: shipping the third pass's finding didn't retire the
-`lightsaber-skill` gap, it relocated it — the fourth pass's evidence is
-what actually tells us whether `Compono.TestDoubles` materially helps this
-real project yet (as of today, no).
+That three of these four dogfooding passes together produced zero
+*outstanding* roadmap items (the first surfaced none at all; the second
+and third each surfaced one, and both have since shipped) is itself a
+real, evidence-backed outcome, not a shortfall in the process — it doesn't
+mean Compono is "done": a different real-world project, or a future
+package, may surface a finding these four didn't (each is one data point,
+not an exhaustive survey). The third and fourth passes together are also
+a concrete illustration of why that framing matters: shipping the third
+pass's finding didn't retire the `lightsaber-skill` gap, it relocated it —
+the fourth pass's evidence is what actually tells us whether
+`Compono.TestDoubles` materially helps this real project yet (as of
+today, not until PLAN-0045 ships and a third dogfood confirms it).

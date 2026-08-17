@@ -424,6 +424,78 @@ configured.
 - Bad, because Option 1 alone already unblocks `IResponseBuilder` without
   it — the special case buys nothing this ADR's evidence actually needs.
 
+## Amendment 1 (2026-08-17): `CMP0032` scoped to one diagnostic per interface, not one per member
+
+Raised before Phase 0 implementation began, once this ADR's core decision
+was confirmed: emitting `CMP0032` once per configuration-required *member*,
+as the original Decision Outcome specified, risks real diagnostic noise on
+a large real-world interface. `IAmazonS3` — one of this ADR's own
+motivating interfaces — declares dozens of members; a meaningful fraction
+of any AWS-SDK-shaped interface returns a non-nullable `string`/response
+type, so a per-member `CMP0032` could emit dozens of informational
+diagnostics for a single `Configure()` call site, even when a given test
+only ever invokes or configures a handful of them. This is exactly the
+"noisy to consume on real production interfaces" failure mode a Compono
+diagnostic is supposed to avoid — an Info diagnostic that shows up by the
+dozen trains consumers to ignore the whole category, defeating its own
+purpose.
+
+**Alternatives considered:**
+
+- **Info per member (original Decision Outcome)** — most precise (each
+  diagnostic names exactly one member), but scales linearly with an
+  interface's member count regardless of what a given test actually
+  touches — the noise problem above.
+- **No compile-time diagnostic at all** — zero noise, but a real
+  departure from this repo's established diagnostic philosophy: every
+  other unsupported/limited-support shape (`CMP0020`-`CMP0031`) gets
+  *some* generation-time visibility rather than a silent gap a consumer
+  only discovers via `docs/*.md` or a runtime surprise. Going fully silent
+  for this one case would be inconsistent with that pattern for no reason
+  stronger than "avoid noise," when a less drastic fix (below) achieves
+  the same noise reduction without giving up discoverability entirely.
+- **Interface-scoped, count-only summary (chosen)** — one `CMP0032` per
+  interface, not per member, firing once even if that interface has many
+  configuration-required members. Its message states *how many* members
+  require configuration and points at
+  `docs/packages/compono-testdoubles.md`'s "Configuration-required
+  members" section, without enumerating every member by name — the exact
+  member identity is exactly what `TestDoubleNotConfiguredException`
+  already supplies precisely, at the one point it actually matters (a
+  real unconfigured invocation), so the diagnostic doesn't need to
+  duplicate that detail to stay useful. This keeps compile-time
+  discoverability (a consumer scanning build output learns "this
+  interface has N members you may need to configure") while capping
+  noise at one line per interface regardless of that interface's size.
+- **Capped member-name enumeration** ("first 5 names, and N more") —
+  more informative than the count-only summary, but adds truncation-
+  formatting complexity for a benefit the runtime exception already
+  covers on demand. Not chosen — the count-only summary is simpler and
+  already resolves the noise concern; this option's extra detail wasn't
+  worth its extra implementation surface.
+
+**Decision:** `CMP0032` becomes **interface-scoped** (cardinality: one
+diagnostic per interface, fired once even if that interface has many
+configuration-required members), not member-scoped. This is a diagnostic-
+*cardinality* change only — not to be confused with `CMP0025`'s
+whole-interface-*rejection* semantics, which `CMP0032` still never has:
+every configuration-required member keeps generating and keeps its own
+`Configure()`/`Verify()` surface; only how many `CMP0032` info messages a
+build emits changes. `TestDoubleAnalyzer` collects every configuration-
+required member found while walking an interface's members (the same pass
+that already decides per-member disposition) and, if the collected count
+is nonzero, emits one `CMP0032` for the interface with that count in its
+message — mirroring the existing "collect across the member-walk, emit
+one summary diagnostic" shape `CMP0028` (conflicting test-double metadata
+across discoveries) already uses in this codebase, rather than inventing a
+new aggregation mechanism.
+
+This is a refinement of the diagnostic-UX detail only — the underlying
+decision (a member with no deterministic default generates as
+configuration-required rather than rejecting its interface) is unchanged.
+PLAN-0045's Phase 0 task list is updated in the same pass as this
+Amendment to reflect the interface-scoped shape.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
