@@ -3,7 +3,9 @@
 **Status:** Done (dogfooding pass complete; no migration merged — see
 "Scope" below)
 
-**Feeds:** a new roadmap candidate (not yet an ADR — see "Recommendation")
+**Feeds:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+(`Accepted`) and [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
+(`Not Started`) — see "Decisions" below
 
 This document is the evidence record for [PLAN-0044](../plans/0044-compono-testdoubles-v2.md)
 Phase 5: re-running the exact `ncipollina/lightsaber-skill` migration
@@ -135,6 +137,27 @@ questions the design pass should resolve, in no particular order:
   files.
 - A third `lightsaber-skill` dogfooding pass, once shipped, as the actual
   acceptance test for whether this closes the gap this document found.
+
+## Decisions
+
+The recommendation above fed a full design deep dive
+(`tasks/design.md`), which produced
+[ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+(`Accepted`): a member with no deterministic default no longer rejects
+its whole interface — it generates as **configuration-required**,
+throwing a new `TestDoubleNotConfiguredException` if invoked before
+`Configure().Member(...).Returns(...)`/`.Throws(...)`. `CMP0025` narrows
+to the three genuinely unimplementable return shapes (by-ref, pointer,
+ref-like); a new `CMP0032` — scoped to one informational diagnostic per
+interface, not per member, per ADR-0045 Amendment 1 — covers the
+configuration-required case. Manufacturing a value and special-casing
+fluent self-return were both considered and rejected; the full comparison
+and every open question above is resolved in the ADR itself.
+[PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
+(`Not Started`) tracks the implementation, phased so its own Phase 4 is
+the third `lightsaber-skill` dogfooding pass this document's last bullet
+calls for — this page will get a fourth entry once that pass runs, the
+same way the third pass got this one.
 
 ## Links
 

@@ -62,10 +62,18 @@ depends on its own type parameter); special-casing fluent self-return
       method-return-type check (`TryGetDefaultExpression` failure for a
       method's return type) and the property-type check (same failure for
       a property's type), stop returning whole-interface `Failure(...)`
-      for the "non-nullable reference, no deterministic default" case
-      specifically — genuinely-unimplementable shapes (by-ref, pointer,
-      ref-like, checked separately just above these two call sites) keep
-      failing exactly as today. Instead, mark the member as
+      for the "non-nullable reference, no deterministic default" case —
+      **but only when the member would otherwise have a real
+      `HasConfigurationSurface` (Amendment 3)**: genuinely-unimplementable
+      shapes (by-ref, pointer, ref-like, checked separately just above
+      these two call sites) keep failing exactly as today, and so does a
+      member that combines "no deterministic default" with "no
+      configuration surface for an unrelated reason" (a diamond-colliding
+      identity, a zero-argument-extension collision, or an overloaded
+      `ref`/`out`/`in` parameter) — reuse whichever of
+      `isDiamondCollision`/`isZeroArgCollision`/`hasRefOutInParameter` is
+      already computed at that point rather than adding new detection
+      logic. Only when a real surface would exist: mark the member as
       configuration-required (member-scoped for *generation* purposes,
       following the same shape `CMP0030`'s out-parameter exclusion
       already uses to keep an interface generating while excluding just
@@ -97,13 +105,37 @@ depends on its own type parameter); special-casing fluent self-return
       unaffected, (e) `CMP0025` still fires unchanged for a genuinely
       unimplementable shape on a *different* interface (regression
       coverage — this ADR narrows `CMP0025`'s scope, doesn't remove its
-      remaining trigger).
+      remaining trigger), (f) **`CMP0025` also still fires unchanged for
+      the combined shapes Amendment 3 identifies** — an overloaded
+      `ref`/`out`/`in` member with a no-default return type, and a
+      diamond-colliding member with a no-default return type — each on an
+      interface that also has an unrelated, genuinely configuration-
+      required member, confirming the combined-shape gate doesn't
+      accidentally suppress `CMP0025` or leak a surfaceless member into
+      `CMP0032`'s count.
 - [ ] `test/Compono.TestDoubles.Tests/`: packaged-consumer behavior tests
       — a configuration-required member throws
       `TestDoubleNotConfiguredException` when unconfigured, returns the
       configured value after `Returns(...)`, throws the configured
       exception after `Throws(...)` — same three-state coverage every
-      other member type already has.
+      other member type already has. Note this project uses a
+      `ProjectReference` to `Compono.TestDoubles`, not a packaged
+      `.nupkg` consumer — see the packaged smoke test below for the
+      cross-assembly proof this alone doesn't provide.
+- [ ] **Packaged-consumer smoke test, this phase's own shape only**
+      (added per Codex review — matching PLAN-0044's own established
+      pattern, added there for the identical reason: `dotnet pack` core
+      `Compono`/`Compono.Generators` into a local feed, a throwaway
+      consumer project referencing the packed `.nupkg` (never a
+      `ProjectReference`) with `ComponoGeneratedTestDoubles=true`,
+      exercising a configuration-required method, property, and the
+      combined-shape regression case end to end with a real `dotnet
+      build`/`dotnet run`. PLAN-0044's own Notes record that every defect
+      its review round found (`CS0122`, `CS0460`, `CS0111`, `CS0214`,
+      `CS0177`) was exactly the class of cross-assembly compile failure an
+      in-process snapshot test cannot catch — this phase does not ship
+      (its own PR does not merge) until this smoke test is green, rather
+      than deferring all packaged proof to Phase 2.
 
 ### Phase 1 — Async and fluent-return regression coverage (Not Started)
 
@@ -131,6 +163,11 @@ depends on its own type parameter); special-casing fluent self-return
       combination.
 
 ### Phase 2 — Packaged/AOT verification (Not Started)
+
+Phase 0's own lightweight packaged smoke test already proves basic
+cross-assembly compilation; this phase is the AOT-specific proof and the
+full supported-TFM matrix, not the first point this feature gets packaged
+at all.
 
 - [ ] Extend `test/Compono.TestDoubles.AotSmokeTest/Program.cs` to
       exercise a configuration-required synchronous method, a

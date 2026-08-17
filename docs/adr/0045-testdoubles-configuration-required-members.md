@@ -537,6 +537,64 @@ member's exception message, it should use the member's real generated
 call shape (zero-argument if not overloaded, its real parameter list if
 it is) rather than either of the incorrect literal strings above.
 
+## Amendment 3 (2026-08-17): a member with no configuration surface for an unrelated reason stays whole-interface-rejected, not configuration-required
+
+Codex review on the PR carrying this ADR (before Phase 0 implementation
+began) caught a gap in the Decision Outcome: it describes configuration-
+required treatment as applying to "a member with no deterministic
+default," without qualifying that against a member that *also* has no
+`Configure()`/`Verify()` surface for a separate, unrelated reason.
+
+**Finding — combining "no deterministic default" with "no configuration
+surface" produces an unconfigurable member that throws forever, which is
+worse than today's whole-interface rejection.** Three existing shapes
+already withhold a member's configuration surface independently of its
+return type: a diamond-colliding identity (the same signature reached
+through two different base interfaces), a same-named zero-argument-
+extension collision (`CMP0029`), and an overloaded `ref`/`out`/`in`
+parameter (`CMP0030`, which withholds only that one overload's surface
+while its sibling keeps theirs). If such a member's return type *also*
+has no deterministic default, naively applying this ADR's Decision
+Outcome would generate a member with `RequiresConfiguration = true` but
+no `Configure()` extension to ever satisfy it — every invocation throws
+`TestDoubleNotConfiguredException` unconditionally, with no way to stop
+it. That's strictly worse than today's shipped behavior, which already
+whole-interface-rejects this exact combined shape via `CMP0025` (the
+return-type default check runs unconditionally, before any of the three
+surface-withholding checks get a chance to matter) — a consumer at least
+learns at compile time that the interface doesn't generate, instead of
+discovering an unconfigurable member at runtime.
+
+**Corrected:** configuration-required treatment (this ADR's Option 1)
+applies **only when the member would otherwise receive a real, usable
+configuration surface** — i.e., only when `HasConfigurationSurface` would
+independently evaluate to `true` for that member (unaffected by this
+ADR's own change). A member combining "no deterministic default" with "no
+configuration surface for an unrelated reason" gets **no change from this
+ADR** — it stays exactly as it is today, whole-interface `CMP0025`
+rejection. This preserves the one property every configuration-required
+member must have: it's always possible to make it stop throwing, by
+configuring it.
+
+Mechanically, `TestDoubleAnalyzer` already computes each of the three
+surface-withholding conditions (`isDiamondCollision`, `isZeroArgCollision`,
+`hasRefOutInParameter` for methods) before reaching the return-type
+default check for a method; for a property, the same two collision checks
+(`isDiamondCollision`, `isZeroArgCollision`) are likewise already computed
+earlier in its own branch. The fix is to consult whichever of these is
+already in scope at the default-lookup-failure point, not to add new
+detection logic — the gate is "would this member have had a surface
+anyway," using data the analyzer already has.
+
+PLAN-0045's Phase 0 task list is updated in the same pass as this
+Amendment: the `TestDoubleAnalyzer.cs` task now states this gate
+explicitly, and a new regression-test task covers exactly this
+combination (an overloaded `ref`/`out`/`in` member, and a diamond-
+colliding member, each with a no-default return type on the same
+interface as other genuinely configuration-required members) — confirming
+`CMP0025` still fires unchanged for these, unaffected by every other
+member's new disposition.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
