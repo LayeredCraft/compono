@@ -37,6 +37,7 @@ internal static class TestDoubleEmitter
                 m.IsVoid,
                 m.DefaultExpression,
                 m.HasConfigurationSurface,
+                m.IsConfigurationRequired,
                 m.IsOverloaded,
                 m.ExtensionReceiverName,
                 m.GenericSuffix,

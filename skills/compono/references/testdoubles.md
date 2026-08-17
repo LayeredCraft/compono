@@ -152,6 +152,34 @@ A failing assertion throws `Compono.TestDoubleVerificationException` (a
 plain exception, not a framework assertion type). A call counts whether it
 hits configured, default, or thrown behavior.
 
+## Configuration-required members (v2)
+
+A member returning a non-nullable reference type (or `Task<T>`/
+`ValueTask<T>` wrapping one) with no deterministic default used to reject
+the *whole interface* (v1's `CMP0025`). As of v2
+(`docs/adr/0045-testdoubles-configuration-required-members.md`), that
+member instead generates as **configuration-required**, provided it would
+otherwise have a real `Configure()`/`Verify()` surface — it throws
+`Compono.TestDoubleNotConfiguredException` if invoked before
+`Configure().Member(...).Returns(...)`/`.Throws(...)`, rather than falling
+back to a computed default:
+
+```csharp
+context.Configure().AwsRequestId().Returns("test-request-id");
+```
+
+**Migration implication, not just a new feature:** when migrating a test
+off `Compono.NSubstitute`, "the interface now generates" is no longer
+proof every member is safe to call unconfigured — some members that used
+to block the whole interface now generate *and* require explicit setup
+before use. Check the generator's `CMP0032` diagnostic (one per interface,
+a count) to know how many members on a given interface need
+`Configure(...)` before the test exercises them; don't assume every
+generated member has a usable default just because generation succeeded.
+This applies identically to sync/async/property members and to a fluent
+self-returning member (`IResponseBuilder`-shaped) — none of those get
+special-cased, all follow the same rule.
+
 ## The #1 AutoFixture/NSubstitute-habit trap: not a general mocking framework
 
 There are **no** argument matchers, **no** argument-aware call recording
@@ -180,14 +208,18 @@ a generic method whose return type depends on its own type parameter, a
 generic type parameter used as `T?` (constrained or not), and a handful
 of narrower shapes (set-only properties, pointer/function-pointer
 parameters or returns, ref-like returns) still reject the **whole
-interface** at compile time (`CMP0020`-`CMP0031`, informational severity —
+interface** at compile time (`CMP0020`-`CMP0032`, informational severity —
 they don't fail the build): it falls back to the ordinary runtime-provider
 path, same as any
 interface the compile-time opt-in never reached. Overloaded members, a
 `ref`/`out`/`in` parameter, and a generic method independent of its own
 type parameter are narrower now (see above) — only the specific
 colliding/unsupported overload loses its surface, not the whole interface.
-See `diagnostics.md` for the full code table before guessing a fix.
+A non-nullable-reference return with no deterministic default no longer
+rejects the whole interface either (v2, see "Configuration-required
+members" above) — unless it also lacks a `Configure()` surface for one of
+those other reasons, in which case it still does. See `diagnostics.md` for
+the full code table before guessing a fix.
 
 ## Precedence with `Compono.NSubstitute`
 

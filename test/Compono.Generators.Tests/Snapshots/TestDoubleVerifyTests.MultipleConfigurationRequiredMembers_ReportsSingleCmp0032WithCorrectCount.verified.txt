@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.IRepository' has 2 member(s) that require explicit configuration before use - each throws Compono.TestDoubleNotConfiguredException if invoked before Configure().Member(...).Returns(...) or .Throws(...). This does not block generation; every other member is unaffected.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0032,
+        Title: Test-double member(s) require explicit configuration,
+        MessageFormat: '{0}' has {1} member(s) that require explicit configuration before use - each throws Compono.TestDoubleNotConfiguredException if invoked before Configure().Member(...).Returns(...) or .Throws(...). This does not block generation; every other member is unaffected.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

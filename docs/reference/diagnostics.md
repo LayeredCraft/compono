@@ -4,7 +4,7 @@ Every `CMP` diagnostic code Compono's source generator can report, one
 entry each. `CMP0001`–`CMP0013` are compile-time **errors** raised by
 `Compono.Generators` during a normal build — they appear in your IDE's
 error list and fail `dotnet build`, the same as any other compiler error.
-`CMP0020`–`CMP0031` are a separate, **informational** family — they only
+`CMP0020`–`CMP0032` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
 is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
 and never fail the build. Most (`CMP0020`, `CMP0021`, `CMP0023`–`CMP0028`,
@@ -26,10 +26,12 @@ the collection/discovery-conflict diagnostics (`CMP0010`–`CMP0012`) by the
 generator's own discovery-merge logic; `CMP0013` by
 [ADR-0041](../adr/0041-aot-safe-row-binding-dispatch.md)'s row-binding
 dispatch-eligibility guard; the generated-test-double diagnostics
-(`CMP0020`–`CMP0031`) by
+(`CMP0020`–`CMP0032`) by
 [ADR-0043](../adr/0043-compono-generated-test-doubles-design.md)'s design,
 extended by [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
-for `CMP0022`, `CMP0029`, `CMP0030`, and `CMP0031`.
+for `CMP0022`, `CMP0029`, `CMP0030`, and `CMP0031`, and by
+[ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+for `CMP0032` (and `CMP0025`'s narrowed condition).
 
 ## CMP0001 — Ambiguous construction path
 
@@ -341,11 +343,21 @@ reachable spelling at every arity except exactly one.
 which Compono cannot generate a test double for`
 
 **Cause:** The member's return type is ref-like (e.g. `Span<byte>`),
-by-ref-returning, a pointer or function pointer, or a non-nullable
-reference type (or a `Task<T>`/`ValueTask<T>` wrapping one) with no
-deterministic default.
+by-ref-returning, or a pointer or function pointer — **always** this code.
+A non-nullable reference type (or a `Task<T>`/`ValueTask<T>` wrapping one)
+with no deterministic default is this code **only when the member also
+has no `Configure()`/`Verify()` surface for an unrelated reason** — a
+diamond collision, a zero-argument-extension collision, an overloaded
+`ref`/`out`/`in` parameter, or (for a method specifically) a collision
+with an inherited `object` member ([ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)).
+Otherwise, that shape generates as **configuration-required** instead —
+see [`CMP0032`](#cmp0032--test-double-members-require-explicit-configuration)
+and [Configuration-required members](../packages/compono-testdoubles.md#configuration-required-members).
 
-**Fix:** None needed — falls back to the ordinary runtime-provider path.
+**Fix:** For the always-rejected shapes (ref-like, by-ref, pointer), none
+needed — falls back to the ordinary runtime-provider path. For the
+combined-shape case, address whichever unrelated condition withholds the
+member's `Configure()` surface if you want it configurable.
 
 ## CMP0026 — Unsupported test-double parameter shape
 
@@ -490,6 +502,34 @@ return type *doesn't* depend on its own type parameter (`ILogger<T>`'s own
 [`Compono.TestDoubles`](../packages/compono-testdoubles.md#generic-methods).
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
+
+## CMP0032 — Test-double member(s) require explicit configuration
+
+**Severity:** Informational — never fails the build. **Scope: one
+diagnostic per interface** (a count of how many members), not one per
+member — [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+Amendment 1 deliberately keeps this quiet on a large real-world interface
+(`IAmazonS3`-shaped) with many configuration-required members, since the
+exact member identity is already reported precisely by
+`Compono.TestDoubleNotConfiguredException` at the point an unconfigured
+member is actually invoked.
+
+**Message:** `'{Interface}' has {Count} member(s) that require explicit
+configuration before use - each throws
+Compono.TestDoubleNotConfiguredException if invoked before
+Configure().Member(...).Returns(...) or .Throws(...). This does not block
+generation; every other member is unaffected.`
+
+**Cause:** One or more members return a non-nullable reference type (or a
+`Task<T>`/`ValueTask<T>` wrapping one) with no deterministic default, but
+would otherwise have a real `Configure()`/`Verify()` surface — the
+interface still generates, and each such member dispatches by throwing
+`Compono.TestDoubleNotConfiguredException` unless configured first. See
+[Configuration-required members](../packages/compono-testdoubles.md#configuration-required-members).
+
+**Fix:** None needed — informational. Call
+`Configure().Member(...).Returns(...)`/`.Throws(...)` on the member before
+your test exercises it, same as any other member's `Configure()` surface.
 
 ## Next
 

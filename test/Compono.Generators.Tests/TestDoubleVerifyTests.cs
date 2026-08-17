@@ -194,9 +194,12 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
+    // ADR-0045: a non-nullable-reference-return member with no deterministic default no longer
+    // rejects its whole interface - it generates as configuration-required instead, reported via
+    // the interface-scoped, count-only CMP0032 (Amendment 1), not the whole-interface CMP0025.
     [Fact]
-    public Task NonNullableReferenceReturn_ReportsUnsupportedReturnShapeDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
+    public Task NonNullableReferenceReturn_GeneratesConfigurationRequiredMember() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
             new CodeGenerationOptions
             {
                 SourceCode = """
@@ -219,7 +222,7 @@ public sealed class TestDoubleVerifyTests
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0025",
+            "CMP0032",
             TestContext.Current.CancellationToken);
 
     // ADR-0044 Amendment 3, Finding 8: a diamond collision (the same signature independently
@@ -345,9 +348,13 @@ public sealed class TestDoubleVerifyTests
             "CMP0024",
             TestContext.Current.CancellationToken);
 
+    // ADR-0045's "Async returns" section: ReturnConfig<T> is already generic over the member's
+    // real declared return type (Task<T>/ValueTask<T> itself), so a Task<T>/ValueTask<T> member
+    // with a no-default T needs no separate implementation - same configuration-required
+    // treatment as a synchronous member, same CMP0032.
     [Fact]
-    public Task NonNullableValueTaskOfReference_ReportsUnsupportedReturnShapeDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
+    public Task NonNullableValueTaskOfReference_GeneratesConfigurationRequiredMember() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
             new CodeGenerationOptions
             {
                 SourceCode = """
@@ -370,12 +377,12 @@ public sealed class TestDoubleVerifyTests
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0025",
+            "CMP0032",
             TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task MultidimensionalArrayReturn_ReportsUnsupportedReturnShapeDiagnostic() =>
-        GeneratorTestHelpers.VerifyFailure(
+    public Task MultidimensionalArrayReturn_GeneratesConfigurationRequiredMember() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
             new CodeGenerationOptions
             {
                 SourceCode = """
@@ -384,6 +391,211 @@ public sealed class TestDoubleVerifyTests
                     public interface IRepository
                     {
                         int[,] GetGrid();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0045: a property with no deterministic default gets the same configuration-required
+    // treatment as a method - IOptions<T>.Value/ILambdaContext.AwsRequestId-shaped.
+    [Fact]
+    public Task NonNullablePropertyReturn_GeneratesConfigurationRequiredMember() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        string Name { get; }
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0045 Amendment 1: an IAmazonS3-shaped interface with several configuration-required
+    // members still emits exactly one CMP0032 with the correct count, not one per member - the
+    // snapshotted message text itself is the assertion that the count is right.
+    [Fact]
+    public Task MultipleConfigurationRequiredMembers_ReportsSingleCmp0032WithCorrectCount() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        string GetName();
+                        string Description { get; }
+                        int GetCount();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0045 Amendment 3: a member combining "no deterministic default" with "no configuration
+    // surface for an unrelated reason" keeps the unchanged whole-interface CMP0025 rejection - a
+    // ref/out/in overload is one of the four combined shapes. An unrelated, genuinely
+    // configuration-required member (Description) on the same interface confirms the combined-
+    // shape gate doesn't accidentally leak this member into CMP0032's count instead.
+    [Fact]
+    public Task RefOutInOverloadWithNoDefaultReturn_StillReportsUnsupportedReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        string GetName(out int code);
+                        string GetName();
+                        string Description { get; }
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0025",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0045 Amendment 3: a diamond-colliding identity with a no-default return type is another
+    // of the four combined shapes - it keeps the unchanged whole-interface CMP0025 rejection.
+    [Fact]
+    public Task DiamondCollisionWithNoDefaultReturn_StillReportsUnsupportedReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBase1
+                    {
+                        string GetName();
+                    }
+
+                    public interface IBase2
+                    {
+                        string GetName();
+                    }
+
+                    public interface IRepository : IBase1, IBase2
+                    {
+                        string Description { get; }
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0025",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0045 Amendment 3: a same-named zero-argument-extension collision with a no-default
+    // return type is the third combined shape - a naive gate checking only diamond/ref-out-in/
+    // object-collision would wrongly mark this configuration-required despite its Configure()
+    // surface being withheld, generating a member that throws unconditionally forever.
+    [Fact]
+    public Task ZeroArgumentExtensionCollisionWithNoDefaultReturn_StillReportsUnsupportedReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        string GetName { get; }
+                        string GetName();
+                        string Description { get; }
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0025",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0045 Amendment 6 (withdrawing Amendment 5's incorrect "falls through to CMP0024, which
+    // is fine" reasoning): a method-shaped object-member collision with a no-default return type
+    // is the fourth combined shape, method-specific - it must keep reporting CMP0025, not fall
+    // through to the unrelated object-collision check and get relabeled CMP0024.
+    [Fact]
+    public Task ObjectMemberCollisionMethodWithNoDefaultReturn_ReportsUnsupportedReturnShapeNotObjectCollision() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        string ToString();
+                        string Description { get; }
                     }
 
                     public sealed class OrderService
@@ -535,10 +747,15 @@ public sealed class TestDoubleVerifyTests
     // Two call sites reach the same closed generic interface with disagreeing nullability
     // (IProvider<string> vs IProvider<string?>) - TransitiveClosureWalker now walks and analyzes
     // both independently (IncludeNullability, PR #83 review round 3) rather than silently
-    // collapsing to whichever is discovered first. Here the two disagree on whether Get() even has
-    // a deterministic default at all, so the merge step's own conflict handling (mirroring
-    // DiscoveredTypeInfo's CMP0010 pattern) surfaces the real per-location CMP0025 failure
-    // deterministically, regardless of discovery order, rather than an order-dependent silent pick.
+    // collapsing to whichever is discovered first. Here the two disagree on whether the out
+    // parameter of TryGet(out T, ...) even has a deterministic default at all (ADR-0045 doesn't
+    // change out-parameter default-lookup behavior - only a member's own return type), so the
+    // merge step's own conflict handling (mirroring DiscoveredTypeInfo's CMP0010 pattern)
+    // surfaces the real per-location CMP0026 failure deterministically, regardless of discovery
+    // order, rather than an order-dependent silent pick. A same-named sibling (Get()) is required
+    // so the out-parameter member takes the overload-set-internal fallback path (Amendment 5) that
+    // still hard-fails when its own out-parameter type has no deterministic default, rather than
+    // the plain return-type check this ADR itself relaxed.
     [Fact]
     public Task SameInterfaceDiscoveredWithDisagreeingNullability_ReportsRealFailureDeterministically() =>
         GeneratorTestHelpers.VerifyFailure(
@@ -549,6 +766,7 @@ public sealed class TestDoubleVerifyTests
 
                     public interface IProvider<T>
                     {
+                        void Get(out T value);
                         T Get();
                     }
 
@@ -573,7 +791,7 @@ public sealed class TestDoubleVerifyTests
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0025",
+            "CMP0026",
             TestContext.Current.CancellationToken);
 
     [Fact]

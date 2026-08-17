@@ -1,6 +1,6 @@
 # [PLAN-0045] Compono.TestDoubles: Configuration-Required Members
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
 
@@ -47,25 +47,25 @@ depends on its own type parameter); special-casing fluent self-return
 
 ## Tasks
 
-### Phase 0 — Configuration-required return semantics (Not Started)
+### Phase 0 — Configuration-required return semantics (Done)
 
-- [ ] `src/Compono/TestDoubleNotConfiguredException.cs`: new `sealed`
+- [x] `src/Compono/TestDoubleNotConfiguredException.cs`: new `sealed`
       exception type, message-only constructor, matching
       `TestDoubleVerificationException`'s exact shape.
-- [ ] `docs/reference/api/Compono/`: regenerate the API reference pages
+- [x] `docs/reference/api/Compono/`: regenerate the API reference pages
       for the new public `TestDoubleNotConfiguredException` type and its
       constructor (per Codex review — ADR-0032's toolchain/CI gate checks
       the committed generated reference for drift; the analogous
       `TestDoubleVerificationException` change committed both a type page
       and a constructor page, matching shape expected here).
-- [ ] `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: add the
+- [x] `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: add the
       `CMP0032` entry (per Codex review —
       `Compono.Generators.csproj`'s `EnforceExtendedAnalyzerRules` makes
       this a required Roslyn analyzer-release-tracking file; every
       existing `CMP00xx` descriptor already has a matching row here, and
       Phase 0 doesn't build clean without adding this one alongside the
       descriptor task below).
-- [ ] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
+- [x] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
       `CMP0032` ("Test-double member(s) require explicit configuration"),
       `DiagnosticSeverity.Info`, **interface-scoped, count-only message
       text** (per ADR-0045 Amendment 1: one diagnostic per interface,
@@ -83,7 +83,7 @@ depends on its own type parameter); special-casing fluent self-return
       it now fires only when the member wouldn't have had a configuration
       surface anyway (Amendment 3's combined-shape case); every other
       no-default member takes the new `CMP0032` path instead.
-- [ ] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: at the
+- [x] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: at the
       method-return-type check (`TryGetDefaultExpression` failure for a
       method's return type) and the property-type check (same failure for
       a property's type), stop returning whole-interface `Failure(...)`
@@ -123,7 +123,7 @@ depends on its own type parameter); special-casing fluent self-return
       already uses. After the full member walk, if that count is nonzero,
       emit exactly one `CMP0032` for the interface, naming the interface
       and the count — not one per member (Amendment 1).
-- [ ] `src/Compono.Generators/Emitters/TestDoubleEmitter.cs` /
+- [x] `src/Compono.Generators/Emitters/TestDoubleEmitter.cs` /
       `src/Compono.Generators/Templates/TestDouble.scriban`: new dispatch-
       body branch for a configuration-required member — identical
       `RecordCall()`/`HasConfiguredException`/`HasConfiguredValue` shape
@@ -135,7 +135,7 @@ depends on its own type parameter); special-casing fluent self-return
       for this member is **unchanged** — it already works for any `T`
       regardless of whether `T` has a default, since
       `ReturnConfigBuilder<T>.Returns`/`.Throws` never depended on one.
-- [ ] `test/Compono.Generators.Tests/`: generator snapshot/behavior tests
+- [x] `test/Compono.Generators.Tests/`: generator snapshot/behavior tests
       — a configuration-required method member, a configuration-required
       property member, confirming (a) the interface still generates, (b)
       exactly **one** `CMP0032` fires for the interface with the correct
@@ -166,7 +166,7 @@ depends on its own type parameter); special-casing fluent self-return
       required member, confirming the combined-shape gate
       doesn't accidentally suppress `CMP0025`/`CMP0024` or leak a
       surfaceless member into `CMP0032`'s count.
-- [ ] **Do not enable generation in `test/Compono.TestDoubles.Tests`**
+- [x] **Do not enable generation in `test/Compono.TestDoubles.Tests`**
       (superseding the previous round's plan, per Codex review — a real
       correctness bug in that earlier fix, not just a missing property).
       That project's `GeneratedTestDoubleProviderTests.cs`,
@@ -185,7 +185,7 @@ depends on its own type parameter); special-casing fluent self-return
       hand registration a no-op and flipping `TryProvide_DoesNotHandle_AnInterfaceWithNoRegisteredFactory`
       from "throws" to "succeeds". At least three existing test files
       would break, silently, with no compile-time signal.
-- [ ] `test/Compono.TestDoubles.SampleTests/`: new
+- [x] `test/Compono.TestDoubles.SampleTests/`: new
       `ConfigurationRequiredMemberTests.cs` (matching the one-file-per-
       shape pattern this project's sibling files already establish —
       `GeneratedDoubleTests.cs`, `OverloadedMemberTests.cs`,
@@ -199,7 +199,7 @@ depends on its own type parameter); special-casing fluent self-return
       `Compono`/`Compono.TestDoubles` at all, per its own `.csproj`
       comment), and none of its existing files hand-manage the registry —
       no risk of the interaction above.
-- [ ] **Async coverage, moved here from a later phase per Codex review**:
+- [x] **Async coverage, moved here from a later phase per Codex review**:
       same `test/Compono.TestDoubles.SampleTests/` file, a
       `Task<TReference>`-returning configuration-required member and a
       `ValueTask<TReference>`-returning one, both states (unconfigured
@@ -213,7 +213,7 @@ depends on its own type parameter); special-casing fluent self-return
       If this surfaces a real gap (contrary to the ADR's expectation),
       record it as an ADR-0045 Amendment before proceeding, per this
       repo's Amendment convention — don't silently patch around it.
-- [ ] **Fluent self-return, moved here from a later phase per Codex
+- [x] **Fluent self-return, moved here from a later phase per Codex
       review**: same `test/Compono.TestDoubles.SampleTests/` file, an
       `IResponseBuilder`-shaped fluent self-returning member (a method
       returning the interface itself, RESEARCH-0004's own motivating
@@ -224,7 +224,7 @@ depends on its own type parameter); special-casing fluent self-return
       this shape and ships as its own mergeable PR; deferring its first
       proof to Phase 1 would ship the capability's own central motivating
       case unvalidated.
-- [ ] **Packaged-consumer smoke test, this phase's own shape only**
+- [x] **Packaged-consumer smoke test, this phase's own shape only**
       (added per Codex review — matching PLAN-0044's own established
       pattern, added there for the identical reason: `dotnet pack` core
       `Compono`/`Compono.Generators` into a local feed, a throwaway
@@ -240,7 +240,7 @@ depends on its own type parameter); special-casing fluent self-return
       catch — this phase does not ship (its own PR does not merge) until
       this smoke test is green, rather than deferring all packaged proof
       to Phase 2.
-- [ ] **Docs, this phase's own shape** (moved here from a later docs-only
+- [x] **Docs, this phase's own shape** (moved here from a later docs-only
       phase per Codex review — matching PLAN-0044's own precedent for the
       identical reason: `references/documentation.md`'s "update the
       relevant doc in the same PR" rule means Phase 0 shipping the public
@@ -430,3 +430,15 @@ PR and touches every no-default return shape including async ones. Phase
 0's task list explicitly calls for recording an ADR-0045 Amendment if
 implementation proves the hypothesis wrong, rather than silently
 reshaping the plan around a surprise.
+
+**Phase 0 result:** the hypothesis held — no separate implementation was
+needed for `Task<T>`/`ValueTask<T>` async members, confirmed empirically
+by `test/Compono.TestDoubles.SampleTests/ConfigurationRequiredMemberTests.cs`
+against a real packaged consumer (`ComponoGeneratedTestDoubles=true`, a
+locally-packed `.nupkg` restore, not a `ProjectReference`), across every
+supported TFM (net8.0-net11.0). The same file also confirms the fluent
+self-return case (`Returns(self)`, a chained-call test) works with no
+special-casing, exactly as ADR-0045 decided. No ADR-0045 Amendment was
+needed. The generator-level regression coverage for all four combined
+shapes (Amendments 3 and 6) lives in
+`test/Compono.Generators.Tests/TestDoubleVerifyTests.cs`.

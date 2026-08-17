@@ -98,6 +98,16 @@ namespace Compono.Generators.Models;
 /// the explicit interface implementation, which inherits its constraints automatically and cannot
 /// redeclare them (<c>CS0460</c>).
 /// </param>
+/// <param name="IsConfigurationRequired">
+/// Whether this member has a real <see cref="HasConfigurationSurface"/> but no deterministic
+/// <see cref="DefaultExpression"/> for its return type (ADR-0045) - its dispatch body's final
+/// fallback throws <c>Compono.TestDoubleNotConfiguredException</c> instead of returning a computed
+/// default. Never <see langword="true"/> when <see cref="HasConfigurationSurface"/> is
+/// <see langword="false"/> or <see cref="IsVoid"/> is <see langword="true"/> - a combined-shape
+/// member (a diamond collision, a zero-argument-extension collision, an overloaded
+/// <see langword="ref"/>/<see langword="out"/>/<see langword="in"/> parameter, or a method-shaped
+/// object-member collision) keeps the unchanged whole-interface <c>CMP0025</c> rejection instead.
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -115,7 +125,8 @@ internal sealed record TestDoubleMemberInfo(
     string ExtensionReceiverName = "self",
     bool IsGenericMethod = false,
     EquatableArray<string> TypeParameterNames = default,
-    EquatableArray<string> ConstraintClauses = default)
+    EquatableArray<string> ConstraintClauses = default,
+    bool IsConfigurationRequired = false)
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
     public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";

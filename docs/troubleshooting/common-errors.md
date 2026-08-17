@@ -15,7 +15,7 @@ often in practice:
   [Migrating from AutoFixture](../migrating-from-autofixture.md) for a
   real worked example of exactly this.
 
-`CMP0020`–`CMP0031` are a separate, **informational** family — they only
+`CMP0020`–`CMP0032` are a separate, **informational** family — they only
 apply if `ComponoGeneratedTestDoubles=true` is set (see
 [`Compono.TestDoubles`](../packages/compono-testdoubles.md)) and never fail
 the build. Most of them mean one interface leaf's generated double
