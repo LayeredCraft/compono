@@ -151,9 +151,10 @@ otherwise have a real configuration surface. `CMP0025` still fires,
 unchanged, for the three genuinely unimplementable return shapes
 (by-ref, pointer, ref-like) *and* for that same non-nullable-reference
 case when the member also lacks a configuration surface for an unrelated
-reason (a diamond collision, a zero-argument-extension collision, an
-object-member collision, or an overloaded `ref`/`out`/`in` parameter,
-Amendments 3/4/6) — a new `CMP0032` — scoped to one informational
+reason (a diamond collision, a zero-argument-extension collision, a
+method-shaped object-member collision, or an overloaded `ref`/`out`/`in`
+parameter — a colliding property was, and remains, `CMP0024` regardless,
+Amendments 3/4/6/7) — a new `CMP0032` — scoped to one informational
 diagnostic per interface, not per member, per Amendment 1 — covers the
 ordinary configuration-required case. Manufacturing a value and
 special-casing

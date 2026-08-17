@@ -16,11 +16,13 @@ invoked before `Configure().Member(...).Returns(...)`/`.Throws(...)` is
 called, via the new `CMP0032` diagnostic (one per interface, not one per
 member). A member with no deterministic default that *also* has no
 configuration surface for an unrelated reason (a diamond collision, a
-zero-argument-extension collision, an object-member collision, or an
-overloaded `ref`/`out`/`in` parameter) is unaffected — it keeps its
-unchanged `CMP0025` whole-interface rejection, same as today, so no
-member ever ends up throwing unconditionally with no way to configure it.
-A real
+zero-argument-extension collision, an overloaded `ref`/`out`/`in`
+parameter — or, for a *method* specifically, an object-member collision;
+a colliding *property* already rejects via `CMP0024` before its return
+type is even checked, unaffected either way, Amendment 7) is unaffected —
+it keeps its unchanged `CMP0025` whole-interface rejection, same as
+today, so no member ever ends up throwing unconditionally with no way to
+configure it. A real
 `dotnet publish -p:PublishAot=true` run proves the new dispatch shape
 stays AOT-safe, and a third `lightsaber-skill` dogfooding pass measures
 whether real tests can now actually drop `Compono.NSubstitute` — not just
@@ -80,19 +82,26 @@ depends on its own type parameter); special-casing fluent self-return
       today, and so does a member that combines "no deterministic
       default" with "no configuration surface for an unrelated reason" —
       a diamond-colliding identity, a zero-argument-extension collision,
-      an overloaded `ref`/`out`/`in` parameter, **or an object-member-
-      collision shape** (`ToString`/`GetHashCode`/`GetType`/`Equals`,
-      Amendment 6 — hoist this predicate's evaluation to before this
-      check, reusing the same logic the existing object-collision check
-      at lines ~524-555 already computes, rather than relying on that
-      later check's own `Failure(...)` to catch it retroactively; that
-      would change the diagnostic this combined shape produces from
-      `CMP0025` today to `CMP0024`, which Amendment 6 rules out). Reuse
-      whichever of `isDiamondCollision`/`isZeroArgCollision`/
-      `hasRefOutInParameter`/the hoisted object-collision predicate is
-      already computed at that point rather than adding new detection
-      logic beyond that one hoist. Only when a real surface would exist:
-      mark the member as
+      an overloaded `ref`/`out`/`in` parameter, **or, for the *method*
+      branch specifically, an object-member-collision shape**
+      (`ToString`/`GetHashCode`/`GetType`/`Equals`, Amendment 6 — hoist
+      this predicate's evaluation to before this check, reusing the same
+      logic the existing object-collision check at lines ~524-555 already
+      computes, rather than relying on that later check's own
+      `Failure(...)` to catch it retroactively; that would change the
+      diagnostic this combined shape produces from `CMP0025` today to
+      `CMP0024`, which Amendment 6 rules out). **The property branch needs
+      no corresponding change (Amendment 7)** — its own object-collision
+      check (lines ~732-737) already runs *before* its return-type check
+      (lines ~766-769), the reverse of the method branch's order, so a
+      colliding property already rejects via `CMP0024` unconditionally
+      today, independent of its return type; do not reorder or touch the
+      property branch's existing check sequence. Reuse whichever of
+      `isDiamondCollision`/`isZeroArgCollision`/`hasRefOutInParameter`/the
+      hoisted object-collision predicate is already computed at that
+      point (method branch only) rather than adding new detection logic
+      beyond that one hoist. Only when a real surface would exist: mark
+      the member as
       configuration-required (member-scoped for *generation* purposes,
       following the same shape `CMP0030`'s out-parameter exclusion
       already uses to keep an interface generating while excluding just

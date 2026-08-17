@@ -85,10 +85,11 @@ ADR, the research doc, the plan). Four dogfooding passes have run so far:
   genuinely unimplementable return shapes (by-ref, pointer, ref-like)
   **and** for that same non-nullable-reference case when the member also
   has no configuration surface for an unrelated reason (a diamond
-  collision, a zero-argument-extension collision, an object-member
-  collision, or an overloaded `ref`/`out`/`in` parameter) — so no member
-  ever ends up throwing unconditionally with no way to configure it
-  (Amendments 3, 4, and 6); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
+  collision, a zero-argument-extension collision, a method-shaped
+  object-member collision, or an overloaded `ref`/`out`/`in` parameter —
+  a colliding property was, and remains, `CMP0024` regardless) — so no
+  member ever ends up throwing unconditionally with no way to configure it
+  (Amendments 3, 4, 6, and 7); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
   tracks the implementation, not yet started. This page keeps listing it
   until it's actually shipped — same rule the third bullet's finding
   followed before PLAN-0044 completed — and, per ADR-0045's own scope,

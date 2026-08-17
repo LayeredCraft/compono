@@ -739,6 +739,41 @@ are corrected in the same pass: the object-collision case now asserts
 analyzer task describes hoisting the predicate rather than relying on
 `Failure(...)`'s discard behavior.
 
+## Amendment 7 (2026-08-17): the object-collision hoist (Amendment 6) is a method-only fix — a property's object-collision check already runs before its own return-type check, unaffected either way
+
+Codex review caught that Amendment 6's fix, and this ADR's Goal-level
+description of it, don't distinguish methods from properties — and the
+two shapes have *opposite* check ordering today, so the fix that's
+necessary for one is a no-op for the other.
+
+**Finding — for a property, the object-collision check already runs
+*before* the return-type default-lookup check, the reverse of a method's
+ordering.** `TestDoubleAnalyzer`'s property branch checks
+`property.Name is "ToString" or "GetHashCode" or "GetType"`
+(`TestDoubleAnalyzer.cs:723-737`, unconditional on the property's return
+type) *before* it ever reaches the return-type default-lookup check
+(lines 766-769). A property named `ToString`/`GetHashCode`/`GetType`
+therefore already rejects via `CMP0024` today, regardless of whether its
+type has a deterministic default — the return-type check for that
+property is never even reached, with or without this ADR's changes.
+Amendment 6's fix (hoisting the object-collision predicate ahead of the
+return-type check) is specific to the *method* branch, where the
+ordering is reversed (return-type check first, object-collision check
+later) — applying it to properties would be redundant at best, and
+describing it in shape-agnostic language risked an implementer "fixing"
+the property branch's ordering to match the method branch's, which would
+be a real regression: it would flip a colliding property's diagnostic
+from today's `CMP0024` to `CMP0025`.
+
+**Corrected:** Amendment 6's gate applies to the *method* branch only.
+The property branch needs no corresponding change — its existing
+check order already produces the correct, unchanged `CMP0025`-never
+disposition (always `CMP0024` for a colliding property name, independent
+of return-type default) with zero code change. PLAN-0045's Phase 0
+analyzer task and Goal section are corrected in the same pass to state
+this explicitly, so Phase 0's implementation and regression tests don't
+touch the property branch's check order at all.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
