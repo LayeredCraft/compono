@@ -10,12 +10,14 @@ internal sealed class TestNamespace_IWidget_34aa79b8_Double : global::TestNamesp
 
     void global::TestNamespace.IWidget.Process<__self>(__self value)
     {
+        __Process_9f03e88f.RecordCall();
         if (__Process_9f03e88f.HasConfiguredException)
             throw __Process_9f03e88f.ConfiguredException;
     }
 
     void global::TestNamespace.IWidget.Process<__self>(global::System.Collections.Generic.IEnumerable<__self> values)
     {
+        __Process_22a72316.RecordCall();
         if (__Process_22a72316.HasConfiguredException)
             throw __Process_22a72316.ConfiguredException;
     }
@@ -28,6 +30,34 @@ internal static class TestNamespace_IWidget_34aa79b8_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Process<__self>(this global::TestNamespace_IWidget_34aa79b8_Double ___self, global::System.Collections.Generic.IEnumerable<__self> values) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref ___self.__Process_22a72316);
+
+}
+
+internal readonly struct TestNamespace_IWidget_34aa79b8_DoubleVerifier
+{
+    internal global::TestNamespace_IWidget_34aa79b8_Double Instance { get; }
+
+    internal TestNamespace_IWidget_34aa79b8_DoubleVerifier(global::TestNamespace_IWidget_34aa79b8_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IWidget_34aa79b8_VerifyExtension
+{
+    public static global::TestNamespace_IWidget_34aa79b8_DoubleVerifier Verify(this global::TestNamespace.IWidget self) =>
+        new(self as global::TestNamespace_IWidget_34aa79b8_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IWidget' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IWidget', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IWidget_34aa79b8_DoubleVerification
+{
+    public static global::Compono.CallVerifier Process<__self>(this global::TestNamespace_IWidget_34aa79b8_DoubleVerifier ___self, __self value) =>
+        new(___self.Instance.__Process_9f03e88f.ConfiguredCallCount, "global::TestNamespace.IWidget.Process");
+
+    public static global::Compono.CallVerifier Process<__self>(this global::TestNamespace_IWidget_34aa79b8_DoubleVerifier ___self, global::System.Collections.Generic.IEnumerable<__self> values) =>
+        new(___self.Instance.__Process_22a72316.ConfiguredCallCount, "global::TestNamespace.IWidget.Process");
 
 }
 

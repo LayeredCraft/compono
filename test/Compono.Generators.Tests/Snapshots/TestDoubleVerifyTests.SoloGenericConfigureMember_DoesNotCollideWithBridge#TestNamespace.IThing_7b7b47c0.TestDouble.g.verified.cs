@@ -9,6 +9,7 @@ internal sealed class TestNamespace_IThing_7b7b47c0_Double : global::TestNamespa
 
     void global::TestNamespace.IThing.Configure<T>()
     {
+        __Configure.RecordCall();
         if (__Configure.HasConfiguredException)
             throw __Configure.ConfiguredException;
     }
@@ -18,6 +19,31 @@ internal static class TestNamespace_IThing_7b7b47c0_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IThing_7b7b47c0_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Configure);
+
+}
+
+internal readonly struct TestNamespace_IThing_7b7b47c0_DoubleVerifier
+{
+    internal global::TestNamespace_IThing_7b7b47c0_Double Instance { get; }
+
+    internal TestNamespace_IThing_7b7b47c0_DoubleVerifier(global::TestNamespace_IThing_7b7b47c0_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IThing_7b7b47c0_VerifyExtension
+{
+    public static global::TestNamespace_IThing_7b7b47c0_DoubleVerifier Verify(this global::TestNamespace.IThing self) =>
+        new(self as global::TestNamespace_IThing_7b7b47c0_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IThing' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IThing', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IThing_7b7b47c0_DoubleVerification
+{
+    public static global::Compono.CallVerifier Configure(this global::TestNamespace_IThing_7b7b47c0_DoubleVerifier self) =>
+        new(self.Instance.__Configure.ConfiguredCallCount, "global::TestNamespace.IThing.Configure");
 
 }
 

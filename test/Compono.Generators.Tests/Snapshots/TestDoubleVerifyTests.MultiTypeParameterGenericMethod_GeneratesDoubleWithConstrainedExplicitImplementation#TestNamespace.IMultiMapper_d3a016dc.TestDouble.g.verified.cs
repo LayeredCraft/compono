@@ -9,6 +9,7 @@ internal sealed class TestNamespace_IMultiMapper_d3a016dc_Double : global::TestN
 
     void global::TestNamespace.IMultiMapper.Map<TKey, TValue>(TKey key, TValue value)
     {
+        __Map.RecordCall();
         if (__Map.HasConfiguredException)
             throw __Map.ConfiguredException;
     }
@@ -18,6 +19,31 @@ internal static class TestNamespace_IMultiMapper_d3a016dc_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Map(this global::TestNamespace_IMultiMapper_d3a016dc_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Map);
+
+}
+
+internal readonly struct TestNamespace_IMultiMapper_d3a016dc_DoubleVerifier
+{
+    internal global::TestNamespace_IMultiMapper_d3a016dc_Double Instance { get; }
+
+    internal TestNamespace_IMultiMapper_d3a016dc_DoubleVerifier(global::TestNamespace_IMultiMapper_d3a016dc_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IMultiMapper_d3a016dc_VerifyExtension
+{
+    public static global::TestNamespace_IMultiMapper_d3a016dc_DoubleVerifier Verify(this global::TestNamespace.IMultiMapper self) =>
+        new(self as global::TestNamespace_IMultiMapper_d3a016dc_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IMultiMapper' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IMultiMapper', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IMultiMapper_d3a016dc_DoubleVerification
+{
+    public static global::Compono.CallVerifier Map(this global::TestNamespace_IMultiMapper_d3a016dc_DoubleVerifier self) =>
+        new(self.Instance.__Map.ConfiguredCallCount, "global::TestNamespace.IMultiMapper.Map");
 
 }
 

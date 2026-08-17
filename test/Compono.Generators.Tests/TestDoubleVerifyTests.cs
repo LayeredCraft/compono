@@ -658,6 +658,34 @@ public sealed class TestDoubleVerifyTests
             TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task VerifyNamedMember_ReportsCollisionDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void Verify();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0023",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task NullableReferenceReturnAndParameter_PreservesAnnotationInGeneratedCode() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

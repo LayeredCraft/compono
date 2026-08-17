@@ -41,12 +41,14 @@ internal static class TestDoubleEmitter
                 m.ExtensionReceiverName,
                 m.GenericSuffix,
                 m.ConstraintClausesText,
+                m.OriginalName,
                 Kind = m.Kind.ToString(),
                 AccessorKind = m.AccessorKind.ToString(),
                 Parameters = m.Parameters
                     .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.IsParams, p.DefaultValueExpression })
                     .ToArray(),
                 OutParameterAssignments = m.OutParameterAssignments.ToArray(),
+                MemberDescription = $"{m.DeclaringInterfaceFullyQualifiedName}.{m.OriginalName}",
             }).ToArray(),
             GeneratorVersion,
         };

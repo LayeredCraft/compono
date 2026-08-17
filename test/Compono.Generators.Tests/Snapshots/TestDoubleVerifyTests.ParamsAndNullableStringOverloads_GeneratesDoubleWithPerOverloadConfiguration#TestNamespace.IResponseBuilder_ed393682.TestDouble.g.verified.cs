@@ -10,12 +10,14 @@ internal sealed class TestNamespace_IResponseBuilder_ed393682_Double : global::T
 
     void global::TestNamespace.IResponseBuilder.Speak(string? text)
     {
+        __Speak_1a56931a.RecordCall();
         if (__Speak_1a56931a.HasConfiguredException)
             throw __Speak_1a56931a.ConfiguredException;
     }
 
     void global::TestNamespace.IResponseBuilder.Speak(global::TestNamespace.ISsml[] parts)
     {
+        __Speak_22f1fe0a.RecordCall();
         if (__Speak_22f1fe0a.HasConfiguredException)
             throw __Speak_22f1fe0a.ConfiguredException;
     }
@@ -28,6 +30,34 @@ internal static class TestNamespace_IResponseBuilder_ed393682_DoubleConfiguratio
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, params global::TestNamespace.ISsml[] parts) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_22f1fe0a);
+
+}
+
+internal readonly struct TestNamespace_IResponseBuilder_ed393682_DoubleVerifier
+{
+    internal global::TestNamespace_IResponseBuilder_ed393682_Double Instance { get; }
+
+    internal TestNamespace_IResponseBuilder_ed393682_DoubleVerifier(global::TestNamespace_IResponseBuilder_ed393682_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IResponseBuilder_ed393682_VerifyExtension
+{
+    public static global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier Verify(this global::TestNamespace.IResponseBuilder self) =>
+        new(self as global::TestNamespace_IResponseBuilder_ed393682_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IResponseBuilder' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IResponseBuilder', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IResponseBuilder_ed393682_DoubleVerification
+{
+    public static global::Compono.CallVerifier Speak(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, string? text) =>
+        new(__self.Instance.__Speak_1a56931a.ConfiguredCallCount, "global::TestNamespace.IResponseBuilder.Speak");
+
+    public static global::Compono.CallVerifier Speak(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, params global::TestNamespace.ISsml[] parts) =>
+        new(__self.Instance.__Speak_22f1fe0a.ConfiguredCallCount, "global::TestNamespace.IResponseBuilder.Speak");
 
 }
 

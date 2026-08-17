@@ -9,24 +9,35 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Save;
     internal global::Compono.ReturnConfig<int> __Count;
 
-    global::System.Threading.Tasks.Task<string?> global::TestNamespace.IRepository.FindNameAsync(global::System.Guid id) =>
-        __FindNameAsync.HasConfiguredException ? throw __FindNameAsync.ConfiguredException
-        : __FindNameAsync.HasConfiguredValue ? __FindNameAsync.ConfiguredValue
-        : global::System.Threading.Tasks.Task.FromResult<string?>(default);
+    global::System.Threading.Tasks.Task<string?> global::TestNamespace.IRepository.FindNameAsync(global::System.Guid id)
+    {
+        __FindNameAsync.RecordCall();
+        return __FindNameAsync.HasConfiguredException ? throw __FindNameAsync.ConfiguredException
+            : __FindNameAsync.HasConfiguredValue ? __FindNameAsync.ConfiguredValue
+            : global::System.Threading.Tasks.Task.FromResult<string?>(default);
+    }
 
     void global::TestNamespace.IRepository.Save(string name)
     {
+        __Save.RecordCall();
         if (__Save.HasConfiguredException)
             throw __Save.ConfiguredException;
     }
 
     int global::TestNamespace.IRepository.Count
     {
-        get =>
-            __Count.HasConfiguredException ? throw __Count.ConfiguredException
-            : __Count.HasConfiguredValue ? __Count.ConfiguredValue
-            : default;
-        set => new global::Compono.ReturnConfigBuilder<int>(ref __Count).Returns(value);
+        get
+        {
+            __Count.RecordCall();
+            return __Count.HasConfiguredException ? throw __Count.ConfiguredException
+                : __Count.HasConfiguredValue ? __Count.ConfiguredValue
+                : default;
+        }
+        set
+        {
+            __Count.RecordCall();
+            new global::Compono.ReturnConfigBuilder<int>(ref __Count).Returns(value);
+        }
     }
 }
 
@@ -40,6 +51,37 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<int> Count(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<int>(ref self.__Count);
+
+}
+
+internal readonly struct TestNamespace_IRepository_e3198068_DoubleVerifier
+{
+    internal global::TestNamespace_IRepository_e3198068_Double Instance { get; }
+
+    internal TestNamespace_IRepository_e3198068_DoubleVerifier(global::TestNamespace_IRepository_e3198068_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IRepository_e3198068_VerifyExtension
+{
+    public static global::TestNamespace_IRepository_e3198068_DoubleVerifier Verify(this global::TestNamespace.IRepository self) =>
+        new(self as global::TestNamespace_IRepository_e3198068_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IRepository' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IRepository', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IRepository_e3198068_DoubleVerification
+{
+    public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
+        new(self.Instance.__FindNameAsync.ConfiguredCallCount, "global::TestNamespace.IRepository.FindNameAsync");
+
+    public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
+        new(self.Instance.__Save.ConfiguredCallCount, "global::TestNamespace.IRepository.Save");
+
+    public static global::Compono.CallVerifier Count(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
+        new(self.Instance.__Count.ConfiguredCallCount, "global::TestNamespace.IRepository.Count");
 
 }
 

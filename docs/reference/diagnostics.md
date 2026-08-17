@@ -281,26 +281,27 @@ reached through the interface's transitive closure — a genuine C# overload
 (two members of the same name but a *different* signature) is unaffected
 by this diagnostic; it gets its own per-overload `Configure()`
 surface instead (see `docs/packages/compono-testdoubles.md`'s "Overloaded
-members" section). (`Verify()` call recording isn't shipped yet —
-PLAN-0044 Phase 2.)
+members" section). Verification (`Verify()`) reuses this same per-overload
+surface — a diamond-colliding identity has no `Verify()` surface either.
 
 **Fix:** None needed — that one identity falls back to a deterministic
 default; the rest of the double is unaffected.
 
-## CMP0023 — Test-double interface member collides with `Configure()`
+## CMP0023 — Test-double interface member collides with `Configure()`/`Verify()`
 
 **Severity:** Informational — never fails the build.
 
-**Message:** `'{Interface}' declares its own member named 'Configure'`
+**Message:** `'{Interface}' declares its own member named '{Configure|Verify}'`
 
-**Cause:** The interface declares its own `Configure` member with a
-signature that would shadow the generated `Configure()` bridge — any
-non-method member of that name (property/field/event, which always wins
-over an extension), or a method callable with zero arguments. "Callable
-with zero arguments" is broader than "zero-parameter": `Configure(int
-mode = 0)` (all parameters optional) and `Configure(params int[] modes)`
-(trailing `params`) both collide too, the same applicability rule the C#
-compiler itself uses for overload resolution.
+**Cause:** The interface declares its own `Configure` or `Verify` member
+with a signature that would shadow the corresponding generated bridge —
+any non-method member of that name (property/field/event, which always
+wins over an extension), or a method callable with zero arguments.
+"Callable with zero arguments" is broader than "zero-parameter":
+`Configure(int mode = 0)` (all parameters optional) and
+`Configure(params int[] modes)` (trailing `params`) both collide too, the
+same applicability rule the C# compiler itself uses for overload
+resolution — and likewise for a `Verify`-named member.
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 
@@ -387,9 +388,11 @@ pointer, or a generic type parameter used as `T?`.
 
 **Message:** `'{Interface}' declares set-only property '{Property}'`
 
-**Cause:** The property has a setter but no getter. With no call recording
-or verification in v1, nothing could ever observe a value written through
-it, so it's diagnosed rather than emitted as a no-op.
+**Cause:** The property has a setter but no getter, so there's no
+`ReturnConfig<T>` value to read back — `Configure()` has nothing to
+configure a return for. (`Verify()`'s call *count* is orthogonal to this;
+a set-only property is unsupported because it has no readable value, not
+because of anything to do with verification.)
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 

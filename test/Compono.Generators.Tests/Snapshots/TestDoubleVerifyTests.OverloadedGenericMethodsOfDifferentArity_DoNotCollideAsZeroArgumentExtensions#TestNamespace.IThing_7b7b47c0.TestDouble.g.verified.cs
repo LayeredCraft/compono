@@ -10,12 +10,14 @@ internal sealed class TestNamespace_IThing_7b7b47c0_Double : global::TestNamespa
 
     void global::TestNamespace.IThing.M<T>()
     {
+        __M_467634cd.RecordCall();
         if (__M_467634cd.HasConfiguredException)
             throw __M_467634cd.ConfiguredException;
     }
 
     void global::TestNamespace.IThing.M<T, U>()
     {
+        __M_4478703e.RecordCall();
         if (__M_4478703e.HasConfiguredException)
             throw __M_4478703e.ConfiguredException;
     }
@@ -28,6 +30,34 @@ internal static class TestNamespace_IThing_7b7b47c0_DoubleConfiguration
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> M<T, U>(this global::TestNamespace_IThing_7b7b47c0_Double __self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__M_4478703e);
+
+}
+
+internal readonly struct TestNamespace_IThing_7b7b47c0_DoubleVerifier
+{
+    internal global::TestNamespace_IThing_7b7b47c0_Double Instance { get; }
+
+    internal TestNamespace_IThing_7b7b47c0_DoubleVerifier(global::TestNamespace_IThing_7b7b47c0_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IThing_7b7b47c0_VerifyExtension
+{
+    public static global::TestNamespace_IThing_7b7b47c0_DoubleVerifier Verify(this global::TestNamespace.IThing self) =>
+        new(self as global::TestNamespace_IThing_7b7b47c0_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IThing' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IThing', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IThing_7b7b47c0_DoubleVerification
+{
+    public static global::Compono.CallVerifier M<T>(this global::TestNamespace_IThing_7b7b47c0_DoubleVerifier __self) =>
+        new(__self.Instance.__M_467634cd.ConfiguredCallCount, "global::TestNamespace.IThing.M");
+
+    public static global::Compono.CallVerifier M<T, U>(this global::TestNamespace_IThing_7b7b47c0_DoubleVerifier __self) =>
+        new(__self.Instance.__M_4478703e.ConfiguredCallCount, "global::TestNamespace.IThing.M");
 
 }
 

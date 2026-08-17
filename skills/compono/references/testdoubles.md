@@ -67,8 +67,9 @@ the generated configuration extension for an overloaded member takes the
 same real parameter types the interface overload declares, purely so
 ordinary C# overload resolution picks the right one (the values themselves
 are still discarded, same as the non-overloaded, zero-argument case).
-`Verify()` call-recording isn't shipped yet (PLAN-0044 Phase 2) - don't
-suggest it for an overloaded member any more than for a non-overloaded one:
+`Verify()` reuses this same per-overload surface - `Verify().Speak("hi")`
+selects the same overload-specific counter `Configure().Speak("hi")`
+would:
 
 ```csharp
 public interface IResponseBuilder
@@ -130,12 +131,34 @@ unconstrained, regardless of which constraint; correctly modeling exactly
 when (and with which keyword) a constraint restatement is required isn't
 attempted.
 
+## Call verification (v2)
+
+`Verify()` — parallel to and independent from `Configure()`, returning a
+distinct wrapper so the two never collide — asserts how many times a
+member was actually called
+(`docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`
+Requirement 3). `Never()`/`Once()`/`Exactly(n)` only, argument-independent
+(same as `Configure()`), reusing the same per-overload discriminator
+`Configure()` does:
+
+```csharp
+repository.Configure().CountAsync().Returns(Task.FromResult(5));
+var order = await service.PlaceAsync(3);
+repository.Verify().CountAsync().Once();
+repository.Verify().Save().Once();
+```
+
+A failing assertion throws `Compono.TestDoubleVerificationException` (a
+plain exception, not a framework assertion type). A call counts whether it
+hits configured, default, or thrown behavior.
+
 ## The #1 AutoFixture/NSubstitute-habit trap: not a general mocking framework
 
-There is **no** call recording, **no** verification (`Received()`-style
-assertions), and **no** argument matchers. If a test needs to assert a
-method was called, or needs different return values for different
-arguments, `Compono.TestDoubles` cannot do it — use
+There are **no** argument matchers, **no** argument-aware call recording
+(every count is per-member, not per-argument-combination), and **no**
+call-order verification. If a test needs different return values for
+different arguments, or needs to assert *when* relative to other calls a
+member ran, `Compono.TestDoubles` cannot do it — use
 `Compono.NSubstitute`'s `UseNSubstitute()` for that interface instead (the
 two providers can coexist; registration order decides which one resolves
 first, see below). Don't try to work around the gap by polling state or

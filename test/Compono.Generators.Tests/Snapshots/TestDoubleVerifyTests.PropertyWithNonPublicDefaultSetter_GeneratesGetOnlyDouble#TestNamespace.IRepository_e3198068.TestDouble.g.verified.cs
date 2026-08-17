@@ -9,10 +9,13 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     int global::TestNamespace.IRepository.Value
     {
-        get =>
-            __Value.HasConfiguredException ? throw __Value.ConfiguredException
-            : __Value.HasConfiguredValue ? __Value.ConfiguredValue
-            : default;
+        get
+        {
+            __Value.RecordCall();
+            return __Value.HasConfiguredException ? throw __Value.ConfiguredException
+                : __Value.HasConfiguredValue ? __Value.ConfiguredValue
+                : default;
+        }
     }
 }
 
@@ -20,6 +23,31 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<int> Value(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<int>(ref self.__Value);
+
+}
+
+internal readonly struct TestNamespace_IRepository_e3198068_DoubleVerifier
+{
+    internal global::TestNamespace_IRepository_e3198068_Double Instance { get; }
+
+    internal TestNamespace_IRepository_e3198068_DoubleVerifier(global::TestNamespace_IRepository_e3198068_Double instance) => Instance = instance;
+}
+
+internal static class TestNamespace_IRepository_e3198068_VerifyExtension
+{
+    public static global::TestNamespace_IRepository_e3198068_DoubleVerifier Verify(this global::TestNamespace.IRepository self) =>
+        new(self as global::TestNamespace_IRepository_e3198068_Double
+            ?? throw new global::System.InvalidOperationException(
+                $"'{self.GetType()}' is not the 'global::TestNamespace.IRepository' test double generated for this assembly. " +
+                "If another assembly in this process also generated a double for 'global::TestNamespace.IRepository', only one " +
+                "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
+                "- this is a known v1 limitation, not a bug in your test."));
+}
+
+internal static class TestNamespace_IRepository_e3198068_DoubleVerification
+{
+    public static global::Compono.CallVerifier Value(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
+        new(self.Instance.__Value.ConfiguredCallCount, "global::TestNamespace.IRepository.Value");
 
 }
 
