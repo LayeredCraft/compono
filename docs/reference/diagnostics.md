@@ -351,7 +351,7 @@ diamond collision, a zero-argument-extension collision, an overloaded
 `ref`/`out`/`in` parameter, or (for a method specifically) a collision
 with an inherited `object` member ([ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)).
 Otherwise, that shape generates as **configuration-required** instead —
-see [`CMP0032`](#cmp0032--test-double-members-require-explicit-configuration)
+see [`CMP0032`](#cmp0032-test-double-members-require-explicit-configuration)
 and [Configuration-required members](../packages/compono-testdoubles.md#configuration-required-members).
 
 **Fix:** For the always-rejected shapes (ref-like, by-ref, pointer), none

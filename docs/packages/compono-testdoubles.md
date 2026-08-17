@@ -271,7 +271,7 @@ configuration-required like any other non-nullable reference return, and
 The generator reports `CMP0032` once per interface (a count of how many
 members require configuration, not one per member) so you know to expect
 this before your first unconfigured call - see
-[Diagnostics](../reference/diagnostics.md#cmp0032--test-double-members-require-explicit-configuration).
+[Diagnostics](../reference/diagnostics.md#cmp0032-test-double-members-require-explicit-configuration).
 `CMP0025` still rejects the whole interface, unchanged, for the shapes
 this doesn't apply to: a ref-like, by-ref, or pointer/function-pointer
 return **always**, and a no-default non-nullable reference return when the

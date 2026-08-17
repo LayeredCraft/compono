@@ -13,7 +13,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
         return __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
             : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
-                "'global::TestNamespace.IRepository.GetName' was invoked without being configured - call Configure().GetName(...).Returns(...) or .Throws(...) before invoking it.");
+                "'global::TestNamespace.IRepository.GetName' was invoked without being configured - call Configure().GetName().Returns(...) or .Throws(...) before invoking it.");
     }
 }
 

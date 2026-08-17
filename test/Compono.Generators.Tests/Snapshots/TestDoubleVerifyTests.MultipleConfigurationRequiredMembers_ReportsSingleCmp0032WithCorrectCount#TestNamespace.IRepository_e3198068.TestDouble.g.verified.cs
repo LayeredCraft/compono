@@ -15,7 +15,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
         return __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
             : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
-                "'global::TestNamespace.IRepository.GetName' was invoked without being configured - call Configure().GetName(...).Returns(...) or .Throws(...) before invoking it.");
+                "'global::TestNamespace.IRepository.GetName' was invoked without being configured - call Configure().GetName().Returns(...) or .Throws(...) before invoking it.");
     }
 
     string global::TestNamespace.IRepository.Description
@@ -26,7 +26,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
             return __Description.HasConfiguredException ? throw __Description.ConfiguredException
                 : __Description.HasConfiguredValue ? __Description.ConfiguredValue
                 : throw new global::Compono.TestDoubleNotConfiguredException(
-                    "'global::TestNamespace.IRepository.Description' was invoked without being configured - call Configure().Description(...).Returns(...) or .Throws(...) before invoking it.");
+                    "'global::TestNamespace.IRepository.Description' was invoked without being configured - call Configure().Description().Returns(...) or .Throws(...) before invoking it.");
         }
     }
 

@@ -41,6 +41,7 @@ internal static class TestDoubleEmitter
                 m.IsOverloaded,
                 m.ExtensionReceiverName,
                 m.GenericSuffix,
+                m.ExtensionIsGeneric,
                 m.ConstraintClausesText,
                 m.OriginalName,
                 Kind = m.Kind.ToString(),

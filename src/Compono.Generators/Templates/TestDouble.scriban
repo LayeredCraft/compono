@@ -28,7 +28,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
             : throw new global::Compono.TestDoubleNotConfiguredException(
-                "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}{{ member.generic_suffix }}(...).Returns(...) or .Throws(...) before invoking it.");
+                "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}{{ if member.is_overloaded && member.extension_is_generic }}{{ member.generic_suffix }}{{ end }}({{ if member.is_overloaded }}...{{ end }}).Returns(...) or .Throws(...) before invoking it.");
 {{~ else ~}}
             : {{ member.default_expression }};
 {{~ end ~}}
@@ -56,7 +56,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
                 : throw new global::Compono.TestDoubleNotConfiguredException(
-                    "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
+                    "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}().Returns(...) or .Throws(...) before invoking it.");
 {{~ else ~}}
                 : {{ member.default_expression }};
 {{~ end ~}}
