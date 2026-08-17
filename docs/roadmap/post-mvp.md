@@ -18,7 +18,7 @@ Per `docs/roadmap/index.md`, this page is a status-filtered index of
 capability gaps that are **not yet available** — a shipped capability
 doesn't stay listed here once it's implemented, even though the evidence
 that motivated it remains a permanent part of the record elsewhere (the
-ADR, the research doc, the plan). Three dogfooding passes have run so far:
+ADR, the research doc, the plan). Four dogfooding passes have run so far:
 
 - Milestone 7's pass (migrating `ncipollina/cosmere-tracker`'s
   AutoFixture-based test kit to Compono) surfaced ten findings, **none**
@@ -60,7 +60,7 @@ ADR, the research doc, the plan). Three dogfooding passes have run so far:
   suite fully migrated"** — see the next bullet for why.
 - A fourth pass — PLAN-0044 Phase 5's required re-dogfood of
   `lightsaber-skill` against the shipped v2 package
-  ([RESEARCH-0003](../research/0003-lightsaber-skill-testdoubles-v2-dogfood.md))
+  ([RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md))
   — confirmed the third pass's shipped capabilities work exactly as
   designed (`ILogger<T>` now generates, proving generic-method support),
   but found they weren't the suite's actual dominant blocker. Of the seven
@@ -75,7 +75,7 @@ ADR, the research doc, the plan). Three dogfooding passes have run so far:
   `CMP0025` should still reject the whole interface, or let a double
   generate with just that member requiring explicit configuration before
   invocation — not yet designed (no ADR number assigned; the design pass
-  is the immediate next step, see RESEARCH-0003's "Recommendation").
+  is the immediate next step, see RESEARCH-0004's "Recommendation").
 
 That two of these four dogfooding passes together produced zero
 *outstanding* roadmap items is itself a real, evidence-backed outcome, not

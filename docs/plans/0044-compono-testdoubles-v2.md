@@ -716,7 +716,7 @@ here would have happened before the last phase even ran).
       `Compono.NSubstitute`, since every test using `ILogger<T>` also uses
       a still-`CMP0025`-rejected interface. Full evidence, per-interface
       diagnostic citations, and the classification against ADR-0029's
-      rubric are in [RESEARCH-0003](../research/0003-lightsaber-skill-testdoubles-v2-dogfood.md).
+      rubric are in [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md).
 - [x] Record the result in `docs/roadmap/post-mvp.md`'s finding entry.
 
       **Implementation notes:** Per the measured result above, this
@@ -733,7 +733,7 @@ here would have happened before the last phase even ran).
       no deterministic default, versus generating the double with just
       that member requiring explicit configuration before invocation. Not
       folded into this ADR/plan, per the task's own instruction — recorded
-      as a new candidate pointing at RESEARCH-0003's "Recommendation" for
+      as a new candidate pointing at RESEARCH-0004's "Recommendation" for
       the open design questions, with no ADR number assigned yet (that's
       the design pass's first output, not this phase's).
 - [x] **`docs/plans/README.md` status flip to `Done`.**

@@ -1,4 +1,4 @@
-# [RESEARCH-0003] `lightsaber-skill` Re-Dogfood Against `Compono.TestDoubles` v2
+# [RESEARCH-0004] `lightsaber-skill` Re-Dogfood Against `Compono.TestDoubles` v2
 
 **Status:** Done (dogfooding pass complete; no migration merged — see
 "Scope" below)

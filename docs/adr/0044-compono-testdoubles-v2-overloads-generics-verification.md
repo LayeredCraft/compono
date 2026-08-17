@@ -1851,7 +1851,7 @@ default), `IOptions<T>.Value` returns the concrete options class, and
 `ILambdaContext.AwsRequestId` returns a non-nullable `string`. `CMP0025`
 is ADR-0043 v1 Finding K, which predates this ADR entirely — whoever
 wrote this ADR's Context section didn't check the three "would generate
-cleanly" interfaces against that rule. [RESEARCH-0003](../research/0003-lightsaber-skill-testdoubles-v2-dogfood.md)
+cleanly" interfaces against that rule. [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md)
 has the full corrected accounting, verified with a real `dotnet build
 -v:diag` run against `lightsaber-skill`, not inferred by eye.
 
@@ -1874,14 +1874,14 @@ This is not a defect in this ADR's implementation — its three Requirements
 were built and validated exactly as scoped — it's evidence that `CMP0025`,
 not overloads/generics/verification, is the suite's real dominant
 constraint. That's a new, separate roadmap candidate
-([RESEARCH-0003](../research/0003-lightsaber-skill-testdoubles-v2-dogfood.md)'s
+([RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md)'s
 "Recommendation"), deliberately **not** folded into this ADR or
 PLAN-0044 — PLAN-0044's own scope is complete and this ADR's decisions
 stand unchanged.
 
 ## Links
 
-- [RESEARCH-0003](../research/0003-lightsaber-skill-testdoubles-v2-dogfood.md) —
+- [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
   the PLAN-0044 Phase 5 dogfood pass Amendment 17 records and corrects
   this ADR's Context section against.
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
