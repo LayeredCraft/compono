@@ -647,6 +647,22 @@ already exists from those phases:
       whole-interface-fallback codes — the actual count is nine (`CMP0020`,
       `CMP0021`, `CMP0023`-`CMP0028`, `CMP0031`); corrected the count here.
 
+      A fourth Codex pass caught three more, all fixed: (1) the CMP0024
+      row's `Equals`-collision qualifier was still too broad — a generic
+      `Equals<T>(T)` overload stays distinguishable by explicit type
+      argument, and a ref-like-parameter overload (`Equals(Span<int>)`) has
+      no reference conversion to `object` at all, so neither actually
+      collides; reworded to a non-generic, non-ref-like single-required-
+      parameter qualifier, matching `docs/reference/diagnostics.md`'s own
+      language. (2)/(3) two more downstream doc summaries were still capped
+      at `CMP0028` and claiming universal whole-interface fallback:
+      `docs/getting-started/ai-agent-skill.md`'s "What it does" section and
+      `docs/troubleshooting/common-errors.md`'s diagnostic-code section —
+      updated both to `CMP0031` and added the scoped-code caveat to the
+      latter. Also swept the whole repo for any other `CMP0020`-`CMP0028`-
+      style range caps or "generic methods unsupported" claims outside
+      historical/ADR context — none found beyond what's already fixed.
+
 This phase completes and ships on its own — the roadmap-graduation and
 plan-status tasks originally listed here move to Phase 5 below, where
 they're actually completable (corrected per Codex review, Finding 18: as
