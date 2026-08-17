@@ -683,6 +683,62 @@ case: an object-member-collision-shaped method (`ToString`/`GetHashCode`/
 `GetType`/`Equals`) with a no-default return type, confirming `CMP0024`
 still fires unchanged and `CMP0032`'s count is unaffected.
 
+## Amendment 6 (2026-08-17): withdraw Amendment 5's "already safe" conclusion — the object-collision predicate must be hoisted into the gate, not left to a downstream `Failure(...)`
+
+Codex review caught that Amendment 5's own reasoning was wrong, using
+Amendment 5's own evidence against it. Withdrawn, not edited in place,
+per this ADR's immutability rule — the same "withdraw a previous
+Amendment's conclusion" pattern ADR-0044 Amendment 9 already used in this
+repo.
+
+**Finding — Amendment 5 mischaracterized *today's* disposition for the
+combined shape it analyzed.** `TestDoubleAnalyzer`'s per-member checks run
+in a fixed sequence, and the *first* one to fail wins (via an immediate
+`return Failure(...)`). Today, the return-type default-lookup check
+(`TestDoubleAnalyzer.cs:453-456`) runs *before* the object-collision check
+(lines 524-555) — so a method combining "no deterministic default" with
+an object-member-collision shape (`ToString`/`GetHashCode`/`GetType`/
+`Equals`) is rejected **today** via `CMP0025`, not `CMP0024` — the
+object-collision check never even runs, because the return-type check
+already returned. Amendment 5 claimed the *opposite*: that letting
+execution continue past the (now-gated) return-type check to reach the
+object-collision check later "confirms it's already safe by construction
+... unchanged from today." That's backwards. Under Amendment 3's gate as
+stated, this combined member would newly reach the object-collision check
+(since none of Amendment 3's three named flags apply to it) and get
+rejected via `CMP0024` **instead of** `CMP0025` — a real, consumer-visible
+diagnostic-identity change for an unchanged input shape, exactly the kind
+of stability regression `AGENTS.md`'s diagnostic-consistency guidance
+rules out. `Failure(...)` discarding provisional local state (Amendment
+5's actual finding) is true and irrelevant to this specific claim — it
+explains why no member ever ends up in an inconsistent *partial* state,
+not which diagnostic code the consumer ultimately sees.
+
+**Corrected:** the object-member-collision predicate must be evaluated
+*before* the return-type default-lookup check, as a fourth named
+condition in Amendment 3's gate — not left to the object-collision
+check's own later, unconditional `Failure(...)` to "catch" retroactively.
+Every input the collision check's condition depends on
+(`hasConfigurationSurface`, `method.IsGenericMethod`, `isOverloaded`,
+`method.Name`, `method.Parameters`) is already available earlier in
+`TestDoubleAnalyzer`'s per-member sequence (before line 449) — the fix is
+to hoist the *predicate itself* (would this method's name/arity collide
+with `object`, exactly the same logic the existing check at lines 524-555
+already computes) into a boolean evaluated alongside
+`isDiamondCollision`/`isZeroArgCollision`/`hasRefOutInParameter`, reusing
+that single computed value both at the new gate and at the object-
+collision check's original location (replacing its own ad hoc
+re-computation there) — not duplicating the logic in two places that
+could drift apart. With this fix, the combined shape keeps its exact
+current `CMP0025` disposition, unchanged, matching every other combined
+shape Amendment 3 already covers.
+
+PLAN-0045's Phase 0 analyzer task and its combined-shape regression test
+are corrected in the same pass: the object-collision case now asserts
+`CMP0025` (not `CMP0024`, as Amendment 5 incorrectly stated), and the
+analyzer task describes hoisting the predicate rather than relying on
+`Failure(...)`'s discard behavior.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —

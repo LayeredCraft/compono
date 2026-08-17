@@ -73,16 +73,25 @@ depends on its own type parameter); special-casing fluent self-return
       a property's type), stop returning whole-interface `Failure(...)`
       for the "non-nullable reference, no deterministic default" case —
       **but only when the member would otherwise have a real
-      `HasConfigurationSurface` (Amendment 3)**: genuinely-unimplementable
-      shapes (by-ref, pointer, ref-like, checked separately just above
-      these two call sites) keep failing exactly as today, and so does a
-      member that combines "no deterministic default" with "no
-      configuration surface for an unrelated reason" (a diamond-colliding
-      identity, a zero-argument-extension collision, or an overloaded
-      `ref`/`out`/`in` parameter) — reuse whichever of
-      `isDiamondCollision`/`isZeroArgCollision`/`hasRefOutInParameter` is
+      `HasConfigurationSurface` (Amendment 3, corrected by Amendment 6)**:
+      genuinely-unimplementable shapes (by-ref, pointer, ref-like, checked
+      separately just above these two call sites) keep failing exactly as
+      today, and so does a member that combines "no deterministic
+      default" with "no configuration surface for an unrelated reason" —
+      a diamond-colliding identity, a zero-argument-extension collision,
+      an overloaded `ref`/`out`/`in` parameter, **or an object-member-
+      collision shape** (`ToString`/`GetHashCode`/`GetType`/`Equals`,
+      Amendment 6 — hoist this predicate's evaluation to before this
+      check, reusing the same logic the existing object-collision check
+      at lines ~524-555 already computes, rather than relying on that
+      later check's own `Failure(...)` to catch it retroactively; that
+      would change the diagnostic this combined shape produces from
+      `CMP0025` today to `CMP0024`, which Amendment 6 rules out). Reuse
+      whichever of `isDiamondCollision`/`isZeroArgCollision`/
+      `hasRefOutInParameter`/the hoisted object-collision predicate is
       already computed at that point rather than adding new detection
-      logic. Only when a real surface would exist: mark the member as
+      logic beyond that one hoist. Only when a real surface would exist:
+      mark the member as
       configuration-required (member-scoped for *generation* purposes,
       following the same shape `CMP0030`'s out-parameter exclusion
       already uses to keep an interface generating while excluding just
@@ -114,17 +123,18 @@ depends on its own type parameter); special-casing fluent self-return
       unaffected, (e) `CMP0025` still fires unchanged for a genuinely
       unimplementable shape on a *different* interface (regression
       coverage — this ADR narrows `CMP0025`'s scope, doesn't remove its
-      remaining trigger), (f) **`CMP0025`/`CMP0024` also still fire
-      unchanged for the combined shapes Amendments 3 and 5 identify** —
-      an overloaded `ref`/`out`/`in` member with a no-default return type,
-      a diamond-colliding member with a no-default return type, and an
-      object-member-collision-shaped method (`ToString`/`GetHashCode`/
-      `GetType`/`Equals`) with a no-default return type (Amendment 5 —
-      this one relies on `Failure(...)` unconditionally discarding any
-      provisional configuration-required marking, so it's worth proving
-      empirically, not just trusting the Amendment's own reasoning) —
-      each on an interface that also has an unrelated, genuinely
-      configuration-required member, confirming the combined-shape gate
+      remaining trigger), (f) **`CMP0025` also still fires unchanged
+      (never `CMP0024`) for every combined shape Amendments 3 and 6
+      identify** — an overloaded `ref`/`out`/`in` member with a no-default
+      return type, a diamond-colliding member with a no-default return
+      type, and an object-member-collision-shaped method
+      (`ToString`/`GetHashCode`/`GetType`/`Equals`) with a no-default
+      return type (Amendment 6 — this one specifically asserts `CMP0025`,
+      *not* `CMP0024`, since Amendment 5's original "it'll just fall
+      through to the object-collision check and get CMP0024, which is
+      fine" reasoning was itself wrong and withdrawn) — each on an
+      interface that also has an unrelated, genuinely configuration-
+      required member, confirming the combined-shape gate
       doesn't accidentally suppress `CMP0025`/`CMP0024` or leak a
       surfaceless member into `CMP0032`'s count.
 - [ ] `test/Compono.TestDoubles.Tests/`: packaged-consumer behavior tests
@@ -136,20 +146,35 @@ depends on its own type parameter); special-casing fluent self-return
       `ProjectReference` to `Compono.TestDoubles`, not a packaged
       `.nupkg` consumer — see the packaged smoke test below for the
       cross-assembly proof this alone doesn't provide.
+- [ ] **Async coverage, moved here from a later phase per Codex review**:
+      `test/Compono.TestDoubles.Tests/` (or `SampleTests`) tests for a
+      `Task<TReference>`-returning configuration-required member and a
+      `ValueTask<TReference>`-returning one, both states (unconfigured
+      throws, configured returns/throws). Phase 0's own analyzer change
+      applies to every no-default return shape including these two — this
+      plan's "no separate implementation needed for async" claim
+      (ADR-0045's "Async returns" section) is explicitly a hypothesis, not
+      a certainty, so Phase 0 must not ship as its own mergeable PR
+      without confirming it empirically first; deferring this to a later
+      phase risked shipping a broken generated async member in between.
+      If this surfaces a real gap (contrary to the ADR's expectation),
+      record it as an ADR-0045 Amendment before proceeding, per this
+      repo's Amendment convention — don't silently patch around it.
 - [ ] **Packaged-consumer smoke test, this phase's own shape only**
       (added per Codex review — matching PLAN-0044's own established
       pattern, added there for the identical reason: `dotnet pack` core
       `Compono`/`Compono.Generators` into a local feed, a throwaway
       consumer project referencing the packed `.nupkg` (never a
       `ProjectReference`) with `ComponoGeneratedTestDoubles=true`,
-      exercising a configuration-required method, property, and the
-      combined-shape regression case end to end with a real `dotnet
-      build`/`dotnet run`. PLAN-0044's own Notes record that every defect
-      its review round found (`CS0122`, `CS0460`, `CS0111`, `CS0214`,
-      `CS0177`) was exactly the class of cross-assembly compile failure an
-      in-process snapshot test cannot catch — this phase does not ship
-      (its own PR does not merge) until this smoke test is green, rather
-      than deferring all packaged proof to Phase 2.
+      exercising a configuration-required method, property, an async
+      (`Task<TReference>`) member, and the combined-shape regression case
+      end to end with a real `dotnet build`/`dotnet run`. PLAN-0044's own
+      Notes record that every defect its review round found (`CS0122`,
+      `CS0460`, `CS0111`, `CS0214`, `CS0177`) was exactly the class of
+      cross-assembly compile failure an in-process snapshot test cannot
+      catch — this phase does not ship (its own PR does not merge) until
+      this smoke test is green, rather than deferring all packaged proof
+      to Phase 2.
 - [ ] **Docs, this phase's own shape** (moved here from a later docs-only
       phase per Codex review — matching PLAN-0044's own precedent for the
       identical reason: `references/documentation.md`'s "update the
@@ -183,18 +208,20 @@ depends on its own type parameter); special-casing fluent self-return
     `Compono.NSubstitute` should now expect some generated members to
     require explicit `Returns(...)`/`Throws(...)` before use, rather than
     assuming "it generated, therefore every call is safe unconfigured."
+  - `docs/troubleshooting/common-errors.md`, `docs/getting-started/ai-agent-skill.md`,
+    **and `skills/compono/SKILL.md`** (three separate `CMP0020`-`CMP0031`
+    range caps found there via a repo-wide search — its trigger-metadata
+    description, workflow step 6, and reference-routing table entry, the
+    same three spots PLAN-0044 Phase 4 updated for `CMP0031`): bump every
+    already-identified `CMP0020`-`CMP0031` range cap to `CMP0020`-`CMP0032`.
+    Moved here from a later consistency-pass phase per Codex review —
+    these are already-known stale locations, not something a later sweep
+    needs to discover; deferring already-identified staleness left
+    consumer- and agent-facing entry points describing a smaller
+    diagnostic range than what Phase 0 actually ships.
 
-### Phase 1 — Async and fluent-return regression coverage (Not Started)
+### Phase 1 — Fluent-return regression coverage (Not Started)
 
-- [ ] `test/Compono.TestDoubles.Tests/` (or `SampleTests`): a
-      `Task<TReference>`-returning configuration-required member and a
-      `ValueTask<TReference>`-returning one, both states (unconfigured
-      throws, configured returns/throws) — proving ADR-0045's "no
-      separate implementation needed" claim empirically, not just by
-      design reasoning. If this surfaces a real gap (contrary to the
-      ADR's expectation), record it as an ADR-0045 Amendment before
-      proceeding, per this repo's Amendment convention — don't silently
-      patch around it.
 - [ ] A fluent self-returning member (`IResponseBuilder`-shaped: a method
       returning the interface itself) — confirm it's configuration-
       required like any other non-nullable reference return (no special
@@ -237,23 +264,21 @@ at all.
 
 ### Phase 3 — Documentation consistency pass (Not Started)
 
-Every doc touch introducing this feature's own behavior already happened
-in Phase 0 (moved there per Codex review, matching PLAN-0044's own
-precedent — see Phase 0's "Docs, this phase's own shape" task). Unlike
-PLAN-0044 (which phased overloads/generics/verification across three
-separate PRs and needed a real cross-cutting consistency pass), this
-plan's only behavior-introducing phase is Phase 0 — so this phase is
-narrower: a final repo-wide sweep for anything Phase 0's own doc task
-wouldn't have touched directly.
+Every doc touch introducing this feature's own behavior, and every
+already-identified stale reference, already happened in Phase 0 (moved
+there per Codex review — see Phase 0's "Docs, this phase's own shape"
+task, which now includes every location a repo-wide search found before
+this phase was even reached). Unlike PLAN-0044 (which phased overloads/
+generics/verification across three separate PRs and needed a real
+cross-cutting consistency pass), this plan's only behavior-introducing
+phase is Phase 0 — so this phase is narrower still: a final proactive
+sweep for anything genuinely not yet discovered, run once Phases 0-2 have
+actually shipped and there's real code to check docs against.
 
-- [ ] Re-check `docs/troubleshooting/common-errors.md` and
-      `docs/getting-started/ai-agent-skill.md` for the same stale-range-
-      cap pattern PLAN-0044 Phase 4 found and fixed there (`CMP0020`-
-      `CMP0031` ranges now need to include `CMP0032`).
-- [ ] Grep the repo for any other stale `CMP0020`-`CMP0031`-style range
-      caps or "returning a non-nullable reference always rejects" claims
-      outside historical/ADR context, matching the proactive sweep
-      PLAN-0044 Phase 4 ran before its own final push.
+- [ ] Grep the repo for any stale `CMP0020`-`CMP0031`-style range cap or
+      "returning a non-nullable reference always rejects" claim that
+      wasn't already caught by Phase 0's own search, matching the
+      proactive sweep PLAN-0044 Phase 4 ran before its own final push.
 
 ### Phase 4 — Third `lightsaber-skill` dogfood (Not Started)
 
@@ -300,11 +325,13 @@ wouldn't have touched directly.
   new coverage per phase above.
 - `docs/packages/compono-testdoubles.md`, `docs/reference/diagnostics.md`,
   `skills/compono/references/diagnostics.md`,
-  `skills/compono/references/testdoubles.md` — doc/skill alignment for
-  this feature's own behavior (Phase 0, per Codex review).
-- `docs/troubleshooting/common-errors.md`,
-  `docs/getting-started/ai-agent-skill.md` — final stale-range-cap sweep
-  (Phase 3).
+  `skills/compono/references/testdoubles.md`,
+  `docs/troubleshooting/common-errors.md`,
+  `docs/getting-started/ai-agent-skill.md`, `skills/compono/SKILL.md` —
+  doc/skill alignment for this feature's own behavior, including every
+  already-identified stale `CMP0020`-`CMP0031` range cap (Phase 0, per
+  Codex review — moved out of a later phase since these were already
+  known, not left for a later sweep to discover).
 - `docs/roadmap/post-mvp.md`, a new `docs/research/000N-*.md` — Phase 4's
   dogfood result.
 
@@ -312,20 +339,26 @@ wouldn't have touched directly.
 
 Matches `references/testing.md`'s existing pattern for this feature area
 (established by PLAN-0043/PLAN-0044): generator-level snapshot/behavior
-tests for the analysis and diagnostic changes (Phase 0), packaged-consumer
+tests for the analysis and diagnostic changes, plus packaged-consumer
 behavior tests for the three dispatch states (unconfigured throws,
 configured-return, configured-throws) across the sync/property/async
-shapes (Phases 0-1), a real `PublishAot=true` execution proof rather than
-static AOT-safety analysis (Phase 2, "prove it, don't assume it"), and a
-real external-project dogfooding pass as the final acceptance test
-(Phase 4) rather than relying on in-repo tests alone to validate the
-real-world claim this ADR is motivated by.
+shapes — all in Phase 0, since that's the phase that actually ships the
+behavior and Phase 0 doesn't merge without this coverage (Codex review);
+Phase 1 adds fluent-self-return-specific regression coverage on top. A
+real `PublishAot=true` execution proof rather than static AOT-safety
+analysis (Phase 2, "prove it, don't assume it"), and a real external-
+project dogfooding pass as the final acceptance test (Phase 4) rather
+than relying on in-repo tests alone to validate the real-world claim this
+ADR is motivated by.
 
 ## Notes
 
-Phase 1's "no separate implementation needed for async" expectation
+Phase 0's "no separate implementation needed for async" expectation
 (ADR-0045's own reasoning, based on `ReturnConfig<T>` already being
 generic over the member's real declared return type) is a hypothesis
-carried into the plan, not a certainty — Phase 1's task list explicitly
-calls for recording an ADR-0045 Amendment if implementation proves it
-wrong, rather than silently reshaping the plan around a surprise.
+carried into the plan, not a certainty — moved from a later phase into
+Phase 0 itself per Codex review, since Phase 0 ships as its own mergeable
+PR and touches every no-default return shape including async ones. Phase
+0's task list explicitly calls for recording an ADR-0045 Amendment if
+implementation proves the hypothesis wrong, rather than silently
+reshaping the plan around a surprise.
