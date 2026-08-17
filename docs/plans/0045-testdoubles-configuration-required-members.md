@@ -16,10 +16,11 @@ invoked before `Configure().Member(...).Returns(...)`/`.Throws(...)` is
 called, via the new `CMP0032` diagnostic (one per interface, not one per
 member). A member with no deterministic default that *also* has no
 configuration surface for an unrelated reason (a diamond collision, a
-zero-argument-extension collision, an overloaded `ref`/`out`/`in`
-parameter) is unaffected — it keeps its unchanged `CMP0025` whole-
-interface rejection, same as today, so no member ever ends up throwing
-unconditionally with no way to configure it. A real
+zero-argument-extension collision, an object-member collision, or an
+overloaded `ref`/`out`/`in` parameter) is unaffected — it keeps its
+unchanged `CMP0025` whole-interface rejection, same as today, so no
+member ever ends up throwing unconditionally with no way to configure it.
+A real
 `dotnet publish -p:PublishAot=true` run proves the new dispatch shape
 stays AOT-safe, and a third `lightsaber-skill` dogfooding pass measures
 whether real tests can now actually drop `Compono.NSubstitute` — not just
