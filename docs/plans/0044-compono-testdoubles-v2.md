@@ -531,6 +531,31 @@ still-unsupported shapes, class/protected/static-abstract-member support.
       baseline, differing from the `Interlocked.Increment` arm only in
       atomicity, as intended.
 
+      **Beyond the plan's original two benchmarks** — with both
+      `Compono.TestDoubles` and `Compono.NSubstitute` now available side
+      by side, added
+      `benchmarks/Compono.Benchmarks/FeatureOverhead/GeneratedTestDoubleVsNSubstituteBenchmarks.cs`:
+      the concrete number behind `Compono.TestDoubles`'
+      `docs/packages/compono-testdoubles.md`'s own stated rationale (an
+      AOT-safe alternative to `Compono.NSubstitute`'s runtime-proxy
+      dependency for the common case). Both arms compose the identical
+      `IClock` leaf, varying only which provider satisfies it — same
+      baseline-vs-alternative shape as the pre-existing
+      `NSubstituteOverheadBenchmarks`, not a general "which mock framework
+      wins" exercise (which ADR-0034 disallows).
+
+      | Method | Mean | Ratio | Allocated | Alloc Ratio |
+      |---|---|---|---|---|
+      | `ClockViaGeneratedTestDouble` (baseline) | 135.6 ns | 1.00 | 1.3 KB | 1.00 |
+      | `ClockViaNSubstitute` | 914.4 ns | 6.75 | 6.52 KB | 4.99 |
+
+      A real, meaningful result this time (unlike the two benchmarks
+      above): the generated double is ~6.75x faster and allocates ~5x
+      less than resolving the same interface through NSubstitute's
+      runtime proxy, on this hardware — proxy generation/interception
+      machinery costs real time and memory that a compile-time-emitted
+      double simply doesn't pay.
+
 ### Phase 4 — Documentation consistency pass
 
 Retitled and reduced from an original "write all the docs here" phase,
