@@ -52,6 +52,19 @@ depends on its own type parameter); special-casing fluent self-return
 - [ ] `src/Compono/TestDoubleNotConfiguredException.cs`: new `sealed`
       exception type, message-only constructor, matching
       `TestDoubleVerificationException`'s exact shape.
+- [ ] `docs/reference/api/Compono/`: regenerate the API reference pages
+      for the new public `TestDoubleNotConfiguredException` type and its
+      constructor (per Codex review — ADR-0032's toolchain/CI gate checks
+      the committed generated reference for drift; the analogous
+      `TestDoubleVerificationException` change committed both a type page
+      and a constructor page, matching shape expected here).
+- [ ] `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: add the
+      `CMP0032` entry (per Codex review —
+      `Compono.Generators.csproj`'s `EnforceExtendedAnalyzerRules` makes
+      this a required Roslyn analyzer-release-tracking file; every
+      existing `CMP00xx` descriptor already has a matching row here, and
+      Phase 0 doesn't build clean without adding this one alongside the
+      descriptor task below).
 - [ ] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
       `CMP0032` ("Test-double member(s) require explicit configuration"),
       `DiagnosticSeverity.Info`, **interface-scoped, count-only message
@@ -324,6 +337,10 @@ actually shipped and there's real code to check docs against.
 ## Critical Files
 
 - `src/Compono/TestDoubleNotConfiguredException.cs` — new exception type.
+- `docs/reference/api/Compono/` — regenerated pages for the new
+  exception type/constructor (ADR-0032's toolchain, drift-checked in CI).
+- `src/Compono.Generators/AnalyzerReleases.Unshipped.md` — new `CMP0032`
+  row (required by `EnforceExtendedAnalyzerRules`).
 - `src/Compono/ReturnConfig.cs`, `ReturnConfigBuilder.cs` — unchanged,
   reused as-is; listed for reviewer visibility that nothing here changes.
 - `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` — new
