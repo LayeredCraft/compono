@@ -1,0 +1,432 @@
+# [PLAN-0045] Compono.TestDoubles: Configuration-Required Members
+
+**Status:** Not Started
+
+**Implements:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+
+## Goal
+
+A `Compono.TestDoubles` member (property or method, including through
+`Task<T>`/`ValueTask<T>`) that returns a non-nullable reference type with
+no deterministic default no longer rejects its whole interface at
+generation time, **provided the member would otherwise have a real
+`Configure()`/`Verify()` surface** — the interface generates, and that
+specific member throws a clear `TestDoubleNotConfiguredException` if
+invoked before `Configure().Member(...).Returns(...)`/`.Throws(...)` is
+called, via the new `CMP0032` diagnostic (one per interface, not one per
+member). A member with no deterministic default that *also* has no
+configuration surface for an unrelated reason (a diamond collision, a
+zero-argument-extension collision, an overloaded `ref`/`out`/`in`
+parameter — or, for a *method* specifically, an object-member collision;
+a colliding *property* already rejects via `CMP0024` before its return
+type is even checked, unaffected either way, Amendment 7) is unaffected —
+it keeps its unchanged `CMP0025` whole-interface rejection, same as
+today, so no member ever ends up throwing unconditionally with no way to
+configure it. A real
+`dotnet publish -p:PublishAot=true` run proves the new dispatch shape
+stays AOT-safe, and a third `lightsaber-skill` dogfooding pass measures
+whether real tests can now actually drop `Compono.NSubstitute` — not just
+how many interfaces generate.
+
+## Scope
+
+Builds exactly what [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
+decided: a new member-scoped dispatch fallback (throw instead of a
+computed default) for the one specific `CMP0025` sub-case ADR-0045
+identifies, reusing the existing `ReturnConfig<T>`/`ReturnConfigBuilder<T>`
+state machinery unchanged, plus one new exception type
+(`TestDoubleNotConfiguredException`) and one new diagnostic (`CMP0032`).
+Explicitly deferred/out of scope, per ADR-0045's own boundaries: relaxing
+whole-interface rejection for any other unsupported shape (pointer
+parameters, `ref`/`out`/`in` parameters without a sibling overload,
+unconstrained `T?` type parameters, a generic method whose return type
+depends on its own type parameter); special-casing fluent self-return
+(rejected in ADR-0045); manufacturing or composing return values
+(rejected in ADR-0045); reopening ADR-0044/PLAN-0044 (both stay
+`Accepted`/`Done`, untouched).
+
+## Tasks
+
+### Phase 0 — Configuration-required return semantics (Not Started)
+
+- [ ] `src/Compono/TestDoubleNotConfiguredException.cs`: new `sealed`
+      exception type, message-only constructor, matching
+      `TestDoubleVerificationException`'s exact shape.
+- [ ] `docs/reference/api/Compono/`: regenerate the API reference pages
+      for the new public `TestDoubleNotConfiguredException` type and its
+      constructor (per Codex review — ADR-0032's toolchain/CI gate checks
+      the committed generated reference for drift; the analogous
+      `TestDoubleVerificationException` change committed both a type page
+      and a constructor page, matching shape expected here).
+- [ ] `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: add the
+      `CMP0032` entry (per Codex review —
+      `Compono.Generators.csproj`'s `EnforceExtendedAnalyzerRules` makes
+      this a required Roslyn analyzer-release-tracking file; every
+      existing `CMP00xx` descriptor already has a matching row here, and
+      Phase 0 doesn't build clean without adding this one alongside the
+      descriptor task below).
+- [ ] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
+      `CMP0032` ("Test-double member(s) require explicit configuration"),
+      `DiagnosticSeverity.Info`, **interface-scoped, count-only message
+      text** (per ADR-0045 Amendment 1: one diagnostic per interface,
+      fired once with a count of how many members require configuration,
+      not one per member — avoids diagnostic-noise blowup on a large
+      real-world interface like `IAmazonS3`; the exact member identity is
+      supplied precisely by `TestDoubleNotConfiguredException` at the
+      point a configuration-required member is actually invoked
+      unconfigured, so the diagnostic doesn't need to enumerate members by
+      name to stay useful). **`CMP0025`'s message text/descriptor is
+      unchanged** (ADR-0045 Amendment 4 — it still describes all four of
+      its original shape sub-cases, including "a non-nullable reference
+      type with no deterministic default"): only the *condition* for
+      reaching that fourth branch changes, per the analyzer task below —
+      it now fires only when the member wouldn't have had a configuration
+      surface anyway (Amendment 3's combined-shape case); every other
+      no-default member takes the new `CMP0032` path instead.
+- [ ] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: at the
+      method-return-type check (`TryGetDefaultExpression` failure for a
+      method's return type) and the property-type check (same failure for
+      a property's type), stop returning whole-interface `Failure(...)`
+      for the "non-nullable reference, no deterministic default" case —
+      **but only when the member would otherwise have a real
+      `HasConfigurationSurface` (Amendment 3, corrected by Amendment 6)**:
+      genuinely-unimplementable shapes (by-ref, pointer, ref-like, checked
+      separately just above these two call sites) keep failing exactly as
+      today, and so does a member that combines "no deterministic
+      default" with "no configuration surface for an unrelated reason" —
+      a diamond-colliding identity, a zero-argument-extension collision,
+      an overloaded `ref`/`out`/`in` parameter, **or, for the *method*
+      branch specifically, an object-member-collision shape**
+      (`ToString`/`GetHashCode`/`GetType`/`Equals`, Amendment 6 — hoist
+      this predicate's evaluation to before this check, reusing the same
+      logic the existing object-collision check at lines ~524-555 already
+      computes, rather than relying on that later check's own
+      `Failure(...)` to catch it retroactively; that would change the
+      diagnostic this combined shape produces from `CMP0025` today to
+      `CMP0024`, which Amendment 6 rules out). **The property branch needs
+      no corresponding change (Amendment 7)** — its own object-collision
+      check (lines ~732-737) already runs *before* its return-type check
+      (lines ~766-769), the reverse of the method branch's order, so a
+      colliding property already rejects via `CMP0024` unconditionally
+      today, independent of its return type; do not reorder or touch the
+      property branch's existing check sequence. Reuse whichever of
+      `isDiamondCollision`/`isZeroArgCollision`/`hasRefOutInParameter`/the
+      hoisted object-collision predicate is already computed at that
+      point (method branch only) rather than adding new detection logic
+      beyond that one hoist. Only when a real surface would exist: mark
+      the member as
+      configuration-required (member-scoped for *generation* purposes,
+      following the same shape `CMP0030`'s out-parameter exclusion
+      already uses to keep an interface generating while excluding just
+      one member's full surface) and collect it into a per-interface
+      count, the same "collect across the member-walk" shape `CMP0028`
+      already uses. After the full member walk, if that count is nonzero,
+      emit exactly one `CMP0032` for the interface, naming the interface
+      and the count — not one per member (Amendment 1).
+- [ ] `src/Compono.Generators/Emitters/TestDoubleEmitter.cs` /
+      `src/Compono.Generators/Templates/TestDouble.scriban`: new dispatch-
+      body branch for a configuration-required member — identical
+      `RecordCall()`/`HasConfiguredException`/`HasConfiguredValue` shape
+      every member already has, with the final fallback emitting
+      `throw new global::Compono.TestDoubleNotConfiguredException(...)`
+      (a fully literal, generation-time-computed message: interface name,
+      member name and signature, the fix hint) instead of a computed
+      default expression. `Configure()`/`Verify()` extension generation
+      for this member is **unchanged** — it already works for any `T`
+      regardless of whether `T` has a default, since
+      `ReturnConfigBuilder<T>.Returns`/`.Throws` never depended on one.
+- [ ] `test/Compono.Generators.Tests/`: generator snapshot/behavior tests
+      — a configuration-required method member, a configuration-required
+      property member, confirming (a) the interface still generates, (b)
+      exactly **one** `CMP0032` fires for the interface with the correct
+      count in its text (not one per member), (c) an interface with
+      *multiple* configuration-required members (an `IAmazonS3`-shaped
+      regression case) still emits exactly one `CMP0032`, with the count
+      matching, (d) every other member on the same interface is
+      unaffected, (e) `CMP0025` still fires unchanged for a genuinely
+      unimplementable shape on a *different* interface (regression
+      coverage — this ADR narrows `CMP0025`'s scope, doesn't remove its
+      remaining trigger), (f) **`CMP0025` also still fires unchanged
+      (never `CMP0024`) for every combined shape Amendments 3 and 6
+      identify — all four of them, not a subset**: an overloaded
+      `ref`/`out`/`in` member with a no-default return type, a
+      diamond-colliding member with a no-default return type, a
+      same-named zero-argument-extension-colliding member with a
+      no-default return type (Amendment 3's third named condition — a
+      naive gate checking only the other three would mark this one
+      configuration-required despite its `Configure()` surface being
+      withheld, generating a member that throws unconditionally forever),
+      and an object-member-collision-shaped method
+      (`ToString`/`GetHashCode`/`GetType`/`Equals`) with a no-default
+      return type (Amendment 6 — this one specifically asserts `CMP0025`,
+      *not* `CMP0024`, since Amendment 5's original "it'll just fall
+      through to the object-collision check and get CMP0024, which is
+      fine" reasoning was itself wrong and withdrawn) — each on an
+      interface that also has an unrelated, genuinely configuration-
+      required member, confirming the combined-shape gate
+      doesn't accidentally suppress `CMP0025`/`CMP0024` or leak a
+      surfaceless member into `CMP0032`'s count.
+- [ ] **Do not enable generation in `test/Compono.TestDoubles.Tests`**
+      (superseding the previous round's plan, per Codex review — a real
+      correctness bug in that earlier fix, not just a missing property).
+      That project's `GeneratedTestDoubleProviderTests.cs`,
+      `PrecedenceTests.cs`, and `CompositionBuilderExtensionsTests.cs`
+      each declare their own trivially-generatable fixture interfaces
+      (`IRepository`, `IUnregisteredRepository`, `IGateway`, `IService`)
+      and hand-call `GeneratedTestDoubleRegistry.RegisterFactory<T>(...)`
+      *after* composition starts, specifically to test hand-managed
+      registry/precedence behavior — `RegisterFactory` is first-
+      registration-wins (ADR-0043 Amendment 3), and a `[ModuleInitializer]`
+      always runs before any test method, so enabling generation
+      project-wide would let the generator discover these same fixture
+      interfaces (each is referenced via a real `Composer.Create<T>()`
+      call, a real discovery root) and silently register generated
+      factories for them *before* the hand calls ever run — making the
+      hand registration a no-op and flipping `TryProvide_DoesNotHandle_AnInterfaceWithNoRegisteredFactory`
+      from "throws" to "succeeds". At least three existing test files
+      would break, silently, with no compile-time signal.
+- [ ] `test/Compono.TestDoubles.SampleTests/`: new
+      `ConfigurationRequiredMemberTests.cs` (matching the one-file-per-
+      shape pattern this project's sibling files already establish —
+      `GeneratedDoubleTests.cs`, `OverloadedMemberTests.cs`,
+      `GenericMemberTests.cs`, `VerificationTests.cs`) — a configuration-
+      required member throws `TestDoubleNotConfiguredException` when
+      unconfigured, returns the configured value after `Returns(...)`,
+      throws the configured exception after `Throws(...)` — same three-
+      state coverage every other member type already has. This project
+      is the right home: already `ComponoGeneratedTestDoubles=true`, a
+      real packaged `PackageReference` consumer (no `ProjectReference` to
+      `Compono`/`Compono.TestDoubles` at all, per its own `.csproj`
+      comment), and none of its existing files hand-manage the registry —
+      no risk of the interaction above.
+- [ ] **Async coverage, moved here from a later phase per Codex review**:
+      same `test/Compono.TestDoubles.SampleTests/` file, a
+      `Task<TReference>`-returning configuration-required member and a
+      `ValueTask<TReference>`-returning one, both states (unconfigured
+      throws, configured returns/throws). Phase 0's own analyzer change
+      applies to every no-default return shape including these two — this
+      plan's "no separate implementation needed for async" claim
+      (ADR-0045's "Async returns" section) is explicitly a hypothesis, not
+      a certainty, so Phase 0 must not ship as its own mergeable PR
+      without confirming it empirically first; deferring this to a later
+      phase risked shipping a broken generated async member in between.
+      If this surfaces a real gap (contrary to the ADR's expectation),
+      record it as an ADR-0045 Amendment before proceeding, per this
+      repo's Amendment convention — don't silently patch around it.
+- [ ] **Fluent self-return, moved here from a later phase per Codex
+      review**: same `test/Compono.TestDoubles.SampleTests/` file, an
+      `IResponseBuilder`-shaped fluent self-returning member (a method
+      returning the interface itself, RESEARCH-0004's own motivating
+      example and this ADR's central "no special-casing" decision) —
+      confirm it's configuration-required like any other non-nullable
+      reference return, and that configuring it (`Returns(self)`) works
+      for a chained-call test. Phase 0 changes the analyzer for exactly
+      this shape and ships as its own mergeable PR; deferring its first
+      proof to Phase 1 would ship the capability's own central motivating
+      case unvalidated.
+- [ ] **Packaged-consumer smoke test, this phase's own shape only**
+      (added per Codex review — matching PLAN-0044's own established
+      pattern, added there for the identical reason: `dotnet pack` core
+      `Compono`/`Compono.Generators` into a local feed, a throwaway
+      consumer project referencing the packed `.nupkg` (never a
+      `ProjectReference`) with `ComponoGeneratedTestDoubles=true`,
+      exercising a configuration-required method, property, an async
+      (`Task<TReference>`) member, a fluent self-returning member, and the
+      combined-shape regression case end to end with a real `dotnet
+      build`/`dotnet run`. PLAN-0044's own
+      Notes record that every defect its review round found (`CS0122`,
+      `CS0460`, `CS0111`, `CS0214`, `CS0177`) was exactly the class of
+      cross-assembly compile failure an in-process snapshot test cannot
+      catch — this phase does not ship (its own PR does not merge) until
+      this smoke test is green, rather than deferring all packaged proof
+      to Phase 2.
+- [ ] **Docs, this phase's own shape** (moved here from a later docs-only
+      phase per Codex review — matching PLAN-0044's own precedent for the
+      identical reason: `references/documentation.md`'s "update the
+      relevant doc in the same PR" rule means Phase 0 shipping the public
+      exception, the runtime behavior, and `CMP0032` as its own PR can't
+      leave `docs/packages/compono-testdoubles.md`/`docs/reference/diagnostics.md`
+      still describing `CMP0025` as unconditional whole-interface
+      rejection until some later PR):
+  - `docs/packages/compono-testdoubles.md`: new "Configuration-required
+    members" section (parallel to the existing "Overloaded members"/
+    "Generic methods"/"Call verification" sections) documenting the
+    dispatch rule and a real example using one of RESEARCH-0004's
+    acceptance interfaces. Update "Deterministic defaults for
+    unconfigured members" to cross-reference the new section rather than
+    imply every non-nullable-reference return is still a hard rejection.
+  - `docs/reference/diagnostics.md`: `CMP0025`'s entry is **not**
+    narrowed (ADR-0045 Amendment 4) — update its Cause text to note the
+    fourth sub-case now only fires when the member also has no
+    configuration surface for an unrelated reason, cross-referencing the
+    new "Configuration-required members" doc section for the ordinary
+    case. Add a `CMP0032` entry (Cause/Fix, matching the existing
+    entries' shape) explaining it's one diagnostic per interface (a
+    count), not whole-interface rejection.
+  - `skills/compono/references/diagnostics.md`: same two updates,
+    keeping the skill-local summary table consistent with the canonical
+    file (per the pattern PLAN-0044 Phase 4 already established for
+    keeping these two files in sync).
+  - `skills/compono/references/testdoubles.md`: document the new
+    configuration-required-member behavior for agent-facing migration
+    guidance — in particular, that an agent migrating a test off
+    `Compono.NSubstitute` should now expect some generated members to
+    require explicit `Returns(...)`/`Throws(...)` before use, rather than
+    assuming "it generated, therefore every call is safe unconfigured."
+  - `docs/troubleshooting/common-errors.md`, `docs/getting-started/ai-agent-skill.md`,
+    **and `skills/compono/SKILL.md`** (three separate `CMP0020`-`CMP0031`
+    range caps found there via a repo-wide search — its trigger-metadata
+    description, workflow step 6, and reference-routing table entry, the
+    same three spots PLAN-0044 Phase 4 updated for `CMP0031`): bump every
+    already-identified `CMP0020`-`CMP0031` range cap to `CMP0020`-`CMP0032`.
+    Moved here from a later consistency-pass phase per Codex review —
+    these are already-known stale locations, not something a later sweep
+    needs to discover; deferring already-identified staleness left
+    consumer- and agent-facing entry points describing a smaller
+    diagnostic range than what Phase 0 actually ships.
+
+### Phase 1 — Existing-behavior regression coverage (Not Started)
+
+- [ ] Confirm zero behavior change for every already-shipped
+      deterministic-default member shape (`bool`, `int`, nullable
+      reference, `Task`, known collection shapes) — existing v1/v2 tests
+      continue passing unmodified; add one small regression test mixing a
+      configuration-required member and a deterministic-default member on
+      the same interface if no existing test already covers this
+      combination.
+
+### Phase 2 — Packaged/AOT verification (Not Started)
+
+Phase 0's own lightweight packaged smoke test already proves basic
+cross-assembly compilation; this phase is the AOT-specific proof and the
+full supported-TFM matrix, not the first point this feature gets packaged
+at all.
+
+- [ ] Extend `test/Compono.TestDoubles.AotSmokeTest/Program.cs` to
+      exercise a configuration-required synchronous method, a
+      configuration-required property, and a configuration-required
+      `Task<T>`-returning method — both the configured-success path and
+      the throws-when-unconfigured path — under a real
+      `dotnet publish -p:PublishAot=true` run. Manually verify zero
+      IL2xxx/IL3xxx warnings and a correct exit code, per this repo's
+      "prove it, don't assume it" standard (PLAN-0044 Phase 3's same
+      discipline).
+- [ ] `test/Compono.TestDoubles.SampleTests/`: a real packaged-`.nupkg`
+      test proving the same shapes across all supported TFMs, matching
+      PLAN-0044 Phase 3's existing pattern (no workflow change expected —
+      runs automatically in CI via `package-validation.yaml`).
+- [ ] Performance: no new benchmark class added preemptively (ADR-0045's
+      "Performance" section, per ADR-0034's benchmark-only-if-real-risk
+      policy). If implementation surfaces an actual measured concern
+      during this phase, record it as an ADR-0045 Amendment and add a
+      targeted benchmark then — not before.
+
+### Phase 3 — Documentation consistency pass (Not Started)
+
+Every doc touch introducing this feature's own behavior, and every
+already-identified stale reference, already happened in Phase 0 (moved
+there per Codex review — see Phase 0's "Docs, this phase's own shape"
+task, which now includes every location a repo-wide search found before
+this phase was even reached). Unlike PLAN-0044 (which phased overloads/
+generics/verification across three separate PRs and needed a real
+cross-cutting consistency pass), this plan's only behavior-introducing
+phase is Phase 0 — so this phase is narrower still: a final proactive
+sweep for anything genuinely not yet discovered, run once Phases 0-2 have
+actually shipped and there's real code to check docs against.
+
+- [ ] Grep the repo for any stale `CMP0020`-`CMP0031`-style range cap or
+      "returning a non-nullable reference always rejects" claim that
+      wasn't already caught by Phase 0's own search, matching the
+      proactive sweep PLAN-0044 Phase 4 ran before its own final push.
+
+### Phase 4 — Third `lightsaber-skill` dogfood (Not Started)
+
+- [ ] Re-run the exact `lightsaber-skill` migration analysis (same method
+      as RESEARCH-0004) against the shipped implementation of this ADR.
+      Quantify against the acceptance cases: `IResponseBuilder`,
+      `IAmazonS3`, `ISkillMediator`, `IOptions<LightsaberOptions>`,
+      `ILambdaContext`, `IHandlerInput` — which now generate; which of
+      their members are configuration-required vs. deterministic-default;
+      whether `ILogger<T>` (already working under v2) still works
+      unchanged (regression check, not a redesign target).
+- [ ] **The acceptance criterion is "can real tests remove
+      `Compono.NSubstitute`," not "do more interfaces generate."**
+      Quantify against the same ~40 original NSubstitute call sites: how
+      many can now migrate; how many tests, if any, can drop
+      `Compono.NSubstitute` entirely; whether any test still needs both
+      providers side by side and why.
+- [ ] Record the result as a new `docs/research/*.md` finding (next
+      sequential number after RESEARCH-0004), following the same
+      evidence-record convention. Update `docs/roadmap/post-mvp.md`'s
+      entry for this candidate accordingly — move it from "outstanding"
+      to "shipped" only if the real-test-removal bar is actually met; if
+      it's a partial improvement short of that bar, record the honest
+      result the same way RESEARCH-0004 did, and open a further roadmap
+      candidate for any residual gap rather than overstating this one.
+
+## Critical Files
+
+- `src/Compono/TestDoubleNotConfiguredException.cs` — new exception type.
+- `docs/reference/api/Compono/` — regenerated pages for the new
+  exception type/constructor (ADR-0032's toolchain, drift-checked in CI).
+- `src/Compono.Generators/AnalyzerReleases.Unshipped.md` — new `CMP0032`
+  row (required by `EnforceExtendedAnalyzerRules`).
+- `src/Compono/ReturnConfig.cs`, `ReturnConfigBuilder.cs` — unchanged,
+  reused as-is; listed for reviewer visibility that nothing here changes.
+- `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` — new
+  `CMP0032` descriptor; `CMP0025`'s own message text is unchanged
+  (Amendment 4) — only the analyzer condition for reaching it narrows.
+- `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs` — the method-
+  return-type and property-type default-lookup failure branches change
+  from whole-interface `Failure(...)` to member-scoped configuration-
+  required marking, for the one sub-case ADR-0045 scopes.
+- `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
+  `src/Compono.Generators/Templates/TestDouble.scriban` — new
+  configuration-required dispatch-body branch.
+- `test/Compono.TestDoubles.Tests/` — **not modified** (generation stays
+  disabled there — see Phase 0's own task for why enabling it would
+  silently break three existing test files).
+- `test/Compono.Generators.Tests/`, `test/Compono.TestDoubles.SampleTests/`,
+  `test/Compono.TestDoubles.AotSmokeTest/Program.cs` —
+  new coverage per phase above.
+- `docs/packages/compono-testdoubles.md`, `docs/reference/diagnostics.md`,
+  `skills/compono/references/diagnostics.md`,
+  `skills/compono/references/testdoubles.md`,
+  `docs/troubleshooting/common-errors.md`,
+  `docs/getting-started/ai-agent-skill.md`, `skills/compono/SKILL.md` —
+  doc/skill alignment for this feature's own behavior, including every
+  already-identified stale `CMP0020`-`CMP0031` range cap (Phase 0, per
+  Codex review — moved out of a later phase since these were already
+  known, not left for a later sweep to discover).
+- `docs/roadmap/post-mvp.md`, a new `docs/research/000N-*.md` — Phase 4's
+  dogfood result.
+
+## Test Plan
+
+Matches `references/testing.md`'s existing pattern for this feature area
+(established by PLAN-0043/PLAN-0044): generator-level snapshot/behavior
+tests for the analysis and diagnostic changes, plus packaged-consumer
+behavior tests for the three dispatch states (unconfigured throws,
+configured-return, configured-throws) across the sync/property/async/
+fluent-self-return shapes — **all in Phase 0**, since that's the phase
+that actually ships the behavior and Phase 0 doesn't merge without this
+coverage, including its own central `IResponseBuilder`-shaped motivating
+case (Codex review); Phase 1 adds only the existing-behavior regression
+check on top, confirming zero change for already-shipped deterministic-
+default shapes. A real `PublishAot=true` execution proof rather than
+static AOT-safety analysis (Phase 2, "prove it, don't assume it"), and a
+real external-project dogfooding pass as the final acceptance test
+(Phase 4) rather than relying on in-repo tests alone to validate the
+real-world claim this ADR is motivated by.
+
+## Notes
+
+Phase 0's "no separate implementation needed for async" expectation
+(ADR-0045's own reasoning, based on `ReturnConfig<T>` already being
+generic over the member's real declared return type) is a hypothesis
+carried into the plan, not a certainty — moved from a later phase into
+Phase 0 itself per Codex review, since Phase 0 ships as its own mergeable
+PR and touches every no-default return shape including async ones. Phase
+0's task list explicitly calls for recording an ADR-0045 Amendment if
+implementation proves the hypothesis wrong, rather than silently
+reshaping the plan around a surprise.

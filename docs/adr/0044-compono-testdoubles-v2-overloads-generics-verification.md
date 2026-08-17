@@ -1833,8 +1833,57 @@ This is the genuine close of the pre-implementation design-review loop —
 confirmed directly with the requester, who is treating this as the last
 round before Phase 0 implementation begins.
 
+## Amendment 17 (2026-08-17): Context's "generates cleanly under v1" claim corrected; PLAN-0044 Phase 5 dogfood result recorded
+
+PLAN-0044 Phase 5 (re-running the `lightsaber-skill` migration analysis
+against the shipped v2 package) found this ADR's own Context section
+contains a factual error, and surfaced a real capability-gap finding
+outside this ADR's scope. Both are recorded here rather than edited into
+the original text, per the immutability rule this ADR has followed since
+Amendment 1.
+
+**Finding — the Context section's claim that "`ISkillMediator`,
+`IOptions<T>`, `ILambdaContext`... would generate cleanly under v1 today"
+was wrong.** All three were already whole-interface-rejected under v1 by
+`CMP0025` ("Unsupported test-double return shape") — `ISkillMediator.Send`
+returns `Task<SkillResponse>` (a concrete class with no deterministic
+default), `IOptions<T>.Value` returns the concrete options class, and
+`ILambdaContext.AwsRequestId` returns a non-nullable `string`. `CMP0025`
+is ADR-0043 v1 Finding K, which predates this ADR entirely — whoever
+wrote this ADR's Context section didn't check the three "would generate
+cleanly" interfaces against that rule. [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md)
+has the full corrected accounting, verified with a real `dotnet build
+-v:diag` run against `lightsaber-skill`, not inferred by eye.
+
+**Corrected:** none of `ISkillMediator`, `IOptions<T>`, or `ILambdaContext`
+generated under v1, for the same reason they still don't generate under
+v2 — `CMP0025` predates and is untouched by this ADR's overloaded-member,
+generic-method, and verification work. The Context section's per-suite
+tally ("only a small minority... would generate cleanly under v1") should
+be read as itself overstated in v1's favor; the real v1 minority was
+smaller still.
+
+**Finding — this ADR's own Requirement 2 (generic-method support) is
+proven, but it wasn't the suite's actual dominant blocker.** Phase 5 found
+`ILogger<T>` is the *only* one of the suite's seven load-bearing
+interfaces that generates under v2 — direct confirmation Requirement 2
+works exactly as designed. But every test using `ILogger<T>` also uses at
+least one interface still blocked by `CMP0025`, so the suite's practical
+`Compono.NSubstitute` dependency is unchanged: zero tests can drop it.
+This is not a defect in this ADR's implementation — its three Requirements
+were built and validated exactly as scoped — it's evidence that `CMP0025`,
+not overloads/generics/verification, is the suite's real dominant
+constraint. That's a new, separate roadmap candidate
+([RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md)'s
+"Recommendation"), deliberately **not** folded into this ADR or
+PLAN-0044 — PLAN-0044's own scope is complete and this ADR's decisions
+stand unchanged.
+
 ## Links
 
+- [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
+  the PLAN-0044 Phase 5 dogfood pass Amendment 17 records and corrects
+  this ADR's Context section against.
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the v1
   design this ADR extends; not superseded, ADR-0043's own decisions
   (source-generation-first, interface-only, argument-independent

@@ -1,6 +1,6 @@
 # [PLAN-0044] Compono.TestDoubles v2: Overloads, Generic Methods, Minimal Call Verification
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** ADR-0044 (design), ADR-0043 (v1 base design), ADR-0042
 (admitted problem)
@@ -684,9 +684,9 @@ written, this phase couldn't finish in its own PR since one of its own
 tasks explicitly waited on Phase 5, and flipping the whole plan to `Done`
 here would have happened before the last phase even ran).
 
-### Phase 5 — Re-dogfood against `lightsaber-skill`
+### Phase 5 — Re-dogfood against `lightsaber-skill` (Done)
 
-- [ ] Re-run the exact `lightsaber-skill` migration analysis against the
+- [x] Re-run the exact `lightsaber-skill` migration analysis against the
       shipped v2 package. Quantify: how many of the ~40 original
       NSubstitute call sites now migrate; whether `ILogger<T>` and
       `IResponseBuilder` now generate; how much (if any) of `IAmazonS3`
@@ -694,21 +694,49 @@ here would have happened before the last phase even ran).
       `Received(1)` sites now migrate to `Verify().Send().Once()`; whether
       any test still needs both `Compono.NSubstitute` and
       `Compono.TestDoubles` side by side.
-- [ ] Record the result in `docs/roadmap/post-mvp.md`'s finding entry.
-      **`docs/roadmap/post-mvp.md` — move the `lightsaber-skill` finding
-      from "outstanding" to "shipped,"** matching the existing
-      `ComposeAttribute` graduation entry's shape (moved here from Phase 4
-      per Codex review Finding 18 — it can't graduate until this phase's
-      own analysis exists to graduate it with). Success criterion is
-      **material improvement** ("small minority, no practical dependency
-      reduction" → "viable for a meaningful portion of the suite"), not
-      zero remaining NSubstitute usage. Any residual gap goes back through
-      this repo's normal evidence-based roadmap process (a new
-      `docs/research/*.md` finding or a fresh roadmap-candidate ADR), not
-      folded into this plan after the fact.
-- [ ] **`docs/plans/README.md` status flip to `Done`** (moved here from
-      Phase 4 per Codex review Finding 18 — the plan as a whole isn't done
-      until its last phase is).
+
+      **Implementation notes:** Real re-dogfood on a throwaway branch
+      (`feat/compono-testdoubles-v2-dogfood`, discarded after evidence was
+      captured — no `lightsaber-skill` code changed) against
+      `Compono`/`Compono.TestDoubles`/`Compono.NSubstitute`/`Compono.XunitV3`
+      `0.5.0-preview.70`. Result: only `ILogger<T>` newly generates —
+      Requirement 2 (generic-method support) confirmed working exactly as
+      designed. `IResponseBuilder` and `IAmazonS3` still don't generate,
+      but not because of their overloads (which v2 does fix) — `CMP0025`
+      (a pre-existing v1 whole-interface-fallback rule, not touched by
+      this ADR) rejects them first, because their members return a
+      non-nullable reference type with no deterministic default
+      (`IResponseBuilder.Speak` returns itself; `IAmazonS3.GetPreSignedURL`
+      returns `string`). Same for `ISkillMediator` (blocking the two
+      `Received(1)` sites from ever reaching `Verify()` — the interface
+      never generates in the first place) and, contrary to this ADR's own
+      Context section, `IOptions<T>` and `ILambdaContext` too (both were
+      already `CMP0025`-blocked under v1 — ADR-0044 Amendment 17 corrects
+      the record). Net: zero of the ~40 call sites can drop
+      `Compono.NSubstitute`, since every test using `ILogger<T>` also uses
+      a still-`CMP0025`-rejected interface. Full evidence, per-interface
+      diagnostic citations, and the classification against ADR-0029's
+      rubric are in [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md).
+- [x] Record the result in `docs/roadmap/post-mvp.md`'s finding entry.
+
+      **Implementation notes:** Per the measured result above, this
+      couldn't honestly graduate to "material improvement... viable for a
+      meaningful portion of the suite" — the practical dependency-
+      reduction bar wasn't met (zero tests can drop `Compono.NSubstitute`).
+      `docs/roadmap/post-mvp.md`'s third bullet now records the v1 finding
+      as designed-and-**shipped** (ADR-0044/PLAN-0044 both complete, their
+      three capabilities real and proven) but explicitly not the same as
+      "the suite migrated." A new fourth bullet records this phase's own
+      finding as the roadmap's new (still one, rotated not added)
+      outstanding candidate: whether `CMP0025`'s whole-interface rejection
+      is still the right response to a non-nullable-reference return with
+      no deterministic default, versus generating the double with just
+      that member requiring explicit configuration before invocation. Not
+      folded into this ADR/plan, per the task's own instruction — recorded
+      as a new candidate pointing at RESEARCH-0004's "Recommendation" for
+      the open design questions, with no ADR number assigned yet (that's
+      the design pass's first output, not this phase's).
+- [x] **`docs/plans/README.md` status flip to `Done`.**
 
 ## Critical Files
 
