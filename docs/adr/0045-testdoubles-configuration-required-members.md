@@ -774,6 +774,22 @@ analyzer task and Goal section are corrected in the same pass to state
 this explicitly, so Phase 0's implementation and regression tests don't
 touch the property branch's check order at all.
 
+## Amendment 8 (2026-08-17): async verification moved to Phase 0, not Phase 1 — this ADR's own "Async returns" section corrected to match
+
+Codex review caught that this ADR's "Async returns" section (above) still
+says its "no separate implementation needed" claim is "confirmed by real
+test coverage (Phase 1)" — but PLAN-0045 was already corrected, in an
+earlier round of this same review, to move that async test coverage into
+Phase 0 instead (Phase 0 ships as its own mergeable PR and touches every
+no-default return shape including `Task<T>`/`ValueTask<T>`, so it
+shouldn't merge without confirming the async hypothesis first). This
+ADR's own text still pointed at the now-superseded phase.
+
+**Corrected:** every reference in this ADR to async coverage landing in
+"Phase 1" means **Phase 0**. No design change — this is a sequencing
+cross-reference fix only, keeping this ADR's text consistent with
+PLAN-0045's actual, current phase boundaries.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —

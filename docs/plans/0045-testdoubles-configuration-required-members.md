@@ -166,6 +166,20 @@ depends on its own type parameter); special-casing fluent self-return
       required member, confirming the combined-shape gate
       doesn't accidentally suppress `CMP0025`/`CMP0024` or leak a
       surfaceless member into `CMP0032`'s count.
+- [ ] `test/Compono.TestDoubles.Tests/Compono.TestDoubles.Tests.csproj`:
+      **enable generation in this project first** (per Codex review — its
+      current `.csproj` has neither `ComponoGeneratedTestDoubles=true`
+      nor a `CompilerVisibleProperty` declaration for it, and its
+      `ProjectReference`s bypass the packaged `buildTransitive/Compono.props`
+      that normally supplies that visibility for a real `PackageReference`
+      consumer — the existing tests in this project exercise
+      `GeneratedTestDoubleProvider`/`CompositionBuilderExtensions`/
+      precedence/public-API-surface without needing an actual generated
+      double, so this gap was never hit before). Add both, matching the
+      exact fix PLAN-0044 Phase 3 already made for
+      `benchmarks/Compono.Benchmarks.csproj` for the identical reason.
+      Without this, none of the new tests below can compile — no double
+      would ever generate.
 - [ ] `test/Compono.TestDoubles.Tests/`: packaged-consumer behavior tests
       — a configuration-required member throws
       `TestDoubleNotConfiguredException` when unconfigured, returns the
@@ -353,6 +367,10 @@ actually shipped and there's real code to check docs against.
 - `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
   `src/Compono.Generators/Templates/TestDouble.scriban` — new
   configuration-required dispatch-body branch.
+- `test/Compono.TestDoubles.Tests/Compono.TestDoubles.Tests.csproj` —
+  `ComponoGeneratedTestDoubles=true` plus its `CompilerVisibleProperty`
+  declaration, both currently missing (matches the fix PLAN-0044 Phase 3
+  already made for `benchmarks/Compono.Benchmarks.csproj`).
 - `test/Compono.Generators.Tests/`, `test/Compono.TestDoubles.Tests/`,
   `test/Compono.TestDoubles.SampleTests/`, `test/Compono.TestDoubles.AotSmokeTest/Program.cs` —
   new coverage per phase above.
