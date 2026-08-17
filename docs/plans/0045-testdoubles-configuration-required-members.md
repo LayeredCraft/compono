@@ -407,15 +407,17 @@ Matches `references/testing.md`'s existing pattern for this feature area
 (established by PLAN-0043/PLAN-0044): generator-level snapshot/behavior
 tests for the analysis and diagnostic changes, plus packaged-consumer
 behavior tests for the three dispatch states (unconfigured throws,
-configured-return, configured-throws) across the sync/property/async
-shapes — all in Phase 0, since that's the phase that actually ships the
-behavior and Phase 0 doesn't merge without this coverage (Codex review);
-Phase 1 adds fluent-self-return-specific regression coverage on top. A
-real `PublishAot=true` execution proof rather than static AOT-safety
-analysis (Phase 2, "prove it, don't assume it"), and a real external-
-project dogfooding pass as the final acceptance test (Phase 4) rather
-than relying on in-repo tests alone to validate the real-world claim this
-ADR is motivated by.
+configured-return, configured-throws) across the sync/property/async/
+fluent-self-return shapes — **all in Phase 0**, since that's the phase
+that actually ships the behavior and Phase 0 doesn't merge without this
+coverage, including its own central `IResponseBuilder`-shaped motivating
+case (Codex review); Phase 1 adds only the existing-behavior regression
+check on top, confirming zero change for already-shipped deterministic-
+default shapes. A real `PublishAot=true` execution proof rather than
+static AOT-safety analysis (Phase 2, "prove it, don't assume it"), and a
+real external-project dogfooding pass as the final acceptance test
+(Phase 4) rather than relying on in-repo tests alone to validate the
+real-world claim this ADR is motivated by.
 
 ## Notes
 
