@@ -111,4 +111,4 @@ a concrete illustration of why that framing matters: shipping the third
 pass's finding didn't retire the `lightsaber-skill` gap, it relocated it —
 the fourth pass's evidence is what actually tells us whether
 `Compono.TestDoubles` materially helps this real project yet (as of
-today, not until PLAN-0045 ships and a third dogfood confirms it).
+today, not until PLAN-0045 Phase 4's third dogfood confirms it).
