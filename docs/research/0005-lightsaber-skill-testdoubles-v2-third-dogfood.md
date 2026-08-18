@@ -164,7 +164,7 @@ overhead, not test-double dispatch cost — a different real project with a
 larger, double-dispatch-heavy suite might show a different result. This
 observation should not be read as a general Compono performance claim.
 
-## Classification (per ADR-0029's five-way rubric)
+## Classification (per ADR-0029's five-way rubric) — original
 
 **Not a bug, not a new roadmap candidate.** ADR-0045's fix works exactly
 as designed — six of seven interfaces, zero `CMP0025` firings, real test
@@ -179,6 +179,34 @@ handles it as designed. This is the "intentional design differences and
 acceptable alternatives do not become roadmap items" case ADR-0029
 describes.
 
+## Reclassification (2026-08-18): roadmap candidate, per explicit product-owner acceptance criterion
+
+The classification above applied ADR-0029's general "material improvement"
+bar, and under that bar it was the right call — every metric moved sharply
+in the right direction, and the residual gap is a narrow, previously-
+documented non-goal. But the product owner's actual acceptance goal for
+`lightsaber-skill` is stronger than that general bar:
+
+> I need `Compono.TestDoubles` to be capable of completely replacing
+> `Compono.NSubstitute` in `lightsaber-skill`.
+
+Measured against *that* explicit, stated requirement — not the general
+"did things get materially better" rubric — this pass's own evidence is
+exactly what disqualifies the "not a roadmap candidate" call: `IAmazonS3`'s
+static-abstract member is the *sole* remaining reason full removal isn't
+possible, and it is now a single, precisely-identified, evidenced blocker
+standing between the current state and a stated product requirement. That
+combination — a real, observed, and now product-critical capability gap,
+backed by frequency (blocks the last package reference in a real project)
+and cost (blocks 100% of the removal goal, not a partial one) — is exactly
+ADR-0029's roadmap-candidate rubric, once the acceptance bar being measured
+against is the stronger, explicit one rather than the general default.
+"Rare and previously a documented non-goal" was true and is still true; it
+just isn't disqualifying once a real stakeholder has stated they need this
+exact gap closed. **Reclassified: this is a roadmap candidate.** See
+[ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
+for the design response.
+
 ## Decisions
 
 `PLAN-0045` Phase 4 is complete: the third `lightsaber-skill` dogfood
@@ -189,8 +217,13 @@ is recorded as a **partial success, not overstated as full graduation** —
 outstanding to a shipped-with-a-documented-limit state (4 of 5 files
 migrated, `Compono.NSubstitute` still required project-wide because of one
 interface's static-abstract member), rather than being removed outright as
-if the suite fully dropped NSubstitute. No further roadmap candidate is
-opened for the `IAmazonS3` gap, per the classification above.
+if the suite fully dropped NSubstitute. Per the Reclassification above, a
+new roadmap candidate **is** opened for the residual `IAmazonS3` gap,
+tracked by [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
+— a narrow design question (can a generated double satisfy interface
+conformance for a static abstract member without providing any mockable
+static-member behavior), explicitly scoped to avoid becoming a general
+static-mocking feature.
 
 ## Links
 
