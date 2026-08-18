@@ -1,6 +1,6 @@
 # [PLAN-0046] Effective Interface Contract for Inherited Static Abstract Members
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
 
@@ -129,44 +129,40 @@ consume it, which can't happen inside this PR.
       type was added (the originally-planned
       `TestDoubleUnsupportedMemberException` was withdrawn, not shipped).
 
-### Gate-B closing dogfood: `lightsaber-skill` (deferred to a follow-up PR)
+### Gate-B closing dogfood: `lightsaber-skill`
 
-- [ ] Publish a new `Compono`/`Compono.Generators`/`Compono.TestDoubles`
-      preview package including this fix (out of scope for *this* PR —
-      see "Notes").
-- [ ] Re-run RESEARCH-0005's `lightsaber-skill` branch
-      (`build/deps-bump-compono-preview-73`, or a fresh branch from
-      `main` if that one's gone stale) against the newly-published
-      package. Migrate `LightsaberHandlerTests.cs`'s remaining
-      `IAmazonS3` usage (~9 call sites: `Substitute.For<IAmazonS3>()`,
-      `Arg.Any`/`.Returns()` on `ListObjectsV2Async`) to
-      `Compono.TestDoubles`, the same `Configure()`/`Composer.Create(...)`
-      pattern the other four files already use.
-- [ ] Remove `Compono.NSubstitute` from `Directory.Packages.props` and
-      `Lightsaber.Skill.Tests.csproj`'s `PackageReference`s entirely.
-      Confirm `NSubstitute` itself is no longer pulled in even
-      transitively (`dotnet list package` or equivalent) — Gate-B's exact
+- [x] Published `Compono`/`Compono.TestDoubles`/`Compono.XunitV3`
+      `0.5.0-preview.74`, including the merged fix
+      ([compono#99](https://github.com/LayeredCraft/compono/pull/99)).
+- [x] Re-ran `lightsaber-skill`'s `build/deps-bump-compono-preview-73`
+      branch against the new package. Migrated
+      `LightsaberHandlerTests.cs`'s remaining `IAmazonS3` usage (~9 call
+      sites: `Substitute.For<IAmazonS3>()`, `Arg.Any`/`.Returns()` on
+      `ListObjectsV2Async`) to `Compono.TestDoubles`' `Configure()`/
+      `Composer.Create(...)` pattern, matching the other four files.
+      `ListObjectsV2Async` verified (reflection against the real
+      `AWSSDK.S3` package) to be non-overloaded, so no discriminator was
+      needed.
+- [x] Removed `Compono.NSubstitute` from `Directory.Packages.props` and
+      `Lightsaber.Skill.Tests.csproj`'s `PackageReference`s entirely, and
+      `UseNSubstitute()` from `GeneratedTestDoublesProfile`. Confirmed
+      `NSubstitute` itself is no longer pulled in even transitively
+      (`dotnet list package --include-transitive`) — Gate-B's exact
       wording is "no longer required transitively," not just "no direct
-      reference."
-- [ ] Full 77-test suite passes, verified by running the built
+      reference," and this confirms it.
+- [x] Full 77-test suite passes, verified by running the built
       Microsoft.Testing.Platform executable directly (not just a clean
-      compile) — same verification bar RESEARCH-0005 held itself to.
-- [ ] `lightsaber-skill` doesn't currently have its own AOT smoke test —
-      confirm whether "the AOT verification still passes" (per the user's
-      acceptance criteria) refers to `Compono.TestDoubles.AotSmokeTest`
-      in *this* repo (covered above) or implies `lightsaber-skill` needs
-      one added; if the latter, that's a scope question to resolve with
-      the user before assuming it, not something to add unprompted.
-- [ ] Record the result as a new `docs/research/000N-*.md` finding
-      (next sequential number after RESEARCH-0005), following the same
-      evidence-record convention — this is the actual Gate-B acceptance
-      test, so state plainly whether it passed in full (every bullet
-      above) or only partially, same honesty bar RESEARCH-0004/RESEARCH-0005
-      held.
-- [ ] Update `docs/roadmap/post-mvp.md`'s entry for this candidate:
-      remove from "outstanding" only if Gate-B is met in full (real
-      `Compono.NSubstitute` removal, not just "fewer call sites"); if
-      partial, record the honest result and keep the candidate listed.
+      compile) — 77/77, 0 skipped.
+- [x] AOT scope question resolved with the user directly: `lightsaber-skill`
+      doesn't need its own new AOT infrastructure — `Compono.TestDoubles.AotSmokeTest`
+      (already covered by this plan's earlier task section) is sufficient.
+- [x] Recorded the result as
+      [RESEARCH-0006](../research/0006-lightsaber-skill-testdoubles-gate-b-closing-dogfood.md) —
+      full success, every bullet above passed, no partial result to
+      report this time.
+- [x] Updated `docs/roadmap/post-mvp.md`'s entry for this candidate:
+      removed from "outstanding" — Gate-B met in full, real
+      `Compono.NSubstitute` removal, not just fewer call sites.
 
 ## Critical Files
 
@@ -184,10 +180,12 @@ consume it, which can't happen inside this PR.
   rewritten in place (still `Proposed` when the rewrite happened, so no
   Amendment was needed) to record both the corrected design and the two
   compile-spike findings that invalidated the original one.
-- (Deferred to the follow-up PR) `docs/roadmap/post-mvp.md`, a new
-  `docs/research/000N-*.md`, and (external repo) `ncipollina/lightsaber-skill`'s
-  `Directory.Packages.props`, `Lightsaber.Skill.Tests.csproj`,
-  `LightsaberHandlerTests.cs`.
+- `docs/roadmap/post-mvp.md`, `docs/research/0006-lightsaber-skill-testdoubles-gate-b-closing-dogfood.md`
+  — the Gate-B closing result.
+- (External repo) `ncipollina/lightsaber-skill`'s `Directory.Packages.props`,
+  `Lightsaber.Skill.Tests.csproj`, `Composition/GeneratedTestDoublesProfile.cs`,
+  `Handlers/LightsaberHandlerTests.cs` — the actual migration
+  ([lightsaber-skill#108](https://github.com/ncipollina/lightsaber-skill/pull/108)).
 
 ## Test Plan
 
@@ -220,9 +218,9 @@ following, not a subset:
 
 The remaining Gate-B bullets (real `IAmazonS3` removal of
 `Compono.NSubstitute` in `lightsaber-skill`, the full 77-test suite, the
-closing research doc, the roadmap update) are deferred to the follow-up
-PR described in "Notes" — this PR's own merge bar is the bulleted list
-above, not the full Gate-B checklist.
+closing research doc, the roadmap update) landed in the follow-up PR
+described in "Notes" — all passed, recorded in
+[RESEARCH-0006](../research/0006-lightsaber-skill-testdoubles-gate-b-closing-dogfood.md).
 
 ## Notes
 
@@ -248,13 +246,15 @@ this plan is being finalized alongside implementation, not written ahead
 of it, per this repo's convention that a plan is a living document,
 correctable via Notes rather than treated as a wrong-but-frozen spec.
 
-**Dogfood deferred to a follow-up PR.** This PR implements, tests, and
-documents the generator-level fix and merges independently. The "Gate-B
-closing dogfood" task section above stays unchecked and this plan's
-`Status` stays `In Progress` (not `Done`) until that follow-up PR
-completes: it needs a newly published Compono preview package (built from
-this fix) before `lightsaber-skill`'s own dependency bump can consume it,
-which isn't possible from inside this PR.
+**Dogfood deferred to a follow-up PR, then completed.** The generator-side
+fix (`compono#99`) merged and shipped as `Compono` `0.5.0-preview.74`
+independently of the `lightsaber-skill` migration, which needed that
+published package before it could even start. Once the package was
+available, the closing dogfood ran in full and succeeded — see
+[RESEARCH-0006](../research/0006-lightsaber-skill-testdoubles-gate-b-closing-dogfood.md)
+and [lightsaber-skill#108](https://github.com/ncipollina/lightsaber-skill/pull/108).
+`Status` above moved from `In Progress` to `Done` once every "Gate-B
+closing dogfood" task confirmed passing, not before.
 
 **2026-08-18 — Codex review, PR #99: collision-preprocessing fix.**
 `TestDoubleAnalyzer`'s `eligibleCandidates` pass (diamond-collision and
