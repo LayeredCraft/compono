@@ -32,6 +32,21 @@ internal interface ILoggerLike
     void Log<TState>(int logLevel, TState state);
 }
 
+// PLAN-0045 Phase 2: the configuration-required dispatch shape (ADR-0045/PLAN-0045 Phase 0) under
+// Native AOT specifically - a synchronous non-nullable-reference-returning method, a same-shaped
+// property, and a Task<T>-returning method, each proven both unconfigured (throws
+// TestDoubleNotConfiguredException) and configured (Returns(...) dispatches the literal
+// generation-time-emitted throw branch correctly under trimming/AOT, not just under the ordinary JIT
+// that runs Compono.TestDoubles.SampleTests' own dotnet test).
+internal interface IProfileRepository
+{
+    string GetName();
+
+    string Description { get; }
+
+    Task<string> GetNameAsync();
+}
+
 internal static class Program
 {
     private static async Task<int> Main()
@@ -44,6 +59,7 @@ internal static class Program
             var repository = composer.Create<IRepository>();
             var gateway = composer.Create<IGateway>();
             var logger = composer.Create<ILoggerLike>();
+            var profileRepository = composer.Create<IProfileRepository>();
 
             repository.Configure().CountAsync().Returns(Task.FromResult(7));
             repository.Configure().UtcNow().Returns(placedAt);
@@ -77,16 +93,79 @@ internal static class Program
             repository.Verify().CountAsync().Once();
             repository.Verify().UtcNow().Once();
 
+            // Configuration-required members (ADR-0045/PLAN-0045 Phase 0): unconfigured-throws proven
+            // first, then the same members configured and dispatching their real values, all under
+            // Native AOT.
+            var unconfiguredMethod = () => profileRepository.GetName();
+            if (!ThrowsNotConfigured(unconfiguredMethod))
+                throw new InvalidOperationException("Expected unconfigured GetName() to throw TestDoubleNotConfiguredException.");
+
+            var unconfiguredProperty = () => profileRepository.Description;
+            if (!ThrowsNotConfigured(unconfiguredProperty))
+                throw new InvalidOperationException("Expected unconfigured Description to throw TestDoubleNotConfiguredException.");
+
+            var unconfiguredAsyncMethod = async () => await profileRepository.GetNameAsync();
+            if (!await ThrowsNotConfiguredAsync(unconfiguredAsyncMethod))
+                throw new InvalidOperationException("Expected unconfigured GetNameAsync() to throw TestDoubleNotConfiguredException.");
+
+            profileRepository.Configure().GetName().Returns("Ada");
+            profileRepository.Configure().Description().Returns("a test double");
+            profileRepository.Configure().GetNameAsync().Returns(Task.FromResult("Ada"));
+
+            var name = profileRepository.GetName();
+            var description = profileRepository.Description;
+            var asyncName = await profileRepository.GetNameAsync();
+
+            if (name != "Ada")
+                throw new InvalidOperationException($"Expected GetName() to return 'Ada', got '{name}'.");
+
+            if (description != "a test double")
+                throw new InvalidOperationException($"Expected Description to return 'a test double', got '{description}'.");
+
+            if (asyncName != "Ada")
+                throw new InvalidOperationException($"Expected GetNameAsync() to return 'Ada', got '{asyncName}'.");
+
             Console.WriteLine(
                 $"PASS: generated doubles (composer.Create<T>() + UseGeneratedTestDoubles(), full " +
-                $"base-interface closure, overloaded member, generic method, call verification) " +
-                $"survived Native AOT - CountAsync()={count}, UtcNow={utcNow}.");
+                $"base-interface closure, overloaded member, generic method, call verification, " +
+                $"configuration-required sync method/property/Task<T> method both unconfigured-throws " +
+                $"and configured) survived Native AOT - CountAsync()={count}, UtcNow={utcNow}, " +
+                $"GetName()={name}, Description={description}, GetNameAsync()={asyncName}.");
             return 0;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"FAIL: {ex}");
             return 1;
+        }
+    }
+
+    // No AwesomeAssertions/xUnit available here (this project deliberately removes those global
+    // usings - see the .csproj) - a plain try/catch stands in for
+    // act.Should().Throw<TestDoubleNotConfiguredException>().
+    private static bool ThrowsNotConfigured<T>(Func<T> act)
+    {
+        try
+        {
+            act();
+            return false;
+        }
+        catch (TestDoubleNotConfiguredException)
+        {
+            return true;
+        }
+    }
+
+    private static async Task<bool> ThrowsNotConfiguredAsync(Func<Task> act)
+    {
+        try
+        {
+            await act();
+            return false;
+        }
+        catch (TestDoubleNotConfiguredException)
+        {
+            return true;
         }
     }
 }

@@ -295,14 +295,14 @@ depends on its own type parameter); special-casing fluent self-return
       the same interface if no existing test already covers this
       combination.
 
-### Phase 2 — Packaged/AOT verification (Not Started)
+### Phase 2 — Packaged/AOT verification (Done)
 
 Phase 0's own lightweight packaged smoke test already proves basic
 cross-assembly compilation; this phase is the AOT-specific proof and the
 full supported-TFM matrix, not the first point this feature gets packaged
 at all.
 
-- [ ] Extend `test/Compono.TestDoubles.AotSmokeTest/Program.cs` to
+- [x] Extend `test/Compono.TestDoubles.AotSmokeTest/Program.cs` to
       exercise a configuration-required synchronous method, a
       configuration-required property, and a configuration-required
       `Task<T>`-returning method — both the configured-success path and
@@ -311,11 +311,11 @@ at all.
       IL2xxx/IL3xxx warnings and a correct exit code, per this repo's
       "prove it, don't assume it" standard (PLAN-0044 Phase 3's same
       discipline).
-- [ ] `test/Compono.TestDoubles.SampleTests/`: a real packaged-`.nupkg`
+- [x] `test/Compono.TestDoubles.SampleTests/`: a real packaged-`.nupkg`
       test proving the same shapes across all supported TFMs, matching
       PLAN-0044 Phase 3's existing pattern (no workflow change expected —
       runs automatically in CI via `package-validation.yaml`).
-- [ ] Performance: no new benchmark class added preemptively (ADR-0045's
+- [x] Performance: no new benchmark class added preemptively (ADR-0045's
       "Performance" section, per ADR-0034's benchmark-only-if-real-risk
       policy). If implementation surfaces an actual measured concern
       during this phase, record it as an ADR-0045 Amendment and add a
@@ -461,3 +461,32 @@ known-collection-shape default), and `Task<int> GetScoreAsync()`
 unconfigured, on the same instance and same interface as the existing
 configuration-required members, with no interaction between the two
 dispatch paths.
+
+**Phase 2 result:** extended
+`test/Compono.TestDoubles.AotSmokeTest/Program.cs` with a new
+`IProfileRepository`-shaped interface (a synchronous method, a property,
+and a `Task<T>`-returning method, all configuration-required) and exercised
+both states — unconfigured throws `TestDoubleNotConfiguredException`
+(caught via a plain try/catch helper, since this project deliberately
+carries no xUnit/AwesomeAssertions usings), then `Configure().Member().Returns(...)`
+dispatches the real value — under a real `dotnet publish -c Release -f
+net10.0 -p:PublishAot=true` run against the packaged
+`Compono`/`Compono.TestDoubles` (a `PackageReference`, not a
+`ProjectReference`, per this project's own established reasoning).
+Manually confirmed: zero IL2xxx/IL3xxx trim/AOT warnings anywhere in the
+publish output, and running the published native binary printed the
+expected `PASS` line and exited `0`. Bullet two (a real packaged-`.nupkg`
+test proving the same shapes across all supported TFMs) was already
+satisfied by Phase 0/1's own
+`test/Compono.TestDoubles.SampleTests/ConfigurationRequiredMemberTests.cs`
+— that project already restores `Compono.TestDoubles` from a locally-packed
+`.nupkg` (never a `ProjectReference`) and already builds/runs across all
+four supported TFMs (`net8.0`-`net11.0`, `test/Directory.Build.props`), and
+already covers a configuration-required sync method, property, and
+`Task<T>` method (Phase 0) alongside every deterministic-default shape
+(Phase 1); `package-validation.yaml`'s existing
+"Local-feed packed-consumer smoke test (Compono.TestDoubles)" step already
+runs it in CI with no workflow change needed — no new bullet-two-specific
+test file was required. No new benchmark was added (bullet three): nothing
+in this phase surfaced a measured performance concern, so no ADR-0045
+Amendment was needed either.
