@@ -15,13 +15,13 @@ acceptable alternatives do not become roadmap items" — this page is not a
 general findings log, and non-candidate findings belong in the research
 record and their governing ADR's Amendments, not here.
 
-## Current state: one outstanding roadmap candidate
+## Current state: no outstanding roadmap candidates
 
 Per `docs/roadmap/index.md`, this page is a status-filtered index of
 capability gaps that are **not yet available** — a shipped capability
 doesn't stay listed here once it's implemented, even though the evidence
 that motivated it remains a permanent part of the record elsewhere (the
-ADR, the research doc, the plan). Four dogfooding passes have run so far:
+ADR, the research doc, the plan). Five dogfooding passes have run so far:
 
 - Milestone 7's pass (migrating `ncipollina/cosmere-tracker`'s
   AutoFixture-based test kit to Compono) surfaced ten findings, **none**
@@ -90,25 +90,45 @@ ADR, the research doc, the plan). Four dogfooding passes have run so far:
   a colliding property was, and remains, `CMP0024` regardless) — so no
   member ever ends up throwing unconditionally with no way to configure it
   (Amendments 3, 4, 6, and 7); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
-  tracks the implementation — Phases 0-3 (the behavior itself, its
-  regression coverage, its packaged/AOT proof, and this doc-consistency
-  pass) are `Done` and shipped; only Phase 4 (the confirming dogfood)
-  remains. This page keeps listing it until Phase 4 confirms it — same
-  rule the third bullet's finding followed before PLAN-0044 completed —
-  and, per ADR-0045's own scope, "shipped" still won't mean "graduated"
-  here until PLAN-0045 Phase 4's
-  third `lightsaber-skill` dogfood confirms real tests can actually drop
-  `Compono.NSubstitute`, not just that more interfaces generate.
+  (`Done`) tracks the implementation. **This finding is no longer listed
+  here** — see the next bullet for the confirming dogfood's result.
+- A fifth pass — PLAN-0045 Phase 4's required third `lightsaber-skill`
+  dogfood
+  ([RESEARCH-0005](../research/0005-lightsaber-skill-testdoubles-v2-third-dogfood.md))
+  — confirms the fourth pass's shipped capability actually closes the gap:
+  six of the suite's seven interfaces (`IResponseBuilder`, `ISkillMediator`,
+  `IOptions<T>`, `ILambdaContext`, `IHandlerInput`, `ILogger<T>`) now
+  generate and resolve cleanly, `CMP0025` didn't fire once, and four of
+  five real test files fully migrated off `Compono.NSubstitute`
+  (~44 NSubstitute call sites down to ~9). **This is a partial result, not
+  full graduation**: `IAmazonS3` still can't drop `Compono.NSubstitute` —
+  not because of anything ADR-0045 scopes, but because it declares a
+  static abstract member (`CreateDefaultClientConfig`), a shape
+  `Compono.TestDoubles` explicitly doesn't support
+  ([ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
+  Non-Goals). RESEARCH-0005 classifies that remaining gap **not a bug and
+  not a new roadmap candidate** — a narrow, rare shape, observed exactly
+  once across three dogfooding passes and two prior migration projects,
+  already handled by `Compono.NSubstitute`'s documented fallback chain.
+  A controlled before/after benchmark on this same suite (same commit,
+  same hyperfine methodology, only the test-double provider changed)
+  found no meaningful wall-clock difference (-1.05%, well inside
+  run-to-run noise) — not a general Compono performance claim, just this
+  one real suite's honest result. `Compono.NSubstitute` therefore stays a
+  required package in `lightsaber-skill`'s test project; it did not
+  "graduate" to a fully-generated-doubles suite, and RESEARCH-0005 records
+  that honestly rather than overstating it.
 
-That three of these four dogfooding passes together produced zero
-*outstanding* roadmap items (the first surfaced none at all; the second
-and third each surfaced one, and both have since shipped) is itself a
-real, evidence-backed outcome, not a shortfall in the process — it doesn't
-mean Compono is "done": a different real-world project, or a future
-package, may surface a finding these four didn't (each is one data point,
-not an exhaustive survey). The third and fourth passes together are also
+That these five dogfooding passes together produced zero *outstanding*
+roadmap items (the first surfaced none at all; the second and third each
+surfaced one, and both have since shipped, the second fully and the third
+with a documented, non-roadmap-worthy residual limit) is itself a real,
+evidence-backed outcome, not a shortfall in the process — it doesn't mean
+Compono is "done": a different real-world project, or a future package,
+may surface a finding these five didn't (each is one data point, not an
+exhaustive survey). The third, fourth, and fifth passes together are also
 a concrete illustration of why that framing matters: shipping the third
-pass's finding didn't retire the `lightsaber-skill` gap, it relocated it —
-the fourth pass's evidence is what actually tells us whether
-`Compono.TestDoubles` materially helps this real project yet (as of
-today, not until PLAN-0045 Phase 4's third dogfood confirms it).
+pass's finding didn't retire the `lightsaber-skill` gap, it relocated it,
+and shipping the fourth pass's finding closed most — but not all — of
+what was left. `docs/research/0005-lightsaber-skill-testdoubles-v2-third-dogfood.md`
+is the record of exactly how much.

@@ -1,6 +1,6 @@
 # [PLAN-0045] Compono.TestDoubles: Configuration-Required Members
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
 
@@ -339,9 +339,9 @@ actually shipped and there's real code to check docs against.
       wasn't already caught by Phase 0's own search, matching the
       proactive sweep PLAN-0044 Phase 4 ran before its own final push.
 
-### Phase 4 — Third `lightsaber-skill` dogfood (Not Started)
+### Phase 4 — Third `lightsaber-skill` dogfood (Done)
 
-- [ ] Re-run the exact `lightsaber-skill` migration analysis (same method
+- [x] Re-run the exact `lightsaber-skill` migration analysis (same method
       as RESEARCH-0004) against the shipped implementation of this ADR.
       Quantify against the acceptance cases: `IResponseBuilder`,
       `IAmazonS3`, `ISkillMediator`, `IOptions<LightsaberOptions>`,
@@ -349,13 +349,13 @@ actually shipped and there's real code to check docs against.
       their members are configuration-required vs. deterministic-default;
       whether `ILogger<T>` (already working under v2) still works
       unchanged (regression check, not a redesign target).
-- [ ] **The acceptance criterion is "can real tests remove
+- [x] **The acceptance criterion is "can real tests remove
       `Compono.NSubstitute`," not "do more interfaces generate."**
       Quantify against the same ~40 original NSubstitute call sites: how
       many can now migrate; how many tests, if any, can drop
       `Compono.NSubstitute` entirely; whether any test still needs both
       providers side by side and why.
-- [ ] Record the result as a new `docs/research/*.md` finding (next
+- [x] Record the result as a new `docs/research/*.md` finding (next
       sequential number after RESEARCH-0004), following the same
       evidence-record convention. Update `docs/roadmap/post-mvp.md`'s
       entry for this candidate accordingly — move it from "outstanding"
@@ -363,6 +363,26 @@ actually shipped and there's real code to check docs against.
       it's a partial improvement short of that bar, record the honest
       result the same way RESEARCH-0004 did, and open a further roadmap
       candidate for any residual gap rather than overstating this one.
+
+**Phase 4 result:** [RESEARCH-0005](../research/0005-lightsaber-skill-testdoubles-v2-third-dogfood.md).
+Six of seven interfaces now generate and resolve cleanly (`CMP0025` never
+fired); 4 of 5 real test files fully migrated off `Compono.NSubstitute`
+(~44 call sites down to ~9, all in one file). `Compono.NSubstitute` still
+required project-wide: `IAmazonS3` declares a static abstract member
+(`CreateDefaultClientConfig`), a shape `Compono.TestDoubles` explicitly
+doesn't support (ADR-0042 Non-Goals) — not a gap ADR-0045 was scoped to
+close. Per this task's own instruction, a residual gap normally opens a
+further roadmap candidate; this one doesn't, because RESEARCH-0005
+classifies it **not a bug and not a new roadmap candidate** under
+ADR-0029's rubric — a narrow, rare, already-documented non-goal, not
+evidence Compono needs a new capability. A controlled before/after
+`hyperfine` benchmark on the same suite found no meaningful performance
+difference (-1.05% on median, inside run-to-run noise) — recorded as an
+honest real-world data point, not a general Compono performance claim.
+`docs/roadmap/post-mvp.md` updated accordingly: the candidate is removed
+from "outstanding" (the capability that blocked real migration is
+confirmed fixed) with the residual `IAmazonS3` limit recorded in prose,
+not as a new candidate entry.
 
 ## Critical Files
 

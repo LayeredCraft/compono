@@ -60,4 +60,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0041](0041-aot-safe-row-binding-dispatch.md) | AOT-Safe Row-Binding Dispatch | Done |
 | [0043](0043-compono-generated-test-doubles.md) | Compono-Generated Test Doubles | Done |
 | [0044](0044-compono-testdoubles-v2.md) | Compono.TestDoubles v2: Overloads, Generic Methods, Minimal Call Verification | Done |
-| [0045](0045-testdoubles-configuration-required-members.md) | Compono.TestDoubles: Configuration-Required Members | In Progress |
+| [0045](0045-testdoubles-configuration-required-members.md) | Compono.TestDoubles: Configuration-Required Members | Done |
