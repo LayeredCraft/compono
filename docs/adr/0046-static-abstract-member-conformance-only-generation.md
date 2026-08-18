@@ -170,10 +170,24 @@ narrowed without being deleted when `CMP0032` was introduced (ADR-0045).
 This is scoped identically for static abstract **methods**, **properties**,
 and **operators** — all three report through the same code path today
 (`TestDoubleAnalyzer.cs`'s `IMethodSymbol { IsStatic: true, IsAbstract: true, ... }`
-and `IPropertySymbol { IsStatic: true, IsAbstract: true }` branches), and a
-throwing conformance-only stub is equally legal C# for all three shapes —
-there's no principled reason to treat an operator differently from a
-method here, and treating them uniformly is the simpler design.
+and `IPropertySymbol { IsStatic: true, IsAbstract: true }` branches) — but
+the emitted shape must be an **explicit static interface implementation**
+(`static ReturnType IInterface.Member(...)`/`static ReturnType IInterface.operator +(...)`),
+the same convention every instance member this generator already emits
+uses (e.g. `global::...IResponseBuilder.Speak(string? speechOutput)`),
+not a plain `public static` declaration. This isn't a stylistic choice for
+operators specifically: a plain `public static` operator overload is
+illegal C# unless at least one operand is the enclosing type itself, which
+is not the case for an interface-typed operand
+(`static abstract IRepository operator +(IRepository, IRepository)`, where
+neither operand is the generated double's own concrete type) — only the
+explicit-interface-implementation form is legal there, per C#'s
+static-abstract-interface-member rules. Applying the same explicit form
+uniformly to methods and properties too (not just where required for
+operators) keeps one emission convention across every member kind this
+generator produces, rather than a plain-`public static` special case for
+two of the three static shapes and an explicit-implementation special case
+for the third.
 
 ### Positive Consequences
 

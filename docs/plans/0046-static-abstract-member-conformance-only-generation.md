@@ -63,6 +63,25 @@ are all one decision, not four).
       follow the same branch — the existing comment explaining why
       operators are checked before the general `MethodKind` filter stays
       correct and applies unchanged.
+      **Ordering hazard (Codex review, PR #98):** the existing
+      `method.IsVararg` check (line ~346) lives in the *ordinary* instance-
+      method case, reached only after the static-abstract pattern above has
+      already had first chance to match — a method that is somehow both
+      static-abstract *and* a C-style vararg (`__arglist`) would match the
+      static-abstract branch first and never reach the vararg check at all,
+      silently getting recorded as conformance-only instead of correctly
+      staying `CMP0021`-rejected. `IMethodSymbol.Parameters` excludes the
+      `__arglist` sentinel entirely (per the existing vararg regression
+      test's own documented finding), so a conformance-only stub built from
+      `.Parameters` for such a method would emit the wrong signature and
+      fail to compile. **Fix:** add an explicit `method.IsVararg` guard
+      *inside* the static-abstract branch, checked before recording the
+      member as conformance-only — if true, keep the original
+      `return Failure(...)` (whole-interface `CMP0021` rejection),
+      unchanged. Add a regression test for this exact combination (or
+      document why it's unconstructible in practice, if a real compile
+      spike shows static-abstract + vararg can't co-occur at all) rather
+      than assuming the ordering is safe.
 - [ ] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
       `CMP0033` (Info, `Compono.TestDoubles` category) — "An interface has
       one or more static abstract members Compono generates a
@@ -75,16 +94,35 @@ are all one decision, not four).
       every prior `CMP00xx` addition).
 - [ ] `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
       `src/Compono.Generators/Templates/TestDouble.scriban`: new emission
-      branch for a conformance-only static member — emits a real
-      `public static <ReturnType> Member(<params>)` (or property/operator
-      equivalent) whose body is
+      branch for a conformance-only static member — emits it as an
+      **explicit static interface implementation**
+      (`static <ReturnType> <FullyQualifiedInterface>.Member(<params>)` /
+      `static <ReturnType> <FullyQualifiedInterface>.operator +(<params>)`
+      for operators), matching the same explicit-implementation convention
+      every instance member this generator already emits (no `public`
+      modifier — that's not legal on an explicit interface implementation
+      either). **Not** a plain `public static` declaration (Codex review,
+      PR #98): for an operator whose declared operand types are the
+      interface itself rather than the implementing type
+      (`static abstract IRepository operator +(IRepository, IRepository)`),
+      a plain `public static` operator overload is illegal C# — neither
+      operand is the enclosing (generated) type, which ordinary operator
+      overload rules require. Only the explicit-interface-implementation
+      form is legal for that case, and applying it uniformly to methods and
+      properties too (not just where operators require it) keeps one
+      emission shape across every static member kind rather than a special
+      case for operators alone. Body is
       `throw new global::Compono.TestDoubleUnsupportedMemberException("...")`
       with the message format ADR-0046's Decision Outcome specifies. No
       `ReturnConfig` field, no `Configure()`/`Verify()` extension method is
       generated for this member — confirm this by inspecting emitted
       source (`-p:EmitCompilerGeneratedFiles=true`) against a probe
       interface during implementation, the same verification technique
-      RESEARCH-0005 used.
+      RESEARCH-0005 used, and confirm the emitted operator actually
+      compiles against a real interface-typed-operand probe interface
+      (mirroring the `IRepository operator +(IRepository, IRepository)`
+      shape Codex's review flagged), not just a probe where the operand
+      happens to already be the concrete generated type.
 - [ ] Confirm `CMP0021`'s own message/condition is otherwise unchanged —
       it still fires, whole-interface, for events, indexers, and
       variable-argument methods; only the static-abstract-member condition

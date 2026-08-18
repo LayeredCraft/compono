@@ -384,6 +384,20 @@ from "outstanding" (the capability that blocked real migration is
 confirmed fixed) with the residual `IAmazonS3` limit recorded in prose,
 not as a new candidate entry.
 
+**Update (2026-08-18, same day):** the paragraph above is superseded by a
+same-day reclassification — kept here unedited, per this plan's own
+historical-record convention, rather than rewritten to look like it was
+always this way. Measured against a stronger, explicit product-owner
+acceptance criterion (full `Compono.NSubstitute` removal from
+`lightsaber-skill`, not just "material improvement"), the residual
+`IAmazonS3` gap **is** a roadmap candidate after all — see
+RESEARCH-0005's own "Reclassification" section,
+[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration),
+and [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)/
+[PLAN-0046](0046-static-abstract-member-conformance-only-generation.md),
+which now track it. `docs/roadmap/post-mvp.md` reflects the reclassified,
+current state, not this paragraph's original conclusion.
+
 ## Critical Files
 
 - `src/Compono/TestDoubleNotConfiguredException.cs` — new exception type.
