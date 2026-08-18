@@ -285,9 +285,9 @@ depends on its own type parameter); special-casing fluent self-return
     consumer- and agent-facing entry points describing a smaller
     diagnostic range than what Phase 0 actually ships.
 
-### Phase 1 — Existing-behavior regression coverage (Not Started)
+### Phase 1 — Existing-behavior regression coverage (Done)
 
-- [ ] Confirm zero behavior change for every already-shipped
+- [x] Confirm zero behavior change for every already-shipped
       deterministic-default member shape (`bool`, `int`, nullable
       reference, `Task`, known collection shapes) — existing v1/v2 tests
       continue passing unmodified; add one small regression test mixing a
@@ -442,3 +442,22 @@ special-casing, exactly as ADR-0045 decided. No ADR-0045 Amendment was
 needed. The generator-level regression coverage for all four combined
 shapes (Amendments 3 and 6) lives in
 `test/Compono.Generators.Tests/TestDoubleVerifyTests.cs`.
+
+**Phase 1 result:** zero behavior change confirmed — the full solution
+test suite (2147 tests, every already-shipped deterministic-default
+member shape included) passes unmodified. The generator-level
+`MultipleConfigurationRequiredMembers_ReportsSingleCmp0032WithCorrectCount`
+test (Phase 0) already mixed a deterministic-default member (`int
+GetCount()`) with configuration-required members on one interface for
+diagnostic-count purposes, but no existing test exercised the *runtime*
+dispatch behavior of both member kinds together on the same double. Added
+`Deterministic_default_members_are_unaffected_by_sibling_configuration_required_members`
+to `test/Compono.TestDoubles.SampleTests/ConfigurationRequiredMemberTests.cs`,
+extending `IProfileRepository` with one member per deterministic-default
+shape the plan names — `int ViewCount` (`0`), `bool IsActive` (`false`),
+`string? Nickname` (`null`), `IReadOnlyList<string> Tags()` (`[]`, the
+known-collection-shape default), and `Task<int> GetScoreAsync()`
+(`Task.FromResult(0)`) — confirming each returns its own computed default
+unconfigured, on the same instance and same interface as the existing
+configuration-required members, with no interaction between the two
+dispatch paths.
