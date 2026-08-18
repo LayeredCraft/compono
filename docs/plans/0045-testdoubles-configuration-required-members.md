@@ -451,9 +451,13 @@ test (Phase 0) already mixed a deterministic-default member (`int
 GetCount()`) with configuration-required members on one interface for
 diagnostic-count purposes, but no existing test exercised the *runtime*
 dispatch behavior of both member kinds together on the same double. Added
-`Deterministic_default_member_is_unaffected_by_a_sibling_configuration_required_member`
-to `test/Compono.TestDoubles.SampleTests/ConfigurationRequiredMemberTests.cs`
-(a new `int ViewCount { get; }` member on `IProfileRepository`, confirming
-it returns its computed default `0` unconfigured while a sibling
-configuration-required member on the same instance still throws) to close
-that gap.
+`Deterministic_default_members_are_unaffected_by_sibling_configuration_required_members`
+to `test/Compono.TestDoubles.SampleTests/ConfigurationRequiredMemberTests.cs`,
+extending `IProfileRepository` with one member per deterministic-default
+shape the plan names — `int ViewCount` (`0`), `bool IsActive` (`false`),
+`string? Nickname` (`null`), `IReadOnlyList<string> Tags()` (`[]`, the
+known-collection-shape default), and `Task<int> GetScoreAsync()`
+(`Task.FromResult(0)`) — confirming each returns its own computed default
+unconfigured, on the same instance and same interface as the existing
+configuration-required members, with no interaction between the two
+dispatch paths.

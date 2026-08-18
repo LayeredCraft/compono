@@ -24,6 +24,14 @@ public interface IProfileRepository
     IProfileRepository Self();
 
     int ViewCount { get; }
+
+    bool IsActive { get; }
+
+    string? Nickname { get; }
+
+    IReadOnlyList<string> Tags();
+
+    Task<int> GetScoreAsync();
 }
 
 public sealed class ConfigurationRequiredMemberTests
@@ -180,16 +188,20 @@ public sealed class ConfigurationRequiredMemberTests
         repository.Self().Self().Should().BeSameAs(repository);
     }
 
-    // PLAN-0045 Phase 1's own regression case: a deterministic-default member
-    // (int -> 0) on the same interface as a configuration-required member is
-    // completely unaffected - it returns its computed default unconfigured, with
-    // no interaction between the two members' dispatch paths.
+    // PLAN-0045 Phase 1's own regression case: every already-shipped deterministic-default shape
+    // (bool, int, nullable reference, a known collection shape, Task<T> over a value type) on the
+    // same interface as configuration-required members is completely unaffected - each returns its
+    // own computed default unconfigured, with no interaction between the dispatch paths.
     [Theory]
     [Compose<GeneratedTestDoubleProfile>]
-    public void Deterministic_default_member_is_unaffected_by_a_sibling_configuration_required_member(
+    public async Task Deterministic_default_members_are_unaffected_by_sibling_configuration_required_members(
         [Shared] IProfileRepository repository)
     {
         repository.ViewCount.Should().Be(0);
+        repository.IsActive.Should().BeFalse();
+        repository.Nickname.Should().BeNull();
+        repository.Tags().Should().BeEmpty();
+        (await repository.GetScoreAsync()).Should().Be(0);
 
         var act = () => repository.GetName();
 
