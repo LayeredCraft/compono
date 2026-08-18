@@ -256,13 +256,19 @@ want a generated double for it.
 **Message:** `'{Interface}' declares member '{Member}' {Kind}, which
 Compono cannot generate a test double for`
 
-**Cause:** The interface declares an indexer, event, static abstract
-member, a variable-argument (`__arglist`) method, or another member-kind
-shape outside v1's supported set. (A `ref`/`out`/`in`/pointer/function-
-pointer *parameter* on an otherwise-supported method is `CMP0026`, not
-this code; a generic method whose return type depends on its own type
-parameter is `CMP0031`, not this code either — a generic method is
-supported as of v2, ADR-0044 Requirement 2.)
+**Cause:** The interface declares an indexer, event, a genuinely
+unimplemented static abstract member, a variable-argument (`__arglist`)
+method, or another member-kind shape outside v1's supported set. A static
+abstract member already resolved by a more-derived interface in the same
+hierarchy (C#'s own "most specific implementation" rule — e.g. AWSSDK's
+`IAmazonS3` re-implementing its base `IAmazonService`'s static abstract
+member) does **not** trigger this diagnostic at all; see
+[Static abstract members inherited from a base interface](../packages/compono-testdoubles.md#static-abstract-members-inherited-from-a-base-interface)
+(ADR-0046). (A `ref`/`out`/`in`/pointer/function-pointer *parameter* on an
+otherwise-supported method is `CMP0026`, not this code; a generic method
+whose return type depends on its own type parameter is `CMP0031`, not this
+code either — a generic method is supported as of v2, ADR-0044
+Requirement 2.)
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
 

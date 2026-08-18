@@ -1,189 +1,143 @@
-# [PLAN-0046] Static Abstract Member Conformance-Only Generation
+# [PLAN-0046] Effective Interface Contract for Inherited Static Abstract Members
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
 
 ## Goal
 
-A test-double-eligible interface that declares a static abstract member
-(method, property, or operator) generates and resolves through
-`UseGeneratedTestDoubles()` alone — the member itself compiles as a
-conformance-only stub that throws the new `TestDoubleUnsupportedMemberException`
-if invoked, with zero effect on the interface's other, supported members.
-Closes Gate-B (the "can `lightsaber-skill` remove `Compono.NSubstitute`
-entirely" acceptance criterion) end to end, verified by a real second
-migration pass against `IAmazonS3` specifically, not just generator-level
-coverage.
+A test-double-eligible interface whose closure declares a static abstract
+member (method, property, or operator) that's already resolved by a
+more-derived interface in the same closure (C#'s own "most specific
+implementation" rule) generates and resolves through
+`UseGeneratedTestDoubles()` alone, with every member — including the
+previously-blocking one — behaving exactly as the real interface actually
+behaves. Closes Gate-B (the "can `lightsaber-skill` remove
+`Compono.NSubstitute` entirely" acceptance criterion) end to end, verified
+by a real second migration pass against `IAmazonS3` specifically, not just
+generator-level coverage.
 
 ## Scope
 
-Implements ADR-0046's chosen option (conformance-only generation) in full,
-per its Decision Outcome. Deferred, per the ADR's own Consequences and
-rejected options: any configurable/mockable behavior for static members
-(Option 4), and any "safe default" heuristic for static members (Option
-3) — a static abstract member is always a throwing stub, no exceptions.
-Out of scope entirely, unchanged by this plan: events, indexers, and
-variable-argument methods stay whole-interface-rejected under the
-existing `CMP0021` — this plan narrows `CMP0021`'s trigger condition, it
-doesn't touch its handling of those other three shapes. Per
+Implements ADR-0046's chosen option (effective-interface-contract
+analysis) in full, per its Decision Outcome. A static abstract member with
+no override anywhere in its interface's closure stays whole-interface-
+rejected under the existing `CMP0021`, unchanged — per ADR-0046, C# itself
+(`CS8920`) makes such an interface uncomposable through Compono's generic
+`Resolve<TValue>()` regardless of what this generator does, so no stub or
+fallback behavior is implemented for that case. Out of scope entirely,
+unchanged by this plan: events, indexers, and variable-argument methods
+stay whole-interface-rejected under `CMP0021` — this plan narrows one
+specific trigger condition of `CMP0021`, it doesn't touch its handling of
+those other three shapes. Per
 [ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration),
-a future evidenced need for configurable static-member behavior would be
-its own new roadmap candidate, not a reason to widen this plan's scope
-now.
+a future evidenced need for configurable static-member behavior, or for
+composing a genuinely unresolved static abstract member some other way,
+would be its own new roadmap candidate, not a reason to widen this plan's
+scope now.
 
-One implementation phase, one PR — the work below is grouped into task
-subsections for readability, not sequenced phases; nothing here ships
-independently of the rest (per this repo's "one phase = one PR"
-convention, splitting a scope this size into four separate phases/PRs
-would be more review overhead than the actual change warrants, since the
-generator change, its tests, its docs, and its closing acceptance test
-are all one decision, not four).
+**No new public API surface**: no new diagnostic code, no new exception
+type, no new emission branch. This plan's earlier draft (still visible in
+ADR-0046's "Decision Outcome" section, which records it in full rather
+than silently rewriting) proposed exactly those three things
+(`CMP0033`, `TestDoubleUnsupportedMemberException`, a conformance-only
+stub emission branch) before implementation-time compile spikes proved
+the design wrong (would have silently broken `IAmazonS3`'s own real
+implementation) and unreachable (blocked upstream by `CS8920` for the
+case it would have legitimately applied to) at the same time. All of that
+machinery is removed, not shipped.
+
+One implementation phase, one PR for the generator fix, its tests, and its
+docs — the closing `lightsaber-skill` dogfood is a **separate, follow-up
+PR** (see "Notes"): it requires publishing a new Compono preview package
+with this fix included before `lightsaber-skill`'s own dependency bump can
+consume it, which can't happen inside this PR.
 
 ## Tasks
 
-### Generator: analyzer, emitter, diagnostics
+### Analyzer: effective-interface-contract resolution
 
-- [ ] `src/Compono/TestDoubleUnsupportedMemberException.cs`: new sealed
-      exception type, same minimal shape as `TestDoubleNotConfiguredException`/
-      `TestDoubleVerificationException` (a single string-message
-      constructor, no extra properties) — see ADR-0046's Decision Outcome
-      for why this is a dedicated type rather than reusing
-      `TestDoubleNotConfiguredException`.
-- [ ] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: change the
-      `IMethodSymbol { IsStatic: true, IsAbstract: true, ... }` branch
-      (currently `return Failure(...)`) and the `IPropertySymbol { IsStatic: true, IsAbstract: true }`
-      branch (same) to instead record a conformance-only member (a new
-      `DiscoveredMember`-shaped entry, or equivalent, carrying enough
-      signature info — name, return type, parameter list, `MethodKind`
-      for operators — for the emitter to produce a matching override) and
-      `continue` the scan, incrementing a `conformanceOnlyCount` the same
-      way `configurationRequiredCount` already works for `CMP0032`.
-      Static abstract **operators** (`MethodKind.UserDefinedOperator`)
-      follow the same branch — the existing comment explaining why
-      operators are checked before the general `MethodKind` filter stays
-      correct and applies unchanged.
-      **Ordering hazard (Codex review, PR #98):** the existing
-      `method.IsVararg` check (line ~346) lives in the *ordinary* instance-
-      method case, reached only after the static-abstract pattern above has
-      already had first chance to match — a method that is somehow both
-      static-abstract *and* a C-style vararg (`__arglist`) would match the
-      static-abstract branch first and never reach the vararg check at all,
-      silently getting recorded as conformance-only instead of correctly
-      staying `CMP0021`-rejected. `IMethodSymbol.Parameters` excludes the
-      `__arglist` sentinel entirely (per the existing vararg regression
-      test's own documented finding), so a conformance-only stub built from
-      `.Parameters` for such a method would emit the wrong signature and
-      fail to compile. **Fix:** add an explicit `method.IsVararg` guard
-      *inside* the static-abstract branch, checked before recording the
-      member as conformance-only — if true, keep the original
-      `return Failure(...)` (whole-interface `CMP0021` rejection),
-      unchanged. Add a regression test for this exact combination (or
-      document why it's unconstructible in practice, if a real compile
-      spike shows static-abstract + vararg can't co-occur at all) rather
-      than assuming the ordering is safe.
-- [ ] `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: add
-      `CMP0033` (Info, `Compono.TestDoubles` category) — "An interface has
-      one or more static abstract members Compono generates a
-      conformance-only implementation for (the type must implement them to
-      compile); invoking one always throws `TestDoubleUnsupportedMemberException`
-      — one diagnostic per interface (a count), not one per member,
-      matching `CMP0032`'s convention."
-- [ ] `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: new
-      `CMP0033` row (required by `EnforceExtendedAnalyzerRules`, same as
-      every prior `CMP00xx` addition).
-- [ ] `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
-      `src/Compono.Generators/Templates/TestDouble.scriban`: new emission
-      branch for a conformance-only static member — emits it as an
-      **explicit static interface implementation**
-      (`static <ReturnType> <FullyQualifiedInterface>.Member(<params>)` /
-      `static <ReturnType> <FullyQualifiedInterface>.operator +(<params>)`
-      for operators), matching the same explicit-implementation convention
-      every instance member this generator already emits (no `public`
-      modifier — that's not legal on an explicit interface implementation
-      either). **Not** a plain `public static` declaration (Codex review,
-      PR #98): for an operator whose declared operand types are the
-      interface itself rather than the implementing type
-      (`static abstract IRepository operator +(IRepository, IRepository)`),
-      a plain `public static` operator overload is illegal C# — neither
-      operand is the enclosing (generated) type, which ordinary operator
-      overload rules require. Only the explicit-interface-implementation
-      form is legal for that case, and applying it uniformly to methods and
-      properties too (not just where operators require it) keeps one
-      emission shape across every static member kind rather than a special
-      case for operators alone. Body is
-      `throw new global::Compono.TestDoubleUnsupportedMemberException("...")`
-      with the message format ADR-0046's Decision Outcome specifies. No
-      `ReturnConfig` field, no `Configure()`/`Verify()` extension method is
-      generated for this member — confirm this by inspecting emitted
-      source (`-p:EmitCompilerGeneratedFiles=true`) against a probe
-      interface during implementation, the same verification technique
-      RESEARCH-0005 used, and confirm the emitted operator actually
-      compiles against a real interface-typed-operand probe interface
-      (mirroring the `IRepository operator +(IRepository, IRepository)`
-      shape Codex's review flagged), not just a probe where the operand
-      happens to already be the concrete generated type.
-- [ ] Confirm `CMP0021`'s own message/condition is otherwise unchanged —
-      it still fires, whole-interface, for events, indexers, and
-      variable-argument methods; only the static-abstract-member condition
-      moves out of it.
+- [x] `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`: the
+      `IMethodSymbol { IsStatic: true, IsAbstract: true, ... }` branch and
+      the `IPropertySymbol { IsStatic: true, IsAbstract: true }` branch
+      (previously unconditional `return Failure(...)`) each gain one
+      guard, checked first: if
+      `interfaceType.FindImplementationForInterfaceMember(member)` returns
+      non-null, the member is already resolved by a more-derived interface
+      in the closure (verified against Roslyn directly, not assumed) —
+      `continue` past it, the same disposition an ordinary non-abstract
+      static member already gets. If it returns `null`, fall through to
+      the original, unchanged `Failure(...)` (whole-interface `CMP0021`
+      rejection) — a genuinely unresolved static abstract member's
+      disposition doesn't change.
+- [x] Confirm `CMP0021`'s own message/condition is otherwise unchanged for
+      the shapes it still legitimately rejects: events, indexers,
+      variable-argument methods, and a genuinely unresolved static
+      abstract member.
+- [x] `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: update
+      `CMP0021`'s row description to reflect the narrowed trigger
+      condition (a resolved-via-derived-interface static abstract member
+      no longer fires it at all).
 
 ### Test coverage
 
-- [ ] `test/Compono.Generators.Tests/`: generator-level snapshot/behavior
-      tests — a static abstract method, a static abstract property, and a
-      static abstract operator, each on their own probe interface;
-      confirm `CMP0033` fires (count matches), `CMP0021` does not fire for
-      these three interfaces, and the interface's other instance members
-      still generate their normal `Configure()`/`Verify()` surface
-      unaffected.
-- [ ] `test/Compono.TestDoubles.SampleTests/`: a packaged-consumer test
-      proving invoke-always-throws-`TestDoubleUnsupportedMemberException`
-      for the static member, through the real `Compono` →
-      `Compono.Generators` → `Compono.TestDoubles` dependency chain
-      (matching `ConfigurationRequiredMemberTests.cs`'s existing pattern
-      for the instance-level case) — and a same-interface instance member
-      proven completely unaffected, mirroring
-      `Deterministic_default_members_are_unaffected_by_sibling_configuration_required_members`.
-      Also confirm no `Configure()`/`Verify()` extension method exists for
-      the static member at all (a compile-time absence, not a runtime
-      check) — the point of the dedicated exception type is that a
-      consumer shouldn't be tempted to look for one.
-- [ ] `test/Compono.TestDoubles.AotSmokeTest/Program.cs`: extend with a
-      new probe interface declaring a static abstract member alongside a
-      normal instance member — prove the unconfigured-static-member-throws
-      behavior survives Native AOT/trimming, the same way
-      `IProfileRepository`'s configuration-required shapes are proven
-      there today.
+- [x] `test/Compono.Generators.Tests/`: generator-level compile-and-verify
+      tests (not diagnostics-only — `GeneratorTestHelpers.Verify`, which
+      actually reparses and compiles the generated output, catching the
+      class of bug a diagnostics-only assertion would have missed) for
+      the general Roslyn/interface-inheritance rule, covering a static
+      abstract method, property, and operator each resolved by a
+      more-derived interface — confirm no diagnostic fires, the double
+      generates completely normally, and a sibling instance member's
+      `Configure()`/`Verify()` surface is unaffected. Separately, confirm
+      a genuinely unresolved static abstract method/property/operator
+      still reports `CMP0021` and rejects the whole interface, unchanged
+      from before this ADR.
+- [x] `test/Compono.TestDoubles.SampleTests/`: a packaged-consumer test
+      (`StaticAbstractMemberTests.cs`) proving the fix through the real
+      `Compono` → `Compono.Generators` → `Compono.TestDoubles` dependency
+      chain — an IAmazonS3-shaped interface (a base interface declaring a
+      static abstract member, a derived interface re-implementing it)
+      resolves and its ordinary instance member works through
+      `Configure()`/`TestDoubleNotConfiguredException` exactly as any
+      other configuration-required member would.
+- [x] `test/Compono.TestDoubles.AotSmokeTest/Program.cs`: extended with
+      the same IAmazonS3-shaped probe interface pair, proving the
+      resolved-via-derived-interface member doesn't reject the leaf
+      interface under Native AOT/trimming either — verified via a real
+      `dotnet publish -p:PublishAot=true` + run, not just a JIT test.
 
 ### Docs/skill alignment
 
-- [ ] `docs/packages/compono-testdoubles.md`: move static abstract members
-      out of "What it deliberately doesn't do" into the supported-shapes
-      narrative (near the `CMP0032`/configuration-required section), and
-      resolve this plan's own forward-reference note added during the
-      design pass.
-- [ ] `docs/reference/diagnostics.md`, `skills/compono/references/diagnostics.md`:
-      new `CMP0033` entries, matching `CMP0032`'s existing entry shape.
-- [ ] `skills/compono/references/testdoubles.md`, `skills/compono/SKILL.md`:
-      align any "still unsupported" prose that names static abstract
-      members specifically.
-- [ ] `docs/troubleshooting/common-errors.md`: add
-      `TestDoubleUnsupportedMemberException` if that doc catalogs
-      exception types/message shapes (check current pattern before adding
-      — don't duplicate if it already documents exception types
-      generically rather than per-type).
-- [ ] `docs/reference/api/Compono/` — regenerated pages for the new
-      `TestDoubleUnsupportedMemberException` type (ADR-0032's toolchain,
-      drift-checked in CI, same as every prior new public type in this
-      area).
+- [x] `docs/packages/compono-testdoubles.md`: new "Static abstract members
+      inherited from a base interface" section (near the
+      "Configuration-required members" section) documenting the supported
+      shape with the real `IAmazonS3`/`IAmazonService` example; "What it
+      deliberately doesn't do" corrected to say a *genuinely unimplemented*
+      static abstract member still rejects the interface, not "a static
+      abstract member" unconditionally.
+- [x] `docs/reference/diagnostics.md`, `skills/compono/references/diagnostics.md`:
+      `CMP0021`'s entry corrected to describe the narrowed trigger
+      condition and link the new supported-shape documentation.
+- [x] `skills/compono/references/testdoubles.md`: "still unsupported"
+      prose corrected the same way, plus a short note on the
+      resolved-via-derived-interface exception.
+- [x] `skills/compono/SKILL.md`, `docs/troubleshooting/common-errors.md`:
+      checked — neither names static abstract members specifically, no
+      change needed.
+- [x] No `docs/reference/api/Compono/` regeneration needed — no new public
+      type was added (the originally-planned
+      `TestDoubleUnsupportedMemberException` was withdrawn, not shipped).
 
-### Gate-B closing dogfood: `lightsaber-skill`
+### Gate-B closing dogfood: `lightsaber-skill` (deferred to a follow-up PR)
 
+- [ ] Publish a new `Compono`/`Compono.Generators`/`Compono.TestDoubles`
+      preview package including this fix (out of scope for *this* PR —
+      see "Notes").
 - [ ] Re-run RESEARCH-0005's `lightsaber-skill` branch
       (`build/deps-bump-compono-preview-73`, or a fresh branch from
-      `main` if that one's gone stale) against the shipped implementation
-      of this ADR. Migrate `LightsaberHandlerTests.cs`'s remaining
+      `main` if that one's gone stale) against the newly-published
+      package. Migrate `LightsaberHandlerTests.cs`'s remaining
       `IAmazonS3` usage (~9 call sites: `Substitute.For<IAmazonS3>()`,
       `Arg.Any`/`.Returns()` on `ListObjectsV2Async`) to
       `Compono.TestDoubles`, the same `Configure()`/`Composer.Create(...)`
@@ -216,72 +170,88 @@ are all one decision, not four).
 
 ## Critical Files
 
-- `src/Compono/TestDoubleUnsupportedMemberException.cs` — new exception
-  type (see ADR-0046's Decision Outcome for why it's distinct from
-  `TestDoubleNotConfiguredException`).
 - `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs` — the two
-  static-abstract branches change from whole-interface `Failure(...)` to
-  member-scoped conformance-only recording.
-- `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs` — new
-  `CMP0033` descriptor.
-- `src/Compono.Generators/AnalyzerReleases.Unshipped.md` — new `CMP0033`
-  row.
-- `src/Compono.Generators/Emitters/TestDoubleEmitter.cs`,
-  `src/Compono.Generators/Templates/TestDouble.scriban` — new
-  conformance-only static-member emission branch.
-- `test/Compono.Generators.Tests/`, `test/Compono.TestDoubles.SampleTests/`,
+  static-abstract branches gain the effective-interface-contract guard.
+- `src/Compono.Generators/AnalyzerReleases.Unshipped.md` — `CMP0021` row
+  description updated.
+- `test/Compono.Generators.Tests/TestDoubleVerifyTests.cs`,
+  `test/Compono.TestDoubles.SampleTests/StaticAbstractMemberTests.cs`,
   `test/Compono.TestDoubles.AotSmokeTest/Program.cs` — new test coverage.
 - `docs/packages/compono-testdoubles.md`, `docs/reference/diagnostics.md`,
   `skills/compono/references/diagnostics.md`,
-  `skills/compono/references/testdoubles.md`, `skills/compono/SKILL.md`,
-  `docs/troubleshooting/common-errors.md` — doc/skill alignment.
-- `docs/roadmap/post-mvp.md`, a new `docs/research/000N-*.md` — the
-  Gate-B closing result.
-- (External repo) `ncipollina/lightsaber-skill`: `Directory.Packages.props`,
-  `test/Lightsaber.Skill.Tests/Lightsaber.Skill.Tests.csproj`,
-  `test/Lightsaber.Skill.Tests/Handlers/LightsaberHandlerTests.cs` — the
-  actual migration.
+  `skills/compono/references/testdoubles.md` — doc/skill alignment.
+- `docs/adr/0046-static-abstract-member-conformance-only-generation.md` —
+  rewritten in place (still `Proposed` when the rewrite happened, so no
+  Amendment was needed) to record both the corrected design and the two
+  compile-spike findings that invalidated the original one.
+- (Deferred to the follow-up PR) `docs/roadmap/post-mvp.md`, a new
+  `docs/research/000N-*.md`, and (external repo) `ncipollina/lightsaber-skill`'s
+  `Directory.Packages.props`, `Lightsaber.Skill.Tests.csproj`,
+  `LightsaberHandlerTests.cs`.
 
 ## Test Plan
 
-Matches `references/testing.md`'s existing pattern for this feature area
-(established by PLAN-0043/PLAN-0044/PLAN-0045): generator-level
-snapshot/behavior tests for the analyzer/diagnostic change, packaged-
-consumer behavior tests through the real dependency chain, and Native AOT
-proof — plus, unlike prior plans in this area, a **closing real-world
-acceptance test** that isn't just another dogfood pass but the literal
-Gate-B criterion this ADR exists to satisfy. Before this PR merges, it
-must demonstrate all of the following, not a subset:
+Matches `references/testing.md`'s existing pattern for this feature area:
+generator-level compile-and-verify tests for the analyzer fix (not
+diagnostics-only — full reparse-and-recompile of the generated output),
+packaged-consumer behavior tests through the real dependency chain, and
+Native AOT proof. Before this PR merges, it must demonstrate all of the
+following, not a subset:
 
-- Static abstract methods, properties, and operators no longer reject
-  their declaring interface (`CMP0021` no longer fires for this case;
-  `CMP0033` does).
-- The generated static member is conformance-only — it always throws
-  `TestDoubleUnsupportedMemberException`, unconditionally, with no
-  configured/unconfigured state to distinguish.
-- No `Configure()`/`Verify()` surface is generated for that member — a
-  compile-time absence, verified directly, not just an untested claim.
+- A static abstract method, property, and operator, each already resolved
+  by a more-derived interface in the closure, no longer reject their
+  declaring interface (`CMP0021` doesn't fire; no other diagnostic fires
+  either — the fix doesn't add one).
+- The resolved member's real, existing implementation is preserved
+  exactly — the double doesn't emit anything for it, so there's nothing
+  that could shadow or change its behavior.
+- A genuinely unresolved static abstract method/property/operator (no
+  override anywhere in the closure) still reports `CMP0021` and rejects
+  the whole interface, unchanged from before this ADR.
 - Every other, already-supported instance member on the same interface is
   completely unaffected — same generated behavior as before this plan.
-- Native AOT/trimming still passes (`Compono.TestDoubles.AotSmokeTest`).
-- `IAmazonS3` specifically now generates and resolves through
-  `UseGeneratedTestDoubles()` alone in `lightsaber-skill`.
-- All remaining NSubstitute call sites in `LightsaberHandlerTests.cs`
-  (~9) migrate to `Compono.TestDoubles`.
-- `Compono.NSubstitute` is removed from `lightsaber-skill`'s test project
-  package references entirely.
-- `NSubstitute` itself is no longer present, even transitively, in that
-  project's dependency graph.
-- The full 77-test `lightsaber-skill` suite passes, verified by running
-  the built test executable, not just a clean compile.
+- Native AOT/trimming still passes (`Compono.TestDoubles.AotSmokeTest`),
+  including the new resolved-via-derived-interface probe.
+- No new public API surface exists — no new diagnostic code, no new
+  exception type, verified by grep/review, not just by omission.
 - `docs/reference/diagnostics.md`, `skills/compono/references/diagnostics.md`,
   `docs/packages/compono-testdoubles.md`, and any other skill/doc surface
   naming static abstract members are current, not stale.
-- The Gate-B result is recorded honestly in a new research doc and
-  reflected accurately in `docs/roadmap/post-mvp.md` — in full if every
-  bullet above passed, or as an honest partial result if not, per the
-  same standard RESEARCH-0004/RESEARCH-0005 held themselves to.
+
+The remaining Gate-B bullets (real `IAmazonS3` removal of
+`Compono.NSubstitute` in `lightsaber-skill`, the full 77-test suite, the
+closing research doc, the roadmap update) are deferred to the follow-up
+PR described in "Notes" — this PR's own merge bar is the bulleted list
+above, not the full Gate-B checklist.
 
 ## Notes
 
-(Empty — plan not yet started.)
+**2026-08-18 — design corrected during implementation, not just
+implemented.** This plan's original draft (ADR-0046's first accepted
+design) specified conformance-only stub generation: a new `CMP0033`
+diagnostic, a new `TestDoubleUnsupportedMemberException` type, and a new
+emitter/template branch generating a throwing explicit static interface
+implementation. Implementation proceeded far enough to generate real code
+and run it against real compilation before two compile spikes (both
+recorded in full in ADR-0046) proved the design wrong: it would have
+silently shadowed and broken `IAmazonS3`'s own real, working
+implementation (a more-derived type's own explicit static interface
+implementation wins over an already-resolved base-interface override —
+verified by executing the shape, not just reading the spec), and
+separately, the case it would have legitimately applied to (a genuinely
+unresolved static abstract member) turned out to be permanently
+unreachable through Compono's own composition mechanism regardless
+(`CS8920`). All three pieces of that original design were removed before
+this PR, replaced by the effective-interface-contract fix this plan now
+describes. This is why every "Tasks" bullet above already shows `[x]` —
+this plan is being finalized alongside implementation, not written ahead
+of it, per this repo's convention that a plan is a living document,
+correctable via Notes rather than treated as a wrong-but-frozen spec.
+
+**Dogfood deferred to a follow-up PR.** This PR implements, tests, and
+documents the generator-level fix and merges independently. The "Gate-B
+closing dogfood" task section above stays unchecked and this plan's
+`Status` stays `In Progress` (not `Done`) until that follow-up PR
+completes: it needs a newly published Compono preview package (built from
+this fix) before `lightsaber-skill`'s own dependency bump can consume it,
+which isn't possible from inside this PR.

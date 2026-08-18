@@ -19,7 +19,7 @@ CMP0011 | Compono.Usage | Error | The same closed collection type was discovered
 CMP0012 | Compono.Usage | Error | A collection's element or key type is private/protected and not accessible from the generated top-level collection plan
 CMP0013 | Compono.Usage | Error | A [Compose]-family method parameter type is private/protected and not accessible from the generated top-level row-invoker registration (ADR-0041)
 CMP0020 | Compono.TestDoubles | Info | A test-double-eligible interface is private/protected and not accessible from the generated top-level double (ADR-0043)
-CMP0021 | Compono.TestDoubles | Info | A test-double interface member is an unsupported kind (event, indexer, static abstract member, variable-argument method)
+CMP0021 | Compono.TestDoubles | Info | A test-double interface member is an unsupported kind (event, indexer, static abstract member, variable-argument method) - a static abstract member already resolved via a more-derived interface's own concrete implementation (ADR-0046) is not treated as unsupported at all
 CMP0022 | Compono.TestDoubles | Info | A test-double member's identity (full signature) is independently declared by two different base interfaces (a diamond collision) - that identity gets no Configure()/Verify() surface, but a real overload gets its own per-overload surface (ADR-0044)
 CMP0023 | Compono.TestDoubles | Info | A test-double interface declares its own member named Configure or Verify, which would collide with the generated Configure()/Verify() bridge (ADR-0044 Requirement 3 widened this from Configure-only)
 CMP0024 | Compono.TestDoubles | Info | A test-double member's generated configuration extension collides with an inherited object member (ToString/GetHashCode/GetType/Equals)

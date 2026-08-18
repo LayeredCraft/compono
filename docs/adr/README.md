@@ -107,4 +107,4 @@ the mechanics: numbering, status, and the index.
 | [0043](0043-compono-generated-test-doubles-design.md) | Compono-Generated Test Doubles: Design | Accepted |
 | [0044](0044-compono-testdoubles-v2-overloads-generics-verification.md) | Compono.TestDoubles v2: Overloaded Members, Generic Methods, Minimal Call Verification | Accepted |
 | [0045](0045-testdoubles-configuration-required-members.md) | Compono.TestDoubles: Configuration-Required Members for Non-Deterministic-Default Returns | Accepted |
-| [0046](0046-static-abstract-member-conformance-only-generation.md) | Static Abstract Member Conformance-Only Generation | Proposed |
+| [0046](0046-static-abstract-member-conformance-only-generation.md) | Effective Interface Contract for Inherited Static Abstract Members | Accepted |
