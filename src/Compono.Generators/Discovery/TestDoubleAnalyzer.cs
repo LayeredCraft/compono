@@ -83,10 +83,24 @@ internal static class TestDoubleAnalyzer
         // own field/extension at all, so counting it here would falsely flag a real, public, emitted
         // member as "overloaded" against a same-named member that generates nothing. PR #83 review
         // round 3.
+        // ADR-0046 (Codex review, PR #99): a static abstract member already resolved by a more-
+        // derived interface in the closure (see the emission loop's own FindImplementationForInterfaceMember
+        // check below) is IsAbstract: true on the raw symbol reached here - the closure walk visits
+        // the *declaring* interface's own unresolved declaration, not the resolved override - so
+        // without this exclusion it would still enter collision preprocessing below. Its canonical
+        // signature only encodes arity/parameter types (TestDoubleOverloadIdentity.CanonicalSignatureFor),
+        // never return type or static-ness, so a resolved static abstract member sharing a name and
+        // arity with a same-named *instance* member (e.g. a zero-parameter static member and a
+        // zero-parameter instance property/method) would be misclassified as a diamond-colliding or
+        // zero-argument-extension-colliding identity, silently withholding the real instance member's
+        // Configure()/Verify() surface - or, combined with ADR-0045, incorrectly rejecting the whole
+        // interface if that instance member also has no deterministic default. Excluded here so this
+        // preprocessing only ever sees the members the emission loop below might actually surface.
         var eligibleCandidates = closure
             .SelectMany(i => i.GetMembers())
             .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
             .Where(m => m.IsAbstract || (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public))
+            .Where(m => !(m.IsStatic && m.IsAbstract && interfaceType.FindImplementationForInterfaceMember(m) is not null))
             .ToArray();
 
         var identityGroups = eligibleCandidates
@@ -269,9 +283,40 @@ internal static class TestDoubleAnalyzer
                         IsStatic: true,
                         IsAbstract: true,
                         MethodKind: not (MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove),
-                    }:
+                    } staticAbstractMethod:
+                    {
+                        // ADR-0046: a static abstract member with no body, declared on some
+                        // interface in the closure, might already be resolved by a MORE-DERIVED
+                        // interface in the same closure re-implementing it with a real, concrete
+                        // body - C#'s own "most specific implementation" rule for static interface
+                        // members (ITypeSymbol.FindImplementationForInterfaceMember, verified with a
+                        // real Roslyn spike). Real-world example, and the actual Gate-B motivation:
+                        // AWSSDK's IAmazonS3 re-implements its base
+                        // IAmazonService.CreateDefaultClientConfig() with a concrete body, even
+                        // though IAmazonService itself only declares it abstract - IAmazonS3 was
+                        // never genuinely unimplemented, and the old per-interface closure walk was
+                        // incorrectly treating it as if it were (inspecting IAmazonService's own raw
+                        // abstract declaration in isolation, never noticing IAmazonS3 had already
+                        // resolved it). When interfaceType (the leaf this double implements) already
+                        // resolves the member, it's not part of this double's unimplemented contract
+                        // at all - skipped silently, the same disposition an ordinary non-abstract
+                        // static member already gets below.
+                        //
+                        // A genuinely unresolved static abstract member (no override anywhere in the
+                        // closure) stays whole-interface rejected, unchanged from before this ADR -
+                        // a real compile spike proved C# itself forbids using an interface with a
+                        // genuinely unresolved static abstract member as a type argument to *any*
+                        // generic method, constrained or not (CS8920), and Compono's own
+                        // ICompositionContext.Resolve<TValue>() is exactly such a call - so a
+                        // generated stub for this case could never actually be reached by a real
+                        // consumer; the composition call site itself would fail to compile before
+                        // ever reaching the double. Not shipped for that reason.
+                        if (interfaceType.FindImplementationForInterfaceMember(staticAbstractMethod) is not null)
+                            continue;
+
                         return Failure(fullyQualifiedName, safeIdentifier,
                             UnsupportedMember(interfaceType, member, "a static abstract member", location));
+                    }
 
                     case IMethodSymbol { MethodKind: not MethodKind.Ordinary }:
                         continue;
@@ -714,17 +759,21 @@ internal static class TestDoubleAnalyzer
                         {
                             // A non-abstract static property is a default implementation, not part
                             // of the instance contract a double implements - skip it silently, same
-                            // as a non-abstract static method. A static *abstract* property, though,
-                            // is exactly as unsupported as a static abstract method or operator - it
-                            // was previously skipped unconditionally here, which left the double
-                            // failing to implement it (CS0535) instead of getting this diagnostic.
-                            if (property.IsAbstract)
-                            {
-                                return Failure(fullyQualifiedName, safeIdentifier,
-                                    UnsupportedMember(interfaceType, member, "a static abstract member", location));
-                            }
+                            // as a non-abstract static method.
+                            if (!property.IsAbstract)
+                                continue;
 
-                            continue;
+                            // ADR-0046: same most-specific-implementation check as the method
+                            // branch above - a static abstract property already resolved by a
+                            // more-derived interface in the closure isn't part of this double's
+                            // unimplemented contract at all. Skipped silently. A genuinely
+                            // unresolved static abstract property stays whole-interface rejected,
+                            // for the same CS8920-reachability reason the method branch documents.
+                            if (interfaceType.FindImplementationForInterfaceMember(property) is not null)
+                                continue;
+
+                            return Failure(fullyQualifiedName, safeIdentifier,
+                                UnsupportedMember(interfaceType, member, "a static abstract member", location));
                         }
 
                         // Same reasoning as the method branch above - a non-public default-implemented

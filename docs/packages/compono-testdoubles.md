@@ -280,6 +280,52 @@ diamond collision, a zero-argument-extension collision, an overloaded
 `ref`/`out`/`in` parameter, or (for a method) a collision with an inherited
 `object` member.
 
+## Static abstract members inherited from a base interface
+
+An interface that declares a static abstract member (C# 11+) still rejects
+the whole interface at generation time if that member is genuinely
+unimplemented anywhere in the interface's own hierarchy — but if a
+**more-derived interface in the same hierarchy already provides a concrete
+implementation** for it (C#'s own "most specific implementation" rule for
+static interface members), that's not an unimplemented requirement at all,
+and the double generates normally
+([ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)):
+
+```csharp
+public interface IAmazonService
+{
+    static abstract AmazonS3Config CreateDefaultClientConfig();
+}
+
+public interface IAmazonS3 : IAmazonService
+{
+    // IAmazonS3 re-implements IAmazonService's static abstract member with
+    // a real body - CreateDefaultClientConfig() is fully resolved from
+    // IAmazonS3's own perspective, even though IAmazonService itself only
+    // declares it abstract.
+    static AmazonS3Config IAmazonService.CreateDefaultClientConfig() => new();
+
+    Task<GetObjectResponse> GetObjectAsync(string bucketName, string key);
+}
+
+// Generates and resolves through UseGeneratedTestDoubles() alone - every
+// instance member (GetObjectAsync, and the 20+ others a real S3 client
+// interface declares) works exactly as it would if the static abstract
+// member didn't exist.
+var s3 = composer.Create<IAmazonS3>();
+s3.Configure().GetObjectAsync().Returns(response);
+```
+
+A genuinely unresolved static abstract member (no override anywhere in the
+interface's hierarchy) still rejects the whole interface (`CMP0021`) — and
+this isn't a gap Compono.TestDoubles can close on its own: C# itself
+forbids using an interface with a genuinely unresolved static abstract
+member as a type argument to *any* generic method, constrained or not
+(`CS8920`), and Compono's own composition mechanism resolves every
+interface through exactly such a call. An interface in that state was
+never actually composable through Compono at all, with or without a
+generated double.
+
 ## Precedence with `Compono.NSubstitute`
 
 If both packages are installed and both providers registered, registration
@@ -296,15 +342,15 @@ Still no argument matchers, no argument-aware call recording, no call-order
 verification, and no support for classes, delegates, indexers, events, or a
 generic method whose return type depends on its own type parameter — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals for the full scope boundary. A static abstract member currently
-still rejects its whole interface, the same as the shapes above — but this
-one narrow case has a design response, not yet implemented:
-[ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
-(`Proposed`) — see `docs/plans/0046-static-abstract-member-conformance-only-generation.md`
-once implementation starts. Overloaded members, a `ref`/`out`/`in`
-parameter's own overload, generic methods independent of their own type
-parameter, and minimal call verification (`Never`/`Once`/`Exactly(n)`) are
-now supported (see above,
+Non-Goals for the full scope boundary. A genuinely unimplemented static
+abstract member still rejects its whole interface, the same as the shapes
+above — but one already resolved via a more-derived interface's own
+concrete implementation is fully supported; see "Static abstract members
+inherited from a base interface" above
+([ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)).
+Overloaded members, a `ref`/`out`/`in` parameter's own overload, generic
+methods independent of their own type parameter, and minimal call
+verification (`Never`/`Once`/`Exactly(n)`) are now supported (see above,
 [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
 An unsupported member shape is a compile-time diagnostic
 (`CMP0020`-`CMP0032`), not a silent gap.

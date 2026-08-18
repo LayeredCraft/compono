@@ -264,6 +264,213 @@ public sealed class TestDoubleVerifyTests
             "CMP0022",
             TestContext.Current.CancellationToken);
 
+    // ADR-0046: a static abstract member declared on a BASE interface in the closure can already
+    // be resolved by a MORE-DERIVED interface in the same closure providing a concrete
+    // implementation - C#'s own "most specific implementation" rule for static interface members
+    // (verified via Roslyn's ITypeSymbol.FindImplementationForInterfaceMember). This is the actual
+    // Gate-B shape: AWSSDK's IAmazonS3 re-implements its base IAmazonService.CreateDefaultClientConfig()
+    // concretely, even though IAmazonService itself only declares it abstract - the analyzer's old
+    // per-interface closure walk was inspecting IAmazonService's raw declaration in isolation and
+    // incorrectly treating an already-resolved member as an unimplemented requirement. This must
+    // generate a fully normal, completely unaffected double (no new diagnostic, no stub) - every
+    // instance member works exactly as it would if IBase's static abstract member didn't exist.
+    [Fact]
+    public Task StaticAbstractMethodResolvedByDerivedInterface_GeneratesUnaffectedDouble() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IBase
+                {
+                    static abstract int CreateDefault();
+                }
+
+                public interface IRepository : IBase
+                {
+                    static int IBase.CreateDefault() => 42;
+
+                    string? Name { get; }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Name().Returns("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #99: a resolved static abstract member reached via the closure walk is
+    // IsAbstract: true on its raw (unresolved-looking) symbol, so without excluding it from
+    // collision preprocessing it would still enter `eligibleCandidates` - and its canonical
+    // signature (TestDoubleOverloadIdentity.CanonicalSignatureFor) only encodes arity/parameter
+    // types, never return type or static-ness, so a zero-parameter resolved static member sharing
+    // a *name* with a zero-parameter *instance* member of the same interface would be misclassified
+    // as a diamond-colliding identity - silently withholding the real instance member's
+    // Configure()/Verify() surface, and (combined with ADR-0045) rejecting the whole interface
+    // outright once that instance member also has no deterministic default, since it would then
+    // look like a combined-shape (no surface + no default) rather than a real configuration-
+    // required member. This must generate as configuration-required (CMP0032), not CMP0025 -
+    // proving the instance member's real, working surface survives the name collision.
+    [Fact]
+    public Task StaticAbstractMemberResolvedByDerivedInterface_DoesNotCollideWithSameNamedInstanceMember() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBase
+                    {
+                        static abstract string Name();
+                    }
+
+                    public interface IRepository : IBase
+                    {
+                        static string IBase.Name() => "static-resolved";
+
+                        string Name();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Name().Returns("value");
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Same rule, a static abstract property - the general Roslyn/interface-inheritance behavior,
+    // not a method-specific special case.
+    [Fact]
+    public Task StaticAbstractPropertyResolvedByDerivedInterface_GeneratesUnaffectedDouble() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IBase
+                {
+                    static abstract int DefaultTimeout { get; }
+                }
+
+                public interface IRepository : IBase
+                {
+                    static int IBase.DefaultTimeout => 42;
+
+                    string? Name { get; }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Name().Returns("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Same rule, a static abstract operator.
+    [Fact]
+    public Task StaticAbstractOperatorResolvedByDerivedInterface_GeneratesUnaffectedDouble() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IBase
+                {
+                    static abstract IBase operator +(IBase left, IBase right);
+                }
+
+                public interface IRepository : IBase
+                {
+                    static IBase IBase.operator +(IBase left, IBase right) => left;
+
+                    string? Name { get; }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Name().Returns("value");
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // A genuinely unresolved static abstract method (no override anywhere in the closure) stays
+    // whole-interface rejected (CMP0021), unchanged from before ADR-0046 - the second finding
+    // ADR-0046 records: C# itself forbids using an interface with a genuinely unresolved static
+    // abstract member as a generic type argument at all (CS8920, verified with a real compile
+    // spike against Compono's own unconstrained ICompositionContext.Resolve<TValue>()), so such an
+    // interface was never actually composable through Compono's generic composition path -
+    // generating any kind of stub for it would be unreachable, dead machinery.
+    [Fact]
+    public Task StaticAbstractMethod_ReportsUnsupportedMemberKindDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        static abstract int CreateDefault();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0021",
+            TestContext.Current.CancellationToken);
+
     [Fact]
     public Task StaticAbstractProperty_ReportsUnsupportedMemberKindDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(

@@ -203,14 +203,14 @@ constructor selection, and a delegate leaf stays provider-resolved (a
 runtime `CompositionException` if no provider handles it, not a `CMP002x`
 diagnostic).
 
-For an eligible **interface**, indexers, events, static abstract members,
-a generic method whose return type depends on its own type parameter, a
-generic type parameter used as `T?` (constrained or not), and a handful
-of narrower shapes (set-only properties, pointer/function-pointer
-parameters or returns, ref-like returns) still reject the **whole
-interface** at compile time (`CMP0020`-`CMP0031`, informational severity —
-they don't fail the build): it falls back to the ordinary runtime-provider
-path, same as any
+For an eligible **interface**, indexers, events, a genuinely unimplemented
+static abstract member, a generic method whose return type depends on its
+own type parameter, a generic type parameter used as `T?` (constrained or
+not), and a handful of narrower shapes (set-only properties,
+pointer/function-pointer parameters or returns, ref-like returns) still
+reject the **whole interface** at compile time (`CMP0020`-`CMP0031`,
+informational severity — they don't fail the build): it falls back to the
+ordinary runtime-provider path, same as any
 interface the compile-time opt-in never reached. Overloaded members, a
 `ref`/`out`/`in` parameter, and a generic method independent of its own
 type parameter are narrower now (see above) — only the specific
@@ -220,6 +220,13 @@ rejects the whole interface either (v2, see "Configuration-required
 members" above) — unless it also lacks a `Configure()` surface for one of
 those other reasons, in which case it still does. See `diagnostics.md` for
 the full code table before guessing a fix.
+
+A static abstract member declared on a base interface but already
+resolved by a more-derived interface's own concrete implementation (C#'s
+"most specific implementation" rule — the `IAmazonS3`/`IAmazonService`
+shape) is **not** a genuinely unimplemented member at all and doesn't
+reject anything; only a static abstract member with no override anywhere
+in the interface's hierarchy still whole-interface-rejects (ADR-0046).
 
 ## Precedence with `Compono.NSubstitute`
 

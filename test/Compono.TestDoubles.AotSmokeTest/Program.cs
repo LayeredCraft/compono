@@ -47,6 +47,23 @@ internal interface IProfileRepository
     Task<string> GetNameAsync();
 }
 
+// ADR-0046: a static abstract member declared on a base interface, already resolved by a more-
+// derived interface's own concrete implementation (C#'s "most specific implementation" rule,
+// IAmazonS3-shaped) - the generated double must be completely unaffected by it under Native AOT
+// too, not just under the ordinary JIT that runs Compono.TestDoubles.SampleTests' own dotnet test.
+internal interface IProfileFactory
+{
+    static abstract IProfileFactory CreateDefault();
+}
+
+internal interface IProfileRepositoryWithStaticAbstractBase : IProfileFactory
+{
+    static IProfileFactory IProfileFactory.CreateDefault() =>
+        throw new NotSupportedException("real production implementation, never invoked here");
+
+    string GetName();
+}
+
 internal static class Program
 {
     private static async Task<int> Main()
@@ -60,6 +77,7 @@ internal static class Program
             var gateway = composer.Create<IGateway>();
             var logger = composer.Create<ILoggerLike>();
             var profileRepository = composer.Create<IProfileRepository>();
+            var profileRepositoryWithStaticAbstractBase = composer.Create<IProfileRepositoryWithStaticAbstractBase>();
 
             repository.Configure().CountAsync().Returns(Task.FromResult(7));
             repository.Configure().UtcNow().Returns(placedAt);
@@ -125,12 +143,23 @@ internal static class Program
             if (asyncName != "Ada")
                 throw new InvalidOperationException($"Expected GetNameAsync() to return 'Ada', got '{asyncName}'.");
 
+            // ADR-0046: a static abstract member resolved via a derived interface's own concrete
+            // implementation doesn't reject the leaf interface, and every other instance member on
+            // it works exactly as normal - proven under Native AOT here.
+            profileRepositoryWithStaticAbstractBase.Configure().GetName().Returns("Ada");
+            var staticAbstractBaseName = profileRepositoryWithStaticAbstractBase.GetName();
+
+            if (staticAbstractBaseName != "Ada")
+                throw new InvalidOperationException($"Expected GetName() to return 'Ada', got '{staticAbstractBaseName}'.");
+
             Console.WriteLine(
                 $"PASS: generated doubles (composer.Create<T>() + UseGeneratedTestDoubles(), full " +
                 $"base-interface closure, overloaded member, generic method, call verification, " +
                 $"configuration-required sync method/property/Task<T> method both unconfigured-throws " +
-                $"and configured) survived Native AOT - CountAsync()={count}, UtcNow={utcNow}, " +
-                $"GetName()={name}, Description={description}, GetNameAsync()={asyncName}.");
+                $"and configured, a leaf interface whose base declares a static abstract member " +
+                $"already resolved by the leaf itself) survived Native AOT - CountAsync()={count}, " +
+                $"UtcNow={utcNow}, GetName()={name}, Description={description}, " +
+                $"GetNameAsync()={asyncName}, static-abstract-base GetName()={staticAbstractBaseName}.");
             return 0;
         }
         catch (Exception ex)
