@@ -54,7 +54,7 @@ RESEARCH-0004's finding that only `ILogger<T>` worked:
 | `IOptions<LightsaberOptions>` | `CMP0025`-rejected | **generates, resolves** | `CMP0032`: 1 member (`Value`) |
 | `ILambdaContext` | `CMP0025`-rejected | **generates, resolves** | `CMP0032`: 12 members |
 | `IHandlerInput` | `CMP0025`-rejected | **generates, resolves** | `CMP0032`: 3 members |
-| `IAmazonS3` | `CMP0025`-rejected | generates (`CMP0021`), **fails to resolve alone** | needs `Compono.NSubstitute` fallback — see below |
+| `IAmazonS3` | `CMP0025`-rejected | `CMP0021`-rejected (**no double generated**) | needs `Compono.NSubstitute` fallback — see below |
 
 `CMP0025` did not fire once across all seven interfaces in this pass —
 direct confirmation that ADR-0045's configuration-required dispatch
@@ -62,21 +62,24 @@ closes the exact gap RESEARCH-0004 found.
 
 ## Result: `IAmazonS3`'s remaining blocker is a different, narrower one
 
-`IAmazonS3` generates without diagnostic error (`CMP0021`, informational),
-but composing it through `UseGeneratedTestDoubles()` alone throws
-`Compono.CompositionException` at runtime: *"No registration, ...,
-test-double provider, ... could satisfy 'IAmazonS3'."* Reading the
-generated source
-(`AlexaVoxCraft.MediatR.Response.IResponseBuilder_af73d88a.TestDouble.g.cs`-equivalent
-for `IAmazonS3`) and the `CMP0021` message confirms why: `IAmazonS3`
-declares a **static abstract member** (`CreateDefaultClientConfig`), which
-`Compono.TestDoubles` explicitly doesn't support (`docs/packages/compono-testdoubles.md`'s
-"What it deliberately doesn't do" section, backed by
+`TestDoubleAnalyzer.cs` reports `CMP0021` (informational severity — it
+doesn't fail the build) but reaches it via the same whole-interface
+`Failure(...)` path `CMP0025` used before ADR-0045 narrowed it: **no
+double type is generated for `IAmazonS3` at all.** Composing it through
+`UseGeneratedTestDoubles()` alone throws `Compono.CompositionException` at
+runtime: *"No registration, ..., test-double provider, ... could satisfy
+'IAmazonS3'."* — exactly what's expected when no generated-double factory
+was ever registered for that interface (the `[ModuleInitializer]`-driven
+registration that runs for every other interface here never runs for
+`IAmazonS3`, since the generator never emitted a type for it to register).
+The `CMP0021` message text itself ("this leaf falls back to the ordinary
+runtime-provider path") confirms the scope is the whole interface, not a
+single member: `IAmazonS3` declares a **static abstract member**
+(`CreateDefaultClientConfig`), which `Compono.TestDoubles` explicitly
+doesn't support (`docs/packages/compono-testdoubles.md`'s "What it
+deliberately doesn't do" section, backed by
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals). `CMP0021`'s "falls back to the ordinary runtime-provider path"
-means the *entire interface* defers to whatever other provider is
-registered — not that the other 20+ members generate while just that one
-doesn't. Chaining `UseNSubstitute()` after `UseGeneratedTestDoubles()`
+Non-Goals). Chaining `UseNSubstitute()` after `UseGeneratedTestDoubles()`
 (the documented precedence pattern) resolves this: `IAmazonS3` requests
 fall through to NSubstitute in full, exactly as before this pass, while
 the other six interfaces still resolve via the generated provider.

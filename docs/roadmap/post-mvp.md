@@ -118,10 +118,11 @@ ADR, the research doc, the plan). Five dogfooding passes have run so far:
   RESEARCH-0005's "Reclassification" section for the full reasoning. This
   finding is now a roadmap candidate, tracked by
   [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md).
-  A controlled before/after benchmark on the same suite (same commit,
-  same hyperfine methodology, only the test-double provider changed) found
-  no meaningful wall-clock difference (-1.05%, well inside run-to-run
-  noise) — not a general Compono performance claim, just this one real
+  A controlled before/after benchmark on the same suite (baseline `192d334`,
+  migrated `8078054` — consecutive commits on the same branch, same
+  hyperfine methodology, only the test-double provider changed between
+  them) found no meaningful wall-clock difference (-1.05%, well inside
+  run-to-run noise) — not a general Compono performance claim, just this one real
   suite's honest result, unaffected by the reclassification above.
 
 That four of these five dogfooding passes together produced zero
