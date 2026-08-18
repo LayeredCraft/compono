@@ -330,6 +330,110 @@ in v1.
   list above as load-bearing, explicitly meant to survive into the deep
   design pass and any resulting plan.
 
+## Amendment 1 (2026-08-18): narrows "no static-abstract-member support, ever"
+
+The Non-Goals list's static-abstract-member bullet reads "no
+static-abstract-member support, ever (the same call TUnit.Mocks itself
+made — 'deemed infeasible' given a source-generator design)." Real
+dogfooding evidence
+([RESEARCH-0005](../research/0005-lightsaber-skill-testdoubles-v2-third-dogfood.md))
+against `ncipollina/lightsaber-skill`'s `IAmazonS3` surfaced a narrower
+question this bullet's "infeasible" framing didn't distinguish: whether a
+generated double must provide *configurable, mockable* behavior for a
+static abstract member (genuinely infeasible for a source generator in
+the way this ADR describes — process-global state, no per-instance
+scoping) versus whether it merely needs to *satisfy C#'s interface-
+conformance requirement* for that member (an ordinary, already-legal,
+reflection-free static method/property/operator body — no different in
+kind from any other member this package already emits).
+[ADR-0046](0046-static-abstract-member-conformance-only-generation.md)
+(`Proposed`) answers the second, narrower question: a generated double
+now provides a conformance-only static implementation that throws if
+invoked, with no `Configure()`/`Verify()` surface. This bullet's *core*
+claim — no configurable/mockable static-member support — stands
+unchanged and unreversed; only its "ever" absolutism narrows to exclude
+the conformance-only case ADR-0046 scopes. This is a correction to how
+broadly the original claim was stated, not a reversal of the underlying
+design boundary.
+
+## Amendment 2 (2026-08-18): full `Compono.NSubstitute` substitutability is a goal, not an aspiration
+
+The Non-Goals bullet "Not a general-purpose mocking framework. Explicitly
+not competing with NSubstitute/Moq/FakeItEasy/TUnit.Mocks/Rocks/Imposter
+on setup/verification breadth" was read, in practice, as license to treat
+any narrow, rare `Compono.NSubstitute`-vs-`Compono.TestDoubles` capability
+gap as an acceptable, permanent difference — exactly the call
+RESEARCH-0005 made on its first pass (classifying `IAmazonS3`'s
+static-abstract-member gap "not a roadmap candidate" because it was narrow
+and rare), before being corrected by the product owner the same day. That
+correction is recorded here so it doesn't have to be relearned the next
+time a similarly narrow gap surfaces.
+
+**The scope was too narrow.** This bullet's "not competing on breadth"
+language was written with the whole external mocking landscape in mind
+(Moq, FakeItEasy, TUnit.Mocks, Rocks, Imposter) — Compono has no ambition
+to chase feature parity with the general state of the art, and that
+remains true, unchanged. It does **not** extend to `Compono.NSubstitute`
+specifically. `Compono.NSubstitute` and `Compono.TestDoubles` are both
+first-party Compono packages solving the same problem
+(interface-dependency test-double substitution) by two different
+mechanisms (runtime proxy vs. AOT-safe source generation) — the entire
+reason `Compono.TestDoubles` exists per this ADR's Context is so a
+consumer who can't or doesn't want the runtime-proxy cost has a real
+alternative. "A real alternative" means a consumer who chooses
+`Compono.TestDoubles` can actually leave `Compono.NSubstitute` behind, not
+"can leave it behind for most of their test suite, with an irreducible
+remainder for whatever `Compono.NSubstitute` happens to still do better."
+
+**The corrected policy:** any real, evidenced case — surfaced through
+actual dogfooding or a real migration, not a speculative feature audit —
+where `Compono.NSubstitute` can satisfy an interface or member shape that
+`Compono.TestDoubles` cannot **is, by definition, a roadmap candidate**.
+This overrides ADR-0029's general frequency/cost-weighted classification
+discretion for this specific category: rarity is not, on its own, a valid
+reason to classify an evidenced `Compono.NSubstitute`-vs-`Compono.TestDoubles`
+gap as "acceptable alternative, not a roadmap item" the way it validly can
+for an unrelated finding (a project-local workaround, a genuinely
+unreachable theoretical case, etc. — those classifications are unaffected
+by this Amendment). One real occurrence, in one real project, is
+sufficient evidence under this policy — a second or third dogfooding
+project hitting the same gap is corroborating, not required.
+
+**What this does not change:** `Compono.TestDoubles` still does not
+proactively implement `Compono.NSubstitute`'s full feature surface ahead
+of evidence — argument matchers, call-order verification, and any other
+NSubstitute capability stay non-goals *until* a real case demonstrates
+`Compono.TestDoubles` cannot otherwise satisfy a real interface a consumer
+needs. The trigger for new work is still real evidence, exactly as
+ADR-0029 requires; only the *classification* of that evidence changes —
+once a real gap is found, "is this common enough to bother with" is no
+longer part of the analysis for whether it's a candidate, only for how
+it's prioritized against other candidates. [ADR-0046](0046-static-abstract-member-conformance-only-generation.md)
+is the first case this corrected policy applies to, retroactively
+justifying a classification RESEARCH-0005 initially got wrong under the
+old reading.
+
+**Consistency note on this ADR's own Decision Drivers:** the original
+Decision Driver "`Compono.NSubstitute` is not being deprecated or
+replaced" now reads ambiguously against the policy above, which needs
+clarifying rather than editing in place (the original bullet's text
+stands as written, per this ADR's own immutability rule — this note is
+the correction). The durable policy, stated precisely: **`Compono.NSubstitute`
+is not deprecated.** `Compono.TestDoubles` is intended to become a
+complete alternative for a consumer who chooses source-generated,
+AOT-safe test doubles over a runtime-proxy dependency — that consumer
+should eventually be able to drop `Compono.NSubstitute` entirely, which is
+exactly what this Amendment's policy and Gate-B (ADR-0046) are in service
+of. That is a statement about what an individual consumer can choose to
+do, not about `Compono.NSubstitute`'s own status: it remains a fully
+supported, independently useful integration package in its own right —
+not deprecated, not removed, not planned for removal, and not
+second-class relative to `Compono.TestDoubles`. The original bullet's
+"not replaced" clause is the part this note narrows: read it as "not
+replaced *as a package*," not as "no consumer will ever be able to fully
+substitute one for the other" — the latter reading is exactly what
+Amendment 2 corrects.
+
 ## Links
 
 - [ADR-0043](0043-compono-generated-test-doubles-design.md) — the deep-design
