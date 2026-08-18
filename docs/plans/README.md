@@ -61,3 +61,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0043](0043-compono-generated-test-doubles.md) | Compono-Generated Test Doubles | Done |
 | [0044](0044-compono-testdoubles-v2.md) | Compono.TestDoubles v2: Overloads, Generic Methods, Minimal Call Verification | Done |
 | [0045](0045-testdoubles-configuration-required-members.md) | Compono.TestDoubles: Configuration-Required Members | Done |
+| [0046](0046-static-abstract-member-conformance-only-generation.md) | Static Abstract Member Conformance-Only Generation | Not Started |

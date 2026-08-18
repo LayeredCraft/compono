@@ -293,11 +293,15 @@ cases the other.
 ## What it deliberately doesn't do
 
 Still no argument matchers, no argument-aware call recording, no call-order
-verification, and no support for classes, delegates, indexers, events, a
-generic method whose return type depends on its own type parameter, or
-static abstract members — see
+verification, and no support for classes, delegates, indexers, events, or a
+generic method whose return type depends on its own type parameter — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals for the full scope boundary. Overloaded members, a `ref`/`out`/`in`
+Non-Goals for the full scope boundary. A static abstract member currently
+still rejects its whole interface, the same as the shapes above — but this
+one narrow case has a design response, not yet implemented:
+[ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
+(`Proposed`) — see `docs/plans/0046-static-abstract-member-conformance-only-generation.md`
+once implementation starts. Overloaded members, a `ref`/`out`/`in`
 parameter's own overload, generic methods independent of their own type
 parameter, and minimal call verification (`Never`/`Once`/`Exactly(n)`) are
 now supported (see above,
