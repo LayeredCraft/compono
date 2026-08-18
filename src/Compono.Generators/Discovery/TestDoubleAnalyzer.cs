@@ -83,10 +83,24 @@ internal static class TestDoubleAnalyzer
         // own field/extension at all, so counting it here would falsely flag a real, public, emitted
         // member as "overloaded" against a same-named member that generates nothing. PR #83 review
         // round 3.
+        // ADR-0046 (Codex review, PR #99): a static abstract member already resolved by a more-
+        // derived interface in the closure (see the emission loop's own FindImplementationForInterfaceMember
+        // check below) is IsAbstract: true on the raw symbol reached here - the closure walk visits
+        // the *declaring* interface's own unresolved declaration, not the resolved override - so
+        // without this exclusion it would still enter collision preprocessing below. Its canonical
+        // signature only encodes arity/parameter types (TestDoubleOverloadIdentity.CanonicalSignatureFor),
+        // never return type or static-ness, so a resolved static abstract member sharing a name and
+        // arity with a same-named *instance* member (e.g. a zero-parameter static member and a
+        // zero-parameter instance property/method) would be misclassified as a diamond-colliding or
+        // zero-argument-extension-colliding identity, silently withholding the real instance member's
+        // Configure()/Verify() surface - or, combined with ADR-0045, incorrectly rejecting the whole
+        // interface if that instance member also has no deterministic default. Excluded here so this
+        // preprocessing only ever sees the members the emission loop below might actually surface.
         var eligibleCandidates = closure
             .SelectMany(i => i.GetMembers())
             .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
             .Where(m => m.IsAbstract || (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public))
+            .Where(m => !(m.IsStatic && m.IsAbstract && interfaceType.FindImplementationForInterfaceMember(m) is not null))
             .ToArray();
 
         var identityGroups = eligibleCandidates

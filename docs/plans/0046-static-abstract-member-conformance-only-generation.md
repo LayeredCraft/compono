@@ -255,3 +255,21 @@ closing dogfood" task section above stays unchecked and this plan's
 completes: it needs a newly published Compono preview package (built from
 this fix) before `lightsaber-skill`'s own dependency bump can consume it,
 which isn't possible from inside this PR.
+
+**2026-08-18 — Codex review, PR #99: collision-preprocessing fix.**
+`TestDoubleAnalyzer`'s `eligibleCandidates` pass (diamond-collision and
+zero-argument-extension-collision detection) runs *before* the per-member
+emission loop's own `FindImplementationForInterfaceMember` guard, and was
+still including an already-resolved static abstract member's raw,
+`IsAbstract: true` symbol - reached via the closure walk visiting its
+*declaring* interface directly, not the resolved override. Since
+`TestDoubleOverloadIdentity.CanonicalSignatureFor` encodes only
+arity/parameter types (never return type or static-ness), a resolved
+zero-parameter static member sharing a name with a same-named zero-
+parameter *instance* member would be misclassified as a diamond-colliding
+identity, silently withholding the real instance member's
+`Configure()`/`Verify()` surface. `eligibleCandidates` now excludes any
+member that's `IsStatic && IsAbstract && FindImplementationForInterfaceMember(...)
+is not null` - the same condition the emission loop already uses to skip
+it. Regression test:
+`StaticAbstractMemberResolvedByDerivedInterface_DoesNotCollideWithSameNamedInstanceMember`.

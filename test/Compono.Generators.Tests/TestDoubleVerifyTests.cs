@@ -310,6 +310,57 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
+    // Codex review, PR #99: a resolved static abstract member reached via the closure walk is
+    // IsAbstract: true on its raw (unresolved-looking) symbol, so without excluding it from
+    // collision preprocessing it would still enter `eligibleCandidates` - and its canonical
+    // signature (TestDoubleOverloadIdentity.CanonicalSignatureFor) only encodes arity/parameter
+    // types, never return type or static-ness, so a zero-parameter resolved static member sharing
+    // a *name* with a zero-parameter *instance* member of the same interface would be misclassified
+    // as a diamond-colliding identity - silently withholding the real instance member's
+    // Configure()/Verify() surface, and (combined with ADR-0045) rejecting the whole interface
+    // outright once that instance member also has no deterministic default, since it would then
+    // look like a combined-shape (no surface + no default) rather than a real configuration-
+    // required member. This must generate as configuration-required (CMP0032), not CMP0025 -
+    // proving the instance member's real, working surface survives the name collision.
+    [Fact]
+    public Task StaticAbstractMemberResolvedByDerivedInterface_DoesNotCollideWithSameNamedInstanceMember() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBase
+                    {
+                        static abstract string Name();
+                    }
+
+                    public interface IRepository : IBase
+                    {
+                        static string IBase.Name() => "static-resolved";
+
+                        string Name();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IRepository repository)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            repository.Configure().Name().Returns("value");
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Same rule, a static abstract property - the general Roslyn/interface-inheritance behavior,
     // not a method-specific special case.
     [Fact]
