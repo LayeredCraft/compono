@@ -22,6 +22,8 @@ public interface IProfileRepository
     ValueTask<string> GetDescriptionAsync();
 
     IProfileRepository Self();
+
+    int ViewCount { get; }
 }
 
 public sealed class ConfigurationRequiredMemberTests
@@ -176,5 +178,21 @@ public sealed class ConfigurationRequiredMemberTests
 
         repository.Self().Should().BeSameAs(repository);
         repository.Self().Self().Should().BeSameAs(repository);
+    }
+
+    // PLAN-0045 Phase 1's own regression case: a deterministic-default member
+    // (int -> 0) on the same interface as a configuration-required member is
+    // completely unaffected - it returns its computed default unconfigured, with
+    // no interaction between the two members' dispatch paths.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void Deterministic_default_member_is_unaffected_by_a_sibling_configuration_required_member(
+        [Shared] IProfileRepository repository)
+    {
+        repository.ViewCount.Should().Be(0);
+
+        var act = () => repository.GetName();
+
+        act.Should().Throw<TestDoubleNotConfiguredException>();
     }
 }

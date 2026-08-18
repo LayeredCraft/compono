@@ -285,9 +285,9 @@ depends on its own type parameter); special-casing fluent self-return
     consumer- and agent-facing entry points describing a smaller
     diagnostic range than what Phase 0 actually ships.
 
-### Phase 1 — Existing-behavior regression coverage (Not Started)
+### Phase 1 — Existing-behavior regression coverage (Done)
 
-- [ ] Confirm zero behavior change for every already-shipped
+- [x] Confirm zero behavior change for every already-shipped
       deterministic-default member shape (`bool`, `int`, nullable
       reference, `Task`, known collection shapes) — existing v1/v2 tests
       continue passing unmodified; add one small regression test mixing a
@@ -442,3 +442,18 @@ special-casing, exactly as ADR-0045 decided. No ADR-0045 Amendment was
 needed. The generator-level regression coverage for all four combined
 shapes (Amendments 3 and 6) lives in
 `test/Compono.Generators.Tests/TestDoubleVerifyTests.cs`.
+
+**Phase 1 result:** zero behavior change confirmed — the full solution
+test suite (2147 tests, every already-shipped deterministic-default
+member shape included) passes unmodified. The generator-level
+`MultipleConfigurationRequiredMembers_ReportsSingleCmp0032WithCorrectCount`
+test (Phase 0) already mixed a deterministic-default member (`int
+GetCount()`) with configuration-required members on one interface for
+diagnostic-count purposes, but no existing test exercised the *runtime*
+dispatch behavior of both member kinds together on the same double. Added
+`Deterministic_default_member_is_unaffected_by_a_sibling_configuration_required_member`
+to `test/Compono.TestDoubles.SampleTests/ConfigurationRequiredMemberTests.cs`
+(a new `int ViewCount { get; }` member on `IProfileRepository`, confirming
+it returns its computed default `0` unconfigured while a sibling
+configuration-required member on the same instance still throws) to close
+that gap.
