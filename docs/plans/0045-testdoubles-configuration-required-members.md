@@ -321,7 +321,7 @@ at all.
       during this phase, record it as an ADR-0045 Amendment and add a
       targeted benchmark then — not before.
 
-### Phase 3 — Documentation consistency pass (Not Started)
+### Phase 3 — Documentation consistency pass (Done)
 
 Every doc touch introducing this feature's own behavior, and every
 already-identified stale reference, already happened in Phase 0 (moved
@@ -334,7 +334,7 @@ phase is Phase 0 — so this phase is narrower still: a final proactive
 sweep for anything genuinely not yet discovered, run once Phases 0-2 have
 actually shipped and there's real code to check docs against.
 
-- [ ] Grep the repo for any stale `CMP0020`-`CMP0031`-style range cap or
+- [x] Grep the repo for any stale `CMP0020`-`CMP0031`-style range cap or
       "returning a non-nullable reference always rejects" claim that
       wasn't already caught by Phase 0's own search, matching the
       proactive sweep PLAN-0044 Phase 4 ran before its own final push.
@@ -490,3 +490,22 @@ runs it in CI with no workflow change needed — no new bullet-two-specific
 test file was required. No new benchmark was added (bullet three): nothing
 in this phase surfaced a measured performance concern, so no ADR-0045
 Amendment was needed either.
+
+**Phase 3 result:** repo-wide grep for stale `CMP0020`-`CMP0031`-style
+range caps and "non-nullable reference always rejects" claims, beyond
+what Phase 0's own search already fixed. Found nothing to fix:
+`skills/compono/references/testdoubles.md:211`'s `CMP0020`-`CMP0031` range
+is not stale — it specifically scopes the *whole-interface-rejection*
+subset of diagnostics (the line immediately after it already correctly
+notes the no-default-return case no longer rejects the whole interface,
+per v2). The one other pre-existing "still unsupported" table row
+(`docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`
+line 435) is `Accepted` and immutable, correctly describing ADR-0044's own
+scope at the time it was written — not a living doc required to track
+ADR-0045's later, separate decision. Every consumer- and agent-facing
+reference (`docs/reference/diagnostics.md`,
+`skills/compono/references/diagnostics.md`,
+`skills/compono/references/testdoubles.md`, `skills/compono/SKILL.md`,
+`docs/troubleshooting/common-errors.md`,
+`docs/getting-started/ai-agent-skill.md`) already correctly reads
+`CMP0020`-`CMP0032` from Phase 0. No file changes were needed this phase.
