@@ -392,7 +392,7 @@ acceptance criterion (full `Compono.NSubstitute` removal from
 `lightsaber-skill`, not just "material improvement"), the residual
 `IAmazonS3` gap **is** a roadmap candidate after all — see
 RESEARCH-0005's own "Reclassification" section,
-[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration),
+[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration),
 and [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)/
 [PLAN-0046](0046-static-abstract-member-conformance-only-generation.md),
 which now track it. `docs/roadmap/post-mvp.md` reflects the reclassified,

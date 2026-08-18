@@ -218,7 +218,7 @@ for the third.
   available as a working escape hatch for that specific test — this ADR
   doesn't remove that option, and this is an even narrower audience than
   "any test using `IAmazonS3`." But per
-  [ADR-0042 Amendment 2](0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration),
+  [ADR-0042 Amendment 2](0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration),
   that escape hatch existing today is **not** license to treat this as an
   intentionally permanent `Compono.TestDoubles` limitation. If a real
   consumer later demonstrates an actual need for configurable/mockable

@@ -27,7 +27,7 @@ Out of scope entirely, unchanged by this plan: events, indexers, and
 variable-argument methods stay whole-interface-rejected under the
 existing `CMP0021` — this plan narrows `CMP0021`'s trigger condition, it
 doesn't touch its handling of those other three shapes. Per
-[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration),
+[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration),
 a future evidenced need for configurable static-member behavior would be
 its own new roadmap candidate, not a reason to widen this plan's scope
 now.
