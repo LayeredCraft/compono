@@ -493,19 +493,35 @@ Amendment was needed either.
 
 **Phase 3 result:** repo-wide grep for stale `CMP0020`-`CMP0031`-style
 range caps and "non-nullable reference always rejects" claims, beyond
-what Phase 0's own search already fixed. Found nothing to fix:
-`skills/compono/references/testdoubles.md:211`'s `CMP0020`-`CMP0031` range
-is not stale — it specifically scopes the *whole-interface-rejection*
-subset of diagnostics (the line immediately after it already correctly
-notes the no-default-return case no longer rejects the whole interface,
-per v2). The one other pre-existing "still unsupported" table row
+what Phase 0's own search already fixed. The two literal patterns the
+task names turned up nothing: `skills/compono/references/testdoubles.md:211`'s
+`CMP0020`-`CMP0031` range is not stale — it specifically scopes the
+*whole-interface-rejection* subset of diagnostics (the line immediately
+after it already correctly notes the no-default-return case no longer
+rejects the whole interface, per v2). The one other pre-existing "still
+unsupported" table row
 (`docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`
 line 435) is `Accepted` and immutable, correctly describing ADR-0044's own
 scope at the time it was written — not a living doc required to track
 ADR-0045's later, separate decision. Every consumer- and agent-facing
-reference (`docs/reference/diagnostics.md`,
+diagnostics/skill reference (`docs/reference/diagnostics.md`,
 `skills/compono/references/diagnostics.md`,
 `skills/compono/references/testdoubles.md`, `skills/compono/SKILL.md`,
 `docs/troubleshooting/common-errors.md`,
 `docs/getting-started/ai-agent-skill.md`) already correctly reads
-`CMP0020`-`CMP0032` from Phase 0. No file changes were needed this phase.
+`CMP0020`-`CMP0032` from Phase 0.
+
+Widening the sweep past the task's two named patterns (per Codex-style
+review — the first pass only grepped the literal wording, not the
+broader "is any doc's *status/progress claim* about this feature now
+stale") found two real, previously-missed staleness cases, both fixed in
+this phase: `docs/roadmap/post-mvp.md`'s fourth-dogfooding-pass bullet
+still said "[PLAN-0045] tracks the implementation, not yet started" —
+stale now that Phases 0-3 are `Done`; corrected to name which phases
+shipped and that only Phase 4 remains.
+`docs/research/0004-lightsaber-skill-testdoubles-v2-dogfood.md`'s `Feeds:`
+line and closing "Decisions" paragraph both still said `PLAN-0045`
+`(Not Started)`; corrected the same way in both spots.
+`docs/plans/README.md`'s own status column (`In Progress`) and
+ADR-0045's own cross-references were checked and are already accurate —
+no change needed there.

@@ -90,10 +90,13 @@ ADR, the research doc, the plan). Four dogfooding passes have run so far:
   a colliding property was, and remains, `CMP0024` regardless) — so no
   member ever ends up throwing unconditionally with no way to configure it
   (Amendments 3, 4, 6, and 7); [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
-  tracks the implementation, not yet started. This page keeps listing it
-  until it's actually shipped — same rule the third bullet's finding
-  followed before PLAN-0044 completed — and, per ADR-0045's own scope,
-  "shipped" still won't mean "graduated" here until PLAN-0045 Phase 4's
+  tracks the implementation — Phases 0-3 (the behavior itself, its
+  regression coverage, its packaged/AOT proof, and this doc-consistency
+  pass) are `Done` and shipped; only Phase 4 (the confirming dogfood)
+  remains. This page keeps listing it until Phase 4 confirms it — same
+  rule the third bullet's finding followed before PLAN-0044 completed —
+  and, per ADR-0045's own scope, "shipped" still won't mean "graduated"
+  here until PLAN-0045 Phase 4's
   third `lightsaber-skill` dogfood confirms real tests can actually drop
   `Compono.NSubstitute`, not just that more interfaces generate.
 

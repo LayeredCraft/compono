@@ -5,7 +5,7 @@
 
 **Feeds:** [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
 (`Accepted`) and [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
-(`Not Started`) — see "Decisions" below
+(Phases 0-3 `Done`, Phase 4 `Not Started`) — see "Decisions" below
 
 This document is the evidence record for [PLAN-0044](../plans/0044-compono-testdoubles-v2.md)
 Phase 5: re-running the exact `ncipollina/lightsaber-skill` migration
@@ -161,10 +161,10 @@ special-casing
 fluent self-return were both considered and rejected; the full comparison
 and every open question above is resolved in the ADR itself.
 [PLAN-0045](../plans/0045-testdoubles-configuration-required-members.md)
-(`Not Started`) tracks the implementation, phased so its own Phase 4 is
-the third `lightsaber-skill` dogfooding pass this document's last bullet
-calls for — this page will get a fourth entry once that pass runs, the
-same way the third pass got this one.
+(Phases 0-3 `Done`, Phase 4 `Not Started`) tracks the implementation,
+phased so its own Phase 4 is the third `lightsaber-skill` dogfooding pass
+this document's last bullet calls for — this page will get a fourth entry
+once that pass runs, the same way the third pass got this one.
 
 ## Links
 
