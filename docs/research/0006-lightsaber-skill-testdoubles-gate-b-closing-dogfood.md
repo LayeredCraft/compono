@@ -64,6 +64,41 @@ on top of the branch RESEARCH-0005's baseline/migration commits
 (`192d334`, `8078054`) already used, per PLAN-0046's own note that this
 step needed a newly published package before it could even start.
 
+## Result: performance (Gate-B closing benchmark)
+
+Same methodology as RESEARCH-0005: `hyperfine --warmup 3 --runs 15`
+against the built Microsoft.Testing.Platform executable directly
+(`Lightsaber.Skill.Tests`, Release config, `dotnet build -c Release
+--no-restore` run separately beforehand and excluded from the timed
+command). Environment: macOS 26.6.1 (25G76), Apple M3 Max, .NET SDK
+`11.0.100-preview.7.26381.103`, xunit.v3.mtp-v2 `3.2.2`, 77 tests (0
+failed) in both configurations. Baseline built in an isolated `git
+worktree` at `192d334` so both binaries could be built and benchmarked
+without switching branches mid-comparison.
+
+| | Baseline (`192d334`, NSubstitute) | Migrated (`df0a7f5`, TestDoubles only, no NSubstitute) |
+|---|---|---|
+| Compono / Compono.TestDoubles / NSubstitute | `0.5.0-preview.73` / `0.5.0-preview.73` / `6.2.0` | `0.5.0-preview.74` / `0.5.0-preview.74` / removed entirely |
+| mean | 3.879 s | 3.995 s |
+| stddev | 0.183 s | 0.191 s |
+| min / max | 3.619 s / 4.401 s | 3.796 s / 4.499 s |
+
+**Absolute difference (mean): +0.116 s. Relative: migrated ran 1.03× ±
+0.07 slower than baseline** (hyperfine's own relative-uncertainty
+report). The uncertainty band (±0.07) comfortably contains 1.00× — this
+is not a meaningful difference, it's inside normal run-to-run noise for
+a 77-test suite this size dominated by process startup, JIT, and (for
+the infra tests) AWS CDK synthesis overhead, not test-double dispatch
+cost. Unlike RESEARCH-0005's own benchmark (which still had
+`Compono.NSubstitute` active for `IAmazonS3` in its "migrated"
+configuration, so it explicitly wasn't a clean provider comparison),
+**this one is clean**: the migrated build has zero `NSubstitute`
+anywhere in its dependency graph, direct or transitive. Even under a
+clean, complete before/after, replacing every test-double call site with
+`Compono.TestDoubles` produced no observable wall-clock change on this
+real suite. As before, this is one real project's honest result, not a
+general Compono performance claim.
+
 ## What this closes, and what it doesn't
 
 Gate-B — `lightsaber-skill`'s test project fully replacing
