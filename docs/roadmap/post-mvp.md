@@ -8,20 +8,20 @@ deliverable — it lists **only** findings classified **roadmap candidate**:
 Compono genuinely needs a new capability, backed by real observed
 frequency and workaround cost, each with at least a recorded ADR against
 the problem — `Proposed` while a candidate is still awaiting its design
-pass, `Accepted` once designed (a candidate can be listed either way; see
-the fourth bullet below for one that's `Accepted` but not yet shipped).
+pass, `Accepted` once designed (a candidate can be listed either way,
+including `Accepted` but not yet shipped — none currently are, see below).
 Per ADR-0029: "bugs get fixed, intentional design differences and
 acceptable alternatives do not become roadmap items" — this page is not a
 general findings log, and non-candidate findings belong in the research
 record and their governing ADR's Amendments, not here.
 
-## Current state: one outstanding roadmap candidate
+## Current state: no outstanding roadmap candidates
 
 Per `docs/roadmap/index.md`, this page is a status-filtered index of
 capability gaps that are **not yet available** — a shipped capability
 doesn't stay listed here once it's implemented, even though the evidence
 that motivated it remains a permanent part of the record elsewhere (the
-ADR, the research doc, the plan). Five dogfooding passes have run so far:
+ADR, the research doc, the plan). Six dogfooding passes have run so far:
 
 - Milestone 7's pass (migrating `ncipollina/cosmere-tracker`'s
   AutoFixture-based test kit to Compono) surfaced ten findings, **none**
@@ -116,27 +116,58 @@ ADR, the research doc, the plan). Five dogfooding passes have run so far:
   standing between the current state and full removal **is** real,
   evidenced, and product-critical, per ADR-0029's rubric. See
   RESEARCH-0005's "Reclassification" section for the full reasoning. This
-  finding is now a roadmap candidate, tracked by
+  finding was a roadmap candidate, tracked by
   [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md).
   A controlled before/after benchmark on the same suite (baseline `192d334`,
   migrated `8078054` — consecutive commits on the same branch, same
   hyperfine methodology, only the test-double provider changed between
   them) found no meaningful wall-clock difference (-1.05%, well inside
   run-to-run noise) — not a general Compono performance claim, just this one real
-  suite's honest result, unaffected by the reclassification above.
+  suite's honest result, unaffected by the reclassification above. **This
+  finding is no longer listed here** — see the next bullet for the closing
+  result.
+- A sixth pass — PLAN-0046's own closing acceptance test, re-running
+  `lightsaber-skill` against the shipped fix
+  ([RESEARCH-0006](../research/0006-lightsaber-skill-testdoubles-gate-b-closing-dogfood.md))
+  — confirms the fifth pass's blocker is fully closed, not just narrowed
+  further: `IAmazonS3.CreateDefaultClientConfig()` turned out to be an
+  analyzer bug, not a genuine capability gap — `IAmazonS3` itself already
+  provides a concrete implementation for what its base interface
+  (`IAmazonService`) only declares abstractly (C#'s own "most specific
+  implementation" rule), and the old per-interface closure walk was
+  inspecting the base interface's raw declaration in isolation, never
+  noticing `IAmazonS3` had already resolved it.
+  [ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)
+  records the corrected design (and, notably, the originally-accepted
+  design — conformance-only throwing stubs — that got built and then
+  withdrawn during implementation once two compile spikes proved it wrong
+  and unreachable); [PLAN-0046](../plans/0046-static-abstract-member-conformance-only-generation.md)
+  (`Done`) tracks the implementation. Once
+  [compono#99](https://github.com/LayeredCraft/compono/pull/99) shipped as
+  `Compono` `0.5.0-preview.74`, `lightsaber-skill` fully replaced
+  `Compono.NSubstitute` with `Compono.TestDoubles`: `IAmazonS3` resolves
+  through `UseGeneratedTestDoubles()` alone, `Compono.NSubstitute`/
+  `NSubstitute` are removed from the project entirely (confirmed absent
+  even transitively), and the full 77-test suite passes via the built
+  test executable
+  ([lightsaber-skill#108](https://github.com/ncipollina/lightsaber-skill/pull/108)).
+  **This finding is no longer listed here** — Gate-B is met in full, not
+  partially.
 
-That four of these five dogfooding passes together produced zero
-*outstanding* roadmap items on their own (the first surfaced none at all;
-the second and third each surfaced one, and both have since shipped, the
-second fully) is itself real, evidence-backed progress, not a shortfall in
-the process — it doesn't mean Compono is "done": a different real-world
-project, or a future package, may surface a finding these five didn't
-(each is one data point, not an exhaustive survey). The third, fourth, and
-fifth passes together are also a concrete illustration of why that framing
-matters: shipping the third pass's finding didn't retire the
-`lightsaber-skill` gap, it relocated it; shipping the fourth pass's finding
-closed most of what was left; and the fifth pass's own evidence, measured
-against the project's actual acceptance bar rather than a general one, is
-what keeps this candidate open rather than closing it out.
-`docs/research/0005-lightsaber-skill-testdoubles-v2-third-dogfood.md` is
-the record of exactly how much, and why the bar matters.
+That the first, second-and-third (both since shipped), and now
+fourth-fifth-and-sixth (together) passes have all resolved to zero
+*outstanding* roadmap items is itself real, evidence-backed progress, not
+a shortfall in the process — it doesn't mean Compono is "done": a
+different real-world project, or a future package, may surface a finding
+these six didn't (each is one data point, not an exhaustive survey). The
+third through sixth passes together are also a concrete illustration of
+why the distinction between "shipped" and "fully closed" matters:
+shipping the third pass's finding didn't retire the `lightsaber-skill`
+gap, it relocated it; shipping the fourth pass's finding closed most of
+what was left; the fifth pass's own evidence, measured against the
+project's actual acceptance bar rather than a general one, kept one
+narrow finding open a little longer; and the sixth pass closed it for
+real, once the actual root cause (an analyzer bug, not a genuine gap) was
+found. `docs/research/0005-lightsaber-skill-testdoubles-v2-third-dogfood.md`
+and `docs/research/0006-lightsaber-skill-testdoubles-gate-b-closing-dogfood.md`
+are the record of exactly how, and why the distinction mattered.
