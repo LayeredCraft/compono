@@ -76,20 +76,27 @@ failed) in both configurations. Baseline built in an isolated `git
 worktree` at `192d334` so both binaries could be built and benchmarked
 without switching branches mid-comparison.
 
+Run twice back to back, same binaries, same methodology, no changes
+between runs — deliberately, to check whether a single run's result was
+signal or noise:
+
 | | Baseline (`192d334`, NSubstitute) | Migrated (`df0a7f5`, TestDoubles only, no NSubstitute) |
 |---|---|---|
 | Compono / Compono.TestDoubles / NSubstitute | `0.5.0-preview.73` / `0.5.0-preview.73` / `6.2.0` | `0.5.0-preview.74` / `0.5.0-preview.74` / removed entirely |
-| mean | 3.879 s | 3.995 s |
-| stddev | 0.183 s | 0.191 s |
-| min / max | 3.619 s / 4.401 s | 3.796 s / 4.499 s |
+| **Run 1** mean / stddev | 3.879 s / 0.183 s | 3.995 s / 0.191 s |
+| **Run 1** relative | 1.00× | 1.03× ± 0.07 (slower) |
+| **Run 2** mean / stddev | 3.918 s / 0.162 s | 3.850 s / 0.302 s |
+| **Run 2** relative | 1.02× ± 0.09 (slower) | 1.00× |
 
-**Absolute difference (mean): +0.116 s. Relative: migrated ran 1.03× ±
-0.07 slower than baseline** (hyperfine's own relative-uncertainty
-report). The uncertainty band (±0.07) comfortably contains 1.00× — this
-is not a meaningful difference, it's inside normal run-to-run noise for
-a 77-test suite this size dominated by process startup, JIT, and (for
-the infra tests) AWS CDK synthesis overhead, not test-double dispatch
-cost. Unlike RESEARCH-0005's own benchmark (which still had
+**The two runs disagree on which build was faster** — run 1 says
+baseline was faster by 3%, run 2 says migrated was faster by 2%, and
+both differences sit comfortably inside the other run's own
+relative-uncertainty band. That disagreement is itself the finding: at
+this suite's size (77 tests, dominated by process startup, JIT, and, for
+the infra tests, AWS CDK synthesis overhead — not test-double dispatch
+cost), run-to-run noise exceeds whatever real effect the migration might
+have, so no directional performance claim can honestly be made either
+way. Unlike RESEARCH-0005's own benchmark (which still had
 `Compono.NSubstitute` active for `IAmazonS3` in its "migrated"
 configuration, so it explicitly wasn't a clean provider comparison),
 **this one is clean**: the migrated build has zero `NSubstitute`
