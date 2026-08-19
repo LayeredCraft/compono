@@ -1,27 +1,5 @@
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
-commitish: main
-
-version-resolver:
-  major:
-    labels: []
-  minor:
-    labels:
-      - 'type: feat'
-      # ADR-0031's 0.X+1.0 compatibility policy for the 0.x preview line - a labeled
-      # breaking-change PR bumps minor, not major, so it never silently exits 0.x
-      # (PLAN-0008 Phase 0). categories' breaking-change entry below is unchanged.
-      - 'breaking-change'
-  patch:
-    labels:
-      - 'type: fix'
-      - 'type: docs'
-      - 'type: refactor'
-      - 'type: test'
-      - 'type: chore'
-      - 'type: ci'
-      - 'type: revert'
-  default: patch
 
 autolabeler:
   - label: 'type: feat'
@@ -53,46 +31,78 @@ autolabeler:
       - '/^(feat|fix|docs|refactor|test|chore|ci|revert)(\([^)]*\))?!:/i'
 
 categories:
+  - type: 'pre-include'
+    when:
+      labels:
+        - 'type: feat'
+        - 'type: fix'
+        - 'type: docs'
+        - 'type: refactor'
+        - 'type: test'
+        - 'type: chore'
+        - 'type: ci'
+        - 'type: revert'
+        - 'breaking-change'
+  - type: 'pre-exclude'
+    when:
+      labels:
+        - 'skip-changelog'
+        - 'internal'
   - title: '⚠️ Breaking Changes'
-    labels:
-      - 'breaking-change'
+    when:
+      label: 'breaking-change'
   - title: '🚀 Features'
-    labels:
-      - 'type: feat'
+    when:
+      label: 'type: feat'
   - title: '🐛 Bug Fixes'
-    labels:
-      - 'type: fix'
+    when:
+      label: 'type: fix'
   - title: '📚 Documentation'
-    labels:
-      - 'type: docs'
+    when:
+      label: 'type: docs'
   - title: '🔄 Refactoring'
-    labels:
-      - 'type: refactor'
+    when:
+      label: 'type: refactor'
   - title: '✅ Tests'
-    labels:
-      - 'type: test'
+    when:
+      label: 'type: test'
   - title: '🔧 Maintenance'
-    labels:
-      - 'type: chore'
-      - 'type: ci'
-      - 'type: revert'
-
-include-labels:
-  - 'type: feat'
-  - 'type: fix'
-  - 'type: docs'
-  - 'type: refactor'
-  - 'type: test'
-  - 'type: chore'
-  - 'type: ci'
-  - 'type: revert'
-  - 'breaking-change'
-
-exclude-labels:
-  - 'skip-changelog'
-  - 'internal'
+    when:
+      labels:
+        - 'type: chore'
+        - 'type: ci'
+        - 'type: revert'
+  # ADR-0031's 0.X+1.0 compatibility policy for the 0.x preview line - a labeled
+  # breaking-change PR bumps minor, not major, so it never silently exits 0.x
+  # (PLAN-0008 Phase 0). Deliberately no 'major' version-resolver entry below -
+  # nothing in this repo auto-bumps major.
+  - type: 'version-resolver'
+    semver-increment: 'minor'
+    when:
+      labels:
+        - 'type: feat'
+        - 'breaking-change'
+  - type: 'version-resolver'
+    semver-increment: 'patch'
+    when:
+      labels:
+        - 'type: fix'
+        - 'type: docs'
+        - 'type: refactor'
+        - 'type: test'
+        - 'type: chore'
+        - 'type: ci'
+        - 'type: revert'
+  - type: 'version-resolver'
+    semver-increment: 'patch'
 
 template: |
+  ## Summary
+
+  SUMMARY_GOES_HERE
+
   ## Changes
 
   $CHANGES
+
+commitish: 'main'
