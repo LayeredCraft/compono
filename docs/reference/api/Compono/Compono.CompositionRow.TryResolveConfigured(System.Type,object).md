@@ -1,0 +1,58 @@
+#### [Compono](index.md 'index')
+### [Compono](Compono.md 'Compono').[CompositionRow](Compono.CompositionRow.md 'Compono\.CompositionRow')
+
+## CompositionRow\.TryResolveConfigured\(Type, object\) Method
+
+Attempts to resolve [type](Compono.CompositionRow.TryResolveConfigured(System.Type,object).md#Compono.CompositionRow.TryResolveConfigured(System.Type,object).type 'Compono\.CompositionRow\.TryResolveConfigured\(System\.Type, object\)\.type') using only Compono's configured/provider\-backed
+resolution stages: this row's existing scope values, exact registrations, configuration rules,
+and registered [ICompositionValueProvider](Compono.ICompositionValueProvider.md 'Compono\.ICompositionValueProvider') instances \(including Compono\.TestDoubles
+and Compono\.NSubstitute\)\. This is NOT equivalent to [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)') \-
+it does not consult a configured `IServiceProvider` \(`UseServiceProvider`\), and it
+cannot perform ordinary generated\-plan composition of arbitrary concrete types, because that
+dispatch requires the target type to be known at compile time\. See
+`docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md`\.
+
+```csharp
+public bool TryResolveConfigured(System.Type type, out object? value);
+```
+#### Parameters
+
+<a name='Compono.CompositionRow.TryResolveConfigured(System.Type,object).type'></a>
+
+`type` [System\.Type](https://learn.microsoft.com/en-us/dotnet/api/system.type 'System\.Type')
+
+The runtime type to resolve\.
+
+<a name='Compono.CompositionRow.TryResolveConfigured(System.Type,object).value'></a>
+
+`value` [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system.object 'System\.Object')
+
+The resolved value if a configured/provider stage satisfied [type](Compono.CompositionRow.TryResolveConfigured(System.Type,object).md#Compono.CompositionRow.TryResolveConfigured(System.Type,object).type 'Compono\.CompositionRow\.TryResolveConfigured\(System\.Type, object\)\.type'); otherwise
+[null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null')\. A legitimate handled result can itself be [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') \- check
+this method's return value, not whether [value](Compono.CompositionRow.TryResolveConfigured(System.Type,object).md#Compono.CompositionRow.TryResolveConfigured(System.Type,object).value 'Compono\.CompositionRow\.TryResolveConfigured\(System\.Type, object\)\.value') is [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null'), to
+tell "handled" from "not handled" apart\.
+
+#### Returns
+[System\.Boolean](https://learn.microsoft.com/en-us/dotnet/api/system.boolean 'System\.Boolean')  
+[true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') if a configured/provider stage satisfied [type](Compono.CompositionRow.TryResolveConfigured(System.Type,object).md#Compono.CompositionRow.TryResolveConfigured(System.Type,object).type 'Compono\.CompositionRow\.TryResolveConfigured\(System\.Type, object\)\.type');
+            [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') if no such stage could handle it\.
+
+#### Exceptions
+
+[CompositionException](Compono.CompositionException.md 'Compono\.CompositionException')  
+An exact registration factory or configuration\-rule \(`.For<T>().Use(...)`\) factory
+threw, or the scope/registration/provider result's runtime type wasn't assignable to the
+requested type\. A [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') result is never a failure
+here \- unlike [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)'), this method always
+validates as nullable \(see the parameter docs above\), so a legitimate [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null')
+always comes back as [true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'), never this exception\. This method distinguishes
+"nothing could handle this" \(a [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') return\) from "something tried and failed"
+\(a thrown exception\) \- it never collapses the latter into the former\.
+
+[System\.Exception](https://learn.microsoft.com/en-us/dotnet/api/system.exception 'System\.Exception')  
+A stage 4\-6 [ICompositionValueProvider](Compono.ICompositionValueProvider.md 'Compono\.ICompositionValueProvider') threw \- its own original exception type
+propagates uncaught, exactly like [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)')'s
+existing provider\-failure contract \(a public provider's thrown exception is never wrapped in a
+[CompositionException](Compono.CompositionException.md 'Compono\.CompositionException'), per `docs/adr/0024-public-provider-extensibility-model.md`'s
+Provider Failure Semantics\) \- only an exact registration or configuration\-rule factory's failure
+gets wrapped\.

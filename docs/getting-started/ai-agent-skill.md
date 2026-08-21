@@ -16,8 +16,8 @@ composition, `[Composable]`'s narrow scope, registration/rule precedence,
 `[Shared]`, deterministic seeding, the real `CMP0001`-`CMP0013` diagnostic
 set plus `CMP0020`-`CMP0032`'s generated-test-double opt-in diagnostics,
 and the package-specific surface of `Compono.XunitV3`/`Compono.TUnit`/
-`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles` — only
-recommending an integration's API when that package is actually
+`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`
+— only recommending an integration's API when that package is actually
 referenced in your project.
 
 It also carries guardrails: it won't suggest reflection-based workarounds,
@@ -45,8 +45,9 @@ This installs the `compono` skill into your project's agent-skill
 directory (e.g. `.claude/skills/compono` for Claude Code). No NuGet
 package, no `.csproj` change, no `dotnet` command — this is entirely
 separate from installing the `Compono`/`Compono.XunitV3`/`Compono.TUnit`/
-`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles` packages
-themselves (see [Installation](installation.md) for those).
+`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/
+`Compono.DependencyInjection` packages themselves (see
+[Installation](installation.md) for those).
 
 ## Update
 

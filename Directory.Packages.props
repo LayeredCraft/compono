@@ -29,7 +29,7 @@
     <!-- samples/Compono.Samples.AspNetApi.Tests' own dependency: WebApplicationFactory<T> for the
          one integration-style endpoint test ADR-0033 calls for. Pinned to the current net10.0
          release line, matching this repo's own TargetFrameworks. -->
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <!-- Compono.XunitV3's own dependency, matching xunit.v3.mtp-v2's own resolved version - the
          Xunit.v3.DataAttribute/ITheoryDataRow extension surface, per ADR-0022. This is the
          dependency version Compono.XunitV3's own .nuspec ships to consumers - a tested-range
@@ -87,7 +87,7 @@
          version Compono.NSubstitute's own .nuspec ships to consumers - a
          tested-range constraint, not a bare unbounded floor or a blanket exact
          pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="NSubstitute" Version="[6.0.0, 7.0.0)" />
+    <PackageVersion Include="NSubstitute" Version="[6.2.0, 7.0.0)" />
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->
@@ -109,7 +109,7 @@
     <PackageVersion Include="Scriban" Version="7.2.6" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.158" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.159" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />

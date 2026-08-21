@@ -21,6 +21,7 @@ on:
       - 'src/Compono.Bogus/**'
       - 'src/Compono.TUnit/**'
       - 'src/Compono.TestDoubles/**'
+      - 'src/Compono.DependencyInjection/**'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
@@ -40,6 +41,7 @@ on:
       - 'src/Compono.Bogus/**'
       - 'src/Compono.TUnit/**'
       - 'src/Compono.TestDoubles/**'
+      - 'src/Compono.DependencyInjection/**'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
@@ -83,7 +85,7 @@ jobs:
       - name: Build publishable packages (net10.0)
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles; do
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection; do
             dotnet build "src/${pkg}/${pkg}.csproj" -c Release -f net10.0
           done
 
@@ -93,7 +95,7 @@ jobs:
       - name: Fail on API reference drift
         run: |
           if ! git diff --exit-code -- docs/reference/api; then
-            echo "::error::docs/reference/api is out of date. Run '.github/scripts/generate-api-reference.sh' (after building the four publishable packages for net10.0 Release) and commit the result." >&2
+            echo "::error::docs/reference/api is out of date. Run '.github/scripts/generate-api-reference.sh' (after building the seven publishable packages for net10.0 Release) and commit the result." >&2
             exit 1
           fi
 
@@ -103,7 +105,7 @@ jobs:
           python-version-file: pyproject.toml
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.0.0
         with:
           enable-cache: true
 

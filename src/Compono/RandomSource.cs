@@ -22,10 +22,13 @@ internal sealed class RandomSource : IRandomSource
     private const byte DictionaryValueTag = 4;
     private const byte ManualResolveTag = 5;
     private const byte TestParameterTag = 6;
+    private const byte ConfiguredResolutionTag = 8;
 
-    // Distinct from the seven PathSegment-kind tags above - DeriveSeed's own fixed salt, so a
+    // Distinct from the eight PathSegment-kind tags above - DeriveSeed's own fixed salt, so a
     // caller-derived seed (ADR-0026) is never accidentally identical to a value this same node might
-    // separately fork for an ordinary PathSegment-keyed child.
+    // separately fork for an ordinary PathSegment-keyed child. Fixed at 7 - do not renumber, per
+    // ADR-0012's deterministic-output compatibility guarantee (renumbering would silently change
+    // every derived-seed value for existing consumers on a fixed seed).
     private const byte DeriveSeedTag = 7;
 
     private readonly ulong _forkState;
@@ -52,6 +55,7 @@ internal sealed class RandomSource : IRandomSource
             PathSegment.DictionaryValue v => (DictionaryValueTag, v.Index),
             PathSegment.ManualResolve r => (ManualResolveTag, r.Ordinal),
             PathSegment.TestParameter t => (TestParameterTag, t.Ordinal),
+            PathSegment.ConfiguredResolution c => (ConfiguredResolutionTag, c.Ordinal),
             _ => throw new ArgumentOutOfRangeException(nameof(segment), segment, "Unrecognized path segment kind."),
         };
 

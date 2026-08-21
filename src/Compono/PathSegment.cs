@@ -50,4 +50,19 @@ internal abstract record PathSegment
     /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
     /// </summary>
     internal sealed record TestParameter(int Ordinal, string Name) : PathSegment;
+
+    /// <summary>
+    /// One <see cref="CompositionContext.TryResolveConfigured"/> call - a runtime-<see cref="Type"/>
+    /// request reaching only the scope/exact-registration/configuration-rule/provider stages, never
+    /// a descriptor. Identified by its call sequence on the owning <see cref="CompositionContext"/>,
+    /// same shape as <see cref="ManualResolve"/> - two sequential top-level
+    /// <see cref="CompositionRow.TryResolveConfigured"/> calls on the same row ARE siblings under the
+    /// row's pre-rooted path (PR #105 review, Codex: without this ordinal, every call forked from the
+    /// identical parent random state via the identical fixed segment identity, so two different
+    /// registrations/providers relying on randomness - <c>DeriveSeed()</c>, a nested composition, a
+    /// Bogus-backed semantic provider - silently produced identical derived values instead of
+    /// independent ones). The eighth <see cref="PathSegment"/> kind. See
+    /// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+    /// </summary>
+    internal sealed record ConfiguredResolution(int Ordinal) : PathSegment;
 }

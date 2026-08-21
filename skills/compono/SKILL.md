@@ -5,7 +5,7 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` (generated-test-double
@@ -18,7 +18,7 @@ description: >-
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
   SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`
+  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -50,6 +50,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.NSubstitute"` | `.csproj` | Definitive | `UseNSubstitute()` available — load `references/nsubstitute.md` |
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
 | `<PackageReference Include="Compono.TestDoubles"` or `UseGeneratedTestDoubles()` in `*.cs` | `.csproj`/`*.cs` | Definitive | Test-double intent present — load `references/testdoubles.md`, which explains that `UseGeneratedTestDoubles()` also needs `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` set (check separately; its absence is the most common setup mistake, not a reason to skip loading the reference) |
+| `<PackageReference Include="Compono.DependencyInjection"` or `.AsServiceProvider()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `row.AsServiceProvider()` available — load `references/dependencyinjection.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -204,23 +205,31 @@ undermines the reason Compono exists in this project.
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
-  `Compono.NSubstitute`, `Compono.Bogus`, and `Compono.TestDoubles` ship as
-  packages today (`Compono.TUnit` ships the full attribute family —
+  `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`, and
+  `Compono.DependencyInjection` ship as packages today (`Compono.TUnit`
+  ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
   see `references/tunit.md`; `Compono.TestDoubles` requires both the
   package reference and the `ComponoGeneratedTestDoubles` compile-time
-  opt-in, see `references/testdoubles.md`) — there is no `Compono.NUnit`,
-  `Compono.MSTest`, `Compono.FakeItEasy`, `Compono.Moq`, or
-  `Compono.DependencyInjection`, and never invent a plausible-looking API
-  for one. That doesn't always mean the underlying capability is
-  unsupported, though: core `Composer.Create<T>()`/`CreateMany<T>()` work
-  inside any test framework's test body today, including NUnit/MSTest,
-  with no framework-specific package required — just without
-  `Compono.XunitV3`'s `[Compose]`/`[Shared]`/row convenience. Likewise,
-  `CompositionBuilder.UseServiceProvider(...)` already bridges a
-  consumer's own `IServiceProvider` today — there's no missing DI
-  capability, only a richer/auto-registering DI package that hasn't
-  shipped. When asked whether Compono supports one of these, say
+  opt-in, see `references/testdoubles.md`; `Compono.DependencyInjection`
+  ships exactly one member, `row.AsServiceProvider()` — a configured-
+  resolution `IServiceProvider` bridge, see `references/dependencyinjection.md`)
+  — there is no `Compono.NUnit`, `Compono.MSTest`, `Compono.FakeItEasy`, or
+  `Compono.Moq`, and never invent a plausible-looking API for one. That
+  doesn't always mean the underlying capability is unsupported, though:
+  core `Composer.Create<T>()`/`CreateMany<T>()` work inside any test
+  framework's test body today, including NUnit/MSTest, with no
+  framework-specific package required — just without `Compono.XunitV3`'s
+  `[Compose]`/`[Shared]`/row convenience. Likewise, don't overstate what
+  `Compono.DependencyInjection` itself is: it's a narrow, one-direction
+  bridge (`row.AsServiceProvider()`, reaching only scope/exact-
+  registration/provider-backed values — never a configured
+  `UseServiceProvider(...)`, never ordinary generated-plan composition of
+  an arbitrary concrete type) — there's still no `services.AddCompono()`,
+  no `Composer`/`IComposer` registration into an app's own DI container,
+  and no richer/auto-registering DI package; that broader idea remains
+  unshipped, a distinct thing from what `Compono.DependencyInjection`
+  actually does. When asked whether Compono supports one of these, say
   precisely what does and doesn't exist rather than a blanket "no." For
   current candidate status (idea / admitted candidate / deferred), point
   at <https://layeredcraft.github.io/compono/roadmap/future-packages/> —
@@ -274,4 +283,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
 | `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()` work, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
+| `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

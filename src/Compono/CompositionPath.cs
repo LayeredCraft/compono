@@ -72,6 +72,7 @@ internal sealed class CompositionPath
         PathSegment.DictionaryValue v => $".Value[{v.Index}]",
         PathSegment.ManualResolve r => $".Resolve[{r.Ordinal}]",
         PathSegment.TestParameter t => $".{t.Name}",
+        PathSegment.ConfiguredResolution c => $".ConfiguredResolve[{c.Ordinal}]",
         null => string.Empty,
         _ => throw new ArgumentOutOfRangeException(nameof(Segment), Segment, "Unrecognized path segment kind."),
     };
@@ -113,6 +114,7 @@ internal sealed class CompositionPath
             PathSegment.DictionaryValue v => $"{typeName} Value[{v.Index}]",
             PathSegment.ManualResolve r => $"{typeName} Resolve[{r.Ordinal}]",
             PathSegment.TestParameter t => $"{typeName} {t.Name}",
+            PathSegment.ConfiguredResolution c => $"{typeName} ConfiguredResolve[{c.Ordinal}]",
             null => typeName,
             _ => throw new ArgumentOutOfRangeException(nameof(Segment), Segment, "Unrecognized path segment kind."),
         };

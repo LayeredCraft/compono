@@ -77,4 +77,49 @@ public sealed class CompositionRow : ICompositionContext
     /// </exception>
     public void ShareExplicit<TValue>(in CompositionRequestDescriptor descriptor, TValue value) =>
         _context.ShareExplicitTestParameter(descriptor, value);
+
+    /// <summary>
+    /// Attempts to resolve <paramref name="type"/> using only Compono's configured/provider-backed
+    /// resolution stages: this row's existing scope values, exact registrations, configuration rules,
+    /// and registered <see cref="ICompositionValueProvider"/> instances (including Compono.TestDoubles
+    /// and Compono.NSubstitute). This is NOT equivalent to <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> -
+    /// it does not consult a configured <c>IServiceProvider</c> (<c>UseServiceProvider</c>), and it
+    /// cannot perform ordinary generated-plan composition of arbitrary concrete types, because that
+    /// dispatch requires the target type to be known at compile time. See
+    /// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+    /// </summary>
+    /// <param name="type">The runtime type to resolve.</param>
+    /// <param name="value">
+    /// The resolved value if a configured/provider stage satisfied <paramref name="type"/>; otherwise
+    /// <see langword="null"/>. A legitimate handled result can itself be <see langword="null"/> - check
+    /// this method's return value, not whether <paramref name="value"/> is <see langword="null"/>, to
+    /// tell "handled" from "not handled" apart.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> if a configured/provider stage satisfied <paramref name="type"/>;
+    /// <see langword="false"/> if no such stage could handle it.
+    /// </returns>
+    /// <exception cref="CompositionException">
+    /// An exact registration factory or configuration-rule (<c>.For&lt;T&gt;().Use(...)</c>) factory
+    /// threw, or the scope/registration/provider result's runtime type wasn't assignable to the
+    /// requested type. A <see langword="null"/> result is never a failure
+    /// here - unlike <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>, this method always
+    /// validates as nullable (see the parameter docs above), so a legitimate <see langword="null"/>
+    /// always comes back as <see langword="true"/>, never this exception. This method distinguishes
+    /// "nothing could handle this" (a <see langword="false"/> return) from "something tried and failed"
+    /// (a thrown exception) - it never collapses the latter into the former.
+    /// </exception>
+    /// <exception cref="Exception">
+    /// A stage 4-6 <see cref="ICompositionValueProvider"/> threw - its own original exception type
+    /// propagates uncaught, exactly like <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>'s
+    /// existing provider-failure contract (a public provider's thrown exception is never wrapped in a
+    /// <see cref="CompositionException"/>, per <c>docs/adr/0024-public-provider-extensibility-model.md</c>'s
+    /// Provider Failure Semantics) - only an exact registration or configuration-rule factory's failure
+    /// gets wrapped.
+    /// </exception>
+    public bool TryResolveConfigured(Type type, out object? value)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return _context.TryResolveConfigured(type, out value);
+    }
 }
