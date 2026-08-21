@@ -29,10 +29,13 @@ public static System.IServiceProvider AsServiceProvider(this Compono.Composition
 [System\.IServiceProvider](https://learn.microsoft.com/en-us/dotnet/api/system.iserviceprovider 'System\.IServiceProvider')
 
 ### Remarks
-Do not configure a DIFFERENT row's `UseServiceProvider` with the result of this call on
-a row that itself \(directly or transitively\) resolves back into that same row \- nothing in
-Compono detects a resolution cycle that crosses two rows, and it will overflow the stack
-rather than throw a diagnosed exception\. See ADR\-0047's Recursion section\.
+Wiring a DIFFERENT row's `UseServiceProvider` with the result of this call, where that
+row itself \(directly or transitively\) resolves back into this row, is discouraged but not
+unguarded: a [CompositionRow](../Compono/Compono.CompositionRow.md 'Compono\.CompositionRow')'s underlying context is created once and reused for
+every call made on it, so a true cycle re\-enters the same registration factory or provider on
+that context while it is still active, and Compono's existing reentrance guard raises a
+diagnosed [CompositionException](../Compono/Compono.CompositionException.md 'Compono\.CompositionException') \- it does not overflow the stack\. See ADR\-0047's
+Recursion section\.
 
 The returned [System\.IServiceProvider](https://learn.microsoft.com/en-us/dotnet/api/system.iserviceprovider 'System\.IServiceProvider') does not own or dispose anything it resolves and
 caches - if a resolved value implements [System\.IDisposable](https://learn.microsoft.com/en-us/dotnet/api/system.idisposable 'System\.IDisposable')/[System\.IAsyncDisposable](https://learn.microsoft.com/en-us/dotnet/api/system.iasyncdisposable 'System\.IAsyncDisposable'),
