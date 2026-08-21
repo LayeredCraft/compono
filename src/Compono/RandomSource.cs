@@ -55,9 +55,7 @@ internal sealed class RandomSource : IRandomSource
             PathSegment.DictionaryValue v => (DictionaryValueTag, v.Index),
             PathSegment.ManualResolve r => (ManualResolveTag, r.Ordinal),
             PathSegment.TestParameter t => (TestParameterTag, t.Ordinal),
-            // No Ordinal/Index of its own (PathSegment.ConfiguredResolution's own remarks - it never
-            // has siblings under one parent) - 0 is safe as a fixed placeholder for exactly that reason.
-            PathSegment.ConfiguredResolution => (ConfiguredResolutionTag, 0),
+            PathSegment.ConfiguredResolution c => (ConfiguredResolutionTag, c.Ordinal),
             _ => throw new ArgumentOutOfRangeException(nameof(segment), segment, "Unrecognized path segment kind."),
         };
 

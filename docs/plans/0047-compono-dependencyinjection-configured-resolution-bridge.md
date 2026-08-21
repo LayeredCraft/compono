@@ -101,11 +101,15 @@ phases or separate PR boundaries.
       `PackageReference` to `Compono.TestDoubles` or `Compono.NSubstitute`
       — the package itself must stay provider-agnostic; those two are test
       project dependencies only (see Tests below).**
-  - [x] Add `Microsoft.Extensions.DependencyInjection.Abstractions` package
-        reference (the one new external dependency this package needs,
-        per ADR-0047). Pinned `8.0.2` in `Directory.Packages.props` (this
-        repo's lowest supported TFM's release line; forward-compatible with
-        net9.0/net10.0/net11.0 too).
+  - [x] ~~Add `Microsoft.Extensions.DependencyInjection.Abstractions`
+        package reference~~ **Superseded — see ADR-0047 Amendment 1.**
+        Originally added, then removed entirely once PR review surfaced
+        that the package doesn't reference anything from that namespace at
+        all (`row.AsServiceProvider()` returns plain `System.IServiceProvider`,
+        BCL). The final, shipped `Compono.DependencyInjection.csproj` has
+        no `PackageReference` at all beyond the `Compono` `ProjectReference` —
+        this task is recorded as done in its amended, dependency-free
+        form, not the originally-scoped one.
 - [x] Add `CompositionRowServiceProviderExtensions.AsServiceProvider(this CompositionRow row)`
       in namespace `Compono` (matching every other integration package's
       "extension method lives in `Compono`'s own namespace" convention),
@@ -433,6 +437,37 @@ just an in-repo `ProjectReference`.
    checked against what I'd already written elsewhere in this same diff -
    fixed by doing the `post-mvp.md` edit now instead, treating this PR's
    merge as the shipping event, consistently with `future-packages.md`.
+
+## Third PR review round (Codex, #105) findings
+
+8. **P1 — sibling `TryResolveConfigured` calls on the same row shared a
+   fork identity, silently colliding derived-randomness values.** The
+   most serious finding across all review rounds. `PathSegment.ConfiguredResolution`
+   was originally designed with no ordinal ("never has siblings" -
+   wrong: two sequential top-level `TryResolveConfigured` calls on the
+   same row ARE siblings under the row's pre-rooted path, exactly like
+   `TestParameter`/`ManualResolve`). Confirmed with a real repro before
+   fixing: `Register<ProbeA>(ctx => new ProbeA(ctx.DeriveSeed()))` and
+   `Register<ProbeB>(ctx => new ProbeB(ctx.DeriveSeed()))`, resolved
+   sequentially via `TryResolveConfigured`, produced the *identical*
+   derived value. Fixed by giving `ConfiguredResolution` an `Ordinal`
+   (matching `TestParameter`/`ManualResolve`'s existing shape exactly),
+   backed by a new per-`CompositionContext` counter
+   (`_nextConfiguredResolutionOrdinal`), threaded through `RandomSource.Fork`
+   and `CompositionPath`'s two display switches. New permanent regression
+   test (`TryResolveConfigured_GivesSiblingRequests_IndependentRandomStreams`)
+   reproduces the exact scenario and passes with the fix; full 243-test
+   `Compono.Tests` suite still green.
+9. **P2 — ADR-0047's own Core Primitive text still promised a wrapped
+   `CompositionException` for a provider failure**, even after the code's
+   XML doc was corrected in the second review round. Recorded as
+   Amendment 2 (Accepted ADRs stay immutable - corrections get dated
+   amendments, not silent edits to the original text).
+10. **P2 — this plan's own completed checklist still described adding
+    the (later-removed) `Microsoft.Extensions.DependencyInjection.Abstractions`
+    package reference**, contradicting ADR-0047 Amendment 1. Reworded the
+    checklist item to record the amended, dependency-free outcome instead
+    of the originally-scoped one.
 
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction).

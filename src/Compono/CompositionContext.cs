@@ -37,6 +37,11 @@ internal sealed class CompositionContext : ICompositionContext
     private readonly IReadOnlyList<ICompositionProvider> _builtInProviders;
     private readonly CollectionSizePolicy _collectionSizePolicy;
 
+    // One shared counter per CompositionContext (one per row) - every TryResolveConfigured call gets
+    // the next ordinal, same shape as ManualResolveFrame.NextOrdinal, so sequential sibling calls fork
+    // distinct random states instead of colliding on an identical segment identity (PR #105 review).
+    private int _nextConfiguredResolutionOrdinal;
+
     // A cheap, otherwise-empty identity token BuildException stamps onto every CompositionException it
     // creates - InvokeFactory compares a caught exception's own token against this one to tell "my own
     // nested Resolve<T>() call diagnosed this" from "a different CompositionContext (or none at all)
@@ -334,7 +339,7 @@ internal sealed class CompositionContext : ICompositionContext
         var previousRandom = _random;
         var previousDeclaringType = _currentDeclaringType;
         var isRoot = _path is null;
-        var segment = new PathSegment.ConfiguredResolution();
+        var segment = new PathSegment.ConfiguredResolution(_nextConfiguredResolutionOrdinal++);
         var checkpoint = _trace.Checkpoint;
 
         _path = isRoot ? CompositionPath.Root(requestedType) : _path!.Push(requestedType, segment);

@@ -119,6 +119,26 @@ public sealed class CompositionRowTryResolveConfiguredTests
     }
 
     [Fact]
+    public void TryResolveConfigured_GivesSiblingRequests_IndependentRandomStreams()
+    {
+        // Regression for a Codex PR review finding (P1): two sequential top-level
+        // TryResolveConfigured calls on the same row ARE siblings under the row's pre-rooted path,
+        // exactly like TestParameter/ManualResolve - without a distinct fork identity per call, both
+        // registrations below forked from the identical parent random state via the identical segment
+        // identity and produced the identical derived value, silently breaking independence for
+        // anything randomness-dependent (DeriveSeed(), nested composition, a Bogus-backed provider).
+        var composer = Composer.Create(builder => builder
+            .Register<SiblingMarkerA>(ctx => new SiblingMarkerA(ctx.DeriveSeed()))
+            .Register<SiblingMarkerB>(ctx => new SiblingMarkerB(ctx.DeriveSeed())));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        row.TryResolveConfigured(typeof(SiblingMarkerA), out var a);
+        row.TryResolveConfigured(typeof(SiblingMarkerB), out var b);
+
+        ((SiblingMarkerA)a!).Value.Should().NotBe(((SiblingMarkerB)b!).Value);
+    }
+
+    [Fact]
     public void TryResolveConfigured_ReturnsTrueWithNullValue_ForARegistrationThatProducesNull()
     {
         // A bare runtime Type carries no compile-time nullable-reference annotation to validate
@@ -169,6 +189,10 @@ public sealed class CompositionRowTryResolveConfiguredTests
     private sealed record NullableMarker;
 
     private sealed record FreshMarker;
+
+    private sealed record SiblingMarkerA(int Value);
+
+    private sealed record SiblingMarkerB(int Value);
 
     private sealed class FakeServiceProvider(ServiceProviderMarker value) : IServiceProvider
     {

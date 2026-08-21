@@ -480,3 +480,24 @@ their own app/test host's own reference to the Abstractions package
 (ASP.NET Core, a generic host, bUnit, etc. all already carry it) — this
 was never something `Compono.DependencyInjection` itself needed to
 provide. No other part of this ADR's Decision Outcome changes.
+
+## Amendment 2 (2026-08-21): Provider-thrown exceptions propagate raw, not wrapped
+
+The Core primitive section's original text (`TryResolveConfigured`'s
+sketched XML doc, above) says a reachable-but-failing stage "still throws
+a diagnosed `CompositionException`." That is only true for an exact
+registration factory (stage 3a), wrapped via `InvokeFactory`. A stage 4-6
+`ICompositionValueProvider`'s own thrown exception propagates uncaught,
+unwrapped, in its own original exception type — per
+[ADR-0024](0024-public-provider-extensibility-model.md)'s existing
+Provider Failure Semantics, which `TryResolveConfigured` never overrides
+or downgrades for this entry point. This was caught during PR review
+(#105) as an inconsistency between the ADR's own text and the shipped
+code's actual XML docs (`CompositionRow.TryResolveConfigured`'s doc
+comment was corrected earlier in that same review, but this ADR's own
+Core Primitive section was not updated to match) and the implementation
+itself, which has always behaved this way —
+`TryResolveConfigured_Throws_WhenAReachableProviderThrows` asserts the
+raw provider exception type, not `CompositionException`, and was written
+before this amendment, not changed by it. No behavior changed; only this
+ADR's own text is corrected to match what has always shipped.
