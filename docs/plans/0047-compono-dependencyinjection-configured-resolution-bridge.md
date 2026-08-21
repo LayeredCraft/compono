@@ -739,3 +739,33 @@ just an in-repo `ProjectReference`.
     factory making an extra reentrant same-row call before its cross-row
     call - the exact shape this finding described) hung reliably without
     the depth fix, and passes reliably (5/5) with it restored.
+
+## Fourteenth PR review round (Codex, #105) findings
+
+30. **P1 — acquisition and graph publication weren't atomic, leaving a
+    genuine deschedule-timed race.** Every version of this fix through
+    finding 29 still used a separate per-adapter `Monitor` (`_lock`) as
+    the actual serialization mechanism, publishing `Owners[this]` in a
+    second step afterward. A thread could win `_lock` and be descheduled
+    before that second step ran; during that window, a different thread's
+    cycle check would see the adapter as unowned, skip registering its own
+    wait, and block directly on `_lock` - invisible to the graph. If roles
+    then reversed, both threads could deadlock for real, undetected.
+    Narrowing the window further couldn't close it - any two separate
+    steps (acquire, then publish) leave *a* window, however small.
+    Removed the per-adapter lock object entirely: ownership itself is now
+    the synchronization primitive (`Owners`/`OwnerDepth`/`WaitingFor`,
+    mutated only under one shared `GraphLock`), and waiting uses
+    `Monitor.Wait(GraphLock)`/`Monitor.PulseAll(GraphLock)` instead of a
+    second lock - acquisition and publication now happen in the same
+    critical section, always, by construction rather than by narrowing a
+    timing window. This is the standard correct pattern for a lock a
+    deadlock detector itself protects. Not independently reproducible
+    with a deterministic test (it's a genuine OS-scheduler-timing race,
+    not a fixed sequencing bug like findings 27/29 were) - verified
+    instead by re-running the full existing concurrency suite (the
+    two-row cycle, the reentrant-same-row case, same-row slow contention,
+    and the non-cyclic nested-slow-caller case) 5/5 with the redesign,
+    confirming no regression, plus the architectural argument that the
+    race class this finding describes cannot exist once there is no
+    second lock object for the window to live in.

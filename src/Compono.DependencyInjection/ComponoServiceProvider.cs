@@ -24,47 +24,33 @@ internal sealed class ComponoServiceProvider : IServiceProvider
     private readonly CompositionRow _row;
     private readonly Dictionary<Type, object?> _cache = [];
 
-    // Plain object, not System.Threading.Lock (coding-standards.md's usual preference) - this package
-    // multi-targets net8.0, where System.Threading.Lock doesn't exist yet (.NET 9+ only). Serializes
-    // the whole cache-check/resolve/cache-write section below: CompositionContext's own _path/_random/
-    // trace state (reached via _row.TryResolveConfigured) is unsynchronized mutable state, not just
-    // this adapter's Dictionary - two concurrent GetService calls racing into it could corrupt that
-    // shared bookkeeping or hand two same-type callers different instances despite the documented
-    // stable-identity guarantee, not just throw the ordinary "Dictionary isn't thread-safe" exception.
-    private readonly object _lock = new();
-
-    // PR #105 review, round three: a fixed TryEnter timeout (rounds one and two of this fix) cannot
-    // distinguish an actual multi-lock cycle from ordinary nested contention - a legitimate cross-row
-    // call (Row A's factory calling into Row B) blocked behind an unrelated, independently slow caller
-    // already inside Row B would time out just as wrongly as a real deadlock would. The only sound fix
-    // is detecting an actual wait-for cycle before blocking at all, not guessing from a fixed deadline.
+    // PR #105 review, round four: rounds one through three of this fix (a fixed timeout, then a
+    // nested-only timeout, then real wait-for-cycle detection) all still had a per-adapter Monitor
+    // (`_lock`) as the actual serialization mechanism, with a SEPARATE step publishing ownership into
+    // the cycle-detection graph afterward. That left a genuine race: a thread could win `_lock` but be
+    // descheduled before publishing `Owners[this]`, during which a second thread's cycle check would
+    // see this adapter as unowned, skip registering its own wait, and block directly on `_lock` -
+    // invisible to the graph. If the roles then reversed, both threads could deadlock for real, with
+    // the detector never seeing it. Narrowing that window further wouldn't close it - any two separate
+    // steps (acquire, then publish) leave A window, however small.
     //
-    // GraphLock guards two small maps, shared across every ComponoServiceProvider instance (this is
-    // deliberately static, not per-instance - a cycle can span any number of rows, so the bookkeeping
-    // has to see all of them): which thread currently owns each adapter's lock, and which adapter (if
-    // any) each thread is currently blocked trying to acquire. Before blocking on an adapter another
-    // thread owns, this walks the wait-for chain starting at that owner: if it leads back to the
-    // CURRENT thread, granting this wait would close a cycle - refuse immediately with a diagnosed
-    // exception instead of blocking (a real cycle can never resolve itself by waiting longer). If it
-    // doesn't, block with a PLAIN, unbounded Monitor.Enter - safe by construction, since the cycle
-    // check already proved this wait cannot be part of a cycle, so no arbitrary timeout is needed to
-    // "protect" it, and none is imposed. This is what lets a legitimately slow nested cross-row call
-    // (finding from this same review round) succeed no matter how long it takes, while a genuine cycle
-    // is refused instantly rather than only after some fixed wait.
+    // The actual fix removes the separate per-adapter lock object entirely. Ownership itself now IS the
+    // synchronization primitive: "does a thread hold this adapter" is defined purely by presence in
+    // `Owners`, mutated only while holding `GraphLock`, and waiting is done via `Monitor.Wait(GraphLock)`
+    // / `Monitor.PulseAll(GraphLock)` rather than a second lock object. Because `Monitor.Wait` atomically
+    // releases and re-acquires the SAME lock it's called under, there is no instant where a thread holds
+    // "ownership" without every other thread's view of `Owners` already reflecting it - acquisition and
+    // publication happen in the same critical section, always. `Monitor.PulseAll` (not the earlier
+    // targeted-wakeup scheme) wakes every waiter on release; each re-checks its own condition and goes
+    // back to sleep if its own adapter is still held by someone else. This is the standard
+    // correct-by-construction pattern for a lock a deadlock detector protects (a global monitor guarding
+    // both the resource-ownership state AND the actual blocking), not an optimization over the
+    // two-lock scheme - the earlier design could not be patched to close this window without becoming
+    // exactly this.
     private static readonly object GraphLock = new();
     private static readonly Dictionary<ComponoServiceProvider, Thread> Owners = [];
-    private static readonly Dictionary<Thread, ComponoServiceProvider> WaitingFor = [];
-
-    // Monitor.Enter/Exit on the SAME thread is reentrant - a registration factory that calls back into
-    // its OWN row's adapter for a different type re-enters the same _lock without blocking. Without
-    // this, the inner call's `finally` would remove the Owners entry entirely while the OUTER call
-    // still holds the lock, leaving a window where this adapter's lock is genuinely held but Owners
-    // says nobody owns it - a different thread checking during that window would neither detect a
-    // would-be cycle nor register its own wait, silently defeating the cycle check for exactly the case
-    // it exists to catch. Tracked per-adapter, incremented/decremented in lockstep with every
-    // Monitor.Enter/Exit pair; Owners[this] is only cleared when depth reaches zero, i.e. when the
-    // outermost call actually releases the underlying Monitor.
     private static readonly Dictionary<ComponoServiceProvider, int> OwnerDepth = [];
+    private static readonly Dictionary<Thread, ComponoServiceProvider> WaitingFor = [];
 
     internal ComponoServiceProvider(CompositionRow row)
     {
@@ -77,15 +63,34 @@ internal sealed class ComponoServiceProvider : IServiceProvider
 
         lock (GraphLock)
         {
-            if (Owners.TryGetValue(this, out var ownerThread) && ownerThread != thisThread)
+            while (true)
             {
-                // Walk the chain of threads this wait would transitively depend on: does it lead back
-                // to this thread? The self-check runs BEFORE the visited-set dedup guard on every
-                // iteration - reversing that order would let a genuine cycle back to this thread get
-                // silently swallowed by the dedup check instead of ever being reported (this thread
-                // would already be "seen" from nowhere, since it's never pre-seeded). The visited set
-                // exists only to bound the walk defensively if bookkeeping were ever inconsistent for
-                // some OTHER thread; it never suppresses the one check that matters.
+                if (!Owners.TryGetValue(this, out var ownerThread))
+                {
+                    // Free - acquire and publish ownership in this same critical section. No other
+                    // thread can ever observe this adapter as "unowned" once this returns, because both
+                    // happen atomically under GraphLock.
+                    Owners[this] = thisThread;
+                    OwnerDepth[this] = 1;
+                    WaitingFor.Remove(thisThread);
+                    break;
+                }
+
+                if (ownerThread == thisThread)
+                {
+                    // Reentrant same-row call (this thread already owns this adapter, e.g. a factory
+                    // calling back into its own row for a different type) - just bump the depth.
+                    OwnerDepth[this]++;
+                    break;
+                }
+
+                // Someone else owns it. The graph is fully consistent here - nothing else can mutate
+                // Owners/WaitingFor while this thread holds GraphLock - so this walk can't miss an edge
+                // the two-lock design's race allowed. Does the chain of "who does the owner's owner
+                // wait for, transitively" lead back to this thread? The self-check runs BEFORE the
+                // visited-set dedup guard on every iteration - reversing that order would let a genuine
+                // cycle back to this thread get silently swallowed by the dedup check instead of ever
+                // being reported.
                 var probe = ownerThread;
                 var visited = new HashSet<Thread>();
                 while (true)
@@ -115,17 +120,16 @@ internal sealed class ComponoServiceProvider : IServiceProvider
                     probe = nextOwner;
                 }
 
+                // No cycle - wait for a release. Monitor.Wait atomically releases GraphLock and blocks,
+                // then re-acquires it before returning, so there is no gap between "about to wait" and
+                // "actually waiting" a release could slip through unnoticed (the classic lost-wakeup
+                // problem this pattern exists to avoid).
                 WaitingFor[thisThread] = this;
+                Monitor.Wait(GraphLock);
+                WaitingFor.Remove(thisThread);
+                // Loop back around: PulseAll wakes every waiter, not just ones waiting on THIS adapter,
+                // so re-check whether it's actually free now before assuming so.
             }
-        }
-
-        Monitor.Enter(_lock);
-
-        lock (GraphLock)
-        {
-            WaitingFor.Remove(thisThread);
-            Owners[this] = thisThread;
-            OwnerDepth[this] = OwnerDepth.GetValueOrDefault(this) + 1;
         }
 
         try
@@ -152,14 +156,13 @@ internal sealed class ComponoServiceProvider : IServiceProvider
                 {
                     OwnerDepth.Remove(this);
                     Owners.Remove(this);
+                    Monitor.PulseAll(GraphLock);
                 }
                 else
                 {
                     OwnerDepth[this] = depth;
                 }
             }
-
-            Monitor.Exit(_lock);
         }
     }
 }

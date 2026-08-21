@@ -737,3 +737,51 @@ are both superseded by this amendment — the mechanism changed from a
 timeout to cycle detection, though the observable contract for the one
 case that matters (a genuine cross-row cycle gets a diagnosed exception,
 never a hang) is unchanged.
+
+## Amendment 7 (2026-08-21): Removed the second lock object — acquisition and graph publication are now atomic by construction
+
+PR review found a real race Amendment 6's design (a per-adapter
+`Monitor` for actual serialization, plus a separate step publishing
+`Owners[this]` afterward) could not fully close: a thread could win that
+`Monitor` and be descheduled before the publish step ran. During that
+window, a different thread's cycle check would see the adapter as
+unowned, skip registering its own wait, and block directly on the
+`Monitor` — invisible to the graph. If roles then reversed, both threads
+could deadlock for real, with the detector never seeing it. This is a
+different failure class from Amendment 6's own reentrancy bug (finding
+29) — that was a fixed sequencing error (an unconditional `Remove` that
+ran too early on every call), fixable by tracking depth. This one is a
+genuine OS-scheduler-timing race between two separate steps — no amount
+of narrowing the gap between "acquire" and "publish" closes it, because
+any two separate steps leave *some* window.
+
+The fix removes the per-adapter lock object entirely.
+`ComponoServiceProvider` no longer has an instance-level `Monitor` at
+all — ownership of an adapter *is* the synchronization primitive now:
+presence in the static `Owners`/`OwnerDepth` maps, mutated only while
+holding one shared `GraphLock`. Waiting for a released adapter uses
+`Monitor.Wait(GraphLock)` (which atomically releases and re-acquires
+`GraphLock` as part of its own contract) and releasing one calls
+`Monitor.PulseAll(GraphLock)` to wake every waiter, each re-checking its
+own condition. Because every read and write of the ownership maps now
+happens strictly inside a `GraphLock` critical section — including the
+moment a wait becomes an acquisition — there is no instant where a
+thread holds an adapter without every other thread's view of `Owners`
+already reflecting it. This isn't a smaller window; it's the same
+pattern used to build any correct deadlock detector (a single monitor
+guarding both the resource-ownership state and the actual blocking),
+applied because the two-lock design could not be patched into this
+shape without becoming exactly this.
+
+This race is not independently reproducible with a deterministic test —
+unlike finding 29's fixed sequencing bug, it depends on genuine OS
+thread-scheduling timing between two specific instructions, not a
+repeatable code path. Verified instead by re-running the full existing
+concurrency test suite (the two-row cycle, reentrant-same-row ownership,
+same-row slow contention, and the non-cyclic nested-slow-caller case)
+5/5 against the redesign with no regression, combined with the
+architectural argument that this race class cannot exist once there is
+no second lock object for the window to live in. No externally
+observable behavior changes — the same calls succeed, the same cycle is
+refused, with the same exception type and message shape as Amendment 6
+established; only the internal synchronization mechanism changed.
