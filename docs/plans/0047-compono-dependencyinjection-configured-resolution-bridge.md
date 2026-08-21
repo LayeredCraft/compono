@@ -843,3 +843,35 @@ just an in-repo `ProjectReference`.
     has "all 5 pages" listing four package names (now seven pages, seven
     names) and Reference's `api/` covers "all four publishable packages"
     (now seven). Updated all three to the current count.
+
+## Eighteenth PR review round (Codex, #105) findings
+
+37. **P2 — the cross-row cycle exception is only sometimes diagnosed, not
+    always as claimed.** `CompositionContext.InvokeFactory` wraps ANY
+    exception a factory throws with a full `CompositionDiagnostic` -
+    incidental to this adapter's own cycle-detection code, which is what
+    gave every existing cycle test its `Diagnostic` for free. When the
+    cycle instead closes inside a stage 4-6 `ICompositionValueProvider`,
+    `InvokeProvider` deliberately never wraps (ADR-0024's existing
+    Provider Failure Semantics, true for every provider exception, not
+    new here), so this adapter's plain `CompositionException(message)`
+    reaches the caller with `Diagnostic == null` - this adapter has no
+    access to `CompositionContext`'s private trace/path machinery to
+    build one itself. Verified directly with a new test
+    (`GetService_CrossRowCycleException_HasNoDiagnostic_WhenClosedInsideAProvider`)
+    wiring the same two-row cycle with both sides as providers instead of
+    factories. Documented, not fixed - closing this would mean exposing
+    core diagnostic-construction to integration packages, a real design
+    question with no dogfooding evidence calling for it. Corrected
+    `AsServiceProvider()`'s XML doc `<remarks>` to state the condition
+    precisely and recorded as ADR-0047 Amendment 8.
+38. **P2 — the interrupted-wait regression test (finding 35) had the same
+    class of scheduling race as finding 34.** The occupying thread's lock
+    acquisition was assumed, not signaled, before starting the waiting
+    thread - if the OS scheduled the waiting thread first, it could
+    acquire the adapter itself and never reach `Monitor.Wait` at all,
+    letting the test pass without exercising the interruption path it
+    was written to prove. Fixed the same way as finding 34: signal from
+    inside the occupying factory once it's actually running (the lock is
+    genuinely held), and wait for that signal before starting the second
+    thread.

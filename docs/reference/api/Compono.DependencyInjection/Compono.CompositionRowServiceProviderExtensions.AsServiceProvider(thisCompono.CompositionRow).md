@@ -42,10 +42,16 @@ CONCURRENT cross\-row cycle \(the two rows' calls arrive on different threads at
 is different: each row's adapter can be waiting to acquire the OTHER row's adapter lock while
 holding its own, which the reentrance guard above never gets a chance to see \- this method
 detects that specific wait\-for cycle before ever blocking on it, refusing immediately with a
-diagnosed [CompositionException](../Compono/Compono.CompositionException.md 'Compono\.CompositionException') rather than an unrecoverable hang\. A legitimately
-slow but non\-cyclic nested cross\-row call \(or ordinary same\-row contention\) is never affected
-by this \- only a call that would actually close a cycle back to the calling thread is
-refused; every other wait is unbounded, exactly as if this detection didn't exist\. See
+[CompositionException](../Compono/Compono.CompositionException.md 'Compono\.CompositionException') rather than an unrecoverable hang\. Its
+[Diagnostic](../Compono/Compono.CompositionException.Diagnostic.md 'Compono\.CompositionException\.Diagnostic') is only ever populated when the cycle happens to
+close inside a registration/configuration\-rule factory \- if it closes inside a stage 4\-6
+[ICompositionValueProvider](../Compono/Compono.ICompositionValueProvider.md 'Compono\.ICompositionValueProvider') instead, `Diagnostic` is [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null'),
+matching how every other provider\-thrown exception already propagates unwrapped
+\(`docs/adr/0024-public-provider-extensibility-model.md`'s Provider Failure Semantics\);
+this adapter has no access to build one itself in that case\. A legitimately slow but non\-cyclic
+nested cross\-row call \(or ordinary same\-row contention\) is never affected by this \- only a
+call that would actually close a cycle back to the calling thread is refused; every other
+wait is unbounded, exactly as if this detection didn't exist\. See
 ADR\-0047's Recursion section and Amendments 4\-6\.
 
 This adapter fully serializes `GetService` calls made through it (see above), so two

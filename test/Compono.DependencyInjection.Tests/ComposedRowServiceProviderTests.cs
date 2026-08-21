@@ -304,6 +304,101 @@ public sealed class ComposedRowServiceProviderTests
     private sealed record TypeZ;
 
     [Fact]
+    public void GetService_CrossRowCycleException_HasNoDiagnostic_WhenClosedInsideAProvider()
+    {
+        // Characterizes a real gap surfaced in PR review (P2): ADR-0047's Recursion section and
+        // AsServiceProvider()'s XML doc call the cross-row cycle exception "a diagnosed
+        // CompositionException," but that's only actually true when the cycle happens to close inside a
+        // registration/configuration-rule factory - CompositionContext.InvokeFactory's own generic catch
+        // wraps ANY exception a factory throws with a full CompositionDiagnostic (path/trace/seed),
+        // which is what gives the existing cycle tests their Diagnostic incidentally, not anything this
+        // adapter does itself. When the cycle instead closes inside a stage 4-6 ICompositionValueProvider,
+        // InvokeProvider deliberately never wraps ANY exception a provider throws (ADR-0024's Provider
+        // Failure Semantics - true for every provider exception, not new here), so this adapter's plain
+        // CompositionException(message) reaches the caller with Diagnostic == null. This adapter has no
+        // access to CompositionContext's private trace/path machinery to build a real Diagnostic itself,
+        // so this is documented (ADR-0047 Amendment 8) rather than fixed - the exception TYPE is always
+        // CompositionException regardless of which stage closes the cycle; only the Diagnostic's presence
+        // depends on it.
+        var aReady = new ManualResetEventSlim();
+        var bReady = new ManualResetEventSlim();
+        CompositionRow? rowA = null;
+        CompositionRow? rowB = null;
+        IServiceProvider? providerA = null;
+        IServiceProvider? providerB = null;
+
+        var composerA = Composer.Create(builder => builder.AddTestDoubleProvider(new CrossRowProvider(typeof(TypeX), () =>
+        {
+            aReady.Set();
+            bReady.Wait();
+            providerB!.GetService(typeof(TypeY));
+        })));
+        rowA = composerA.CreateRow(typeof(ComposedRowServiceProviderTests));
+        providerA = rowA.AsServiceProvider();
+
+        var composerB = Composer.Create(builder => builder.AddTestDoubleProvider(new CrossRowProvider(typeof(TypeY), () =>
+        {
+            bReady.Set();
+            aReady.Wait();
+            providerA.GetService(typeof(TypeX));
+        })));
+        rowB = composerB.CreateRow(typeof(ComposedRowServiceProviderTests));
+        providerB = rowB.AsServiceProvider();
+
+        Exception? exceptionA = null;
+        Exception? exceptionB = null;
+        var t1 = Task.Run(() =>
+        {
+            try
+            {
+                providerA.GetService(typeof(TypeX));
+            }
+            catch (Exception e)
+            {
+                exceptionA = e;
+            }
+        });
+        var t2 = Task.Run(() =>
+        {
+            try
+            {
+                providerB.GetService(typeof(TypeY));
+            }
+            catch (Exception e)
+            {
+                exceptionB = e;
+            }
+        });
+
+        Task.WaitAll([t1, t2], TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+        // Exactly one of the two threads is the one this adapter's own cross-row cycle detection
+        // refuses (thrown from directly inside its provider call, undiagnosed) - the other either
+        // succeeds or hits a DIFFERENT, unrelated, already-diagnosed guard (CompositionContext's own
+        // same-provider-same-type reentrance check, if it happens to retry after the first thread's
+        // refusal releases its row). Find the one this test is actually about by message, not by
+        // position - which thread "wins" the race is not deterministic.
+        var thisAdaptersException = new[] { exceptionA, exceptionB }
+            .OfType<CompositionException>()
+            .FirstOrDefault(e => e.Message.Contains("would deadlock"));
+
+        thisAdaptersException.Should().NotBeNull("this adapter's own cycle detection should have refused one side");
+        thisAdaptersException!.Diagnostic.Should().BeNull();
+    }
+
+    private sealed class CrossRowProvider(Type handledType, Action beforeCrossRowCall) : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
+        {
+            if (request.RequestedType != handledType)
+                return CompositionProviderResult.NotHandled;
+
+            beforeCrossRowCall();
+            return CompositionProviderResult.Handled(null);
+        }
+    }
+
+    [Fact]
     public void GetService_WaitsOutASlowUnrelatedNestedCall_RatherThanFalselyDetectingACycle()
     {
         // Regression for a Codex PR review finding (P2): the previous fixed-timeout fix couldn't tell a
@@ -369,8 +464,14 @@ public sealed class ComposedRowServiceProviderTests
             .GetField("WaitingFor", BindingFlags.NonPublic | BindingFlags.Static)!;
         var waitingFor = (System.Collections.IDictionary)waitingForField.GetValue(null)!;
 
+        var occupyingThreadHasAcquiredTheLock = new ManualResetEventSlim();
         var composer = Composer.Create(builder => builder.Register<SlowMarker>(() =>
         {
+            // Signals only once this factory is actually running - i.e. once the row's lock is
+            // genuinely held - so waitingThread below can't win a scheduling race and slip through
+            // before the row is contended at all, which would let the test pass without ever
+            // exercising Monitor.Wait (the whole point of this regression test).
+            occupyingThreadHasAcquiredTheLock.Set();
             Thread.Sleep(TimeSpan.FromSeconds(30));
             return new SlowMarker();
         }));
@@ -381,7 +482,7 @@ public sealed class ComposedRowServiceProviderTests
         // waiting for it, not just race past it.
         var occupyingThread = new Thread(() => provider.GetService(typeof(SlowMarker))) { IsBackground = true };
         occupyingThread.Start();
-        Thread.Sleep(200); // give the occupying thread time to actually acquire the row's lock
+        occupyingThreadHasAcquiredTheLock.Wait();
 
         Exception? caught = null;
         var waitingThread = new Thread(() =>

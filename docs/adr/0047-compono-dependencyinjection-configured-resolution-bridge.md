@@ -785,3 +785,50 @@ no second lock object for the window to live in. No externally
 observable behavior changes — the same calls succeed, the same cycle is
 refused, with the same exception type and message shape as Amendment 6
 established; only the internal synchronization mechanism changed.
+
+## Amendment 8 (2026-08-21): The cross-row cycle exception is not always diagnosed
+
+Amendments 5-7 all describe the concurrent cross-row cycle refusal as
+raising "a diagnosed `CompositionException`." That's imprecise: the
+exception TYPE is always `CompositionException`, but its `Diagnostic`
+(path, trace, seed) is only ever populated when the cycle happens to
+close inside a registration/configuration-rule factory.
+
+The reason is structural, not a bug in this ADR's mechanism specifically.
+`CompositionContext.InvokeFactory` wraps *any* exception a factory
+throws — including this adapter's own cycle-detection exception — in a
+generic `catch`, building a full `CompositionDiagnostic` from that
+context's own trace/path/seed at the point of the call; this is what
+gives every existing cycle test its `Diagnostic` incidentally, not
+anything the cycle-detection code in `ComponoServiceProvider` does
+itself. `InvokeProvider`, by contrast, deliberately never wraps any
+exception a stage 4-6 `ICompositionValueProvider` throws — this is
+[ADR-0024](0024-public-provider-extensibility-model.md)'s existing
+Provider Failure Semantics, true for every provider-thrown exception in
+this codebase, not something new introduced here. When the cross-row
+cycle closes inside a provider instead of a factory, this adapter's
+plain `CompositionException(message)` — constructed with no
+`Diagnostic`, since `ComponoServiceProvider` has no access to
+`CompositionContext`'s private trace/path machinery to build one itself —
+reaches the caller exactly as thrown, `Diagnostic == null`.
+
+Caught in PR review (#105): verified directly with a test
+(`GetService_CrossRowCycleException_HasNoDiagnostic_WhenClosedInsideAProvider`)
+wiring the same two-row cycle as the existing tests, but with both
+sides' cross-row calls made from inside `ICompositionValueProvider`s
+instead of registration factories — the resulting exception's
+`Diagnostic` is confirmed `null`.
+
+This is documented, not fixed. Closing the gap would mean giving
+`Compono.DependencyInjection` — an integration package — access to
+`CompositionContext`'s internal trace/path construction, which core
+`Compono` doesn't expose to any package today; that's a real design
+question (whether and how to expose diagnostic-construction as a public
+or internal-shared capability), not a same-scope bug fix, and no
+dogfooding evidence currently calls for it. `AsServiceProvider()`'s XML
+doc `<remarks>` now states the `Diagnostic`-presence condition precisely
+instead of unconditionally claiming "diagnosed." The observable contract
+this ADR actually guarantees is unchanged: a genuine cross-row cycle
+always gets a `CompositionException`, never a hang — only whether that
+exception carries structured diagnostic detail depends on where it
+closes.
