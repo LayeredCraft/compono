@@ -33,23 +33,27 @@ internal sealed class ComponoServiceProvider : IServiceProvider
     // stable-identity guarantee, not just throw the ordinary "Dictionary isn't thread-safe" exception.
     private readonly object _lock = new();
 
-    // Bounded only for a NESTED call (see t_heldAdapterLockDepth below), not for an ordinary top-level
-    // one - PR #105 review, round two: an earlier fix bounded every GetService call, including a
-    // top-level one contending only with another top-level call for the SAME row - a single lock can
-    // never deadlock by itself (whoever holds it eventually releases it), so that turned legitimately
-    // slow user code (a slow custom provider, a debugger pause, loaded CI) into a spurious
-    // TimeoutException. Deadlock is only possible when a thread already holding ONE row's lock tries to
-    // acquire ANOTHER's while blocked inside a factory/provider callback - exactly what
-    // t_heldAdapterLockDepth detects. The timeout is generous specifically so it never fires for
-    // legitimate NESTED contention either - it exists to convert an unrecoverable process hang into a
-    // debuggable failure, not to police normal latency.
-    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(10);
-
-    // Per-thread, not per-instance - the deadlock risk is "this thread already holds SOME row's adapter
-    // lock and is now trying to acquire a DIFFERENT one," regardless of which rows are involved, so
-    // tracking has to span every ComponoServiceProvider instance a thread touches, not just this one.
-    [ThreadStatic]
-    private static int t_heldAdapterLockDepth;
+    // PR #105 review, round three: a fixed TryEnter timeout (rounds one and two of this fix) cannot
+    // distinguish an actual multi-lock cycle from ordinary nested contention - a legitimate cross-row
+    // call (Row A's factory calling into Row B) blocked behind an unrelated, independently slow caller
+    // already inside Row B would time out just as wrongly as a real deadlock would. The only sound fix
+    // is detecting an actual wait-for cycle before blocking at all, not guessing from a fixed deadline.
+    //
+    // GraphLock guards two small maps, shared across every ComponoServiceProvider instance (this is
+    // deliberately static, not per-instance - a cycle can span any number of rows, so the bookkeeping
+    // has to see all of them): which thread currently owns each adapter's lock, and which adapter (if
+    // any) each thread is currently blocked trying to acquire. Before blocking on an adapter another
+    // thread owns, this walks the wait-for chain starting at that owner: if it leads back to the
+    // CURRENT thread, granting this wait would close a cycle - refuse immediately with a diagnosed
+    // exception instead of blocking (a real cycle can never resolve itself by waiting longer). If it
+    // doesn't, block with a PLAIN, unbounded Monitor.Enter - safe by construction, since the cycle
+    // check already proved this wait cannot be part of a cycle, so no arbitrary timeout is needed to
+    // "protect" it, and none is imposed. This is what lets a legitimately slow nested cross-row call
+    // (finding from this same review round) succeed no matter how long it takes, while a genuine cycle
+    // is refused instantly rather than only after some fixed wait.
+    private static readonly object GraphLock = new();
+    private static readonly Dictionary<ComponoServiceProvider, Thread> Owners = [];
+    private static readonly Dictionary<Thread, ComponoServiceProvider> WaitingFor = [];
 
     internal ComponoServiceProvider(CompositionRow row)
     {
@@ -58,25 +62,60 @@ internal sealed class ComponoServiceProvider : IServiceProvider
 
     public object? GetService(Type serviceType)
     {
-        var isNestedCall = t_heldAdapterLockDepth > 0;
-        if (isNestedCall)
+        var thisThread = Thread.CurrentThread;
+
+        lock (GraphLock)
         {
-            if (!Monitor.TryEnter(_lock, LockTimeout))
+            if (Owners.TryGetValue(this, out var ownerThread) && ownerThread != thisThread)
             {
-                throw new TimeoutException(
-                    $"Timed out after {LockTimeout} waiting to resolve '{serviceType}' through this " +
-                    "row's AsServiceProvider() adapter, from inside another row's own resolution on this " +
-                    "thread. This usually means two cross-wired rows (see ADR-0047's Recursion section) " +
-                    "are being resolved concurrently on different threads, each holding its own row's " +
-                    "lock while waiting for the other's - a deadlock, not ordinary contention.");
+                // Walk the chain of threads this wait would transitively depend on: does it lead back
+                // to this thread? The self-check runs BEFORE the visited-set dedup guard on every
+                // iteration - reversing that order would let a genuine cycle back to this thread get
+                // silently swallowed by the dedup check instead of ever being reported (this thread
+                // would already be "seen" from nowhere, since it's never pre-seeded). The visited set
+                // exists only to bound the walk defensively if bookkeeping were ever inconsistent for
+                // some OTHER thread; it never suppresses the one check that matters.
+                var probe = ownerThread;
+                var visited = new HashSet<Thread>();
+                while (true)
+                {
+                    if (probe == thisThread)
+                    {
+                        throw new CompositionException(
+                            $"Resolving '{serviceType}' through this row's AsServiceProvider() adapter " +
+                            "would deadlock: this thread is already, transitively, waiting on itself " +
+                            "through one or more other rows' adapters. This is the cross-row cycle ADR-" +
+                            "0047's Recursion section describes (row A's factory calling into row B, " +
+                            "whose own resolution calls back into row A), hit concurrently rather than " +
+                            "sequentially - refused immediately rather than blocking forever.");
+                    }
+
+                    if (!visited.Add(probe))
+                    {
+                        break;
+                    }
+
+                    if (!WaitingFor.TryGetValue(probe, out var nextTarget) ||
+                        !Owners.TryGetValue(nextTarget, out var nextOwner))
+                    {
+                        break;
+                    }
+
+                    probe = nextOwner;
+                }
+
+                WaitingFor[thisThread] = this;
             }
         }
-        else
+
+        Monitor.Enter(_lock);
+
+        lock (GraphLock)
         {
-            Monitor.Enter(_lock);
+            WaitingFor.Remove(thisThread);
+            Owners[this] = thisThread;
         }
 
-        t_heldAdapterLockDepth++;
         try
         {
             if (_cache.TryGetValue(serviceType, out var cached))
@@ -94,7 +133,11 @@ internal sealed class ComponoServiceProvider : IServiceProvider
         }
         finally
         {
-            t_heldAdapterLockDepth--;
+            lock (GraphLock)
+            {
+                Owners.Remove(this);
+            }
+
             Monitor.Exit(_lock);
         }
     }

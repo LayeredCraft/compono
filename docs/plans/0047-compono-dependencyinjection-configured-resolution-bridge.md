@@ -676,3 +676,43 @@ just an in-repo `ProjectReference`.
     the depth-tracking fix and confirmed it passes; re-ran
     `GetService_ThrowsTimeoutException_RatherThanDeadlocking_OnAConcurrentCrossRowCycle`
     to confirm the original deadlock protection is unaffected (3/3).
+
+## Twelfth PR review round (Codex, #105) findings
+
+27. **P2 — even the nested-only bounded wait (finding 26) couldn't tell a
+    genuine cycle apart from ordinary nested contention.** Nesting alone
+    doesn't imply a cycle: Row A's factory calling into Row B is nested
+    whether or not Row B's own resolution ever calls back into Row A. A
+    legitimate nested cross-row call blocked behind a *different*,
+    independently slow caller already inside Row B would still hit the
+    fixed timeout, even with no cycle anywhere. Replaced the timeout
+    entirely with real wait-for-cycle detection: `ComponoServiceProvider`
+    now tracks (in two static maps guarded by one lock) which thread owns
+    each adapter's lock and which adapter each thread is currently
+    blocked trying to acquire; before blocking on a lock another thread
+    owns, it walks that chain and refuses immediately with a diagnosed
+    `CompositionException` only if the walk leads back to the calling
+    thread. Every other wait - including a legitimately slow nested
+    cross-row call - is now unbounded (no timeout anywhere in this path).
+    Caught a real bug in my own first draft while writing this: seeding
+    the walk's visited-set with the current thread (to bound the walk)
+    let the dedup check silently swallow the one case that mattered,
+    since the self-match would never run - fixed by checking
+    `probe == thisThread` before the dedup guard, not after. Also had to
+    fix the original deadlock regression test itself: it used a
+    `Barrier(2)`, which hangs when the losing thread's row retries its
+    factory after the winner's cycle-refusal releases its lock (a second,
+    unmatched participant for that phase) - replaced with idempotent
+    `ManualResetEventSlim`s. Verified three ways: the original two-row
+    cycle now refuses in well under a second instead of after a fixed
+    wait; the same-row slow-contention test (finding 26) still passes;
+    and a new test proving the exact scenario this finding described - a
+    nested cross-row call blocked 12 seconds behind an unrelated,
+    non-cyclic slow caller in the target row - now succeeds instead of
+    timing out. Also reverted to a plain `lock` and confirmed the cycle
+    test hangs (5/5) without the fix, restoring it and confirming success.
+    Recorded as ADR-0047 Amendment 6.
+28. **P2 — ADR-0047 never recorded the nested-only-timeout behavior from
+    finding 26**, only this plan's Notes did. Superseded by Amendment 6
+    above, which records both finding 26 and finding 27 together since
+    finding 26's fix was itself superseded before merge.

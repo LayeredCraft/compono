@@ -173,17 +173,36 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
-    public void GetService_ThrowsTimeoutException_RatherThanDeadlocking_OnAConcurrentCrossRowCycle()
+    public void GetService_RefusesImmediately_RatherThanDeadlocking_OnAConcurrentCrossRowCycle()
     {
-        // Regression for a Codex PR review finding (P2): two rows cross-wired so each row's own
-        // registration factory calls into the OTHER row's adapter, resolved concurrently on two
-        // threads, is a classic AB-BA deadlock - thread 1 holds row A's lock and blocks waiting for row
-        // B's (held by thread 2), thread 2 holds row B's lock and blocks waiting for row A's (held by
-        // thread 1). Neither row's own reentrance guard ever runs, because neither thread gets far
-        // enough to reach it. Verified directly: reverting GetService's Monitor.TryEnter back to a
-        // plain `lock` makes this hang every run (5/5) until forcibly killed; with TryEnter restored it
-        // throws TimeoutException reliably instead (5/5).
-        var barrier = new Barrier(2);
+        // Regression for a Codex PR review finding (P2, now fixed twice over): two rows cross-wired so
+        // each row's own registration factory calls into the OTHER row's adapter, resolved concurrently
+        // on two threads, is a classic AB-BA deadlock - thread 1 holds row A's lock and blocks waiting
+        // for row B's (held by thread 2), thread 2 holds row B's lock and blocks waiting for row A's
+        // (held by thread 1). Neither row's own reentrance guard ever runs, because neither thread gets
+        // far enough to reach it.
+        //
+        // A first fix (a fixed-timeout TryEnter) turned the hang into a slow TimeoutException instead -
+        // correct for THIS scenario, but review found it also fired on a legitimate nested cross-row
+        // call blocked behind unrelated, independently slow contention (no cycle at all). The actual
+        // fix tracks a wait-for graph and detects a genuine cycle BEFORE blocking, refusing instantly
+        // with a diagnosed CompositionException rather than guessing from any fixed deadline - so a
+        // real cycle like this one is now refused immediately (no multi-second wait), while a
+        // legitimately slow NESTED, non-cyclic call succeeds no matter how long it takes (see
+        // GetService_WaitsOutASlowUnrelatedNestedCall_RatherThanFalselyDetectingACycle below).
+        //
+        // Verified directly: reverting GetService's cycle-detecting GraphLock back to a plain `lock`
+        // makes this hang every run (5/5) until forcibly killed; with the fix restored it refuses
+        // reliably instead (5/5), well under a second.
+        //
+        // ManualResetEventSlim, not Barrier - whichever thread loses the cycle-detection race unwinds
+        // and releases its row's lock, which can let the OTHER thread's nested call through to actually
+        // invoke that row's factory a second time (a legitimate retry, not a bug). A Barrier would
+        // require a second same-phase participant that never arrives on a retry and hang the test on an
+        // unrelated synchronization bug; Set()/Wait() are idempotent, so a retried factory sails through
+        // instead of re-blocking.
+        var aReady = new ManualResetEventSlim();
+        var bReady = new ManualResetEventSlim();
         CompositionRow? rowA = null;
         CompositionRow? rowB = null;
         IServiceProvider? providerA = null;
@@ -191,7 +210,8 @@ public sealed class ComposedRowServiceProviderTests
 
         var composerA = Composer.Create(builder => builder.Register<TypeX>(() =>
         {
-            barrier.SignalAndWait();
+            aReady.Set();
+            bReady.Wait();
             providerB!.GetService(typeof(TypeY));
             return new TypeX();
         }));
@@ -200,7 +220,8 @@ public sealed class ComposedRowServiceProviderTests
 
         var composerB = Composer.Create(builder => builder.Register<TypeY>(() =>
         {
-            barrier.SignalAndWait();
+            bReady.Set();
+            aReady.Wait();
             providerA.GetService(typeof(TypeX));
             return new TypeY();
         }));
@@ -210,13 +231,57 @@ public sealed class ComposedRowServiceProviderTests
         var t1 = Task.Run(() => providerA.GetService(typeof(TypeX)));
         var t2 = Task.Run(() => providerB.GetService(typeof(TypeY)));
 
-        var act = () => Task.WaitAll([t1, t2], TimeSpan.FromSeconds(30));
+        var act = () => Task.WaitAll([t1, t2], TimeSpan.FromSeconds(5));
 
-        // The TimeoutException is thrown from inside a registration factory, so InvokeFactory wraps it
-        // in a CompositionException, same as any other factory-thrown exception (ADR-0047 Amendment 2).
+        // Wrapped in CompositionException regardless of which of the two possible failure shapes fires
+        // (this thread's own cycle-detection refusal, or - for whichever of the two threads loses the
+        // race - the pre-existing same-context factory-reentrance guard once the other thread's refusal
+        // unblocks it), per ADR-0047 Amendment 2's factory-wrapping contract.
         var aggregate = act.Should().Throw<AggregateException>().Which;
-        aggregate.InnerExceptions.Should().Contain(e => e.Message.Contains("Timed out") && e.Message.Contains("AsServiceProvider"));
+        aggregate.InnerExceptions.Should().OnlyContain(e => e is CompositionException);
     }
+
+    [Fact]
+    public void GetService_WaitsOutASlowUnrelatedNestedCall_RatherThanFalselyDetectingACycle()
+    {
+        // Regression for a Codex PR review finding (P2): the previous fixed-timeout fix couldn't tell a
+        // genuine cycle apart from a legitimate nested cross-row call blocked behind unrelated,
+        // independently slow contention - Row A's factory calling into Row B while a DIFFERENT
+        // top-level caller is already spending a long time inside Row B is not a cycle (Row B's
+        // resolution never calls back into Row A), just ordinary nested contention. The cycle-detecting
+        // fix must not refuse this - it should block exactly as long as the slow caller takes, then
+        // succeed.
+        var composerB = Composer.Create(builder => builder.Register<SlowMarker>(() =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(12));
+            return new SlowMarker();
+        }));
+        var rowB = composerB.CreateRow(typeof(ComposedRowServiceProviderTests));
+        var providerB = rowB.AsServiceProvider();
+
+        var composerA = Composer.Create(builder => builder.Register<TypeX>(() =>
+        {
+            // Nested cross-row call into Row B - contends for Row B's lock but requests a type Row B
+            // never registered, so it's unrelated to (and never calls back into) what the concurrent
+            // slow caller below is resolving. Not a cycle.
+            providerB.GetService(typeof(TypeX));
+            return new TypeX();
+        }));
+        var rowA = composerA.CreateRow(typeof(ComposedRowServiceProviderTests));
+        var providerA = rowA.AsServiceProvider();
+
+        // Occupies Row B's lock for 12s with unrelated work that never touches Row A.
+        var slowUnrelatedCaller = Task.Run(() => providerB.GetService(typeof(SlowMarker)));
+        // A nested cross-row call (via Row A's own factory) into the SAME Row B, contending with the
+        // call above but not cycling back to it.
+        var nestedCrossRowCaller = Task.Run(() => providerA.GetService(typeof(TypeX)));
+
+        var completed = Task.WaitAll([slowUnrelatedCaller, nestedCrossRowCaller], TimeSpan.FromSeconds(20));
+
+        completed.Should().BeTrue();
+    }
+
+    private sealed record SlowMarker;
 
     [Fact]
     public void GetService_DoesNotTimeOut_ForOrdinaryContentionLongerThanTheLockTimeout()
@@ -245,8 +310,6 @@ public sealed class ComposedRowServiceProviderTests
         t1.Result.Should().NotBeNull();
         t2.Result.Should().BeSameAs(t1.Result);
     }
-
-    private sealed record SlowMarker;
 
     [Fact]
     public void AsServiceProvider_DoesNotImplementDisposal()

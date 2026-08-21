@@ -674,3 +674,66 @@ hanging. This changes behavior only under genuine lock contention this
 severe (ordinary uncontended calls acquire the lock immediately, as
 before); `AsServiceProvider()`'s XML doc `<remarks>` documents the new
 `TimeoutException` alongside the existing recursion guidance.
+
+## Amendment 6 (2026-08-21): The deadlock fix's own fixed timeout, replaced with real cycle detection
+
+Amendment 5's deadlock fix went through two more corrections in PR review
+before landing on its final shape, both caught before merge:
+
+**The fixed 10-second timeout applied to every call, not just
+deadlock-risky ones.** A single row's lock can never deadlock by itself —
+whoever holds it eventually releases it; deadlock is only possible when a
+thread already holding one row's lock tries to acquire a *different* row's
+lock while nested inside a factory/provider callback. The first version of
+this fix bounded every `GetService` call, so a top-level call contending
+only with another top-level call for the *same* row — ordinary contention,
+not deadlock risk — could throw a spurious `TimeoutException` if the other
+call legitimately took longer than 10 seconds. Fixed by tracking, per
+thread, how many `ComponoServiceProvider` locks it currently holds across
+every row; only a call made while that count is nonzero (a nested,
+potentially cross-row call) gets the bounded wait. A fresh top-level call
+always uses a plain, unbounded `Monitor.Enter`.
+
+**Even nested-only bounding couldn't tell a genuine cycle from ordinary
+nested contention.** Nesting alone doesn't mean a cycle — Row A's factory
+calling into Row B is nested by definition, whether or not Row B's own
+resolution ever calls back into Row A. If a legitimate nested cross-row
+call happened to be blocked behind a *different*, independently slow
+caller already inside Row B, the fixed timeout would still fire, even
+though the wait would eventually resolve on its own with no cycle
+involved. The only sound fix is detecting an *actual* wait-for cycle
+before blocking, not inferring one from nesting depth or any fixed
+deadline.
+
+`ComponoServiceProvider` now maintains two small static maps guarded by a
+single lock (`GraphLock`): which thread currently owns each adapter's
+lock, and which adapter (if any) each thread is currently blocked trying
+to acquire. Before blocking on a lock another thread owns, it walks the
+chain of "who does the owner's owner wait for, transitively" — if that
+walk leads back to the current thread, granting the wait would close a
+cycle, so it refuses immediately with a diagnosed `CompositionException`
+instead of blocking (a real cycle cannot resolve itself by waiting
+longer). If the walk doesn't lead back, it blocks with a plain, unbounded
+`Monitor.Enter` — safe by construction, since the check already proved
+this specific wait cannot be part of a cycle. No arbitrary timeout exists
+anywhere in this path anymore; `TimeoutException` is gone entirely from
+this adapter's contract.
+
+This resolves the original AB-BA cycle *faster* than the timeout-based fix
+did (refused the instant the cycle closes, not after a multi-second wait)
+while fixing both timeout-related regressions: a slow same-row top-level
+call and a slow, non-cyclic nested cross-row call both now succeed no
+matter how long the contended work takes. Verified with three tests in
+`Compono.DependencyInjection.Tests`: the original two-row cycle now
+refuses in well under a second (was: hangs on a plain `lock`, or times out
+at a fixed bound with the earlier fixes); a same-row call contended for
+longer than the old 10-second timeout still succeeds; and — the scenario
+this amendment's finding described directly — a nested cross-row call
+blocked behind an unrelated, independently slow caller in the target row
+also still succeeds, proven with a 12-second delay and no cycle anywhere
+in the call graph. `AsServiceProvider()`'s XML doc `<remarks>` and this
+ADR's own prose (above, in Amendment 5) describing a fixed `TimeoutException`
+are both superseded by this amendment — the mechanism changed from a
+timeout to cycle detection, though the observable contract for the one
+case that matters (a genuine cross-row cycle gets a diagnosed exception,
+never a hang) is unchanged.

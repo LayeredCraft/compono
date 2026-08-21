@@ -50,10 +50,12 @@ public static class CompositionRowServiceProviderExtensions
         /// CONCURRENT cross-row cycle (the two rows' calls arrive on different threads at the same time)
         /// is different: each row's adapter can be waiting to acquire the OTHER row's adapter lock while
         /// holding its own, which the reentrance guard above never gets a chance to see - this method
-        /// bounds that wait instead of blocking forever, surfacing a <see cref="TimeoutException"/>
-        /// (wrapped in a <see cref="CompositionException"/> if it fires inside a registration/
-        /// configuration-rule factory, per this method's own exception contract) rather than an
-        /// unrecoverable hang. See ADR-0047's Recursion section and Amendment 4/5.
+        /// detects that specific wait-for cycle before ever blocking on it, refusing immediately with a
+        /// diagnosed <see cref="CompositionException"/> rather than an unrecoverable hang. A legitimately
+        /// slow but non-cyclic nested cross-row call (or ordinary same-row contention) is never affected
+        /// by this - only a call that would actually close a cycle back to the calling thread is
+        /// refused; every other wait is unbounded, exactly as if this detection didn't exist. See
+        /// ADR-0047's Recursion section and Amendments 4-6.
         /// <para>
         /// This adapter fully serializes <c>GetService</c> calls made through it (see above), so two
         /// concurrent first-time requests for two DIFFERENT types on the SAME row never race on shared
