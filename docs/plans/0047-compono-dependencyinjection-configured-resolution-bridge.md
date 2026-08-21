@@ -769,3 +769,14 @@ just an in-repo `ProjectReference`.
     confirming no regression, plus the architectural argument that the
     race class this finding describes cannot exist once there is no
     second lock object for the window to live in.
+
+## Fifteenth PR review round (Codex, #105) findings
+
+31. **P2 — the agent skill reference never documented disposal
+    ownership.** `skills/compono/references/dependencyinjection.md` (the
+    scoped reference agents load for `AsServiceProvider()`) described the
+    adapter's per-type caching but never stated it doesn't dispose cached
+    `IDisposable`/`IAsyncDisposable` values, unlike the public XML docs
+    and package guide - generated agent guidance sourced from this file
+    alone could omit the caller's disposal responsibility. Added the same
+    ownership rule already documented elsewhere.
