@@ -53,3 +53,9 @@ apiClient.Configure().GetQuestions().Returns(questions);   // Compono.TestDouble
   automatic bulk registration of every composed value. If asked for any of
   these, say they don't exist rather than approximating with what's here —
   see `SKILL.md`'s Guardrails section.
+- **Does not own or dispose anything it resolves and caches** — if a
+  resolved value implements `IDisposable`/`IAsyncDisposable`, disposing it
+  is the caller's responsibility, exactly as it would be for a value the
+  caller constructed by hand. This matches `CompositionRow`/`Composer`'s
+  own lack of any disposal contract; this bridge does not introduce one.
+  Never suggest the provider will clean up a resolved value on its own.
