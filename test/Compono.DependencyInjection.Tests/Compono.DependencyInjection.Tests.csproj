@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.DependencyInjection.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.DependencyInjection\Compono.DependencyInjection.csproj" />
+    <!-- Compono.TestDoubles is a test-project-only dependency here (ADR-0047: the shipped
+         Compono.DependencyInjection package itself never references either provider package) - it
+         demonstrates the primary provider per ADR-0047's own worked examples. No Compono.NSubstitute
+         reference: provider-neutrality is already proven by the fake ICompositionValueProvider tests
+         in CompositionRowTryResolveConfiguredTests (test/Compono.Tests) - a real NSubstitute-backed
+         test here would only re-demonstrate the same provider-neutral dispatch path under a different
+         provider name, per PLAN-0047's own task note. -->
+    <ProjectReference Include="..\..\src\Compono.TestDoubles\Compono.TestDoubles.csproj" />
+  </ItemGroup>
+
+</Project>

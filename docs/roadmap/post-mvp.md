@@ -21,7 +21,26 @@ Per `docs/roadmap/index.md`, this page is a status-filtered index of
 capability gaps that are **not yet available** — a shipped capability
 doesn't stay listed here once it's implemented, even though the evidence
 that motivated it remains a permanent part of the record elsewhere (the
-ADR, the research doc, the plan). Six dogfooding passes have run so far:
+ADR, the research doc, the plan). Seven dogfooding passes have run so far:
+
+- A seventh pass — a gating investigation for a hypothesized `Compono.BUnit`
+  package, using `ncipollina/trivia-manager`'s real bUnit test suite as
+  evidence (see [RESEARCH-0007](../research/0007-trivia-manager-bunit-dependency-injection.md))
+  — found no bUnit-specific integration surface worth a dedicated package,
+  but did find real, repeated friction (compose a test double, get it into
+  a DI container) that Compono's existing public API couldn't serve well
+  for hand-written consumer code. That redirected the outcome toward a
+  general capability ADR-0019 had already named and deferred:
+  [ADR-0047](../adr/0047-compono-dependencyinjection-configured-resolution-bridge.md)
+  records the decision (`CompositionRow.TryResolveConfigured(Type, out
+  object?)` in core, plus a new `Compono.DependencyInjection` package
+  exposing `row.AsServiceProvider()`), tracked by
+  [PLAN-0047](../plans/0047-compono-dependencyinjection-configured-resolution-bridge.md)
+  (`Done`). **This finding is no longer listed here** — the package ships
+  in the same change that records this entry, per
+  [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md).
+
+Six earlier dogfooding passes have also run:
 
 - Milestone 7's pass (migrating `ncipollina/cosmere-tracker`'s
   AutoFixture-based test kit to Compono) surfaced ten findings, **none**
@@ -154,12 +173,13 @@ ADR, the research doc, the plan). Six dogfooding passes have run so far:
   **This finding is no longer listed here** — Gate-B is met in full, not
   partially.
 
-That the first, second-and-third (both since shipped), and now
-fourth-fifth-and-sixth (together) passes have all resolved to zero
-*outstanding* roadmap items is itself real, evidence-backed progress, not
-a shortfall in the process — it doesn't mean Compono is "done": a
-different real-world project, or a future package, may surface a finding
-these six didn't (each is one data point, not an exhaustive survey). The
+That the first, second-and-third (both since shipped),
+fourth-fifth-and-sixth (together), and now seventh passes have all
+resolved to zero *outstanding* roadmap items is itself real,
+evidence-backed progress, not a shortfall in the process — it doesn't mean
+Compono is "done": a different real-world project, or a future package,
+may surface a finding these seven didn't (each is one data point, not an
+exhaustive survey). The
 third through sixth passes together are also a concrete illustration of
 why the distinction between "shipped" and "fully closed" matters:
 shipping the third pass's finding didn't retire the `lightsaber-skill`

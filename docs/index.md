@@ -42,6 +42,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.NSubstitute`   | Automatic NSubstitute composition                |
 | `Compono.Bogus`         | Semantic fake data integration                   |
 | `Compono.TestDoubles`   | Source-generated, AOT-safe interface doubles     |
+| `Compono.DependencyInjection` | Configured-resolution IServiceProvider bridge |
 
 ## Example
 

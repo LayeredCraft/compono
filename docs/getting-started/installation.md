@@ -25,8 +25,9 @@ dotnet add package AwesomeAssertions
 Add the rest of the ecosystem as your tests need it:
 
 ```bash
-dotnet add package Compono.NSubstitute --prerelease   # automatic substitute composition
-dotnet add package Compono.Bogus --prerelease         # semantic fake data (names, emails, ...)
+dotnet add package Compono.NSubstitute --prerelease         # automatic substitute composition
+dotnet add package Compono.Bogus --prerelease               # semantic fake data (names, emails, ...)
+dotnet add package Compono.DependencyInjection --prerelease # row.AsServiceProvider() bridge
 ```
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0`. Until the first stable `1.0`
