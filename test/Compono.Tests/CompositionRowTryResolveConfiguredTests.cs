@@ -1,0 +1,200 @@
+namespace Compono.Tests;
+
+/// <summary>
+/// <see cref="CompositionRow.TryResolveConfigured"/> - the core primitive
+/// <c>Compono.DependencyInjection</c> builds on. See
+/// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+/// </summary>
+public sealed class CompositionRowTryResolveConfiguredTests
+{
+    [Fact]
+    public void TryResolveConfigured_ResolvesFromAnExactRegistration()
+    {
+        var registered = new RegisteredMarker("from-registration");
+        var composer = Composer.Create(builder => builder.Register<RegisteredMarker>(() => registered));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var handled = row.TryResolveConfigured(typeof(RegisteredMarker), out var value);
+
+        handled.Should().BeTrue();
+        value.Should().BeSameAs(registered);
+    }
+
+    [Fact]
+    public void TryResolveConfigured_ResolvesFromATestDoubleProvider()
+    {
+        var provider = new StubProvider(handles: true, value: new ProvidedMarker("from-provider"));
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(provider));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var handled = row.TryResolveConfigured(typeof(ProvidedMarker), out var value);
+
+        handled.Should().BeTrue();
+        value.Should().Be(new ProvidedMarker("from-provider"));
+    }
+
+    [Fact]
+    public void TryResolveConfigured_ReadsAnAlreadyEstablishedSharedScopeValue()
+    {
+        var composer = Composer.Create();
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+        var descriptor = new CompositionRequestDescriptor(
+            CompositionRequestKind.TestParameter, ordinal: 0, name: "explicit", declaringType: typeof(CompositionRowTryResolveConfiguredTests), Nullability.NotNullable);
+        var shared = new UnresolvableMarker("shared");
+        row.ShareExplicit(descriptor, shared);
+
+        var handled = row.TryResolveConfigured(typeof(UnresolvableMarker), out var value);
+
+        handled.Should().BeTrue();
+        value.Should().BeSameAs(shared);
+    }
+
+    [Fact]
+    public void TryResolveConfigured_ReturnsFalse_ForATypeNoReachableStageCanHandle()
+    {
+        var composer = Composer.Create();
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var handled = row.TryResolveConfigured(typeof(UnresolvableMarker), out var value);
+
+        handled.Should().BeFalse();
+        value.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryResolveConfigured_DoesNotConsultTheConfiguredServiceProvider()
+    {
+        var composer = Composer.Create(builder => builder.UseServiceProvider(new FakeServiceProvider(new ServiceProviderMarker("from-provider"))));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var handled = row.TryResolveConfigured(typeof(ServiceProviderMarker), out var value);
+
+        handled.Should().BeFalse();
+        value.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryResolveConfigured_DoesNotReachOrdinaryGeneratedPlanComposition()
+    {
+        PlanCache<ComposedMarker>.Instance = new FixedPlan(new ComposedMarker("composed"));
+
+        try
+        {
+            var composer = Composer.Create();
+            var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+            var descriptor = new CompositionRequestDescriptor(
+                CompositionRequestKind.TestParameter, ordinal: 0, name: "composed", declaringType: typeof(CompositionRowTryResolveConfiguredTests), Nullability.NotNullable);
+
+            var handled = row.TryResolveConfigured(typeof(ComposedMarker), out var value);
+            // The generated plan genuinely satisfies this type through the full pipeline (Resolve<T>) -
+            // proving TryResolveConfigured's false above is a deliberate stage exclusion, not a
+            // ComposedMarker composition gap of some other kind.
+            var composedThroughFullPipeline = row.Resolve<ComposedMarker>(descriptor);
+
+            handled.Should().BeFalse();
+            value.Should().BeNull();
+            composedThroughFullPipeline.Should().Be(new ComposedMarker("composed"));
+        }
+        finally
+        {
+            PlanCache<ComposedMarker>.Instance = null;
+        }
+    }
+
+    [Fact]
+    public void TryResolveConfigured_PerformsAnIndependentResolution_OnEachCall()
+    {
+        // A provider that hands back a fresh instance every call - if TryResolveConfigured wrote its
+        // result into CompositionScope (the way ResolveShared deliberately does), a second call would
+        // observe the first call's cached instance instead of composing its own. It doesn't: this is
+        // the "no new sharing/caching semantics" guarantee from ADR-0047, proven directly.
+        var provider = new FreshInstanceProvider();
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(provider));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        row.TryResolveConfigured(typeof(FreshMarker), out var first);
+        row.TryResolveConfigured(typeof(FreshMarker), out var second);
+
+        first.Should().NotBeSameAs(second);
+    }
+
+    [Fact]
+    public void TryResolveConfigured_ReturnsTrueWithNullValue_ForARegistrationThatProducesNull()
+    {
+        // A bare runtime Type carries no compile-time nullable-reference annotation to validate
+        // against, unlike Resolve<TValue>() - TryResolveConfigured always validates as nullable,
+        // matching IServiceProvider.GetService(Type)'s own null-friendly BCL contract. See this
+        // method's own XML doc on CompositionContext.
+        var composer = Composer.Create(builder => builder.Register<NullableMarker>(() => null!));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var handled = row.TryResolveConfigured(typeof(NullableMarker), out var value);
+
+        handled.Should().BeTrue();
+        value.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryResolveConfigured_Throws_WhenAReachableRegistrationFactoryThrows()
+    {
+        var composer = Composer.Create(builder => builder.Register<RegisteredMarker>(() => throw new InvalidOperationException("boom")));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var act = () => row.TryResolveConfigured(typeof(RegisteredMarker), out _);
+
+        act.Should().Throw<CompositionException>().WithMessage("*boom*");
+    }
+
+    [Fact]
+    public void TryResolveConfigured_Throws_WhenAReachableProviderThrows()
+    {
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(new ThrowingProvider()));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var act = () => row.TryResolveConfigured(typeof(ProvidedMarker), out _);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("boom");
+    }
+
+    private sealed record RegisteredMarker(string Value);
+
+    private sealed record ProvidedMarker(string Value);
+
+    private sealed record ServiceProviderMarker(string Value);
+
+    private sealed record ComposedMarker(string Value);
+
+    private sealed record UnresolvableMarker(string Value);
+
+    private sealed record NullableMarker;
+
+    private sealed record FreshMarker;
+
+    private sealed class FakeServiceProvider(ServiceProviderMarker value) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == typeof(ServiceProviderMarker) ? value : null;
+    }
+
+    private sealed class FixedPlan(ComposedMarker value) : ICompositionPlan<ComposedMarker>
+    {
+        public ComposedMarker Compose(ICompositionContext context) => value;
+    }
+
+    private sealed class StubProvider(bool handles, object? value) : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+            handles ? CompositionProviderResult.Handled(value) : CompositionProviderResult.NotHandled;
+    }
+
+    private sealed class FreshInstanceProvider : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+            request.RequestedType == typeof(FreshMarker) ? CompositionProviderResult.Handled(new FreshMarker()) : CompositionProviderResult.NotHandled;
+    }
+
+    private sealed class ThrowingProvider : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+            throw new InvalidOperationException("boom");
+    }
+}

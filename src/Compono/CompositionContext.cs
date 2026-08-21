@@ -303,6 +303,138 @@ internal sealed class CompositionContext : ICompositionContext
     internal TValue ResolveSharedForTesting<TValue>(int ordinal, string name) =>
         ResolveCore<TValue>(Nullability.NotNullable, declaringType: null, new PathSegment.ConstructorParameter(ordinal, name), isShared: true);
 
+    /// <summary>
+    /// The internal implementation backing <see cref="CompositionRow.TryResolveConfigured"/> - reaches
+    /// stage 2 (scope), stage 3a (exact registrations), and stages 4-6 (configuration rules, semantic
+    /// providers, test-double providers) only. Never stage 3b (the configured <c>IServiceProvider</c>)
+    /// or stages 7-8 (built-in/collection/generated-plan dispatch, which require the requested type
+    /// known at compile time via <see cref="PlanCache{T}"/>/<see cref="CollectionPlanCache{T}"/> -
+    /// reaching them from a runtime <see cref="Type"/> would need reflection, which
+    /// <c>docs/adr/0001-source-generation-first.md</c> rules out by default). See
+    /// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// A bare runtime <see cref="Type"/> carries no compile-time nullable-reference-type annotation to
+    /// validate against - unlike every other entry point above, whose <c>Nullability</c> comes from a
+    /// generic <c>TValue</c>'s or a descriptor's compile-time-known annotation. This method always
+    /// validates as <see cref="Nullability.Nullable"/>, matching
+    /// <see cref="IServiceProvider"/>.<c>GetService(Type)</c>'s own null-friendly BCL contract, which
+    /// this method exists to back - a scope value, registration, or provider that legitimately produces
+    /// <see langword="null"/> is accepted here unconditionally, never rejected for "non-nullability"
+    /// that has no meaning at this call's own type boundary.
+    /// </remarks>
+    internal bool TryResolveConfigured(Type requestedType, out object? value)
+    {
+        var previousRandom = _random;
+        var previousDeclaringType = _currentDeclaringType;
+        var isRoot = _path is null;
+        var segment = new PathSegment.ConfiguredResolution();
+        var checkpoint = _trace.Checkpoint;
+
+        _path = isRoot ? CompositionPath.Root(requestedType) : _path!.Push(requestedType, segment);
+        _random = isRoot ? RandomSource.FromSeed(_seed) : previousRandom!.Fork(segment);
+        _currentDeclaringType = null;
+
+        try
+        {
+            var request = new CompositionRequest
+            {
+                RequestedType = requestedType,
+                Nullability = Nullability.Nullable,
+                DeclaringType = null,
+                Path = _path,
+                IsShared = false,
+            };
+
+            // Stage 2: same unconditional scope read every other entry point uses - a value already
+            // shared elsewhere in this row (via ordinary [Shared]/ResolveShared usage) is surfaced here
+            // too, per ADR-0021. Never written here (this method never establishes a new shared value -
+            // see the remarks on why this introduces no new CompositionScope semantics).
+            if (_scope.TryGet(requestedType, out var sharedValue))
+            {
+                var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
+                _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, OutcomeOf(result));
+                value = AuthoritativeValue(result, requestedType);
+                _trace.Rewind(checkpoint);
+                return true;
+            }
+
+            _trace.Record(PipelineStage.SharedOrScopedValue, provider: null, CompositionAttemptOutcome.NotHandled);
+
+            // Stage 3, sub-step (a) only - deliberately skips sub-step (b) (the configured
+            // IServiceProvider): see this method's own XML doc and ADR-0047's Recursion section for why.
+            if (_registrations.TryGet(requestedType, out var factory))
+            {
+                _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.Pending);
+                var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration, provider: null);
+                var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
+                _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
+                value = AuthoritativeValue(result, requestedType);
+                _trace.Rewind(checkpoint);
+                return true;
+            }
+
+            _trace.Record(PipelineStage.ExactRegistration, provider: null, CompositionAttemptOutcome.NotHandled);
+
+            // Stages 4-6, unchanged from ResolveCore - the exact same TryProviders dispatch, still
+            // records its own Pending/NotHandled/winning-candidate trace entries per candidate.
+            if (TryProviders(_configurationRuleProviders, PipelineStage.ConfigurationRule, request, out var configurationRuleValue, out var configurationRuleProvider))
+            {
+                value = ValidateProviderResultAndReturn(configurationRuleValue, request, PipelineStage.ConfigurationRule, configurationRuleProvider, requestedType);
+                _trace.Rewind(checkpoint);
+                return true;
+            }
+
+            if (TryProviders(_semanticProviders, PipelineStage.SemanticProvider, request, out var semanticValue, out var semanticProvider))
+            {
+                value = ValidateProviderResultAndReturn(semanticValue, request, PipelineStage.SemanticProvider, semanticProvider, requestedType);
+                _trace.Rewind(checkpoint);
+                return true;
+            }
+
+            if (TryProviders(_testDoubleProviders, PipelineStage.TestDoubleProvider, request, out var testDoubleValue, out var testDoubleProvider))
+            {
+                value = ValidateProviderResultAndReturn(testDoubleValue, request, PipelineStage.TestDoubleProvider, testDoubleProvider, requestedType);
+                _trace.Rewind(checkpoint);
+                return true;
+            }
+
+            // Nothing in the reachable stages could handle it - a genuine miss, not a failure. Never
+            // throws here: this is exactly what lets the caller (Compono.DependencyInjection's adapter)
+            // back IServiceProvider.GetService(Type)'s null-on-miss contract.
+            value = null;
+            _trace.Rewind(checkpoint);
+            return false;
+        }
+        finally
+        {
+            _path = _path.Pop();
+            _random = previousRandom;
+            _currentDeclaringType = previousDeclaringType;
+        }
+    }
+
+    // Non-generic sibling of StoreSharedAndReturn<TValue> - validates a winning stage 4-6 candidate's
+    // value exactly as that method does, but never writes to scope (this method's only two callers -
+    // TryResolveConfigured - never establish a shared value, per this method's own remarks) and returns
+    // a plain object? instead of casting to a generic TValue.
+    private object? ValidateProviderResultAndReturn(object? value, in CompositionRequest request, PipelineStage stage, Type? provider, Type requestedType)
+    {
+        var result = ValidateAuthoritativeValue(value, request, "provider");
+        _trace.Record(stage, provider, OutcomeOf(result));
+        return AuthoritativeValue(result, requestedType);
+    }
+
+    // The non-generic sibling of Authoritative<TValue> - same NotHandled/Success/Failure -> value-or-
+    // throw conversion, but takes the failed type explicitly instead of reading it off a generic
+    // TValue, since TryResolveConfigured has no TValue to read it from.
+    private object? AuthoritativeValue(CompositionResult result, Type requestedType) => result switch
+    {
+        CompositionResult.Success success => success.Value,
+        CompositionResult.Failure failure => throw BuildException(requestedType, failure.Message),
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "An authoritative composition stage must produce Success or Failure."),
+    };
+
     private TValue ResolveCore<TValue>(Nullability nullability, Type? declaringType, PathSegment? segment, bool isShared)
     {
         var requestedType = typeof(TValue);

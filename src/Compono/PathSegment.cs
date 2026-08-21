@@ -50,4 +50,14 @@ internal abstract record PathSegment
     /// <c>docs/adr/0021-row-composition-entry-point-for-test-framework-integrations.md</c>.
     /// </summary>
     internal sealed record TestParameter(int Ordinal, string Name) : PathSegment;
+
+    /// <summary>
+    /// One <see cref="CompositionContext.TryResolveConfigured"/> call - a runtime-<see cref="Type"/>
+    /// request reaching only the scope/exact-registration/configuration-rule/provider stages, never
+    /// a descriptor. Carries no ordinal/index of its own: unlike the other six kinds, this segment
+    /// never has siblings under the same parent node (each call pushes and pops its own single node),
+    /// so there is no positional identity to distinguish. The eighth <see cref="PathSegment"/> kind.
+    /// See <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+    /// </summary>
+    internal sealed record ConfiguredResolution : PathSegment;
 }

@@ -77,4 +77,38 @@ public sealed class CompositionRow : ICompositionContext
     /// </exception>
     public void ShareExplicit<TValue>(in CompositionRequestDescriptor descriptor, TValue value) =>
         _context.ShareExplicitTestParameter(descriptor, value);
+
+    /// <summary>
+    /// Attempts to resolve <paramref name="type"/> using only Compono's configured/provider-backed
+    /// resolution stages: this row's existing scope values, exact registrations, configuration rules,
+    /// and registered <see cref="ICompositionValueProvider"/> instances (including Compono.TestDoubles
+    /// and Compono.NSubstitute). This is NOT equivalent to <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/> -
+    /// it does not consult a configured <c>IServiceProvider</c> (<c>UseServiceProvider</c>), and it
+    /// cannot perform ordinary generated-plan composition of arbitrary concrete types, because that
+    /// dispatch requires the target type to be known at compile time. See
+    /// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+    /// </summary>
+    /// <param name="type">The runtime type to resolve.</param>
+    /// <param name="value">
+    /// The resolved value if a configured/provider stage satisfied <paramref name="type"/>; otherwise
+    /// <see langword="null"/>. A legitimate handled result can itself be <see langword="null"/> - check
+    /// this method's return value, not whether <paramref name="value"/> is <see langword="null"/>, to
+    /// tell "handled" from "not handled" apart.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> if a configured/provider stage satisfied <paramref name="type"/>;
+    /// <see langword="false"/> if no such stage could handle it.
+    /// </returns>
+    /// <exception cref="CompositionException">
+    /// A reachable stage was applicable but produced an invalid or failing result (e.g. a registration
+    /// factory or provider threw, or produced a value of the wrong runtime type). This method
+    /// distinguishes "nothing could handle this" (a <see langword="false"/> return) from "something
+    /// tried and failed" (a thrown, diagnosed exception) - it never collapses the latter into the
+    /// former.
+    /// </exception>
+    public bool TryResolveConfigured(Type type, out object? value)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return _context.TryResolveConfigured(type, out value);
+    }
 }

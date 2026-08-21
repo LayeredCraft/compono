@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — Dependency Injection Bridge</Title>
+        <Description>A configured-resolution IServiceProvider bridge over a Compono CompositionRow - row.AsServiceProvider() surfaces scope/exact-registration/provider-backed values (Compono.TestDoubles, Compono.NSubstitute) as a plain IServiceProvider, for ecosystems that consume one (e.g. bUnit's AddFallbackServiceProvider), without Compono knowing any of them exist.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.DependencyInjection.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.XunitV3.csproj's identical target for the full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

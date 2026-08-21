@@ -1,10 +1,11 @@
 # Future Packages
 
 Compono's shipped package set (see [Package Guides](../packages/index.md))
-is six independently installable packages — `Compono`, `Compono.XunitV3`,
-`Compono.NSubstitute`, `Compono.Bogus`, `Compono.TUnit`, and
-`Compono.TestDoubles` — plus `Compono.Generators`, which is not a seventh
-installable package at all. It's `IsPackable=false`
+is seven independently installable packages — `Compono`, `Compono.XunitV3`,
+`Compono.NSubstitute`, `Compono.Bogus`, `Compono.TUnit`,
+`Compono.TestDoubles`, and `Compono.DependencyInjection` — plus
+`Compono.Generators`, which is not an eighth installable package at all.
+It's `IsPackable=false`
 ([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
 embedded inside `Compono`'s own `.nupkg` as an analyzer
 (`analyzers/dotnet/cs`) — a consumer never references it directly, and it
@@ -16,7 +17,18 @@ completed all its phases — see
 [PLAN-0043](../plans/0043-compono-generated-test-doubles.md) completed all
 its phases — see
 [`Compono.TestDoubles`](../packages/compono-testdoubles.md) for what it
-ships.
+ships. `Compono.DependencyInjection` did **not** graduate from this page's
+Gate A/Gate B pipeline the way those two did — it was never listed here as
+an admitted candidate first. It came directly out of a gating investigation
+for a different hypothesized package (`Compono.BUnit`, evaluated and
+rejected) whose dogfooding evidence redirected toward this narrower,
+general capability instead — see
+[ADR-0047](../adr/0047-compono-dependencyinjection-configured-resolution-bridge.md)
+and [RESEARCH-0007](../research/0007-trivia-manager-bunit-dependency-injection.md)
+for the full account, and [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md)
+for what it ships. See also the "richer `Microsoft.Extensions.DependencyInjection`
+integration" entry below — that's a **different**, larger idea this
+package's narrower scope deliberately didn't attempt.
 
 ## Admission model
 
@@ -91,9 +103,17 @@ core itself unchanged:
   validation) is a few lines against the existing
   `UseServiceProvider(...)` fallback
   ([ADR-0019](../adr/0019-registrations-and-service-provider-injection.md))
-  today and doesn't need a package. If the prerequisite core design ever
-  happens, `Compono.DependencyInjection` remains the right name — ADR-0019
-  already anticipated it.
+  today and doesn't need a package. **Note:** `Compono.DependencyInjection`
+  itself already shipped, under exactly this name, but as a narrower thing
+  than this entry describes — a configured-resolution `IServiceProvider`
+  bridge (`row.AsServiceProvider()`), not keyed-service resolution or
+  DI-scope ownership, and requiring only a small, honestly-scoped core
+  primitive (`CompositionRow.TryResolveConfigured`), not the
+  keyed/scope-ownership core concept this entry means. This entry stays
+  open for that larger, still-undesigned idea — it is not retired by the
+  package that now shares its name. See
+  [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md)
+  for what actually shipped.
 - A reflection-based compatibility mode or package, for the still-open
   runtime-reflection question tracked in
   [Source Generation](../architecture/current/source-generation.md) — unchanged
