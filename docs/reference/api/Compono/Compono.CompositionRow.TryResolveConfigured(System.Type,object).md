@@ -40,8 +40,14 @@ tell "handled" from "not handled" apart\.
 #### Exceptions
 
 [CompositionException](Compono.CompositionException.md 'Compono\.CompositionException')  
-A reachable stage was applicable but produced an invalid or failing result \(e\.g\. a registration
-factory or provider threw, or produced a value of the wrong runtime type\)\. This method
-distinguishes "nothing could handle this" \(a [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') return\) from "something
-tried and failed" \(a thrown, diagnosed exception\) \- it never collapses the latter into the
-former\.
+An exact registration factory threw, or the scope/registration/provider result was invalid
+\(null for a nullable\-only\-blind request, or the wrong runtime type\)\. This method distinguishes
+"nothing could handle this" \(a [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') return\) from "something tried and failed"
+\(a thrown exception\) \- it never collapses the latter into the former\.
+
+[System\.Exception](https://learn.microsoft.com/en-us/dotnet/api/system.exception 'System\.Exception')  
+A stage 4\-6 [ICompositionValueProvider](Compono.ICompositionValueProvider.md 'Compono\.ICompositionValueProvider') threw \- its own original exception type
+propagates uncaught, exactly like [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)')'s
+existing provider\-failure contract \(a public provider's thrown exception is never wrapped in a
+[CompositionException](Compono.CompositionException.md 'Compono\.CompositionException'), per `docs/adr/0024-public-provider-extensibility-model.md`'s
+Provider Failure Semantics\) \- only an exact registration factory's failure gets wrapped\.
