@@ -327,8 +327,8 @@ internal sealed class CompositionContext : ICompositionContext
     /// this method exists to back - a scope value, registration, or provider that legitimately produces
     /// <see langword="null"/> is accepted here unconditionally, never rejected for "non-nullability"
     /// that has no meaning at this call's own type boundary. A reachable stage that fails does not
-    /// fail uniformly: an exact registration factory's own thrown exception is wrapped into a
-    /// diagnosed <see cref="CompositionException"/> (via <see cref="InvokeFactory"/>), but a stage 4-6
+    /// fail uniformly: an exact registration or configuration-rule factory's own thrown exception is
+    /// wrapped into a diagnosed <see cref="CompositionException"/> (via <see cref="InvokeFactory"/>), but a stage 4-6
     /// <see cref="ICompositionValueProvider"/>'s own thrown exception propagates uncaught, unwrapped,
     /// exactly like every other caller of <see cref="TryProviders"/> - per
     /// <c>docs/adr/0024-public-provider-extensibility-model.md</c>'s Provider Failure Semantics, never

@@ -100,8 +100,9 @@ public sealed class CompositionRow : ICompositionContext
     /// <see langword="false"/> if no such stage could handle it.
     /// </returns>
     /// <exception cref="CompositionException">
-    /// An exact registration factory threw, or the scope/registration/provider result's runtime type
-    /// wasn't assignable to the requested type. A <see langword="null"/> result is never a failure
+    /// An exact registration factory or configuration-rule (<c>.For&lt;T&gt;().Use(...)</c>) factory
+    /// threw, or the scope/registration/provider result's runtime type wasn't assignable to the
+    /// requested type. A <see langword="null"/> result is never a failure
     /// here - unlike <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>, this method always
     /// validates as nullable (see the parameter docs above), so a legitimate <see langword="null"/>
     /// always comes back as <see langword="true"/>, never this exception. This method distinguishes
@@ -113,7 +114,8 @@ public sealed class CompositionRow : ICompositionContext
     /// propagates uncaught, exactly like <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>'s
     /// existing provider-failure contract (a public provider's thrown exception is never wrapped in a
     /// <see cref="CompositionException"/>, per <c>docs/adr/0024-public-provider-extensibility-model.md</c>'s
-    /// Provider Failure Semantics) - only an exact registration factory's failure gets wrapped.
+    /// Provider Failure Semantics) - only an exact registration or configuration-rule factory's failure
+    /// gets wrapped.
     /// </exception>
     public bool TryResolveConfigured(Type type, out object? value)
     {

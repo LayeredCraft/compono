@@ -603,5 +603,50 @@ just an in-repo `ProjectReference`.
     seed, and not reproducible from the test alone if it ever did fail.
     Pinned a fixed seed via `.WithSeed(...)`.
 
-Not yet done, deliberately: committing/pushing this work (holding for
-review, per explicit instruction).
+## Tenth PR review round (Codex, #105) findings
+
+23. **P2 — config-rule factory exceptions are wrapped too, not just exact
+    registration factories.** `CompositionRow.TryResolveConfigured`'s XML
+    doc (and ADR-0047 Amendment 2) said only an exact registration
+    factory's failure gets wrapped in a `CompositionException` -
+    incomplete, since `TypeRuleProvider.TryCompose` invokes a
+    `.For<T>().Use(...)` configuration-rule factory through the exact same
+    `InvokeFactory`, wrapping its failure identically. Verified with a new
+    test (`TryResolveConfigured_Throws_WhenAReachableConfigurationRuleFactoryThrows`)
+    and corrected both XML docs plus recorded the correction as ADR-0047
+    Amendment 5.
+24. **P1 — `ConfiguredResolution`'s fork identity is call-order-dependent,
+    not type-dependent, which breaks reproducibility under concurrent
+    first-time resolution.** Verified directly (no actual race needed -
+    swapping call order alone reproduces it) with
+    `TryResolveConfigured_DerivedValue_DependsOnCallOrder_NotOnWhichTypeWasRequested`.
+    Deliberately not code-fixed: the only way to make identity
+    order-independent is keying it off the requested `Type` instead of an
+    incrementing ordinal, which would be the only `PathSegment` kind doing
+    so (every other kind derives identity from a stable ordinal/index,
+    never a name/type, per `Fork_IsUnaffectedByName_ButDiffersByOrdinal`)
+    and would hash a formatted identifier as a fork key, which `Fnv1a`'s
+    own design deliberately forbids. This is a genuine architectural
+    decision, not a same-scope bug fix - per this plan's own governing
+    instruction to stop and surface exactly this kind of finding rather
+    than silently redesigning around it. Recorded as ADR-0047 Amendment 5;
+    the "safe to use concurrently" XML doc guarantee is narrowed to
+    thread-safety (no corruption/torn state), not ordinal-assignment
+    determinism under concurrent first-time resolution. Sequential
+    resolution - the documented, evidenced use case - is unaffected.
+25. **P2 — a concurrent cross-row cycle deadlocks, not just recurses.**
+    Distinct from finding 20's *sequential* cross-row cycle (caught by the
+    existing reentrance guard): two cross-wired rows resolved on two
+    threads each acquire their own row's adapter lock, then block waiting
+    for the other's - a classic AB-BA deadlock the reentrance guard never
+    gets a chance to see. Verified via repro: hung reliably (5/5) with the
+    original plain `lock`. Fixed by replacing `ComponoServiceProvider`'s
+    `lock` with a bounded `Monitor.TryEnter` (10s) that throws a diagnosed
+    `TimeoutException` (wrapped in `CompositionException` if it fires
+    inside a factory) instead of blocking forever - the same repro now
+    throws reliably (5/5) instead of hanging. Ordinary uncontended calls
+    are unaffected (the lock is still acquired immediately). Regression
+    test: `GetService_ThrowsTimeoutException_RatherThanDeadlocking_OnAConcurrentCrossRowCycle`
+    in `Compono.DependencyInjection.Tests` (the real `AsServiceProvider()`,
+    not a stand-in, since the fix lives in `ComponoServiceProvider`
+    itself). Recorded as ADR-0047 Amendment 5.

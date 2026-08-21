@@ -140,6 +140,42 @@ public sealed class CompositionRowTryResolveConfiguredTests
     }
 
     [Fact]
+    public void TryResolveConfigured_DerivedValue_DependsOnCallOrder_NotOnWhichTypeWasRequested()
+    {
+        // Characterizes a real, deliberately-not-fixed gap surfaced in PR review (P1): a
+        // ConfiguredResolution segment's fork identity is an ordinal assigned at CALL time (the Nth
+        // distinct TryResolveConfigured call on this row), not anything intrinsic to the requested
+        // Type - unlike every other value TryResolveConfigured can produce, which reaches Compono's
+        // pipeline through a fixed, compile-time-known position. Two identically-seeded rows requesting
+        // the SAME pair of types in a DIFFERENT order therefore derive a DIFFERENT value for the SAME
+        // type - proven here directly (no actual concurrency needed: swapping call order alone
+        // reproduces it). AsServiceProvider()'s adapter fully serializes concurrent GetService calls
+        // (no data race, no corruption), but does not make ITS OWN scheduling deterministic - whichever
+        // of two concurrent first-time requests happens to acquire the adapter's lock first gets
+        // ordinal 0. See ADR-0047 Amendment 5 for why this is documented as a scoped limitation rather
+        // than "fixed": every other PathSegment kind derives fork identity from a stable ordinal/index,
+        // never from a Type's name (Fnv1a's own design forbids hashing formatted identifiers as fork
+        // keys - see Fork_IsUnaffectedByName_ButDiffersByOrdinal) - so a Type-keyed alternative would be
+        // a different architectural decision, not a same-scope bug fix.
+        var composerAFirst = Composer.Create(builder => builder
+            .WithSeed(4219)
+            .Register<SiblingMarkerA>(ctx => new SiblingMarkerA(ctx.DeriveSeed()))
+            .Register<SiblingMarkerB>(ctx => new SiblingMarkerB(ctx.DeriveSeed())));
+        var rowAFirst = composerAFirst.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+        rowAFirst.TryResolveConfigured(typeof(SiblingMarkerA), out var aWhenAFirst);
+
+        var composerBFirst = Composer.Create(builder => builder
+            .WithSeed(4219)
+            .Register<SiblingMarkerA>(ctx => new SiblingMarkerA(ctx.DeriveSeed()))
+            .Register<SiblingMarkerB>(ctx => new SiblingMarkerB(ctx.DeriveSeed())));
+        var rowBFirst = composerBFirst.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+        rowBFirst.TryResolveConfigured(typeof(SiblingMarkerB), out _);
+        rowBFirst.TryResolveConfigured(typeof(SiblingMarkerA), out var aWhenBFirst);
+
+        ((SiblingMarkerA)aWhenAFirst!).Value.Should().NotBe(((SiblingMarkerA)aWhenBFirst!).Value);
+    }
+
+    [Fact]
     public void TryResolveConfigured_ReturnsTrueWithNullValue_ForARegistrationThatProducesNull()
     {
         // A bare runtime Type carries no compile-time nullable-reference annotation to validate
@@ -175,6 +211,22 @@ public sealed class CompositionRowTryResolveConfiguredTests
         var act = () => row.TryResolveConfigured(typeof(ProvidedMarker), out _);
 
         act.Should().Throw<InvalidOperationException>().WithMessage("boom");
+    }
+
+    [Fact]
+    public void TryResolveConfigured_Throws_WhenAReachableConfigurationRuleFactoryThrows()
+    {
+        // Regression for a Codex PR review finding: this repo's own docs claimed only an exact
+        // registration factory's failure gets wrapped in a CompositionException, but a .For<T>().Use(...)
+        // configuration-rule factory is invoked through the exact same CompositionContext.InvokeFactory
+        // as an exact registration - TypeRuleProvider.TryCompose calls it directly - so its failure is
+        // wrapped identically, not left raw like a stage 4-6 provider's own exception.
+        var composer = Composer.Create(builder => builder.For<RegisteredMarker>().Use((ICompositionContext _) => throw new InvalidOperationException("rule-boom")));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var act = () => row.TryResolveConfigured(typeof(RegisteredMarker), out _);
+
+        act.Should().Throw<CompositionException>().WithMessage("*rule-boom*");
     }
 
     [Fact]

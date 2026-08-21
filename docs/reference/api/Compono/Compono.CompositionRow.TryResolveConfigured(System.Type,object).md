@@ -40,8 +40,9 @@ tell "handled" from "not handled" apart\.
 #### Exceptions
 
 [CompositionException](Compono.CompositionException.md 'Compono\.CompositionException')  
-An exact registration factory threw, or the scope/registration/provider result's runtime type
-wasn't assignable to the requested type\. A [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') result is never a failure
+An exact registration factory or configuration\-rule \(`.For<T>().Use(...)`\) factory
+threw, or the scope/registration/provider result's runtime type wasn't assignable to the
+requested type\. A [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') result is never a failure
 here \- unlike [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)'), this method always
 validates as nullable \(see the parameter docs above\), so a legitimate [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null')
 always comes back as [true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'), never this exception\. This method distinguishes
@@ -53,4 +54,5 @@ A stage 4\-6 [ICompositionValueProvider](Compono.ICompositionValueProvider.md 'C
 propagates uncaught, exactly like [Resolve&lt;TValue&gt;\(CompositionRequestDescriptor\)](Compono.CompositionRow.Resolve.md#Compono.CompositionRow.Resolve_TValue_(Compono.CompositionRequestDescriptor) 'Compono\.CompositionRow\.Resolve\<TValue\>\(Compono\.CompositionRequestDescriptor\)')'s
 existing provider\-failure contract \(a public provider's thrown exception is never wrapped in a
 [CompositionException](Compono.CompositionException.md 'Compono\.CompositionException'), per `docs/adr/0024-public-provider-extensibility-model.md`'s
-Provider Failure Semantics\) \- only an exact registration factory's failure gets wrapped\.
+Provider Failure Semantics\) \- only an exact registration or configuration\-rule factory's failure
+gets wrapped\.

@@ -596,3 +596,81 @@ deliberately wiring two rows together this way is still unusual,
 hand-written, and unnecessary for the evidenced use case — only that the
 specific undiagnosed-crash failure mode this ADR predicted does not, in
 fact, occur.
+
+## Amendment 5 (2026-08-21): Config-rule factory wrapping, ordinal determinism, and a concurrent cross-row deadlock
+
+Three corrections, all caught in PR review (#105):
+
+**Configuration-rule factories are wrapped too, not just exact
+registrations.** Amendment 2 above (and the shipped XML docs it
+corrected) said only an exact registration factory's (stage 3a) failure
+gets wrapped in a `CompositionException`, contrasting it with a stage 4-6
+provider's unwrapped failure. That's incomplete: a `.For<T>().Use(...)`
+configuration-rule factory is invoked through the exact same
+`CompositionContext.InvokeFactory` — `TypeRuleProvider.TryCompose` calls
+it directly — so its failure is wrapped identically to an exact
+registration's, not left raw like a genuine stage 4-6 provider's own
+exception. `CompositionRow.TryResolveConfigured`'s XML doc is corrected to
+say "an exact registration or configuration-rule factory," and
+`TryResolveConfigured_Throws_WhenAReachableConfigurationRuleFactoryThrows`
+proves it directly. No behavior changed; only the docs were incomplete.
+
+**`ConfiguredResolution`'s fork identity is call-order-dependent, not
+type-dependent — documented as a scoped limitation, not fixed.** The
+ordinal `TryResolveConfigured` assigns (`_nextConfiguredResolutionOrdinal++`)
+is the Nth distinct call on this row, not anything intrinsic to the
+requested `Type`. `AsServiceProvider()`'s adapter fully serializes
+`GetService` calls (round 6's fix, Amendment 4 above), so there is no data
+race — but that serialization doesn't make its OWN scheduling
+deterministic: when two different types are requested concurrently for
+the first time, whichever caller's request happens to acquire the
+adapter's internal lock first gets ordinal 0. For a randomness-dependent
+factory or provider (one that calls `ctx.DeriveSeed()` or performs nested
+composition), this means the derived value for a given type can differ
+across runs on a fixed seed, specifically when two or more types are
+resolved concurrently for the first time — proven directly by
+`TryResolveConfigured_DerivedValue_DependsOnCallOrder_NotOnWhichTypeWasRequested`,
+which reproduces the swap deterministically (no actual race needed) by
+requesting the same pair of types in a different order on two
+identically-seeded rows.
+
+This ADR deliberately does not attempt a code fix here. The only way to
+make `ConfiguredResolution`'s identity independent of call order is to key
+it off something intrinsic to the requested `Type` instead of an
+incrementing ordinal — but every other `PathSegment` kind in this codebase
+derives fork identity from a stable ordinal or index, never from a name or
+type identity (`RandomSourceTests.Fork_IsUnaffectedByName_ButDiffersByOrdinal`
+proves this is deliberate), and `Fnv1a`'s own documented design forbids
+hashing a formatted identifier as a fork key specifically to keep fork
+keys collision-free by construction rather than by string-escaping
+discipline. Introducing a Type-keyed exception to that pattern is a
+genuine architectural decision — not a same-scope bug fix — and per this
+plan's own governing instruction ("if implementation evidence requires
+changing the design ... stop and surface that"), it's recorded here as a
+documented, deliberately out-of-scope limitation rather than patched
+around. The documented "safe to use concurrently" guarantee is narrowed
+accordingly: it covers thread-safety (no corruption, no torn state, no
+two same-type callers ever observing different instances), not
+determinism of which concurrently-requested type gets which ordinal.
+Sequential resolution — the documented, evidenced use case — is
+unaffected by any of this.
+
+**A concurrent cross-row cycle can deadlock, not just recurse — fixed,
+not just documented.** Amendment 4 above establishes that a *sequential*
+cross-row cycle is caught by the existing reentrance guard. A
+*concurrent* one is a different failure mode entirely: two cross-wired
+rows resolved on two threads each acquire their own row's adapter lock
+first, then block waiting for the other row's lock the other thread
+already holds — a classic AB-BA deadlock neither row's reentrance guard
+ever gets a chance to see, because neither thread gets far enough to reach
+it. Verified directly: a two-row concurrent-cycle repro hung every run
+(5/5) against the plain `lock` `ComponoServiceProvider.GetService` had.
+Fixed by replacing that with a bounded `Monitor.TryEnter` (10-second
+default) that throws a diagnosed `TimeoutException` — wrapped in a
+`CompositionException` if it fires inside a registration/configuration-
+rule factory, per this method's normal exception contract — instead of
+blocking forever; the same repro now throws reliably (5/5) instead of
+hanging. This changes behavior only under genuine lock contention this
+severe (ordinary uncontended calls acquire the lock immediately, as
+before); `AsServiceProvider()`'s XML doc `<remarks>` documents the new
+`TimeoutException` alongside the existing recursion guidance.

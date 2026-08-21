@@ -33,6 +33,18 @@ internal sealed class ComponoServiceProvider : IServiceProvider
     // stable-identity guarantee, not just throw the ordinary "Dictionary isn't thread-safe" exception.
     private readonly object _lock = new();
 
+    // Bounded, not Monitor.Enter's indefinite wait - PR #105 review: two cross-wired rows (Row A's
+    // registration factory calls into Row B's adapter, Row B's calls back into Row A's) resolved
+    // concurrently on two threads each acquire their OWN row's lock first, then block waiting for the
+    // OTHER row's lock the other thread already holds - a classic AB-BA deadlock neither row's
+    // reentrance guard can see, since each thread never gets far enough to reach it. Verified directly:
+    // reverting this to a plain `lock (_lock)` makes a two-row concurrent-cycle repro hang every run
+    // (5/5) until forcibly killed; TryEnter with this bound turns that same repro into a diagnosed,
+    // catchable TimeoutException instead (5/5). The timeout is generous specifically so it never fires
+    // for legitimate contention (a slow custom provider, GC pause) - it exists to convert an
+    // unrecoverable process hang into a debuggable failure, not to police normal latency.
+    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(10);
+
     internal ComponoServiceProvider(CompositionRow row)
     {
         _row = row;
@@ -40,7 +52,16 @@ internal sealed class ComponoServiceProvider : IServiceProvider
 
     public object? GetService(Type serviceType)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, LockTimeout))
+        {
+            throw new TimeoutException(
+                $"Timed out after {LockTimeout} waiting to resolve '{serviceType}' through this row's " +
+                "AsServiceProvider() adapter. This usually means two cross-wired rows (see ADR-0047's " +
+                "Recursion section) are being resolved concurrently on different threads, each holding " +
+                "its own row's lock while waiting for the other's - a deadlock, not ordinary contention.");
+        }
+
+        try
         {
             if (_cache.TryGetValue(serviceType, out var cached))
             {
@@ -54,6 +75,10 @@ internal sealed class ComponoServiceProvider : IServiceProvider
 
             _cache[serviceType] = value;
             return value;
+        }
+        finally
+        {
+            Monitor.Exit(_lock);
         }
     }
 }

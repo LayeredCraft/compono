@@ -173,6 +173,52 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
+    public void GetService_ThrowsTimeoutException_RatherThanDeadlocking_OnAConcurrentCrossRowCycle()
+    {
+        // Regression for a Codex PR review finding (P2): two rows cross-wired so each row's own
+        // registration factory calls into the OTHER row's adapter, resolved concurrently on two
+        // threads, is a classic AB-BA deadlock - thread 1 holds row A's lock and blocks waiting for row
+        // B's (held by thread 2), thread 2 holds row B's lock and blocks waiting for row A's (held by
+        // thread 1). Neither row's own reentrance guard ever runs, because neither thread gets far
+        // enough to reach it. Verified directly: reverting GetService's Monitor.TryEnter back to a
+        // plain `lock` makes this hang every run (5/5) until forcibly killed; with TryEnter restored it
+        // throws TimeoutException reliably instead (5/5).
+        var barrier = new Barrier(2);
+        CompositionRow? rowA = null;
+        CompositionRow? rowB = null;
+        IServiceProvider? providerA = null;
+        IServiceProvider? providerB = null;
+
+        var composerA = Composer.Create(builder => builder.Register<TypeX>(() =>
+        {
+            barrier.SignalAndWait();
+            providerB!.GetService(typeof(TypeY));
+            return new TypeX();
+        }));
+        rowA = composerA.CreateRow(typeof(ComposedRowServiceProviderTests));
+        providerA = rowA.AsServiceProvider();
+
+        var composerB = Composer.Create(builder => builder.Register<TypeY>(() =>
+        {
+            barrier.SignalAndWait();
+            providerA.GetService(typeof(TypeX));
+            return new TypeY();
+        }));
+        rowB = composerB.CreateRow(typeof(ComposedRowServiceProviderTests));
+        providerB = rowB.AsServiceProvider();
+
+        var t1 = Task.Run(() => providerA.GetService(typeof(TypeX)));
+        var t2 = Task.Run(() => providerB.GetService(typeof(TypeY)));
+
+        var act = () => Task.WaitAll([t1, t2], TimeSpan.FromSeconds(30));
+
+        // The TimeoutException is thrown from inside a registration factory, so InvokeFactory wraps it
+        // in a CompositionException, same as any other factory-thrown exception (ADR-0047 Amendment 2).
+        var aggregate = act.Should().Throw<AggregateException>().Which;
+        aggregate.InnerExceptions.Should().Contain(e => e.Message.Contains("Timed out") && e.Message.Contains("AsServiceProvider"));
+    }
+
+    [Fact]
     public void AsServiceProvider_DoesNotImplementDisposal()
     {
         var composer = Composer.Create();
@@ -183,6 +229,10 @@ public sealed class ComposedRowServiceProviderTests
         provider.Should().NotBeAssignableTo<IDisposable>();
         provider.Should().NotBeAssignableTo<IAsyncDisposable>();
     }
+
+    private sealed record TypeX;
+
+    private sealed record TypeY;
 
     public interface IApiClient;
 
