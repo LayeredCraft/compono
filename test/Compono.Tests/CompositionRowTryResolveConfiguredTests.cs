@@ -176,6 +176,30 @@ public sealed class CompositionRowTryResolveConfiguredTests
         act.Should().Throw<InvalidOperationException>().WithMessage("boom");
     }
 
+    [Fact]
+    public void TryResolveConfigured_DoesNotLeakTraceEntries_AfterATopLevelExceptionPropagates()
+    {
+        // Regression for a Codex PR review finding: an exception thrown out of TryResolveConfigured
+        // (a stage 4-6 provider's own raw exception, or a stage 3a factory's wrapped
+        // CompositionException) used to leave every trace entry recorded since this call's own
+        // checkpoint sitting in the row's trace buffer, with nothing left to ever rewind them - every
+        // other path already rewinds on its way out, but the exception path skipped straight to
+        // `finally`, which never touched the trace. Since BuildDiagnostic slices from index 0, a later,
+        // unrelated failing call on the same row would pick up this orphaned batch too.
+        var composer = Composer.Create(builder => builder
+            .AddTestDoubleProvider(new ThrowingProvider())
+            .Register<RegisteredMarker>(() => throw new InvalidOperationException("second-failure")));
+        var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var firstAttempt = () => row.TryResolveConfigured(typeof(ProvidedMarker), out _);
+        firstAttempt.Should().Throw<InvalidOperationException>().WithMessage("boom");
+
+        var secondAttempt = () => row.TryResolveConfigured(typeof(RegisteredMarker), out _);
+        var diagnostic = secondAttempt.Should().Throw<CompositionException>().Which.Diagnostic;
+
+        diagnostic!.Trace.Should().NotContain(attempt => attempt.Stage == PipelineStage.TestDoubleProvider);
+    }
+
     private sealed record RegisteredMarker(string Value);
 
     private sealed record ProvidedMarker(string Value);

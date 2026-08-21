@@ -162,10 +162,12 @@ Core primitive — `test/Compono.Tests/CompositionRowTryResolveConfiguredTests.c
       "non-nullable `Type` still throws on null" case to test, because
       `TryResolveConfigured` never treats any `Type` as non-nullable.
 - [x] A reachable-but-failing stage (a throwing registration factory or
-      provider) still throws `CompositionException`, not `false`. Covered
-      both shapes: a throwing registration factory (wrapped, diagnosed
-      `CompositionException`) and a throwing stage-4-6 provider (per
-      ADR-0024, propagates uncaught as the provider's own exception type).
+      provider) still throws, not `false` — but not uniformly the same
+      exception type. Covered both shapes: a throwing registration factory
+      throws a wrapped, diagnosed `CompositionException`; a throwing
+      stage-4-6 provider propagates its own original exception type
+      uncaught and unwrapped, per ADR-0024's Provider Failure Semantics
+      (see ADR-0047 Amendment 2).
 
 `Compono.DependencyInjection` — `test/Compono.DependencyInjection.Tests/`
 (new project):
@@ -537,6 +539,31 @@ just an in-repo `ProjectReference`.
     tested all seven pre-existing kinds pairwise-distinct but never
     included the eighth. Added it - passes, confirming tag `8`'s output is
     genuinely distinct from the other seven at ordinal `0`.
+
+## Eighth PR review round (Codex, #105) findings
+
+17. **P2 — `TryResolveConfigured` leaked trace entries on the exception
+    path.** Every non-exceptional return already rewinds `_trace` to its
+    entry checkpoint, but an exception propagating out (a stage 3a
+    factory's wrapped `CompositionException`, or a stage 4-6 provider's
+    own raw exception) skipped straight to `finally`, which only restored
+    `_path`/`_random`/`_currentDeclaringType` - never the trace. Since
+    `BuildDiagnostic` slices from index `0`, a later, unrelated failing
+    call on the same row would pick up the orphaned entries too. Fixed
+    with a `catch when (!isNestedInAnotherInvocation)` clause that rewinds
+    and rethrows - gated on `_manualResolveFrames.Count == 0` at entry, so
+    an enclosing operation's own exception handling (the case where this
+    call was itself reached from inside another factory/provider's own
+    invocation) still gets to see these entries, only a genuinely
+    top-level call rewinds them away. Confirmed with a repro before fixing
+    (temporarily reverted the catch clause; the new regression test failed
+    reliably 3/3) and the fix passing reliably (5/5) with it restored.
+18. **P2 — this plan's own completed checklist still said a throwing
+    provider "throws `CompositionException`," contradicting the actual,
+    documented (ADR-0047 Amendment 2) provider-exception contract one
+    bullet below it.** Reworded to state the two shapes throw different
+    exception types, matching what the rest of this same checklist item
+    already said correctly.
 
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction).

@@ -341,6 +341,11 @@ internal sealed class CompositionContext : ICompositionContext
         var isRoot = _path is null;
         var segment = new PathSegment.ConfiguredResolution(_nextConfiguredResolutionOrdinal++);
         var checkpoint = _trace.Checkpoint;
+        // Whether this call is nested inside another registration/configuration-rule factory or public
+        // provider's own invocation (a manual-resolve frame is only ever active during those - see
+        // InvokeFactory/InvokeProvider) - if so, an enclosing operation's own exception handling still
+        // needs every trace entry recorded here, so the catch clause below must not rewind them away.
+        var isNestedInAnotherInvocation = _manualResolveFrames.Count > 0;
 
         _path = isRoot ? CompositionPath.Root(requestedType) : _path!.Push(requestedType, segment);
         _random = isRoot ? RandomSource.FromSeed(_seed) : previousRandom!.Fork(segment);
@@ -416,6 +421,20 @@ internal sealed class CompositionContext : ICompositionContext
             value = null;
             _trace.Rewind(checkpoint);
             return false;
+        }
+        // Every non-exceptional path above already rewinds the trace itself before returning. Without
+        // this, an exception thrown here (a stage 3a factory's wrapped CompositionException, or a stage
+        // 4-6 provider's own raw, unwrapped exception per this method's XML doc) left every attempt
+        // recorded since checkpoint sitting in _trace with nothing to ever rewind them - BuildDiagnostic
+        // slices from index 0, so the next unrelated failing call on this same row would have picked up
+        // this orphaned batch too (PR #105 review). Only rewind for a genuinely top-level call, though -
+        // if this was reached from inside another factory/provider's own invocation
+        // (isNestedInAnotherInvocation), that enclosing operation's own exception handling still needs
+        // these entries for its own diagnostic; rewinding here would erase them out from under it.
+        catch when (!isNestedInAnotherInvocation)
+        {
+            _trace.Rewind(checkpoint);
+            throw;
         }
         finally
         {
