@@ -33,17 +33,23 @@ internal sealed class ComponoServiceProvider : IServiceProvider
     // stable-identity guarantee, not just throw the ordinary "Dictionary isn't thread-safe" exception.
     private readonly object _lock = new();
 
-    // Bounded, not Monitor.Enter's indefinite wait - PR #105 review: two cross-wired rows (Row A's
-    // registration factory calls into Row B's adapter, Row B's calls back into Row A's) resolved
-    // concurrently on two threads each acquire their OWN row's lock first, then block waiting for the
-    // OTHER row's lock the other thread already holds - a classic AB-BA deadlock neither row's
-    // reentrance guard can see, since each thread never gets far enough to reach it. Verified directly:
-    // reverting this to a plain `lock (_lock)` makes a two-row concurrent-cycle repro hang every run
-    // (5/5) until forcibly killed; TryEnter with this bound turns that same repro into a diagnosed,
-    // catchable TimeoutException instead (5/5). The timeout is generous specifically so it never fires
-    // for legitimate contention (a slow custom provider, GC pause) - it exists to convert an
-    // unrecoverable process hang into a debuggable failure, not to police normal latency.
+    // Bounded only for a NESTED call (see t_heldAdapterLockDepth below), not for an ordinary top-level
+    // one - PR #105 review, round two: an earlier fix bounded every GetService call, including a
+    // top-level one contending only with another top-level call for the SAME row - a single lock can
+    // never deadlock by itself (whoever holds it eventually releases it), so that turned legitimately
+    // slow user code (a slow custom provider, a debugger pause, loaded CI) into a spurious
+    // TimeoutException. Deadlock is only possible when a thread already holding ONE row's lock tries to
+    // acquire ANOTHER's while blocked inside a factory/provider callback - exactly what
+    // t_heldAdapterLockDepth detects. The timeout is generous specifically so it never fires for
+    // legitimate NESTED contention either - it exists to convert an unrecoverable process hang into a
+    // debuggable failure, not to police normal latency.
     private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(10);
+
+    // Per-thread, not per-instance - the deadlock risk is "this thread already holds SOME row's adapter
+    // lock and is now trying to acquire a DIFFERENT one," regardless of which rows are involved, so
+    // tracking has to span every ComponoServiceProvider instance a thread touches, not just this one.
+    [ThreadStatic]
+    private static int t_heldAdapterLockDepth;
 
     internal ComponoServiceProvider(CompositionRow row)
     {
@@ -52,15 +58,25 @@ internal sealed class ComponoServiceProvider : IServiceProvider
 
     public object? GetService(Type serviceType)
     {
-        if (!Monitor.TryEnter(_lock, LockTimeout))
+        var isNestedCall = t_heldAdapterLockDepth > 0;
+        if (isNestedCall)
         {
-            throw new TimeoutException(
-                $"Timed out after {LockTimeout} waiting to resolve '{serviceType}' through this row's " +
-                "AsServiceProvider() adapter. This usually means two cross-wired rows (see ADR-0047's " +
-                "Recursion section) are being resolved concurrently on different threads, each holding " +
-                "its own row's lock while waiting for the other's - a deadlock, not ordinary contention.");
+            if (!Monitor.TryEnter(_lock, LockTimeout))
+            {
+                throw new TimeoutException(
+                    $"Timed out after {LockTimeout} waiting to resolve '{serviceType}' through this " +
+                    "row's AsServiceProvider() adapter, from inside another row's own resolution on this " +
+                    "thread. This usually means two cross-wired rows (see ADR-0047's Recursion section) " +
+                    "are being resolved concurrently on different threads, each holding its own row's " +
+                    "lock while waiting for the other's - a deadlock, not ordinary contention.");
+            }
+        }
+        else
+        {
+            Monitor.Enter(_lock);
         }
 
+        t_heldAdapterLockDepth++;
         try
         {
             if (_cache.TryGetValue(serviceType, out var cached))
@@ -78,6 +94,7 @@ internal sealed class ComponoServiceProvider : IServiceProvider
         }
         finally
         {
+            t_heldAdapterLockDepth--;
             Monitor.Exit(_lock);
         }
     }

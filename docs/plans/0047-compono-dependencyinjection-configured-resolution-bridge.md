@@ -650,3 +650,29 @@ just an in-repo `ProjectReference`.
     in `Compono.DependencyInjection.Tests` (the real `AsServiceProvider()`,
     not a stand-in, since the fix lives in `ComponoServiceProvider`
     itself). Recorded as ADR-0047 Amendment 5.
+
+## Eleventh PR review round (Codex, #105) findings
+
+26. **P2 — the deadlock fix (finding 25) bounded every `GetService` call,
+    not just the genuinely deadlock-risky ones.** A single row's lock can
+    never deadlock by itself (whoever holds it eventually releases it) -
+    deadlock is only possible when a thread already holding ONE row's
+    lock tries to acquire ANOTHER's while nested inside a factory/provider
+    callback. The original fix's fixed `Monitor.TryEnter` timeout applied
+    to top-level calls too, so legitimately slow user code (a slow custom
+    provider, a debugger pause, loaded CI) contending only with another
+    top-level call for the *same* row could throw a spurious
+    `TimeoutException`. Fixed by tracking a `[ThreadStatic]`
+    `t_heldAdapterLockDepth` (how many `ComponoServiceProvider` locks this
+    thread currently holds, across every row it touches) and only applying
+    the bounded `TryEnter` when a call is nested (depth > 0 on entry) - a
+    fresh top-level call uses a plain, unbounded `Monitor.Enter`, so
+    waiting out a slow same-row resolution, however long, always
+    succeeds. Verified both directions: reverted to the always-bounded
+    version and confirmed a new test
+    (`GetService_DoesNotTimeOut_ForOrdinaryContentionLongerThanTheLockTimeout`,
+    a 12-second same-row factory delay under concurrent access) failed
+    with `TimeoutException` (matching the finding exactly), then restored
+    the depth-tracking fix and confirmed it passes; re-ran
+    `GetService_ThrowsTimeoutException_RatherThanDeadlocking_OnAConcurrentCrossRowCycle`
+    to confirm the original deadlock protection is unaffected (3/3).

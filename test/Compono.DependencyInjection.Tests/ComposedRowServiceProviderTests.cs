@@ -219,6 +219,36 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
+    public void GetService_DoesNotTimeOut_ForOrdinaryContentionLongerThanTheLockTimeout()
+    {
+        // Regression for a Codex PR review finding (P2): the deadlock fix above originally bounded
+        // EVERY GetService call with a fixed timeout, including a top-level call contending only with
+        // another top-level call for the SAME row - a single lock can never deadlock by itself (whoever
+        // holds it eventually releases it), so that turned legitimately slow user code into a spurious
+        // TimeoutException. This factory sleeps well past ComponoServiceProvider's internal lock
+        // timeout (10s); a second, concurrent, non-nested GetService call on the same row must still
+        // succeed by waiting it out, not time out.
+        var composer = Composer.Create(builder => builder.Register<SlowMarker>(() =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(12));
+            return new SlowMarker();
+        }));
+        var row = composer.CreateRow(typeof(ComposedRowServiceProviderTests));
+        var provider = row.AsServiceProvider();
+
+        var t1 = Task.Run(() => provider.GetService(typeof(SlowMarker)));
+        var t2 = Task.Run(() => provider.GetService(typeof(SlowMarker)));
+
+        var completed = Task.WaitAll([t1, t2], TimeSpan.FromSeconds(20));
+
+        completed.Should().BeTrue();
+        t1.Result.Should().NotBeNull();
+        t2.Result.Should().BeSameAs(t1.Result);
+    }
+
+    private sealed record SlowMarker;
+
+    [Fact]
     public void AsServiceProvider_DoesNotImplementDisposal()
     {
         var composer = Composer.Create();
