@@ -12,7 +12,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ for member in members ~}}
 {{~ if member.is_eligible_for_matching ~}}
 {{~ for p in member.parameters ~}}
-    internal global::Compono.Arg<{{ p.fully_qualified_type_name }}>? {{ member.field_name }}_m_{{ p.escaped_name }};
+    internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? {{ member.field_name }}_m_{{ p.escaped_name }};
 {{~ end ~}}
     internal readonly global::System.Collections.Generic.List<{{ member.call_log_type_text }}> {{ member.field_name }}_calls = [];
     internal readonly object {{ member.field_name }}_lock = new();
@@ -127,7 +127,7 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
 {{~ for member in members ~}}
 {{~ if member.has_configuration_surface ~}}
 {{~ if member.is_eligible_for_matching ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self{{ for p in member.parameters }}, global::Compono.Arg<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
 {{~ for p in member.parameters ~}}
         self.{{ member.field_name }}_m_{{ p.escaped_name }} = {{ p.escaped_name }};
@@ -178,7 +178,7 @@ internal static class {{ safe_identifier }}_DoubleVerification
 {{~ for member in members ~}}
 {{~ if member.has_configuration_surface ~}}
 {{~ if member.is_eligible_for_matching ~}}
-    public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier self{{ for p in member.parameters }}, global::Compono.Arg<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
+    public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier self{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
         int __count;
         lock (self.Instance.{{ member.field_name }}_lock)

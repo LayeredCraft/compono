@@ -110,7 +110,7 @@ namespace Compono.Generators.Models;
 /// </param>
 /// <param name="IsEligibleForMatching">
 /// Whether this member gets ADR-0048's argument-aware <c>Configure()</c>/<c>Verify()</c> surface
-/// (<c>Compono.Arg&lt;T&gt;</c>-typed parameters, per-parameter matcher fields, a call log) instead of v1/v2's
+/// (<c>Compono.Match&lt;T&gt;</c>-typed parameters, per-parameter matcher fields, a call log) instead of v1/v2's
 /// argument-independent one. Requires <see cref="HasConfigurationSurface"/>, at least one real
 /// parameter (a zero-parameter member has nothing to match), not <see cref="IsOverloaded"/> (a real
 /// compiler spike proved wrapping every overload's parameters in <c>Arg&lt;T&gt;</c> breaks C#

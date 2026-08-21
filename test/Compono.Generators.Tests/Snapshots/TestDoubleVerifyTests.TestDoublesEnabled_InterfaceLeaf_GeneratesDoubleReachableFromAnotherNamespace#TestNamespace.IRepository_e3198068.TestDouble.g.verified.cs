@@ -8,10 +8,10 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<string?>> __FindNameAsync;
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Save;
     internal global::Compono.ReturnConfig<int> __Count;
-    internal global::Compono.Arg<global::System.Guid>? __FindNameAsync_m_id;
+    internal global::Compono.Match<global::System.Guid>? __FindNameAsync_m_id;
     internal readonly global::System.Collections.Generic.List<global::System.Guid> __FindNameAsync_calls = [];
     internal readonly object __FindNameAsync_lock = new();
-    internal global::Compono.Arg<string>? __Save_m_name;
+    internal global::Compono.Match<string>? __Save_m_name;
     internal readonly global::System.Collections.Generic.List<string> __Save_calls = [];
     internal readonly object __Save_lock = new();
 
@@ -53,7 +53,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<global::System.Guid> id)
+    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Match<global::System.Guid> id)
     {
         self.__FindNameAsync_m_id = id;
         return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref self.__FindNameAsync);
@@ -68,7 +68,7 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref self.__FindNameAsync);
 
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<string> name)
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Match<string> name)
     {
         self.__Save_m_name = name;
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Save);
@@ -108,7 +108,7 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<global::System.Guid> id)
+    public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Match<global::System.Guid> id)
     {
         int __count;
         lock (self.Instance.__FindNameAsync_lock)
@@ -129,7 +129,7 @@ internal static class TestNamespace_IRepository_e3198068_DoubleVerification
     public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__FindNameAsync.ConfiguredCallCount, "global::TestNamespace.IRepository.FindNameAsync");
 
-    public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<string> name)
+    public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Match<string> name)
     {
         int __count;
         lock (self.Instance.__Save_lock)

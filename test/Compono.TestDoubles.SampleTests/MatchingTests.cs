@@ -3,8 +3,8 @@ using Compono.XunitV3;
 namespace Compono.TestDoubles.SampleTests;
 
 // PLAN-0048: a non-overloaded, non-generic member with real parameters - the shape ADR-0048 scopes
-// argument-aware Configure()/Verify() to. IAccountRepository.Withdraw mixes a literal, Arg.Any, and
-// Arg.Is in one call (the real trivia-manager shape), and is deliberately single-parameter-eligible
+// argument-aware Configure()/Verify() to. IAccountRepository.Withdraw mixes a literal, Match.Any, and
+// Match.Is in one call (the real trivia-manager shape), and is deliberately single-parameter-eligible
 // via Rename to prove the one-parameter call-log special case (a plain List<T>, not a one-element
 // tuple - "(T)" isn't a tuple type in C#) works too.
 public interface IAccountRepository
@@ -14,7 +14,7 @@ public interface IAccountRepository
     void Rename(string accountId);
 }
 
-public sealed class ArgumentMatchingTests
+public sealed class MatchingTests
 {
     [Theory]
     [Compose<GeneratedTestDoubleProfile>]
@@ -22,7 +22,7 @@ public sealed class ArgumentMatchingTests
         [Shared] IAccountRepository repository)
     {
         repository.Configure()
-            .Withdraw("acct-1", Compono.Arg.Any<decimal>(), Compono.Arg.Is<bool>(allowed => allowed))
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Is<bool>(allowed => allowed))
             .Returns(true);
 
         var matchingCall = repository.Withdraw("acct-1", 50m, overdraftAllowed: true);
@@ -46,7 +46,7 @@ public sealed class ArgumentMatchingTests
 
     [Theory]
     [Compose<GeneratedTestDoubleProfile>]
-    public void Verify_WithArgIsFilter_CountsOnlyMatchingCalls(
+    public void Verify_WithMatchIsFilter_CountsOnlyMatchingCalls(
         [Shared] IAccountRepository repository)
     {
         repository.Configure().Withdraw().Returns(true);
@@ -56,10 +56,10 @@ public sealed class ArgumentMatchingTests
         repository.Withdraw("acct-1", 20m, overdraftAllowed: false);
 
         repository.Verify()
-            .Withdraw(Compono.Arg.Is<string>(id => id == "acct-1"), Compono.Arg.Any<decimal>(), Compono.Arg.Any<bool>())
+            .Withdraw(Compono.Match.Is<string>(id => id == "acct-1"), Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
             .Exactly(2);
         repository.Verify()
-            .Withdraw(Compono.Arg.Is<string>(id => id == "acct-2"), Compono.Arg.Any<decimal>(), Compono.Arg.Any<bool>())
+            .Withdraw(Compono.Match.Is<string>(id => id == "acct-2"), Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
             .Once();
         repository.Verify().Withdraw().Exactly(3);
     }
@@ -72,7 +72,7 @@ public sealed class ArgumentMatchingTests
         repository.Rename("acct-1");
         repository.Rename("acct-2");
 
-        repository.Verify().Rename(Compono.Arg.Is<string>(id => id == "acct-1")).Once();
+        repository.Verify().Rename(Compono.Match.Is<string>(id => id == "acct-1")).Once();
         repository.Verify().Rename().Exactly(2);
     }
 }

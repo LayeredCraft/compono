@@ -6,7 +6,7 @@
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
     internal global::Compono.ReturnConfig<bool> __TryGet;
-    internal global::Compono.Arg<int>? __TryGet_m_id;
+    internal global::Compono.Match<int>? __TryGet_m_id;
     internal readonly global::System.Collections.Generic.List<int> __TryGet_calls = [];
     internal readonly object __TryGet_lock = new();
 
@@ -29,7 +29,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> TryGet(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<int> id)
+    public static global::Compono.ReturnConfigBuilder<bool> TryGet(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Match<int> id)
     {
         self.__TryGet_m_id = id;
         return new global::Compono.ReturnConfigBuilder<bool>(ref self.__TryGet);
@@ -66,7 +66,7 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier TryGet(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<int> id)
+    public static global::Compono.CallVerifier TryGet(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Match<int> id)
     {
         int __count;
         lock (self.Instance.__TryGet_lock)

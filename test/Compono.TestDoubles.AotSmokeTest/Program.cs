@@ -64,6 +64,17 @@ internal interface IProfileRepositoryWithStaticAbstractBase : IProfileFactory
     string GetName();
 }
 
+// PLAN-0048: a non-overloaded, non-generic member with real parameters - the eligible shape
+// ADR-0048's Match<T>/argument-aware Configure()/Verify() surface targets, exercised under Native
+// AOT specifically (Compono.TestDoubles.SampleTests' MatchingTests.cs already proves this under the
+// ordinary JIT). Mixes a literal, Match.Any, and Match.Is in one call - the real trivia-manager
+// shape - and IGateway/ILoggerLike above (overloaded, generic-scoped-out) continue to prove the
+// eligibility boundary itself survives AOT unchanged, not just the new surface in isolation.
+internal interface IAccountRepository
+{
+    bool Withdraw(string accountId, decimal amount, bool overdraftAllowed);
+}
+
 internal static class Program
 {
     private static async Task<int> Main()
@@ -78,6 +89,7 @@ internal static class Program
             var logger = composer.Create<ILoggerLike>();
             var profileRepository = composer.Create<IProfileRepository>();
             var profileRepositoryWithStaticAbstractBase = composer.Create<IProfileRepositoryWithStaticAbstractBase>();
+            var accountRepository = composer.Create<IAccountRepository>();
 
             repository.Configure().CountAsync().Returns(Task.FromResult(7));
             repository.Configure().UtcNow().Returns(placedAt);
@@ -152,14 +164,43 @@ internal static class Program
             if (staticAbstractBaseName != "Ada")
                 throw new InvalidOperationException($"Expected GetName() to return 'Ada', got '{staticAbstractBaseName}'.");
 
+            // PLAN-0048: argument-matched Configure() (mixed literal/Match.Any/Match.Is) and
+            // argument-filtered Verify(), under Native AOT.
+            accountRepository.Configure()
+                .Withdraw("acct-1", Match.Any<decimal>(), Match.Is<bool>(allowed => allowed))
+                .Returns(true);
+
+            var matchingCall = accountRepository.Withdraw("acct-1", 50m, overdraftAllowed: true);
+            var wrongAccount = accountRepository.Withdraw("acct-2", 50m, overdraftAllowed: true);
+            var wrongOverdraftFlag = accountRepository.Withdraw("acct-1", 50m, overdraftAllowed: false);
+
+            if (!matchingCall)
+                throw new InvalidOperationException("Expected a matching Withdraw() call to return true.");
+
+            if (wrongAccount)
+                throw new InvalidOperationException("Expected a non-matching account id to fall through to the default, not the configured value.");
+
+            if (wrongOverdraftFlag)
+                throw new InvalidOperationException("Expected a non-matching overdraft flag to fall through to the default, not the configured value.");
+
+            accountRepository.Verify()
+                .Withdraw(Match.Is<string>(id => id == "acct-1"), Match.Any<decimal>(), Match.Any<bool>())
+                .Exactly(2);
+            accountRepository.Verify()
+                .Withdraw(Match.Is<string>(id => id == "acct-2"), Match.Any<decimal>(), Match.Any<bool>())
+                .Once();
+            accountRepository.Verify().Withdraw().Exactly(3);
+
             Console.WriteLine(
                 $"PASS: generated doubles (composer.Create<T>() + UseGeneratedTestDoubles(), full " +
                 $"base-interface closure, overloaded member, generic method, call verification, " +
                 $"configuration-required sync method/property/Task<T> method both unconfigured-throws " +
                 $"and configured, a leaf interface whose base declares a static abstract member " +
-                $"already resolved by the leaf itself) survived Native AOT - CountAsync()={count}, " +
+                $"already resolved by the leaf itself, argument-matched Configure()/argument-filtered " +
+                $"Verify() via Match<T>) survived Native AOT - CountAsync()={count}, " +
                 $"UtcNow={utcNow}, GetName()={name}, Description={description}, " +
-                $"GetNameAsync()={asyncName}, static-abstract-base GetName()={staticAbstractBaseName}.");
+                $"GetNameAsync()={asyncName}, static-abstract-base GetName()={staticAbstractBaseName}, " +
+                $"Withdraw matching={matchingCall}.");
             return 0;
         }
         catch (Exception ex)

@@ -7,7 +7,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 {
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Configure;
     internal global::Compono.ReturnConfig<string?> __GetName;
-    internal global::Compono.Arg<int>? __Configure_m_mode;
+    internal global::Compono.Match<int>? __Configure_m_mode;
     internal readonly global::System.Collections.Generic.List<int> __Configure_calls = [];
     internal readonly object __Configure_lock = new();
 
@@ -31,7 +31,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<int> mode)
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Match<int> mode)
     {
         self.__Configure_m_mode = mode;
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Configure);
@@ -71,7 +71,7 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier Configure(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<int> mode)
+    public static global::Compono.CallVerifier Configure(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Match<int> mode)
     {
         int __count;
         lock (self.Instance.__Configure_lock)

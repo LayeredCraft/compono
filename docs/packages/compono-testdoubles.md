@@ -224,11 +224,69 @@ selects the same overload-specific counter `repository.Configure().Speak("x")`
 would.
 
 **Still deliberately minimal** - `Never`/`Once`/`Exactly(n)` only, no
-`AtLeast`/`AtMost`, no argument-aware recording (a member's count is
-argument-independent, same as its configured return value), no call-order
-verification, no `ReceivedCalls()`-style enumeration. If a test needs any
-of that, use `Compono.NSubstitute` for that interface instead - the two
-providers can coexist (see below).
+`AtLeast`/`AtMost`, no `ReceivedCalls()`-style enumeration, and (see below)
+no call-order verification. Argument-aware recording *is* available for
+one specific class of member - see "Argument matching and argument-filtered
+verification" below. If a test needs anything else this page doesn't cover
+(call-order verification, an overloaded member's own argument matching,
+`ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that interface
+instead - the two providers can coexist (see below).
+
+## Argument matching and argument-filtered verification
+
+For a member that is **both** the only overload of its name in the
+interface **and** has no real parameter referencing the member's own open
+generic type parameter (v3, [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)),
+`Configure()`/`Verify()` accept `Compono.Match<T>` per parameter instead of
+just the return value - a literal (equality match), `Match.Any<T>()`
+(matches anything, same as omitting a matcher), or `Match.Is<T>(predicate)`:
+
+```csharp
+repository.Configure()
+    .Withdraw("acct-1", Match.Any<decimal>(), Match.Is<bool>(allowed => allowed))
+    .Returns(true);
+
+repository.Withdraw("acct-1", 50m, overdraftAllowed: true);  // true - every matcher satisfied
+repository.Withdraw("acct-2", 50m, overdraftAllowed: true);  // falls through - accountId doesn't match
+
+repository.Verify()
+    .Withdraw(Match.Is<string>(id => id == "acct-1"), Match.Any<decimal>(), Match.Any<bool>())
+    .Once();
+```
+
+An eligible member also keeps its original zero-argument `Configure()`/
+`Verify()` spelling (`repository.Configure().Withdraw().Returns(...)`,
+argument-independent, exactly v1/v2's shape) - the two aren't mutually
+exclusive, and a member with no real parameters only ever had the
+zero-argument form to begin with. A call whose arguments don't satisfy a
+configured matcher is treated identically to an unconfigured member (falls
+through to a computed default, or to
+[Configuration-required members](#configuration-required-members)'
+throwing behavior below) - not a distinct failure mode.
+
+**Why this doesn't apply to an overloaded member.** A real compiler spike
+(ADR-0048's Decision Outcome) proved that wrapping every overload's
+parameters in a matcher type breaks C#'s own overload resolution
+unpredictably for several realistic parameter-type families (base/derived
+class hierarchies, `string[]` vs. `IEnumerable<string>`, even plain `int`
+vs. `long` widening) - there's no reliable per-family fix, so argument
+matching is scoped out entirely for any member with more than one overload.
+An overloaded member's `Configure()`/`Verify()` stay exactly the
+[per-overload discriminator shape](#overloaded-members) above, unchanged.
+The same reasoning excludes a generic method whose real parameters
+reference its own type parameter (an `ILogger<TState>.Log<TState>`-shaped
+member) - a per-member call log can't hold an open type parameter's value,
+so that shape keeps its existing argument-independent
+`Configure()`/`Verify()` too, exactly as it already worked.
+
+**Why `Match<T>`, not `Arg<T>`.** `Compono.Arg` would collide with
+`NSubstitute.Arg` for any consumer whose own namespace nests under
+`Compono` (this repo's own samples convention) or who combines `Compono`
+with `Compono.NSubstitute` directly - confirmed with a real failing build
+during this feature's implementation, not a theoretical concern. `Match`
+avoids the collision entirely and names the actual Compono concept
+(matching an argument), rather than borrowing NSubstitute's own
+vocabulary.
 
 ## Configuration-required members
 
@@ -338,10 +396,17 @@ cases the other.
 
 ## What it deliberately doesn't do
 
-Still no argument matchers, no argument-aware call recording, no call-order
-verification, and no support for classes, delegates, indexers, events, or a
-generic method whose return type depends on its own type parameter — see
+Argument matching and argument-filtered verification exist now, but only
+for a non-overloaded member with no open-generic-parameter-dependent
+parameters — see "Argument matching and argument-filtered verification"
+above. Still no argument matching on an overloaded member (a real compiler
+spike proved it, see above), no call-order verification, no
+`ReturnsForAnyArgs`/`When().Do(...)`/strict or partial substitutes/
+recursive auto-configuration, and no support for classes, delegates,
+indexers, events, or a generic method whose return type depends on its own
+type parameter — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
+Non-Goals and [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)'s
 Non-Goals for the full scope boundary. A genuinely unimplemented static
 abstract member still rejects its whole interface, the same as the shapes
 above — but one already resolved via a more-derived interface's own

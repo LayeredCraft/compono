@@ -1,15 +1,17 @@
+using System.Reflection;
+
 namespace Compono.Tests;
 
 /// <summary>
-/// Exercises <see cref="Arg{T}"/>'s three matcher kinds (literal equality, <see cref="Arg.Any{T}"/>,
-/// <see cref="Arg.Is{T}"/>) and <see cref="Arg{T}.Matches"/>, matching ADR-0048's Decision Outcome.
+/// Exercises <see cref="Match{T}"/>'s three matcher kinds (literal equality, <see cref="Match.Any{T}"/>,
+/// <see cref="Match.Is{T}"/>) and <see cref="Match{T}.Matches"/>, matching ADR-0048's Decision Outcome.
 /// </summary>
-public sealed class ArgTests
+public sealed class MatchTests
 {
     [Fact]
     public void Literal_Matches_WhenValueEqual()
     {
-        Arg<string> matcher = "hello";
+        Match<string> matcher = "hello";
 
         matcher.Matches("hello").Should().BeTrue();
     }
@@ -17,7 +19,7 @@ public sealed class ArgTests
     [Fact]
     public void Literal_DoesNotMatch_WhenValueDiffers()
     {
-        Arg<string> matcher = "hello";
+        Match<string> matcher = "hello";
 
         matcher.Matches("goodbye").Should().BeFalse();
     }
@@ -25,15 +27,24 @@ public sealed class ArgTests
     [Fact]
     public void Literal_UsesDefaultEqualityComparer_NotReferenceEquality()
     {
-        Arg<string> matcher = new string(['h', 'e', 'l', 'l', 'o']);
+        Match<string> matcher = new string(['h', 'e', 'l', 'l', 'o']);
 
         matcher.Matches("hello").Should().BeTrue();
     }
 
     [Fact]
+    public void Literal_StoresNoPredicateDelegate()
+    {
+        Match<string> matcher = "hello";
+
+        var predicateField = typeof(Match<string>).GetField("_predicate", BindingFlags.NonPublic | BindingFlags.Instance);
+        predicateField!.GetValue(matcher).Should().BeNull();
+    }
+
+    [Fact]
     public void Any_MatchesAnyValue()
     {
-        var matcher = Arg.Any<int>();
+        var matcher = Match.Any<int>();
 
         matcher.Matches(0).Should().BeTrue();
         matcher.Matches(-1).Should().BeTrue();
@@ -41,9 +52,18 @@ public sealed class ArgTests
     }
 
     [Fact]
+    public void Any_StoresNoPredicateDelegate()
+    {
+        var matcher = Match.Any<int>();
+
+        var predicateField = typeof(Match<int>).GetField("_predicate", BindingFlags.NonPublic | BindingFlags.Instance);
+        predicateField!.GetValue(matcher).Should().BeNull();
+    }
+
+    [Fact]
     public void Is_Matches_WhenPredicateReturnsTrue()
     {
-        var matcher = Arg.Is<int>(value => value > 0);
+        var matcher = Match.Is<int>(value => value > 0);
 
         matcher.Matches(5).Should().BeTrue();
     }
@@ -51,7 +71,7 @@ public sealed class ArgTests
     [Fact]
     public void Is_DoesNotMatch_WhenPredicateReturnsFalse()
     {
-        var matcher = Arg.Is<int>(value => value > 0);
+        var matcher = Match.Is<int>(value => value > 0);
 
         matcher.Matches(-5).Should().BeFalse();
     }
@@ -60,7 +80,7 @@ public sealed class ArgTests
     public void Is_ReceivesTheRealValue_NotAStaleCapture()
     {
         var seen = new List<int>();
-        var matcher = Arg.Is<int>(value =>
+        var matcher = Match.Is<int>(value =>
         {
             seen.Add(value);
             return true;

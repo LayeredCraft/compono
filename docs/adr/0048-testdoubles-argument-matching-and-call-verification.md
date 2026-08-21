@@ -22,12 +22,12 @@ implementation:
   No real site configures two different responses on the same
   member/instance differentiated by arguments.
 - **Argument-filtered call verification is heavily evidenced** — 19 real
-  `Arg.Is<T>(predicate)` sites, all inside `Received(1)`/`DidNotReceive()`,
+  `Match.Is<T>(predicate)` sites, all inside `Received(1)`/`DidNotReceive()`,
   across nearly every substituted domain interface.
 - **Call-order verification has zero real evidence** — a direct search
   found no `Received.InOrder`-equivalent call site anywhere in the repo.
   Stays a Non-Goal (see below).
-- **None of the 19 `Arg.Is` sites targets an overloaded member** —
+- **None of the 19 `Match.Is` sites targets an overloaded member** —
   verified against the real production interface declarations
   (`IPlayerRepository`, `IModerationRepository`, `IGrammarManager`, etc.),
   not inferred. This turns out to matter architecturally, not just as a
@@ -80,7 +80,7 @@ existing surface at all.
 ADR-0044 Requirement 1 made every `Configure()`/`Verify()` argument on an
 overloaded member a **pure, value-ignored overload discriminator**. This
 ADR's first draft proposed giving every generated parameter (overloaded or
-not) type `Compono.Arg<T>` with an implicit `T -> Arg<T>` equality-matcher
+not) type `Compono.Match<T>` with an implicit `T -> Match<T>` equality-matcher
 conversion, reasoning that overload *selection* (compile-time, by
 parameter type) and argument *matching* (runtime, by value) were
 orthogonal concerns that wouldn't interfere with each other.
@@ -88,12 +88,12 @@ orthogonal concerns that wouldn't interfere with each other.
 **That reasoning was wrong, and a real compiler spike proved it before any
 code was written.** A small standalone project defined six representative
 overload-parameter-type families, each as both a plain (unwrapped)
-overload pair and an `Arg<T>`-wrapped pair, and attempted to compile a
+overload pair and an `Match<T>`-wrapped pair, and attempted to compile a
 call through the implicit conversion for each:
 
-| Family | Plain (baseline) | `Arg<T>`-wrapped |
+| Family | Plain (baseline) | `Match<T>`-wrapped |
 |---|---|---|
-| `M(string)` / `M(object)` | unambiguous | compiles (resolves to `Arg<string>`) |
+| `M(string)` / `M(object)` | unambiguous | compiles (resolves to `Match<string>`) |
 | `M(IEnumerable<string>)` / `M(string[])` | unambiguous | **`CS0121` ambiguous** |
 | `M(Base)` / `M(Derived)` | unambiguous | **`CS0121` ambiguous** |
 | `M(int)` / `M(long)` | unambiguous | **`CS0121` ambiguous** |
@@ -108,11 +108,11 @@ no reliable per-family rule to design around. Per this ADR's own governing
 instruction, the response to an unreliable spike is to change the API
 shape, not patch individual overload families.
 
-1. **Scope the `Arg<T>` mechanism to non-overloaded members only
+1. **Scope the `Match<T>` mechanism to non-overloaded members only
    (chosen).** When a member has exactly one real overload, there is no
    competing candidate for the compiler to be ambiguous against — verified
    with the same spike project: a real multi-parameter, non-overloaded
-   member with mixed literal/`Arg.Any`/`Arg.Is` compiled and dispatched
+   member with mixed literal/`Match.Any`/`Match.Is` compiled and dispatched
    correctly on the first attempt. An overloaded member keeps ADR-0044's
    exact discriminator-only signature, completely untouched. This is not
    a compatibility compromise — it's the only design proven to compile
@@ -160,22 +160,22 @@ shape; a core type can't statically hold an arbitrary tuple of them
 without boxing or reflection). Concretely, per eligible member:
 
 - The existing `ReturnConfig<T>` field, unchanged.
-- One `Arg<TParam>?` field per real parameter — **not** an extracted
+- One `Match<TParam>?` field per real parameter — **not** an extracted
   `Func<TParam, bool>?`. Generated code outside the `Compono` assembly can
-  only reach a *public* member of `Arg<T>` (this is the same
+  only reach a *public* member of `Match<T>` (this is the same
   cross-assembly-accessibility class of defect ADR-0044 already had to
   solve for `ReturnConfig<T>`'s own internal/public field split — see its
-  Amendment 3), so the field stores the whole `Arg<TParam>` value and
-  dispatch calls its public `Matches(TParam)` (see "`Arg<T>`'s shape"
-  below) rather than reading out a delegate. `Arg<T>` being a
+  Amendment 3), so the field stores the whole `Match<TParam>` value and
+  dispatch calls its public `Matches(TParam)` (see "`Match<T>`'s shape"
+  below) rather than reading out a delegate. `Match<T>` being a
   `readonly struct` means "no matcher configured for this parameter" needs
   its own representable state distinct from any real configured matcher
-  (including `Arg.Any<T>()`, which is itself a valid, deliberately-chosen
+  (including `Match.Any<T>()`, which is itself a valid, deliberately-chosen
   matcher, not the same thing as "nothing was configured") — the
-  System.Nullable`1` wrapper (`Arg<TParam>?`) gives that for free: `null`
-  means unconfigured, `HasValue` with any `Arg<TParam>` (including one
-  built by `Arg.Any<TParam>()`) means configured. Dispatch treats both
-  "unconfigured" and "configured via `Arg.Any`" identically as
+  System.Nullable`1` wrapper (`Match<TParam>?`) gives that for free: `null`
+  means unconfigured, `HasValue` with any `Match<TParam>` (including one
+  built by `Match.Any<TParam>()`) means configured. Dispatch treats both
+  "unconfigured" and "configured via `Match.Any`" identically as
   always-matching, which is the correct behavior in both cases — they only
   differ in whether a `Configure()`/`Verify()` call happened at all, which
   dispatch doesn't need to distinguish.
@@ -183,12 +183,12 @@ without boxing or reflection). Concretely, per eligible member:
   equivalent per-member tuple/record shape) appended to on every
   invocation, only for members eligible for argument-aware behavior.
 
-### `Arg<T>`'s shape — public `Matches`, no public delegate, no closure for the common cases
+### `Match<T>`'s shape — public `Matches`, no public delegate, no closure for the common cases
 
-`Arg<T>` exposes exactly one public operation generated code needs:
+`Match<T>` exposes exactly one public operation generated code needs:
 
 ```csharp
-public readonly struct Arg<T>
+public readonly struct Match<T>
 {
     private enum Kind : byte { Equality, Any, Predicate }
 
@@ -196,13 +196,13 @@ public readonly struct Arg<T>
     private readonly T? _value;              // used only when Kind == Equality
     private readonly Func<T, bool>? _predicate; // used only when Kind == Predicate
 
-    private Arg(Kind kind, T? value, Func<T, bool>? predicate)
+    private Match(Kind kind, T? value, Func<T, bool>? predicate)
     { _kind = kind; _value = value; _predicate = predicate; }
 
-    public static implicit operator Arg<T>(T value) => new(Kind.Equality, value, null);
+    public static implicit operator Match<T>(T value) => new(Kind.Equality, value, null);
 
-    public static Arg<T> Any() => new(Kind.Any, default, null);
-    public static Arg<T> Is(Func<T, bool> predicate) => new(Kind.Predicate, default, predicate);
+    public static Match<T> Any() => new(Kind.Any, default, null);
+    public static Match<T> Is(Func<T, bool> predicate) => new(Kind.Predicate, default, predicate);
 
     /// <summary>The one operation generated dispatch/verification code calls.</summary>
     public bool Matches(T value) => _kind switch
@@ -216,18 +216,18 @@ public readonly struct Arg<T>
 ```
 
 No `Predicate`/delegate accessor is public — `Matches(T)` is the entire
-generated-code-facing surface, so `Arg<T>`'s internal representation (this
+generated-code-facing surface, so `Match<T>`'s internal representation (this
 three-case `Kind` shape, or any future alternative) stays free to change
 without becoming a breaking change to generated output's compile-time
-dependency on `Arg<T>`. This also fixes an efficiency claim the first
+dependency on `Match<T>`. This also fixes an efficiency claim the first
 draft got wrong: a **literal** argument (`Configure().Member(player.CognitoSub!)`,
 by far the common case in real trivia-manager call sites) no longer
 allocates a closure at all — it's `Kind.Equality` with the value stored
 directly, compared via `EqualityComparer<T>.Default` inside `Matches`, the
 same allocation profile v1/v2 already has for any other configuration
-value. `Arg.Is<T>(predicate)` still captures whatever closure its own
+value. `Match.Is<T>(predicate)` still captures whatever closure its own
 caller-supplied lambda naturally does — that cost is the caller's, not
-something this design adds on top of it. `Arg.Any<T>()` allocates nothing
+something this design adds on top of it. `Match.Any<T>()` allocates nothing
 beyond the struct itself.
 
 ### Call-recording storage
@@ -266,7 +266,7 @@ for constructor-guard tests) — never configured, never verified.
 
 ### Matching API shape
 
-1. **The eligible member's `Verify()` extension takes the same `Arg<T>`-
+1. **The eligible member's `Verify()` extension takes the same `Match<T>`-
    per-parameter shape as `Configure()`, and returns the existing,
    unchanged `CallVerifier` directly (chosen).** No `.Matching(...)` step,
    no second mechanism: the generated extension counts call-log entries
@@ -285,7 +285,7 @@ for constructor-guard tests) — never configured, never verified.
 
 ## Decision Outcome
 
-Chosen: requirement scope 1 (two capabilities), `Arg<T>` scoped to
+Chosen: requirement scope 1 (two capabilities), `Match<T>` scoped to
 non-overloaded, non-open-generic-parameter members only, single-slot
 response model, matcher/call-log fields generated on the double class
 (not inside `ReturnConfig<T>`), matching folded directly into `Verify()`'s
@@ -298,9 +298,9 @@ existing per-member extension shape.
 internal sealed class IPlayerRepository_h1_Double : IPlayerRepository
 {
     internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<global::Player?>> __getPlayerByCognitoSub_9f8e;
-    private global::Compono.Arg<string>? __getPlayerByCognitoSub_m_cognitoSub;
-    private global::Compono.Arg<string>? __getPlayerByCognitoSub_m_gameName;
-    private global::Compono.Arg<global::System.Threading.CancellationToken>? __getPlayerByCognitoSub_m_ct;
+    private global::Compono.Match<string>? __getPlayerByCognitoSub_m_cognitoSub;
+    private global::Compono.Match<string>? __getPlayerByCognitoSub_m_gameName;
+    private global::Compono.Match<global::System.Threading.CancellationToken>? __getPlayerByCognitoSub_m_ct;
     private readonly global::System.Collections.Generic.List<(string CognitoSub, string GameName, global::System.Threading.CancellationToken Ct)> __getPlayerByCognitoSub_calls = [];
     private readonly object __getPlayerByCognitoSub_lock = new();
 
@@ -322,11 +322,11 @@ internal static class IPlayerRepository_h1_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<Task<Player?>> GetPlayerByCognitoSubAsync(
         this global::IPlayerRepository_h1_Double self,
-        global::Compono.Arg<string> cognitoSub, global::Compono.Arg<string> gameName, global::Compono.Arg<CancellationToken> ct)
+        global::Compono.Match<string> cognitoSub, global::Compono.Match<string> gameName, global::Compono.Match<CancellationToken> ct)
     {
-        // Stores the Arg<T> value itself - Predicate/Matches internals stay encapsulated in
-        // Compono.Arg<T>, only its public Matches(T) is ever called from generated code (see
-        // "Arg<T>'s shape" above; this is the same cross-assembly-accessibility fix ADR-0044
+        // Stores the Match<T> value itself - Predicate/Matches internals stay encapsulated in
+        // Compono.Match<T>, only its public Matches(T) is ever called from generated code (see
+        // "Match<T>'s shape" above; this is the same cross-assembly-accessibility fix ADR-0044
         // Amendment 3 already made for ReturnConfig<T>).
         self.__getPlayerByCognitoSub_m_cognitoSub = cognitoSub;
         self.__getPlayerByCognitoSub_m_gameName = gameName;
@@ -335,8 +335,8 @@ internal static class IPlayerRepository_h1_DoubleConfiguration
     }
 }
 
-// Usage - literal implicitly converts to Arg<string> as an equality matcher, matching real syntax:
-repo.Configure().GetPlayerByCognitoSubAsync(player.CognitoSub!, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(player);
+// Usage - literal implicitly converts to Match<string> as an equality matcher, matching real syntax:
+repo.Configure().GetPlayerByCognitoSubAsync(player.CognitoSub!, Match.Any<string>(), Match.Any<CancellationToken>()).Returns(player);
 ```
 
 ```csharp
@@ -361,12 +361,12 @@ void ILogger.Log<TState>(LogLevel level, EventId id, TState state, Exception? ex
 ```
 
 ```csharp
-// Argument-filtered Verify - same Arg<T> shape as Configure(), no .Matching() step.
+// Argument-filtered Verify - same Match<T> shape as Configure(), no .Matching() step.
 internal static class IPlayerRepository_h1_DoubleVerification
 {
     public static global::Compono.CallVerifier GetPlayerByCognitoSubAsync(
         this global::IPlayerRepository_h1_DoubleVerifier self,
-        global::Compono.Arg<string> cognitoSub, global::Compono.Arg<string> gameName, global::Compono.Arg<CancellationToken> ct)
+        global::Compono.Match<string> cognitoSub, global::Compono.Match<string> gameName, global::Compono.Match<CancellationToken> ct)
     {
         int count;
         lock (self.Instance.__getPlayerByCognitoSub_lock)
@@ -380,7 +380,7 @@ internal static class IPlayerRepository_h1_DoubleVerification
     }
 }
 
-// repo.Verify().GetPlayerByCognitoSubAsync(Arg.Is<string>(s => s == cognitoSub), Arg.Any<string>(), Arg.Any<CancellationToken>()).Once();
+// repo.Verify().GetPlayerByCognitoSubAsync(Match.Is<string>(s => s == cognitoSub), Match.Any<string>(), Match.Any<CancellationToken>()).Once();
 ```
 
 (No `InOrder` sample — out of scope, zero evidence.)
@@ -388,10 +388,10 @@ internal static class IPlayerRepository_h1_DoubleVerification
 ### Allocation and concurrency model
 
 - **Configuration-time:** a literal argument (the common case) allocates no
-  closure at all — `Arg<T>`'s internal `Kind.Equality` representation
+  closure at all — `Match<T>`'s internal `Kind.Equality` representation
   stores the value directly, compared via `EqualityComparer<T>.Default`
-  inside `Matches`. `Arg.Any<T>()` allocates nothing beyond the struct
-  itself. Only `Arg.Is<T>(predicate)` allocates a delegate — the caller's
+  inside `Matches`. `Match.Any<T>()` allocates nothing beyond the struct
+  itself. Only `Match.Is<T>(predicate)` allocates a delegate — the caller's
   own lambda, not something this design adds on top of it.
 - **Invocation-time:** one call-log entry appended per call, only for
   members eligible for argument-aware behavior.
@@ -429,7 +429,7 @@ internal static class IPlayerRepository_h1_DoubleVerification
 
 ## Pros and Cons of the Options
 
-### `Arg<T>` scoped to non-overloaded members (chosen)
+### `Match<T>` scoped to non-overloaded members (chosen)
 
 - Good, because it's the only design a real compiler spike showed
   compiles reliably.
@@ -438,7 +438,7 @@ internal static class IPlayerRepository_h1_DoubleVerification
 - Bad, because a future overloaded-member argument-matching need would
   require its own design pass.
 
-### `Arg<T>` on every parameter, including overloaded members (original draft)
+### `Match<T>` on every parameter, including overloaded members (original draft)
 
 - Good, because it would have been one uniform mechanism with no scope
   boundary.

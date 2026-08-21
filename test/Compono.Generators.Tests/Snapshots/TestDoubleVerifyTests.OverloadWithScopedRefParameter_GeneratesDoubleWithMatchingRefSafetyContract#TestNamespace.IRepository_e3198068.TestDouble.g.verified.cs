@@ -6,7 +6,7 @@
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Seek;
-    internal global::Compono.Arg<int>? __Seek_m_value;
+    internal global::Compono.Match<int>? __Seek_m_value;
     internal readonly global::System.Collections.Generic.List<int> __Seek_calls = [];
     internal readonly object __Seek_lock = new();
 
@@ -26,7 +26,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<int> value)
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Match<int> value)
     {
         self.__Seek_m_value = value;
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Seek);
@@ -63,7 +63,7 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<int> value)
+    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Match<int> value)
     {
         int __count;
         lock (self.Instance.__Seek_lock)

@@ -732,7 +732,7 @@ internal static class TestDoubleAnalyzer
 
                         // ADR-0048: argument-aware Configure()/Verify() is scoped to a member with at
                         // least one real parameter, not part of an overload set (a real compiler spike
-                        // proved wrapping every overload's parameters in Arg<T> breaks C# overload
+                        // proved wrapping every overload's parameters in Match<T> breaks C# overload
                         // resolution unpredictably), and - for a generic method - no real parameter
                         // referencing the method's own open type parameter (a per-member call log can't
                         // hold an open type parameter's value; reuses the same symbol-graph walk

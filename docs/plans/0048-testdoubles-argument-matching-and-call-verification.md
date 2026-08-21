@@ -1,6 +1,6 @@
 # [PLAN-0048] Compono.TestDoubles: Argument Matching and Argument-Aware Call Verification
 
-**Status:** In Progress - blocked on a real naming collision, see Notes
+**Status:** Done
 
 **Implements:** [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)
 
@@ -8,8 +8,8 @@
 
 A `Compono.TestDoubles`-generated double supports argument-matched
 response configuration and argument-filtered call verification via a
-unified `Compono.Arg<T>` surface (literal equality, `Arg.Any<T>()`,
-`Arg.Is<T>(predicate)`), for every member that is **both** non-overloaded
+unified `Compono.Match<T>` surface (literal equality, `Match.Any<T>()`,
+`Match.Is<T>(predicate)`), for every member that is **both** non-overloaded
 **and** has no real parameter referencing the member's own open generic
 type parameter — closing the two capabilities `ncipollina/trivia-manager`
 Stage 3 evidence actually supports. **No existing v1/v2 `Configure()`/
@@ -27,12 +27,12 @@ from this repo.
 
 ## Scope
 
-Exactly ADR-0048's Decision Outcome: `Compono.Arg<T>` (with the implicit
-`T -> Arg<T>` equality-matcher conversion), per-parameter matcher fields
+Exactly ADR-0048's Decision Outcome: `Compono.Match<T>` (with the implicit
+`T -> Match<T>` equality-matcher conversion), per-parameter matcher fields
 and a call log generated on the double class alongside the existing
 `ReturnConfig<T>` field (not inside it), and an eligible member's
 `Verify()` extension folding argument-filtering directly into the same
-`Arg<T>`-per-parameter shape as `Configure()` (no `.Matching()` step).
+`Match<T>`-per-parameter shape as `Configure()` (no `.Matching()` step).
 Eligibility is exactly two conditions, both required: the member is not
 part of a multi-overload set, and no real parameter references the
 member's own open method-type-parameter. An ineligible member (either
@@ -50,7 +50,7 @@ recursive auto-configuration.
 
 The matcher surface, per-member field generation, call recording, and
 filtered verification are one coherent generated-code change — the same
-generator pass emits the `Arg<T>`-typed `Configure()`/`Verify()`
+generator pass emits the `Match<T>`-typed `Configure()`/`Verify()`
 signatures, the matcher fields, and the call log together for a given
 eligible member, and none of the four is independently useful without the
 others. The trivia-manager re-dogfood (its own section below) is a
@@ -61,12 +61,12 @@ build — not a second PR here.
 
 Grouped by concern, checked off as work proceeds.
 
-### 1. `Compono.Arg<T>` (core `Compono`)
+### 1. `Compono.Match<T>` (core `Compono`)
 
-- [x] `Arg.Any<T>()`, `Arg.Is<T>(Func<T, bool>)`, implicit `T -> Arg<T>`
+- [x] `Match.Any<T>()`, `Match.Is<T>(Func<T, bool>)`, implicit `T -> Match<T>`
       conversion (equality matcher), and exactly one **public** operation
       for generated code to call: `public bool Matches(T value)`. No
-      public delegate/`Predicate` accessor — `Arg<T>`'s internal
+      public delegate/`Predicate` accessor — `Match<T>`'s internal
       representation stays free to change without being a breaking change
       to generated output's dependency on it (the same
       cross-assembly-accessibility fix ADR-0044 Amendment 3 already made
@@ -75,15 +75,14 @@ Grouped by concern, checked off as work proceeds.
 - [x] Internal three-case representation (`Equality`/`Any`/`Predicate`) so
       a literal argument allocates no closure — stores the value directly,
       compared via `EqualityComparer<T>.Default` inside `Matches`; only
-      `Arg.Is<T>(predicate)` allocates (the caller's own lambda).
+      `Match.Is<T>(predicate)` allocates (the caller's own lambda).
 - [x] Unit tests: construction of all three kinds, the implicit conversion,
       `Matches` evaluation in isolation (no generator involvement yet) -
-      `test/Compono.Tests/ArgTests.cs`.
-- [ ] A literal-built `Arg<T>` really doesn't allocate a delegate (a simple
-      before/after allocation assertion, not a benchmark) - not written;
-      the `Kind.Equality` code path visibly stores the value directly with
-      no delegate involved, but this wasn't independently verified with an
-      allocation assertion.
+      `test/Compono.Tests/MatchTests.cs`.
+- [x] A literal-built `Match<T>` really doesn't allocate a delegate -
+      `MatchTests.cs`'s `Literal_StoresNoPredicateDelegate`/
+      `Any_StoresNoPredicateDelegate` reflect into the private `_predicate`
+      field and assert it's null (a simple assertion, not a benchmark).
 
 ### 2. Eligibility analysis (generator)
 
@@ -110,12 +109,12 @@ Grouped by concern, checked off as work proceeds.
 
 - [x] The existing `ReturnConfig<T>` field, unchanged — no new members
       added to `ReturnConfig<T>` itself.
-- [x] One `Arg<TParam>?` field per real parameter (the `System.Nullable`
-      wrapper around the whole `Arg<TParam>` value, not an extracted
+- [x] One `Match<TParam>?` field per real parameter (the `System.Nullable`
+      wrapper around the whole `Match<TParam>` value, not an extracted
       delegate), generated on the double class alongside the
       `ReturnConfig<T>` field. `null` means "no matcher configured for
       this parameter" (dispatch treats it as always-matching); `HasValue`
-      with an `Arg<TParam>` built by `Arg.Any<TParam>()` is a distinct,
+      with an `Match<TParam>` built by `Match.Any<TParam>()` is a distinct,
       deliberately-configured state that happens to produce the same
       dispatch result — the two are never conflated in storage, only in
       their dispatch-time effect.
@@ -124,10 +123,10 @@ Grouped by concern, checked off as work proceeds.
 
 ### 4. `Configure()` for an eligible member
 
-- [x] Generated extension signature: one `Arg<TParam>` parameter per real
+- [x] Generated extension signature: one `Match<TParam>` parameter per real
       parameter (not the real type directly).
-- [x] Body: store each `Arg<TParam>` argument directly into its
-      corresponding `Arg<TParam>?` field (no unwrapping — `Arg<T>` has no
+- [x] Body: store each `Match<TParam>` argument directly into its
+      corresponding `Match<TParam>?` field (no unwrapping — `Match<T>` has no
       public delegate accessor to unwrap), return the existing
       `ReturnConfigBuilder<T>` unchanged.
 - [x] Test: a second `Configure()` call on the same member overwrites the
@@ -150,10 +149,10 @@ Grouped by concern, checked off as work proceeds.
 
 ### 6. `Verify()` for an eligible member
 
-- [x] Generated extension signature: same `Arg<TParam>`-per-parameter
+- [x] Generated extension signature: same `Match<TParam>`-per-parameter
       shape as `Configure()`, calling `.Matches(...)` against each logged
       call's recorded arguments (never a delegate extracted from the
-      `Arg<TParam>` argument — same accessibility constraint as task 4).
+      `Match<TParam>` argument — same accessibility constraint as task 4).
 - [x] Body: snapshot-and-count under the call log's lock (same lock task 3
       created, not a second one), constructing the existing, unchanged
       `CallVerifier(filteredCount, description)`.
@@ -173,26 +172,25 @@ Grouped by concern, checked off as work proceeds.
 
 ### 8. AOT smoke test
 
-- [ ] Extend `test/Compono.TestDoubles.AotSmokeTest` (the existing
-      pattern, not a new one) with interfaces covering: an eligible
-      ordinary matched-configuration member; a member mixing a literal,
-      `Arg.Any<T>()`, and `Arg.Is<T>(predicate)` in one call; an
-      overloaded member (proving its generated shape and behavior are
-      unaffected under Native AOT, matching task 2's snapshot proof);
-      argument-filtered `Verify()`; and a generic-scoped-out member
-      (`ILoggerLike`-shaped, already in that project) confirmed still
-      eligible-excluded under AOT too.
-- [ ] No new benchmark — ADR-0048 explicitly declines one absent evidence
-      of an actual performance risk; add one later only if implementation
-      surfaces real evidence of a problem.
+- [x] Extended `test/Compono.TestDoubles.AotSmokeTest` with
+      `IAccountRepository.Withdraw` (mixed literal/`Match.Any<T>()`/
+      `Match.Is<T>(predicate)` `Configure()`, argument-filtered `Verify()`);
+      the existing `IGateway` (overloaded) and `ILoggerLike`
+      (generic-scoped-out) interfaces already in that project continue to
+      exercise the eligibility boundary itself, unaffected. Real
+      `dotnet publish -c Release -f net10.0 -p:PublishAot=true` + running
+      the published binary - exit 0, `PASS: ... Withdraw matching=True.`
+- [x] No new benchmark added — ADR-0048 explicitly declines one absent
+      evidence of an actual performance risk; none surfaced during
+      implementation.
 
 ### 9. Documentation
 
-- [ ] `docs/packages/compono-testdoubles.md` (or equivalent): document
-      `Arg<T>`, the eligibility rule (non-overloaded, no open-generic
-      parameter reference), and the matcher/verification surface. No
-      migration note needed — there is no behavior change for any
-      existing call site.
+- [x] `docs/packages/compono-testdoubles.md` updated: new "Argument
+      matching and argument-filtered verification" section (`Match<T>`,
+      the eligibility rule, why `Match` not `Arg`), corrected "Still
+      deliberately minimal" and "What it deliberately doesn't do" sections
+      to stop claiming zero argument-aware recording exists at all.
 
 ## Trivia-manager re-dogfood (separate repo, separate PR, after this ships)
 
@@ -211,9 +209,10 @@ Grouped by concern, checked off as work proceeds.
 
 ## Critical Files
 
-- `src/Compono/Arg.cs` (new) — `Arg<T>`, `Arg.Any<T>()`/`Arg.Is<T>(predicate)`,
+- `src/Compono/Match.cs` (new) — `Match<T>`, `Match.Any<T>()`/`Match.Is<T>(predicate)`,
   the implicit conversion, the public `Matches(T)` operation (no public
-  delegate accessor).
+  delegate accessor). Named `Match` specifically to avoid colliding with
+  `NSubstitute.Arg` (Finding 2 below).
 - `src/Compono/ReturnConfig.cs` — unchanged; referenced only to confirm it
   stays that way (task 3).
 - `src/Compono/CallVerifier.cs` — unchanged; referenced only to confirm it
@@ -241,22 +240,22 @@ this PR ships a real package build, in the other repo.
 
 _Recorded as work proceeds. History: this plan's first draft proposed four
 separate PRs; collapsed to one after review. Its second draft assumed
-`Arg<T>` could wrap every parameter including overloaded members and
+`Match<T>` could wrap every parameter including overloaded members and
 described this as an intentional pre-1.0 break; a real compiler spike
 (ADR-0048's Decision Outcome) proved that design doesn't reliably compile,
 and the corrected scope (non-overloaded members only) eliminated the break
 entirely rather than requiring one — recorded here since it changed this
 plan's Goal/Scope substantially before any task was checked off. Third
 correction: the first two drafts had generated code reading an `internal
-Predicate` accessor on `Arg<T>` from the consumer assembly, which can't
+Predicate` accessor on `Match<T>` from the consumer assembly, which can't
 work cross-assembly (the same defect class ADR-0044 Amendment 3 already
 fixed for `ReturnConfig<T>`) — corrected before implementation started to
-`Arg<T>` exposing a public `Matches(T)` operation and generated fields
-storing `Arg<TParam>?` directly rather than an extracted delegate._
+`Match<T>` exposing a public `Matches(T)` operation and generated fields
+storing `Match<TParam>?` directly rather than an extracted delegate._
 
 ### Implementation pass (2026-08-21) - two real findings, one fixed, one blocking
 
-Tasks 1-7 implemented and verified: `Arg<T>`/`Arg` in `src/Compono/Arg.cs`;
+Tasks 1-7 implemented and verified: `Match<T>`/`Match` in `src/Compono/Arg.cs`;
 eligibility analysis in `TestDoubleAnalyzer.cs` (`IsEligibleForMatching`,
 reusing the existing `TypeReferencesOwnTypeParameter` walk against
 parameters); per-eligible-member fields/`Configure()`/dispatch/`Verify()`
@@ -278,7 +277,7 @@ existing call site, `Compono.TestDoubles.SampleTests/VerificationTests.cs`'s
 `repository.Verify().Save().Once()` against `IRepository.Save(int amount)`,
 broke immediately (`CS1501: No overload for method 'Save' takes 0
 arguments`). Fixed with a purely additive compatibility overload: every
-eligible member now generates BOTH the new `Arg<TParam>`-per-parameter
+eligible member now generates BOTH the new `Match<TParam>`-per-parameter
 signature AND the original zero-argument one (leaving every matcher `null`,
 which dispatch already treats as always-matching - reusing, not
 duplicating, the existing semantics). Verified: the two now-failing
@@ -302,13 +301,15 @@ bug, just broader than ADR-0048's prose anticipated. 7 `Compono.Generators.Tests
 snapshots updated accordingly (`Seek`, `TryGet`, `FindNameAsync`, etc.) -
 all legitimate, reviewed individually before approving.
 
-**Finding 2 - NOT fixed, blocking.** `Compono.Arg`/`Compono.Arg.Any<T>()`/
-`Compono.Arg.Is<T>()` collide by name with `NSubstitute.Arg`/`Arg.Any<T>()`/
-`Arg.Is<T>()`. Confirmed with a real failing build, not assumed: building
-the full solution (`Compono.slnx`), `samples/Compono.Samples.AspNetApi.Tests`
-fails - `OrderServiceTests.cs`'s `repository.SaveAsync(Arg.Any<Order>(),
+**Finding 2 - NOT fixed at the time, blocking; resolved below.** As originally
+implemented, this plan's new type was named `Compono.Arg`/`Compono.Arg.Any<T>()`/
+`Compono.Arg.Is<T>()` - colliding by name with real `NSubstitute.Arg`/
+`NSubstitute.Arg.Any<T>()`/`NSubstitute.Arg.Is<T>()`. Confirmed with a real
+failing build, not assumed: building the full solution (`Compono.slnx`),
+`samples/Compono.Samples.AspNetApi.Tests` failed -
+`OrderServiceTests.cs`'s `repository.SaveAsync(Arg.Any<Order>(),
 Arg.Any<CancellationToken>())` (real `NSubstitute` usage, unrelated to this
-plan) now resolves `Arg.Any<Order>()` to `Compono.Arg.Any<Order>()`
+plan) resolved unqualified `Arg.Any<Order>()` to the new `Compono.Arg.Any<Order>()`
 (returning `Compono.Arg<Order>`) instead of `NSubstitute.Arg.Any<Order>()`
 (returning `Order`), because this file's own namespace,
 `Compono.Samples.AspNetApi.Tests`, nests under `Compono` - C#'s enclosing-
@@ -319,19 +320,83 @@ narrow edge case: any consumer project whose own namespace starts with
 `Compono.` (this repo's own samples/convention) or that has `using
 Compono;` for ordinary composition features while also using NSubstitute
 directly (`Compono.NSubstitute`'s entire purpose is exactly this
-combination) hits this. Not fixed here because the right fix is a real
-design choice - among others, rename `Compono.Arg`/`Arg.Any`/`Arg.Is` to
-something collision-safe, move it to a different namespace (inconsistent
-with `ReturnConfig<T>`/`CallVerifier`'s existing bare-`Compono`-namespace
-precedent), or accept it as documented friction requiring a
-fully-qualified `Compono.Arg.Is<T>(...)` at any call site that also uses
-NSubstitute's `Arg` in the same file - each has real tradeoffs ADR-0048
-never weighed. **This blocks calling PLAN-0048 `Done`** - `samples/Compono.Samples.AspNetApi.Tests`
-is left failing to build on this branch, deliberately not patched around,
-so the failure stays visible rather than hidden by an untested rename.
-Needs its own design pass (a dated Amendment to ADR-0048, or a follow-up
-ADR if the fix is substantial enough) before this plan can close.
+combination) hits this.
 
-Tasks 8 (AOT smoke test) and 9 (docs) not started - stopped here to report
-Finding 2 rather than build further on top of an API surface that may
-still change shape.
+**Resolved:** product owner decision, rename Compono's new type from
+`Arg`/`Arg<T>` to `Match`/`Match<T>` throughout (`Match.Any<T>()`,
+`Match.Is<T>(predicate)`, `Match<TParam>?` storage) - same semantics, name
+only, chosen specifically because it doesn't collide with any real
+NSubstitute symbol and because "matching" is the actual Compono concept
+being named (`Arg` is primarily NSubstitute's own vocabulary, and is
+exactly what caused the collision). ADR-0048 and this plan were updated to
+the `Match` naming before this rename was implemented in code (see the
+next dated entry below for what that implementation covered, including the
+explicit coexistence regression test proving `NSubstitute.Arg` and
+`Compono.Match` compile and behave correctly side by side in a
+`Compono`-nested namespace with no aliasing required for either).
+
+Tasks 8 (AOT smoke test) and 9 (docs) not started as of this finding -
+stopped here to report Finding 2 rather than build further on top of an
+API surface that may still change shape.
+
+### Rename and closing pass (2026-08-21)
+
+`Arg`/`Arg<T>` renamed to `Match`/`Match<T>` throughout: `src/Compono/Arg.cs`
+→ `src/Compono/Match.cs`; `TestDoubleAnalyzer.cs`'s comment,
+`TestDoubleMemberInfo.cs`'s doc comment, and `TestDouble.scriban`'s three
+`global::Compono.Arg<` emission sites updated to `Match<`; `ArgTests.cs` →
+`MatchTests.cs` (plus two new tests, `Literal_StoresNoPredicateDelegate`/
+`Any_StoresNoPredicateDelegate`, closing Task 1's last item via reflection
+against the private `_predicate` field rather than a benchmark);
+`ArgumentMatchingTests.cs` → `MatchingTests.cs`; 7
+`Compono.Generators.Tests` snapshot `.verified.cs` files updated
+(`global::Compono.Arg<` → `global::Compono.Match<`). Full solution build
+clean; full regression re-run after the rename: `Compono.Tests` 256/256,
+`Compono.Generators.Tests` 181/181, `Compono.TestDoubles.Tests` 6/6,
+`Compono.TestDoubles.SampleTests` 32/32, `Compono.TUnit.SampleTests` 7/7,
+`Compono.XunitV3.SampleTests` 10/12 (the 2 "failures" are
+`FailingCompositionTests`/`FailingConfigProfileTests` - deliberately,
+permanently failing fixtures consumed by `Compono.XunitV3.Tests`'
+`RealRunnerTests`, unrelated to this plan; verified against their own
+source comments, not assumed).
+
+**`samples/Compono.Samples.AspNetApi.Tests` - the project that surfaced
+Finding 2 - now builds and passes clean (6/6)**, including a new
+`CoexistenceTests.cs`: real, unqualified `NSubstitute.Arg.Any<Order>()`
+(via the project's existing `using NSubstitute;`) alongside a
+`Compono.TestDoubles`-generated double's `Match.Any<T>()`/`Match.Is<T>()`,
+in the same test method, same file, whose namespace nests under `Compono`
+- no alias, no qualification, for either. Adding `Compono.TestDoubles` to
+this project (a `ProjectReference`, matching its existing pattern for
+`Compono`/`Compono.NSubstitute`/`Compono.Bogus`) surfaced one more real,
+narrow issue along the way: `ComponoGeneratedTestDoubles`'s
+`CompilerVisibleProperty` declaration only ships in `Compono`'s *packaged*
+`build/Compono.props` (ADR-0043 Amendment 4 Finding F) - a `ProjectReference`
+consumer bypasses packaged build assets entirely and never sees it, so no
+double ever generated until this project declared the same
+`CompilerVisibleProperty` itself. Not a new defect PLAN-0048 introduced -
+`benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj` already carries
+the identical fix for the identical situation; this project's `.csproj`
+now has the same `ItemGroup`, with a comment pointing at that precedent.
+
+AOT smoke test (Task 8): `test/Compono.TestDoubles.AotSmokeTest` extended
+with `IAccountRepository.Withdraw` (mixed literal/`Match.Any<T>()`/
+`Match.Is<T>(predicate)` `Configure()`, argument-filtered `Verify()`); the
+project's existing `IGateway` (overloaded)/`ILoggerLike`
+(generic-scoped-out) interfaces continue to prove the eligibility boundary
+itself is unaffected. Real `dotnet publish -c Release -f net10.0
+-p:PublishAot=true` (via `pack-compono.sh` + this project's local NuGet
+feed, its existing pattern) then running the published native binary
+directly - exit 0, `PASS: ... Withdraw matching=True.`
+
+Docs (Task 9): `docs/packages/compono-testdoubles.md` gained a new
+"Argument matching and argument-filtered verification" section (`Match<T>`,
+the eligibility rule, why `Match` not `Arg`), and its "Still deliberately
+minimal"/"What it deliberately doesn't do" sections were corrected - they
+previously claimed zero argument-aware call recording exists at all, which
+is no longer true for an eligible member.
+
+All tasks checked off; every ADR-0048-scoped test suite green; the
+blocking finding resolved with a real regression test, not just a rename.
+Trivia-manager re-dogfood remains explicitly out of this plan's scope (its
+own section above) - the next step, in that other repo, whenever picked up.
