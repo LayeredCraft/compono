@@ -780,3 +780,42 @@ just an in-repo `ProjectReference`.
     and package guide - generated agent guidance sourced from this file
     alone could omit the caller's disposal responsibility. Added the same
     ownership rule already documented elsewhere.
+
+## Sixteenth PR review round (Codex, #105) findings
+
+32. **P2 — ADR-0039's own text, read in isolation, still reads as
+    rejecting the package that ships under this name.** ADR-0039's Gate A
+    disposition for `Compono.DependencyInjection` evaluated a specific,
+    richer idea (keyed-service resolution, DI-scope ownership) and said it
+    doesn't clear Gate A - correctly, and that disposition is unchanged.
+    `future-packages.md` already carried a reconciling note explaining
+    that a narrower, different design shipped under the same name via
+    ADR-0047, but ADR-0039 itself - the authoritative admission decision -
+    never did. A reader of ADR-0039 alone would reasonably conclude the
+    name was rejected outright. Added ADR-0039 Amendment 1 recording the
+    reconciliation: the original "no" is about the richer MS.DI-
+    integration idea specifically, not the name; ADR-0047 is a separate,
+    later, independently-gated acceptance for a different design that
+    happens to share it. Both ADRs stand without conflict once read this
+    way.
+33. **P2 — the package guide and skill reference advertised stable
+    per-`Type` identity without the concurrent-determinism caveat the XML
+    docs and ADR-0047 Amendment 5 already carry.** A reader of either
+    consumer-facing doc alone could reasonably infer Compono's normal
+    fixed-seed reproducibility guarantee applies unconditionally here,
+    which it doesn't for concurrent first-time resolution of different
+    types. Added the same caveat to `docs/packages/compono-dependencyinjection.md`
+    and `skills/compono/references/dependencyinjection.md`.
+34. **P2 — the non-cyclic nested-slow-caller test (finding 26) had a
+    scheduling race that could let it pass without exercising the wait it
+    was written to prove.** If the thread pool ran the nested cross-row
+    call before the slow caller's factory had actually acquired Row B's
+    lock, the nested call would hit a quick miss instead of genuinely
+    contending, and the test would still pass on the strength of the
+    unrelated 12-second wait alone - meaning a real regression in the
+    "wait out a slow caller" behavior could return undetected. Fixed by
+    signaling from inside the slow factory (only once Row B's lock is
+    genuinely held) and having the nested caller wait for that signal
+    before starting. Verified the fix still consistently takes ~12s (not
+    near-instant), confirming it now genuinely exercises the contended
+    wait every run.

@@ -57,6 +57,18 @@ apiClient.Configure().GetQuestions().Returns(questions);   // Compono.TestDouble
   service that depends on it) observe that exact instance. A miss is
   **not** cached — a type unsatisfiable on one call can still be satisfied
   later if the row's own configuration changes.
+- **Concurrent `GetService` calls are safe, but not fixed-seed
+  deterministic between different types** — calls through the same
+  provider never race or corrupt shared state, and two same-type callers
+  never observe different instances. What isn't guaranteed: when two
+  *different* types are requested concurrently for the first time, which
+  one's underlying resolution runs first is scheduling-dependent, not
+  fixed. For a randomness-dependent factory or provider (one that calls
+  `ctx.DeriveSeed()` or performs nested composition), this means the
+  derived value for a given type can differ across runs on the same fixed
+  seed, specifically when two or more types are resolved concurrently for
+  the first time. Sequential resolution — the common case — is
+  unaffected. See ADR-0047 Amendment 5.
 - **Provider-neutral** — works identically whether the underlying value
   came from `Compono.TestDoubles`, `Compono.NSubstitute`, an exact
   registration, or a configuration rule. Nothing in this package inspects

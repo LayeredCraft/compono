@@ -311,8 +311,15 @@ public sealed class ComposedRowServiceProviderTests
         // resolution never calls back into Row A), just ordinary nested contention. The cycle-detecting
         // fix must not refuse this - it should block exactly as long as the slow caller takes, then
         // succeed.
+        // Signals only once the SlowMarker factory is actually running - i.e. once Row B's lock is
+        // genuinely held - so the nested caller below can't win a scheduling race and slip through
+        // before Row B is contended at all (which would let the test pass without ever exercising the
+        // wait it's meant to prove).
+        var slowCallerHasAcquiredRowB = new ManualResetEventSlim();
+
         var composerB = Composer.Create(builder => builder.Register<SlowMarker>(() =>
         {
+            slowCallerHasAcquiredRowB.Set();
             Thread.Sleep(TimeSpan.FromSeconds(12));
             return new SlowMarker();
         }));
@@ -332,8 +339,10 @@ public sealed class ComposedRowServiceProviderTests
 
         // Occupies Row B's lock for 12s with unrelated work that never touches Row A.
         var slowUnrelatedCaller = Task.Run(() => providerB.GetService(typeof(SlowMarker)));
+        slowCallerHasAcquiredRowB.Wait();
         // A nested cross-row call (via Row A's own factory) into the SAME Row B, contending with the
-        // call above but not cycling back to it.
+        // call above but not cycling back to it. Guaranteed by the wait above to actually contend -
+        // Row B's lock is genuinely held by the time this starts.
         var nestedCrossRowCaller = Task.Run(() => providerA.GetService(typeof(TypeX)));
 
         var completed = Task.WaitAll([slowUnrelatedCaller, nestedCrossRowCaller], TimeSpan.FromSeconds(20));

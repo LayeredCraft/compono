@@ -47,6 +47,15 @@ apiClient.Configure().GetQuestions().Returns(questions);   // Compono.TestDouble
   service) observe that exact instance. A miss is **not** cached — a type
   unsatisfiable on one call can still be satisfied by a later one if the
   row's own configuration changes in between.
+- **Concurrent calls are safe but not fixed-seed deterministic across
+  different types** — no races or corruption, and two same-type callers
+  never see different instances. But when two DIFFERENT types are
+  requested concurrently for the first time, which one's resolution runs
+  first isn't fixed — a randomness-dependent factory/provider (one
+  calling `ctx.DeriveSeed()` or doing nested composition) can derive a
+  different value across runs on the same seed in that specific
+  situation. Sequential resolution is unaffected. Never claim full
+  fixed-seed reproducibility here without this caveat.
 - **Not** a general-purpose DI container: no `services.AddCompono()`, no
   `Composer`/`IComposer` registration into an application's own DI
   container, no `IServiceScope`/`IServiceScopeFactory` integration, no
