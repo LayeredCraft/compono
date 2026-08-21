@@ -24,6 +24,15 @@ internal sealed class ComponoServiceProvider : IServiceProvider
     private readonly CompositionRow _row;
     private readonly Dictionary<Type, object?> _cache = [];
 
+    // Plain object, not System.Threading.Lock (coding-standards.md's usual preference) - this package
+    // multi-targets net8.0, where System.Threading.Lock doesn't exist yet (.NET 9+ only). Serializes
+    // the whole cache-check/resolve/cache-write section below: CompositionContext's own _path/_random/
+    // trace state (reached via _row.TryResolveConfigured) is unsynchronized mutable state, not just
+    // this adapter's Dictionary - two concurrent GetService calls racing into it could corrupt that
+    // shared bookkeeping or hand two same-type callers different instances despite the documented
+    // stable-identity guarantee, not just throw the ordinary "Dictionary isn't thread-safe" exception.
+    private readonly object _lock = new();
+
     internal ComponoServiceProvider(CompositionRow row)
     {
         _row = row;
@@ -31,17 +40,20 @@ internal sealed class ComponoServiceProvider : IServiceProvider
 
     public object? GetService(Type serviceType)
     {
-        if (_cache.TryGetValue(serviceType, out var cached))
+        lock (_lock)
         {
-            return cached;
-        }
+            if (_cache.TryGetValue(serviceType, out var cached))
+            {
+                return cached;
+            }
 
-        if (!_row.TryResolveConfigured(serviceType, out var value))
-        {
-            return null;
-        }
+            if (!_row.TryResolveConfigured(serviceType, out var value))
+            {
+                return null;
+            }
 
-        _cache[serviceType] = value;
-        return value;
+            _cache[serviceType] = value;
+            return value;
+        }
     }
 }

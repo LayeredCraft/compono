@@ -100,11 +100,17 @@ public sealed class CompositionRow : ICompositionContext
     /// <see langword="false"/> if no such stage could handle it.
     /// </returns>
     /// <exception cref="CompositionException">
-    /// A reachable stage was applicable but produced an invalid or failing result (e.g. a registration
-    /// factory or provider threw, or produced a value of the wrong runtime type). This method
-    /// distinguishes "nothing could handle this" (a <see langword="false"/> return) from "something
-    /// tried and failed" (a thrown, diagnosed exception) - it never collapses the latter into the
-    /// former.
+    /// An exact registration factory threw, or the scope/registration/provider result was invalid
+    /// (null for a nullable-only-blind request, or the wrong runtime type). This method distinguishes
+    /// "nothing could handle this" (a <see langword="false"/> return) from "something tried and failed"
+    /// (a thrown exception) - it never collapses the latter into the former.
+    /// </exception>
+    /// <exception cref="Exception">
+    /// A stage 4-6 <see cref="ICompositionValueProvider"/> threw - its own original exception type
+    /// propagates uncaught, exactly like <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>'s
+    /// existing provider-failure contract (a public provider's thrown exception is never wrapped in a
+    /// <see cref="CompositionException"/>, per <c>docs/adr/0024-public-provider-extensibility-model.md</c>'s
+    /// Provider Failure Semantics) - only an exact registration factory's failure gets wrapped.
     /// </exception>
     public bool TryResolveConfigured(Type type, out object? value)
     {

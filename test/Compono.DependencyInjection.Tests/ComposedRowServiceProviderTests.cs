@@ -50,6 +50,28 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
+    public void GetService_ReturnsTheSameInstance_UnderConcurrentFirstCalls()
+    {
+        // Regression for a Codex PR review finding: two initial GetService calls for the same type,
+        // both missing the adapter's cache at the same time, used to be able to race into the same
+        // mutable CompositionRow/CompositionContext simultaneously - corrupting its shared path/random/
+        // trace bookkeeping and potentially handing same-type callers different instances despite the
+        // documented stable-identity guarantee. A short delay inside the provider widens the race
+        // window so concurrent callers are actually likely to overlap inside GetService, not just
+        // happen to interleave outside its lock.
+        var provider2 = new DelayedInstanceProvider();
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(provider2));
+        var row = composer.CreateRow(typeof(ComposedRowServiceProviderTests));
+        var provider = row.AsServiceProvider();
+
+        var results = new object?[16];
+        Parallel.For(0, results.Length, i => results[i] = provider.GetService(typeof(DelayedMarker)));
+
+        results.Should().OnlyContain(r => r != null);
+        results.Should().OnlyContain(r => ReferenceEquals(r, results[0]));
+    }
+
+    [Fact]
     public void GetService_DoesNotCacheAMiss_AndRetriesOnALaterCall()
     {
         var provider2 = new SwitchableProvider();
@@ -139,6 +161,20 @@ public sealed class ComposedRowServiceProviderTests
     {
         public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
             request.RequestedType == typeof(FreshMarker) ? CompositionProviderResult.Handled(new FreshMarker()) : CompositionProviderResult.NotHandled;
+    }
+
+    private sealed record DelayedMarker;
+
+    private sealed class DelayedInstanceProvider : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
+        {
+            if (request.RequestedType != typeof(DelayedMarker))
+                return CompositionProviderResult.NotHandled;
+
+            Thread.Sleep(20);
+            return CompositionProviderResult.Handled(new DelayedMarker());
+        }
     }
 
     private sealed record SwitchableMarker;

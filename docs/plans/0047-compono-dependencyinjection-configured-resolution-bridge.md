@@ -326,12 +326,44 @@ Verification performed: `dotnet build` on the full solution (zero
 warnings, `CS1591` doc-comment gate included), the full existing
 `test/Compono.Tests` suite (242/242) plus 10 new
 `CompositionRowTryResolveConfiguredTests`, the new
-`Compono.DependencyInjection.Tests` (8/8), and every other existing test
-project in the solution (Bogus, Generators, NSubstitute, TUnit,
-TestDoubles, XunitV3 - all green), then a real `dotnet pack` → local feed
-→ packaged-consumer `dotnet run` proving `row.AsServiceProvider()` works
-from an actual restored NuGet package, not just an in-repo
-`ProjectReference`.
+`Compono.DependencyInjection.Tests` (8/8, later 9/9 - see below), and
+every other existing test project in the solution (Bogus, Generators,
+NSubstitute, TUnit, TestDoubles, XunitV3 - all green), then a real
+`dotnet pack` → local feed → packaged-consumer `dotnet run` proving
+`row.AsServiceProvider()` works from an actual restored NuGet package, not
+just an in-repo `ProjectReference`.
+
+3. **PR review finding (Codex, #105): `ComponoServiceProvider` had no
+   synchronization.** Two concurrent first-time `GetService` calls for the
+   same type could both miss the adapter's cache and enter the same
+   mutable `CompositionRow`/`CompositionContext` simultaneously - not just
+   an ordinary "`Dictionary` isn't thread-safe" risk, but a real risk of
+   corrupting `CompositionContext`'s own unsynchronized `_path`/`_random`/
+   trace bookkeeping, or handing two same-type callers different instances
+   despite the documented stable-identity guarantee. Fixed with a plain
+   `lock(object)` around the whole cache-check/resolve/cache-write section
+   in `GetService` - not `System.Threading.Lock`
+   (`coding-standards.md`'s usual preference), since that type doesn't
+   exist on this package's `net8.0` target. Verified the fix is load-
+   bearing, not cosmetic: temporarily reverted it and confirmed the new
+   regression test (`GetService_ReturnsTheSameInstance_UnderConcurrentFirstCalls`,
+   16 parallel first-time calls against a provider with an artificial
+   delay) failed reliably (3/3 runs) without the lock, then passed
+   reliably (5/5 runs) with it restored.
+4. **PR review finding (Codex, #105): the XML doc overstated the
+   provider-failure contract.** `TryResolveConfigured`'s doc said a
+   reachable-but-failing stage always throws a diagnosed
+   `CompositionException` - true for an exact registration factory
+   (wrapped via `InvokeFactory`), but not for a stage 4-6
+   `ICompositionValueProvider`, whose own thrown exception propagates
+   uncaught per ADR-0024's existing Provider Failure Semantics (confirmed
+   by this plan's own `TryResolveConfigured_Throws_WhenAReachableProviderThrows`
+   test, which asserts `InvalidOperationException`, not
+   `CompositionException`). Corrected both `CompositionRow.TryResolveConfigured`'s
+   and the internal `CompositionContext.TryResolveConfigured`'s XML docs to
+   distinguish the two cases explicitly - a documentation-precision fix,
+   not a behavior change (the pipeline already worked this way; only the
+   doc was wrong).
 
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction) and the `docs/roadmap/post-mvp.md`
