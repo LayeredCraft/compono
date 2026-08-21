@@ -10,8 +10,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- No PackageReference to Microsoft.Extensions.DependencyInjection.Abstractions: this
+             package's only public surface returns System.IServiceProvider - plain BCL, no third-party
+             dependency needed. A consumer wanting GetRequiredService<T>()-style ergonomics already
+             has that extension available from their own app/test host's own reference to the
+             Abstractions package (ASP.NET Core, a generic host, bUnit, etc. all already carry it). -->
         <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     </ItemGroup>
 
     <ItemGroup>

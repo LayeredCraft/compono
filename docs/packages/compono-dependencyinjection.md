@@ -24,9 +24,16 @@ dotnet add package Compono.DependencyInjection --prerelease
 ```
 
 This package is deliberately **not** framework-specific. It doesn't
-reference bUnit, ASP.NET Core, or any hosting model — it produces an
-ordinary `IServiceProvider`, and it's up to the consuming ecosystem to
-decide what to do with one.
+reference bUnit, ASP.NET Core, or any hosting model, and it has no
+third-party dependency of its own at all — `row.AsServiceProvider()`
+returns a plain `System.IServiceProvider`, BCL, nothing more. The
+`GetRequiredService<T>()` calls in the examples below are the standard
+`Microsoft.Extensions.DependencyInjection.Abstractions` extension method —
+your own app or test host almost certainly already references that
+package (ASP.NET Core, a generic host, and bUnit all carry it
+transitively); `Compono.DependencyInjection` doesn't need to reference it
+itself just to hand back an interface those extensions already work
+against.
 
 ## What it gives you
 

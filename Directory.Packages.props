@@ -30,11 +30,6 @@
          one integration-style endpoint test ADR-0033 calls for. Pinned to the current net10.0
          release line, matching this repo's own TargetFrameworks. -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
-    <!-- Compono.DependencyInjection's own dependency (ADR-0047) - the abstractions-only package
-         (no DI container implementation), pinned to the net8.0 release line since that's this repo's
-         lowest supported TargetFramework and the abstractions package is forward-compatible with
-         every newer TFM Compono.DependencyInjection also targets. -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
     <!-- Compono.XunitV3's own dependency, matching xunit.v3.mtp-v2's own resolved version - the
          Xunit.v3.DataAttribute/ITheoryDataRow extension surface, per ADR-0022. This is the
          dependency version Compono.XunitV3's own .nuspec ships to consumers - a tested-range

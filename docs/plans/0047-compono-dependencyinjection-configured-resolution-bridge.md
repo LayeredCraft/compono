@@ -1,6 +1,6 @@
 # [PLAN-0047] Compono.DependencyInjection: Configured-Resolution IServiceProvider Bridge
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** ADR-0047
 
@@ -221,18 +221,36 @@ Core primitive — `test/Compono.Tests/CompositionRowTryResolveConfiguredTests.c
 - [x] Add `Compono.DependencyInjection` to `README.md`'s package table
       (same badge-link shape as the existing rows).
 - [x] Cross-link ADR-0047 and RESEARCH-0007 from the new package guide.
-- [ ] Update `docs/roadmap/post-mvp.md`: remove the `Compono.DependencyInjection`
-      bullet from "Current state" once shipped (following the exact
-      pattern passes 2-6 already established — "this finding is no longer
-      listed here"). **Deliberately left unchecked**: every prior "no
-      longer listed here" entry in this doc was written after the shipping
-      PR actually merged (some cite a real merged PR number). This plan's
-      code isn't committed/merged yet (per explicit instruction: hold for
-      review before commit/push) - claiming "shipped" in the roadmap doc
-      now would be inaccurate. Do this edit as part of (or immediately
-      after) the merging PR, not before.
+- [x] Update `docs/roadmap/post-mvp.md`: remove the `Compono.DependencyInjection`
+      bullet from "Current state" (following the exact pattern passes 2-6
+      already established — "this finding is no longer listed here").
+      **Reversed from an earlier deferral** — PR review (Codex, #105)
+      correctly caught that deferring this edit until after merge was
+      already inconsistent with `docs/roadmap/future-packages.md`'s own
+      edits *in this same PR*, which already described the package as
+      shipped. Fixed by doing this edit now instead, treating this PR's
+      merge as the shipping event, consistently across both docs.
 
 ### Packaging verification
+
+- [x] **Added, not originally scoped: wire the new package into the CI
+      package-validation gate.** PR review (Codex, #105, P1) correctly
+      caught that `.github/workflows/package-validation.yaml` (baseline
+      lookup, pack, CS1591 enforcement loops) and
+      `.github/scripts/inspect-packed-nupkgs.sh` (file-listing/manifest/
+      dependency assertions) never enumerated `Compono.DependencyInjection`
+      at all — the pre-merge package-readiness gate silently never
+      inspected it. Added to all three `package-validation.yaml` loops and
+      `inspect-packed-nupkgs.sh`'s package loop + a new
+      `Compono.DependencyInjection)` case block (title assertion,
+      exact-pin `Compono` dependency assertion; no third-party dependency
+      assertion needed, see the dependency-removal note below). Verified
+      by running the full script against a real 7-package local pack,
+      matching CI's own job exactly - all assertions pass. Deliberately
+      did **not** add a new `Compono.DependencyInjection.SampleTests`
+      local-feed packed-consumer smoke-test project (the shape the other
+      five packages have) - out of scope for this fix, a candidate
+      follow-up if wanted.
 
 Matches this repo's established convention (PLAN-0004 Phase 3 / PLAN-0005
 Phase 2 / PLAN-0040 Phase 0's pattern) — a real `dotnet pack` → local NuGet
@@ -270,6 +288,15 @@ way it has for every prior package):
 - `docs/packages/index.md` — new row.
 - `README.md` — new package-table row.
 - `docs/roadmap/post-mvp.md` — remove the now-shipped candidate.
+- `docs/roadmap/future-packages.md` — package count, graduation note.
+- `.github/workflows/package-validation.yaml` — added `Compono.DependencyInjection`
+  to the baseline/pack/CS1591 loops.
+- `.github/scripts/inspect-packed-nupkgs.sh` — added `Compono.DependencyInjection`
+  to the package loop and its manifest-assertion case block.
+- `.github/workflows/docs.yml` — added `Compono.DependencyInjection` to the
+  pre-API-reference-generation build loop and path filters.
+- `docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md` —
+  Amendment 1 (dependency removal).
 
 ## Test Plan
 
@@ -365,7 +392,47 @@ just an in-repo `ProjectReference`.
    not a behavior change (the pipeline already worked this way; only the
    doc was wrong).
 
+## Second PR review round (Codex, #105) findings
+
+5. **P1 — the CI package-validation gate never covered
+   `Compono.DependencyInjection`.** Real gap: `package-validation.yaml`'s
+   three enumeration loops and `inspect-packed-nupkgs.sh`'s package loop
+   were never updated when the package was added, so this pre-merge gate
+   silently never packed, CS1591-checked, or content-inspected it. Fixed
+   (see Packaging verification section above); verified by running the
+   validation script against a real 7-package local pack.
+6. **P2 — `Microsoft.Extensions.DependencyInjection.Abstractions`'s bare
+   `8.0.2` floor should have been a tested range, per ADR-0031 Amendment
+   1.** Investigating the fix (attempting a per-TargetFramework conditional
+   range, one per TFM's own latest major) surfaced something bigger: the
+   package doesn't reference anything from that namespace at all -
+   `row.AsServiceProvider()` returns plain `System.IServiceProvider`
+   (BCL). **The dependency was removed entirely** rather than range-pinned
+   - see ADR-0047 Amendment 1. This also incidentally explains an anomaly
+   hit while implementing the per-TFM-range attempt: `net11.0`'s packed
+   `.nuspec` dependency group silently dropped the reference while
+   net8/9/10 kept it - moot now that there's no dependency to drop.
+   - **Implementation-process note, not a design finding**: my first
+     attempt at the per-TFM conditional `PackageVersion` syntax nested a
+     `<ItemGroup Condition="...">` directly inside the file's existing
+     unconditioned `<ItemGroup>` - invalid MSBuild (an `ItemGroup` cannot
+     contain another `ItemGroup`), which broke Central Package Management
+     resolution for the *entire* `Directory.Packages.props` file (every
+     package, not just this one - `NU1015` across unrelated projects).
+     Caught immediately by a real `dotnet pack` failing outright, fixed by
+     closing/reopening the outer `ItemGroup` around the new conditional
+     ones as siblings. Recorded here since the eventual fix (removing the
+     dependency) means this particular MSBuild lesson isn't visible
+     anywhere else in the final diff.
+7. **P2 — `docs/roadmap/post-mvp.md` still listed the package as
+   outstanding while `docs/roadmap/future-packages.md` (edited in this
+   same PR) already described it as shipped.** A real internal
+   inconsistency this PR introduced, correctly caught. My earlier
+   reasoning ("defer the roadmap edit until an actual merge, matching
+   every prior entry's pattern") turned out to not actually hold once
+   checked against what I'd already written elsewhere in this same diff -
+   fixed by doing the `post-mvp.md` edit now instead, treating this PR's
+   merge as the shipping event, consistently with `future-packages.md`.
+
 Not yet done, deliberately: committing/pushing this work (holding for
-review, per explicit instruction) and the `docs/roadmap/post-mvp.md`
-"no longer listed here" edit (deferred until the merging PR, so the doc
-never claims "shipped" before it's true).
+review, per explicit instruction).

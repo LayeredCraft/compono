@@ -460,3 +460,23 @@ A single non-generic method intended to be a drop-in equivalent of `Resolve<T>()
   dogfooding, Compono-internals verification, and the adversarial re-verification
   rounds that corrected this ADR's caching, recursion, and API-honesty claims before
   acceptance.
+
+## Amendment 1 (2026-08-21): No `Microsoft.Extensions.DependencyInjection.Abstractions` dependency
+
+Implementation (PLAN-0047) found this ADR's stated package dependency
+("depending on `Compono` and `Microsoft.Extensions.DependencyInjection.Abstractions`
+only") was wrong: `Compono.DependencyInjection`'s only public surface,
+`row.AsServiceProvider()`, returns a plain `System.IServiceProvider` — BCL,
+not a type from the Abstractions package. Nothing in the package's actual
+code references `Microsoft.Extensions.DependencyInjection` in any form. The
+`PackageReference` was removed entirely (caught during PR review, per-TFM
+dependency-range work for that reference surfaced the fact that it wasn't
+needed at all, not just misconfigured) — every packed TFM's `.nuspec`
+dependency group now lists only the exact-pinned `Compono` dependency,
+matching `Compono.TestDoubles`'s own zero-third-party-dependency shape. A
+consumer wanting `GetRequiredService<T>()`-style ergonomics against the
+returned `IServiceProvider` already has that extension available from
+their own app/test host's own reference to the Abstractions package
+(ASP.NET Core, a generic host, bUnit, etc. all already carry it) — this
+was never something `Compono.DependencyInjection` itself needed to
+provide. No other part of this ADR's Decision Outcome changes.
