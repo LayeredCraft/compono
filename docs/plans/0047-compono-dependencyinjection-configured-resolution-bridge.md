@@ -716,3 +716,26 @@ just an in-repo `ProjectReference`.
     finding 26**, only this plan's Notes did. Superseded by Amendment 6
     above, which records both finding 26 and finding 27 together since
     finding 26's fix was itself superseded before merge.
+
+## Thirteenth PR review round (Codex, #105) findings
+
+29. **P2 — the wait-for-graph cycle detector (finding 27) had a real bug:
+    `Monitor` is reentrant, but ownership tracking wasn't.** If a
+    registration on adapter A calls back into adapter A itself for a
+    different type (legitimate - not a cycle), the INNER reentrant call's
+    `finally` removed the `Owners` entry entirely, even though the OUTER
+    call still held the lock. Any other thread checking ownership during
+    that window would see "nobody owns A," so it would neither detect a
+    would-be cycle nor register its own wait in the graph - silently
+    defeating the whole mechanism for the exact case it exists to catch,
+    and letting two threads genuinely deadlock instead of one being
+    refused. Fixed by tracking reentrancy depth per adapter (a
+    `Dictionary<ComponoServiceProvider, int>`, incremented/decremented in
+    lockstep with every `Monitor.Enter`/`Exit` pair) and only clearing the
+    `Owners` entry when depth reaches zero - i.e. when the OUTERMOST call
+    actually releases the lock. Verified via revert-then-restore: a new
+    test (`GetService_StillDetectsACycle_AfterAReentrantSameRowCallReturns`,
+    the same two-row cycle as finding 25/26's test but with Row A's
+    factory making an extra reentrant same-row call before its cross-row
+    call - the exact shape this finding described) hung reliably without
+    the depth fix, and passes reliably (5/5) with it restored.

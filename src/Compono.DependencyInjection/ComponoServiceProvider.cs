@@ -55,6 +55,17 @@ internal sealed class ComponoServiceProvider : IServiceProvider
     private static readonly Dictionary<ComponoServiceProvider, Thread> Owners = [];
     private static readonly Dictionary<Thread, ComponoServiceProvider> WaitingFor = [];
 
+    // Monitor.Enter/Exit on the SAME thread is reentrant - a registration factory that calls back into
+    // its OWN row's adapter for a different type re-enters the same _lock without blocking. Without
+    // this, the inner call's `finally` would remove the Owners entry entirely while the OUTER call
+    // still holds the lock, leaving a window where this adapter's lock is genuinely held but Owners
+    // says nobody owns it - a different thread checking during that window would neither detect a
+    // would-be cycle nor register its own wait, silently defeating the cycle check for exactly the case
+    // it exists to catch. Tracked per-adapter, incremented/decremented in lockstep with every
+    // Monitor.Enter/Exit pair; Owners[this] is only cleared when depth reaches zero, i.e. when the
+    // outermost call actually releases the underlying Monitor.
+    private static readonly Dictionary<ComponoServiceProvider, int> OwnerDepth = [];
+
     internal ComponoServiceProvider(CompositionRow row)
     {
         _row = row;
@@ -114,6 +125,7 @@ internal sealed class ComponoServiceProvider : IServiceProvider
         {
             WaitingFor.Remove(thisThread);
             Owners[this] = thisThread;
+            OwnerDepth[this] = OwnerDepth.GetValueOrDefault(this) + 1;
         }
 
         try
@@ -135,7 +147,16 @@ internal sealed class ComponoServiceProvider : IServiceProvider
         {
             lock (GraphLock)
             {
-                Owners.Remove(this);
+                var depth = OwnerDepth[this] - 1;
+                if (depth <= 0)
+                {
+                    OwnerDepth.Remove(this);
+                    Owners.Remove(this);
+                }
+                else
+                {
+                    OwnerDepth[this] = depth;
+                }
             }
 
             Monitor.Exit(_lock);

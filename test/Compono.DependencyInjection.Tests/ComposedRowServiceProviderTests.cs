@@ -242,6 +242,66 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
+    public void GetService_StillDetectsACycle_AfterAReentrantSameRowCallReturns()
+    {
+        // Regression for a Codex PR review finding (P2): Monitor.Enter/Exit is reentrant on the same
+        // thread, so a factory that calls back into its OWN row's adapter for a different type
+        // (perfectly legitimate - no cycle) re-enters the same lock without blocking. The bug: releasing
+        // that INNER reentrant call used to remove the adapter's Owners entry unconditionally, even
+        // though the OUTER call still held the lock - opening a window where the lock is genuinely held
+        // but the cycle-detection graph says nobody owns it. A different thread checking during that
+        // window would neither detect a would-be cycle nor register its own wait, silently defeating the
+        // whole mechanism for exactly the case it exists to catch - and the two threads would then
+        // genuinely deadlock instead of one being refused.
+        //
+        // This wires the same two-row cycle as the test above, but with Row A's factory making an extra
+        // reentrant same-row call (to TypeZ) before its cross-row call into Row B - the exact shape the
+        // finding describes. With the bug, this hangs; with ownership tracked by reentrancy depth (not
+        // cleared until the OUTERMOST call releases the lock), it's still refused promptly.
+        var aReady = new ManualResetEventSlim();
+        var bReady = new ManualResetEventSlim();
+        CompositionRow? rowA = null;
+        CompositionRow? rowB = null;
+        IServiceProvider? providerA = null;
+        IServiceProvider? providerB = null;
+
+        var composerA = Composer.Create(builder => builder
+            .Register<TypeZ>(() => new TypeZ())
+            .Register<TypeX>(() =>
+            {
+                // Reentrant same-row call - legitimate, not a cycle, but must not clear this adapter's
+                // ownership registration for the still-in-progress outer call below.
+                providerA!.GetService(typeof(TypeZ));
+                aReady.Set();
+                bReady.Wait();
+                providerB!.GetService(typeof(TypeY));
+                return new TypeX();
+            }));
+        rowA = composerA.CreateRow(typeof(ComposedRowServiceProviderTests));
+        providerA = rowA.AsServiceProvider();
+
+        var composerB = Composer.Create(builder => builder.Register<TypeY>(() =>
+        {
+            bReady.Set();
+            aReady.Wait();
+            providerA.GetService(typeof(TypeX));
+            return new TypeY();
+        }));
+        rowB = composerB.CreateRow(typeof(ComposedRowServiceProviderTests));
+        providerB = rowB.AsServiceProvider();
+
+        var t1 = Task.Run(() => providerA.GetService(typeof(TypeX)));
+        var t2 = Task.Run(() => providerB.GetService(typeof(TypeY)));
+
+        var act = () => Task.WaitAll([t1, t2], TimeSpan.FromSeconds(5));
+
+        var aggregate = act.Should().Throw<AggregateException>().Which;
+        aggregate.InnerExceptions.Should().OnlyContain(e => e is CompositionException);
+    }
+
+    private sealed record TypeZ;
+
+    [Fact]
     public void GetService_WaitsOutASlowUnrelatedNestedCall_RatherThanFalselyDetectingACycle()
     {
         // Regression for a Codex PR review finding (P2): the previous fixed-timeout fix couldn't tell a
