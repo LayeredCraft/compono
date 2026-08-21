@@ -61,6 +61,12 @@ apiClient.Configure().GetQuestions().Returns(questions);   // Compono.TestDouble
   came from `Compono.TestDoubles`, `Compono.NSubstitute`, an exact
   registration, or a configuration rule. Nothing in this package inspects
   or cares which one answered.
+- **No disposal ownership** — the returned `IServiceProvider` never
+  disposes anything it resolves and caches. If a resolved value implements
+  `IDisposable`/`IAsyncDisposable`, disposing it is your own
+  responsibility, exactly as it would be for a value you constructed by
+  hand — `CompositionRow`/`Composer` have no disposal contract of their
+  own, and this bridge doesn't add one.
 
 ## What it deliberately can't resolve
 

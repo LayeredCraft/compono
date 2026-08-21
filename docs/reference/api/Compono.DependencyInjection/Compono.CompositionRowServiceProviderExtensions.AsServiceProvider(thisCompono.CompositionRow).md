@@ -33,3 +33,9 @@ Do not configure a DIFFERENT row's `UseServiceProvider` with the result of this 
 a row that itself \(directly or transitively\) resolves back into that same row \- nothing in
 Compono detects a resolution cycle that crosses two rows, and it will overflow the stack
 rather than throw a diagnosed exception\. See ADR\-0047's Recursion section\.
+
+The returned [System\.IServiceProvider](https://learn.microsoft.com/en-us/dotnet/api/system.iserviceprovider 'System\.IServiceProvider') does not own or dispose anything it resolves and
+caches - if a resolved value implements [System\.IDisposable](https://learn.microsoft.com/en-us/dotnet/api/system.idisposable 'System\.IDisposable')/[System\.IAsyncDisposable](https://learn.microsoft.com/en-us/dotnet/api/system.iasyncdisposable 'System\.IAsyncDisposable'),
+disposing it is the caller's responsibility, exactly as it would be for a value the caller
+constructed by hand. This matches [CompositionRow](../Compono/Compono.CompositionRow.md 'Compono\.CompositionRow')/[Composer](../Compono/Compono.Composer.md 'Compono\.Composer')'s own
+lack of any disposal contract - this bridge does not introduce one.

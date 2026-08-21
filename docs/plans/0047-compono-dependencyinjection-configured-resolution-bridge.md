@@ -495,5 +495,28 @@ just an in-repo `ProjectReference`.
     failed reliably 3/3 on the per-call-adapter code) and a new permanent
     regression test that passes reliably (5/5) with the fix.
 
+## Sixth PR review round (Codex, #105) findings
+
+13. **P2 — disposal ownership was only documented on the internal
+    `ComponoServiceProvider`, invisible from the public surface.** A
+    consumer only ever sees `IServiceProvider` plus `AsServiceProvider()`'s
+    own doc, neither of which mentioned that the adapter never disposes a
+    cached resolved value. Added to both `AsServiceProvider()`'s XML doc
+    remarks and the package guide's "What it gives you" list - this was
+    already required by this plan's own Documentation task ("the adapter's
+    caching/null/disposal contract"), just missed when originally written.
+14. **P2 — four user-facing doc pages still listed only the previous six
+    packages**, contradicting `docs/packages/index.md`/`README.md`
+    (already correct) and `docs/roadmap/future-packages.md` (already
+    describes the package as shipped): `docs/index.md`'s package table,
+    `docs/roadmap/index.md`'s "Today" shipped list,
+    `docs/getting-started/installation.md`'s optional-package install
+    commands, and `docs/getting-started/ai-agent-skill.md`'s two package
+    enumerations. All four updated. Historical records that also list the
+    prior six packages (ADR-0042, PLAN-0043, PLAN-0044,
+    RESEARCH-0005) were deliberately left untouched - they're
+    point-in-time snapshots of when they were written, not current-state
+    docs.
+
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction).

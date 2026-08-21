@@ -8,17 +8,21 @@ today.
   [`Compono`](../packages/compono.md), [`Compono.XunitV3`](../packages/compono-xunitv3.md),
   [`Compono.NSubstitute`](../packages/compono-nsubstitute.md),
   [`Compono.Bogus`](../packages/compono-bogus.md),
-  [`Compono.TUnit`](../packages/compono-tunit.md), and
-  [`Compono.TestDoubles`](../packages/compono-testdoubles.md) — covers the
-  full MVP package set (`docs/mvp.md`'s "MVP Package Set") plus
-  `Compono.TUnit` and `Compono.TestDoubles`, the two candidates to graduate
-  the whole way through [Future Packages](future-packages.md)' admission
-  model ([PLAN-0040](../plans/0040-compono-tunit-package-design.md),
-  [PLAN-0043](../plans/0043-compono-generated-test-doubles.md)). If a
-  capability isn't documented in [Concepts](../concepts/index.md),
-  [How-to Guides](../how-to/index.md), or a
-  [Package Guide](../packages/index.md), it isn't available yet — see
-  below for where it might be headed.
+  [`Compono.TUnit`](../packages/compono-tunit.md),
+  [`Compono.TestDoubles`](../packages/compono-testdoubles.md), and
+  [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md)
+  — covers the full MVP package set (`docs/mvp.md`'s "MVP Package Set")
+  plus `Compono.TUnit` and `Compono.TestDoubles`, the two candidates to
+  graduate the whole way through [Future Packages](future-packages.md)'
+  admission model ([PLAN-0040](../plans/0040-compono-tunit-package-design.md),
+  [PLAN-0043](../plans/0043-compono-generated-test-doubles.md)), plus
+  `Compono.DependencyInjection` ([ADR-0047](../adr/0047-compono-dependencyinjection-configured-resolution-bridge.md)),
+  which didn't graduate through that admission model at all — see that
+  ADR and [RESEARCH-0007](../research/0007-trivia-manager-bunit-dependency-injection.md)
+  for how it came about instead. If a capability isn't documented in
+  [Concepts](../concepts/index.md), [How-to Guides](../how-to/index.md),
+  or a [Package Guide](../packages/index.md), it isn't available yet —
+  see below for where it might be headed.
 - **Experimental / under discussion.** [Proposed ADRs](proposed-adrs.md) —
   design decisions still being discussed, not yet `Accepted`.
 - **Planned / candidate.** [Post-MVP roadmap](post-mvp.md) — evidence-backed

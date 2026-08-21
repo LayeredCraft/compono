@@ -42,6 +42,13 @@ public static class CompositionRowServiceProviderExtensions
         /// a row that itself (directly or transitively) resolves back into that same row - nothing in
         /// Compono detects a resolution cycle that crosses two rows, and it will overflow the stack
         /// rather than throw a diagnosed exception. See ADR-0047's Recursion section.
+        /// <para>
+        /// The returned <see cref="IServiceProvider"/> does not own or dispose anything it resolves and
+        /// caches - if a resolved value implements <see cref="IDisposable"/>/<see cref="IAsyncDisposable"/>,
+        /// disposing it is the caller's responsibility, exactly as it would be for a value the caller
+        /// constructed by hand. This matches <see cref="CompositionRow"/>/<see cref="Composer"/>'s own
+        /// lack of any disposal contract - this bridge does not introduce one.
+        /// </para>
         /// </remarks>
         public IServiceProvider AsServiceProvider()
         {
