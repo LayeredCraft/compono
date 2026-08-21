@@ -72,6 +72,41 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
+    public void AsServiceProvider_ReturnsTheSameInstance_ForTheSameRow()
+    {
+        // Regression for a Codex PR review finding: AsServiceProvider() used to construct a fresh
+        // adapter (and fresh lock) on every call - wrapping the same row twice produced two adapters
+        // with independent locks, each only serializing its own calls, not against each other.
+        var composer = Composer.Create();
+        var row = composer.CreateRow(typeof(ComposedRowServiceProviderTests));
+
+        var first = row.AsServiceProvider();
+        var second = row.AsServiceProvider();
+
+        second.Should().BeSameAs(first);
+    }
+
+    [Fact]
+    public void GetService_IsSafeAcrossTwoSeparatelyObtainedProviders_ForTheSameRow()
+    {
+        // Same fix as above, proven under real concurrency: two separately-obtained
+        // AsServiceProvider() results for the same row (which are now the identical instance) used
+        // concurrently must not corrupt the row's shared CompositionContext or hand out different
+        // instances for the same type - exactly the failure mode a per-call adapter/lock allowed.
+        var provider2 = new DelayedInstanceProvider();
+        var composer = Composer.Create(builder => builder.AddTestDoubleProvider(provider2));
+        var row = composer.CreateRow(typeof(ComposedRowServiceProviderTests));
+        var a = row.AsServiceProvider();
+        var b = row.AsServiceProvider();
+
+        var results = new object?[16];
+        Parallel.For(0, results.Length, i => results[i] = (i % 2 == 0 ? a : b).GetService(typeof(DelayedMarker)));
+
+        results.Should().OnlyContain(r => r != null);
+        results.Should().OnlyContain(r => ReferenceEquals(r, results[0]));
+    }
+
+    [Fact]
     public void GetService_DoesNotCacheAMiss_AndRetriesOnALaterCall()
     {
         var provider2 = new SwitchableProvider();

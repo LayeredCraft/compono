@@ -469,5 +469,31 @@ just an in-repo `ProjectReference`.
     checklist item to record the amended, dependency-free outcome instead
     of the originally-scoped one.
 
+## Fourth PR review round (Codex, #105) findings
+
+11. **P2 — `TryResolveConfigured`'s XML doc still listed an impossible
+    null-failure case.** Since the method always validates as
+    `Nullability.Nullable`, a legitimate `null` result is never rejected —
+    only a wrong-runtime-type value can throw. Leftover from an earlier
+    edit that changed the validation semantics without fully updating this
+    doc. Corrected, and the API reference regenerated to match.
+
+## Fifth PR review round (Codex, #105) findings
+
+12. **P2 — `AsServiceProvider()` created a fresh adapter (and fresh lock)
+    on every call, so wrapping the same row twice and using both
+    providers concurrently could still race inside the row's shared
+    `CompositionContext`.** Each adapter's lock only serialized its own
+    calls, never against a different adapter's, for the same row. Fixed
+    by memoizing one adapter per row via `ConditionalWeakTable<CompositionRow,
+    IServiceProvider>` (itself thread-safe, guarantees the same value for
+    the same key across concurrent callers) — `AsServiceProvider()` now
+    returns the identical instance for the same row on every call, so
+    there is exactly one lock per row regardless of how many times a
+    consumer calls it. Confirmed with a repro before fixing (two
+    separately-obtained providers for the same row, used concurrently,
+    failed reliably 3/3 on the per-call-adapter code) and a new permanent
+    regression test that passes reliably (5/5) with the fix.
+
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction).

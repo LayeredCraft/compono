@@ -10,7 +10,11 @@ given type is cached, and every later `GetService` call for that same type retur
 identical instance \- this is what lets a test configure a double once and have a
 separately\-rendered consumer \(e\.g\. a bUnit component's `[Inject]`\) observe the same
 value\. A miss is never cached \- a type unsatisfiable on one call can still be satisfied by
-a later one, if the row's own configuration changes in between\.
+a later one, if the row's own configuration changes in between\. Calling this more than once
+for the same [row](Compono.CompositionRowServiceProviderExtensions.AsServiceProvider(thisCompono.CompositionRow).md#Compono.CompositionRowServiceProviderExtensions.AsServiceProvider(thisCompono.CompositionRow).row 'Compono\.CompositionRowServiceProviderExtensions\.AsServiceProvider\(this Compono\.CompositionRow\)\.row') returns the identical [System\.IServiceProvider](https://learn.microsoft.com/en-us/dotnet/api/system.iserviceprovider 'System\.IServiceProvider')
+instance every time, not a fresh one \- this is what makes the whole surface, including
+concurrent `GetService` calls made through two separately\-obtained references, safe to
+use concurrently\.
 
 ```csharp
 public static System.IServiceProvider AsServiceProvider(this Compono.CompositionRow row);
