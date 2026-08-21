@@ -173,7 +173,7 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
         Compono.XunitV3)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — xUnit v3 Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
-            assert_dependency_range "$nuspec" "$pkg" "xunit.v3.extensibility.core" "[3.2.2, 4.0.0)"
+            assert_dependency_range "$nuspec" "$pkg" "xunit.v3.extensibility.core" "[3.2.2, 5.0.0)"
             ;;
         Compono.NSubstitute)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — NSubstitute Integration"

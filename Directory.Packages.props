@@ -24,7 +24,7 @@
          instead of depending on the SDK's own auto-injection timing. -->
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!-- samples/Compono.Samples.AspNetApi.Tests' own dependency: WebApplicationFactory<T> for the
          one integration-style endpoint test ADR-0033 calls for. Pinned to the current net10.0
@@ -35,7 +35,7 @@
          dependency version Compono.XunitV3's own .nuspec ships to consumers - a tested-range
          constraint (tested minimum, exclusive next-untested-major upper bound), not a bare
          unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="xunit.v3.extensibility.core" Version="[3.2.2, 4.0.0)" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="[3.2.2, 5.0.0)" />
     <!-- Compono.TUnit's own dependency - the UntypedDataSourceGeneratorAttribute/
          DataGeneratorMetadata/ITestDiscoveryEventReceiver extension surface, per
          ADR-0040. TUnit.Core only (not the full TUnit/TUnit.Engine meta-packages) -
