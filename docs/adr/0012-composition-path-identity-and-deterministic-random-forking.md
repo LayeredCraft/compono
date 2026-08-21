@@ -390,6 +390,37 @@ rule are all specific consequences of — worth stating once, as the
 contract those are downstream of, rather than leaving a reader to infer
 it from three separate places.
 
+## Amendment 3 (2026-08-21): eighth `PathSegment` kind, `ConfiguredResolution`
+
+[ADR-0047](0047-compono-dependencyinjection-configured-resolution-bridge.md)
+added `PathSegment.ConfiguredResolution(int Ordinal)` - the eighth kind,
+backing `CompositionRow.TryResolveConfigured`/`Compono.DependencyInjection`'s
+`row.AsServiceProvider()`. Per this ADR's own reproducibility contract
+(Amendment 2, point 3), that addition's tag/payload decision belongs on the
+record here, not only in implementation comments and PLAN-0047's Notes:
+
+- **New tag byte `8`** (`RandomSource.ConfiguredResolutionTag`), the next
+  unused value - the existing seven kinds' tags (`0`-`6`) and
+  `DeriveSeedTag`'s own fixed salt (`7`) were left untouched, per this
+  ADR's compatibility guarantee (renumbering an existing tag would
+  silently change every derived-seed value for existing consumers on a
+  fixed seed).
+- **Ordinal, not a fixed placeholder.** The first shipped version of this
+  kind had no ordinal at all, on the (incorrect) assumption that a
+  `TryResolveConfigured` call never has siblings under the same parent
+  path node - PR #105 review caught, and a real repro before the fix
+  confirmed, that two sequential top-level calls on the same row *are*
+  siblings, and shared an identical fork identity without one. Fixed
+  during the same PR that shipped `Compono.DependencyInjection`, before
+  merge; recorded here per Amendment 2, point 2's own precedent - the
+  explicit tag-collision test requirement.
+- **Explicit tag-collision test requirement, satisfied.**
+  `RandomSourceTests.Fork_ProducesDistinctOutput_ForEachSegmentKindAtSameOrdinalOrIndex`
+  (`test/Compono.Tests/RandomSourceTests.cs`) now forks all eight kinds -
+  not seven - at ordinal/index `0` from the same parent state and asserts
+  pairwise-distinct output, matching Amendment 2 point 2's own standard
+  rather than inferring correctness from "we included a tag byte."
+
 ## Links
 
 - Supersedes [ADR-0009](0009-deterministic-seed-and-forkable-random-source.md)

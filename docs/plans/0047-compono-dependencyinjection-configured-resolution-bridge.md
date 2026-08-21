@@ -518,5 +518,25 @@ just an in-repo `ProjectReference`.
     point-in-time snapshots of when they were written, not current-state
     docs.
 
+## Seventh PR review round (Codex, #105) findings
+
+15. **P2 — ADR-0047's own "Behavior, precisely" prose still described a
+    nullable-vs-non-nullable distinction `TryResolveConfigured` never
+    actually makes.** Same root cause as finding 11 (the code's XML doc
+    fix didn't propagate back to the ADR's own text this time either).
+    Recorded as Amendment 3.
+16. **P2 — the new eighth `PathSegment.ConfiguredResolution` kind's tag/
+    ordinal decision existed only in code comments and this plan's Notes,
+    not in either governing ADR.** ADR-0012 (Composition Path Identity and
+    Deterministic Random Forking) is the actual authoritative record for
+    segment-tag/reproducibility decisions (its own Amendment 2 established
+    an explicit tag-collision-test requirement for exactly this kind of
+    change) - recorded there as Amendment 3, cross-linked from ADR-0047.
+    While fixing this, found the concrete gap the amendment's own
+    precedent calls out: `RandomSourceTests.Fork_ProducesDistinctOutput_ForEachSegmentKindAtSameOrdinalOrIndex`
+    tested all seven pre-existing kinds pairwise-distinct but never
+    included the eighth. Added it - passes, confirming tag `8`'s output is
+    genuinely distinct from the other seven at ordinal `0`.
+
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction).

@@ -444,6 +444,9 @@ A single non-generic method intended to be a drop-in equivalent of `Resolve<T>()
   as future scope.
 - ADR-0021 (Row Composition Entry Point for Test-Framework Integrations) —
   `CompositionRow`'s framework-agnostic foundation, reused here.
+- ADR-0012 (Composition Path Identity and Deterministic Random Forking),
+  Amendment 3 — records `PathSegment.ConfiguredResolution`'s new tag/ordinal
+  decision, per that ADR's own reproducibility-contract requirement.
 - ADR-0041 (AOT-Safe Row-Binding Dispatch) — `RowInvokerRegistry`'s
   `Type`-keyed-registry pattern, precedent for a narrow integration-facing primitive;
   its generator-populated mechanism does not fit this use case (arbitrary runtime
@@ -501,3 +504,22 @@ itself, which has always behaved this way —
 raw provider exception type, not `CompositionException`, and was written
 before this amendment, not changed by it. No behavior changed; only this
 ADR's own text is corrected to match what has always shipped.
+
+## Amendment 3 (2026-08-21): `TryResolveConfigured` always validates as nullable
+
+The "Behavior, precisely" list above still says the method "rejects
+`null` (as a thrown failure, not a quiet miss) for a non-nullable
+request" — implying `TryResolveConfigured` distinguishes nullable from
+non-nullable requests the way `Resolve<TValue>()` does. It never has:
+since a bare runtime `Type` carries no compile-time nullable-reference
+annotation to read (unlike `Resolve<TValue>()`'s compile-time-known
+`TValue`), the internal `CompositionContext` implementation always
+constructs its request with `Nullability.Nullable` - every reachable
+stage's `null` result is accepted, none are ever rejected as
+"non-nullable," because there is no per-call way to know a bare `Type`
+was "meant" non-nullable. PLAN-0047's own Tasks section already recorded
+this correctly (the originally-scoped "non-nullable type still throws"
+test was dropped as inapplicable), but this ADR's own prose was never
+corrected to match — caught in PR review (#105). No behavior changed;
+only this ADR's own text is corrected to match what has always shipped
+and what PLAN-0047 already documented.
