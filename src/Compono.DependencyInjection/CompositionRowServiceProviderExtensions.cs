@@ -38,10 +38,13 @@ public static class CompositionRowServiceProviderExtensions
         /// use concurrently.
         /// </summary>
         /// <remarks>
-        /// Do not configure a DIFFERENT row's <c>UseServiceProvider</c> with the result of this call on
-        /// a row that itself (directly or transitively) resolves back into that same row - nothing in
-        /// Compono detects a resolution cycle that crosses two rows, and it will overflow the stack
-        /// rather than throw a diagnosed exception. See ADR-0047's Recursion section.
+        /// Wiring a DIFFERENT row's <c>UseServiceProvider</c> with the result of this call, where that
+        /// row itself (directly or transitively) resolves back into this row, is discouraged but not
+        /// unguarded: a <see cref="CompositionRow"/>'s underlying context is created once and reused for
+        /// every call made on it, so a true cycle re-enters the same registration factory or provider on
+        /// that context while it is still active, and Compono's existing reentrance guard raises a
+        /// diagnosed <see cref="CompositionException"/> - it does not overflow the stack. See ADR-0047's
+        /// Recursion section.
         /// <para>
         /// The returned <see cref="IServiceProvider"/> does not own or dispose anything it resolves and
         /// caches - if a resolved value implements <see cref="IDisposable"/>/<see cref="IAsyncDisposable"/>,

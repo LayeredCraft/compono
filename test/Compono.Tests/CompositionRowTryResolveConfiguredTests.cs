@@ -128,6 +128,7 @@ public sealed class CompositionRowTryResolveConfiguredTests
         // identity and produced the identical derived value, silently breaking independence for
         // anything randomness-dependent (DeriveSeed(), nested composition, a Bogus-backed provider).
         var composer = Composer.Create(builder => builder
+            .WithSeed(4219)
             .Register<SiblingMarkerA>(ctx => new SiblingMarkerA(ctx.DeriveSeed()))
             .Register<SiblingMarkerB>(ctx => new SiblingMarkerB(ctx.DeriveSeed())));
         var row = composer.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
@@ -198,6 +199,41 @@ public sealed class CompositionRowTryResolveConfiguredTests
         var diagnostic = secondAttempt.Should().Throw<CompositionException>().Which.Diagnostic;
 
         diagnostic!.Trace.Should().NotContain(attempt => attempt.Stage == PipelineStage.TestDoubleProvider);
+    }
+
+    [Fact]
+    public void CrossRowCycle_IsDetectedAsARecursiveFactory_NotAStackOverflow()
+    {
+        // Regression for a Codex PR review finding: ADR-0047's Recursion section (and this file's own
+        // AsServiceProvider XML doc) originally claimed a cycle crossing two rows goes undetected and
+        // overflows the stack, on the assumption each hop gets a fresh CompositionContext. It doesn't -
+        // a CompositionRow's context is created once and reused for every call made on that row
+        // (including calls arriving indirectly through another row's UseServiceProvider), so the
+        // existing same-context reentrance guard (the one that already stops a registration factory
+        // from recursively invoking itself) trips before the two rows' calls can recurse indefinitely.
+        CompositionRow? rowB = null;
+        var descriptorB = new CompositionRequestDescriptor(
+            CompositionRequestKind.TestParameter, ordinal: 0, name: "b", declaringType: typeof(CompositionRowTryResolveConfiguredTests), Nullability.NotNullable);
+
+        var composerA = Composer.Create(builder => builder.Register<CycleMarker>(() => rowB!.Resolve<CycleMarker>(descriptorB)));
+        var rowA = composerA.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var composerB = Composer.Create(builder => builder.UseServiceProvider(new TryResolveConfiguredServiceProvider(rowA)));
+        rowB = composerB.CreateRow(typeof(CompositionRowTryResolveConfiguredTests));
+
+        var act = () => rowB.Resolve<CycleMarker>(descriptorB);
+
+        act.Should().Throw<CompositionException>().WithMessage("*Recursive registration or configuration-rule factory detected*");
+    }
+
+    private sealed record CycleMarker;
+
+    // Stands in for Compono.DependencyInjection's AsServiceProvider() (this test project doesn't
+    // reference that package) - it forwards to the same TryResolveConfigured primitive, so it exercises
+    // the identical stage-2/3a/4-6 path a real cross-row UseServiceProvider wiring would.
+    private sealed class TryResolveConfiguredServiceProvider(CompositionRow row) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => row.TryResolveConfigured(serviceType, out var value) ? value : null;
     }
 
     private sealed record RegisteredMarker(string Value);

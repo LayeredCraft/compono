@@ -565,5 +565,43 @@ just an in-repo `ProjectReference`.
     exception types, matching what the rest of this same checklist item
     already said correctly.
 
+## Ninth PR review round (Codex, #105) findings
+
+19. **P2 — ADR-0047 never recorded the row-wide adapter identity change
+    from finding 6's fix.** `AsServiceProvider()` moved from "fresh
+    adapter per call" to a `ConditionalWeakTable`-memoized adapter per
+    row, but that lifetime/identity contract only ever got written down
+    here in this plan, not in the ADR itself. Recorded as ADR-0047
+    Amendment 4.
+20. **P2 — the cross-row recursion warning (XML doc `<remarks>` and the
+    ADR's own "Recursion" section) was factually wrong.** Both claimed a
+    cross-row cycle overflows the stack because "each hop is a fresh
+    `CompositionContext` with empty guard state." That doesn't match
+    `CompositionRow`: its underlying `CompositionContext` is created once
+    and reused for every call made on that row, so the existing
+    `IsFactoryActive`/provider reentrance guards do carry state across a
+    cross-row hop back into the same row, and do trip. Verified directly
+    with a two-row repro
+    (`CrossRowCycle_IsDetectedAsARecursiveFactory_NotAStackOverflow`):
+    the cycle throws a diagnosed `CompositionException` ("Recursive
+    registration or configuration-rule factory detected"), never a
+    `StackOverflowException`, reliably across repeated runs. Corrected
+    the XML doc `<remarks>` and recorded the correction as ADR-0047
+    Amendment 4 (superseding the original Recursion section and its
+    matching Negative Consequences bullet, without rewriting them in
+    place per this repo's ADR-immutability rule).
+21. **P2 — `docs/public-api.md`'s inline "Package Guides" list (lines
+    16-18) still named only the previous five integration packages.**
+    Missed in an earlier round's doc sweep because this file is a
+    tombstone that mostly just points elsewhere (per ADR-0030 Amendment
+    2) — its own inline package enumeration was overlooked. Added
+    `Compono.DependencyInjection` to the list.
+22. **P2 — `TryResolveConfigured_GivesSiblingRequests_IndependentRandomStreams`
+    built its `Composer` without `.WithSeed(...)`, so it ran on a new
+    random seed every execution and only asserted inequality between two
+    folded 32-bit derived values.** Theoretically flaky on a colliding
+    seed, and not reproducible from the test alone if it ever did fail.
+    Pinned a fixed seed via `.WithSeed(...)`.
+
 Not yet done, deliberately: committing/pushing this work (holding for
 review, per explicit instruction).

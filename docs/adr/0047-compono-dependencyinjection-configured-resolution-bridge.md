@@ -523,3 +523,76 @@ test was dropped as inapplicable), but this ADR's own prose was never
 corrected to match — caught in PR review (#105). No behavior changed;
 only this ADR's own text is corrected to match what has always shipped
 and what PLAN-0047 already documented.
+
+## Amendment 4 (2026-08-21): Row-wide adapter identity, and the recursion claim corrected
+
+Two corrections, both caught in PR review (#105) after the design section
+above and the "Recursion" section above had already been written and
+shipped:
+
+**Row-wide adapter identity.** The design sketch above (and the "Identity/
+caching rules" list) describes `AsServiceProvider()` constructing a fresh
+`ComponoServiceProvider` — with its own cache and, once locking was added,
+its own lock — on every call. That was true when this ADR was accepted,
+and shipped that way initially. PR review then found that two adapters
+obtained for the *same* row, used concurrently, could each serialize their
+own calls but not against each other's, racing inside the row's shared
+`CompositionContext`. The fix, already recorded in PLAN-0047's Notes, is a
+`ConditionalWeakTable<CompositionRow, IServiceProvider>` keyed on the row:
+`AsServiceProvider()` now returns the same adapter instance (same cache,
+same lock) for every call made on the same row, for as long as that row is
+reachable. This changes the identity/lifetime contract this ADR describes
+from "one stable value per type, for the lifetime of this adapter
+instance" to "one stable value per type, for the lifetime of the row" —
+calling `AsServiceProvider()` twice on the same row no longer produces two
+independent caches. The row-keying itself still lives entirely in this
+integration package (a static field on
+`CompositionRowServiceProviderExtensions`); `CompositionRow`/
+`CompositionContext` remain unaware of it, so the "owned entirely by this
+adapter, not by `CompositionRow`" framing above still holds — only the
+per-call-vs-per-row granularity changes. No other behavior in the
+"Identity/caching rules" list is affected (miss-not-cached, `(true, null)`
+caching, no disposal ownership, no DI-container lifetime modeling all
+stand as originally written).
+
+**The Recursion section's `StackOverflowException` claim was wrong.** That
+section, and the "Negative Consequences" entry restating it, asserted that
+"each hop is a fresh `CompositionContext` with empty guard state" for a
+cross-row cycle, so nothing would detect it and the result would be an
+undiagnosed `StackOverflowException`. This does not match
+`CompositionRow`: a row's underlying `CompositionContext` is created once,
+at `Composer.CreateRow`, and reused for every call made against that row
+for its entire lifetime — including calls arriving indirectly through
+another row's `UseServiceProvider`/adapter. It is not recreated per call,
+and its reentrance guards (`_activeFactories`, `_activeProviderRequests`)
+are therefore not "empty" on a call that arrives via a different row; they
+carry whatever is already in flight on *this* row's own context.
+
+Concretely, for the same example this ADR used (Row A registers `IFoo`
+with a factory that calls into Row B's adapter, Row B is configured with
+`UseServiceProvider(rowA.AsServiceProvider())`): once the cycle loops back
+around to Row A trying to invoke its own `IFoo` factory a second time
+while the first invocation is still on the stack, Row A's own
+`IsFactoryActive` reentrance guard — the same one that already stops a
+factory from directly recursing into itself — trips, and Compono raises
+its existing diagnosed `Recursive registration or configuration-rule
+factory detected` `CompositionException`. This was verified directly: a
+test reproducing this exact two-row wiring
+(`CrossRowCycle_IsDetectedAsARecursiveFactory_NotAStackOverflow` in
+`CompositionRowTryResolveConfiguredTests`) throws that `CompositionException`,
+not a `StackOverflowException`, every run. Since every reachable stage
+`TryResolveConfigured` uses is backed by a finite set of registrations/
+providers on each row, any true infinite cross-row cycle must eventually
+revisit some (context, factory-or-provider) pair while it is still active
+on that context — the existing guard is not merely lucky in this one
+example, it structurally cannot be evaded by a longer chain of rows either.
+
+The "Recursion" section and the matching "Negative Consequences" bullet
+are superseded by this amendment: cross-row cycles that loop back through
+a row's own registration factory or provider are diagnosed, not a stack
+overflow. `AsServiceProvider()`'s XML doc `<remarks>` has been corrected
+to match. This ADR does not claim the cross-row case is *recommended* —
+deliberately wiring two rows together this way is still unusual,
+hand-written, and unnecessary for the evidenced use case — only that the
+specific undiagnosed-crash failure mode this ADR predicted does not, in
+fact, occur.
