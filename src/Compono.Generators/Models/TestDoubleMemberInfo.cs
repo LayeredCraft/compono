@@ -108,6 +108,17 @@ namespace Compono.Generators.Models;
 /// <see langword="ref"/>/<see langword="out"/>/<see langword="in"/> parameter, or a method-shaped
 /// object-member collision) keeps the unchanged whole-interface <c>CMP0025</c> rejection instead.
 /// </param>
+/// <param name="IsEligibleForMatching">
+/// Whether this member gets ADR-0048's argument-aware <c>Configure()</c>/<c>Verify()</c> surface
+/// (<c>Compono.Arg&lt;T&gt;</c>-typed parameters, per-parameter matcher fields, a call log) instead of v1/v2's
+/// argument-independent one. Requires <see cref="HasConfigurationSurface"/>, at least one real
+/// parameter (a zero-parameter member has nothing to match), not <see cref="IsOverloaded"/> (a real
+/// compiler spike proved wrapping every overload's parameters in <c>Arg&lt;T&gt;</c> breaks C#
+/// overload resolution unpredictably - ADR-0048's "Overload-discriminator interaction"), and - when
+/// <see cref="IsGenericMethod"/> - no real parameter referencing the method's own open type parameter
+/// (a per-member call log can't hold an open type parameter's value; the <c>ILogger&lt;TState&gt;.Log</c>
+/// shape). An ineligible member generates its existing v1/v2/ADR-0044 shape, byte-for-byte unchanged.
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -126,7 +137,8 @@ internal sealed record TestDoubleMemberInfo(
     bool IsGenericMethod = false,
     EquatableArray<string> TypeParameterNames = default,
     EquatableArray<string> ConstraintClauses = default,
-    bool IsConfigurationRequired = false)
+    bool IsConfigurationRequired = false,
+    bool IsEligibleForMatching = false)
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
     public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";

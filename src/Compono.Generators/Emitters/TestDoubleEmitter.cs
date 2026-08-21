@@ -39,6 +39,7 @@ internal static class TestDoubleEmitter
                 m.HasConfigurationSurface,
                 m.IsConfigurationRequired,
                 m.IsOverloaded,
+                m.IsEligibleForMatching,
                 m.ExtensionReceiverName,
                 m.GenericSuffix,
                 m.ExtensionIsGeneric,
@@ -47,10 +48,29 @@ internal static class TestDoubleEmitter
                 Kind = m.Kind.ToString(),
                 AccessorKind = m.AccessorKind.ToString(),
                 Parameters = m.Parameters
-                    .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.IsParams, p.DefaultValueExpression })
+                    .Select((p, i) => new
+                    {
+                        p.EscapedName,
+                        p.FullyQualifiedTypeName,
+                        p.RefKindPrefix,
+                        p.IsParams,
+                        p.DefaultValueExpression,
+                        // A one-parameter member's call log is a plain List<T> - "(T)" isn't a tuple
+                        // type in C#, it's just T in parentheses - so a single real parameter needs a
+                        // different read expression ("call" itself) than a multi-parameter one
+                        // ("call.Item1", "call.Item2", ...). Computed here rather than in the template
+                        // so the arity branch lives in one place, in C#, not duplicated Scriban logic.
+                        CallLogAccessExpression = m.Parameters.Count == 1 ? "call" : $"call.Item{i + 1}",
+                    })
                     .ToArray(),
                 OutParameterAssignments = m.OutParameterAssignments.ToArray(),
                 MemberDescription = $"{m.DeclaringInterfaceFullyQualifiedName}.{m.OriginalName}",
+                CallLogTypeText = m.Parameters.Count == 1
+                    ? m.Parameters[0].FullyQualifiedTypeName
+                    : $"({string.Join(", ", m.Parameters.Select(p => p.FullyQualifiedTypeName))})",
+                CallLogConstructExpression = m.Parameters.Count == 1
+                    ? m.Parameters[0].EscapedName
+                    : $"({string.Join(", ", m.Parameters.Select(p => p.EscapedName))})",
             }).ToArray(),
             GeneratorVersion,
         };

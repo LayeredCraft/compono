@@ -10,10 +10,45 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
 {{~ end ~}}
 {{~ for member in members ~}}
+{{~ if member.is_eligible_for_matching ~}}
+{{~ for p in member.parameters ~}}
+    internal global::Compono.Arg<{{ p.fully_qualified_type_name }}>? {{ member.field_name }}_m_{{ p.escaped_name }};
+{{~ end ~}}
+    internal readonly global::System.Collections.Generic.List<{{ member.call_log_type_text }}> {{ member.field_name }}_calls = [];
+    internal readonly object {{ member.field_name }}_lock = new();
+{{~ end ~}}
+{{~ end ~}}
+{{~ for member in members ~}}
 
 {{~ if member.kind == "Method" ~}}
 {{~ if member.has_configuration_surface ~}}
+{{~ if member.is_eligible_for_matching ~}}
 {{~ if member.is_void ~}}
+    void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    {
+        {{ member.field_name }}.RecordCall();
+        lock ({{ member.field_name }}_lock) { {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }}); }
+        var __matches = {{ for p in member.parameters }}({{ member.field_name }}_m_{{ p.escaped_name }} is not { } __m_{{ p.escaped_name }} || __m_{{ p.escaped_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }};
+        if (__matches && {{ member.field_name }}.HasConfiguredException)
+            throw {{ member.field_name }}.ConfiguredException;
+    }
+{{~ else ~}}
+    {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    {
+        {{ member.field_name }}.RecordCall();
+        lock ({{ member.field_name }}_lock) { {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }}); }
+        var __matches = {{ for p in member.parameters }}({{ member.field_name }}_m_{{ p.escaped_name }} is not { } __m_{{ p.escaped_name }} || __m_{{ p.escaped_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }};
+        return __matches && {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
+            : __matches && {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
+{{~ if member.is_configuration_required ~}}
+            : throw new global::Compono.TestDoubleNotConfiguredException(
+                "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
+{{~ else ~}}
+            : {{ member.default_expression }};
+{{~ end ~}}
+    }
+{{~ end ~}}
+{{~ else if member.is_void ~}}
     void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         {{ member.field_name }}.RecordCall();
@@ -91,7 +126,24 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
 {
 {{~ for member in members ~}}
 {{~ if member.has_configuration_surface ~}}
-{{~ if member.is_overloaded ~}}
+{{~ if member.is_eligible_for_matching ~}}
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self{{ for p in member.parameters }}, global::Compono.Arg<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
+    {
+{{~ for p in member.parameters ~}}
+        self.{{ member.field_name }}_m_{{ p.escaped_name }} = {{ p.escaped_name }};
+{{~ end ~}}
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }});
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Leaving every matcher field
+    // null reproduces that exact argument-independent behavior (dispatch's `is not { } m ||
+    // m.Matches(...)` treats null as always-matching), so this overload is purely additive, not a
+    // second, different meaning.
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self) =>
+        new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }});
+{{~ else if member.is_overloaded ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
         new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.extension_receiver_name }}.{{ member.field_name }});
 {{~ else ~}}
@@ -125,7 +177,28 @@ internal static class {{ safe_identifier }}_DoubleVerification
 {
 {{~ for member in members ~}}
 {{~ if member.has_configuration_surface ~}}
-{{~ if member.is_overloaded ~}}
+{{~ if member.is_eligible_for_matching ~}}
+    public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier self{{ for p in member.parameters }}, global::Compono.Arg<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
+    {
+        int __count;
+        lock (self.Instance.{{ member.field_name }}_lock)
+        {
+            __count = 0;
+            foreach (var call in self.Instance.{{ member.field_name }}_calls)
+            {
+                if ({{ for p in member.parameters }}{{ p.escaped_name }}.Matches({{ p.call_log_access_expression }}){{ if !for.last }} && {{ end }}{{ end }})
+                    __count++;
+            }
+        }
+        return new(__count, "{{ member.member_description }}");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
+    public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier self) =>
+        new(self.Instance.{{ member.field_name }}.ConfiguredCallCount, "{{ member.member_description }}");
+{{~ else if member.is_overloaded ~}}
     public static global::Compono.CallVerifier {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
         new({{ member.extension_receiver_name }}.Instance.{{ member.field_name }}.ConfiguredCallCount, "{{ member.member_description }}");
 {{~ else ~}}

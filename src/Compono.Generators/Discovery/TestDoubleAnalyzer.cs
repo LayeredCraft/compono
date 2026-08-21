@@ -730,6 +730,17 @@ internal static class TestDoubleAnalyzer
                         if (isConfigurationRequired)
                             configurationRequiredCount++;
 
+                        // ADR-0048: argument-aware Configure()/Verify() is scoped to a member with at
+                        // least one real parameter, not part of an overload set (a real compiler spike
+                        // proved wrapping every overload's parameters in Arg<T> breaks C# overload
+                        // resolution unpredictably), and - for a generic method - no real parameter
+                        // referencing the method's own open type parameter (a per-member call log can't
+                        // hold an open type parameter's value; reuses the same symbol-graph walk
+                        // Requirement 2 already uses for its return-type check, just against parameters).
+                        var isEligibleForMatching = hasConfigurationSurface && !isOverloaded && parameters.Count > 0 &&
+                            !(method.IsGenericMethod &&
+                              method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method)));
+
                         members.Add(new TestDoubleMemberInfo(
                             method.Name,
                             RequiredMemberCollector.EscapeIdentifier(method.Name),
@@ -748,7 +759,8 @@ internal static class TestDoubleAnalyzer
                             method.IsGenericMethod,
                             typeParameterNames,
                             constraintClauses,
-                            IsConfigurationRequired: isConfigurationRequired));
+                            IsConfigurationRequired: isConfigurationRequired,
+                            IsEligibleForMatching: isEligibleForMatching));
 
                         break;
                     }

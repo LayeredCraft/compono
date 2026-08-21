@@ -109,3 +109,4 @@ the mechanics: numbering, status, and the index.
 | [0045](0045-testdoubles-configuration-required-members.md) | Compono.TestDoubles: Configuration-Required Members for Non-Deterministic-Default Returns | Accepted |
 | [0046](0046-static-abstract-member-conformance-only-generation.md) | Effective Interface Contract for Inherited Static Abstract Members | Accepted |
 | [0047](0047-compono-dependencyinjection-configured-resolution-bridge.md) | Compono.DependencyInjection: Configured-Resolution IServiceProvider Bridge | Accepted |
+| [0048](0048-testdoubles-argument-matching-and-call-verification.md) | Compono.TestDoubles: Argument Matching and Argument-Aware Call Verification | Accepted |

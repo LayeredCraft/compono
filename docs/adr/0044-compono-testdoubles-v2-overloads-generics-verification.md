@@ -1879,6 +1879,66 @@ constraint. That's a new, separate roadmap candidate
 PLAN-0044 — PLAN-0044's own scope is complete and this ADR's decisions
 stand unchanged.
 
+## Amendment 18 (2026-08-21): argument matchers and argument-aware call recording added for non-overloaded members; overloaded members unaffected; call-order verification stays a Non-Goal
+
+Dogfooding against `ncipollina/trivia-manager` (real evidence, per
+[ADR-0042](0042-compono-owned-source-generated-test-doubles.md) Amendment
+2's classification policy) verified against the actual repo — not just a
+migration summary — found:
+
+- 19 real `Arg.Is<T>(predicate)` sites and heavy `Arg.Any<T>()` use, all
+  inside `Received(1)`/`DidNotReceive()` verification, across nearly every
+  substituted domain interface. **None of the interfaces these sites
+  target declares an overload** (verified against their actual production
+  interface declarations, not inferred).
+- Real argument-guarded response configuration (e.g. a repository
+  substitute configured to return a specific player only when called with
+  that player's own `cognitoSub`), always exactly one configured response
+  per member per test — never two different responses on the same
+  member/instance differentiated by arguments.
+- **Zero** real `Received.InOrder`-equivalent call sites anywhere in the
+  repo.
+
+This Amendment reverses this ADR's Non-Goals bullet "argument matchers
+remain out of scope" and the argument-aware-call-recording half of "no
+call-order verification, no argument-aware call recording...
+`Never`/`Once`/`Exactly(n)` only" — both per real, evidenced need, and
+**both scoped to non-overloaded members only** (and, per Requirement 2,
+only to a member with no real parameter referencing its own open
+method-type-parameter — the existing generic-method boundary, unchanged).
+It does **not** reverse the call-order-verification half of that same
+bullet: zero real evidence exists for it, so it remains a Non-Goal until a
+future dogfood pass produces real call sites to design against, per
+ADR-0029's evidence discipline. [ADR-0048](0048-testdoubles-argument-matching-and-call-verification.md)
+is scoped accordingly.
+
+**Requirement 1's "parameter value is a pure discriminator - never read,
+never stored" text is unaffected and stays exactly true for every
+overloaded member.** A real compiler spike (see ADR-0048's Decision
+Outcome) proved that wrapping every generated `Configure()`/`Verify()`
+parameter in a matcher type and relying on C#'s implicit-conversion
+overload resolution to still pick the right overload is **not reliable**
+— 3 of 6 realistic overload-parameter-type families (base/derived class
+hierarchies, array-vs-`IEnumerable<T>`, even plain numeric widening)
+produced a genuine `CS0121` ambiguity, unpredictably relative to which
+families happened to resolve. Rather than patch around specific cases,
+ADR-0048 scopes the new matcher/verification mechanism to non-overloaded
+members only — where there is exactly one candidate, no cross-overload
+betterness question can ever arise. An overloaded member therefore
+generates **exactly** what this ADR already specifies, completely
+untouched by ADR-0048: this is **not** a pre-1.0 break after all, on
+either the API surface or its documented semantics — the two ADRs simply
+never touch the same generated signature.
+
+Every other Non-Goal this ADR's own section lists (per-closed-
+generic-instantiation configuration, class/protected/static-abstract-member
+support, indexer/event support) is unaffected and remains in force. This
+ADR's original text stands as written throughout, per this ADR's own
+immutability rule — both bullets reversed above were the correct,
+evidence-based call at the time this ADR shipped; this Amendment records
+what later evidence changed, per the same Amendment mechanic ADR-0042
+Amendment 2 already set precedent for.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —

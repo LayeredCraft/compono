@@ -6,6 +6,9 @@
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
     internal global::Compono.ReturnConfig<bool> __TryGet;
+    internal global::Compono.Arg<int>? __TryGet_m_id;
+    internal readonly global::System.Collections.Generic.List<int> __TryGet_calls = [];
+    internal readonly object __TryGet_lock = new();
 
     bool global::TestNamespace.IRepository.TryGet(int id, out string? value)
     {
@@ -16,14 +19,28 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     bool global::TestNamespace.IRepository.TryGet(int id)
     {
         __TryGet.RecordCall();
-        return __TryGet.HasConfiguredException ? throw __TryGet.ConfiguredException
-            : __TryGet.HasConfiguredValue ? __TryGet.ConfiguredValue
+        lock (__TryGet_lock) { __TryGet_calls.Add(id); }
+        var __matches = (__TryGet_m_id is not { } __m_id || __m_id.Matches(id));
+        return __matches && __TryGet.HasConfiguredException ? throw __TryGet.ConfiguredException
+            : __matches && __TryGet.HasConfiguredValue ? __TryGet.ConfiguredValue
             : default;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
+    public static global::Compono.ReturnConfigBuilder<bool> TryGet(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<int> id)
+    {
+        self.__TryGet_m_id = id;
+        return new global::Compono.ReturnConfigBuilder<bool>(ref self.__TryGet);
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Leaving every matcher field
+    // null reproduces that exact argument-independent behavior (dispatch's `is not { } m ||
+    // m.Matches(...)` treats null as always-matching), so this overload is purely additive, not a
+    // second, different meaning.
     public static global::Compono.ReturnConfigBuilder<bool> TryGet(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<bool>(ref self.__TryGet);
 
@@ -49,6 +66,24 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
+    public static global::Compono.CallVerifier TryGet(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<int> id)
+    {
+        int __count;
+        lock (self.Instance.__TryGet_lock)
+        {
+            __count = 0;
+            foreach (var call in self.Instance.__TryGet_calls)
+            {
+                if (id.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.TryGet");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
     public static global::Compono.CallVerifier TryGet(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__TryGet.ConfiguredCallCount, "global::TestNamespace.IRepository.TryGet");
 

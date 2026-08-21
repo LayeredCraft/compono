@@ -6,6 +6,9 @@
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Seek;
+    internal global::Compono.Arg<int>? __Seek_m_value;
+    internal readonly global::System.Collections.Generic.List<int> __Seek_calls = [];
+    internal readonly object __Seek_lock = new();
 
     void global::TestNamespace.IRepository.Seek(scoped ref global::System.Span<int> value)
     {
@@ -14,13 +17,27 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     void global::TestNamespace.IRepository.Seek(int value)
     {
         __Seek.RecordCall();
-        if (__Seek.HasConfiguredException)
+        lock (__Seek_lock) { __Seek_calls.Add(value); }
+        var __matches = (__Seek_m_value is not { } __m_value || __m_value.Matches(value));
+        if (__matches && __Seek.HasConfiguredException)
             throw __Seek.ConfiguredException;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<int> value)
+    {
+        self.__Seek_m_value = value;
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Seek);
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Leaving every matcher field
+    // null reproduces that exact argument-independent behavior (dispatch's `is not { } m ||
+    // m.Matches(...)` treats null as always-matching), so this overload is purely additive, not a
+    // second, different meaning.
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Seek);
 
@@ -46,6 +63,24 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
+    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<int> value)
+    {
+        int __count;
+        lock (self.Instance.__Seek_lock)
+        {
+            __count = 0;
+            foreach (var call in self.Instance.__Seek_calls)
+            {
+                if (value.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.Seek");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
     public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__Seek.ConfiguredCallCount, "global::TestNamespace.IRepository.Seek");
 

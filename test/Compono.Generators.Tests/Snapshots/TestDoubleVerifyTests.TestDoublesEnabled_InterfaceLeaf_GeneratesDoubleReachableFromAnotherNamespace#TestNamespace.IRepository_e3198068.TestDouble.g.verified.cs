@@ -8,19 +8,29 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<string?>> __FindNameAsync;
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Save;
     internal global::Compono.ReturnConfig<int> __Count;
+    internal global::Compono.Arg<global::System.Guid>? __FindNameAsync_m_id;
+    internal readonly global::System.Collections.Generic.List<global::System.Guid> __FindNameAsync_calls = [];
+    internal readonly object __FindNameAsync_lock = new();
+    internal global::Compono.Arg<string>? __Save_m_name;
+    internal readonly global::System.Collections.Generic.List<string> __Save_calls = [];
+    internal readonly object __Save_lock = new();
 
     global::System.Threading.Tasks.Task<string?> global::TestNamespace.IRepository.FindNameAsync(global::System.Guid id)
     {
         __FindNameAsync.RecordCall();
-        return __FindNameAsync.HasConfiguredException ? throw __FindNameAsync.ConfiguredException
-            : __FindNameAsync.HasConfiguredValue ? __FindNameAsync.ConfiguredValue
+        lock (__FindNameAsync_lock) { __FindNameAsync_calls.Add(id); }
+        var __matches = (__FindNameAsync_m_id is not { } __m_id || __m_id.Matches(id));
+        return __matches && __FindNameAsync.HasConfiguredException ? throw __FindNameAsync.ConfiguredException
+            : __matches && __FindNameAsync.HasConfiguredValue ? __FindNameAsync.ConfiguredValue
             : global::System.Threading.Tasks.Task.FromResult<string?>(default);
     }
 
     void global::TestNamespace.IRepository.Save(string name)
     {
         __Save.RecordCall();
-        if (__Save.HasConfiguredException)
+        lock (__Save_lock) { __Save_calls.Add(name); }
+        var __matches = (__Save_m_name is not { } __m_name || __m_name.Matches(name));
+        if (__matches && __Save.HasConfiguredException)
             throw __Save.ConfiguredException;
     }
 
@@ -43,9 +53,33 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
+    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<global::System.Guid> id)
+    {
+        self.__FindNameAsync_m_id = id;
+        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref self.__FindNameAsync);
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Leaving every matcher field
+    // null reproduces that exact argument-independent behavior (dispatch's `is not { } m ||
+    // m.Matches(...)` treats null as always-matching), so this overload is purely additive, not a
+    // second, different meaning.
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref self.__FindNameAsync);
 
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self, global::Compono.Arg<string> name)
+    {
+        self.__Save_m_name = name;
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Save);
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Leaving every matcher field
+    // null reproduces that exact argument-independent behavior (dispatch's `is not { } m ||
+    // m.Matches(...)` treats null as always-matching), so this overload is purely additive, not a
+    // second, different meaning.
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Save);
 
@@ -74,9 +108,45 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
+    public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<global::System.Guid> id)
+    {
+        int __count;
+        lock (self.Instance.__FindNameAsync_lock)
+        {
+            __count = 0;
+            foreach (var call in self.Instance.__FindNameAsync_calls)
+            {
+                if (id.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.FindNameAsync");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
     public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__FindNameAsync.ConfiguredCallCount, "global::TestNamespace.IRepository.FindNameAsync");
 
+    public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self, global::Compono.Arg<string> name)
+    {
+        int __count;
+        lock (self.Instance.__Save_lock)
+        {
+            __count = 0;
+            foreach (var call in self.Instance.__Save_calls)
+            {
+                if (name.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.Save");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
     public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__Save.ConfiguredCallCount, "global::TestNamespace.IRepository.Save");
 
