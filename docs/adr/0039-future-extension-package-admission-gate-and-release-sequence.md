@@ -397,3 +397,39 @@ scratch; not itself a design decision.
   `netstandard2.0`/`netstandard2.1` assets consumable from `net8.0`/
   `net9.0`; the reason `Compono.Moq`'s deferral below is grounded in
   maintenance health, not TFM incompatibility.
+
+## Amendment 1 (2026-08-21): `Compono.DependencyInjection` — the name has since been claimed by a different, narrower, separately-accepted design
+
+The Candidate-by-candidate Gate A disposition above says
+`Compono.DependencyInjection` "does not clear Gate A today as a package,"
+evaluating one specific idea: a **richer** `Microsoft.Extensions.DependencyInjection`
+integration (keyed-service resolution, DI-scope ownership for a
+composition) requiring core concepts that didn't exist. That disposition
+still stands, unchanged, for that idea — it remains ungated and
+undesigned, and `future-packages.md`'s "richer `Microsoft.Extensions.DependencyInjection`
+integration" entry still records it as such.
+
+A **different, narrower** idea — a reverse bridge exposing a
+`CompositionRow` as a plain `IServiceProvider` (`row.AsServiceProvider()`)
+for consumers that already accept one — was separately proposed, gated
+through Gate A on its own merits (buildable entirely on an existing
+extension point, `CompositionRow.TryResolveConfigured`, with no new core
+concept invented), and accepted as [ADR-0047](0047-compono-dependencyinjection-configured-resolution-bridge.md).
+It shipped under the name `Compono.DependencyInjection` — the same name
+this ADR's own disposition above used for the richer idea, and the name
+this ADR's own text already anticipated being reused ("If it's ever
+designed, `Compono.DependencyInjection` remains the correct name").
+
+Caught in PR review (#105, for ADR-0047/PLAN-0047): read in isolation,
+this ADR's Candidate-by-candidate disposition still reads as rejecting
+"the package that ships under this name," which is no longer accurate —
+a package by this name exists and is accepted, just not the one this
+ADR's disposition evaluated. This amendment records the reconciliation:
+this ADR's original Gate A "no" is about the richer MS.DI-integration
+idea specifically, not about the name or about every possible package
+that could ever be named `Compono.DependencyInjection`; ADR-0047 is a
+separate, later, independently-gated acceptance for a different design
+that happens to share the name. Both stand simultaneously without
+conflict once read this way. No text above is edited — this amendment
+exists precisely so the original disposition's reasoning (why the richer
+idea specifically failed Gate A) stays intact and undiluted.

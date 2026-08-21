@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Asserts the packed .nupkg contents for all four publishable Compono packages
+# Asserts the packed .nupkg contents for all seven publishable Compono packages
 # match ADR-0031's package-readiness bar (PLAN-0008 Phase 0's package-contents-
 # inspection CI job): the .nupkg's file listing matches the expected shape
 # exactly (an allowlist, not a denylist - nothing unexpected snuck in, not just
@@ -135,7 +135,7 @@ assert_dependency_range() {
     fi
 }
 
-for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles; do
+for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -178,7 +178,7 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
         Compono.NSubstitute)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — NSubstitute Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
-            assert_dependency_range "$nuspec" "$pkg" "NSubstitute" "[6.0.0, 7.0.0)"
+            assert_dependency_range "$nuspec" "$pkg" "NSubstitute" "[6.2.0, 7.0.0)"
             ;;
         Compono.Bogus)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Bogus Integration"
@@ -193,6 +193,13 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
         Compono.TestDoubles)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Generated Test Doubles"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            ;;
+        Compono.DependencyInjection)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Dependency Injection Bridge"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            # No third-party dependency: row.AsServiceProvider() returns a plain
+            # System.IServiceProvider (BCL) - nothing else to range-assert here (ADR-0047
+            # Amendment 1).
             ;;
     esac
 done
