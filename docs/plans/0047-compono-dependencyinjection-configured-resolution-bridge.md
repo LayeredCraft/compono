@@ -819,3 +819,27 @@ just an in-repo `ProjectReference`.
     before starting. Verified the fix still consistently takes ~12s (not
     near-instant), confirming it now genuinely exercises the contended
     wait every run.
+
+## Seventeenth PR review round (Codex, #105) findings
+
+35. **P2 — `Monitor.Wait` can throw `ThreadInterruptedException` without
+    returning normally, skipping the `WaitingFor.Remove` that sat as a
+    bare statement right after it.** `Thread.Interrupt()` on a thread
+    blocked in `Monitor.Wait` throws before execution reaches that line,
+    permanently leaking the interrupted thread's `WaitingFor` entry - and,
+    through it, the target adapter/`CompositionRow` - in the static graph.
+    Fixed by wrapping the `Wait` call in a `try`/`finally` that removes
+    the entry unconditionally. Unlike finding 30's genuine
+    scheduler-timing race, this one IS deterministically reproducible
+    (`Thread.Interrupt()` is caller-controlled, not OS-scheduling-
+    dependent) - verified directly via reflection on the private static
+    `WaitingFor` field: reverted to the bare-statement version and
+    confirmed the entry leaked every run, restored the `try`/`finally`
+    and confirmed it's removed every run, full suite still green (16/16).
+36. **P2 — three current-state docs still described package counts from
+    before this package shipped.** `docs/contributing.md` said the
+    package-validation CI gate covers "the four publishable packages"
+    (now seven); `docs/documentation-architecture.md` said Package Guides
+    has "all 5 pages" listing four package names (now seven pages, seven
+    names) and Reference's `api/` covers "all four publishable packages"
+    (now seven). Updated all three to the current count.

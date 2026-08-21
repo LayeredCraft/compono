@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Compono.DependencyInjection.Tests;
 
 /// <summary>
@@ -351,6 +353,56 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     private sealed record SlowMarker;
+
+    [Fact]
+    public void GetService_RemovesItsWaitGraphEntry_WhenInterruptedWhileBlocked()
+    {
+        // Regression for a Codex PR review finding (P2): Monitor.Wait can throw
+        // ThreadInterruptedException (Thread.Interrupt() on the blocked thread) without ever returning
+        // normally. The line removing this thread's WaitingFor entry sat right after the Wait call, not
+        // in a finally - an interrupted wait skipped it entirely, permanently leaking the waiting
+        // thread's entry (and, through it, the target adapter/row) in the static graph. Verified via
+        // reflection on the private static WaitingFor field, since a stale entry has no other externally
+        // observable effect until some later, unrelated cycle check happens to walk through it.
+        var waitingForField = typeof(CompositionRowServiceProviderExtensions).Assembly
+            .GetType("Compono.ComponoServiceProvider")!
+            .GetField("WaitingFor", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var waitingFor = (System.Collections.IDictionary)waitingForField.GetValue(null)!;
+
+        var composer = Composer.Create(builder => builder.Register<SlowMarker>(() =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            return new SlowMarker();
+        }));
+        var row = composer.CreateRow(typeof(ComposedRowServiceProviderTests));
+        var provider = row.AsServiceProvider();
+
+        // Occupies the row's lock for the whole test - the second thread below will genuinely block
+        // waiting for it, not just race past it.
+        var occupyingThread = new Thread(() => provider.GetService(typeof(SlowMarker))) { IsBackground = true };
+        occupyingThread.Start();
+        Thread.Sleep(200); // give the occupying thread time to actually acquire the row's lock
+
+        Exception? caught = null;
+        var waitingThread = new Thread(() =>
+        {
+            try
+            {
+                provider.GetService(typeof(SlowMarker));
+            }
+            catch (Exception e)
+            {
+                caught = e;
+            }
+        });
+        waitingThread.Start();
+        Thread.Sleep(200); // give the waiting thread time to actually reach Monitor.Wait
+        waitingThread.Interrupt();
+        waitingThread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+        caught.Should().BeOfType<ThreadInterruptedException>();
+        waitingFor.Contains(waitingThread).Should().BeFalse();
+    }
 
     [Fact]
     public void GetService_DoesNotTimeOut_ForOrdinaryContentionLongerThanTheLockTimeout()

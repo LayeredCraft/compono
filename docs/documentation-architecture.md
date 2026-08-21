@@ -395,21 +395,22 @@ Package Guides once the reader has decided what to adopt.
 ## 7. Package Guides
 
 **Audience:** someone deciding whether/how to adopt a specific package.
-**Status:** real content, all 5 pages
+**Status:** real content, all 7 pages
 ([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 3).
 **Purpose:** the ecosystem-level "what is this package for" question, one
 page per package.
 **Contents:** per package (`compono.md`, `compono-xunitv3.md`,
-`compono-nsubstitute.md`, `compono-bogus.md`), in this fixed order per
-page: when to install it, when *not* to, how it fits into the ecosystem
-(dependencies, what depends on it), common usage patterns, common
-mistakes, interactions with the other packages. `packages/index.md` is the
-ecosystem map — a single table a reader scans to pick which package(s)
-they need before diving into any one guide. **This structure is
-package-count-agnostic by design** — today's four packages are not assumed
-to be the permanent set; a fifth, sixth, or Nth integration package adds
-exactly one page here and one row to the ecosystem-map table, never a
-hierarchy redesign.
+`compono-nsubstitute.md`, `compono-bogus.md`, `compono-tunit.md`,
+`compono-testdoubles.md`, `compono-dependencyinjection.md`), in this fixed
+order per page: when to install it, when *not* to, how it fits into the
+ecosystem (dependencies, what depends on it), common usage patterns,
+common mistakes, interactions with the other packages. `packages/index.md`
+is the ecosystem map — a single table a reader scans to pick which
+package(s) they need before diving into any one guide. **This structure is
+package-count-agnostic by design** — today's seven packages are not
+assumed to be the permanent set; an eighth, ninth, or Nth integration
+package adds exactly one page here and one row to the ecosystem-map
+table, never a hierarchy redesign.
 **Relates to:** assumes Concepts (package guides don't re-teach `[Shared]`
 or profiles from scratch, they show how this package participates in
 them). A future package gets its page here the moment it ships (see
@@ -511,7 +512,7 @@ not just how to fix it.
 ## 11. Reference
 
 **Audience:** anyone who already knows what they're looking for.
-**Status:** `api/` generated for all four publishable packages, per
+**Status:** `api/` generated for all seven publishable packages, per
 [ADR-0032](adr/0032-api-reference-documentation-toolchain.md)
 ([PLAN-0008](plans/0008-milestone-8-public-preview.md) Phase 1);
 `index.md`/`diagnostics.md`/`glossary.md` all real content

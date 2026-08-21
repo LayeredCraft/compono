@@ -124,9 +124,21 @@ internal sealed class ComponoServiceProvider : IServiceProvider
                 // then re-acquires it before returning, so there is no gap between "about to wait" and
                 // "actually waiting" a release could slip through unnoticed (the classic lost-wakeup
                 // problem this pattern exists to avoid).
+                //
+                // try/finally around the Wait itself, not just a bare statement after it - Monitor.Wait
+                // can throw ThreadInterruptedException (Thread.Interrupt() on this thread while blocked)
+                // without ever returning normally, in which case the plain statement after it would
+                // never run and this WaitingFor entry - and the CompositionRow it keeps reachable through
+                // this adapter - would leak permanently. finally runs regardless.
                 WaitingFor[thisThread] = this;
-                Monitor.Wait(GraphLock);
-                WaitingFor.Remove(thisThread);
+                try
+                {
+                    Monitor.Wait(GraphLock);
+                }
+                finally
+                {
+                    WaitingFor.Remove(thisThread);
+                }
                 // Loop back around: PulseAll wakes every waiter, not just ones waiting on THIS adapter,
                 // so re-check whether it's actually free now before assuming so.
             }
