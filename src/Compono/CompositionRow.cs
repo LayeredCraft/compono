@@ -100,8 +100,11 @@ public sealed class CompositionRow : ICompositionContext
     /// <see langword="false"/> if no such stage could handle it.
     /// </returns>
     /// <exception cref="CompositionException">
-    /// An exact registration factory threw, or the scope/registration/provider result was invalid
-    /// (null for a nullable-only-blind request, or the wrong runtime type). This method distinguishes
+    /// An exact registration factory threw, or the scope/registration/provider result's runtime type
+    /// wasn't assignable to the requested type. A <see langword="null"/> result is never a failure
+    /// here - unlike <see cref="Resolve{TValue}(in CompositionRequestDescriptor)"/>, this method always
+    /// validates as nullable (see the parameter docs above), so a legitimate <see langword="null"/>
+    /// always comes back as <see langword="true"/>, never this exception. This method distinguishes
     /// "nothing could handle this" (a <see langword="false"/> return) from "something tried and failed"
     /// (a thrown exception) - it never collapses the latter into the former.
     /// </exception>
