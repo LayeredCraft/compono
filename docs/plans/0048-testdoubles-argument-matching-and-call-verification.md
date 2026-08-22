@@ -468,3 +468,70 @@ shows its usual 40/48 - the 8 "failures" are `FailingCompositionTests`/
 fixtures a different project's real-runner test consumes on purpose,
 unrelated to this work (confirmed against their own source comments,
 same as the original PLAN-0048 pass).
+
+### Second Codex review round (2026-08-22) - two more real findings, both fixed
+
+The first fix round's own field-name-collision fix (finding 4 above) turned
+out to be incomplete: it only checked a derived name against
+`usedFieldNames`' literal top-level names, never against another member's
+own independently-derived names. Two more real bugs surfaced:
+
+A. Two unremarkable members can derive the identical auxiliary name from
+   each other without either colliding with anything reserved so far in a
+   single linear pass - a member `Foo(int x_calls)` derives matcher field
+   `__Foo_m_x_calls`; a sibling `Foo_m_x(int z)` derives call-log field
+   `__Foo_m_x_calls` from its own `FieldName` - same string, neither
+   present in `usedFieldNames` when either member's eligibility was
+   checked, so both passed and the generated class failed with `CS0102`.
+   Fixed with a genuine two-pass approach: a new pre-pass computes every
+   prospective auxiliary name every non-overloaded, config-surfaced
+   candidate would produce (correctly excluding a same-named sibling that
+   would never itself get a configuration surface, e.g. a ref/out/in
+   overload - the same `WouldGetConfigurationSurface` filter
+   `overloadedNames` already applies, which the first version of this
+   fix omitted and had to be corrected before committing, caught by a
+   real snapshot-test regression during implementation, not by review),
+   flags any name more than one candidate claims, and excludes every
+   member whose derived names appear in that set from eligibility -
+   `derivedNameCollisionMembers`, checked in the real eligibility
+   computation instead of three separate `usedFieldNames.Contains(...)`
+   checks.
+B. A non-overloaded member literally named `Equals` with exactly one
+   parameter passed eligibility, but its would-be `Match<T>`-typed
+   extension has the same real call-site arity as the inherited
+   `object.Equals(object)` instance method (any `T` implicitly converts
+   to `object`, boxing if needed) - C# always prefers an applicable
+   instance method over an extension method regardless of conversion
+   cost, so the generated extension was never actually reachable, and
+   `Configure().Equals(...).Returns(...)` failed to compile (`Equals`
+   resolving to `object.Equals`, returning `bool`, which has no
+   `Returns`). This is a different arity shape than the existing
+   `isObjectMemberCollisionShaped`/`TestDoubleObjectMemberCollision`
+   check already handles (that one assumes a non-overloaded member's
+   extension arity is always zero, true for every *pre-eligibility*
+   surface but not for an eligible member's real-parameter-typed
+   extension) - fixed with a dedicated `Equals`-arity-one exclusion in
+   `isEligibleForMatching` itself, not by reusing the existing arity-zero
+   check as-is. `ToString`/`GetHashCode`/`GetType` need no equivalent
+   check - they only collide with their `object` counterpart at arity
+   zero, and eligibility already requires at least one real parameter.
+
+Both fixed together with real, compiled-and-run regression tests
+(`AuxiliaryNameCollisionTests`, `ObjectMemberCollisionTests` in
+`MatchingTests.cs`). Full regression after: `Compono.Generators.Tests`
+362/362 (zero unintended snapshot diffs - the `WouldGetConfigurationSurface`
+correction above was caught and fixed *before* this count, by a real
+snapshot failure locally), `Compono.TestDoubles.SampleTests` 160/160 (40 x
+4 TFMs, up from 152), full solution `dotnet test` 2322/2322, a fresh real
+Native AOT publish+run of `Compono.TestDoubles.AotSmokeTest` (exit 0),
+API-reference-drift re-checked (zero diff - neither fix touches public
+API). Also folded in, per the product owner's standing instruction for
+this review loop: an update to
+`.claude/skills/engineering-workflow/references/coding-standards.md`'s
+"Generated code" section, recording two durable lessons from across both
+review rounds - reserve every name a generator could derive before
+checking any of them (not linear-pass "check what's reserved so far"),
+and check a new generated extension surface against inherited-member
+collisions from the start; plus a new naming bullet on checking a new
+public `Compono` symbol against well-known consumer-side vocabulary before
+shipping it (the `Arg`/`NSubstitute.Arg` collision earlier in this PR).

@@ -52,6 +52,29 @@ public interface ICollisionProneRepository
     void ProbeMatcherLocalCollision(int x, int __m_x);
 }
 
+// Codex review, PR #106 (round 2), Finding A: two independently-unremarkable members can derive the
+// exact same auxiliary field name without either colliding with anything reserved so far in a single
+// linear pass - Foo's parameter "x_calls" derives matcher field "__Foo_m_x_calls"; the sibling member
+// "Foo_m_x" derives its own call-log field "__Foo_m_x_calls" from its own FieldName. Both must fall
+// back to their existing argument-independent path (neither becomes eligible for matching) rather
+// than the generated class failing to compile with a duplicate-member error.
+public interface IAuxiliaryNameCollisionRepository
+{
+    bool Foo(int x_calls);
+
+    bool Foo_m_x(int z);
+}
+
+// Codex review, PR #106 (round 2), Finding B: a non-overloaded member literally named "Equals" with
+// one real parameter would, if made eligible, emit a Match<T>-typed extension with the same call-site
+// arity as the inherited object.Equals(object) instance method - which C# always prefers over an
+// extension method regardless of conversion cost, making the generated extension unreachable. Must
+// stay on the existing argument-independent path instead.
+public interface IEqualsRepository
+{
+    bool Equals(string other);
+}
+
 public sealed class MatchingTests
 {
     [Theory]
@@ -163,6 +186,34 @@ public sealed class RefLikeParameterTests
         repository.Configure().TryParse().Returns(true);
 
         repository.TryParse("hello".AsSpan()).Should().BeTrue();
+    }
+}
+
+public sealed class AuxiliaryNameCollisionTests
+{
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void MembersWithCollidingDerivedNames_BothFallBackAndCompile(
+        [Shared] IAuxiliaryNameCollisionRepository repository)
+    {
+        repository.Configure().Foo().Returns(true);
+        repository.Configure().Foo_m_x().Returns(false);
+
+        repository.Foo(x_calls: 1).Should().BeTrue();
+        repository.Foo_m_x(z: 2).Should().BeFalse();
+    }
+}
+
+public sealed class ObjectMemberCollisionTests
+{
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void EqualsWithOneParameter_StaysArgumentIndependent_AndCompiles(
+        [Shared] IEqualsRepository repository)
+    {
+        repository.Configure().Equals().Returns(true);
+
+        repository.Equals("anything").Should().BeTrue();
     }
 }
 
