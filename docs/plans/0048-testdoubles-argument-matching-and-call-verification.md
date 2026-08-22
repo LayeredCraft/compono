@@ -200,18 +200,30 @@ Grouped by concern, checked off as work proceeds.
 
 ## Trivia-manager re-dogfood (separate repo, separate PR, after this ships)
 
-- [ ] Against a real `Compono.TestDoubles` package build from this repo,
+Done (2026-08-22), against the real `Compono`/`Compono.TestDoubles`/`Compono.TUnit`
+`0.6.0-preview.80` package build. Recorded in `ncipollina/trivia-manager`, not
+duplicated here — see that repo's `docs/adr/0002-staged-migration-to-compono.md`
+(Amendments 1-3) and `docs/plans/0002-staged-compono-migration.md` (Stage 3's
+completion and Stage 4). Summary: every domain interface Stage 3 had left on
+NSubstitute for argument-matching/argument-filtered-verification reasons is now on
+`Compono.TestDoubles`' `Match<T>` surface; the one remaining, permanent exception is
+`IRequestAdapter.SendAsync<ModelType>` (a generic method whose return type depends on
+its own type parameter - a documented `Compono.TestDoubles` Non-Goal, not a gap this
+capability was meant to close). No new capability gap was found - every eligible call
+site this ADR's scope promised was actually deliverable.
+
+- [x] Against a real `Compono.TestDoubles` package build from this repo,
       re-attempt the trivia-manager call sites Stage 3 left on
       NSubstitute for argument-matching/argument-filtered-verification
       reasons (see that repo's `docs/adr/0002-staged-migration-to-compono.md`
       Amendment 1 and `docs/plans/0002-staged-compono-migration.md`'s
       Stage 3 section).
-- [ ] Record the outcome back into trivia-manager's own plan/ADR, not
+- [x] Record the outcome back into trivia-manager's own plan/ADR, not
       this repo.
-- [ ] Any new gap that re-dogfood surfaces — including any real
+- [x] Any new gap that re-dogfood surfaces — including any real
       overloaded-member argument-matching need, should one turn up — is
       separate evidence for a future ADR per ADR-0029/ADR-0042 Amendment
-      2's policy, not folded into this plan.
+      2's policy, not folded into this plan. (None surfaced.)
 
 ## Critical Files
 
