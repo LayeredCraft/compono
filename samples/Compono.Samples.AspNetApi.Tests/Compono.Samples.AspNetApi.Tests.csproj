@@ -12,6 +12,13 @@
          in this repo (see test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj). -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- PLAN-0048's real-project coexistence proof: this project's own namespace already nests
+         under Compono (the exact shape that broke when the new matcher type was still named
+         Compono.Arg) and already references Compono.NSubstitute directly - adding
+         Compono.TestDoubles here, in the same project, is the regression test for "Compono.Match
+         and NSubstitute.Arg coexist with no aliasing required for either", not a synthetic example
+         in isolation. -->
+    <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,9 +50,19 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.TestDoubles/Compono.TestDoubles.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Generators/Compono.Generators.csproj"
                        OutputItemType="Analyzer"
                        ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- ComponoGeneratedTestDoubles (ADR-0043) is only automatically CompilerVisibleProperty for a
+       PackageReference consumer, via Compono's own packaged build/Compono.props - this project's
+       ProjectReference above bypasses packaged build assets entirely, so it must declare the same
+       visibility itself. Matches benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj's own
+       identical fix for the identical ProjectReference situation. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
   </ItemGroup>
 
 </Project>

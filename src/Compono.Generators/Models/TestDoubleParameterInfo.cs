@@ -9,6 +9,15 @@ namespace Compono.Generators.Models;
 /// own parameter name (ADR-0043 Amendment 10, Finding X) and, for an overloaded member (ADR-0044
 /// Amendment 1), the configuration extension's own parameter name too.
 /// </param>
+/// <param name="OriginalName">
+/// The real, unescaped symbol name - never used where this name stands alone as an identifier token
+/// (that's <see cref="EscapedName"/>'s job), only where it's spliced as a fragment inside a larger
+/// synthetic identifier (ADR-0048's per-parameter matcher field/local names,
+/// <c>{fieldName}_m_{OriginalName}</c>) - gluing an <c>@</c>-escaped name into the middle of another
+/// identifier produces invalid syntax (<c>@</c> is only legal as an identifier's first character),
+/// while a bare reserved word glued into a larger identifier needs no escaping at all (Codex review,
+/// PR #106).
+/// </param>
 /// <param name="FullyQualifiedTypeName">This parameter's type, fully qualified.</param>
 /// <param name="RefKindPrefix">
 /// <c>""</c>, <c>"ref "</c>, <c>"out "</c>, or <c>"in "</c> - only a member with no
@@ -31,5 +40,5 @@ namespace Compono.Generators.Models;
 /// extension needs to stay reachable the same way (Codex review, PR #88).
 /// </param>
 internal sealed record TestDoubleParameterInfo(
-    string EscapedName, string FullyQualifiedTypeName, string RefKindPrefix = "", bool IsParams = false,
+    string EscapedName, string OriginalName, string FullyQualifiedTypeName, string RefKindPrefix = "", bool IsParams = false,
     string DefaultValueExpression = "");

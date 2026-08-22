@@ -6,6 +6,9 @@
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Seek;
+    internal global::Compono.Match<int>? __Seek_m_offset;
+    internal readonly global::System.Collections.Generic.List<int> __Seek_calls = [];
+    internal readonly object __Seek_lock = new();
 
     void global::TestNamespace.IRepository.Seek(ref readonly int offset)
     {
@@ -14,15 +17,35 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     void global::TestNamespace.IRepository.Seek(int offset)
     {
         __Seek.RecordCall();
-        if (__Seek.HasConfiguredException)
+        lock (__Seek_lock) { __Seek_calls.Add(offset); }
+        var __matches = (__Seek_m_offset is not { } __m_offset || __m_offset.Matches(offset));
+        if (__matches && __Seek.HasConfiguredException)
             throw __Seek.ConfiguredException;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Seek);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> offset)
+    {
+        __self.__Seek_m_offset = offset;
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Seek);
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Explicitly clearing every
+    // matcher field (not merely leaving them alone) is what makes this overload reproduce v1/v2's
+    // exact argument-independent behavior even on a double a prior Configure() call already gave
+    // matchers to - dispatch's `is not { } m || m.Matches(...)` treats null as always-matching, so a
+    // second call through this overload has to actually null them out, not just skip setting new
+    // ones, to make "the second Configure() call overwrites" true regardless of which overload either
+    // call went through (Codex review, PR #106).
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self)
+    {
+        self.__Seek_m_offset = null;
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Seek);
+    }
 
 }
 
@@ -46,6 +69,24 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
+    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<int> offset)
+    {
+        int __count;
+        lock (__self.Instance.__Seek_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__Seek_calls)
+            {
+                if (offset.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.Seek");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
     public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__Seek.ConfiguredCallCount, "global::TestNamespace.IRepository.Seek");
 

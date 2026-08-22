@@ -248,6 +248,63 @@ internal static class TestDoubleAnalyzer
             discriminatorSuffixByIdentity[key] = suffix;
         }
 
+        // A member's own derived auxiliary names (_calls/_lock/_m_{param}, spliced from FieldName by
+        // the scriban template for a matching-eligible member) must be reserved against every OTHER
+        // member's own derived names, not just against usedFieldNames' literal top-level names above -
+        // two independently-unremarkable members can derive the exact same auxiliary name (a member
+        // Foo whose parameter is named x_calls derives matcher field __Foo_m_x_calls; a sibling member
+        // literally named Foo_m_x derives call-log field __Foo_m_x_calls from its own, different,
+        // FieldName) without either name ever colliding with anything reserved in usedFieldNames
+        // itself - the single-pass "check against what's already reserved" approach the first fix
+        // round used can never catch a collision between two names computed independently of each
+        // other. The real invariant is "reserve every name any candidate could ever produce before
+        // checking any of them," not "check each new name against what's been reserved so far."
+        // Computed as a prospective, over-approximate pass - every non-overloaded method with at least
+        // one parameter is included regardless of whether it will actually turn out eligible for
+        // matching (the generic-own-type-parameter/ref-like/Equals-arity exclusions are still applied
+        // in isEligibleForMatching below) - reserving a name a member never actually emits is
+        // harmless, and folding the two passes into one exact-eligibility-only pre-pass would mean
+        // duplicating every other exclusion's logic a second time. Codex review, PR #106 (round 2).
+        var derivedAuxiliaryNameOwners = new Dictionary<string, List<ISymbol>>(StringComparer.Ordinal);
+
+        foreach (var candidate in eligibleCandidates)
+        {
+            // A same-named sibling that would never actually get a configuration surface (e.g. a
+            // ref/out/in-shaped overload, ADR-0044's "overload-set-internal partial support") never
+            // reaches this pre-pass's real counterpart below either - counting it here would treat two
+            // members that merely share a raw Name, only one of which ever emits anything, as if both
+            // derive real auxiliary names, spuriously flagging the one real member as self-colliding
+            // with a sibling that was never going to emit those names in the first place. Same filter
+            // overloadedNames itself already applies above, for the identical reason. Codex review,
+            // PR #106 (round 2).
+            if (candidate is not IMethodSymbol candidateMethod || overloadedNames.Contains(candidateMethod.Name) ||
+                candidateMethod.Parameters.Length == 0 ||
+                !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
+                continue;
+
+            var derivedNames = new[] { $"__{candidateMethod.Name}_calls", $"__{candidateMethod.Name}_lock" }
+                .Concat(candidateMethod.Parameters.Select(p => $"__{candidateMethod.Name}_m_{p.Name}"));
+
+            foreach (var name in derivedNames)
+            {
+                if (!derivedAuxiliaryNameOwners.TryGetValue(name, out var owners))
+                    derivedAuxiliaryNameOwners[name] = owners = new List<ISymbol>();
+
+                owners.Add(candidateMethod);
+            }
+        }
+
+        var derivedNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var (name, owners) in derivedAuxiliaryNameOwners)
+        {
+            if (owners.Count <= 1 && !usedFieldNames.Contains(name))
+                continue;
+
+            foreach (var owner in owners)
+                derivedNameCollisionMembers.Add(owner);
+        }
+
         var reportedDiamondIdentities = new HashSet<(string Name, string Canonical)>();
         var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
@@ -639,6 +696,7 @@ internal static class TestDoubleAnalyzer
                         var parameters = method.Parameters
                             .Select(p => new TestDoubleParameterInfo(
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
+                                p.Name,
                                 p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
                                 // The explicit implementation's ref-safety contract has to match the
                                 // interface member's exactly, or the consumer gets CS8987, not a
@@ -716,7 +774,57 @@ internal static class TestDoubleAnalyzer
                         // parameter too - a type parameter named "__self" collides with a receiver
                         // literally named "__self" (CS0412) exactly like a value parameter would.
                         // Codex review, PR #89.
-                        var extensionReceiverName = hasConfigurationSurface && isOverloaded
+                        // ADR-0048: argument-aware Configure()/Verify() is scoped to a member with at
+                        // least one real parameter, not part of an overload set (a real compiler spike
+                        // proved wrapping every overload's parameters in Match<T> breaks C# overload
+                        // resolution unpredictably), and - for a generic method - no real parameter
+                        // referencing the method's own open type parameter (a per-member call log can't
+                        // hold an open type parameter's value; reuses the same symbol-graph walk
+                        // Requirement 2 already uses for its return-type check, just against parameters).
+                        // Computed before extensionReceiverName below - an eligible member's own
+                        // Configure()/Verify() extension now carries real parameter names too (wrapped
+                        // in Match<T>), so it needs the same collision-checked receiver name an
+                        // overloaded member's extension already gets. Codex review, PR #106.
+                        //
+                        // A ref-like parameter type (Span<T>, or any other ref struct) is excluded here,
+                        // not merely diagnosed - it dispatches fine today via the argument-independent,
+                        // value-discarded path (a ref-like type is a perfectly ordinary by-value method
+                        // parameter, distinct from the ref/out/in *passing-mode* restriction above), but
+                        // can never be used as a generic type argument (Match<Span<int>>?, or as an
+                        // element of the call-log tuple) - CS0306. Falls back to the member's existing
+                        // v1/v2 shape, the same "ineligible, not unsupported" disposition every other
+                        // eligibility exclusion here already has. Codex review, PR #106.
+                        //
+                        // A member is also excluded when its own derived field names (the call log/lock/
+                        // per-parameter matcher fields the template will splice from FieldName) collide
+                        // with any name derived by another candidate, or with a literal top-level field
+                        // name - derivedNameCollisionMembers (computed above, before this loop starts)
+                        // already accounts for both. Falls back to the argument-independent path for
+                        // just this member, the same "give up the enhancement, keep the member correct"
+                        // disposition as every other exclusion here. Codex review, PR #106 (round 2).
+                        //
+                        // A non-overloaded "Equals" member with exactly one parameter is also excluded -
+                        // its would-be Match<T>-typed extension has the same real call-site arity as the
+                        // inherited object.Equals(object) instance method (any T implicitly converts to
+                        // object, boxing if necessary), and C# always prefers an applicable instance
+                        // method over an extension method regardless of conversion cost - the generated
+                        // extension would never actually be reachable. ToString/GetHashCode/GetType need
+                        // no equivalent check here: they collide with their object counterpart only at
+                        // arity zero, and eligibility already requires parameters.Count > 0, so an
+                        // eligible member named one of those can never share arity with the inherited
+                        // zero-arg version. This is a distinct check from isObjectMemberCollisionShaped
+                        // above, which computes a non-overloaded member's *existing* (non-matching)
+                        // extension arity as always zero - eligibility's own extension arity is
+                        // parameters.Count instead, so that check's answer doesn't transfer here. Codex
+                        // review, PR #106 (round 2).
+                        var isEligibleForMatching = hasConfigurationSurface && !isOverloaded && parameters.Count > 0 &&
+                            !(method.IsGenericMethod &&
+                              method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method))) &&
+                            !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                            !derivedNameCollisionMembers.Contains(method) &&
+                            !(method.Name == "Equals" && parameters.Count == 1);
+
+                        var extensionReceiverName = hasConfigurationSurface && (isOverloaded || isEligibleForMatching)
                             ? SafeReceiverName(parameters.Select(p => p.EscapedName).Concat(typeParameterNames))
                             : "self";
 
@@ -748,7 +856,8 @@ internal static class TestDoubleAnalyzer
                             method.IsGenericMethod,
                             typeParameterNames,
                             constraintClauses,
-                            IsConfigurationRequired: isConfigurationRequired));
+                            IsConfigurationRequired: isConfigurationRequired,
+                            IsEligibleForMatching: isEligibleForMatching));
 
                         break;
                     }

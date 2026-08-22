@@ -486,6 +486,47 @@ every other section of this file like any hand-written code):
   `global::` and mis-binds when a consumer's type shadows a namespace
   segment in scope. Diagnostic *messages* keep the plain, readable form —
   the rule is about emitted code, where correctness beats readability.
+- **A generator that derives a new identifier from an existing one (by
+  string concatenation — a field name, a local variable name) must reserve
+  every name it could ever produce before checking any of them, not check
+  each new name against only what's been reserved so far in one linear
+  pass.** PLAN-0048's eligible-member codegen learned this the hard way
+  across two Codex review rounds on the same PR: the first fix reserved a
+  derived name only against literal top-level names already in a shared
+  set, which missed two *different* members independently deriving the
+  same auxiliary name from each other (neither collided with anything
+  reserved *yet*, since neither had reserved anything at the point the
+  other was checked) — a real `CS0102` in the generated output that no
+  test caught until Codex's second pass. The correct shape is two
+  passes: first compute the full prospective name set every candidate
+  would produce, find any name more than one candidate claims, *then*
+  decide eligibility with that complete picture in hand. This must also
+  check against the target type's own inherited members, not just
+  sibling generated names — an extension method whose name and arity
+  match an inherited instance method (`object.Equals(object)`,
+  `ToString()`, `GetHashCode()`, `GetType()`) is never actually reachable
+  from a call site, since C# always prefers an applicable instance method
+  over an extension method regardless of conversion cost; `Compono.TestDoubles`'
+  existing `TestDoubleObjectMemberCollision` diagnostic already exists for
+  exactly this reason — when adding a *new* generated extension-method
+  surface, check it against that same collision class from the start
+  rather than discovering it after the fact. In every case, this repo's
+  disposition is the same: exclude the specific member from the new
+  capability (fall back to whatever it already correctly did before),
+  never fail the whole interface over one member's naming collision.
+- Before shipping a **new public symbol name in `Compono` core**, check it
+  against well-known consumer-side vocabulary a real consuming project is
+  likely to already have `using` in scope for — not just against this
+  repo's own existing names. `Compono.Arg<T>` collided with
+  `NSubstitute.Arg` (a real build failure surfaced in a project whose
+  namespace merely nested under `Compono`, no explicit `using Compono;`
+  needed to trigger it) before being renamed to `Match<T>` pre-merge. A
+  quick grep against a realistic consuming interface, or a real compiler
+  spike for anything relying on overload resolution/implicit conversions
+  to disambiguate, catches this before it ships — this repo's established
+  "prove it, don't assume it" standard (see e.g. ADR-0042/0044/0045's own
+  use of it for AOT verification) applies here just as much as it does to
+  composition-engine or generator behavior.
 - **Hint names (`AddSource`) are readable + stable-hash-suffixed**: the
   sanitized fully-qualified name for a human scanning generated-file
   lists, plus a short stable hash of the raw pre-sanitization identity —

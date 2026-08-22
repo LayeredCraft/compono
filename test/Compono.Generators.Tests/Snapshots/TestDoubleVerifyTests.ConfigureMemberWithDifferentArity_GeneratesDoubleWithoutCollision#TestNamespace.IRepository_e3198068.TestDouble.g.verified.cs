@@ -7,11 +7,16 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 {
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Configure;
     internal global::Compono.ReturnConfig<string?> __GetName;
+    internal global::Compono.Match<int>? __Configure_m_mode;
+    internal readonly global::System.Collections.Generic.List<int> __Configure_calls = [];
+    internal readonly object __Configure_lock = new();
 
     void global::TestNamespace.IRepository.Configure(int mode)
     {
         __Configure.RecordCall();
-        if (__Configure.HasConfiguredException)
+        lock (__Configure_lock) { __Configure_calls.Add(mode); }
+        var __matches = (__Configure_m_mode is not { } __m_mode || __m_mode.Matches(mode));
+        if (__matches && __Configure.HasConfiguredException)
             throw __Configure.ConfiguredException;
     }
 
@@ -26,8 +31,26 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Configure);
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> mode)
+    {
+        __self.__Configure_m_mode = mode;
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Configure);
+    }
+
+    // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
+    // zero-argument Configure(), regardless of real arity - a real existing call site
+    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Explicitly clearing every
+    // matcher field (not merely leaving them alone) is what makes this overload reproduce v1/v2's
+    // exact argument-independent behavior even on a double a prior Configure() call already gave
+    // matchers to - dispatch's `is not { } m || m.Matches(...)` treats null as always-matching, so a
+    // second call through this overload has to actually null them out, not just skip setting new
+    // ones, to make "the second Configure() call overwrites" true regardless of which overload either
+    // call went through (Codex review, PR #106).
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Configure(this global::TestNamespace_IRepository_e3198068_Double self)
+    {
+        self.__Configure_m_mode = null;
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Configure);
+    }
 
     public static global::Compono.ReturnConfigBuilder<string?> GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<string?>(ref self.__GetName);
@@ -54,6 +77,24 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
+    public static global::Compono.CallVerifier Configure(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<int> mode)
+    {
+        int __count;
+        lock (__self.Instance.__Configure_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__Configure_calls)
+            {
+                if (mode.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.Configure");
+    }
+
+    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
+    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
+    // reproducing v1/v2's exact argument-independent Verify() for this member.
     public static global::Compono.CallVerifier Configure(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__Configure.ConfiguredCallCount, "global::TestNamespace.IRepository.Configure");
 
