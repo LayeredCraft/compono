@@ -75,6 +75,16 @@ public interface IEqualsRepository
     bool Equals(string other);
 }
 
+// Codex review, PR #106 (round 4): an eligible generic member's own type parameter is in scope in
+// its dispatch body exactly like a real value parameter is - naming it "__matches" (or any of the
+// other synthetic dispatch-local names, e.g. a "__m_x"-shaped name for a sibling parameter "x")
+// collides with the generated local the same way a real value parameter's name would, but the
+// reservation set only ever considered value-parameter names, not type-parameter names. CS0412.
+public interface ITypeParameterCollisionRepository
+{
+    void Log<__matches>(string message);
+}
+
 public sealed class MatchingTests
 {
     [Theory]
@@ -214,6 +224,22 @@ public sealed class ObjectMemberCollisionTests
         repository.Configure().Equals().Returns(true);
 
         repository.Equals("anything").Should().BeTrue();
+    }
+}
+
+public sealed class TypeParameterCollisionTests
+{
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void TypeParameterNamedAfterAGeneratedDispatchLocal_CompilesAndDispatchesCorrectly(
+        [Shared] ITypeParameterCollisionRepository repository)
+    {
+        repository.Configure().Log(Compono.Match.Is<string>(m => m == "expected")).Throws(new InvalidOperationException());
+
+        var act = () => repository.Log<int>("expected");
+
+        act.Should().Throw<InvalidOperationException>();
+        repository.Verify().Log(Compono.Match.Any<string>()).Once();
     }
 }
 

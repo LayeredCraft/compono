@@ -36,8 +36,14 @@ internal static class TestDoubleEmitter
                 // collision-safely against this member's own real (escaped) parameter names, the
                 // same lengthening algorithm TestDoubleAnalyzer.SafeReceiverName already uses for the
                 // extension receiver. Computed here, in C#, rather than in the template, matching
-                // CallLogAccessExpression's own precedent below. Codex review, PR #106.
-                var parameterEscapedNames = m.Parameters.Select(p => p.EscapedName).ToArray();
+                // CallLogAccessExpression's own precedent below. Codex review, PR #106. Also reserved
+                // against the method's own type parameter names (a generic eligible member's type
+                // parameter is in scope in its dispatch body exactly like a real value parameter is,
+                // so it can collide with a synthetic local the same way - Codex review, PR #106,
+                // round 4).
+                var parameterEscapedNames = m.Parameters.Select(p => p.EscapedName)
+                    .Concat(m.TypeParameterNames)
+                    .ToArray();
                 var matchesLocalName = SafeLocalName("__matches", parameterEscapedNames);
                 var countLocalName = SafeLocalName("__count", parameterEscapedNames);
                 var callLoopVariableName = SafeLocalName("call", parameterEscapedNames.Append(countLocalName));
