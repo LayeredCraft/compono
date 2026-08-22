@@ -114,10 +114,14 @@ namespace Compono.Generators.Models;
 /// argument-independent one. Requires <see cref="HasConfigurationSurface"/>, at least one real
 /// parameter (a zero-parameter member has nothing to match), not <see cref="IsOverloaded"/> (a real
 /// compiler spike proved wrapping every overload's parameters in <c>Arg&lt;T&gt;</c> breaks C#
-/// overload resolution unpredictably - ADR-0048's "Overload-discriminator interaction"), and - when
-/// <see cref="IsGenericMethod"/> - no real parameter referencing the method's own open type parameter
-/// (a per-member call log can't hold an open type parameter's value; the <c>ILogger&lt;TState&gt;.Log</c>
-/// shape). An ineligible member generates its existing v1/v2/ADR-0044 shape, byte-for-byte unchanged.
+/// overload resolution unpredictably - ADR-0048's "Overload-discriminator interaction"), no ref-like
+/// (<c>Span&lt;T&gt;</c>-shaped) real parameter (can never be used as a generic type argument -
+/// <c>CS0306</c> - even though it dispatches fine via the argument-independent path), no derived
+/// field-name collision (its own <c>_calls</c>/<c>_lock</c>/per-parameter matcher field names would
+/// collide with another member's own field name), and - when <see cref="IsGenericMethod"/> - no real
+/// parameter referencing the method's own open type parameter (a per-member call log can't hold an
+/// open type parameter's value; the <c>ILogger&lt;TState&gt;.Log</c> shape). An ineligible member
+/// generates its existing v1/v2/ADR-0044 shape, byte-for-byte unchanged.
 /// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,

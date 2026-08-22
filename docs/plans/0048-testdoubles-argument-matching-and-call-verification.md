@@ -400,3 +400,71 @@ All tasks checked off; every ADR-0048-scoped test suite green; the
 blocking finding resolved with a real regression test, not just a rename.
 Trivia-manager re-dogfood remains explicitly out of this plan's scope (its
 own section above) - the next step, in that other repo, whenever picked up.
+
+**Post-merge-review fixes (Codex, PR #106, all 7 findings real, fixed
+before merge):** a fresh Codex review of the pushed diff caught seven real
+generator-correctness bugs in the eligible-member codegen path, none of
+which the pre-push test suite happened to exercise:
+
+1. Both eligible-member dispatch-body branches (void and non-void) omitted
+   `{{ member.generic_suffix }}` on the explicit interface implementation
+   - a non-overloaded generic method with no parameter referencing its own
+   type parameter (e.g. `void Log<T>(string message)`) is both
+   configuration-surfaced and eligible-for-matching, but its generated
+   double didn't actually implement the interface (`CS0535`). Fixed by
+   restating the suffix, matching the sibling non-eligible branches.
+2. `isEligibleForMatching` didn't exclude a ref-like (`Span<T>`-shaped)
+   real parameter - fine argument-independently, illegal as a `Match<T>`
+   type argument (`CS0306`). Fixed with an `IsRefLikeType` exclusion,
+   falling back to the member's existing v1/v2 shape (same disposition as
+   every other eligibility exclusion).
+3. The zero-argument `Configure()` compatibility overload never cleared a
+   matcher an earlier call had set, so "the second `Configure()` call
+   overwrites" was only true when both calls went through the same
+   overload. Fixed by nulling every matcher field in that overload too.
+4. `TestDoubleMemberInfo.FieldName`'s derived suffixes (`_calls`/`_lock`/
+   `_m_{param}`) weren't checked against `usedFieldNames` at all, so a
+   member named e.g. `Foo_calls` could collide with `Foo`'s own derived
+   call-log field name; separately, an `@`-escaped verbatim parameter name
+   (`@event`) produced an outright invalid identifier when concatenated as
+   a suffix. Fixed with a `usedFieldNames`-collision check added to
+   eligibility itself (falls back to argument-independent for that one
+   member, same disposition as every other exclusion - no new
+   hashing/disambiguation scheme needed) and a new `OriginalName` on
+   `TestDoubleParameterInfo` (unescaped, safe to splice mid-identifier)
+   used everywhere a parameter name is a suffix fragment rather than a
+   standalone token.
+5. The new `Configure()`/`Verify()` extensions hardcoded `self` as the
+   receiver instead of reusing `extension_receiver_name`/
+   `SafeReceiverName`, unlike every other extension in this file - a real
+   parameter named `self` produced a duplicate-parameter compile error.
+   Fixed by widening `extensionReceiverName`'s existing
+   `isOverloaded`-gated computation to also cover `isEligibleForMatching`.
+6/7. The new dispatch/verification bodies declared locals (`__matches`,
+   per-parameter `__m_{param}` pattern variables, `__count`, the `foreach`
+   loop variable) v1/v2 never needed, with no collision-safety against a
+   real parameter happening to share one of those names. Fixed with a new
+   `TestDoubleEmitter.SafeLocalName` helper (same lengthening algorithm as
+   `TestDoubleAnalyzer.SafeReceiverName`, computed in C# rather than
+   Scriban per this file's existing `CallLogAccessExpression` precedent)
+   allocating every one of these names collision-safely per member.
+
+All seven fixed together (one coherent change, not seven unrelated ones),
+each with a real, compiled-and-executed regression test in
+`test/Compono.TestDoubles.SampleTests/MatchingTests.cs` (not just "it
+compiles") - a generic eligible member, a ref-like-parameter fallback, the
+zero-argument-Configure clearing behavior, and three collision-prone
+interfaces (`self`, `__matches`/`__count`/`call`, `x`/`__m_x`). Full
+regression: `Compono.Tests` 256/256, `Compono.Generators.Tests` 362/362
+(7 snapshot files re-verified against the new, intentional output diff -
+`self` -> `__self`, matcher-clearing added - and confirmed correct before
+accepting), `Compono.TestDoubles.Tests` 24/24,
+`Compono.TestDoubles.SampleTests` 152/152 (38 x 4 TFMs, up from 32),
+`Compono.TUnit.SampleTests` 28/28, `samples/Compono.Samples.AspNetApi.Tests`
+6/6, a fresh real Native AOT publish+run of
+`Compono.TestDoubles.AotSmokeTest` (exit 0). `Compono.XunitV3.SampleTests`
+shows its usual 40/48 - the 8 "failures" are `FailingCompositionTests`/
+`FailingConfigProfileTests`, pre-existing deliberately-always-failing
+fixtures a different project's real-runner test consumes on purpose,
+unrelated to this work (confirmed against their own source comments,
+same as the original PLAN-0048 pass).

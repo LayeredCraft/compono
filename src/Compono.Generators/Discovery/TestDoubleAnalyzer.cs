@@ -639,6 +639,7 @@ internal static class TestDoubleAnalyzer
                         var parameters = method.Parameters
                             .Select(p => new TestDoubleParameterInfo(
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
+                                p.Name,
                                 p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
                                 // The explicit implementation's ref-safety contract has to match the
                                 // interface member's exactly, or the consumer gets CS8987, not a
@@ -716,7 +717,46 @@ internal static class TestDoubleAnalyzer
                         // parameter too - a type parameter named "__self" collides with a receiver
                         // literally named "__self" (CS0412) exactly like a value parameter would.
                         // Codex review, PR #89.
-                        var extensionReceiverName = hasConfigurationSurface && isOverloaded
+                        // ADR-0048: argument-aware Configure()/Verify() is scoped to a member with at
+                        // least one real parameter, not part of an overload set (a real compiler spike
+                        // proved wrapping every overload's parameters in Match<T> breaks C# overload
+                        // resolution unpredictably), and - for a generic method - no real parameter
+                        // referencing the method's own open type parameter (a per-member call log can't
+                        // hold an open type parameter's value; reuses the same symbol-graph walk
+                        // Requirement 2 already uses for its return-type check, just against parameters).
+                        // Computed before extensionReceiverName below - an eligible member's own
+                        // Configure()/Verify() extension now carries real parameter names too (wrapped
+                        // in Match<T>), so it needs the same collision-checked receiver name an
+                        // overloaded member's extension already gets. Codex review, PR #106.
+                        //
+                        // A ref-like parameter type (Span<T>, or any other ref struct) is excluded here,
+                        // not merely diagnosed - it dispatches fine today via the argument-independent,
+                        // value-discarded path (a ref-like type is a perfectly ordinary by-value method
+                        // parameter, distinct from the ref/out/in *passing-mode* restriction above), but
+                        // can never be used as a generic type argument (Match<Span<int>>?, or as an
+                        // element of the call-log tuple) - CS0306. Falls back to the member's existing
+                        // v1/v2 shape, the same "ineligible, not unsupported" disposition every other
+                        // eligibility exclusion here already has. Codex review, PR #106.
+                        //
+                        // A member is also excluded when its own derived field names (the call log/lock/
+                        // per-parameter matcher fields the template will splice from FieldName) would
+                        // collide with any name already reserved in usedFieldNames - that set is fully
+                        // populated (every non-overloaded member's own literal field name, plus every
+                        // overload's discriminator suffix) before this loop ever starts, so this check
+                        // is safe regardless of iteration order. Falls back to the argument-independent
+                        // path for just this member, the same "give up the enhancement, keep the
+                        // member correct" disposition as every other exclusion here, rather than
+                        // inventing a second hashing/disambiguation scheme solely for these derived
+                        // names. Codex review, PR #106.
+                        var isEligibleForMatching = hasConfigurationSurface && !isOverloaded && parameters.Count > 0 &&
+                            !(method.IsGenericMethod &&
+                              method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method))) &&
+                            !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                            !usedFieldNames.Contains($"__{method.Name}_calls") &&
+                            !usedFieldNames.Contains($"__{method.Name}_lock") &&
+                            !parameters.Any(p => usedFieldNames.Contains($"__{method.Name}_m_{p.OriginalName}"));
+
+                        var extensionReceiverName = hasConfigurationSurface && (isOverloaded || isEligibleForMatching)
                             ? SafeReceiverName(parameters.Select(p => p.EscapedName).Concat(typeParameterNames))
                             : "self";
 
@@ -729,17 +769,6 @@ internal static class TestDoubleAnalyzer
 
                         if (isConfigurationRequired)
                             configurationRequiredCount++;
-
-                        // ADR-0048: argument-aware Configure()/Verify() is scoped to a member with at
-                        // least one real parameter, not part of an overload set (a real compiler spike
-                        // proved wrapping every overload's parameters in Match<T> breaks C# overload
-                        // resolution unpredictably), and - for a generic method - no real parameter
-                        // referencing the method's own open type parameter (a per-member call log can't
-                        // hold an open type parameter's value; reuses the same symbol-graph walk
-                        // Requirement 2 already uses for its return-type check, just against parameters).
-                        var isEligibleForMatching = hasConfigurationSurface && !isOverloaded && parameters.Count > 0 &&
-                            !(method.IsGenericMethod &&
-                              method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method)));
 
                         members.Add(new TestDoubleMemberInfo(
                             method.Name,
