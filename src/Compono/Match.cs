@@ -69,5 +69,10 @@ public static class Match
     public static Match<T> Any<T>() => Match<T>.Any();
 
     /// <summary>A <see cref="Match{T}"/> that matches a value satisfying <paramref name="predicate"/>.</summary>
-    public static Match<T> Is<T>(Func<T, bool> predicate) => Match<T>.Is(predicate);
+    /// <exception cref="ArgumentNullException"><paramref name="predicate"/> is <see langword="null"/>.</exception>
+    public static Match<T> Is<T>(Func<T, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        return Match<T>.Is(predicate);
+    }
 }

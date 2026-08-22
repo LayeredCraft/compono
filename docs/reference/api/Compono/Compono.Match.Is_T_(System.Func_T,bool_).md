@@ -21,3 +21,8 @@ public static Compono.Match<T> Is<T>(System.Func<T,bool> predicate);
 
 #### Returns
 [Compono\.Match&lt;](Compono.Match_T_.md 'Compono\.Match\<T\>')[T](Compono.Match.Is_T_(System.Func_T,bool_).md#Compono.Match.Is_T_(System.Func_T,bool_).T 'Compono\.Match\.Is\<T\>\(System\.Func\<T,bool\>\)\.T')[&gt;](Compono.Match_T_.md 'Compono\.Match\<T\>')
+
+#### Exceptions
+
+[System\.ArgumentNullException](https://learn.microsoft.com/en-us/dotnet/api/system.argumentnullexception 'System\.ArgumentNullException')  
+[predicate](Compono.Match.Is_T_(System.Func_T,bool_).md#Compono.Match.Is_T_(System.Func_T,bool_).predicate 'Compono\.Match\.Is\<T\>\(System\.Func\<T,bool\>\)\.predicate') is [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null')\.

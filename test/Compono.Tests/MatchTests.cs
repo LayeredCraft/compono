@@ -91,4 +91,12 @@ public sealed class MatchTests
 
         seen.Should().Equal(1, 2);
     }
+
+    [Fact]
+    public void Is_Throws_WhenPredicateIsNull()
+    {
+        var act = () => Match.Is<int>(null!);
+
+        act.Should().Throw<ArgumentNullException>();
+    }
 }

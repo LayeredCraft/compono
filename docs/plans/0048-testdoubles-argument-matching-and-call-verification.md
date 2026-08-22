@@ -33,11 +33,17 @@ and a call log generated on the double class alongside the existing
 `ReturnConfig<T>` field (not inside it), and an eligible member's
 `Verify()` extension folding argument-filtering directly into the same
 `Match<T>`-per-parameter shape as `Configure()` (no `.Matching()` step).
-Eligibility is exactly two conditions, both required: the member is not
-part of a multi-overload set, and no real parameter references the
-member's own open method-type-parameter. An ineligible member (either
-condition) generates its existing v1/v2/ADR-0044 shape, byte-for-byte
-unchanged.
+Eligibility is now five conditions, all required (originally two — see
+ADR-0048 Amendment 1, which two post-acceptance Codex review rounds against
+the real implementation added the last three to): the member is not part of
+a multi-overload set; no real parameter references the member's own open
+method-type-parameter; no real parameter is a ref-like type (`Span<T>`
+etc. — can't be a generic type argument); no real parameter's derived
+auxiliary field name collides with another candidate's; and the member isn't
+a one-parameter `Equals` (its extension would share arity with the inherited
+`object.Equals(object)` and never actually be reachable). An ineligible
+member (any condition) generates its existing v1/v2/ADR-0044 shape,
+byte-for-byte unchanged.
 
 Explicitly out, per ADR-0048's Non-Goals: call-order verification (zero
 real evidence), response chains/multiple differentiated responses per
@@ -535,3 +541,21 @@ and check a new generated extension surface against inherited-member
 collisions from the start; plus a new naming bullet on checking a new
 public `Compono` symbol against well-known consumer-side vocabulary before
 shipping it (the `Arg`/`NSubstitute.Arg` collision earlier in this PR).
+
+**Round 3 (2026-08-22):** two more real findings. (1) ADR-0048's Decision
+Outcome and this plan's own Scope section still described eligibility as
+the original two conditions after rounds 1-2 added three more real
+exclusions - a genuine documentation/implementation mismatch (`Equals(string
+value)` reads as eligible per the documented contract but isn't). Fixed
+with ADR-0048 Amendment 1 (the complete, current five-condition rule,
+recorded as a dated amendment per this ADR being `Accepted` - its original
+text stays as written), this plan's Scope section updated to match, and
+`docs/packages/compono-testdoubles.md`'s eligibility section corrected the
+same way. (2) `Match.Is<T>(predicate)` didn't null-check `predicate` -
+a null predicate produced an apparently-valid `Match<T>` whose `Matches`
+later threw an unrelated `NullReferenceException` far from the real
+mistake. Fixed with `ArgumentNullException.ThrowIfNull(predicate)` in the
+public `Match.Is<T>` factory (this repo's established guard idiom,
+confirmed via `CompositionBuilder.cs`/`Composer.cs`), plus a regression
+test. No skill update this round - already done in round 2, per the
+product owner's one-time instruction for this loop.

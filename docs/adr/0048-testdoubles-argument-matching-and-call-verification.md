@@ -444,6 +444,61 @@ internal static class IPlayerRepository_h1_DoubleVerification
   boundary.
 - Bad, because it doesn't reliably compile — proven, not assumed.
 
+## Amendment 1 (2026-08-22): eligibility gained three more exclusions during implementation
+
+This ADR's Decision Outcome and "Overload-discriminator interaction"/"Generic
+methods" sections describe eligibility as exactly two conditions: not part of
+an overload set, and no real parameter referencing the member's own open
+method-type-parameter. Two post-acceptance Codex review rounds against the
+real implementation (`src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs`)
+found three more real, necessary exclusions this ADR never anticipated —
+`Equals(string value)` reads as satisfying the documented two-condition
+contract but in fact only gets the argument-independent path, which is a real
+documentation/implementation mismatch, not merely an omission. The complete,
+current rule, as `isEligibleForMatching` actually computes it, is five
+conditions, all required:
+
+1. Not part of an overload set (original).
+2. No real parameter references the member's own open method-type-parameter
+   (original).
+3. **No real parameter is a ref-like type** (`Span<T>`, or any other `ref
+   struct`). A ref-like type is an ordinary by-value parameter — distinct
+   from the `ref`/`out`/`in` *passing-mode* restriction ADR-0042 already
+   excludes — so it dispatches fine via the existing argument-independent,
+   value-discarded path, but can never be used as a generic type argument
+   (`Match<Span<int>>?`, or as an element of the call-log tuple) — `CS0306`.
+4. **No derived-auxiliary-name collision.** A member's derived field names
+   (the call-log/lock/per-parameter-matcher fields the template splices from
+   `FieldName`) must not collide with any name reserved for a *literal*
+   top-level field, an overload discriminator suffix, or **another
+   candidate's own derived names** — the last of these needed a real
+   two-pass fix (reserve every prospective eligible member's derived names
+   first, then exclude any member whose names were claimed more than once)
+   because checking only against names already reserved *so far* in one
+   linear pass missed same-round collisions between two derived names
+   neither of which existed in the reservation set yet.
+5. **`Equals` with exactly one parameter is excluded.** Its would-be
+   `Match<T>`-typed extension shares real call-site arity with the inherited
+   `object.Equals(object)` instance method (any `T` implicitly converts to
+   `object`, boxing if necessary), and C# always prefers an applicable
+   instance method over an extension method regardless of conversion cost —
+   the generated extension would never actually be reachable.
+   `ToString`/`GetHashCode`/`GetType` need no equivalent exclusion: they only
+   collide with their `object` counterpart at arity zero, and eligibility
+   already requires at least one real parameter, so an eligible member named
+   one of those can never share arity with the inherited zero-arg version.
+
+Every excluded member falls back to its existing v1/v2/ADR-0044 argument-
+independent path — none of these three additions changes the "ineligible for
+the enhancement, not unsupported" disposition every eligibility exclusion in
+this ADR already has. This ADR's original Decision Outcome text stands as
+written — conditions 1-2 were the complete, correct rule as understood at
+acceptance time; this Amendment records what implementation evidence added,
+per this repo's own Amendment mechanic. See
+`docs/plans/0048-testdoubles-argument-matching-and-call-verification.md`'s
+Notes section and `docs/packages/compono-testdoubles.md` for the
+consumer-facing description of the same, now-corrected, five-condition rule.
+
 ## Links
 
 - [ADR-0042](0042-compono-owned-source-generated-test-doubles.md) — original

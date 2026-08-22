@@ -234,11 +234,16 @@ instead - the two providers can coexist (see below).
 
 ## Argument matching and argument-filtered verification
 
-For a member that is **both** the only overload of its name in the
-interface **and** has no real parameter referencing the member's own open
-generic type parameter (v3, [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)),
-`Configure()`/`Verify()` accept `Compono.Match<T>` per parameter instead of
-just the return value - a literal (equality match), `Match.Any<T>()`
+For a member that is the only overload of its name in the interface, has no
+real parameter referencing the member's own open generic type parameter, has
+no real parameter of a ref-like type (`Span<T>` and similar can't be a
+generic type argument), has no derived internal field name colliding with
+another member's, and isn't a one-parameter `Equals` (its extension would
+share arity with the inherited `object.Equals(object)` and never actually be
+reachable) — five conditions, all required (v3,
+[ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)
+and its Amendment 1) — `Configure()`/`Verify()` accept `Compono.Match<T>`
+per parameter instead of just the return value - a literal (equality match), `Match.Any<T>()`
 (matches anything, same as omitting a matcher), or `Match.Is<T>(predicate)`:
 
 ```csharp
@@ -278,6 +283,15 @@ reference its own type parameter (an `ILogger<TState>.Log<TState>`-shaped
 member) - a per-member call log can't hold an open type parameter's value,
 so that shape keeps its existing argument-independent
 `Configure()`/`Verify()` too, exactly as it already worked.
+
+Three more exclusions found during implementation (ADR-0048 Amendment 1),
+each falling back to the same existing argument-independent shape: a
+member with a ref-like parameter type (`Span<T>` etc. - can't be used as a
+generic type argument); a member whose derived internal field names would
+collide with another member's; and a one-parameter `Equals` (its extension
+would share arity with the inherited `object.Equals(object)` and C# always
+prefers an applicable instance method over an extension method, so the
+generated extension would never actually be reachable).
 
 **Why `Match<T>`, not `Arg<T>`.** `Compono.Arg` would collide with
 `NSubstitute.Arg` for any consumer whose own namespace nests under
@@ -397,9 +411,10 @@ cases the other.
 ## What it deliberately doesn't do
 
 Argument matching and argument-filtered verification exist now, but only
-for a non-overloaded member with no open-generic-parameter-dependent
-parameters — see "Argument matching and argument-filtered verification"
-above. Still no argument matching on an overloaded member (a real compiler
+for a member satisfying all five eligibility conditions — see "Argument
+matching and argument-filtered verification" above (and ADR-0048 Amendment
+1 for the three conditions added after initial release). Still no argument
+matching on an overloaded member (a real compiler
 spike proved it, see above), no call-order verification, no
 `ReturnsForAnyArgs`/`When().Do(...)`/strict or partial substitutes/
 recursive auto-configuration, and no support for classes, delegates,
