@@ -833,3 +833,35 @@ proving the generated code actually compiles with both the diamond-
 colliding fallback members and the closed-instantiation member coexisting
 correctly. Full solution after this fix: 2372/2372 tests passing, zero
 build warnings.
+
+**PR #107 Codex review, round 13 (2026-08-23)** caught two more gaps —
+one code, the mirror image of round 12's own finding; one docs:
+
+- **Finding 1 (code)**: the exact mirror image of round 12's finding —
+  that one was a *non-emitting* member (a diamond collision) polluting a
+  real closed-instantiation member's derived name via the early blanket
+  `usedFieldNames` reservation; this one is a *different real emitter*
+  doing the same. `U B_State<U>()` is itself closed-instantiation-
+  eligible *with* a configuration surface, so round 12's
+  `WouldGetConfigurationSurface` gate alone didn't exclude it — but a
+  closed-instantiation-eligible candidate never emits the *ordinary*
+  `__{Name}` field regardless of its own configuration-surface outcome
+  (it emits `__{Name}_State`/`_buckets`/`_Bucket` instead), so reserving
+  `__B_State` on its own behalf was still a phantom reservation — one
+  that then falsely collided with an unrelated closed-instantiation
+  member `T B<T>()`'s own real, actually-emitted derived state-class name
+  (also `__B_State`, from `B` + `_State`). Fixed by also excluding
+  closed-instantiation candidates from this early reservation loop,
+  alongside round 12's existing `WouldGetConfigurationSurface` exclusion.
+- **Finding 2 (docs)**: `src/Compono.Generators/AnalyzerReleases.Unshipped.md`'s
+  `CMP0031` ledger entry still described the *old*, pre-ADR-0049 cause
+  (any self-referencing generic return, unconditionally) — the same
+  staleness round 6 already found and fixed in
+  `docs/reference/diagnostics.md`, just in this separate, machine-read
+  analyzer-release-tracking file. Corrected to match the narrower,
+  now-accurate boundary.
+
+Regression test for finding 1 (`VerifyWithInfoDiagnostic`, reproducing
+Codex's exact `B`/`B_State` repro) forces a full recompile, proving both
+members generate real, independently-working surfaces. Full solution
+after this fix: 2374/2374 tests passing, zero build warnings.

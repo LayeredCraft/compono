@@ -244,9 +244,22 @@ internal static class TestDoubleAnalyzer
         // unrelated closed-instantiation-eligible member "Get" deriving that exact same suffixed name
         // ("__Get_State", its own real, actually-emitted nested state class) then gets falsely flagged
         // as colliding with a name nothing ever actually emits. Codex review, PR #107 (round 12).
+        //
+        // A closed-instantiation-eligible candidate ALSO never emits the ordinary `__{Name}` field,
+        // regardless of its own configuration-surface outcome - it emits `__{Name}_State`/`_buckets`/
+        // `_Bucket` instead (the closed-instantiation reservation pass below). Left unexcluded, a
+        // candidate like `U B_State<U>()` (itself closed-instantiation-eligible, WITH a configuration
+        // surface - so round 12's fix alone doesn't catch it) reserves "__B_State" here on its own
+        // behalf, which then falsely collides with an UNRELATED closed-instantiation member `T B<T>()`'s
+        // own real, actually-emitted derived state-class name (also "__B_State", from "B" + "_State").
+        // The mirror image of round 12's finding - that one was a non-emitting member polluting a real
+        // one; this one is a DIFFERENT real emitter polluting another real one via an unrelated naming
+        // scheme. Codex review, PR #107 (round 13).
         foreach (var candidate in eligibleCandidates)
         {
-            if (!overloadedNames.Contains(candidate.Name) && WouldGetConfigurationSurface(candidate, diamondCollisionIdentities))
+            if (!overloadedNames.Contains(candidate.Name) &&
+                WouldGetConfigurationSurface(candidate, diamondCollisionIdentities) &&
+                !(candidate is IMethodSymbol candidateAsMethod && IsClosedInstantiationEligibleCandidate(candidateAsMethod, compilation)))
                 usedFieldNames.Add($"__{candidate.Name}");
         }
 

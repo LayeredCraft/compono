@@ -3200,6 +3200,58 @@ public sealed class TestDoubleVerifyTests
             "CMP0032",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 13, finding 1): the mirror image of round 12's finding - that one
+    // was a NON-emitting member (diamond collision) polluting a real closed-instantiation member's
+    // derived name; this one is a DIFFERENT REAL EMITTER doing the same. `U B_State<U>()` is ITSELF
+    // closed-instantiation-eligible WITH a configuration surface, so round 12's WouldGetConfigurationSurface
+    // gate alone doesn't exclude it - but a closed-instantiation-eligible candidate never emits the
+    // ordinary `__{Name}` field regardless (it emits `__{Name}_State`/`_buckets`/`_Bucket` instead), so
+    // reserving "__B_State" on ITS behalf here is still a phantom reservation - one that then falsely
+    // collides with an UNRELATED closed-instantiation member `T B<T>()`'s own real, actually-emitted
+    // derived state-class name (also "__B_State", from "B" + "_State"). Fixed by also excluding closed-
+    // instantiation candidates from this early reservation loop. VerifyWithInfoDiagnostic (full
+    // recompile) proves both members generate real, independently-working surfaces.
+    [Fact]
+    public Task ClosedInstantiationEligibleMembersWithCrossDerivedNameCollision_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T B<T>();
+
+                        U B_State<U>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().B<string>().Returns("Ada");
+                            factory.Configure().B_State<string>().Returns("Bob");
+
+                            var b = factory.B<string>();
+                            var bState = factory.B_State<string>();
+
+                            factory.Verify().B<string>().Once();
+                            factory.Verify().B_State<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter
