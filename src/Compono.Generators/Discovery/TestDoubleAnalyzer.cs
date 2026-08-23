@@ -233,9 +233,20 @@ internal static class TestDoubleAnalyzer
         // review, PR #88.
         var usedFieldNames = new HashSet<string>(StringComparer.Ordinal);
 
+        // Only a candidate that would actually get a configuration surface ever emits its own
+        // `__{Name}` field at all - a diamond-colliding member (or any other WouldGetConfigurationSurface
+        // exclusion) gets no field, no matter how many base interfaces declare it. Reserving its name
+        // here regardless was harmless before ADR-0049 (the only consumer of usedFieldNames was the
+        // ADR-0048 collision-detection loop, comparing against genuinely-derived _calls/_lock/_m_{param}
+        // names - a phantom top-level reservation never fed into that), but now cross-contaminates with
+        // the closed-instantiation reservation pass below: a diamond-colliding member literally named
+        // "Get_State" reserves "__Get_State" here even though it emits no field under that name, and an
+        // unrelated closed-instantiation-eligible member "Get" deriving that exact same suffixed name
+        // ("__Get_State", its own real, actually-emitted nested state class) then gets falsely flagged
+        // as colliding with a name nothing ever actually emits. Codex review, PR #107 (round 12).
         foreach (var candidate in eligibleCandidates)
         {
-            if (!overloadedNames.Contains(candidate.Name))
+            if (!overloadedNames.Contains(candidate.Name) && WouldGetConfigurationSurface(candidate, diamondCollisionIdentities))
                 usedFieldNames.Add($"__{candidate.Name}");
         }
 

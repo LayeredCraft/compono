@@ -3143,6 +3143,63 @@ public sealed class TestDoubleVerifyTests
             new[] { "CS8603", "CS8616", "CS8619" },
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 12, finding 1): the EARLY blanket usedFieldNames reservation pass
+    // (`__{candidate.Name}` for every non-overloaded eligible candidate) never checked
+    // WouldGetConfigurationSurface, unlike every other pass in this file - so a DIAMOND-COLLIDING
+    // member (two base interfaces both declaring `string? Get_State()`, no configuration surface, no
+    // field ever emitted under any name) still reserved "__Get_State". An unrelated closed-
+    // instantiation-eligible member `T Get<T>()` deriving that exact same suffixed name for its own
+    // real, actually-emitted nested state class then got falsely flagged as colliding with a name
+    // nothing ever actually emits, rejecting the whole interface. Fixed by gating that reservation on
+    // WouldGetConfigurationSurface, matching every other reservation pass. VerifyWithInfoDiagnostic
+    // (full recompile) proves the generated code actually compiles - both the diamond-colliding
+    // fallback members and the closed-instantiation member coexist correctly.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithDiamondCollidingPhantomNameReservation_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        string? Get_State();
+                    }
+
+                    public interface IBaseB
+                    {
+                        string? Get_State();
+                    }
+
+                    public interface IFactory : IBaseA, IBaseB
+                    {
+                        T Get<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+
+                            var value = factory.Get<string>();
+
+                            factory.Verify().Get<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter

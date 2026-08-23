@@ -781,3 +781,55 @@ This round's fix changed the pragma text for every closed-instantiation
 member needing nullable suppression, so the 5 existing affected snapshots
 needed re-accepting alongside the new test. Full solution after this fix:
 2370/2370 tests passing, zero build warnings.
+
+**PR #107 Codex review, round 12 (2026-08-23)** caught two more real
+gaps, both in name/identity resolution paths that predate — or sit
+adjacent to — this PR's own changes:
+
+- **Finding 1**: the *early*, blanket `usedFieldNames` reservation pass
+  (`__{candidate.Name}` for every non-overloaded eligible candidate) never
+  checked `WouldGetConfigurationSurface` — unlike every other reservation
+  pass in this file. A diamond-colliding member (two base interfaces both
+  declaring `string? Get_State()`, no configuration surface, no field
+  ever emitted under any name) still reserved `__Get_State`. An unrelated
+  closed-instantiation-eligible member `T Get<T>()` deriving that exact
+  same suffixed name for its own real, actually-emitted nested state
+  class then got falsely flagged as colliding with a name nothing ever
+  actually emits, rejecting the whole interface. This reservation pass
+  predates ADR-0049 entirely — it was harmless before this PR (its only
+  consumer was the ADR-0048 collision loop, comparing against genuinely-
+  derived names), and only became a real bug once the closed-
+  instantiation reservation pass started deriving suffix-based names that
+  could coincidentally match another member's *literal* name. Fixed by
+  gating that reservation on `WouldGetConfigurationSurface`, matching
+  every other pass.
+- **Finding 2**: `TaskWellKnownTypes`' round-5 fix (filter out candidates
+  declared in the consumer's own compilation) didn't rule out a genuinely
+  *third-party* referenced assembly that also happens to declare a type
+  named identically to the real BCL `Task<T>`/`ValueTask<T>` — with two
+  or more non-consumer candidates, `FirstOrDefault` could pick either one
+  depending on arbitrary reference-list ordering. Fixed by anchoring to
+  the compilation's own resolved `SpecialType.System_Object` — every real
+  .NET compilation has exactly one true core/runtime assembly, and
+  `System.Object` can only ever resolve to a type declared in it, the
+  same assembly the genuine `Task<T>`/`ValueTask<T>` live in for every
+  target this repo builds against. This is a strictly more precise
+  replacement for round 5's original filter (it also correctly excludes
+  the consumer's own shadow type, so the "not the consumer's own
+  assembly" check was removed rather than kept alongside it). All three
+  existing shadow-type regression tests (rounds 4, 5, 7) still pass
+  unmodified, confirming the new anchor correctly identifies the real BCL
+  type in every case already covered; a genuine three-assembly
+  (consumer + real BCL + third-party impostor) repro was not added as a
+  dedicated test — constructing one has no precedent in this test suite
+  (`ExtraReferences` exists on `CodeGenerationOptions` but is unused
+  anywhere in it) and the fix itself is a standard, well-understood
+  Roslyn idiom for locating the true core assembly, not a novel
+  mechanism needing its own proof the way rounds 1–11's spikes did.
+
+Regression test for finding 1 (`VerifyWithInfoDiagnostic`, reproducing
+Codex's exact `Get_State`/`Get<T>` repro) forces a full recompile,
+proving the generated code actually compiles with both the diamond-
+colliding fallback members and the closed-instantiation member coexisting
+correctly. Full solution after this fix: 2372/2372 tests passing, zero
+build warnings.

@@ -23,11 +23,18 @@ namespace Compono.Generators.Discovery;
 /// <c>GetTypeByMetadataName</c> follows that exact same source-wins rule rather than returning
 /// <see langword="null"/> for the ambiguity - so it silently returned the consumer's own shadow type,
 /// not the real BCL one, and the fix appeared to do nothing (confirmed with a real
-/// <c>CS0029</c> compile failure in generated code before this was corrected). Filtering
-/// <see cref="Compilation.GetTypesByMetadataName"/>'s full candidate set down to whichever one is
-/// <b>not</b> declared in the compilation's own assembly finds the genuinely external BCL type even
-/// when a shadow exists, and the interface's own declared return type (which itself resolves to the
-/// shadow, per the same source-wins rule) then correctly fails the identity comparison against it.
+/// <c>CS0029</c> compile failure in generated code before this was corrected).
+///
+/// The candidate set is then filtered down to whichever one shares its <c>ContainingAssembly</c> with
+/// the compilation's own resolved <see cref="SpecialType.System_Object"/> - not merely "any assembly
+/// other than the consumer's own" (round 5's original, narrower filter). Every real .NET compilation
+/// has exactly one true core/runtime assembly, and <c>System.Object</c> can only ever resolve to a
+/// type declared in it - the same assembly the genuine <c>Task&lt;T&gt;</c>/<c>ValueTask&lt;T&gt;</c>
+/// live in for every target this repo builds against. Round 5's filter alone still let a *third-party*
+/// referenced assembly (neither the consumer's own compilation nor the real core assembly) that
+/// happens to also declare a type named identically win via arbitrary candidate-list ordering (Codex
+/// review, PR #107 round 12) - anchoring to <c>System.Object</c>'s own assembly instead picks the one
+/// unambiguously correct candidate regardless of how many impostors are also on the reference list.
 /// </remarks>
 internal sealed class TaskWellKnownTypes
 {
@@ -74,7 +81,11 @@ internal sealed class TaskWellKnownTypes
     internal bool IsValueTaskOfT(INamedTypeSymbol named) =>
         SymbolEqualityComparer.Default.Equals(named.ConstructedFrom, _valueTaskOfT);
 
-    private static INamedTypeSymbol? ResolveExternal(Compilation compilation, string metadataName) =>
-        compilation.GetTypesByMetadataName(metadataName)
-            .FirstOrDefault(t => !SymbolEqualityComparer.Default.Equals(t.ContainingAssembly, compilation.Assembly));
+    private static INamedTypeSymbol? ResolveExternal(Compilation compilation, string metadataName)
+    {
+        var coreAssembly = compilation.GetSpecialType(SpecialType.System_Object).ContainingAssembly;
+
+        return compilation.GetTypesByMetadataName(metadataName)
+            .FirstOrDefault(t => SymbolEqualityComparer.Default.Equals(t.ContainingAssembly, coreAssembly));
+    }
 }
