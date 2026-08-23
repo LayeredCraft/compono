@@ -343,3 +343,25 @@ runtime-behavior tests). `Compono.TestDoubles.AotSmokeTest`: real
 zero AOT/trim warnings, exit 0, `PASS` with every assertion holding
 (including two independently-configured closed `T`s and both ADR-0045
 dispatch branches through the real generator, not the hand-written spike).
+
+**PR #107 Codex review (2026-08-23)** caught one real gap the spike and
+implementation both missed: a type parameter declared `where T : allows
+ref struct` (C# 13's ref-like-capable anti-constraint) matched the
+closed-instantiation-eligible return shape (`T` itself is neither ref-like
+as a symbol nor caught by any existing ref-like-*parameter* guard, since
+this is a constraint on the type parameter, not a parameter type) — but the
+generated state class's `ReturnConfig<T>`/`ReturnConfigBuilder<T>` fields
+(Compono's existing, unmodified runtime types) declare no `allows ref
+struct` on their own `T`, so a real caller closing this method's `T` over
+an actual ref struct would fail to compile with `CS9244` inside generated
+code instead of the clean `CMP0031` whole-interface-fallback diagnostic
+every other unsupported shape gets. Fixed at the single eligibility choke
+point (`IsClosedInstantiationEligibleReturnShape`, excluding
+`AllowsRefLikeType` type parameters, falling back to whole-interface
+rejection like every other no-constructible-body shape), with a new
+regression test proving `T Create<T>() where T : allows ref struct` still
+produces `CMP0031`. The same review also caught two unawaited `ThrowAsync`
+assertions in `ClosedInstantiationTests.cs` (a false-pass risk — the test
+could finish before observing whether the assertion held) — fixed by
+making both tests `async Task` and awaiting the assertion. Full solution
+after both fixes: 2336/2336 tests passing, zero build warnings.

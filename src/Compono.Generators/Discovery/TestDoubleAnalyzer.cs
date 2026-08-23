@@ -1190,12 +1190,27 @@ internal static class TestDoubleAnalyzer
     // matches both T/Task<T> and T?/Task<T?> alike - the nullable-vs-not distinction is handled
     // downstream by the existing TestDoubleDefaults.TryGetDefaultExpression/ADR-0045 dispatch-branch
     // logic, unchanged.
+    //
+    // Excludes a type parameter declared `where T : allows ref struct` (C# 13's ref-like-capable
+    // anti-constraint, already handled elsewhere in this file for the ordinary generic-constraint-
+    // restatement case - see ConstraintClauseFor) - a legal interface member like
+    // `T Create<T>() where T : allows ref struct` would otherwise pass this check (T is neither
+    // ref-like *itself* as a symbol nor caught by any existing ref-like-parameter guard, since this
+    // is a constraint on the type parameter, not a parameter type), but the generated state class's
+    // `ReturnConfig<T>`/`ReturnConfigBuilder<T>` fields (Compono's existing, unmodified runtime types)
+    // declare no `allows ref struct` on their own T - so a real caller closing this method's T over
+    // an actual ref struct would fail to compile with CS9244 inside generated code, not the clean
+    // CMP0031 whole-interface-fallback diagnostic every other unsupported shape gets. Codex review,
+    // PR #107.
     private static bool IsClosedInstantiationEligibleReturnShape(ITypeSymbol returnType, IMethodSymbol method)
     {
         if (method.TypeParameters.Length != 1)
             return false;
 
         var typeParameter = method.TypeParameters[0];
+
+        if (typeParameter.AllowsRefLikeType)
+            return false;
 
         if (SymbolEqualityComparer.Default.Equals(returnType, typeParameter))
             return true;

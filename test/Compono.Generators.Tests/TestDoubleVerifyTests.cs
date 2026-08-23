@@ -2591,6 +2591,43 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107: a type parameter declared `where T : allows ref struct` (C# 13's
+    // ref-like-capable anti-constraint) otherwise matches ADR-0049's closed-instantiation-eligible
+    // return shape (T itself), but the generated state class's ReturnConfig<T>/ReturnConfigBuilder<T>
+    // fields (Compono's existing, unmodified runtime types) declare no `allows ref struct` on their
+    // own T - a real caller closing this method's T over an actual ref struct would fail to compile
+    // with CS9244 inside generated code instead of getting the clean CMP0031 whole-interface-fallback
+    // diagnostic every other unsupported shape gets. Excluded at the source
+    // (IsClosedInstantiationEligibleReturnShape), so it falls back to whole-interface rejection
+    // exactly like every other no-constructible-body shape.
+    [Fact]
+    public Task GenericMethodWithRefStructCapableTypeParameterReturningItself_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T Create<T>() where T : allows ref struct;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
     // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
     // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
     // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both

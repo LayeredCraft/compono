@@ -82,12 +82,12 @@ public sealed class ClosedInstantiationTests
     // on a non-nullable-return member throws TestDoubleNotConfiguredException.
     [Theory]
     [Compose<GeneratedTestDoubleProfile>]
-    public void Unconfigured_closed_T_on_non_nullable_return_member_throws_TestDoubleNotConfiguredException(
+    public async Task Unconfigured_closed_T_on_non_nullable_return_member_throws_TestDoubleNotConfiguredException(
         [Shared] IContextManager contextManager)
     {
         var act = async () => await contextManager.GetRequiredDataAsync<UserContext>("user");
 
-        act.Should().ThrowAsync<TestDoubleNotConfiguredException>();
+        await act.Should().ThrowAsync<TestDoubleNotConfiguredException>();
     }
 
     [Theory]
@@ -119,7 +119,7 @@ public sealed class ClosedInstantiationTests
 
     [Theory]
     [Compose<GeneratedTestDoubleProfile>]
-    public void Argument_mismatch_against_a_configuration_required_closed_T_still_throws(
+    public async Task Argument_mismatch_against_a_configuration_required_closed_T_still_throws(
         [Shared] IContextManager contextManager)
     {
         contextManager.Configure()
@@ -128,7 +128,7 @@ public sealed class ClosedInstantiationTests
 
         var act = async () => await contextManager.GetRequiredDataAsync<UserContext>("not-user");
 
-        act.Should().ThrowAsync<TestDoubleNotConfiguredException>();
+        await act.Should().ThrowAsync<TestDoubleNotConfiguredException>();
     }
 
     [Theory]
