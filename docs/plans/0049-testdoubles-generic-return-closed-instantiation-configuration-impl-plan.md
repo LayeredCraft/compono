@@ -388,3 +388,52 @@ uses `VerifyWithInfoDiagnostic`, which re-compiles the real generated
 output and asserts zero compiler errors — exactly the check that would
 have caught this cascade. Full solution after this fix: 2338/2338 tests
 passing, zero build warnings.
+
+**PR #107 Codex review, round 3 (2026-08-23)** caught two real gaps, both
+the same root-cause class as rounds 1–2: a pre-pass computed *before* the
+main per-member loop (needed for collision detection, which necessarily
+runs ahead of knowing each member's final classification) had its own
+inline copy of "is this member closed-instantiation-eligible" logic that
+fell out of sync with the real rule.
+
+- **Finding A**: the pre-existing ADR-0048 `derivedAuxiliaryNameOwners`
+  pre-pass (reserving `_calls`/`_lock`/`_m_{param}` names) didn't exclude
+  closed-instantiation-eligible candidates, so it wrongly reserved
+  `__Get_calls` on behalf of a member like `Task<T?> Get<T>(string key)` —
+  which never actually emits that name (its `Calls` field lives inside its
+  own `__Get_State<T>` class instead). An unrelated sibling literally named
+  `Get_calls` then collided with that phantom reservation, which fed into
+  `isClosedInstantiationEligibleShape`'s own
+  `!derivedNameCollisionMembers.Contains(method)` gate and incorrectly
+  rejected the **whole interface**.
+- **Finding B**: the `zeroArgExtensionSharers` collision-detection pre-pass
+  (guarding against a real `CS0111` risk between a method and a
+  differently-shaped same-named sibling) still assumed the pre-ADR-0049
+  rule that a *solo* (non-overloaded) generic method's extension is always
+  non-generic — so a solo closed-instantiation-eligible member's real
+  generic arity was computed as `0`, indistinguishable from an unrelated
+  zero-arg non-generic sibling (e.g. a `Get` property inherited from a
+  different base interface). That false collision stripped the
+  closed-instantiation member's configuration surface, and for an
+  unconstrained `T Get<T>()` with no deterministic default, that meant
+  whole-interface rejection.
+- **A third instance of the same formula gap**, found while fixing B and
+  not separately flagged by Codex: the same pre-pass forced `effectiveArity`
+  to `0` for every non-overloaded method, assuming it always gets an
+  ADR-0048-style zero-argument "compatibility" overload alongside any
+  value-parameter one — untrue for a closed-instantiation-eligible member
+  with real parameters, which gets *only* its real-parameter
+  `Configure<T>()` (no compatibility overload). Fixed with the same
+  conditional as finding B, so a with-parameters closed-instantiation
+  member is now correctly excluded from zero-arg collision detection
+  entirely, not just given the right arity.
+
+Fixed by extracting the duplicated shape test into one shared
+`IsClosedInstantiationEligibleCandidate` helper and rekeying all four call
+sites (the two collision pre-passes, the ADR-0049-specific name-reservation
+pre-pass, and the main loop's own eligibility check) off it, so the
+definition can no longer drift between them the way it just had four times.
+Two new regression tests reproduce Codex's own repros directly and assert
+clean generation (`GeneratorTestHelpers.Verify`/`VerifyWithInfoDiagnostic`,
+which both re-compile the real generated output). Full solution after this
+fix: 2342/2342 tests passing, zero build warnings.

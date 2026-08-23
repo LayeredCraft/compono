@@ -2809,6 +2809,115 @@ public sealed class TestDoubleVerifyTests
             "CMP0030",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 3, finding A): the OLD ADR-0048 derived-auxiliary-name pre-pass
+    // (`_calls`/`_lock`/`_m_{param}`) didn't exclude closed-instantiation-eligible candidates, so it
+    // wrongly reserved `__Get_calls` on behalf of `Get<T>(string key)` even though that member never
+    // emits an outer `_calls` field at all (its own Calls list lives inside `__Get_State<T>` instead).
+    // An unrelated sibling literally named `Get_calls` then collided with that phantom reservation,
+    // stripping `Get<T>`'s configuration surface via `derivedNameCollisionMembers` and rejecting the
+    // WHOLE interface (it has no deterministic default). Fixed by excluding closed-instantiation
+    // candidates from that old pre-pass (they're reserved through their own, differently-named
+    // `_State`/`_buckets`/`_Bucket` pass instead). Plain `Verify()` proves the whole interface
+    // generates cleanly and BOTH members are independently configurable - no false collision at all.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithLiterallyCollidingSiblingName_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IFactory
+                {
+                    System.Threading.Tasks.Task<T?> Get<T>(string key) where T : class;
+
+                    string? Get_calls { get; }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IFactory factory) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IFactory factory)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        factory.Configure().Get<string>(Compono.Match.Any<string>()).Returns(System.Threading.Tasks.Task.FromResult<string?>("Ada"));
+                        factory.Configure().Get_calls().Returns("sibling-value");
+
+                        var value = await factory.Get<string>("user");
+                        var sibling = factory.Get_calls;
+
+                        factory.Verify().Get<string>(Compono.Match.Any<string>()).Once();
+                        factory.Verify().Get_calls().Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 3, finding B): the zeroArgExtensionSharers collision-detection
+    // pre-pass still assumed the pre-ADR-0049 rule that a NON-overloaded generic method's extension
+    // is always non-generic (Requirement 2) - so a solo closed-instantiation-eligible member's real
+    // generic arity was computed as 0, the same as an unrelated zero-arg, non-generic sibling (a
+    // property of the same name inherited from a different base interface). That false collision
+    // stripped the closed-instantiation member's configuration surface, and since it's an
+    // unconstrained `T Get<T>()` with no deterministic default, rejected the WHOLE interface. Fixed
+    // by mirroring the new rule (a closed-instantiation-eligible candidate's real extension IS
+    // generic even when solo) in this pre-pass's own arity/genericity computation. Plain `Verify()`
+    // proves both differently-shaped `Get` members (one generic, one not, from separate base
+    // interfaces) generate real, independently-working surfaces - the actual emitted
+    // `Get<T>(this Double)`/`Get(this Double)` signatures are genuinely distinct, never a real
+    // CS0111 collision in the first place.
+    [Fact]
+    public Task ClosedInstantiationEligibleSoloMemberWithZeroArgSiblingFromDifferentBaseInterface_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactoryA
+                    {
+                        T Get<T>();
+                    }
+
+                    public interface IFactoryB
+                    {
+                        string? Get { get; }
+                    }
+
+                    public interface IFactory : IFactoryA, IFactoryB
+                    {
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+                            factory.Configure().Get().Returns("prop-value");
+
+                            var generic = factory.Get<string>();
+                            var property = ((IFactoryB)factory).Get;
+
+                            factory.Verify().Get<string>().Once();
+                            factory.Verify().Get().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Amendment 5 Finding 11, moved here from Phase 0 now that generic methods exist to construct
     // the case with: type-parameter *names* aren't part of a method's identity, only their ordinal
     // position - IA.M<T>(T) and IB.M<U>(U) are the same signature and must still trigger the

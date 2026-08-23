@@ -176,9 +176,22 @@ internal static class TestDoubleAnalyzer
                 if (candidateMethod.Parameters.Any(p => p.RefKind != RefKind.None))
                     continue;
 
+                // ADR-0049 / PR #107 Codex review round 3: a closed-instantiation-eligible member's
+                // generated Configure<T>()/Verify<T>() is generic even when it isn't overloaded (unlike
+                // an ordinary solo generic member, whose extension stays non-generic per Requirement 2
+                // - ExtensionIsGeneric's own rule), and - unlike an ADR-0048 matching-eligible member,
+                // which always additionally gets a zero-argument "compatibility" overload alongside its
+                // value-parameter one - a closed-instantiation-eligible member with real parameters gets
+                // ONLY its real-parameter extension, no zero-arg counterpart at all. So its effective
+                // arity must reflect its actual parameter count (not be forced to zero) the same way an
+                // overloaded candidate's already is, or a real, non-zero-arg extension gets wrongly
+                // treated as a zero-arg-collision candidate against an unrelated sibling.
                 var isOverloadedCandidate = overloadedNames.Contains(candidateMethod.Name);
-                effectiveArity = isOverloadedCandidate ? candidateMethod.Parameters.Length : 0;
-                effectiveGenericArity = isOverloadedCandidate ? candidateMethod.TypeParameters.Length : 0;
+                var isClosedInstantiationCandidate = IsClosedInstantiationEligibleCandidate(candidateMethod);
+                var hasRealExtensionArity = isOverloadedCandidate || isClosedInstantiationCandidate;
+
+                effectiveArity = hasRealExtensionArity ? candidateMethod.Parameters.Length : 0;
+                effectiveGenericArity = hasRealExtensionArity ? candidateMethod.TypeParameters.Length : 0;
             }
             else
             {
@@ -277,8 +290,20 @@ internal static class TestDoubleAnalyzer
             // with a sibling that was never going to emit those names in the first place. Same filter
             // overloadedNames itself already applies above, for the identical reason. Codex review,
             // PR #106 (round 2).
+            //
+            // A closed-instantiation-eligible candidate (ADR-0049) never emits this pre-pass's
+            // _calls/_lock/_m_{param} outer-field names at all, regardless of configuration-surface
+            // outcome - its own Calls/Lock/Matcher_* fields live inside its nested _State<T> class
+            // instead (see the closed-instantiation-specific reservation pass below, which reserves
+            // its own, differently-named set: _State/_buckets/_Bucket). Counting it here reserved a
+            // name it never actually produces, spuriously flagging an unrelated real member that
+            // happens to be literally named e.g. "Get_calls" as colliding with it - which, left
+            // unfixed, incorrectly fed into isClosedInstantiationEligibleShape's own
+            // !derivedNameCollisionMembers.Contains(method) gate and rejected the whole interface.
+            // Codex review, PR #107 (round 3).
             if (candidate is not IMethodSymbol candidateMethod || overloadedNames.Contains(candidateMethod.Name) ||
                 candidateMethod.Parameters.Length == 0 ||
+                IsClosedInstantiationEligibleCandidate(candidateMethod) ||
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
@@ -304,11 +329,7 @@ internal static class TestDoubleAnalyzer
         foreach (var candidate in eligibleCandidates)
         {
             if (candidate is not IMethodSymbol candidateMethod ||
-                !candidateMethod.IsGenericMethod ||
-                !TypeReferencesOwnTypeParameter(candidateMethod.ReturnType, candidateMethod) ||
-                !IsClosedInstantiationEligibleReturnShape(candidateMethod.ReturnType, candidateMethod) ||
-                candidateMethod.Parameters.Any(p => p.Type.IsRefLikeType) ||
-                candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod)) ||
+                !IsClosedInstantiationEligibleCandidate(candidateMethod) ||
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
@@ -451,9 +472,7 @@ internal static class TestDoubleAnalyzer
 
                         if (method.IsGenericMethod && TypeReferencesOwnTypeParameter(method.ReturnType, method))
                         {
-                            if (IsClosedInstantiationEligibleReturnShape(method.ReturnType, method) &&
-                                !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
-                                !method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method)) &&
+                            if (IsClosedInstantiationEligibleCandidate(method) &&
                                 !derivedNameCollisionMembers.Contains(method))
                             {
                                 isClosedInstantiationEligibleShape = true;
@@ -1226,6 +1245,22 @@ internal static class TestDoubleAnalyzer
 
         return false;
     }
+
+    // ADR-0049 / PR #107 Codex review round 3: the pure shape test for "closed-instantiation
+    // eligible," independent of hasConfigurationSurface/derivedNameCollisionMembers (both of which
+    // are themselves computed FROM this test at various points, so a candidate this test applies to
+    // can't first check either of them without circularity). Every pre-pass that needs to know this
+    // ahead of the main per-member loop (the zeroArgExtensionSharers and derivedAuxiliaryNameOwners
+    // collision-detection passes below, and the main loop's own isClosedInstantiationEligibleShape)
+    // now shares this one definition - round 3's two findings were both a direct consequence of an
+    // earlier pre-pass having its OWN inline copy of this test (or, for derivedAuxiliaryNameOwners,
+    // no awareness of it at all) that silently fell out of sync with the real eligibility rule.
+    private static bool IsClosedInstantiationEligibleCandidate(IMethodSymbol method) =>
+        method.IsGenericMethod &&
+        TypeReferencesOwnTypeParameter(method.ReturnType, method) &&
+        IsClosedInstantiationEligibleReturnShape(method.ReturnType, method) &&
+        !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
+        !method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method));
 
     // Same symbol-graph walk as TypeReferencesOwnTypeParameter, but looking specifically for a
     // nullable-annotated (`T?`) reference to one of the owning method's own type parameters -
