@@ -1,0 +1,18 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (24,69)-(24,95),
+      Message: 'TestNamespace.IFactory' declares generic method 'Get' whose return type references its own type parameter, which Compono cannot generate a deterministic default for. This leaf falls back to the ordinary runtime-provider path.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0031,
+        Title: Unsupported test-double generic return shape,
+        MessageFormat: '{0}' declares generic method '{1}' whose return type references its own type parameter, which Compono cannot generate a deterministic default for. This leaf falls back to the ordinary runtime-provider path.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

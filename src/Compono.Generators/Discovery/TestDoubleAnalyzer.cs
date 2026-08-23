@@ -1235,7 +1235,19 @@ internal static class TestDoubleAnalyzer
         if (SymbolEqualityComparer.Default.Equals(returnType, typeParameter))
             return true;
 
-        if (returnType is INamedTypeSymbol { TypeArguments.Length: 1 } named &&
+        // ContainingType must be null - a consumer's own nested type named "Task<T>" declared inside
+        // some class living in the "System.Threading.Tasks" namespace (e.g. a hypothetical
+        // System.Threading.Tasks.Container.Task<T>) shares that namespace and that simple name with
+        // the real BCL Task<T>, but ContainingNamespace alone can't tell them apart - a namespace is
+        // the same regardless of nesting depth, only ContainingType distinguishes a top-level type
+        // from one nested inside another. The real BCL Task<T>/ValueTask<T> are always top-level
+        // (ContainingType is always null for them); a misidentified nested type would otherwise pass
+        // this check and TestDoubleDefaults would go on to emit a real
+        // global::System.Threading.Tasks.Task.FromResult<T>(...) default-value expression for a member
+        // whose actual declared return type is the consumer's unrelated nested type - a genuine
+        // type-mismatch compile error in generated code instead of the clean CMP0031 whole-interface
+        // fallback this shape should get. Codex review, PR #107 (round 4).
+        if (returnType is INamedTypeSymbol { TypeArguments.Length: 1, ContainingType: null } named &&
             named.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks" &&
             named.Name is "Task" or "ValueTask" &&
             SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], typeParameter))

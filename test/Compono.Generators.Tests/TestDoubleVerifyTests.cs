@@ -2628,6 +2628,55 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 4): the BCL Task<T>/ValueTask<T> shape check only compared
+    // ContainingNamespace + simple Name, never ContainingType - a consumer's own nested type also
+    // named "Task<T>", declared inside some other type living in the "System.Threading.Tasks"
+    // namespace, shares both of those with the real BCL Task<T> (a namespace is the same regardless
+    // of nesting depth) and was misclassified as the supported shape. Downstream, TestDoubleDefaults
+    // would then emit a real global::System.Threading.Tasks.Task.FromResult<T>(...) default-value
+    // expression for a member whose actual declared return type is this unrelated nested type - a
+    // real type-mismatch compile error in generated code. Fixed by also requiring ContainingType is
+    // null (the real BCL Task<T>/ValueTask<T> are always top-level). VerifyFailure proves the fake
+    // nested Task<T> now correctly falls back to whole-interface CMP0031, not broken generated code.
+    [Fact]
+    public Task GenericMethodReturningNestedTypeNamedLikeBclTask_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace System.Threading.Tasks
+                    {
+                        public sealed class Container
+                        {
+                            public sealed class Task<T>
+                            {
+                            }
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public interface IFactory
+                        {
+                            System.Threading.Tasks.Container.Task<T?> Get<T>() where T : class;
+                        }
+
+                        public sealed class OrderService
+                        {
+                            public OrderService(IFactory factory) { }
+                        }
+
+                        public static class EntryPoint
+                        {
+                            public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
     // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
     // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
     // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both

@@ -437,3 +437,33 @@ Two new regression tests reproduce Codex's own repros directly and assert
 clean generation (`GeneratorTestHelpers.Verify`/`VerifyWithInfoDiagnostic`,
 which both re-compile the real generated output). Full solution after this
 fix: 2342/2342 tests passing, zero build warnings.
+
+**PR #107 Codex review, round 4 (2026-08-23)** caught one more real gap in
+`IsClosedInstantiationEligibleReturnShape`'s own BCL `Task<T>`/`ValueTask<T>`
+identification: the check compared only `ContainingNamespace` and simple
+`Name`, never `ContainingType` — a consumer's own nested type also named
+`Task<T>`, declared inside some other type living in the
+`System.Threading.Tasks` namespace (Codex's repro:
+`System.Threading.Tasks.Container.Task<T>`), shares both of those with the
+real BCL `Task<T>` (a namespace is the same regardless of nesting depth),
+so it was misclassified as the supported shape. Downstream,
+`TestDoubleDefaults` would then emit a real
+`global::System.Threading.Tasks.Task.FromResult<T>(...)` default-value
+expression for a member whose actual declared return type is the
+unrelated nested type — a genuine type-mismatch compile error in
+generated code. Fixed by additionally requiring `ContainingType is null`
+(the real BCL `Task<T>`/`ValueTask<T>` are always top-level) — the minimum
+fix Codex's own finding sanctioned, without needing to thread a
+`Compilation` down to this static helper for a full
+`GetTypeByMetadataName` comparison. A new regression test
+(`GenericMethodReturningNestedTypeNamedLikeBclTask_ReportsUnsupportedGenericReturnShapeDiagnostic`)
+reproduces the exact nested-type repro with `VerifyFailure`, proving it
+now correctly falls back to whole-interface `CMP0031`. Note:
+`TestDoubleDefaults.cs` has an identically-shaped, pre-existing check with
+the same underlying imprecision (`ContainingNamespace`+`Name`, no
+`ContainingType`) — not touched here, since it predates ADR-0049 and isn't
+part of the shape this PR's own reachable code paths exercise; left as a
+separate, unrelated latent issue outside this PR's scope, per this repo's
+own deferral discipline for pre-existing issues merely surfaced by new
+work. Full solution after this fix: 2344/2344 tests passing, zero build
+warnings.
