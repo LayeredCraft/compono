@@ -2677,6 +2677,103 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 5, finding 1, P1): TestDoubleDefaults' ValueTask<T> default-value
+    // expression used `new ValueTask<TResult>(inner)`, and ValueTask<TResult> has TWO constructors -
+    // (TResult result) and (Task<TResult> task) - both of which the bare `default` literal converts
+    // to with no better-conversion tie-breaker, a real CS0121 ambiguous-call compiler error. This was
+    // a latent, pre-existing bug in TestDoubleDefaults.cs itself (reachable by ANY defaultable
+    // ValueTask<T> member, not just a closed-instantiation-eligible one), never actually exercised by
+    // an existing test until ADR-0049 made ValueTask<T>/ValueTask<T?> the return type of a
+    // self-referencing generic member for the first time. Fixed by switching to the unambiguous
+    // static ValueTask.FromResult<TResult>(TResult) factory (mirrors the Task<T> branch's own,
+    // already-unambiguous Task.FromResult<T>(...) shape). Verify proves the real generated code
+    // compiles - the actual check that would have caught this.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberReturningNullableValueTask_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IFactory
+                {
+                    System.Threading.Tasks.ValueTask<T?> Get<T>() where T : class;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IFactory factory) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IFactory factory)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        factory.Configure().Get<string>().Returns(new System.Threading.Tasks.ValueTask<string?>("Ada"));
+
+                        var value = await factory.Get<string>();
+
+                        factory.Verify().Get<string>().Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 5, finding 2): round 4's "ContainingType is null" fix only ruled
+    // out a NESTED impostor sharing the BCL Task<T>'s namespace/simple-name - it didn't cover a
+    // genuinely TOP-LEVEL consumer type reopening the exact same "System.Threading.Tasks" namespace
+    // with their own "Task<T>" (legal C# - a source-declared type is even permitted to shadow an
+    // imported one of the identical fully-qualified name, CS0436, a warning not an error).
+    // ContainingType is null for a top-level type regardless of which assembly/source declares it, so
+    // that check alone can't distinguish the two. An interim fix comparing symbol identity via the
+    // simpler, singular Compilation.GetTypeByMetadataName looked plausible but was PROVEN WRONG by
+    // this very test: GetTypeByMetadataName follows the same "source wins" rule as ordinary C# name
+    // resolution (CS0436) rather than returning null for the ambiguity, so it silently returned the
+    // consumer's own shadow type - the fix appeared to do nothing, and this test (run as Verify(),
+    // not VerifyFailure(), specifically to force a real recompile) caught a genuine CS0029 in the
+    // generated code before the real fix was found. TaskWellKnownTypes now resolves the real,
+    // externally-referenced BCL type via GetTypesByMetadataName (plural) filtered to exclude any
+    // candidate declared in the current compilation's own assembly - the interface's own declared
+    // return type still resolves to the shadow (per the same source-wins rule), so the identity
+    // comparison now correctly fails, and this member falls back to whole-interface CMP0031.
+    [Fact]
+    public Task GenericMethodReturningTopLevelTypeShadowingBclTaskNamespace_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace System.Threading.Tasks
+                    {
+                        public sealed class Task<T>
+                        {
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public interface IFactory
+                        {
+                            System.Threading.Tasks.Task<T?> Get<T>() where T : class;
+                        }
+
+                        public sealed class OrderService
+                        {
+                            public OrderService(IFactory factory) { }
+                        }
+
+                        public static class EntryPoint
+                        {
+                            public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
     // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
     // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
     // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both

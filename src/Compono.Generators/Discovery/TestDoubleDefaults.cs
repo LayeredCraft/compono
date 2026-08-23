@@ -76,8 +76,21 @@ internal static class TestDoubleDefaults
                     return false;
                 }
 
+                // ValueTask.FromResult<TResult>(TResult), not `new ValueTask<TResult>(inner)` - the
+                // constructor is overloaded (ValueTask<TResult>(TResult result) and
+                // ValueTask<TResult>(Task<TResult> task)), and `inner` is frequently the bare
+                // `default` literal (any nullable-annotated reference or value-type TResult), which
+                // converts to BOTH parameter types with no better-conversion tie-breaker between them
+                // - a real CS0121 ambiguous-call compiler error in generated code, not a runtime bug.
+                // The static factory method has only one applicable overload for any TResult, so it's
+                // never ambiguous regardless of what `inner` evaluates to. Mirrors the Task<T> branch
+                // above, which already uses the equivalent unambiguous Task.FromResult<T>(...) shape.
+                // Codex review, PR #107 (round 5) - this was latent, pre-existing, reachable by any
+                // defaultable ValueTask<T> member, but never exercised by an existing test until
+                // ADR-0049 made ValueTask<T>/ValueTask<T?> the return type of a self-referencing
+                // generic member for the first time.
                 var typeArgument = named.TypeArguments[0].ToDisplayString(NullableAwareFullyQualifiedFormat);
-                expression = $"new global::System.Threading.Tasks.ValueTask<{typeArgument}>({inner})";
+                expression = $"global::System.Threading.Tasks.ValueTask.FromResult<{typeArgument}>({inner})";
                 return true;
             }
 

@@ -467,3 +467,53 @@ separate, unrelated latent issue outside this PR's scope, per this repo's
 own deferral discipline for pre-existing issues merely surfaced by new
 work. Full solution after this fix: 2344/2344 tests passing, zero build
 warnings.
+
+**PR #107 Codex review, round 5 (2026-08-23)** caught two more real gaps:
+
+- **Finding 1 (P1)**: `TestDoubleDefaults`'s `ValueTask<T>` default-value
+  expression used `new ValueTask<TResult>(inner)` — but `ValueTask<TResult>`
+  has two constructors, `(TResult result)` and `(Task<TResult> task)`, and
+  `inner` is frequently the bare `default` literal (any nullable-annotated
+  reference or defaultable value type), which converts to *both* parameter
+  types with no better-conversion tie-breaker — a real `CS0121`
+  ambiguous-call compiler error in generated code. This was a **latent,
+  pre-existing bug in `TestDoubleDefaults.cs` itself**, reachable by any
+  defaultable `ValueTask<T>` member (not just a closed-instantiation
+  one) — it had simply never been exercised by an existing test until
+  ADR-0049 made `ValueTask<T>`/`ValueTask<T?>` the return type of a
+  self-referencing generic member for the first time, unlike the
+  otherwise-identical `Task<T>` branch (already unambiguous via
+  `Task.FromResult<T>(...)`, a static method). Fixed by switching to the
+  equally-unambiguous static `ValueTask.FromResult<TResult>(TResult)`
+  factory — this one *was* fixed at the source for every `ValueTask<T>`
+  default-generation call site, not scoped to closed-instantiation members
+  only, since the bug itself was never scoped to them either.
+- **Finding 2 (P2)**: round 4's `ContainingType is null` fix only ruled
+  out a *nested* impostor sharing the BCL `Task<T>`'s namespace and simple
+  name — it didn't cover a genuinely *top-level* consumer type reopening
+  the same `System.Threading.Tasks` namespace with their own `Task<T>`
+  (legal C# — a source-declared type is even permitted to shadow an
+  imported one of the identical fully-qualified name, `CS0436`, a warning
+  not an error). An interim fix comparing identity via the simpler,
+  singular `Compilation.GetTypeByMetadataName` looked plausible but was
+  **proven wrong by the regression test itself**: `GetTypeByMetadataName`
+  follows the same "source wins" rule as ordinary C# name resolution
+  rather than returning `null` for the ambiguity, so it silently returned
+  the consumer's own shadow type — the fix appeared to do nothing, and
+  running the test as `Verify()` (forcing a real recompile, not
+  `VerifyFailure()`) caught a genuine `CS0029` in the generated code
+  before the real fix was found. Fixed with a new `TaskWellKnownTypes`
+  helper (mirroring the existing `CollectionWellKnownTypes` precedent)
+  that resolves the real, externally-referenced BCL type via
+  `Compilation.GetTypesByMetadataName` (plural — every candidate across
+  every assembly) filtered to exclude any candidate declared in the
+  current compilation's own assembly — the interface's own declared
+  return type still resolves to the shadow (per the same source-wins
+  rule), so the identity comparison now correctly fails and the member
+  falls back to whole-interface `CMP0031`.
+
+Both fixes verified with real regression tests that reproduce Codex's own
+repros (one `Verify()`, proving the generated `ValueTask.FromResult<T?>`
+expression actually compiles and dispatches; one `VerifyFailure()`,
+proving the shadow-namespace shape correctly falls back). Full solution
+after this fix: 2348/2348 tests passing, zero build warnings.

@@ -187,7 +187,7 @@ internal static class TestDoubleAnalyzer
                 // overloaded candidate's already is, or a real, non-zero-arg extension gets wrongly
                 // treated as a zero-arg-collision candidate against an unrelated sibling.
                 var isOverloadedCandidate = overloadedNames.Contains(candidateMethod.Name);
-                var isClosedInstantiationCandidate = IsClosedInstantiationEligibleCandidate(candidateMethod);
+                var isClosedInstantiationCandidate = IsClosedInstantiationEligibleCandidate(candidateMethod, compilation);
                 var hasRealExtensionArity = isOverloadedCandidate || isClosedInstantiationCandidate;
 
                 effectiveArity = hasRealExtensionArity ? candidateMethod.Parameters.Length : 0;
@@ -303,7 +303,7 @@ internal static class TestDoubleAnalyzer
             // Codex review, PR #107 (round 3).
             if (candidate is not IMethodSymbol candidateMethod || overloadedNames.Contains(candidateMethod.Name) ||
                 candidateMethod.Parameters.Length == 0 ||
-                IsClosedInstantiationEligibleCandidate(candidateMethod) ||
+                IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
@@ -329,7 +329,7 @@ internal static class TestDoubleAnalyzer
         foreach (var candidate in eligibleCandidates)
         {
             if (candidate is not IMethodSymbol candidateMethod ||
-                !IsClosedInstantiationEligibleCandidate(candidateMethod) ||
+                !IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
@@ -472,7 +472,7 @@ internal static class TestDoubleAnalyzer
 
                         if (method.IsGenericMethod && TypeReferencesOwnTypeParameter(method.ReturnType, method))
                         {
-                            if (IsClosedInstantiationEligibleCandidate(method) &&
+                            if (IsClosedInstantiationEligibleCandidate(method, compilation) &&
                                 !derivedNameCollisionMembers.Contains(method))
                             {
                                 isClosedInstantiationEligibleShape = true;
@@ -1222,7 +1222,7 @@ internal static class TestDoubleAnalyzer
     // an actual ref struct would fail to compile with CS9244 inside generated code, not the clean
     // CMP0031 whole-interface-fallback diagnostic every other unsupported shape gets. Codex review,
     // PR #107.
-    private static bool IsClosedInstantiationEligibleReturnShape(ITypeSymbol returnType, IMethodSymbol method)
+    private static bool IsClosedInstantiationEligibleReturnShape(ITypeSymbol returnType, IMethodSymbol method, Compilation compilation)
     {
         if (method.TypeParameters.Length != 1)
             return false;
@@ -1235,21 +1235,20 @@ internal static class TestDoubleAnalyzer
         if (SymbolEqualityComparer.Default.Equals(returnType, typeParameter))
             return true;
 
-        // ContainingType must be null - a consumer's own nested type named "Task<T>" declared inside
-        // some class living in the "System.Threading.Tasks" namespace (e.g. a hypothetical
-        // System.Threading.Tasks.Container.Task<T>) shares that namespace and that simple name with
-        // the real BCL Task<T>, but ContainingNamespace alone can't tell them apart - a namespace is
-        // the same regardless of nesting depth, only ContainingType distinguishes a top-level type
-        // from one nested inside another. The real BCL Task<T>/ValueTask<T> are always top-level
-        // (ContainingType is always null for them); a misidentified nested type would otherwise pass
-        // this check and TestDoubleDefaults would go on to emit a real
-        // global::System.Threading.Tasks.Task.FromResult<T>(...) default-value expression for a member
-        // whose actual declared return type is the consumer's unrelated nested type - a genuine
-        // type-mismatch compile error in generated code instead of the clean CMP0031 whole-interface
-        // fallback this shape should get. Codex review, PR #107 (round 4).
-        if (returnType is INamedTypeSymbol { TypeArguments.Length: 1, ContainingType: null } named &&
-            named.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks" &&
-            named.Name is "Task" or "ValueTask" &&
+        // Compared against the real BCL Task<T>/ValueTask<T> symbols by identity
+        // (TaskWellKnownTypes), not by namespace/simple-name/nesting - round 4's own
+        // "ContainingType is null" fix only ruled out a *nested* impostor (a consumer's own
+        // System.Threading.Tasks.Container.Task<T>); it still let a genuinely *top-level* consumer
+        // type also named "Task<T>", reopening the same namespace, through unchanged - namespace
+        // reopening is legal C#, and ContainingType is null for a top-level type regardless of which
+        // assembly declares it. Either impostor shape, left unfixed, would let TestDoubleDefaults go
+        // on to emit a real global::System.Threading.Tasks.Task.FromResult<T>(...)/
+        // new global::System.Threading.Tasks.ValueTask<T>(...) default-value expression for a member
+        // whose actual declared return type is the consumer's unrelated type - a genuine type-
+        // mismatch compile error in generated code instead of the clean CMP0031 whole-interface
+        // fallback this shape should get. Codex review, PR #107 (round 5).
+        if (returnType is INamedTypeSymbol { TypeArguments.Length: 1 } named &&
+            TaskWellKnownTypes.GetOrCreate(compilation).IsTaskOfTOrValueTaskOfT(named) &&
             SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], typeParameter))
         {
             return true;
@@ -1267,10 +1266,10 @@ internal static class TestDoubleAnalyzer
     // now shares this one definition - round 3's two findings were both a direct consequence of an
     // earlier pre-pass having its OWN inline copy of this test (or, for derivedAuxiliaryNameOwners,
     // no awareness of it at all) that silently fell out of sync with the real eligibility rule.
-    private static bool IsClosedInstantiationEligibleCandidate(IMethodSymbol method) =>
+    private static bool IsClosedInstantiationEligibleCandidate(IMethodSymbol method, Compilation compilation) =>
         method.IsGenericMethod &&
         TypeReferencesOwnTypeParameter(method.ReturnType, method) &&
-        IsClosedInstantiationEligibleReturnShape(method.ReturnType, method) &&
+        IsClosedInstantiationEligibleReturnShape(method.ReturnType, method, compilation) &&
         !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
         !method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method));
 
