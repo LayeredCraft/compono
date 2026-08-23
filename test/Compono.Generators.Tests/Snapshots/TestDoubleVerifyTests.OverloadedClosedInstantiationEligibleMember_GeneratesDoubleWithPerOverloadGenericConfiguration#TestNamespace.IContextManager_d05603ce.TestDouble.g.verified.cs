@@ -16,13 +16,13 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
     {
         lock (__GetDataAsync_97bed815_buckets)
         {
-            if (!__GetDataAsync_97bed815_buckets.TryGetValue(typeof(T), out var boxed))
+            if (!__GetDataAsync_97bed815_buckets.TryGetValue(typeof(T), out var __boxed))
             {
-                boxed = new __GetDataAsync_97bed815_State<T>();
-                __GetDataAsync_97bed815_buckets[typeof(T)] = boxed;
+                __boxed = new __GetDataAsync_97bed815_State<T>();
+                __GetDataAsync_97bed815_buckets[typeof(T)] = __boxed;
             }
 
-            return (__GetDataAsync_97bed815_State<T>)boxed;
+            return (__GetDataAsync_97bed815_State<T>)__boxed;
         }
     }
     internal sealed class __GetDataAsync_1aae9cd0_State<T> where T : class
@@ -36,13 +36,13 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
     {
         lock (__GetDataAsync_1aae9cd0_buckets)
         {
-            if (!__GetDataAsync_1aae9cd0_buckets.TryGetValue(typeof(T), out var boxed))
+            if (!__GetDataAsync_1aae9cd0_buckets.TryGetValue(typeof(T), out var __boxed))
             {
-                boxed = new __GetDataAsync_1aae9cd0_State<T>();
-                __GetDataAsync_1aae9cd0_buckets[typeof(T)] = boxed;
+                __boxed = new __GetDataAsync_1aae9cd0_State<T>();
+                __GetDataAsync_1aae9cd0_buckets[typeof(T)] = __boxed;
             }
 
-            return (__GetDataAsync_1aae9cd0_State<T>)boxed;
+            return (__GetDataAsync_1aae9cd0_State<T>)__boxed;
         }
     }
 

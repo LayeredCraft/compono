@@ -77,6 +77,16 @@ internal static class TestDoubleEmitter
                     ? m.ReturnTypeFullyQualifiedName.Replace($"{closedInstantiationTypeParameterName}?", closedInstantiationTypeParameterName)
                     : m.ReturnTypeFullyQualifiedName;
 
+                // ADR-0049: the bucket lookup method's own local ("boxed" in the template) - reserved
+                // collision-safely against the method's own type parameter, the only other identifier
+                // in scope (the bucket method has no real value parameters). Codex review, PR #107
+                // (round 9): `T Create<boxed>()` otherwise produced `out var boxed` inside a method
+                // whose own type parameter is *also* literally named "boxed" - CS0412 ("a local
+                // variable named 'boxed' cannot be declared... that name is used... to denote a type
+                // parameter"). Computed in C#, not hardcoded in the template, matching every other
+                // synthetic local's precedent above.
+                var boxedLocalName = SafeLocalName("__boxed", new[] { closedInstantiationTypeParameterName });
+
                 return new
                 {
                     m.FieldName,
@@ -150,6 +160,7 @@ internal static class TestDoubleEmitter
                     ClosedInstantiationNeedsNullableSuppression =
                         closedInstantiationExplicitImplementationReturnType != m.ReturnTypeFullyQualifiedName,
                     BucketLocalName = bucketLocalName,
+                    BoxedLocalName = boxedLocalName,
                     Parameters = m.Parameters
                         .Select((p, i) => new
                         {

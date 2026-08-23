@@ -5,45 +5,44 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
-    internal sealed class __Get_State<T> where T : class
+    internal sealed class __Create_State<boxed>
     {
-        internal global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<T?>> Config;
+        internal global::Compono.ReturnConfig<boxed> Config;
     }
 
-    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_buckets = new();
+    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Create_buckets = new();
 
-    internal __Get_State<T> __Get_Bucket<T>() where T : class
+    internal __Create_State<boxed> __Create_Bucket<boxed>()
     {
-        lock (__Get_buckets)
+        lock (__Create_buckets)
         {
-            if (!__Get_buckets.TryGetValue(typeof(T), out var __boxed))
+            if (!__Create_buckets.TryGetValue(typeof(boxed), out var __boxed))
             {
-                __boxed = new __Get_State<T>();
-                __Get_buckets[typeof(T)] = __boxed;
+                __boxed = new __Create_State<boxed>();
+                __Create_buckets[typeof(boxed)] = __boxed;
             }
 
-            return (__Get_State<T>)__boxed;
+            return (__Create_State<boxed>)__boxed;
         }
     }
 
-#pragma warning disable CS8616, CS8619
-    global::System.Threading.Tasks.ValueTask<T> global::TestNamespace.IFactory.Get<T>()
+    boxed global::TestNamespace.IFactory.Create<boxed>()
     {
-        var __bucket = __Get_Bucket<T>();
+        var __bucket = __Create_Bucket<boxed>();
         __bucket.Config.RecordCall();
         return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
-            : global::System.Threading.Tasks.ValueTask.FromResult<T?>(default);
+            : throw new global::Compono.TestDoubleNotConfiguredException(
+                "'global::TestNamespace.IFactory.Create' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().Create<boxed>(...).Returns(...) or .Throws(...) before invoking it.");
     }
-#pragma warning restore CS8616, CS8619
 }
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
+    public static global::Compono.ReturnConfigBuilder<boxed> Create<boxed>(this global::TestNamespace_IFactory_993557a2_Double __self)
     {
-        var __bucket = __self.__Get_Bucket<T>();
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>>(ref __bucket.Config);
+        var __bucket = __self.__Create_Bucket<boxed>();
+        return new global::Compono.ReturnConfigBuilder<boxed>(ref __bucket.Config);
     }
 
 }
@@ -68,8 +67,8 @@ internal static class TestNamespace_IFactory_993557a2_VerifyExtension
 
 internal static class TestNamespace_IFactory_993557a2_DoubleVerification
 {
-    public static global::Compono.CallVerifier Get<T>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self) where T : class =>
-        new(__self.Instance.__Get_Bucket<T>().Config.ConfiguredCallCount, "global::TestNamespace.IFactory.Get");
+    public static global::Compono.CallVerifier Create<boxed>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self) =>
+        new(__self.Instance.__Create_Bucket<boxed>().Config.ConfiguredCallCount, "global::TestNamespace.IFactory.Create");
 
 }
 

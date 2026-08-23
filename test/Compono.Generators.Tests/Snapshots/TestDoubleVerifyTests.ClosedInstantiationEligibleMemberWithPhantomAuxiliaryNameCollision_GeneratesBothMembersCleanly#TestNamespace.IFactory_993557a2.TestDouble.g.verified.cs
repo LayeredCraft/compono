@@ -5,46 +5,56 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
-    internal sealed class __Get_State<T> where T : class
+    internal sealed class __M_m_x_State<U>
     {
-        internal global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<T?>> Config;
+        internal global::Compono.ReturnConfig<U> Config;
     }
 
-    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_buckets = new();
+    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __M_m_x_buckets = new();
 
-    internal __Get_State<T> __Get_Bucket<T>() where T : class
+    internal __M_m_x_State<U> __M_m_x_Bucket<U>()
     {
-        lock (__Get_buckets)
+        lock (__M_m_x_buckets)
         {
-            if (!__Get_buckets.TryGetValue(typeof(T), out var __boxed))
+            if (!__M_m_x_buckets.TryGetValue(typeof(U), out var __boxed))
             {
-                __boxed = new __Get_State<T>();
-                __Get_buckets[typeof(T)] = __boxed;
+                __boxed = new __M_m_x_State<U>();
+                __M_m_x_buckets[typeof(U)] = __boxed;
             }
 
-            return (__Get_State<T>)__boxed;
+            return (__M_m_x_State<U>)__boxed;
         }
     }
+    internal global::Compono.ReturnConfig<global::Compono.Unit> __M;
 
-#pragma warning disable CS8616, CS8619
-    global::System.Threading.Tasks.ValueTask<T> global::TestNamespace.IFactory.Get<T>()
+    U global::TestNamespace.IFactory.M_m_x<U>()
     {
-        var __bucket = __Get_Bucket<T>();
+        var __bucket = __M_m_x_Bucket<U>();
         __bucket.Config.RecordCall();
         return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
-            : global::System.Threading.Tasks.ValueTask.FromResult<T?>(default);
+            : throw new global::Compono.TestDoubleNotConfiguredException(
+                "'global::TestNamespace.IFactory.M_m_x' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().M_m_x<U>(...).Returns(...) or .Throws(...) before invoking it.");
     }
-#pragma warning restore CS8616, CS8619
+
+    void global::TestNamespace.IFactory.M<T>(T x_State)
+    {
+        __M.RecordCall();
+        if (__M.HasConfiguredException)
+            throw __M.ConfiguredException;
+    }
 }
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
+    public static global::Compono.ReturnConfigBuilder<U> M_m_x<U>(this global::TestNamespace_IFactory_993557a2_Double __self)
     {
-        var __bucket = __self.__Get_Bucket<T>();
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>>(ref __bucket.Config);
+        var __bucket = __self.__M_m_x_Bucket<U>();
+        return new global::Compono.ReturnConfigBuilder<U>(ref __bucket.Config);
     }
+
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> M(this global::TestNamespace_IFactory_993557a2_Double self) =>
+        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__M);
 
 }
 
@@ -68,8 +78,11 @@ internal static class TestNamespace_IFactory_993557a2_VerifyExtension
 
 internal static class TestNamespace_IFactory_993557a2_DoubleVerification
 {
-    public static global::Compono.CallVerifier Get<T>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self) where T : class =>
-        new(__self.Instance.__Get_Bucket<T>().Config.ConfiguredCallCount, "global::TestNamespace.IFactory.Get");
+    public static global::Compono.CallVerifier M_m_x<U>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self) =>
+        new(__self.Instance.__M_m_x_Bucket<U>().Config.ConfiguredCallCount, "global::TestNamespace.IFactory.M_m_x");
+
+    public static global::Compono.CallVerifier M(this global::TestNamespace_IFactory_993557a2_DoubleVerifier self) =>
+        new(self.Instance.__M.ConfiguredCallCount, "global::TestNamespace.IFactory.M");
 
 }
 

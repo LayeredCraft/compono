@@ -654,3 +654,56 @@ fallback; finding 2 (`VerifyFailure`, `Task<T?> Get<T>() where T :
 struct`) documents and locks in the current, correct, already-safe
 behavior. Full solution after this fix: 2358/2358 tests passing, zero
 build warnings.
+
+**PR #107 Codex review, round 9 (2026-08-23)** caught three more real
+gaps, all distinct from anything found before:
+
+- **Finding 1 (code)**: the bucket lookup method's own local variable was
+  hardcoded as `boxed` directly in the scriban template, never reserved
+  collision-safely (unlike every other synthetic local, which is computed
+  in the emitter via `SafeLocalName`). For `T Create<boxed>()`, the
+  generated bucket method's own type parameter is *also* literally
+  `boxed` — `out var boxed` inside a method whose own type parameter is
+  `boxed` is `CS0412`. Fixed by computing this local's name in the
+  emitter (`SafeLocalName("__boxed", ...)`, reserved against the method's
+  own type parameter), matching every other synthetic local's precedent.
+  This changed the generated identifier for **every** closed-
+  instantiation member (not just the collision case — the default
+  candidate name changed from `boxed` to `__boxed`, matching this repo's
+  `__`-prefixed internal-identifier convention), so all 8 existing
+  closed-instantiation snapshots needed re-accepting alongside the new
+  regression test.
+- **Finding 2 (code)**: `Task<T?> Get<T>()` with an *unconstrained* `T`
+  (no `where` clause at all) reported the full closed-instantiation
+  surface instead of `CMP0031` — the eligibility check's own newly-added
+  Amendment 1 rule (`T?` requires `where T : class`, added in round 8)
+  was never actually *enforced* in code, only documented. Unlike a
+  value-type-constrained `T?` (Roslyn represents that as the distinct
+  type `System.Nullable<T>`, already correctly rejected by the equality
+  check failing outright), an *unconstrained* `T?` stays the *same*
+  symbol `T` with a nullable annotation, which `SymbolEqualityComparer.Default`
+  ignores — so the equality check silently passed, shipping the same
+  unevidenced capability round 8 explicitly declined. Fixed by requiring
+  `HasReferenceTypeConstraint` whenever the matched return position is
+  nullable-annotated, for both the bare-`T` and `Task<T>`/`ValueTask<T>`-
+  wrapped cases.
+- **Finding 3 (code)**: the old, pre-ADR-0049 `derivedAuxiliaryNameOwners`
+  pre-pass (over-approximate by design) didn't exclude a generic method
+  whose own real parameter references its own type parameter
+  (`void M<T>(T x)`) — categorically ineligible for ADR-0048 matching, so
+  it will never emit *any* `_m_{param}` field for *any* parameter, not
+  just the self-referencing one. Codex's repro: `void M<T>(T x_State)`'s
+  phantom reservation `__M_m_x_State` (derived from a parameter merely
+  named `x_State`, a name that member will never actually emit as a
+  field) exactly matched an unrelated closed-instantiation-eligible
+  member `U M_m_x<U>()`'s own real, actually-emitted derived state-class
+  name — a false collision that rejected the whole interface even though
+  the two members' generated names never conflict. Fixed by excluding a
+  self-referencing-parameter generic method from this pre-pass entirely.
+
+Regression tests for all three (`VerifyWithInfoDiagnostic`/`VerifyFailure`/
+`VerifyWithInfoDiagnostic`, reproducing each of Codex's exact repros) —
+the two `VerifyWithInfoDiagnostic` tests force a full recompile, proving
+the generated code actually compiles, not just that the expected
+diagnostic is present. Full solution after this fix: 2364/2364 tests
+passing, zero build warnings.

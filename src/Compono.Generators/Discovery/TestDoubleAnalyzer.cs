@@ -301,9 +301,23 @@ internal static class TestDoubleAnalyzer
             // unfixed, incorrectly fed into isClosedInstantiationEligibleShape's own
             // !derivedNameCollisionMembers.Contains(method) gate and rejected the whole interface.
             // Codex review, PR #107 (round 3).
+            // A generic method with a real parameter that itself references the method's own type
+            // parameter (`void M<T>(T x)`) is categorically ineligible for ADR-0048 matching (a
+            // per-member call log can't hold an open type parameter's value - the same exclusion
+            // isEligibleForMatching applies below) - it will NEVER emit any of this pre-pass's
+            // _calls/_lock/_m_{param} names, for ANY of its parameters, not just the self-referencing
+            // one. Missing this exclusion meant a phantom reservation (e.g. __M_m_x_State, derived
+            // from a parameter merely named "x_State") could exactly match an UNRELATED closed-
+            // instantiation-eligible member's own real, actually-emitted derived state-class name,
+            // producing a false collision that rejected the whole interface even though the two
+            // members' generated names never actually conflict. Codex review, PR #107 (round 9) -
+            // this pre-pass's own "reserving a name a member never actually emits is harmless" design
+            // assumption (see comment above) doesn't hold when the phantom name happens to exactly
+            // match another real member's own derived name.
             if (candidate is not IMethodSymbol candidateMethod || overloadedNames.Contains(candidateMethod.Name) ||
                 candidateMethod.Parameters.Length == 0 ||
                 IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
+                (candidateMethod.IsGenericMethod && candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod))) ||
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
@@ -1264,6 +1278,21 @@ internal static class TestDoubleAnalyzer
         if (typeParameter.AllowsRefLikeType)
             return false;
 
+        // ADR-0049 Amendment 1: a nullable-annotated matched position (`T?`) requires `T` constrained
+        // to a reference type (`where T : class`) - unevidenced otherwise. SymbolEqualityComparer
+        // ignores nullable annotation, so the two equality checks below match `T?`/`Task<T?>`/
+        // `ValueTask<T?>` exactly like their non-nullable counterparts; without this extra check, an
+        // UNCONSTRAINED `T` used as `T?` (C# legally allows this - unconstrained `T?` stays the same
+        // symbol T with an Annotated nullable flag, unlike a value-type-constrained `T?`, which Roslyn
+        // represents as the distinct type System.Nullable<T> and which the equality check already
+        // rejects on its own) would silently pass and ship the same unevidenced capability round 8's
+        // Amendment 1 named and declined for `where T : struct` - the real trivia-platform evidence
+        // this ADR cites is exclusively `where T : class`. Codex review, PR #107 (round 9).
+        var isNullableAnnotated = returnType.NullableAnnotation == NullableAnnotation.Annotated;
+
+        if (isNullableAnnotated && !typeParameter.HasReferenceTypeConstraint)
+            return false;
+
         if (SymbolEqualityComparer.Default.Equals(returnType, typeParameter))
             return true;
 
@@ -1280,10 +1309,15 @@ internal static class TestDoubleAnalyzer
         // mismatch compile error in generated code instead of the clean CMP0031 whole-interface
         // fallback this shape should get. Codex review, PR #107 (round 5).
         if (returnType is INamedTypeSymbol { TypeArguments.Length: 1 } named &&
-            TaskWellKnownTypes.GetOrCreate(compilation).IsTaskOfTOrValueTaskOfT(named) &&
-            SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], typeParameter))
+            TaskWellKnownTypes.GetOrCreate(compilation).IsTaskOfTOrValueTaskOfT(named))
         {
-            return true;
+            var typeArgumentIsNullableAnnotated = named.TypeArguments[0].NullableAnnotation == NullableAnnotation.Annotated;
+
+            if (typeArgumentIsNullableAnnotated && !typeParameter.HasReferenceTypeConstraint)
+                return false;
+
+            if (SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], typeParameter))
+                return true;
         }
 
         return false;

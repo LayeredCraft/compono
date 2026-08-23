@@ -16,13 +16,13 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         lock (__Get_buckets)
         {
-            if (!__Get_buckets.TryGetValue(typeof(T), out var boxed))
+            if (!__Get_buckets.TryGetValue(typeof(T), out var __boxed))
             {
-                boxed = new __Get_State<T>();
-                __Get_buckets[typeof(T)] = boxed;
+                __boxed = new __Get_State<T>();
+                __Get_buckets[typeof(T)] = __boxed;
             }
 
-            return (__Get_State<T>)boxed;
+            return (__Get_State<T>)__boxed;
         }
     }
     internal sealed class __Other_State<__Get_State>
@@ -36,13 +36,13 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         lock (__Other_buckets)
         {
-            if (!__Other_buckets.TryGetValue(typeof(__Get_State), out var boxed))
+            if (!__Other_buckets.TryGetValue(typeof(__Get_State), out var __boxed))
             {
-                boxed = new __Other_State<__Get_State>();
-                __Other_buckets[typeof(__Get_State)] = boxed;
+                __boxed = new __Other_State<__Get_State>();
+                __Other_buckets[typeof(__Get_State)] = __boxed;
             }
 
-            return (__Other_State<__Get_State>)boxed;
+            return (__Other_State<__Get_State>)__boxed;
         }
     }
 

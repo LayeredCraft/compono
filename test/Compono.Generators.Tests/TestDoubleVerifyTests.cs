@@ -2884,6 +2884,136 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 9, finding 1): the bucket lookup method's own local variable name
+    // was hardcoded as "boxed" directly in the scriban template, never reserved collision-safely. For
+    // `T Create<boxed>()`, the generated bucket method's own type parameter is ALSO literally "boxed" -
+    // `out var boxed` inside a method whose own type parameter is "boxed" is CS0412. Fixed by computing
+    // this local's name in the emitter (SafeLocalName, reserved against the method's own type
+    // parameter), matching every other synthetic local's precedent. Verify (full recompile) proves the
+    // generated code actually compiles.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeBoxedLocal_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        boxed Create<boxed>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Create<string>().Returns("Ada");
+
+                            var value = factory.Create<string>();
+
+                            factory.Verify().Create<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 9, finding 2): `Task<T?> Get<T>()` with an UNCONSTRAINED T reported
+    // the full closed-instantiation surface instead of CMP0031 - unlike a value-type-constrained T?
+    // (Roslyn represents that as the distinct type System.Nullable<T>, already correctly rejected),
+    // unconstrained T? stays the SAME symbol T with a nullable annotation, which
+    // SymbolEqualityComparer.Default ignores - so the equality check passed even though ADR-0049
+    // Amendment 1 (and the docs corrected in round 8) require `where T : class` for any T? shape. Not
+    // evidenced - every real trivia-platform call site is `where T : class`. Fixed by requiring
+    // HasReferenceTypeConstraint whenever the matched position is nullable-annotated.
+    [Fact]
+    public Task ClosedInstantiationShapedMemberWithUnconstrainedNullableReturn_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<T?> Get<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 9, finding 3): the OLD ADR-0048 derivedAuxiliaryNameOwners pre-pass
+    // (over-approximate by design - reserves names regardless of eventual eligibility) didn't exclude
+    // a generic method whose own real parameter references its own type parameter (`void M<T>(T x)`) -
+    // categorically ineligible for ADR-0048 matching, so it will NEVER emit ANY _m_{param} field, for
+    // ANY parameter. Here, `void M<T>(T x_State)`'s phantom reservation "__M_m_x_State" (derived from
+    // the never-emitted matcher field for a parameter merely named "x_State") exactly matched an
+    // UNRELATED closed-instantiation-eligible member `U M_m_x<U>()`'s own real, actually-emitted
+    // derived state-class name ("__M_m_x_State") - a false collision that rejected the whole interface
+    // even though the two members' generated names never actually conflict. Fixed by excluding a
+    // self-referencing-parameter generic method from this pre-pass entirely. Verify (full recompile)
+    // proves both members generate real, independently-working surfaces.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithPhantomAuxiliaryNameCollision_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        U M_m_x<U>();
+
+                        void M<T>(T x_State);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().M_m_x<string>().Returns("Ada");
+
+                            var value = factory.M_m_x<string>();
+                            factory.M(5);
+
+                            factory.Verify().M_m_x<string>().Once();
+                            factory.Verify().M().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter

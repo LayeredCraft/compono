@@ -24,13 +24,13 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {
         lock ({{ member.closed_instantiation_bucket_field_name }})
         {
-            if (!{{ member.closed_instantiation_bucket_field_name }}.TryGetValue(typeof({{ member.closed_instantiation_type_parameter_name }}), out var boxed))
+            if (!{{ member.closed_instantiation_bucket_field_name }}.TryGetValue(typeof({{ member.closed_instantiation_type_parameter_name }}), out var {{ member.boxed_local_name }}))
             {
-                boxed = new {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
-                {{ member.closed_instantiation_bucket_field_name }}[typeof({{ member.closed_instantiation_type_parameter_name }})] = boxed;
+                {{ member.boxed_local_name }} = new {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+                {{ member.closed_instantiation_bucket_field_name }}[typeof({{ member.closed_instantiation_type_parameter_name }})] = {{ member.boxed_local_name }};
             }
 
-            return ({{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>)boxed;
+            return ({{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>){{ member.boxed_local_name }};
         }
     }
 {{~ else if member.has_configuration_surface ~}}

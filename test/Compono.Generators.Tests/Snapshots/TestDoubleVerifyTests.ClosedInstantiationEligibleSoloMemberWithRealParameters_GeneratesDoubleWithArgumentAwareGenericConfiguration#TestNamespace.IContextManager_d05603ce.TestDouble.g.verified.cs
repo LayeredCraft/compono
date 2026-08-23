@@ -19,13 +19,13 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
     {
         lock (__GetContextDataAsync_buckets)
         {
-            if (!__GetContextDataAsync_buckets.TryGetValue(typeof(T), out var boxed))
+            if (!__GetContextDataAsync_buckets.TryGetValue(typeof(T), out var __boxed))
             {
-                boxed = new __GetContextDataAsync_State<T>();
-                __GetContextDataAsync_buckets[typeof(T)] = boxed;
+                __boxed = new __GetContextDataAsync_State<T>();
+                __GetContextDataAsync_buckets[typeof(T)] = __boxed;
             }
 
-            return (__GetContextDataAsync_State<T>)boxed;
+            return (__GetContextDataAsync_State<T>)__boxed;
         }
     }
 

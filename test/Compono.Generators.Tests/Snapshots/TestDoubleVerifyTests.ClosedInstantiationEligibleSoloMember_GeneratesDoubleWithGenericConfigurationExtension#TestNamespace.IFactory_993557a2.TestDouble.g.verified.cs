@@ -16,13 +16,13 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         lock (__Create_buckets)
         {
-            if (!__Create_buckets.TryGetValue(typeof(T), out var boxed))
+            if (!__Create_buckets.TryGetValue(typeof(T), out var __boxed))
             {
-                boxed = new __Create_State<T>();
-                __Create_buckets[typeof(T)] = boxed;
+                __boxed = new __Create_State<T>();
+                __Create_buckets[typeof(T)] = __boxed;
             }
 
-            return (__Create_State<T>)boxed;
+            return (__Create_State<T>)__boxed;
         }
     }
 
