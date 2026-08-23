@@ -517,3 +517,36 @@ repros (one `Verify()`, proving the generated `ValueTask.FromResult<T?>`
 expression actually compiles and dispatches; one `VerifyFailure()`,
 proving the shadow-namespace shape correctly falls back). Full solution
 after this fix: 2348/2348 tests passing, zero build warnings.
+
+**PR #107 Codex review, round 6 (2026-08-23)** caught two more gaps, one
+code, one docs:
+
+- **Finding 1 (code)**: the generated state class's own type parameter
+  can't be renamed away from the real method's type parameter identifier —
+  it's baked verbatim into every pre-rendered type-string this candidate's
+  slot/parameter types already use (Roslyn's `ToDisplayString`, not
+  something this code chooses or can substitute). So when a consumer's own
+  type parameter happens to be named identically to this file's derived
+  state-class name (Codex's repro: `T Get<__Get_State>()` — the consumer's
+  type parameter literally named `__Get_State`, coincidentally matching
+  the derived name this PR's own convention produces for a member named
+  `Get`), the generated `class __Get_State<__Get_State>` is `CS0694`
+  ("type parameter has the same name as the type"), a real compiler error.
+  Fixed by reserving the candidate's own type parameter name as an
+  already-taken literal field name before the derived-name collision check
+  runs — routes through the exact same collision-detection mechanism
+  every other derived name in this file already uses, falling back to
+  whole-interface `CMP0031` like any other derived-name collision, not a
+  new exclusion mechanism.
+- **Finding 2 (docs)**: `docs/packages/compono-testdoubles.md`'s "What it
+  deliberately doesn't do" section still said, unchanged, that there was
+  no support for "a generic method whose return type depends on its own
+  type parameter" — directly contradicting the new "Per-closed-
+  instantiation configuration" section just added earlier in the same
+  file. Corrected to describe only the shapes still genuinely unsupported
+  (deeper nesting, multiple type parameters), cross-referencing the new
+  section and ADR-0049 for the now-supported narrower shape.
+
+Regression test for finding 1 (`VerifyFailure`, reproducing Codex's exact
+`__Get_State` repro) confirms the correct `CMP0031` fallback. Full
+solution after this fix: 2350/2350 tests passing, zero build warnings.

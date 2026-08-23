@@ -339,6 +339,22 @@ internal static class TestDoubleAnalyzer
 
             var derivedClosedInstantiationNames = new[] { $"{baseFieldName}_State", $"{baseFieldName}_buckets", $"{baseFieldName}_Bucket" };
 
+            // The generated state class's own type parameter can't be renamed away from the real
+            // method's type parameter identifier (its declared name is baked verbatim into every
+            // pre-rendered type-string this candidate's slot/parameter types already use - e.g.
+            // ReturnTypeFullyQualifiedName literally spells "Task<__Get_State?>" via Roslyn's own
+            // ToDisplayString, not a name this code chooses or can substitute) - so if the consumer's
+            // own type parameter happens to be named identically to OUR derived state-class name
+            // (e.g. `T Get<__Get_State>()`, an admittedly obscure but real, legal interface), the
+            // resulting `class __Get_State<__Get_State>` is CS0694 ("type parameter has the same name
+            // as the type"), a real compiler error, not a warning. Reserving the type parameter's own
+            // name here (as if it were an already-taken literal field name) routes this through the
+            // exact same "owners.Count <= 1 && usedFieldNames.Contains(name)" collision check every
+            // other derived name in this file already uses, falling back to whole-interface CMP0031
+            // like any other derived-name collision - not a new, separate exclusion mechanism. Codex
+            // review, PR #107 (round 6).
+            usedFieldNames.Add(candidateMethod.TypeParameters[0].Name);
+
             foreach (var name in derivedClosedInstantiationNames)
             {
                 if (!derivedAuxiliaryNameOwners.TryGetValue(name, out var owners))

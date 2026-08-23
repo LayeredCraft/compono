@@ -2774,6 +2774,44 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 6, finding 1): the generated state class's own type parameter can't
+    // be renamed away from the real method's type parameter identifier - it's baked verbatim into
+    // every pre-rendered type-string this candidate's slot/parameter types already use (Roslyn's own
+    // ToDisplayString, not a name this code chooses). So when the consumer's own type parameter is
+    // literally named the same as this file's derived state-class name ("__Get_State" for a member
+    // named "Get"), the generated `class __Get_State<__Get_State>` is CS0694 ("type parameter has the
+    // same name as the type"), a real compiler error. Fixed by reserving the candidate's own type
+    // parameter name as an already-taken literal field name before the derived-name collision check
+    // runs, routing this through the same collision detection every other derived name in this file
+    // already uses - falls back to whole-interface CMP0031, not a new exclusion mechanism.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeGeneratedStateClass_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        __Get_State Get<__Get_State>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
     // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
     // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
     // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both

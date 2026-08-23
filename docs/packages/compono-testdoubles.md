@@ -515,11 +515,17 @@ matching on an overloaded member (a real compiler
 spike proved it, see above), no call-order verification, no
 `ReturnsForAnyArgs`/`When().Do(...)`/strict or partial substitutes/
 recursive auto-configuration, and no support for classes, delegates,
-indexers, events, or a generic method whose return type depends on its own
-type parameter — see
+indexers, events, or a generic method whose return type references its own
+type parameter *nested deeper* than a direct return or the sole type
+argument of `Task`/`ValueTask`, or with more than one of the method's own
+type parameters — see "Per-closed-instantiation configuration for
+self-referencing generic returns" above for the narrower, now-supported
+shape (`T`/`Task<T>`/`Task<T?>`/`ValueTask<T>`/`ValueTask<T?>`, a single
+type parameter) and
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals and [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)'s
-Non-Goals for the full scope boundary. A genuinely unimplemented static
+Non-Goals, [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)'s
+Non-Goals, and [ADR-0049](../adr/0049-testdoubles-generic-return-closed-instantiation-configuration.md)'s
+own scope boundary for the full picture. A genuinely unimplemented static
 abstract member still rejects its whole interface, the same as the shapes
 above — but one already resolved via a more-derived interface's own
 concrete implementation is fully supported; see "Static abstract members
