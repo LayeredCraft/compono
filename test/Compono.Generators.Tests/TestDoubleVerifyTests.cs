@@ -2812,6 +2812,105 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
+    // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
+    // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter
+    // merely happens to share that string (not because it collides with anything, just coincidence)
+    // wrongly poisoned the first method too. Here, `Get<T>()` derives the state-class name
+    // "__Get_State", and the unrelated `Other<__Get_State>()` has its own type parameter literally
+    // named "__Get_State" - the two are never actually in the same declaration and never actually
+    // collide (Other's own derived state-class name is "__Other_State", not "__Get_State"). Fixed by
+    // making the check strictly self-scoped: compare a candidate's own type parameter name only
+    // against its OWN derived state-class name, never reserved into the shared pool. Verify (full
+    // recompile) proves both members generate real, independently-working surfaces.
+    [Fact]
+    public Task ClosedInstantiationEligibleMembersWithUnrelatedTypeParameterNameCollision_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T Get<T>();
+
+                        __Get_State Other<__Get_State>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+                            factory.Configure().Other<string>().Returns("Bob");
+
+                            var get = factory.Get<string>();
+                            var other = factory.Other<string>();
+
+                            factory.Verify().Get<string>().Once();
+                            factory.Verify().Other<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 7, finding 2): TestDoubleDefaults.TryGetDefaultExpression's own
+    // Task/ValueTask identification had the identical namespace/simple-name-only imprecision the
+    // eligibility check in TestDoubleAnalyzer already had fixed (rounds 4-5) - and unlike that check,
+    // this one is reached by ANY member whose declared return type is Task/Task<T>/ValueTask<T>, not
+    // just a closed-instantiation-eligible one, so it was never actually gated behind ADR-0049 at all.
+    // A consumer's own top-level ValueTask<T> reopening the BCL namespace, returned from an entirely
+    // ordinary (non-generic) member, would be misidentified as the real BCL type, and the generated
+    // default-value expression would return the real BCL ValueTask<T> for a member whose actual
+    // declared return type is the consumer's shadow type - a genuine CS0029. Fixed by verifying
+    // symbol identity here too (TaskWellKnownTypes), mirroring the analyzer's own fix. Verify (full
+    // recompile, not VerifyFailure) proves the generated code actually compiles.
+    [Fact]
+    public Task OrdinaryMemberReturningShadowedValueTaskOfT_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.Verify(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace System.Threading.Tasks
+                    {
+                        public readonly struct ValueTask<T>
+                        {
+                            public ValueTask(T result) { }
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public interface IRepository
+                        {
+                            System.Threading.Tasks.ValueTask<string?> GetNameAsync();
+                        }
+
+                        public sealed class OrderService
+                        {
+                            public OrderService(IRepository repository) { }
+                        }
+
+                        public static class EntryPoint
+                        {
+                            public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            TestContext.Current.CancellationToken);
+
     // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
     // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
     // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both

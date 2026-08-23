@@ -550,3 +550,65 @@ code, one docs:
 Regression test for finding 1 (`VerifyFailure`, reproducing Codex's exact
 `__Get_State` repro) confirms the correct `CMP0031` fallback. Full
 solution after this fix: 2350/2350 tests passing, zero build warnings.
+
+**PR #107 Codex review, round 7 (2026-08-23)** caught three more gaps —
+two of them direct follow-ons to round 6's own fix and round 5's own
+declined-scope decision, both real:
+
+- **Finding 1 (code, follow-on to round 6)**: round 6's fix for the
+  `CS0694` self-collision reserved the candidate's own type parameter name
+  into the *shared, interface-wide* `usedFieldNames` set — so an entirely
+  unrelated method's own, differently-named type parameter merely
+  happening to share that same string (not because anything actually
+  collides, pure coincidence) wrongly poisoned the first method too
+  (Codex's repro: `T Get<T>()` deriving `__Get_State`, alongside an
+  unrelated `__Get_State Other<__Get_State>()` whose own type parameter
+  literally has that name — `Other`'s own derived state-class name is
+  `__Other_State`, never anywhere near `Get`'s declaration). Fixed by
+  making the check strictly self-scoped — a candidate's own type
+  parameter name is compared only against its *own* derived state-class
+  name, never reserved into the shared pool at all. This is the third
+  time this exact class of bug (a plausible-looking name-collision fix
+  that's itself too broad or too narrow) has needed a follow-up round —
+  worth naming as a pattern: any fix in this area needs a **second**
+  regression test proving the fix doesn't *reject* something that should
+  legitimately generate, not just one proving the original repro is
+  caught.
+- **Finding 2 (code, reopens round 4's declined scope)**: `TestDoubleDefaults.TryGetDefaultExpression`'s
+  own `Task`/`ValueTask` identification had the identical
+  namespace/simple-name-only imprecision the eligibility check in
+  `TestDoubleAnalyzer` already had fixed (rounds 4–5) — and this function
+  is reached by **any** member whose declared return type is
+  `Task`/`Task<T>`/`ValueTask<T>`, not just a closed-instantiation-eligible
+  one, so it was never actually gated behind ADR-0049's own new
+  eligibility check at all. Round 4's notes explicitly declined to fix
+  this exact function, reasoning it was "pre-existing... unrelated to the
+  shape this PR's own reachable code paths exercise" — Codex's round-7
+  finding directly refutes that framing with real evidence the function
+  is reachable independent of ADR-0049 entirely, so it was fixed properly
+  this time: `TaskWellKnownTypes` extended with `IsTask`/`IsTaskOfT`/`IsValueTaskOfT`
+  granular checks, `TryGetDefaultExpression` now takes a `Compilation` and
+  verifies real BCL identity for the `Task` (arity 0) and `Task<T>`/`ValueTask<T>`
+  (arity 1) branches — the non-generic `ValueTask` branch needs no
+  equivalent check, since its own default expression is the bare
+  `default` literal, which references no type by name and target-types
+  correctly against whatever the explicit implementation's own declared
+  return type is, real or shadowed alike. A regression test proves this
+  directly: an *ordinary, non-generic* member returning a shadowed
+  `ValueTask<T>` now correctly falls through to the generic value-type
+  `default` fallback (identity-agnostic, always safe) instead of the
+  broken BCL-specific expression — `Verify()` (full recompile) passes
+  clean.
+- **Finding 3 (docs)**: `docs/reference/diagnostics.md`'s `CMP0031`
+  section still described the diagnostic's cause using the *old*,
+  pre-ADR-0049 wording (any self-referencing generic return, including
+  the now-supported `T Get<T>()`/`Task<T> GetAsync<T>()` shapes) —
+  directly contradicting both the new package-doc section and the actual
+  implemented diagnostic boundary. Corrected to enumerate exactly the
+  shapes still genuinely unsupported (deeper nesting, multiple type
+  parameters, `allows ref struct`, ref-like/self-referencing real
+  parameters, derived-name collisions), cross-referencing the
+  now-supported narrower shape.
+
+Full solution after this fix: 2354/2354 tests passing, zero build
+warnings.

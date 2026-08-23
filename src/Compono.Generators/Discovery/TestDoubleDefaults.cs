@@ -26,7 +26,7 @@ internal static class TestDoubleDefaults
             SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions
             | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
-    public static bool TryGetDefaultExpression(ITypeSymbol type, out string expression)
+    public static bool TryGetDefaultExpression(ITypeSymbol type, Compilation compilation, out string expression)
     {
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
         {
@@ -41,17 +41,32 @@ internal static class TestDoubleDefaults
         // diagnostic. PR #83 review round 2.
         if (type is INamedTypeSymbol named)
         {
-            var isSystemThreadingTasks = named.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks";
+            // Verified by identity (TaskWellKnownTypes), not by namespace/simple-name/arity alone - a
+            // consumer's own type reopening the "System.Threading.Tasks" namespace with their own
+            // same-named Task/Task<T>/ValueTask<T> (nested, top-level, whatever) would otherwise be
+            // misidentified as the real BCL type here too, exactly like the closed-instantiation
+            // eligibility check this same helper resolves for. This was flagged as a pre-existing,
+            // out-of-scope latent issue in an earlier round of this PR's own review responses - Codex
+            // review, PR #107 round 7 correctly pushed back on that framing: this code path is reached
+            // by ANY member (not just a closed-instantiation-eligible one) whose declared return type
+            // is Task/Task<T>/ValueTask<T>, so it was never actually gated behind ADR-0049's own new
+            // eligibility check at all, and is exactly as real and reachable as the identical bug in
+            // TestDoubleAnalyzer's own IsClosedInstantiationEligibleReturnShape. The non-generic
+            // ValueTask branch below needs no equivalent check - its own default expression is the
+            // bare "default" literal, which references no type by name and target-types correctly
+            // against whatever the explicit implementation's own declared return type is, real or
+            // shadowed alike.
+            var taskTypes = TaskWellKnownTypes.GetOrCreate(compilation);
 
-            if (isSystemThreadingTasks && named.Name == "Task" && named.TypeArguments.Length == 0)
+            if (taskTypes.IsTask(named) && named.TypeArguments.Length == 0)
             {
                 expression = "global::System.Threading.Tasks.Task.CompletedTask";
                 return true;
             }
 
-            if (isSystemThreadingTasks && named.Name == "Task" && named.TypeArguments.Length == 1)
+            if (taskTypes.IsTaskOfT(named) && named.TypeArguments.Length == 1)
             {
-                if (!TryGetDefaultExpression(named.TypeArguments[0], out var inner))
+                if (!TryGetDefaultExpression(named.TypeArguments[0], compilation, out var inner))
                 {
                     expression = "";
                     return false;
@@ -62,15 +77,16 @@ internal static class TestDoubleDefaults
                 return true;
             }
 
-            if (isSystemThreadingTasks && named.Name == "ValueTask" && named.TypeArguments.Length == 0)
+            if (named.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks" &&
+                named.Name == "ValueTask" && named.TypeArguments.Length == 0)
             {
                 expression = "default";
                 return true;
             }
 
-            if (isSystemThreadingTasks && named.Name == "ValueTask" && named.TypeArguments.Length == 1)
+            if (taskTypes.IsValueTaskOfT(named) && named.TypeArguments.Length == 1)
             {
-                if (!TryGetDefaultExpression(named.TypeArguments[0], out var inner))
+                if (!TryGetDefaultExpression(named.TypeArguments[0], compilation, out var inner))
                 {
                     expression = "";
                     return false;

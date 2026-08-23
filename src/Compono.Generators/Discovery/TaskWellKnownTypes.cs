@@ -33,11 +33,13 @@ internal sealed class TaskWellKnownTypes
 {
     private static readonly BoundedCacheWithFactory<Compilation, TaskWellKnownTypes> Cache = new();
 
+    private readonly INamedTypeSymbol? _task;
     private readonly INamedTypeSymbol? _taskOfT;
     private readonly INamedTypeSymbol? _valueTaskOfT;
 
     private TaskWellKnownTypes(Compilation compilation)
     {
+        _task = ResolveExternal(compilation, "System.Threading.Tasks.Task");
         _taskOfT = ResolveExternal(compilation, "System.Threading.Tasks.Task`1");
         _valueTaskOfT = ResolveExternal(compilation, "System.Threading.Tasks.ValueTask`1");
     }
@@ -48,6 +50,28 @@ internal sealed class TaskWellKnownTypes
     /// <summary>Whether <paramref name="named"/> is a closed instantiation of the real, externally-referenced BCL <c>Task&lt;T&gt;</c> or <c>ValueTask&lt;T&gt;</c>.</summary>
     internal bool IsTaskOfTOrValueTaskOfT(INamedTypeSymbol named) =>
         SymbolEqualityComparer.Default.Equals(named.ConstructedFrom, _taskOfT) ||
+        SymbolEqualityComparer.Default.Equals(named.ConstructedFrom, _valueTaskOfT);
+
+    /// <summary>
+    /// Whether <paramref name="named"/> is the real, externally-referenced BCL non-generic
+    /// <c>Task</c> - relevant because <see cref="TestDoubleDefaults.TryGetDefaultExpression"/>'s
+    /// zero-type-argument branch emits a fully-qualified reference to <c>Task.CompletedTask</c>, which
+    /// (like the generic identity checks above) would otherwise silently return the real BCL type for
+    /// a member whose declared return type is an unrelated consumer type merely sharing the name
+    /// (Codex review, PR #107 round 7). The non-generic <c>ValueTask</c> case needs no equivalent
+    /// check - its own zero-argument default expression is the bare "default" literal, which
+    /// references no type by name at all and target-types correctly against whatever the explicit
+    /// implementation's own declared return type is, real or shadowed alike.
+    /// </summary>
+    internal bool IsTask(INamedTypeSymbol named) =>
+        SymbolEqualityComparer.Default.Equals(named, _task);
+
+    /// <summary>Whether <paramref name="named"/> is a closed instantiation of the real, externally-referenced BCL <c>Task&lt;T&gt;</c> specifically (not <c>ValueTask&lt;T&gt;</c>).</summary>
+    internal bool IsTaskOfT(INamedTypeSymbol named) =>
+        SymbolEqualityComparer.Default.Equals(named.ConstructedFrom, _taskOfT);
+
+    /// <summary>Whether <paramref name="named"/> is a closed instantiation of the real, externally-referenced BCL <c>ValueTask&lt;T&gt;</c> specifically (not <c>Task&lt;T&gt;</c>).</summary>
+    internal bool IsValueTaskOfT(INamedTypeSymbol named) =>
         SymbolEqualityComparer.Default.Equals(named.ConstructedFrom, _valueTaskOfT);
 
     private static INamedTypeSymbol? ResolveExternal(Compilation compilation, string metadataName) =>

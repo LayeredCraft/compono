@@ -326,6 +326,8 @@ internal static class TestDoubleAnalyzer
         // so a collision between the two mechanisms (or between two closed-instantiation-eligible
         // candidates) is caught by the same two-pass discipline this file already uses, not by an
         // independent pass that could miss a cross-mechanism collision.
+        var derivedNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+
         foreach (var candidate in eligibleCandidates)
         {
             if (candidate is not IMethodSymbol candidateMethod ||
@@ -347,13 +349,19 @@ internal static class TestDoubleAnalyzer
             // own type parameter happens to be named identically to OUR derived state-class name
             // (e.g. `T Get<__Get_State>()`, an admittedly obscure but real, legal interface), the
             // resulting `class __Get_State<__Get_State>` is CS0694 ("type parameter has the same name
-            // as the type"), a real compiler error, not a warning. Reserving the type parameter's own
-            // name here (as if it were an already-taken literal field name) routes this through the
-            // exact same "owners.Count <= 1 && usedFieldNames.Contains(name)" collision check every
-            // other derived name in this file already uses, falling back to whole-interface CMP0031
-            // like any other derived-name collision - not a new, separate exclusion mechanism. Codex
-            // review, PR #107 (round 6).
-            usedFieldNames.Add(candidateMethod.TypeParameters[0].Name);
+            // as the type"), a real compiler error, not a warning. This is deliberately a direct,
+            // SELF-scoped check against this candidate's own derived name - not a reservation into the
+            // shared usedFieldNames/derivedAuxiliaryNameOwners pool. Round 6's first attempt did the
+            // latter and was itself a real bug (Codex review, PR #107 round 7): reserving the type
+            // parameter's raw name globally meant an UNRELATED method's own, differently-named type
+            // parameter merely happening to share that same string (e.g. method Get deriving
+            // "__Get_State" while an entirely separate method Other<__Get_State>() has its own type
+            // parameter literally named that) would wrongly flag Get as colliding too, even though
+            // Other's type parameter is scoped to Other's own, differently-named state class and never
+            // appears anywhere near Get's declaration. The two names only ever actually collide when
+            // they belong to the SAME state class declaration.
+            if (candidateMethod.TypeParameters[0].Name == $"{baseFieldName}_State")
+                derivedNameCollisionMembers.Add(candidateMethod);
 
             foreach (var name in derivedClosedInstantiationNames)
             {
@@ -363,8 +371,6 @@ internal static class TestDoubleAnalyzer
                 owners.Add(candidateMethod);
             }
         }
-
-        var derivedNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
 
         foreach (var (name, owners) in derivedAuxiliaryNameOwners)
         {
@@ -657,7 +663,7 @@ internal static class TestDoubleAnalyzer
                         {
                             returnTypeFullyQualifiedName = method.ReturnType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat);
 
-                            if (!TestDoubleDefaults.TryGetDefaultExpression(method.ReturnType, out defaultExpression))
+                            if (!TestDoubleDefaults.TryGetDefaultExpression(method.ReturnType, compilation, out defaultExpression))
                             {
                                 // ADR-0045: a non-nullable-reference-return member with no
                                 // deterministic default no longer rejects its whole interface -
@@ -698,7 +704,7 @@ internal static class TestDoubleAnalyzer
                                 if (parameter.RefKind != RefKind.Out)
                                     continue;
 
-                                if (!TestDoubleDefaults.TryGetDefaultExpression(parameter.Type, out var outDefault))
+                                if (!TestDoubleDefaults.TryGetDefaultExpression(parameter.Type, compilation, out var outDefault))
                                 {
                                     return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
                                         DiagnosticDescriptors.UnsupportedTestDoubleParameterShape, location,
@@ -1085,7 +1091,7 @@ internal static class TestDoubleAnalyzer
                         var isPropertyConfigurationRequired = false;
                         var propertyDefault = "";
 
-                        if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, out propertyDefault))
+                        if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, compilation, out propertyDefault))
                         {
                             if (hasPropertyConfigurationSurface)
                             {

@@ -499,12 +499,33 @@ generate a deterministic default for. This leaf falls back to the
 ordinary runtime-provider path.`
 
 **Cause:** A generic method's return type references its own type
-parameter anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`,
-`IEnumerable<T> Filter<T>()`) — there's no concrete slot type or
-deterministic default to construct a body around, regardless of what the
-caller ultimately closes the type parameter to. A generic method whose
-return type *doesn't* depend on its own type parameter (`ILogger<T>`'s own
-`Log<TState>`/`BeginScope<TState>`) is unaffected — see
+parameter in a shape Compono doesn't have a concrete slot type or
+generated-storage mechanism for. The narrow, directly-self-referencing
+shape — exactly `T`, or the sole type argument of `Task<T>`/`Task<T?>`/
+`ValueTask<T>`/`ValueTask<T?>`, for a single method-type-parameter — *is*
+supported (independent per-closed-`T` `Configure<T>()`/`Verify<T>()`; see
+[`Compono.TestDoubles`](../packages/compono-testdoubles.md#per-closed-instantiation-configuration-for-self-referencing-generic-returns)).
+This diagnostic covers what's still genuinely unsupported past that
+boundary:
+
+- The type parameter nested *deeper* than a direct return or the sole
+  `Task`/`ValueTask` wrapper (`Task<List<T>> GetAllAsync<T>()`,
+  `IEnumerable<T> Filter<T>()`) — no concrete slot type to construct a
+  body around, regardless of what the caller ultimately closes the type
+  parameter to.
+- A self-referencing return on a method with more than one of its own
+  type parameters (`TResult Get<TKey, TResult>(TKey key)`).
+- The method's type parameter declared `where T : allows ref struct` —
+  the generated storage mechanism's own backing types can't accept a
+  ref-like type argument.
+- A real (non-`T`) parameter that's itself ref-like, or that itself
+  references the method's own type parameter.
+- A derived-name collision between the generated storage this shape needs
+  and another member (or the type parameter's own name).
+
+A generic method whose return type *doesn't* depend on its own type
+parameter at all (`ILogger<T>`'s own `Log<TState>`/`BeginScope<TState>`)
+is unaffected — see
 [`Compono.TestDoubles`](../packages/compono-testdoubles.md#generic-methods).
 
 **Fix:** None needed — falls back to the ordinary runtime-provider path.
