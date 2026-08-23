@@ -294,6 +294,39 @@ internal static class TestDoubleAnalyzer
             }
         }
 
+        // Closed-instantiation-eligible candidates (ADR-0049): a generic method whose return type
+        // depends on its own type parameter (T, Task<T>/Task<T?>, ValueTask<T>/ValueTask<T?>) gets a
+        // generator-emitted nested state class and Dictionary<Type, object> bucket instead of the
+        // ADR-0048 matching fields above - reserved through the SAME derivedAuxiliaryNameOwners pool,
+        // so a collision between the two mechanisms (or between two closed-instantiation-eligible
+        // candidates) is caught by the same two-pass discipline this file already uses, not by an
+        // independent pass that could miss a cross-mechanism collision.
+        foreach (var candidate in eligibleCandidates)
+        {
+            if (candidate is not IMethodSymbol candidateMethod ||
+                !candidateMethod.IsGenericMethod ||
+                !TypeReferencesOwnTypeParameter(candidateMethod.ReturnType, candidateMethod) ||
+                !IsClosedInstantiationEligibleReturnShape(candidateMethod.ReturnType, candidateMethod) ||
+                candidateMethod.Parameters.Any(p => p.Type.IsRefLikeType) ||
+                candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod)) ||
+                !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
+                continue;
+
+            var baseFieldName = overloadedNames.Contains(candidateMethod.Name)
+                ? $"__{candidateMethod.Name}{discriminatorSuffixByIdentity[(candidateMethod.Name, Canonical: IdentityFor(candidateMethod))]}"
+                : $"__{candidateMethod.Name}";
+
+            var derivedClosedInstantiationNames = new[] { $"{baseFieldName}_State", $"{baseFieldName}_buckets", $"{baseFieldName}_Bucket" };
+
+            foreach (var name in derivedClosedInstantiationNames)
+            {
+                if (!derivedAuxiliaryNameOwners.TryGetValue(name, out var owners))
+                    derivedAuxiliaryNameOwners[name] = owners = new List<ISymbol>();
+
+                owners.Add(candidateMethod);
+            }
+        }
+
         var derivedNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
 
         foreach (var (name, owners) in derivedAuxiliaryNameOwners)
@@ -397,21 +430,40 @@ internal static class TestDoubleAnalyzer
                         if (!method.IsAbstract && method.DeclaredAccessibility != Accessibility.Public)
                             continue;
 
-                        // ADR-0044 Requirement 2: a generic method is supported only when its return
-                        // type doesn't reference its own type parameter(s) anywhere in its symbol
-                        // graph (generic type arguments, array element types, recursively) - a
+                        // ADR-0044 Requirement 2 / ADR-0049: a generic method is supported when its
+                        // return type doesn't reference its own type parameter(s) anywhere in its
+                        // symbol graph (generic type arguments, array element types, recursively) - a
                         // syntax-tree check would silently miss a metadata-defined interface like the
-                        // real ILogger<T> (no syntax tree in the consumer's own compilation at all).
-                        // A return type that does depend on its own type parameter has no
-                        // constructible body at any granularity (Amendment 13) - the same
+                        // real ILogger<T> (no syntax tree in the consumer's own compilation at all) -
+                        // OR when it matches ADR-0049's narrower, evidenced closed-instantiation-
+                        // eligible shape (exactly T, or the sole type argument of Task<T>/Task<T?>/
+                        // ValueTask<T>/ValueTask<T?>, for a method with exactly one type parameter,
+                        // with no ref-like real parameter and no real parameter itself referencing the
+                        // method's own type parameter - the SetContextDataAsync<T>-shaped case ADR-0049
+                        // deliberately leaves untouched - and no derived-name collision with another
+                        // member's own generated state-class/bucket names). Any other return type that
+                        // depends on its own type parameter (deeper nesting, multiple type parameters)
+                        // still has no constructible body at any granularity (Amendment 13) - the same
                         // no-constructible-body bucket a non-nullable-no-default return already
-                        // occupies, so it triggers whole-interface rejection, not member-scoped
+                        // occupies, so it still triggers whole-interface rejection, not member-scoped
                         // exclusion.
+                        var isClosedInstantiationEligibleShape = false;
+
                         if (method.IsGenericMethod && TypeReferencesOwnTypeParameter(method.ReturnType, method))
                         {
-                            return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
-                                DiagnosticDescriptors.UnsupportedTestDoubleGenericReturnShape, location,
-                                interfaceType.ToDisplayString(), method.Name));
+                            if (IsClosedInstantiationEligibleReturnShape(method.ReturnType, method) &&
+                                !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                                !method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method)) &&
+                                !derivedNameCollisionMembers.Contains(method))
+                            {
+                                isClosedInstantiationEligibleShape = true;
+                            }
+                            else
+                            {
+                                return Failure(fullyQualifiedName, safeIdentifier, new DiagnosticInfo(
+                                    DiagnosticDescriptors.UnsupportedTestDoubleGenericReturnShape, location,
+                                    interfaceType.ToDisplayString(), method.Name));
+                            }
                         }
 
                         // Amendment 6 Finding 15, withdrawn-and-unified by Amendment 9: a type
@@ -658,7 +710,26 @@ internal static class TestDoubleAnalyzer
                         // keeps v1's original disposition unchanged - Amendment 16's own
                         // "genuinely broken, unreachable-either-way" finding for the naive
                         // method-genericity-gated version of this fix.
-                        if (hasConfigurationSurface && !(method.IsGenericMethod && isOverloaded))
+                        // ADR-0049: a solo (non-overloaded) closed-instantiation-eligible member's
+                        // real generated extension isn't zero-argument when it has real parameters
+                        // (they're Match<TParam>-wrapped, the same shape a solo ADR-0048-eligible
+                        // member already gets) - the extensionArity formula below assumes a solo
+                        // member's extension is always zero-argument, which is only true for a
+                        // non-eligible-for-matching, non-closed-instantiation-eligible member. Skipped
+                        // here for the same reason a solo eligible-for-matching member's own residual
+                        // Equals-collision risk is instead handled by its own targeted, inline
+                        // exclusion (IsEligibleForMatching's final `!(method.Name == "Equals" &&
+                        // parameters.Count == 1)` clause) rather than this shared check - no real
+                        // evidence motivates a closed-instantiation-eligible member literally named
+                        // ToString/GetHashCode/GetType/Equals, so this narrow residual gap is left
+                        // unhandled rather than guessed at, per this repo's own evidence discipline.
+                        // An *overloaded* closed-instantiation-eligible member is unaffected - it
+                        // reuses the real-parameter-discriminator extension shape the isOverloaded
+                        // branch below already correctly computes extensionArity for.
+                        var skipObjectCollisionCheck = (method.IsGenericMethod && isOverloaded) ||
+                            (isClosedInstantiationEligibleShape && !isOverloaded);
+
+                        if (hasConfigurationSurface && !skipObjectCollisionCheck)
                         {
                             var extensionArity = isOverloaded ? method.Parameters.Length : 0;
 
@@ -817,18 +888,25 @@ internal static class TestDoubleAnalyzer
                         // extension arity as always zero - eligibility's own extension arity is
                         // parameters.Count instead, so that check's answer doesn't transfer here. Codex
                         // review, PR #106 (round 2).
-                        var isEligibleForMatching = hasConfigurationSurface && !isOverloaded && parameters.Count > 0 &&
+                        // ADR-0049: mutually exclusive with isEligibleForMatching - a closed-
+                        // instantiation-eligible member's own state (bucket + nested generic-in-T
+                        // class) is a different mechanism from ADR-0048's single-slot Match<T> fields,
+                        // and the two must never both apply to the same member.
+                        var isClosedInstantiationEligible = isClosedInstantiationEligibleShape && hasConfigurationSurface;
+
+                        var isEligibleForMatching = hasConfigurationSurface && !isOverloaded &&
+                            !isClosedInstantiationEligible && parameters.Count > 0 &&
                             !(method.IsGenericMethod &&
                               method.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, method))) &&
                             !method.Parameters.Any(p => p.Type.IsRefLikeType) &&
                             !derivedNameCollisionMembers.Contains(method) &&
                             !(method.Name == "Equals" && parameters.Count == 1);
 
-                        var extensionReceiverName = hasConfigurationSurface && (isOverloaded || isEligibleForMatching)
+                        var extensionReceiverName = hasConfigurationSurface && (isOverloaded || isEligibleForMatching || isClosedInstantiationEligible)
                             ? SafeReceiverName(parameters.Select(p => p.EscapedName).Concat(typeParameterNames))
                             : "self";
 
-                        var constraintClauses = method.IsGenericMethod && hasConfigurationSurface && isOverloaded
+                        var constraintClauses = method.IsGenericMethod && hasConfigurationSurface && (isOverloaded || isClosedInstantiationEligible)
                             ? method.TypeParameters
                                 .Select(ConstraintClauseFor)
                                 .Where(clause => clause.Length > 0)
@@ -857,7 +935,8 @@ internal static class TestDoubleAnalyzer
                             typeParameterNames,
                             constraintClauses,
                             IsConfigurationRequired: isConfigurationRequired,
-                            IsEligibleForMatching: isEligibleForMatching));
+                            IsEligibleForMatching: isEligibleForMatching,
+                            IsClosedInstantiationEligible: isClosedInstantiationEligible));
 
                         break;
                     }
@@ -1096,6 +1175,38 @@ internal static class TestDoubleAnalyzer
 
         if (type is INamedTypeSymbol named)
             return named.TypeArguments.Any(argument => TypeReferencesOwnTypeParameter(argument, method));
+
+        return false;
+    }
+
+    // ADR-0049: the narrower, still-supported subset of "a generic method's return type references
+    // its own type parameter" - exactly T itself, or the sole type argument of Task<T>/Task<T?>/
+    // ValueTask<T>/ValueTask<T?>, for a method with exactly one type parameter (this ADR's own scope
+    // boundary - a multi-type-parameter self-referencing return stays whole-interface-rejected,
+    // unevidenced). Deliberately an equality check against the method's own single type parameter,
+    // not a reuse of TypeReferencesOwnTypeParameter's recursive walk - that walk would also match
+    // Task<List<T>> (T nested deeper), which this ADR's own scope explicitly excludes ("Considered
+    // Options," Scope boundary). SymbolEqualityComparer.Default ignores nullable annotation, so this
+    // matches both T/Task<T> and T?/Task<T?> alike - the nullable-vs-not distinction is handled
+    // downstream by the existing TestDoubleDefaults.TryGetDefaultExpression/ADR-0045 dispatch-branch
+    // logic, unchanged.
+    private static bool IsClosedInstantiationEligibleReturnShape(ITypeSymbol returnType, IMethodSymbol method)
+    {
+        if (method.TypeParameters.Length != 1)
+            return false;
+
+        var typeParameter = method.TypeParameters[0];
+
+        if (SymbolEqualityComparer.Default.Equals(returnType, typeParameter))
+            return true;
+
+        if (returnType is INamedTypeSymbol { TypeArguments.Length: 1 } named &&
+            named.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks" &&
+            named.Name is "Task" or "ValueTask" &&
+            SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], typeParameter))
+        {
+            return true;
+        }
 
         return false;
     }

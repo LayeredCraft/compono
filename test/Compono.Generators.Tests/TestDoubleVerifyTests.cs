@@ -2522,12 +2522,84 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
-    // ADR-0044 Requirement 2 / Amendment 13: a generic method whose return type references its own
-    // type parameter has no constructible body at any granularity - diagnosed and excluded, whole
-    // interface falls back to the runtime-provider path.
+    // ADR-0044 Requirement 2 / Amendment 13, ADR-0049: a generic method whose return type references
+    // its own type parameter has no constructible body at any granularity - diagnosed and excluded,
+    // whole interface falls back to the runtime-provider path - UNLESS it matches ADR-0049's
+    // narrower closed-instantiation-eligible shape (exactly T, or the sole type argument of
+    // Task<T>/ValueTask<T>, for a single method-type-parameter - see the
+    // ClosedInstantiationEligible* tests below). T nested deeper (here, inside a List<T> inside a
+    // Task<T>) is exactly the shape ADR-0049's own "Scope boundary" left out of scope, unevidenced -
+    // this fixture was the original PLAN-0044-era `T Create<T>()` case, moved to this deeper-nesting
+    // shape once ADR-0049 made the plain `T Create<T>()` case itself succeed (see
+    // ClosedInstantiationEligibleSoloMember_GeneratesDoubleWithGenericConfigurationExtension below).
     [Fact]
-    public Task GenericMethodWithReturnTypeDependentOnOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+    public Task GenericMethodWithReturnTypeNestedDeeperThanOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<System.Collections.Generic.List<T>> CreateMany<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0049's "Scope boundary": a self-referencing return with more than one method-type-parameter
+    // stays whole-interface-rejected, unevidenced - IConversationalContextManager's real
+    // GetContextDataAsync<T> has exactly one.
+    [Fact]
+    public Task MultiTypeParameterGenericMethodWithReturnTypeDependentOnOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        TResult Get<TKey, TResult>(TKey key);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
+    // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
+    // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both
+    // capabilities compose. Proves the generated Configure<T>()/Verify<T>() surface is generic, that
+    // two different closed T's are independently configurable/verifiable on the same double instance,
+    // and that the member is genuinely callable (not just diagnosed away) once configured.
+    [Fact]
+    public Task ClosedInstantiationEligibleSoloMember_GeneratesDoubleWithGenericConfigurationExtension() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
             new CodeGenerationOptions
             {
                 SourceCode = """
@@ -2545,13 +2617,109 @@ public sealed class TestDoubleVerifyTests
 
                     public static class EntryPoint
                     {
-                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Create<string>().Returns("widget");
+                            factory.Configure().Create<int>().Returns(42);
+                            var widget = factory.Create<string>();
+                            var count = factory.Create<int>();
+                            factory.Verify().Create<string>().Once();
+                            factory.Verify().Create<int>().Once();
+                        }
                     }
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0031",
+            "CMP0032",
             TestContext.Current.CancellationToken);
+
+    // ADR-0049: the real evidenced shape - a solo generic method returning Task<T?>, with real
+    // (non-T) parameters that get ADR-0048's Match<TParam>-wrapped argument-aware Configure<T>()/
+    // Verify<T>() surface scoped per closed T, mirroring IConversationalContextManager.GetContextDataAsync<T>
+    // exactly. T? is a real nullable reference constraint (where T : class), so this member has a
+    // deterministic default (null) and is NOT configuration-required - both ADR-0045 branches are
+    // exercised across this test and the solo-unconstrained-T test above.
+    [Fact]
+    public Task ClosedInstantiationEligibleSoloMemberWithRealParameters_GeneratesDoubleWithArgumentAwareGenericConfiguration() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IContextManager
+                {
+                    System.Threading.Tasks.Task<T?> GetContextDataAsync<T>(string key) where T : class;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IContextManager contextManager) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IContextManager contextManager)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        contextManager.Configure().GetContextDataAsync<string>(Compono.Match.Is<string>(k => k == "user"))
+                            .Returns(System.Threading.Tasks.Task.FromResult<string?>("Ada"));
+
+                        var value = await contextManager.GetContextDataAsync<string>("user");
+                        var unconfigured = await contextManager.GetContextDataAsync<object>("other");
+
+                        contextManager.Verify().GetContextDataAsync<string>(Compono.Match.Any<string>()).Once();
+                        contextManager.Verify().GetContextDataAsync<object>(Compono.Match.Any<string>()).Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // ADR-0049 / PLAN-0049 (revised eligibility): an overloaded closed-instantiation-eligible member
+    // is eligible, not excluded - it reuses ADR-0044 Requirement 1's existing overload-discriminator
+    // machinery (real, un-wrapped parameter types, per-overload suffix) rather than ADR-0048's
+    // Match<TParam> surface, the same disposition every other overloaded member already has. Proves
+    // the per-overload bucket-by-closed-T mechanism composes with per-overload discriminators, and
+    // that the *same* closed T used on both overloads keeps fully independent state (mirrors the
+    // ADR-0049 design spike's own proof).
+    [Fact]
+    public Task OverloadedClosedInstantiationEligibleMember_GeneratesDoubleWithPerOverloadGenericConfiguration() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IContextManager
+                {
+                    System.Threading.Tasks.Task<T?> GetDataAsync<T>(string id) where T : class;
+
+                    System.Threading.Tasks.Task<T?> GetDataAsync<T>(string id, int version) where T : class;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IContextManager contextManager) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IContextManager contextManager)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        contextManager.Configure().GetDataAsync<string>("user").Returns(System.Threading.Tasks.Task.FromResult<string?>("v1"));
+                        contextManager.Configure().GetDataAsync<string>("user", 2).Returns(System.Threading.Tasks.Task.FromResult<string?>("v2"));
+
+                        var first = await contextManager.GetDataAsync<string>("user");
+                        var second = await contextManager.GetDataAsync<string>("user", 2);
+
+                        contextManager.Verify().GetDataAsync<string>("user").Once();
+                        contextManager.Verify().GetDataAsync<string>("user", 2).Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
 
     // Amendment 5 Finding 11, moved here from Phase 0 now that generic methods exist to construct
     // the case with: type-parameter *names* aren't part of a method's identity, only their ordinal

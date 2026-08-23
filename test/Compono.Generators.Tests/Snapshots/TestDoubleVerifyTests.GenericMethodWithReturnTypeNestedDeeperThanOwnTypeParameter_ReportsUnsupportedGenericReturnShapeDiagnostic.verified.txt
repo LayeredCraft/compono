@@ -2,7 +2,7 @@
   Diagnostics: [
     {
       Location: Program.cs: (14,65)-(14,91),
-      Message: 'TestNamespace.IFactory' declares generic method 'Create' whose return type references its own type parameter, which Compono cannot generate a deterministic default for. This leaf falls back to the ordinary runtime-provider path.,
+      Message: 'TestNamespace.IFactory' declares generic method 'CreateMany' whose return type references its own type parameter, which Compono cannot generate a deterministic default for. This leaf falls back to the ordinary runtime-provider path.,
       Severity: Info,
       WarningLevel: 1,
       Descriptor: {

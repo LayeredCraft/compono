@@ -58,6 +58,16 @@ internal static class TestDoubleEmitter
                     reservedForMatchers.Add(name);
                 }
 
+                // ADR-0049: a per-closed-T bucket lookup local, reserved the same collision-safe way
+                // as every other synthetic local above - a real closed-instantiation-eligible member's
+                // own real parameter (or type parameter) can theoretically be named "__bucket".
+                var bucketLocalName = SafeLocalName("__bucket", parameterEscapedNames.Append(matchesLocalName));
+
+                var closedInstantiationTypeParameterName = m.IsClosedInstantiationEligible ? m.TypeParameterNames[0] : "";
+                var closedInstantiationExplicitImplementationReturnType = m.IsClosedInstantiationEligible
+                    ? m.ReturnTypeFullyQualifiedName.Replace($"{closedInstantiationTypeParameterName}?", closedInstantiationTypeParameterName)
+                    : m.ReturnTypeFullyQualifiedName;
+
                 return new
                 {
                     m.FieldName,
@@ -71,6 +81,7 @@ internal static class TestDoubleEmitter
                     m.IsConfigurationRequired,
                     m.IsOverloaded,
                     m.IsEligibleForMatching,
+                    m.IsClosedInstantiationEligible,
                     m.ExtensionReceiverName,
                     m.GenericSuffix,
                     m.ExtensionIsGeneric,
@@ -81,6 +92,55 @@ internal static class TestDoubleEmitter
                     MatchesLocalName = matchesLocalName,
                     CountLocalName = countLocalName,
                     CallLoopVariableName = callLoopVariableName,
+                    // ADR-0049: the closed-instantiation-eligible member's own generated nested state
+                    // class/bucket names (TestDoubleMemberInfo's own derived-name properties, computed
+                    // from FieldName the same collision-safe way FieldName itself is already reserved),
+                    // its single method type parameter's escaped name (its return type's own text
+                    // already carries this name literally - see TestDoubleMemberInfo.SlotTypeFullyQualifiedName's
+                    // XML doc), the bucket lookup local, and whether it has any real (non-T) parameter
+                    // to match/track at all (a zero-real-parameter closed-instantiation-eligible member
+                    // still gets independent per-closed-T state, just no matcher fields/call log - Verify()
+                    // reads ReturnConfig<T>.ConfiguredCallCount directly instead, mirroring the plain,
+                    // non-matching-eligible member's own "compatibility" Verify() shape).
+                    ClosedInstantiationStateClassName = m.ClosedInstantiationStateClassName,
+                    ClosedInstantiationBucketFieldName = m.ClosedInstantiationBucketFieldName,
+                    ClosedInstantiationBucketMethodName = m.ClosedInstantiationBucketMethodName,
+                    ClosedInstantiationTypeParameterName = closedInstantiationTypeParameterName,
+                    ClosedInstantiationHasParameters = m.IsClosedInstantiationEligible && m.Parameters.Count > 0,
+                    // Narrower than ClosedInstantiationHasParameters above: an *overloaded* closed-
+                    // instantiation-eligible member's Configure<T>()/Verify<T>() never sets a matcher
+                    // (it uses the real-parameter-discriminator shape, no Match<TParam> wrapping - see
+                    // the is_overloaded branch of both extensions below), so its state class must not
+                    // declare Matcher_*/Calls/Lock fields nobody ever writes (an unused-field warning,
+                    // CS0649) and its dispatch must not run a matcher-evaluation loop that could only
+                    // ever see unset (always-matching) fields. This flag gates state-class field
+                    // declaration and dispatch-body shape; ClosedInstantiationHasParameters above still
+                    // gates the (unrelated) zero-vs-real-parameter Configure<T>()/Verify<T>() signature
+                    // split, which applies regardless of overload status.
+                    ClosedInstantiationHasMatchedParameters = m.IsClosedInstantiationEligible && !m.IsOverloaded && m.Parameters.Count > 0,
+                    // A constrained (e.g. `where T : class`) closed-instantiation-eligible member's
+                    // return type contains "T?" (a nullable-annotated reference to the method's own
+                    // type parameter) - real compile spike (2026-08-23): an EXPLICIT interface
+                    // implementation can never restate "where T : class" (CS0460), and without it the
+                    // compiler can't tell whether "T?" means a nullable-annotated reference or
+                    // System.Nullable<T> (CS9334/CS0453/CS0452 cascade, reproduced with a hand-written
+                    // minimal repro before this fix). The only C#-legal way to satisfy the interface's
+                    // signature from an explicit implementation is to declare the *unannotated* "T"
+                    // instead - nullable annotations don't change the underlying runtime type
+                    // (Task<T?> and Task<T> are the same CLR type), so this is purely a compile-time
+                    // spelling difference - wrapped in #pragma warning disable/restore CS8616 (the
+                    // signature-nullability-mismatch warning) and CS8619 (the same mismatch at each
+                    // return statement inside the body, found by a second spike round) so it produces
+                    // zero consumer-visible warnings. Deliberately pragma-based, not #nullable
+                    // disable/restore - #nullable restore reverts to the *project's* default annotation
+                    // context, not back to this file's own leading #nullable enable, which left every
+                    // subsequent member in the file oblivious (a real CS8669 regression this task's own
+                    // SampleTests build caught). A no-op (same text, no pragma emitted) for every
+                    // non-nullable-annotated shape.
+                    ClosedInstantiationExplicitImplementationReturnType = closedInstantiationExplicitImplementationReturnType,
+                    ClosedInstantiationNeedsNullableSuppression =
+                        closedInstantiationExplicitImplementationReturnType != m.ReturnTypeFullyQualifiedName,
+                    BucketLocalName = bucketLocalName,
                     Parameters = m.Parameters
                         .Select((p, i) => new
                         {

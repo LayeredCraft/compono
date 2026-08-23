@@ -64,3 +64,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0046](0046-static-abstract-member-conformance-only-generation.md) | Effective Interface Contract for Inherited Static Abstract Members | Done |
 | [0047](0047-compono-dependencyinjection-configured-resolution-bridge.md) | Compono.DependencyInjection: Configured-Resolution IServiceProvider Bridge | Done |
 | [0048](0048-testdoubles-argument-matching-and-call-verification.md) | Compono.TestDoubles: Argument Matching and Argument-Aware Call Verification | Not Started |
+| [0049](0049-testdoubles-generic-return-closed-instantiation-configuration-impl-plan.md) | Compono.TestDoubles: Per-Closed-Instantiation Configuration for Generic Methods Whose Return Type Depends on Their Own Type Parameter | Done |
