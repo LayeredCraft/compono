@@ -936,7 +936,8 @@ internal static class TestDoubleAnalyzer
                             constraintClauses,
                             IsConfigurationRequired: isConfigurationRequired,
                             IsEligibleForMatching: isEligibleForMatching,
-                            IsClosedInstantiationEligible: isClosedInstantiationEligible));
+                            IsClosedInstantiationEligible: isClosedInstantiationEligible,
+                            IsClosedInstantiationEligibleShape: isClosedInstantiationEligibleShape));
 
                         break;
                     }

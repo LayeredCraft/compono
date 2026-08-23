@@ -142,6 +142,21 @@ namespace Compono.Generators.Models;
 /// no <c>Compono.Match&lt;T&gt;</c> wrapping), the same disposition every other overloaded member
 /// already has.
 /// </param>
+/// <param name="IsClosedInstantiationEligibleShape">
+/// Whether this member's return type matches ADR-0049's closed-instantiation shape (the same test
+/// <see cref="IsClosedInstantiationEligible"/> uses), <b>independent of</b>
+/// <see cref="HasConfigurationSurface"/> - unlike <see cref="IsClosedInstantiationEligible"/>, this is
+/// <see langword="true"/> even for a member that ends up with no configuration surface at all (a
+/// diamond collision, a zero-argument-extension collision, or - PR #107 Codex review - a ref/out/in
+/// overload-set-internal fallback per ADR-0044 Amendment 5). Exists because the explicit-interface-
+/// implementation return-type-spelling fix
+/// (<see cref="Compono.Generators.Emitters.TestDoubleEmitter"/>'s nullable-annotation-stripping for a
+/// <see langword="where"/> <c>T : class</c>-constrained self-referencing return) is needed for
+/// <b>every</b> member matching this shape, whether or not it gets the full bucket mechanism - a
+/// fallback-only member still emits a real explicit interface implementation (with a deterministic-
+/// default body, no <c>Configure()</c>/<c>Verify()</c>), and that implementation hits the exact same
+/// <c>CS9334</c>/<c>CS0453</c> compiler cascade if its return type isn't spelled the same way.
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -162,7 +177,8 @@ internal sealed record TestDoubleMemberInfo(
     EquatableArray<string> ConstraintClauses = default,
     bool IsConfigurationRequired = false,
     bool IsEligibleForMatching = false,
-    bool IsClosedInstantiationEligible = false)
+    bool IsClosedInstantiationEligible = false,
+    bool IsClosedInstantiationEligibleShape = false)
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
     public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";

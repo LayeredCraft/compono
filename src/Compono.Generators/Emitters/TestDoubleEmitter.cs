@@ -63,8 +63,17 @@ internal static class TestDoubleEmitter
                 // own real parameter (or type parameter) can theoretically be named "__bucket".
                 var bucketLocalName = SafeLocalName("__bucket", parameterEscapedNames.Append(matchesLocalName));
 
-                var closedInstantiationTypeParameterName = m.IsClosedInstantiationEligible ? m.TypeParameterNames[0] : "";
-                var closedInstantiationExplicitImplementationReturnType = m.IsClosedInstantiationEligible
+                // ADR-0049 / PR #107 Codex review: keyed off IsClosedInstantiationEligibleShape, NOT
+                // IsClosedInstantiationEligible - the nullable-annotation-stripping fix below is needed
+                // for the explicit interface implementation's return-type spelling on EVERY member
+                // matching this shape, including one that ends up with no configuration surface at all
+                // (a diamond collision, a zero-argument-extension collision, or a ref/out/in overload-
+                // set-internal fallback, ADR-0044 Amendment 5) - that member still emits a real explicit
+                // implementation (a deterministic-default-only fallback body), and it hits the exact
+                // same CS9334/CS0453 cascade if its return type isn't spelled the same stripped way.
+                // See TestDoubleMemberInfo.IsClosedInstantiationEligibleShape's own XML doc.
+                var closedInstantiationTypeParameterName = m.IsClosedInstantiationEligibleShape ? m.TypeParameterNames[0] : "";
+                var closedInstantiationExplicitImplementationReturnType = m.IsClosedInstantiationEligibleShape
                     ? m.ReturnTypeFullyQualifiedName.Replace($"{closedInstantiationTypeParameterName}?", closedInstantiationTypeParameterName)
                     : m.ReturnTypeFullyQualifiedName;
 

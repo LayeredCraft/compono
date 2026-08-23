@@ -365,3 +365,26 @@ assertions in `ClosedInstantiationTests.cs` (a false-pass risk — the test
 could finish before observing whether the assertion held) — fixed by
 making both tests `async Task` and awaiting the assertion. Full solution
 after both fixes: 2336/2336 tests passing, zero build warnings.
+
+**PR #107 Codex review, round 2 (2026-08-23)** caught a follow-on gap in
+the round-1 fix: the nullable-annotation-stripping fix for a `where T :
+class`-constrained explicit interface implementation was keyed off
+`IsClosedInstantiationEligible`, which requires `HasConfigurationSurface`.
+But a member can match ADR-0049's closed-instantiation return shape and
+still end up with **no** configuration surface for an unrelated reason —
+concretely, ADR-0044 Amendment 5's ref/out/in overload-set-internal
+fallback (`Task<T?> Get<T>(ref int x) where T : class` alongside a sibling
+overload). That member still gets a real explicit interface implementation
+(a deterministic-default-only fallback body), and it hit the identical
+`CS9334`/`CS0453` cascade the round-1 fix didn't cover, since the fallback
+branch of the template used the member's plain, unmodified return-type
+text. Fixed by adding a new model field,
+`IsClosedInstantiationEligibleShape` — the same return-shape test,
+deliberately independent of `HasConfigurationSurface` — and keying the
+emitter's nullable-stripping computation and the template's fallback-body
+return-type spelling off that instead. A new regression test
+(`ClosedInstantiationShapedRefParameterOverloadFallback_CompilesWithoutConfigurationSurface`)
+uses `VerifyWithInfoDiagnostic`, which re-compiles the real generated
+output and asserts zero compiler errors — exactly the check that would
+have caught this cascade. Full solution after this fix: 2338/2338 tests
+passing, zero build warnings.

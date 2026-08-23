@@ -2758,6 +2758,57 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 2): a closed-instantiation-shaped member can match ADR-0049's
+    // return-shape check (so it isn't whole-interface-rejected) yet still end up with NO configuration
+    // surface for an unrelated reason - here, ADR-0044 Amendment 5's ref/out/in overload-set-internal
+    // fallback (a ref parameter, with a sibling overload to preserve). That member still gets a real
+    // explicit interface implementation (a deterministic-default-only fallback body, no Configure()/
+    // Verify()) - and since its return type is `Task<T?>` on a `where T : class`-constrained method,
+    // that fallback implementation hits the exact same CS9334/CS0453 cascade the round-1 fix
+    // (IsClosedInstantiationEligible-only stripping) didn't cover, because it was gated on
+    // HasConfigurationSurface too. Fixed by keying the nullable-stripping fix off the new, surface-
+    // independent IsClosedInstantiationEligibleShape flag instead. VerifyWithInfoDiagnostic proves both
+    // halves: the ref-parameter overload falls back with an informational CMP0030 (not a whole-
+    // interface CMP0026/CMP0031), AND the generated code actually compiles - which is exactly the
+    // check that would have caught the CS9334 cascade if this fix were missing.
+    [Fact]
+    public Task ClosedInstantiationShapedRefParameterOverloadFallback_CompilesWithoutConfigurationSurface() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<T?> Get<T>(ref int x) where T : class;
+
+                        System.Threading.Tasks.Task<T?> Get<T>(string key) where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static async System.Threading.Tasks.Task Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>("user").Returns(System.Threading.Tasks.Task.FromResult<string?>("Ada"));
+
+                            var value = await factory.Get<string>("user");
+
+                            factory.Verify().Get<string>("user").Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0030",
+            TestContext.Current.CancellationToken);
+
     // Amendment 5 Finding 11, moved here from Phase 0 now that generic methods exist to construct
     // the case with: type-parameter *names* aren't part of a method's identity, only their ordinal
     // position - IA.M<T>(T) and IB.M<U>(U) are the same signature and must still trigger the
