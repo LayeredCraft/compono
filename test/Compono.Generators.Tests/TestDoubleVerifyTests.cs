@@ -3096,6 +3096,53 @@ public sealed class TestDoubleVerifyTests
             "CMP0032",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 11): the direct (non-Task/ValueTask-wrapped) `T? Get<T>() where T :
+    // class` shape strips the `?` for the explicit implementation's declared return type (T, not T?),
+    // per the round-1 CS9334/CS0453 fix - but its fallback dispatch expression is the bare `default`
+    // literal, i.e. null, returned from a method now declared to return non-nullable T. That's a real
+    // CS8603 ("possible null reference return") the existing CS8616/CS8619 pragma never covered - those
+    // two only suppress signature/generic-argument nullability mismatches, not a direct return-statement
+    // analysis. A consumer building with warnings-as-errors couldn't compile this advertised-supported
+    // shape. Fixed by adding CS8603 to both pragma disable/restore pairs in the template.
+    // VerifyWithNoWarnings recompiles and asserts none of the three warning codes appear anywhere in the
+    // output, at any severity - the check Verify/VerifyWithInfoDiagnostic's own Error-only filter would
+    // never have caught.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithDirectNullableReturn_GeneratesDoubleWithNoNullableWarnings() =>
+        GeneratorTestHelpers.VerifyWithNoWarnings(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T? Get<T>() where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+
+                            var value = factory.Get<string>();
+
+                            factory.Verify().Get<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            new[] { "CS8603", "CS8616", "CS8619" },
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter

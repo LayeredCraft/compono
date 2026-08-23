@@ -745,3 +745,39 @@ reproducing Codex's exact repros) — the latter forces a full recompile,
 proving the generated code actually compiles when calling the interface's
 own generic `ToString<T>()` via an explicit type argument. Full solution
 after this fix: 2368/2368 tests passing, zero build warnings.
+
+**PR #107 Codex review, round 11 (2026-08-23)** caught one more real gap,
+and exposed a real hole in the test harness itself while fixing it:
+
+- **Finding**: the direct (non-`Task`/`ValueTask`-wrapped) `T? Get<T>()
+  where T : class` shape strips the `?` for the explicit implementation's
+  declared return type (`T`, not `T?`, per the round-1 fix for the
+  `CS9334`/`CS0453` cascade), but its fallback dispatch expression is the
+  bare `default` literal — i.e. `null` — returned from a method now
+  declared to return non-nullable `T`. That's a real `CS8603` ("possible
+  null reference return") the existing `CS8616`/`CS8619` pragma never
+  covered — those two only suppress signature/generic-argument
+  nullability mismatches, not a direct return-statement analysis. A
+  consumer building with warnings-as-errors couldn't compile this
+  advertised-supported shape. Fixed by adding `CS8603` to both
+  pragma disable/restore pairs in the template.
+
+Confirmed by *removing* the fix and re-running the new test first — it
+failed with the exact `CS8603` warning, then passed once the fix was
+restored, proving the test (not just the fix) is real.
+
+**A real hole in the test infrastructure, found while writing this
+regression test**: `Verify`/`VerifyWithInfoDiagnostic`'s own "generated
+code should compile" check filters `DiagnosticSeverity.Error` only — it
+has never once failed a test over a *warning*, so a real nullable-mismatch
+warning escaping the suppression pragma would have silently passed every
+existing test in this suite. Added a new helper,
+`GeneratorTestHelpers.VerifyWithNoWarnings`, asserting a given set of
+diagnostic IDs is absent from the recompiled output at *any* severity —
+used for this regression test, and worth reaching for on any future
+nullable-suppression-adjacent change.
+
+This round's fix changed the pragma text for every closed-instantiation
+member needing nullable suppression, so the 5 existing affected snapshots
+needed re-accepting alongside the new test. Full solution after this fix:
+2370/2370 tests passing, zero build warnings.

@@ -30,7 +30,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     }
     internal global::Compono.ReturnConfig<string?> __Get_calls;
 
-#pragma warning disable CS8616, CS8619
+#pragma warning disable CS8603, CS8616, CS8619
     global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(string key)
     {
         var __bucket = __Get_Bucket<T>();
@@ -41,7 +41,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
             : __matches && __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
-#pragma warning restore CS8616, CS8619
+#pragma warning restore CS8603, CS8616, CS8619
 
     string? global::TestNamespace.IFactory.Get_calls
     {

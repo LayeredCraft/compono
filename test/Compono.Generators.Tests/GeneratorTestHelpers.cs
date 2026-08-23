@@ -148,6 +148,44 @@ internal static partial class GeneratorTestHelpers
         return VerifyDriver(driver);
     }
 
+    // ADR-0049 / PR #107 Codex review round 11: Verify/VerifyWithInfoDiagnostic's own "generated code
+    // should compile" check only filters DiagnosticSeverity.Error - it never fails a test over a
+    // WARNING, so a real CS8603/CS8616/CS8619 nullable-mismatch warning escaping the closed-
+    // instantiation nullable-suppression pragma would silently pass every existing test even though a
+    // consumer building with warnings-as-errors would see their build fail on an advertised-supported
+    // shape. This helper exists specifically to close that gap - it asserts zero diagnostics with any
+    // of the given IDs appear anywhere in the recompiled output, at any severity, not just Error.
+    internal static Task VerifyWithNoWarnings(
+        CodeGenerationOptions options, string[] forbiddenDiagnosticIds, CancellationToken cancellationToken = default)
+    {
+        var (driver, originalCompilation) = GenerateFromSource(options, cancellationToken);
+        var result = driver.GetRunResult();
+
+        var parseOptions = originalCompilation.SyntaxTrees.First().Options;
+        var reparsedTrees = result.GeneratedTrees
+            .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)parseOptions, tree.FilePath))
+            .ToArray();
+
+        var outputCompilation = originalCompilation.AddSyntaxTrees(reparsedTrees);
+        var forbidden = outputCompilation.GetDiagnostics(cancellationToken)
+            .Where(d => forbiddenDiagnosticIds.Contains(d.Id))
+            .ToList();
+
+        forbidden.Should().BeEmpty(
+            "generated code should compile without any of the forbidden diagnostics, but found:\n" +
+            string.Join("\n---\n", forbidden.Select(e => $"  - {e.Id} ({e.Severity}): {e.GetMessage()} at {e.Location}")));
+
+        var errors = outputCompilation.GetDiagnostics(cancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        errors.Should().BeEmpty(
+            "generated code should compile without errors, but found:\n" +
+            string.Join("\n---\n", errors.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+
+        return VerifyDriver(driver);
+    }
+
     /// <summary>
     /// Compiles <paramref name="options"/>' source plus the real generated output into an in-memory
     /// assembly, loads it, and invokes <paramref name="methodName"/> on the static type named

@@ -52,7 +52,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.has_configuration_surface ~}}
 {{~ if member.is_closed_instantiation_eligible ~}}
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
-#pragma warning disable CS8616, CS8619
+#pragma warning disable CS8603, CS8616, CS8619
 {{~ end ~}}
     {{ member.closed_instantiation_explicit_implementation_return_type }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
@@ -75,7 +75,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
     }
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
-#pragma warning restore CS8616, CS8619
+#pragma warning restore CS8603, CS8616, CS8619
 {{~ end ~}}
 {{~ else if member.is_eligible_for_matching ~}}
 {{~ if member.is_void ~}}
@@ -126,7 +126,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
 {{~ else ~}}
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
-#pragma warning disable CS8616, CS8619
+#pragma warning disable CS8603, CS8616, CS8619
 {{~ end ~}}
     {{ if member.is_void }}void{{ else if member.closed_instantiation_needs_nullable_suppression }}{{ member.closed_instantiation_explicit_implementation_return_type }}{{ else }}{{ member.return_type_fully_qualified_name }}{{ end }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
@@ -138,7 +138,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
     }
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
-#pragma warning restore CS8616, CS8619
+#pragma warning restore CS8603, CS8616, CS8619
 {{~ end ~}}
 {{~ end ~}}
 {{~ else ~}}

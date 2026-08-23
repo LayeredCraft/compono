@@ -46,7 +46,7 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
         }
     }
 
-#pragma warning disable CS8616, CS8619
+#pragma warning disable CS8603, CS8616, CS8619
     global::System.Threading.Tasks.Task<T> global::TestNamespace.IContextManager.GetDataAsync<T>(string id)
     {
         var __bucket = __GetDataAsync_97bed815_Bucket<T>();
@@ -55,9 +55,9 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
-#pragma warning restore CS8616, CS8619
+#pragma warning restore CS8603, CS8616, CS8619
 
-#pragma warning disable CS8616, CS8619
+#pragma warning disable CS8603, CS8616, CS8619
     global::System.Threading.Tasks.Task<T> global::TestNamespace.IContextManager.GetDataAsync<T>(string id, int version)
     {
         var __bucket = __GetDataAsync_1aae9cd0_Bucket<T>();
@@ -66,7 +66,7 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
-#pragma warning restore CS8616, CS8619
+#pragma warning restore CS8603, CS8616, CS8619
 }
 
 internal static class TestNamespace_IContextManager_d05603ce_DoubleConfiguration

@@ -26,7 +26,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
         }
     }
 
-#pragma warning disable CS8616, CS8619
+#pragma warning disable CS8603, CS8616, CS8619
     global::System.Threading.Tasks.ValueTask<T> global::TestNamespace.IFactory.Get<T>()
     {
         var __bucket = __Get_Bucket<T>();
@@ -35,7 +35,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.ValueTask.FromResult<T?>(default);
     }
-#pragma warning restore CS8616, CS8619
+#pragma warning restore CS8603, CS8616, CS8619
 }
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration

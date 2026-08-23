@@ -7,10 +7,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 {
     internal sealed class __Get_State<T> where T : class
     {
-        internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
-        internal global::Compono.Match<string>? Matcher_key;
-        internal readonly global::System.Collections.Generic.List<string> Calls = [];
-        internal readonly object Lock = new();
+        internal global::Compono.ReturnConfig<T?> Config;
     }
 
     internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_buckets = new();
@@ -30,33 +27,23 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     }
 
 #pragma warning disable CS8603, CS8616, CS8619
-    global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(ref int x)
-    {
-        return global::System.Threading.Tasks.Task.FromResult<T?>(default);
-    }
-#pragma warning restore CS8603, CS8616, CS8619
-
-#pragma warning disable CS8603, CS8616, CS8619
-    global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(string key)
+    T global::TestNamespace.IFactory.Get<T>()
     {
         var __bucket = __Get_Bucket<T>();
         __bucket.Config.RecordCall();
-        lock (__bucket.Lock) { __bucket.Calls.Add(key); }
-        var __matches = (__bucket.Matcher_key is not { } __m_key || __m_key.Matches(key));
-        return __matches && __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
-            : __matches && __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
-            : global::System.Threading.Tasks.Task.FromResult<T?>(default);
+        return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
+            : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
+            : default;
     }
 #pragma warning restore CS8603, CS8616, CS8619
 }
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<string> key) where T : class
+    public static global::Compono.ReturnConfigBuilder<T?> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
     {
         var __bucket = __self.__Get_Bucket<T>();
-        __bucket.Matcher_key = key;
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __bucket.Config);
+        return new global::Compono.ReturnConfigBuilder<T?>(ref __bucket.Config);
     }
 
 }
@@ -81,21 +68,8 @@ internal static class TestNamespace_IFactory_993557a2_VerifyExtension
 
 internal static class TestNamespace_IFactory_993557a2_DoubleVerification
 {
-    public static global::Compono.CallVerifier Get<T>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self, global::Compono.Match<string> key) where T : class
-    {
-        var __bucket = __self.Instance.__Get_Bucket<T>();
-        int __count;
-        lock (__bucket.Lock)
-        {
-            __count = 0;
-            foreach (var call in __bucket.Calls)
-            {
-                if (key.Matches(call))
-                    __count++;
-            }
-        }
-        return new(__count, "global::TestNamespace.IFactory.Get");
-    }
+    public static global::Compono.CallVerifier Get<T>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self) where T : class =>
+        new(__self.Instance.__Get_Bucket<T>().Config.ConfiguredCallCount, "global::TestNamespace.IFactory.Get");
 
 }
 
