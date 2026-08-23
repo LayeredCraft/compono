@@ -210,8 +210,13 @@ the sole type argument of `Task<T>`/`Task<T?>`/`ValueTask<T>`/
 `ValueTask<T?>` — is supported with independent `Configure<T>()`/
 `Verify<T>()` state per closed `T` (v4,
 [ADR-0049](../adr/0049-testdoubles-generic-return-closed-instantiation-configuration.md)).
-The motivating shape is a conversational-context store keyed by both a
-string and the caller's own requested type:
+The `T?` shapes require `T` constrained to a reference type (`where T :
+class`) — for a value-type `T`, C# represents `T?` as the distinct generic
+type `System.Nullable<T>`, which this recognition doesn't (yet) unwrap;
+`Task<T?> Get<T>() where T : struct` falls back to `CMP0031` like any
+other unrecognized shape, safely (ADR-0049 Amendment 1). The motivating
+shape is a conversational-context store keyed by both a string and the
+caller's own requested type:
 
 ```csharp
 public interface IContextManager
@@ -517,11 +522,12 @@ spike proved it, see above), no call-order verification, no
 recursive auto-configuration, and no support for classes, delegates,
 indexers, events, or a generic method whose return type references its own
 type parameter *nested deeper* than a direct return or the sole type
-argument of `Task`/`ValueTask`, or with more than one of the method's own
-type parameters — see "Per-closed-instantiation configuration for
-self-referencing generic returns" above for the narrower, now-supported
-shape (`T`/`Task<T>`/`Task<T?>`/`ValueTask<T>`/`ValueTask<T?>`, a single
-type parameter) and
+argument of `Task`/`ValueTask`, with more than one of the method's own
+type parameters, or with a value-type-constrained `T?` (`System.Nullable<T>`,
+unrecognized — see ADR-0049 Amendment 1) — see "Per-closed-instantiation
+configuration for self-referencing generic returns" above for the
+narrower, now-supported shape (`T`/`Task<T>`/`Task<T?>`/`ValueTask<T>`/
+`ValueTask<T?>`, a single type parameter, `T?` requiring `where T : class`) and
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
 Non-Goals, [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)'s
 Non-Goals, and [ADR-0049](../adr/0049-testdoubles-generic-return-closed-instantiation-configuration.md)'s

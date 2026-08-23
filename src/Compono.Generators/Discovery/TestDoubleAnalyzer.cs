@@ -360,7 +360,17 @@ internal static class TestDoubleAnalyzer
             // Other's type parameter is scoped to Other's own, differently-named state class and never
             // appears anywhere near Get's declaration. The two names only ever actually collide when
             // they belong to the SAME state class declaration.
-            if (candidateMethod.TypeParameters[0].Name == $"{baseFieldName}_State")
+            //
+            // Also checked against the bucket METHOD's own derived name (Codex review, PR #107 round
+            // 8): a generic method's own name colliding with its own type parameter is CS0694 too, not
+            // just a type's - `internal __Get_State<__Get_Bucket> __Get_Bucket<__Get_Bucket>()` is
+            // exactly as illegal as the class case above when the consumer's own type parameter is
+            // literally named "__Get_Bucket". The bucket dictionary FIELD's own derived name
+            // ("_buckets") needs no equivalent check - a field has no type parameter of its own to
+            // collide with, so a type parameter merely sharing its name elsewhere in the same
+            // declaration is never a CS0694 risk for it.
+            if (candidateMethod.TypeParameters[0].Name is var typeParameterName &&
+                (typeParameterName == $"{baseFieldName}_State" || typeParameterName == $"{baseFieldName}_Bucket"))
                 derivedNameCollisionMembers.Add(candidateMethod);
 
             foreach (var name in derivedClosedInstantiationNames)

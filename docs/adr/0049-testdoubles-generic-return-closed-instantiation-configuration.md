@@ -567,6 +567,34 @@ mechanism, not just its first implementation:
   named explicitly in "Considered Options" rather than silently left as an
   unexplained gap.
 
+### Amendment 1 (2026-08-23) — `T?` requires `T` constrained to a reference type
+
+Codex review, PR #107 round 8, flagged that `Task<T?> Get<T>() where T :
+struct` (likewise `ValueTask<T?>`) reports `CMP0031`, not the
+`Configure<T>()`/`Verify<T>()` surface — because for a value-type `T`, C#
+represents `T?` as the distinct generic type `System.Nullable<T>`, not as
+`T` with a nullable *annotation* (nullable annotations apply only to
+reference types). The eligibility check's `T?`/`Task<T?>`/`ValueTask<T?>`
+recognition compares the return position directly against the method's
+own `T` symbol, which a `Nullable<T>`-wrapped value never equals — so this
+falls through to the same whole-interface `CMP0031` every other
+unrecognized shape gets, safely, not broken generated code.
+
+This was never actually evidenced: every real trivia-platform call site
+this ADR's own evidence table cites (`GetContextDataAsync<T>` and its
+siblings) is `where T : class`. The "Scope boundary" section above and
+this ADR's target API were written using `T?` loosely, without stating
+the reference-type-only precondition explicitly — clarified here rather
+than treated as a design gap to close: per ADR-0029's evidence discipline,
+recognizing `Nullable<T>` would be a genuinely new, unevidenced capability
+(a distinct runtime representation, not just a wider pattern match), not
+a bug fix to the shape actually designed and spiked. `docs/packages/compono-testdoubles.md`
+and `docs/reference/diagnostics.md` corrected to state the constraint
+explicitly. A value-type-constrained self-referencing `T?`/`Task<T?>`/
+`ValueTask<T?>` return remains a named, out-of-scope shape for a future
+ADR if real evidence ever surfaces it — the same disposition already
+applied to deeper nesting and multi-type-parameter returns above.
+
 ## Links
 
 - [ADR-0044](0044-compono-testdoubles-v2-overloads-generics-verification.md) —

@@ -502,7 +502,8 @@ ordinary runtime-provider path.`
 parameter in a shape Compono doesn't have a concrete slot type or
 generated-storage mechanism for. The narrow, directly-self-referencing
 shape — exactly `T`, or the sole type argument of `Task<T>`/`Task<T?>`/
-`ValueTask<T>`/`ValueTask<T?>`, for a single method-type-parameter — *is*
+`ValueTask<T>`/`ValueTask<T?>`, for a single method-type-parameter
+constrained to a reference type (`T?` requires `where T : class`) — *is*
 supported (independent per-closed-`T` `Configure<T>()`/`Verify<T>()`; see
 [`Compono.TestDoubles`](../packages/compono-testdoubles.md#per-closed-instantiation-configuration-for-self-referencing-generic-returns)).
 This diagnostic covers what's still genuinely unsupported past that
@@ -518,6 +519,9 @@ boundary:
 - The method's type parameter declared `where T : allows ref struct` —
   the generated storage mechanism's own backing types can't accept a
   ref-like type argument.
+- A value-type-constrained `T?` (`Task<T?> Get<T>() where T : struct`) —
+  C# represents this as `System.Nullable<T>`, a distinct generic type this
+  recognition doesn't unwrap (unevidenced; see ADR-0049 Amendment 1).
 - A real (non-`T`) parameter that's itself ref-like, or that itself
   references the method's own type parameter.
 - A derived-name collision between the generated storage this shape needs

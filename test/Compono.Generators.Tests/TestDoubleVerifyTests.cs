@@ -2812,6 +2812,78 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 8, finding 1): fresh evidence beyond the earlier state-class-name
+    // self-collision fix - a generic method's own name colliding with its own type parameter is
+    // CS0694 too, not just a type's. For `__Get_Bucket Get<__Get_Bucket>()`, the consumer's own type
+    // parameter matches this file's derived BUCKET METHOD name (not the state class name), producing
+    // `internal __Get_State<__Get_Bucket> __Get_Bucket<__Get_Bucket>()` - a method sharing its own
+    // name with its own type parameter. Fixed by extending the same self-scoped collision check to
+    // also cover the bucket method's derived name, not just the state class's.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeGeneratedBucketMethod_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        __Get_Bucket Get<__Get_Bucket>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 8, finding 2): `Task<T?> Get<T>() where T : struct` reports
+    // CMP0031, not the closed-instantiation surface - for a value-type T, C# represents `T?` as the
+    // distinct generic type System.Nullable<T>, not as T with a nullable annotation (annotations only
+    // apply to reference types), so the eligibility check's direct symbol-equality comparison against
+    // the method's own T never matches. This is NOT a bug: every real trivia-platform evidence this
+    // ADR cites is `where T : class`, and recognizing Nullable<T> would be new, unevidenced capability
+    // per ADR-0029's discipline, not a fix to the shape actually designed and spiked. Classified as a
+    // named, out-of-scope shape (ADR-0049 Amendment 1) rather than silently left unexplained - this
+    // test documents and locks in the current, correct, safe fallback behavior.
+    [Fact]
+    public Task ClosedInstantiationShapedMemberWithValueTypeConstrainedNullableReturn_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<T?> Get<T>() where T : struct;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter

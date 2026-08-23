@@ -612,3 +612,45 @@ declined-scope decision, both real:
 
 Full solution after this fix: 2354/2354 tests passing, zero build
 warnings.
+
+**PR #107 Codex review, round 8 (2026-08-23)** caught two more gaps, both
+building directly on the last two rounds:
+
+- **Finding 1 (code, second follow-on to round 6)**: fresh evidence beyond
+  the state-class-name self-collision fixed in round 6/7 — a generic
+  method's own name colliding with its own type parameter is `CS0694`
+  too, not only a type's. Codex's repro: `__Get_Bucket Get<__Get_Bucket>()`,
+  where the consumer's type parameter matches this file's derived
+  *bucket method* name (not the state class name), producing `internal
+  __Get_State<__Get_Bucket> __Get_Bucket<__Get_Bucket>()` — a method
+  sharing its own name with its own type parameter. Fixed by extending
+  the same self-scoped collision check (round 7's fix) to also cover the
+  bucket method's derived name. The bucket dictionary *field*'s own name
+  still needs no equivalent check — a field has no type parameter of its
+  own to collide with.
+- **Finding 2 (scope, not a bug)**: `Task<T?> Get<T>() where T : struct`
+  (likewise `ValueTask<T?>`) reports `CMP0031`, not the closed-instantiation
+  surface — for a value-type `T`, C# represents `T?` as the distinct
+  generic type `System.Nullable<T>`, not as `T` with a nullable
+  *annotation* (annotations apply only to reference types), so the
+  eligibility check's direct symbol comparison against the method's own
+  `T` never matches. Unlike every other round-6–8 finding, this is
+  **safe fallback behavior, not broken generated code** — it correctly
+  falls through to whole-interface `CMP0031`. Every real trivia-platform
+  call site this ADR's evidence table cites is `where T : class`; per
+  ADR-0029's evidence discipline, recognizing `Nullable<T>` would be new,
+  unevidenced capability, not a bug fix to the shape actually designed
+  and spiked. Resolved by clarifying scope rather than expanding
+  capability: added ADR-0049 Amendment 1 naming this explicitly as an
+  out-of-scope shape (same disposition as deeper nesting/multi-type-
+  parameter returns), and corrected `docs/packages/compono-testdoubles.md`
+  (both mentions) and `docs/reference/diagnostics.md`'s `CMP0031` section
+  to state the `where T : class` precondition explicitly rather than
+  implying `T?` works unconditionally.
+
+Regression tests for both: finding 1 (`VerifyFailure`, reproducing
+Codex's exact `__Get_Bucket` repro) confirms the correct `CMP0031`
+fallback; finding 2 (`VerifyFailure`, `Task<T?> Get<T>() where T :
+struct`) documents and locks in the current, correct, already-safe
+behavior. Full solution after this fix: 2358/2358 tests passing, zero
+build warnings.
