@@ -3014,6 +3014,88 @@ public sealed class TestDoubleVerifyTests
             "CMP0032",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #107 (round 10, finding 1): the self-scoped CS0694 collision check (rounds 6-9)
+    // only compared the consumer's type parameter against the derived state-class/bucket-method NAMES
+    // - not the state class's own MEMBER names. `Config Create<Config>()`'s type parameter matches the
+    // state class's own "Config" field literally (`internal ReturnConfig<Config> Config;` inside
+    // `class __Create_State<Config>`), a real declaration collision. Fixed by extending the same self-
+    // scoped check to also cover "Config" (always emitted) and, when the candidate has real parameters
+    // and isn't overloaded, "Calls"/"Lock"/"Matcher_{param}" (only emitted in that shape).
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeStateClassMember_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        Config Create<Config>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 10, finding 2): `T ToString<T>() where T : class` reported CMP0025
+    // (object-member collision), not the closed-instantiation surface. A separate, HOISTED copy of the
+    // object-collision check (evaluated before hasConfigurationSurface/defaultExpression, specifically
+    // so a member with no deterministic default is still diagnosed correctly) only exempted an
+    // overloaded generic member from the "solo member's extension is zero-arity, non-generic" object-
+    // collision assumption - never a solo closed-instantiation-eligible one, even though its own
+    // Configure<T>()/Verify<T>() extension is genuinely generic and distinguishable from
+    // object.ToString(), matching the reasoning the later, already-correct exemption already used.
+    // Fixed by mirroring that later exemption's shape in this hoisted copy too. VerifyWithInfoDiagnostic
+    // (full recompile) proves the generated code actually compiles, calling the interface's own generic
+    // ToString<T>() via an explicit type argument.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberNamedLikeObjectToString_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T ToString<T>() where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().ToString<string>().Returns("Ada");
+
+                            var value = factory.ToString<string>();
+
+                            factory.Verify().ToString<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter

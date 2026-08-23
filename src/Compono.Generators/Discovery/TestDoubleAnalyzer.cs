@@ -383,8 +383,28 @@ internal static class TestDoubleAnalyzer
             // ("_buckets") needs no equivalent check - a field has no type parameter of its own to
             // collide with, so a type parameter merely sharing its name elsewhere in the same
             // declaration is never a CS0694 risk for it.
+            // Also checked against the STATE CLASS's own MEMBER names (Codex review, PR #107 round
+            // 10): the state class's own type parameter is in scope for its own member declarations
+            // too, not just its own class/method names above - `class __Create_State<Config> {
+            // internal ReturnConfig<Config> Config; }` collides a member named "Config" with its
+            // enclosing type's own type parameter "Config" when the consumer's type parameter is
+            // literally named that. "Calls"/"Lock"/"Matcher_{param}" only actually get emitted when
+            // this candidate has real parameters and isn't overloaded (closed_instantiation_has_matched_parameters
+            // in the template/emitter) - an overloaded or zero-parameter candidate's state class never
+            // declares those fields at all, so checking against them for such a candidate would be a
+            // phantom check with nothing to actually collide with.
+            var stateClassMemberNames = new List<string> { "Config" };
+
+            if (candidateMethod.Parameters.Length > 0 && !overloadedNames.Contains(candidateMethod.Name))
+            {
+                stateClassMemberNames.Add("Calls");
+                stateClassMemberNames.Add("Lock");
+                stateClassMemberNames.AddRange(candidateMethod.Parameters.Select(p => $"Matcher_{p.Name}"));
+            }
+
             if (candidateMethod.TypeParameters[0].Name is var typeParameterName &&
-                (typeParameterName == $"{baseFieldName}_State" || typeParameterName == $"{baseFieldName}_Bucket"))
+                (typeParameterName == $"{baseFieldName}_State" || typeParameterName == $"{baseFieldName}_Bucket" ||
+                 stateClassMemberNames.Contains(typeParameterName)))
                 derivedNameCollisionMembers.Add(candidateMethod);
 
             foreach (var name in derivedClosedInstantiationNames)
@@ -581,8 +601,20 @@ internal static class TestDoubleAnalyzer
                         // this member is overloaded), just evaluated independent of
                         // hasConfigurationSurface/defaultExpression so it's available this early.
                         var objectCollisionExtensionArity = isOverloaded ? method.Parameters.Length : 0;
+                        // Exemption widened to also cover a solo (non-overloaded) closed-instantiation-
+                        // eligible member (Codex review, PR #107 round 10) - `T ToString<T>() where T :
+                        // class` matches the exact same "solo generic member gets a genuinely generic,
+                        // distinguishable extension" reasoning the isOverloaded branch already used,
+                        // but this HOISTED copy of the object-collision check (evaluated before
+                        // hasConfigurationSurface/defaultExpression, specifically so a member with no
+                        // deterministic default still gets diagnosed correctly) was never updated to
+                        // know about ADR-0049 at all - it kept treating a solo closed-instantiation
+                        // member's extension as the ordinary zero-arity, non-generic shape, wrongly
+                        // colliding it with object.ToString() and rejecting the whole interface with
+                        // CMP0025 before ever reaching the later, already-correct exemption further
+                        // down. Mirrors that later check's own exemption shape exactly.
                         var isObjectMemberCollisionShaped =
-                            !(method.IsGenericMethod && isOverloaded) &&
+                            !((method.IsGenericMethod && isOverloaded) || (isClosedInstantiationEligibleShape && !isOverloaded)) &&
                             ((method.Name is "ToString" or "GetHashCode" or "GetType" && objectCollisionExtensionArity == 0) ||
                              (method.Name is "Equals" && objectCollisionExtensionArity == 1 &&
                               !method.Parameters[0].Type.IsRefLikeType && !method.Parameters[0].IsParams &&
