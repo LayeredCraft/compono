@@ -160,13 +160,19 @@ echo "dogfood-validate.sh: configuration:      $configuration"
 
 work_tmp_dir=""
 lock_dir=""
+lock_owned=0
 consumer_status_before_file=""
 consumer_packages_props_backup=""
 
 cleanup() {
     local exit_code=$?
 
-    if [ -n "$lock_dir" ] && [ -d "$lock_dir" ]; then
+    # Only release the lock if THIS process actually acquired it. If we timed out waiting (or were
+    # interrupted before acquiring), `lock_dir` is already set for messaging purposes but owned by
+    # some other still-running process - removing it here would let a third validator race into
+    # packing concurrently against the same src/Compono*/bin/obj outputs. Codex review, PR #108
+    # (round 2).
+    if [ "$lock_owned" -eq 1 ] && [ -n "$lock_dir" ] && [ -d "$lock_dir" ]; then
         rmdir "$lock_dir" 2>/dev/null || true
     fi
 
@@ -192,6 +198,11 @@ cleanup() {
                 cat "$consumer_status_before_file" >&2
                 echo "--- after ---" >&2
                 echo "$status_restored" >&2
+                # The restore only covers Directory.Packages.props - if some OTHER tracked file
+                # (e.g. packages.lock.json) also changed and can't be accounted for, the consumer
+                # repo is left dirty. Reporting success in that case would be a false-green gate.
+                # Codex review, PR #108 (round 2).
+                exit_code=1
             else
                 echo "dogfood-validate.sh: safety-net restore succeeded; consumer repo git status matches pre-run state." >&2
             fi
@@ -246,6 +257,7 @@ until mkdir "$lock_dir" 2>/dev/null; do
     fi
     sleep 1
 done
+lock_owned=1
 
 packages=(Compono Compono.NSubstitute Compono.TestDoubles Compono.XunitV3)
 for pkg in "${packages[@]}"; do
@@ -260,6 +272,7 @@ done
 
 rmdir "$lock_dir"
 lock_dir=""
+lock_owned=0
 
 for pkg in "${packages[@]}"; do
     if [ ! -f "$feed_dir/$pkg.$version.nupkg" ]; then
@@ -367,6 +380,7 @@ echo "dogfood-validate.sh: running consumer test suite ..."
 set +e
 dotnet test "$consumer_solution" \
     --no-restore \
+    -c "$configuration" \
     -p:DirectoryPackagesPropsPath="$dogfood_packages_props"
 test_exit_code=$?
 set -e

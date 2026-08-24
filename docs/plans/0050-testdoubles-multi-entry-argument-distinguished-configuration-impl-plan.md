@@ -256,11 +256,13 @@ must be re-run against packages built from the actual implementation.
       no test silently dropped out).
 - [x] Document the exact command(s) run and their output in this plan's
       Notes section (below) as the completion evidence.
-- [ ] **Repeat this entire task (build, pack, validate, full trivia-platform
+- [x] **Repeat this entire task (build, pack, validate, full trivia-platform
       suite) after every substantive PR feedback change** — a consumer run
       performed before the latest code change does not validate the revised
       code. Log each re-run in Notes with a date and a one-line summary of
-      what changed since the prior run.
+      what changed since the prior run. (First repeat done 2026-08-24 after
+      round-1 codex feedback, below; repeat again after any further
+      substantive change.)
 
 ## Critical Files
 
@@ -375,3 +377,31 @@ asserted:**
 
 No commits or pushes made in either repository. Awaiting review before
 proceeding.
+
+### 2026-08-24 — Re-run after round-1 codex feedback (PR #108)
+
+Changed since the prior run: fixed the stale `_m_{param}` matcher-field
+reservation in `TestDoubleAnalyzer.cs` (commit `a814b7e`); fixed
+`dogfood-validate.sh`'s cleanup trap to restore from a pre-run file
+snapshot instead of `git checkout` (commit `a814b7e`); then, after round-2
+codex feedback on that same script, fixed lock-ownership tracking (no
+longer releases another process's lock on timeout/interrupt), added the
+missing `-c "$configuration"` to the `dotnet test` step, and made the
+cleanup trap force a nonzero exit if the consumer repo can't be fully
+restored to its pre-run state. Also added PLAN-0050 to `docs/plans/README.md`'s
+index (was missing).
+
+- `dotnet build`: 0 warnings / 0 errors (full solution, clean rebuild).
+- `dotnet test`: 2376/2376 passed (count differs from the prior run's
+  2378/2384 because the unrelated `StaleArgMatcherLeakRepro.cs` file — never
+  part of this PR — was deleted from the working tree at the user's
+  request; no other change to pass/fail composition).
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824093145-12982-6698`, consumer resolved that exact
+  version, full trivia-platform suite: **783/783 passed**. Consumer git
+  tree confirmed clean afterward (`git diff -- Directory.Packages.props`
+  showed only the same pre-existing intended 0.6.0→0.7.0-preview.81 bump,
+  nothing else).
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run. Awaiting further review.
