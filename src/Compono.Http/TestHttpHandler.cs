@@ -57,19 +57,51 @@ public sealed class TestHttpHandler : HttpMessageHandler
         }
     }
 
-    /// <summary>Matches an HTTP GET whose request URI's path/query equals (or otherwise satisfies) <paramref name="path"/>.</summary>
+    /// <summary>
+    /// Matches an HTTP GET whose request URI's path/query equals <paramref name="path"/> exactly -
+    /// the normal, common-case entry point. Preserves <paramref name="path"/> verbatim in
+    /// <see cref="HttpResponseRegistration.Verify"/>'s diagnostics (e.g. <c>GET /v1/customers/42</c>),
+    /// unlike the <see cref="Match{T}"/> overload below, which can't (ADR-0051 Amendment 1).
+    /// </summary>
+    public HttpResponseRegistrationBuilder OnGet(string path) => On(HttpMethod.Get, path);
+
+    /// <summary>Matches an HTTP GET whose request URI's path/query satisfies <paramref name="path"/> (<see cref="Match.Any{T}"/>/<see cref="Match.Is{T}"/>).</summary>
     public HttpResponseRegistrationBuilder OnGet(Match<string> path) => On(HttpMethod.Get, path);
 
-    /// <summary>Matches an HTTP POST whose request URI's path/query equals (or otherwise satisfies) <paramref name="path"/>.</summary>
+    /// <summary>
+    /// Matches an HTTP POST whose request URI's path/query equals <paramref name="path"/> exactly -
+    /// see <see cref="OnGet(string)"/>'s remarks (same rationale, every <c>OnX</c> method).
+    /// </summary>
+    public HttpResponseRegistrationBuilder OnPost(string path) => On(HttpMethod.Post, path);
+
+    /// <summary>Matches an HTTP POST whose request URI's path/query satisfies <paramref name="path"/> (<see cref="Match.Any{T}"/>/<see cref="Match.Is{T}"/>).</summary>
     public HttpResponseRegistrationBuilder OnPost(Match<string> path) => On(HttpMethod.Post, path);
 
-    /// <summary>Matches an HTTP PUT whose request URI's path/query equals (or otherwise satisfies) <paramref name="path"/>.</summary>
+    /// <summary>
+    /// Matches an HTTP PUT whose request URI's path/query equals <paramref name="path"/> exactly -
+    /// see <see cref="OnGet(string)"/>'s remarks (same rationale, every <c>OnX</c> method).
+    /// </summary>
+    public HttpResponseRegistrationBuilder OnPut(string path) => On(HttpMethod.Put, path);
+
+    /// <summary>Matches an HTTP PUT whose request URI's path/query satisfies <paramref name="path"/> (<see cref="Match.Any{T}"/>/<see cref="Match.Is{T}"/>).</summary>
     public HttpResponseRegistrationBuilder OnPut(Match<string> path) => On(HttpMethod.Put, path);
 
-    /// <summary>Matches an HTTP PATCH whose request URI's path/query equals (or otherwise satisfies) <paramref name="path"/>.</summary>
+    /// <summary>
+    /// Matches an HTTP PATCH whose request URI's path/query equals <paramref name="path"/> exactly -
+    /// see <see cref="OnGet(string)"/>'s remarks (same rationale, every <c>OnX</c> method).
+    /// </summary>
+    public HttpResponseRegistrationBuilder OnPatch(string path) => On(HttpMethod.Patch, path);
+
+    /// <summary>Matches an HTTP PATCH whose request URI's path/query satisfies <paramref name="path"/> (<see cref="Match.Any{T}"/>/<see cref="Match.Is{T}"/>).</summary>
     public HttpResponseRegistrationBuilder OnPatch(Match<string> path) => On(HttpMethod.Patch, path);
 
-    /// <summary>Matches an HTTP DELETE whose request URI's path/query equals (or otherwise satisfies) <paramref name="path"/>.</summary>
+    /// <summary>
+    /// Matches an HTTP DELETE whose request URI's path/query equals <paramref name="path"/> exactly -
+    /// see <see cref="OnGet(string)"/>'s remarks (same rationale, every <c>OnX</c> method).
+    /// </summary>
+    public HttpResponseRegistrationBuilder OnDelete(string path) => On(HttpMethod.Delete, path);
+
+    /// <summary>Matches an HTTP DELETE whose request URI's path/query satisfies <paramref name="path"/> (<see cref="Match.Any{T}"/>/<see cref="Match.Is{T}"/>).</summary>
     public HttpResponseRegistrationBuilder OnDelete(Match<string> path) => On(HttpMethod.Delete, path);
 
     /// <summary>
@@ -166,9 +198,29 @@ public sealed class TestHttpHandler : HttpMessageHandler
         }
     }
 
+    // Exact-path overload - path is a plain string, so it can be embedded verbatim in the
+    // registration's description (ADR-0051 Amendment 1). Behaviorally identical to the
+    // Match<string> overload's equality case (both end up comparing via string equality), kept as
+    // a separate code path only so the literal is retained for diagnostics, not duplicated logic.
+    private HttpResponseRegistrationBuilder On(HttpMethod method, string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var description = $"{method.Method} {path}";
+        return new HttpResponseRegistrationBuilder(
+            this,
+            request => request.Method == method && string.Equals(request.RequestUri?.PathAndQuery ?? string.Empty, path, StringComparison.Ordinal),
+            description);
+    }
+
+    // Match<string> overload - Match<T> deliberately exposes no accessor beyond Matches() (see its
+    // own XML doc), so Compono.Http genuinely cannot tell an Any() match from an Is(predicate) match
+    // from the value alone, and touching core Compono to expose that is out of scope here (ADR-0051
+    // Amendment 1). The description below is deliberately generic rather than guessing which one it
+    // is - an honest "can't say more than this" beats a fabricated "matching any path" that might be
+    // wrong for an Is(...) registration.
     private HttpResponseRegistrationBuilder On(HttpMethod method, Match<string> path)
     {
-        var description = $"{method.Method} request";
+        var description = $"{method.Method} request matching a custom path condition";
         return new HttpResponseRegistrationBuilder(
             this,
             request => request.Method == method && path.Matches(request.RequestUri?.PathAndQuery ?? string.Empty),

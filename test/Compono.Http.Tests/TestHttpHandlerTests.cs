@@ -283,4 +283,65 @@ public sealed class TestHttpHandlerTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task TwoLiteralGetRegistrations_VerifyFailureMessages_IdentifyTheirOwnPath()
+    {
+        using var handler = new TestHttpHandler();
+        var customers = handler.OnGet("/v1/customers/42").RespondText("customer");
+        var orders = handler.OnGet("/v1/orders/7").RespondText("order");
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        await client.GetAsync("/v1/customers/42", TestContext.Current.CancellationToken);
+
+        var customersAct = () => customers.Verify().Exactly(2);
+        var ordersAct = () => orders.Verify().Once();
+
+        customersAct.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("*GET /v1/customers/42*");
+        ordersAct.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("*GET /v1/orders/7*");
+    }
+
+    [Fact]
+    public void OnGet_MatchAny_VerifyFailureMessage_IsHonestNotFabricated()
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnGet(Match.Any<string>()).Respond(HttpStatusCode.OK);
+
+        var act = () => registration.Verify().Once();
+
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("*GET request matching a custom path condition*");
+    }
+
+    [Fact]
+    public void OnGet_MatchIs_VerifyFailureMessage_IsHonestNotFabricated()
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnGet(Match.Is<string>(p => p.StartsWith("/users/"))).Respond(HttpStatusCode.OK);
+
+        var act = () => registration.Verify().Once();
+
+        // Match<T> exposes no way to tell an Any() match from an Is(predicate) match apart (by
+        // design - see Match<T>'s own XML doc) - both share one honest, non-fabricated description
+        // rather than one falsely claiming to know which kind this is.
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("*GET request matching a custom path condition*");
+    }
+
+    [Fact]
+    public async Task RespondJson_MutatingOneResponsesContentType_DoesNotAffectOtherResponses()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet(Match.Any<string>()).RespondJson(new { value = 1 });
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var first = await client.GetAsync("/one", TestContext.Current.CancellationToken);
+        first.Content.Headers.ContentType!.CharSet = "iso-8859-1";
+
+        var second = await client.GetAsync("/two", TestContext.Current.CancellationToken);
+
+        second.Content.Headers.ContentType!.CharSet.Should().Be("utf-8");
+    }
 }

@@ -560,3 +560,53 @@ any `Compono.Http` involvement.
 - `alexa-vox-craft` repo (`test/AlexaVoxCraft.Http.TestKit`,
   `SmapiDeveloperAccessTokenProviderTests.cs`, `LocaleHandlerTests.cs`) —
   the dogfood evidence source.
+
+## Amendment 1 (2026-08-24): `OnGet`/`OnPost`/etc. split into a `string` overload and a `Match<string>` overload, for honest verification diagnostics
+
+PR review (Codex, on the implementation PR) flagged that `TestHttpHandler`'s
+original single `OnX(Match<string> path)` shape discarded `path` entirely
+when building a registration's `Verify()` description — every literal-path
+registration produced the same uninformative `"GET request"` text, so a
+`Verify()` failure on one of several `OnGet` registrations for the same
+method couldn't tell the caller which path/predicate actually failed.
+
+The root cause: once a literal string like `"/v1/customers/42"` implicitly
+converts to `Match<string>` at the call site, the literal is gone —
+`Match<T>` deliberately exposes no accessor beyond `Matches()` (see its own
+XML doc, written for [ADR-0048](0048-testdoubles-argument-matching-and-call-verification.md)'s
+generated-double use case: no internal representation reachable from
+outside `Compono`, on purpose, so it stays free to change without becoming
+a breaking change to generated dispatch code). This ADR's original
+Decision Outcome already chose `Match<string>` over an HTTP-native
+predicate type for `OnX`'s path parameter (see "Should this reuse core
+`Match<T>`, or stay HTTP-native?"); this amendment doesn't reopen that
+choice.
+
+**Decision**: split each `OnGet`/`OnPost`/`OnPut`/`OnPatch`/`OnDelete` into
+two overloads:
+
+- **`OnX(string path)`** — the normal, common-case entry point for an
+  exact-path match. Retains `path` verbatim, so `Verify()`'s description
+  reads `GET /v1/customers/42`, not a generic placeholder. Behaviorally
+  identical to the previous literal-string case (string equality on the
+  request URI's path+query) — a purely additive, source-compatible change;
+  every existing `handler.OnGet("/literal/path")` call site continues to
+  resolve to this overload automatically (C# prefers an exact-type match
+  over an overload requiring an implicit user-defined conversion), with no
+  edit required.
+- **`OnX(Match<string> path)`** — unchanged signature, for
+  `Match.Any<string>()`/`Match.Is<string>(predicate)`. Its `Verify()`
+  description is honestly generic (`"GET request matching a custom path
+  condition"`) rather than guessing whether the caller passed `Any()` or
+  `Is(...)` — `Match<T>`'s opacity means `Compono.Http` genuinely cannot
+  tell those two cases apart from the value alone, and a description that
+  falsely claimed "matching any path" for what was actually an
+  `Is(predicate)` registration would be worse than one that admits it
+  can't say more.
+
+**Explicitly not done**: no change to core `Compono.Match<T>` — no new
+accessor, no `ToString()`, no `Kind` exposed. `Match<T>`'s cross-assembly
+opacity is a deliberate ADR-0048 property this amendment doesn't weaken
+just to let `Compono.Http` introspect it later. If a future need for
+richer `Match<T>` diagnostics surfaces beyond this one case, that's a
+separate, its-own-evidence decision.

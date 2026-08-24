@@ -45,11 +45,23 @@ var customer = await client.GetFromJsonAsync<CustomerDto>("/v1/customers/42");
 registration.Verify().Once();
 ```
 
-- **`OnGet`/`OnPost`/`OnPut`/`OnPatch`/`OnDelete(Match<string> path)`** —
-  fixes the HTTP method, matches the request URI's path+query against a
-  `Match<string>` (a literal string is an equality match; `Match.Any<string>()`
-  and `Match.Is<string>(predicate)` also work, reusing core `Compono`'s
-  `Match<T>` unchanged).
+- **`OnGet`/`OnPost`/`OnPut`/`OnPatch`/`OnDelete`** — fixes the HTTP method,
+  two overloads:
+  - **`OnX(string path)`** — the normal, common-case entry point: an exact
+    equality match against the request URI's path+query. Preserves `path`
+    verbatim in `registration.Verify()`'s diagnostics (e.g. a failure reads
+    `GET /v1/customers/42`, not a generic placeholder) — `handler.OnGet("/v1/customers/42")`
+    resolves here automatically, no code change needed from earlier
+    `Match<string>`-only usage.
+  - **`OnX(Match<string> path)`** — `Match.Any<string>()`/
+    `Match.Is<string>(predicate)`, reusing core `Compono`'s `Match<T>`
+    unchanged. `Match<T>` deliberately exposes no way to tell an `Any()`
+    match from an `Is(predicate)` match apart from the outside, so a
+    `Verify()` failure on one of these describes itself honestly and
+    generically (`"GET request matching a custom path condition"`) rather
+    than guessing which kind it is. See
+    [ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md)'s
+    Amendment 1 for why.
 - **`When(Func<HttpRequestMessage, bool> predicate)`** — the whole-request
   escape hatch, for conditions spanning method, URI, headers, and content
   type together (e.g. `req.Content is FormUrlEncodedContent`). There is

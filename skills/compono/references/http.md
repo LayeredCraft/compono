@@ -42,11 +42,18 @@ a v1-only limitation that might later be lifted.
 ## Core usage vocabulary
 
 - `handler.OnGet(path)` / `OnPost(path)` / `OnPut(path)` / `OnPatch(path)` /
-  `OnDelete(path)` — `path` is a `Match<string>` against the request URI's
-  path+query: a literal string is an equality match,
-  `handler.OnGet(Match.Any<string>())` matches any path,
-  `handler.OnGet(Match.Is<string>(p => p.StartsWith("/v1/")))` for a
-  predicate.
+  `OnDelete(path)` — two overloads. `OnGet(string path)` is the normal,
+  common-case one: an exact equality match against the request URI's
+  path+query, e.g. `handler.OnGet("/v1/customers/42")` — use this for the
+  ordinary case, it's what preserves the literal path in a `Verify()`
+  failure message. `OnGet(Match<string> path)` is for
+  `handler.OnGet(Match.Any<string>())` (any path) or
+  `handler.OnGet(Match.Is<string>(p => p.StartsWith("/v1/")))` (a
+  predicate) — its `Verify()` description is deliberately generic
+  ("matching a custom path condition"), since `Match<T>` exposes no way to
+  tell `Any()` from `Is(...)` from the outside (ADR-0051 Amendment 1);
+  never claim a `Match<string>`-based registration's failure message names
+  the actual path or predicate.
 - `handler.When(req => ...)` — whole-request predicate (method, URI,
   headers, content type together). The only mechanism for matching on
   anything beyond method+path — there is **no** dedicated header/query/

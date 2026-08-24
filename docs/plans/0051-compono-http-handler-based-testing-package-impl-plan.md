@@ -205,7 +205,33 @@ these, even if implementation makes one look easy to add along the way:
 - [x] `public CallVerifier Verify()` — wraps the count and a member
       description (method + path/predicate description) in the existing,
       unmodified `CallVerifier` from `src/Compono/CallVerifier.cs`. No new
-      verification type.
+      verification type. **PR-review amendment (2026-08-24)**: the
+      original single `OnX(Match<string> path)` shape discarded `path`
+      when building this description (every literal-path registration
+      produced the same generic `"GET request"` text) — Codex review
+      caught this on the implementation PR. Fixed by splitting each `OnX`
+      into `OnX(string path)` (retains the literal path verbatim in the
+      description, e.g. `GET /v1/customers/42`) and `OnX(Match<string>
+      path)` (unchanged signature for `Match.Any`/`Match.Is`, honestly
+      generic description since `Match<T>`'s deliberate opacity means
+      Compono.Http can't tell those two apart) — a small, source-compatible
+      overload split, not a design change. Recorded as
+      [ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md)'s
+      Amendment 1, with regression tests added
+      (`TestHttpHandlerTests.cs`: `TwoLiteralGetRegistrations_...`,
+      `OnGet_MatchAny_VerifyFailureMessage_...`,
+      `OnGet_MatchIs_VerifyFailureMessage_...`). A second PR-review finding
+      in the same round — `RespondJsonBytes` reused a shared `static
+      readonly MediaTypeHeaderValue` across every response, so mutating one
+      response's `Content.Headers.ContentType` silently affected every
+      other response — was also fixed (a fresh `MediaTypeHeaderValue` per
+      response) with its own regression test
+      (`RespondJson_MutatingOneResponsesContentType_...`). Re-ran the full
+      gate after this fix, per the standing rule below: `dotnet test
+      Compono.slnx -c Release` — 2490/2490 (16 more than the prior 2474,
+      the 4 new regression tests × 4 TFMs); both AOT proofs — PASS; fresh
+      dogfood run vs. `alexa-vox-craft` (`0.0.0-local.20260824160923-28165-4975`) —
+      2816/2784/32/0, consumer dirty state (28 files) unchanged before/after.
 - [x] `registration.Verify().Never()/.Once()/.Exactly(n)` all work
       unchanged via the reused `CallVerifier` API.
 

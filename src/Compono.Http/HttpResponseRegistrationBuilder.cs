@@ -15,8 +15,6 @@ namespace Compono.Http;
 /// </summary>
 public sealed class HttpResponseRegistrationBuilder
 {
-    private static readonly MediaTypeHeaderValue JsonContentType = new("application/json") { CharSet = "utf-8" };
-
     private readonly TestHttpHandler _handler;
     private readonly HttpResponseRegistration _registration;
 
@@ -98,7 +96,11 @@ public sealed class HttpResponseRegistrationBuilder
         Finish(_ =>
         {
             var content = new ByteArrayContent(bytes);
-            content.Headers.ContentType = JsonContentType;
+            // A fresh MediaTypeHeaderValue per response, not a shared static instance -
+            // MediaTypeHeaderValue is mutable, and a caller mutating one response's
+            // Content.Headers.ContentType (e.g. its CharSet) must never affect any other response,
+            // matched or not, past or future (ADR-0051 "Response state: factory, not instance").
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         });
 
