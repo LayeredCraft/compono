@@ -2,10 +2,9 @@
 
 Before designing anything — even something that sounds like a from-scratch
 feature — check whether it already exists or has already been decided
-against. `docs/architecture.md`, `docs/public-api.md`, and `docs/mvp.md`
-already describe a fair amount of the intended shape (the resolution
-pipeline, the provider model, the package boundaries) even where no code
-exists yet. A request phrased as "I want to add X" is often actually "X is
+against. `docs/architecture.md`, `docs/mvp.md`, and relevant topic docs
+already describe the resolution pipeline, provider model, and package
+boundaries. A request phrased as "I want to add X" is often actually "X is
 already scoped in the docs, here's where." Skim the relevant `docs/*.md`
 before proposing a design — a design session grounded in "here's what's
 already decided" is more useful than one that re-derives a solved problem
