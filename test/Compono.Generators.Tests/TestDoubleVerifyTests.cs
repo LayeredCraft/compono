@@ -3252,6 +3252,54 @@ public sealed class TestDoubleVerifyTests
             "CMP0032",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #108 (round 8, finding 1): ADR-0050's own base-slot-reservation exclusion for
+    // matching-eligible-SHAPED candidates (round 7's fix, just above) has a real gap - a candidate can
+    // look matching-eligible-shaped (real parameters, non-overloaded, etc.) and STILL end up NOT
+    // matching-eligible after all, because its own OTHER derived name collides with something else.
+    // Here, `Foo_State(int)` looks matching-eligible-shaped, so round 7's fix excludes it from the
+    // base-slot reservation - but its own derived call-log name "__Foo_State_calls" collides with the
+    // real property `Foo_State_calls`'s own bare field name (same string), which DOES disqualify
+    // Foo_State from matching eligibility. Its fallback field "__Foo_State" was never reserved because
+    // of the (now too-optimistic) exclusion - and `T Foo<T>()`'s own real, actually-emitted closed-
+    // instantiation state-class name is ALSO "__Foo_State" ("Foo" + "_State"), so without retroactively
+    // reserving Foo_State's fallback name once its true eligibility is known, this would silently
+    // reach CS0102 (duplicate member) inside the generated double instead of the clean, documented
+    // whole-interface CMP0031 fallback (same disposition as any other unsupported self-referencing
+    // generic return shape - VerifyFailure, not VerifyWithInfoDiagnostic, since a closed-instantiation
+    // candidate losing its own eligibility here is itself a CMP0031-reported rejection, matching the
+    // other CMP0031 fixtures above).
+    [Fact]
+    public Task MatchingEligibleShapedMemberWithLateDerivedNameCollision_FallsBackCleanlyInsteadOfDuplicateMember() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        bool Foo_State(int x);
+
+                        bool Foo_State_calls { get; }
+
+                        T Foo<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter
