@@ -121,25 +121,42 @@ recent plan Notes entries (e.g. Phase 2/Phase 3 in
 
 ### Consumer/dogfood validation gate
 
-For a `Compono.TestDoubles`/`Compono.Generators` change with a live dogfood
-consumer (currently `ncipollina/trivia-platform`), **Compono's own tests
-being green is necessary but not sufficient.** Verification requires all
-of:
+**For any substantive Compono package/generator behavior change that has
+an active dogfood consumer, the exact working tree being pushed must first
+pass that consumer through freshly packed local packages — Compono's own
+green test suite is necessary but not sufficient when an active consumer
+acceptance gate exists.** This governs pushing, not just merging: don't
+push a working tree whose most recent substantive change hasn't cleared
+this gate. A consumer run performed before the latest substantive change
+is stale and does not authorize a push, no matter how recently it ran —
+running the gate once at PR-open time and treating that as standing proof
+for later revisions is not sufficient; repeat it after every substantive
+PR feedback change. This is a development/PR-validation discipline, not a
+GitHub Actions requirement.
+
+Known dogfood consumers today: `ncipollina/trivia-platform` (the
+`scripts/dogfood-validate.sh` default) and, for `Compono.Http`-touching
+changes per PLAN-0051, `alexa-vox-craft` (pass `--consumer-repo`). A
+package/generator change only needs to clear the gate against the
+consumer(s) it's actually relevant to, not every known consumer
+unconditionally.
+
+Verification requires all of:
 
 1. `dotnet build`/`dotnet test` green in this repo.
-2. `scripts/dogfood-validate.sh` green — packs the current working tree
-   under a unique local prerelease version, restores the consumer against
-   it (via a temporary `Directory.Packages.props` override, never editing
-   the consumer's real file), asserts the consumer actually resolved that
-   exact version (not a stale cache hit), and runs the consumer's full
-   test suite.
+2. `scripts/dogfood-validate.sh` green, against the relevant consumer,
+   packing every Compono package that consumer actually depends on (its
+   `--packages`/`DOGFOOD_PACKAGES` option — not always just the original
+   four-package default) — packs the current working tree under one
+   shared unique local prerelease version per package, restores the
+   consumer against it (via a temporary `Directory.Packages.props`
+   override, never editing the consumer's real file), asserts the
+   consumer actually resolved that exact version for every one of those
+   packages (not a stale cache hit, and not a mix of freshly-packed and
+   previously-published versions), and runs the consumer's full test
+   suite.
 
-Both must be repeated after every substantive PR feedback change — a
-consumer run performed before the latest code change does not validate the
-revised code; running it once at PR-open time and treating that as
-standing proof for later revisions is not sufficient. This is a
-development/PR-validation discipline, not a GitHub Actions requirement —
-see `scripts/dogfood-validate.sh --help` for usage and
+See `scripts/dogfood-validate.sh --help` for usage and
 `docs/research/0008-trivia-platform-multi-entry-testdoubles-dogfood.md` for
 the dogfood pass that established this gate.
 

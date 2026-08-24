@@ -1,6 +1,6 @@
 # Package Guides
 
-Compono ships as seven independently-installable NuGet packages. Pick which
+Compono ships as eight independently-installable NuGet packages. Pick which
 ones you need before reading any single guide in depth — most projects only
 need the first two.
 
@@ -13,6 +13,7 @@ need the first two.
 | [`Compono.TUnit`](compono-tunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` data source attributes and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
 | [`Compono.TestDoubles`](compono-testdoubles.md) | A source-generated, AOT-safe double for an otherwise-unresolvable interface leaf, with per-member `Configure().Member().Returns(...)`/`.Throws(...)`. | You want a generated interface double without `Compono.NSubstitute`'s runtime-proxy dependency, or need the composed path to survive `PublishAot`. |
 | [`Compono.DependencyInjection`](compono-dependencyinjection.md) | `row.AsServiceProvider()` — a configured-resolution `IServiceProvider` bridge over a `CompositionRow`. | You need Compono's registered/provider-backed values reachable through a plain `IServiceProvider`, e.g. as a fallback provider for another ecosystem's own DI container. |
+| [`Compono.Http`](compono-http.md) | `TestHttpHandler` — a reflection-free `HttpMessageHandler` test double: `OnGet`/`OnPost`/etc. + `When(...)` matching, strict unmatched-request behavior, registration-handle verification. | Your test needs to exercise the real `HttpClient` pipeline against a configured HTTP response, instead of substituting an application-level interface. |
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and, until the
 first stable `1.0` release, publishes as a `0.x.y-preview.N` prerelease —

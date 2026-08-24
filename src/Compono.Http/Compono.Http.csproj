@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — HTTP Client Testing</Title>
+        <Description>Handler-based HTTP client testing for Compono - TestHttpHandler is a reflection-free HttpMessageHandler subclass giving tests request matching (OnGet/OnPost/etc. + When(...)), last-match-wins dispatch, strict unmatched-request behavior, registration-handle verification, and a thread-safe request log, so code built on real HttpClient/HttpMessageHandler can be tested without a hand-rolled reflection-based fake.</Description>
+        <!-- Unlike every other Compono package (none of which set this - verified: no
+             IsAotCompatible/IsTrimmable anywhere in src/Compono/Compono.csproj,
+             src/Compono.TestDoubles/Compono.TestDoubles.csproj, etc.), Compono.Http genuinely needs
+             it: this is the first Compono package with a public member
+             (RespondJson(value, JsonSerializerOptions?)) that's intentionally annotated
+             [RequiresDynamicCode]/[RequiresUnreferencedCode] (ADR-0051 "JSON / AOT"). The .NET
+             trim/AOT Roslyn analyzer only enforces a Requires* attribute at a CONSUMER's call site
+             for members defined in an assembly marked trimmable (the IsTrimmable=True assembly
+             metadata IsAotCompatible/IsTrimmable stamps on) - verified empirically: without this,
+             a consumer project with IsAotCompatible=true calling
+             RespondJson(value, options) produced ZERO IL2026/IL3050 warnings, silently defeating
+             the whole point of the attributes (see test/Compono.Http.AotSmokeTest/AnalyzerContract/).
+             Also turns on this project's own EnableAotAnalyzer/EnableTrimAnalyzer for its own
+             build - confirms Compono.Http's own dispatch code stays genuinely reflection-free, not
+             just documented as such. -->
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- No PackageReference beyond core Compono - TestHttpHandler is a plain HttpMessageHandler
+             subclass over System.Net.Http (part of the shared framework on every supported TFM), and
+             Match<T>/CallVerifier are reused directly from Compono with no generator involvement
+             (ADR-0051's Decision Outcome). No Microsoft.Extensions.Http, Compono.TestDoubles, or
+             Compono.DependencyInjection dependency - see ADR-0051 "Minimal dependency graph". -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.Http.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.DependencyInjection.csproj/Compono.XunitV3.csproj's identical target for the
+         full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

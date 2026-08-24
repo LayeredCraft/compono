@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # dogfood-validate.sh
 #
-# Packs Compono, Compono.NSubstitute, Compono.TestDoubles, and Compono.XunitV3 from the CURRENT
-# working tree into a local NuGet feed under a throwaway prerelease version, then restores and
-# tests a CONSUMER repo (a real dogfood project pinned to Compono via NuGet Central Package
-# Management) against that freshly-packed version - without ever editing the consumer's real
-# Directory.Packages.props.
+# Packs a configurable set of Compono packages (--packages/DOGFOOD_PACKAGES, default: Compono,
+# Compono.NSubstitute, Compono.TestDoubles, Compono.XunitV3 - PLAN-0051 Task 11 generalized this
+# from a hardcoded four-package array) from the CURRENT working tree into a local NuGet feed under
+# one shared throwaway prerelease version, then restores and tests a CONSUMER repo (a real dogfood
+# project pinned to Compono via NuGet Central Package Management) against that freshly-packed
+# version - without ever editing the consumer's real Directory.Packages.props.
 #
 # Why this exists: before a nontrivial change to Compono's generators lands in a PR, we want to
 # prove it against a real consumer's real test suite using the actual packaged artifact (analyzers,
@@ -21,7 +22,7 @@
 # (see NuGet.props in the .NET SDK - it only auto-computes that path by walking up from the project
 # directory when the property isn't already set). Passing -p:DirectoryPackagesPropsPath=<path to a
 # generated temp copy> on `dotnet restore`/`dotnet test` points MSBuild at OUR temp file - with the
-# four Compono package versions swapped to this run's local version - instead of the consumer's real
+# requested Compono package versions swapped to this run's local version - instead of the consumer's real
 # file. The consumer's actual Directory.Packages.props is never opened for writing at any point in
 # this script. Verified empirically against trivia-platform (LayeredCraft's dogfood consumer): the
 # resolved version in project.assets.json exactly matched the generated local version after a
@@ -49,14 +50,20 @@ feed_dir="${DOGFOOD_FEED_DIR:-$repo_root/.local-nuget-feed-dogfood}"
 consumer_repo="${DOGFOOD_CONSUMER_REPO:-/Users/ncipollina/source/repos/ncipollina/trivia-platform}"
 consumer_solution="${DOGFOOD_CONSUMER_SOLUTION:-}"
 configuration="${DOGFOOD_CONFIGURATION:-Release}"
+# PLAN-0051 Task 11: the package set is now a parameter, not a hardcoded array - the original
+# four-package default is preserved exactly so every existing invocation (CI, any other in-flight
+# usage) is unaffected unless --packages/DOGFOOD_PACKAGES is passed explicitly. Space- or
+# comma-separated; normalized to a bash array below.
+packages_raw="${DOGFOOD_PACKAGES:-Compono Compono.NSubstitute Compono.TestDoubles Compono.XunitV3}"
 
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Packs Compono/Compono.NSubstitute/Compono.TestDoubles/Compono.XunitV3 from the current working
-tree into a local NuGet feed, then restores and runs the full test suite of a consumer repo
-against that freshly-packed version (no edits to the consumer's own Directory.Packages.props).
+Packs a configurable set of Compono packages (default: Compono/Compono.NSubstitute/
+Compono.TestDoubles/Compono.XunitV3) from the current working tree into a local NuGet feed, then
+restores and runs the full test suite of a consumer repo against those freshly-packed versions (no
+edits to the consumer's own Directory.Packages.props).
 
 Options:
   --feed-dir <path>          Local NuGet feed directory (default: DOGFOOD_FEED_DIR env var, or
@@ -67,11 +74,17 @@ Options:
                               (default: DOGFOOD_CONSUMER_SOLUTION env var, or auto-detected if
                               exactly one *.slnx or *.sln exists at the consumer repo root)
   --configuration <config>   Build configuration used for both pack and test (default: Release)
+  --packages <list>          Space- or comma-separated list of Compono package ids to pack and
+                              validate, e.g. "Compono Compono.XunitV3 Compono.TestDoubles Compono.Http"
+                              (default: DOGFOOD_PACKAGES env var, or the original four-package set
+                              "Compono Compono.NSubstitute Compono.TestDoubles Compono.XunitV3").
+                              Every package in this list must exist at src/<PackageId>/<PackageId>.csproj.
   -h, --help                 Show this help text
 
-Exit code is 0 only if packing, restore, version verification, and the consumer's full test suite
-all succeed. The consumer repo's git working tree is left exactly as it was found, regardless of
-outcome.
+Exit code is 0 only if packing, restore, version verification (every requested package resolved to
+the exact freshly-packed version - not a stale cache hit, and not a mix of freshly-packed and
+previously published versions), and the consumer's full test suite all succeed. The consumer
+repo's git working tree is left exactly as it was found, regardless of outcome.
 EOF
 }
 
@@ -93,6 +106,10 @@ while [ $# -gt 0 ]; do
             configuration="$2"
             shift 2
             ;;
+        --packages)
+            packages_raw="$2"
+            shift 2
+            ;;
         -h|--help)
             usage
             exit 0
@@ -104,6 +121,15 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+# Normalize "--packages" input (space- or comma-separated) into a bash array, replacing the
+# formerly-hardcoded `packages=(...)` literal every step below already iterates over.
+packages=()
+IFS=', ' read -r -a packages <<< "$packages_raw"
+if [ "${#packages[@]}" -eq 0 ]; then
+    echo "dogfood-validate.sh: --packages/DOGFOOD_PACKAGES resolved to an empty package list." >&2
+    exit 1
+fi
 
 if [ -z "$consumer_repo" ]; then
     echo "dogfood-validate.sh: no consumer repo configured. Pass --consumer-repo or set DOGFOOD_CONSUMER_REPO." >&2
@@ -148,6 +174,7 @@ echo "dogfood-validate.sh: consumer repo:      $consumer_repo"
 echo "dogfood-validate.sh: consumer solution:  $consumer_solution"
 echo "dogfood-validate.sh: feed dir:           $feed_dir"
 echo "dogfood-validate.sh: configuration:      $configuration"
+echo "dogfood-validate.sh: packages:           ${packages[*]}"
 
 # ---------------------------------------------------------------------------------------------
 # Safety net: prove (and, if it were ever somehow dirtied, restore) the consumer repo's git tree.
@@ -255,7 +282,7 @@ version="0.0.0-local.$(date +%Y%m%d%H%M%S)-$$-$RANDOM"
 echo "dogfood-validate.sh: local package version: $version"
 
 # ---------------------------------------------------------------------------------------------
-# Step 2: pack the four packages from the current working tree into the local feed, serialized
+# Step 2: pack the requested packages from the current working tree into the local feed, serialized
 # behind a cross-process mkdir lock. Deliberately at a fixed repo-root path, NOT under $feed_dir -
 # the actual shared resource two concurrent packers can corrupt is src/Compono*/bin/obj, which is
 # the same regardless of which feed directory either caller targets, so the lock needs to be keyed
@@ -282,7 +309,8 @@ until mkdir "$lock_dir" 2>/dev/null; do
 done
 lock_owned=1
 
-packages=(Compono Compono.NSubstitute Compono.TestDoubles Compono.XunitV3)
+# `packages` was normalized from --packages/DOGFOOD_PACKAGES above, defaulting to the original
+# four-package literal - not redeclared here.
 for pkg in "${packages[@]}"; do
     csproj="$repo_root/src/$pkg/$pkg.csproj"
     if [ ! -f "$csproj" ]; then
@@ -303,11 +331,11 @@ for pkg in "${packages[@]}"; do
         exit 1
     fi
 done
-echo "dogfood-validate.sh: all four packages packed into $feed_dir"
+echo "dogfood-validate.sh: all ${#packages[@]} package(s) packed into $feed_dir"
 
 # ---------------------------------------------------------------------------------------------
 # Step 3/4: generate a temp nuget.config (local feed + nuget.org) and a temp Directory.Packages.props
-# copy with the four Compono package versions swapped to $version - the consumer's real
+# copy with the requested Compono package versions swapped to $version - the consumer's real
 # Directory.Packages.props is never opened for writing. Restore is pointed at both via
 # --configfile and -p:DirectoryPackagesPropsPath.
 # ---------------------------------------------------------------------------------------------
@@ -347,7 +375,7 @@ dotnet restore "$consumer_solution" \
 
 # ---------------------------------------------------------------------------------------------
 # Step 5: anti-stale-cache assertion - grep every restored project's project.assets.json for the
-# four package ids and assert every resolved version equals $version.
+# requested package ids and assert every resolved version equals $version.
 # ---------------------------------------------------------------------------------------------
 
 echo "dogfood-validate.sh: verifying resolved package versions ..."
@@ -400,7 +428,7 @@ if [ "${#missing_packages[@]}" -gt 0 ]; then
     echo "project.assets.json under '$consumer_repo', so this run did not validate them:" >&2
     printf '  %s\n' "${missing_packages[@]}" >&2
     echo "Check the consumer repo's csproj files, or pass --consumer-solution to target a solution" >&2
-    echo "that actually references all four packages." >&2
+    echo "that actually references all requested packages." >&2
     exit 1
 fi
 if [ "$mismatch" -ne 0 ]; then
