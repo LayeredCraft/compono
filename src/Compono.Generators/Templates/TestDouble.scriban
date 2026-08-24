@@ -92,9 +92,13 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 var {{ member.entry_local_name }} = {{ member.bucket_local_name }}.Entries[{{ member.entry_index_local_name }}];
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
                     if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
-                    break;
                 }
             }
         }
@@ -136,8 +140,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with no
+                    // configured exception must not shadow an older, configured matching entry.
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
-                    break;
                 }
             }
         }
@@ -159,9 +165,13 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
                     if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
-                    break;
                 }
             }
         }

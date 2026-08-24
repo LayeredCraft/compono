@@ -37,8 +37,10 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __Seek_entries[__i];
                 if ((__entry.Matcher_offset is not { } __m_offset || __m_offset.Matches(offset)))
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with no
+                    // configured exception must not shadow an older, configured matching entry.
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                    break;
                 }
             }
         }

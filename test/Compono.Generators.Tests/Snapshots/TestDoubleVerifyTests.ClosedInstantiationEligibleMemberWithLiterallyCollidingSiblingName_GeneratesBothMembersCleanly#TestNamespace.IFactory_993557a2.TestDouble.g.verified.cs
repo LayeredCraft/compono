@@ -57,9 +57,13 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
                 var __entry = __bucket.Entries[__i];
                 if ((__entry.Matcher_key is not { } __m_key || __m_key.Matches(key)))
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
-                    break;
                 }
             }
         }

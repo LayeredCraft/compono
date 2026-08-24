@@ -510,3 +510,34 @@ to stop iterating on script robustness specifically.
 
 No commits or pushes made beyond what's already on the PR branch at the
 time of this run. Awaiting further review.
+
+### 2026-08-24 — Re-run after round-6 codex feedback (PR #108)
+
+Changed since the prior run: a real dispatch-semantics bug in
+`TestDouble.scriban` - the reverse-scan loop `break`ed as soon as it found
+ANY matching entry, even one with neither a configured exception nor a
+configured value (e.g. a `Configure()` call whose builder never had
+`.Returns()`/`.Throws()` called on it before the double was invoked). That
+let such an incomplete entry shadow an older, fully-configured matching
+entry instead of the scan continuing past it, diverging from ADR-0050's
+own documented dispatch shape (which has no `break` in this position).
+Removed the erroneous `break` from all three affected branches (plain
+void, plain value-returning, ADR-0049 closed-instantiation). Added a
+regression test,
+`MultiEntryTests.NewerMatchingEntryWithNoConfiguredResponse_DoesNotShadowAnOlderConfiguredEntry`
+(`test/Compono.TestDoubles.SampleTests/MatchingTests.cs`), that fails
+under the old `break` behavior and passes under the fix. 10 generator
+snapshots re-baselined (each diff hand-reviewed - confirmed exactly the
+`break` removal plus its explanatory comment, nothing else moved).
+
+- `dotnet build`: 0 warnings / 0 errors (clean rebuild).
+- `dotnet test` (full solution): 2376/2376 passed.
+- `dotnet test test/Compono.TestDoubles.SampleTests`: 244/244 passed
+  (includes the new regression test across all 4 TFMs).
+- AOT smoke test: clean publish, zero warnings, correct runtime output.
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824102202-29905-21599`, full trivia-platform suite:
+  **783/783 passed**. Consumer git tree confirmed clean afterward.
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run. Awaiting further review.

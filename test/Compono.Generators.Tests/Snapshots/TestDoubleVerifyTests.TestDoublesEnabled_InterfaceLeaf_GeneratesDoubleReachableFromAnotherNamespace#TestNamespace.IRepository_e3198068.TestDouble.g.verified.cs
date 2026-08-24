@@ -47,9 +47,13 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __FindNameAsync_entries[__i];
                 if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
-                    break;
                 }
             }
         }
@@ -71,8 +75,10 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __Save_entries[__i];
                 if ((__entry.Matcher_name is not { } __m_name || __m_name.Matches(name)))
                 {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with no
+                    // configured exception must not shadow an older, configured matching entry.
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                    break;
                 }
             }
         }

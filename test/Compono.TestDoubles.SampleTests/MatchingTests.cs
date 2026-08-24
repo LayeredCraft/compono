@@ -331,6 +331,27 @@ public sealed class MultiEntryTests
 
         repository.Verify().Withdraw().Exactly(2);
     }
+
+    // Regression (Codex review, PR #108 round 6): a newer matching entry that has been Configure()d
+    // but never had .Returns()/.Throws() called on it - i.e. it matched, but has neither a
+    // configured exception nor a configured value - must not shadow an older, fully-configured
+    // matching entry. The reverse scan must keep going past it rather than stopping and falling
+    // through to the default/required-configuration rule.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void NewerMatchingEntryWithNoConfiguredResponse_DoesNotShadowAnOlderConfiguredEntry(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+        // Retains the builder without ever calling .Returns()/.Throws() on it - this entry matches
+        // "acct-1" but has no configured response of its own.
+        _ = repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>());
+
+        repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+    }
 }
 
 public sealed class CollisionProneNameTests
