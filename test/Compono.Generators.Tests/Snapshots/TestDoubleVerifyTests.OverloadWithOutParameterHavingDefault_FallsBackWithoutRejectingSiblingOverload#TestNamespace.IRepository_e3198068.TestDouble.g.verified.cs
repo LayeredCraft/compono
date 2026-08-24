@@ -26,16 +26,24 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     bool global::TestNamespace.IRepository.TryGet(int id)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock (__TryGet_lock) { __TryGet_calls.Add(id); }
-        for (var __i = __TryGet_entries.Count - 1; __i >= 0; __i--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock (__TryGet_lock)
         {
-            var __entry = __TryGet_entries[__i];
-            if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
+            __TryGet_calls.Add(id);
+            for (var __i = __TryGet_entries.Count - 1; __i >= 0; __i--)
             {
-                if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
-                break;
+                var __entry = __TryGet_entries[__i];
+                if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
+                {
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                    break;
+                }
             }
         }
         return default;
@@ -47,10 +55,12 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<bool> TryGet(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> id)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
-        // above for the reallocation-hazard proof, identical reasoning applies here.
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__TryGet_Entry();
         __entry.Matcher_id = id;
-        __self.__TryGet_entries.Add(__entry);
+        lock (__self.__TryGet_lock) { __self.__TryGet_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
     }
 
@@ -63,7 +73,7 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<bool> TryGet(this global::TestNamespace_IRepository_e3198068_Double self)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__TryGet_Entry();
-        self.__TryGet_entries.Add(__entry);
+        lock (self.__TryGet_lock) { self.__TryGet_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
     }
 

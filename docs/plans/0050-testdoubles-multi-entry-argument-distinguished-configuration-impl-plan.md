@@ -470,3 +470,43 @@ with this rationale on the review thread.
 
 No commits or pushes made beyond what's already on the PR branch at the
 time of this run. Awaiting further review.
+
+### 2026-08-24 — Re-run after round-5 codex feedback (PR #108)
+
+Changed since the prior run: fixed a real thread-safety bug in the
+generated dispatch/`Configure()` code itself (`TestDouble.scriban`) - the
+prior shape locked only the call-log append, then scanned/mutated the
+shared `List<Entry>` unlocked; a concurrent `Configure()` call could race a
+concurrent dispatch scan or another `Configure()` call on the same
+`List<T>`. This diverged from ADR-0050's own documented generated shape,
+which explicitly locks the full append-and-scan together - not a
+discretionary hardening item, a correctness bug relative to the accepted
+design. Fixed for both the plain matching-eligible shape and the ADR-0049
+closed-instantiation shape, including the zero-arg `Configure()`
+compatibility overload's `Add()`. 10 generator snapshots re-baselined
+(each diff hand-reviewed - confirmed the diff is exactly the lock-scope
+widening, nothing else moved).
+
+- `dotnet build`: 0 warnings / 0 errors (clean rebuild).
+- `dotnet test` (full solution): 2376/2376 passed.
+- AOT smoke test: `dotnet publish -c Release -f net10.0 -p:PublishAot=true`
+  clean, zero warnings; published binary run confirmed correct output.
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824101027-26038-13437`, full trivia-platform suite:
+  **783/783 passed**. Consumer git tree confirmed clean afterward.
+
+One further round-5 finding (the content-diff safety net covers tracked
+files only - a pre-existing UNTRACKED file, e.g. an enabled
+`packages.lock.json`, could still be silently overwritten without
+detection) was left unaddressed: trivia-platform doesn't use
+`RestorePackagesWithLockFile` and has no such untracked file today, so the
+scenario doesn't apply to the actual consumer, and this is the same
+dev-only-script-hardening territory already discussed twice before (rounds
+3 and 4). This round's real, important fix was the generator thread-safety
+bug above - script-only findings are starting to show diminishing returns
+per the standing product guidance on this file. Replied with this
+rationale on the review thread; flagged to the user as a candidate point
+to stop iterating on script robustness specifically.
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run. Awaiting further review.

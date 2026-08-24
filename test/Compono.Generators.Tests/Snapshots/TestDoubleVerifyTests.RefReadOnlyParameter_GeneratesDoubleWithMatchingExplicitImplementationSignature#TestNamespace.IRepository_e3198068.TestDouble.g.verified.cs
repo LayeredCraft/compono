@@ -24,15 +24,22 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IRepository.Seek(int offset)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock (__Seek_lock) { __Seek_calls.Add(offset); }
-        for (var __i = __Seek_entries.Count - 1; __i >= 0; __i--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        lock (__Seek_lock)
         {
-            var __entry = __Seek_entries[__i];
-            if ((__entry.Matcher_offset is not { } __m_offset || __m_offset.Matches(offset)))
+            __Seek_calls.Add(offset);
+            for (var __i = __Seek_entries.Count - 1; __i >= 0; __i--)
             {
-                if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                break;
+                var __entry = __Seek_entries[__i];
+                if ((__entry.Matcher_offset is not { } __m_offset || __m_offset.Matches(offset)))
+                {
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    break;
+                }
             }
         }
     }
@@ -43,10 +50,12 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> offset)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
-        // above for the reallocation-hazard proof, identical reasoning applies here.
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Seek_Entry();
         __entry.Matcher_offset = offset;
-        __self.__Seek_entries.Add(__entry);
+        lock (__self.__Seek_lock) { __self.__Seek_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
@@ -59,7 +68,7 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Seek_Entry();
-        self.__Seek_entries.Add(__entry);
+        lock (self.__Seek_lock) { self.__Seek_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 

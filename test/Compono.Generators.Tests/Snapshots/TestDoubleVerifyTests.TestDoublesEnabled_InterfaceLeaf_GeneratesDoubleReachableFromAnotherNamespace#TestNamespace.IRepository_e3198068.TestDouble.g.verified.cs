@@ -33,16 +33,24 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     global::System.Threading.Tasks.Task<string?> global::TestNamespace.IRepository.FindNameAsync(global::System.Guid id)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock (__FindNameAsync_lock) { __FindNameAsync_calls.Add(id); }
-        for (var __i = __FindNameAsync_entries.Count - 1; __i >= 0; __i--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock (__FindNameAsync_lock)
         {
-            var __entry = __FindNameAsync_entries[__i];
-            if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
+            __FindNameAsync_calls.Add(id);
+            for (var __i = __FindNameAsync_entries.Count - 1; __i >= 0; __i--)
             {
-                if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
-                break;
+                var __entry = __FindNameAsync_entries[__i];
+                if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
+                {
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                    break;
+                }
             }
         }
         return global::System.Threading.Tasks.Task.FromResult<string?>(default);
@@ -50,15 +58,22 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IRepository.Save(string name)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock (__Save_lock) { __Save_calls.Add(name); }
-        for (var __i = __Save_entries.Count - 1; __i >= 0; __i--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        lock (__Save_lock)
         {
-            var __entry = __Save_entries[__i];
-            if ((__entry.Matcher_name is not { } __m_name || __m_name.Matches(name)))
+            __Save_calls.Add(name);
+            for (var __i = __Save_entries.Count - 1; __i >= 0; __i--)
             {
-                if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                break;
+                var __entry = __Save_entries[__i];
+                if ((__entry.Matcher_name is not { } __m_name || __m_name.Matches(name)))
+                {
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    break;
+                }
             }
         }
     }
@@ -85,10 +100,12 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<global::System.Guid> id)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
-        // above for the reallocation-hazard proof, identical reasoning applies here.
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__FindNameAsync_Entry();
         __entry.Matcher_id = id;
-        __self.__FindNameAsync_entries.Add(__entry);
+        lock (__self.__FindNameAsync_lock) { __self.__FindNameAsync_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref __entry.Config);
     }
 
@@ -101,17 +118,19 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__FindNameAsync_Entry();
-        self.__FindNameAsync_entries.Add(__entry);
+        lock (self.__FindNameAsync_lock) { self.__FindNameAsync_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref __entry.Config);
     }
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> name)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
-        // above for the reallocation-hazard proof, identical reasoning applies here.
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Save_Entry();
         __entry.Matcher_name = name;
-        __self.__Save_entries.Add(__entry);
+        lock (__self.__Save_lock) { __self.__Save_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
@@ -124,7 +143,7 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Save_Entry();
-        self.__Save_entries.Add(__entry);
+        lock (self.__Save_lock) { self.__Save_entries.Add(__entry); }
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 

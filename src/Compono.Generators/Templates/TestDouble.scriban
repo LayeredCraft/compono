@@ -77,16 +77,25 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {
         var {{ member.bucket_local_name }} = {{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
 {{~ if member.closed_instantiation_has_matched_parameters ~}}
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock ({{ member.bucket_local_name }}.Lock) { {{ member.bucket_local_name }}.Calls.Add({{ member.call_log_construct_expression }}); }
-        for (var {{ member.entry_index_local_name }} = {{ member.bucket_local_name }}.Entries.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
+        // (a short lock around Calls.Add() only, then an unlocked scan) let a concurrent
+        // Configure() call mutate List<T>'s backing array while dispatch was still iterating it.
+        // `return`/`throw` inside a C# `lock` block still releases the lock (the compiler emits
+        // the equivalent of try/finally), so returning directly from inside the block below is safe.
+        lock ({{ member.bucket_local_name }}.Lock)
         {
-            var {{ member.entry_local_name }} = {{ member.bucket_local_name }}.Entries[{{ member.entry_index_local_name }}];
-            if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+            {{ member.bucket_local_name }}.Calls.Add({{ member.call_log_construct_expression }});
+            for (var {{ member.entry_index_local_name }} = {{ member.bucket_local_name }}.Entries.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
             {
-                if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
-                if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
-                break;
+                var {{ member.entry_local_name }} = {{ member.bucket_local_name }}.Entries[{{ member.entry_index_local_name }}];
+                if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+                {
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
+                    break;
+                }
             }
         }
 {{~ if member.is_configuration_required ~}}
@@ -114,31 +123,46 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_void ~}}
     void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock ({{ member.field_name }}_lock) { {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }}); }
-        for (var {{ member.entry_index_local_name }} = {{ member.entries_field_name }}.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        lock ({{ member.field_name }}_lock)
         {
-            var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
-            if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+            {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }});
+            for (var {{ member.entry_index_local_name }} = {{ member.entries_field_name }}.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
             {
-                if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
-                break;
+                var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
+                if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+                {
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    break;
+                }
             }
         }
     }
 {{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
-        lock ({{ member.field_name }}_lock) { {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }}); }
-        for (var {{ member.entry_index_local_name }} = {{ member.entries_field_name }}.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock ({{ member.field_name }}_lock)
         {
-            var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
-            if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+            {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }});
+            for (var {{ member.entry_index_local_name }} = {{ member.entries_field_name }}.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
             {
-                if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
-                if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
-                break;
+                var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
+                if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+                {
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
+                    break;
+                }
             }
         }
 {{~ if member.is_configuration_required ~}}
@@ -252,13 +276,16 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
         // ADR-0050: appends a new entry rather than overwriting the (removed) single
         // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
         // list's backing array, since the ref targets the Entry object itself (heap-stable), not a
-        // slot inside the list's array. See spike report for the reallocation-hazard proof.
+        // slot inside the list's array. See spike report for the reallocation-hazard proof. The
+        // Add() itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5) - concurrent Configure() calls must not race each other or a concurrent
+        // in-progress dispatch scan while mutating the shared List<T>.
         var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
         var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>.Entry();
 {{~ for p in member.parameters ~}}
         {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
-        {{ member.bucket_local_name }}.Entries.Add({{ member.entry_local_name }});
+        lock ({{ member.bucket_local_name }}.Lock) { {{ member.bucket_local_name }}.Entries.Add({{ member.entry_local_name }}); }
         return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
 {{~ end ~}}
@@ -266,12 +293,14 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
-        // above for the reallocation-hazard proof, identical reasoning applies here.
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
         var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
 {{~ for p in member.parameters ~}}
         {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
-        {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }});
+        lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
         return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
 
@@ -284,7 +313,7 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self)
     {
         var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
-        self.{{ member.entries_field_name }}.Add({{ member.entry_local_name }});
+        lock (self.{{ member.field_name }}_lock) { self.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
         return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
 {{~ else if member.is_overloaded ~}}
