@@ -26,11 +26,13 @@ Four places, each with a different job — don't blur them together:
   the ADR(s) that shaped it, rather than carrying the decision's rationale
   itself. Update the relevant doc **in the same PR** that changes the
   behavior it describes — a doc that lags the code by even one PR starts a
-  rot that's expensive to reverse. This repo is pre-implementation in
-  several areas (`docs/mvp.md` and `docs/public-api.md` describe target
-  shapes, not shipped ones) — when a doc is describing a target rather than
-  current reality, keep that distinction explicit rather than letting a
-  doc quietly drift from "intent" to "fact" without the code to back it.
+  rot that's expensive to reverse. When a doc describes a target rather
+  than current reality, keep that distinction explicit rather than letting
+  a doc quietly drift from "intent" to "fact" without the code to back it.
+  (This repo is at the public-preview stage; `docs/mvp.md` reports every
+  milestone criterion **Met** against real evidence, and
+  `docs/public-api.md` is a tombstone deferring to the API-reference site —
+  not target-shape docs.)
 - **`docs/adr/*.md`** — the actual decision record: numbered, permanent.
   Its original Decision/Rationale/Consequences text is immutable once
   accepted — never rewritten to look like it was always this way — but a
@@ -46,9 +48,8 @@ Four places, each with a different job — don't blur them together:
 - **`docs/plans/*.md`** — the execution tracker for a non-trivial ADR:
   task checklist, files touched, test/verification strategy, live
   progress. Unlike an ADR, a plan is a **living document** you keep
-  editing as work proceeds. This directory doesn't exist yet either — see
-  **Writing a Plan** below for how to create it the first time it's
-  needed.
+  editing as work proceeds — see **Writing a Plan** below and
+  `docs/plans/README.md` for the numbering/status mechanics.
 
 This skill (`.agents/skills/engineering-workflow/`) stays process/standards
 only — it's where you learn *how* to make and record a decision, never
@@ -143,8 +144,8 @@ a short one, not a skipped one:
    elsewhere.
 4. Add a row to `docs/adr/README.md`'s index table.
 5. Update the relevant `docs/*.md` topic doc to reflect the resulting
-   current (or intended, per the pre-implementation note above) state,
-   linking back to the ADR rather than re-explaining the reasoning.
+   current state, linking back to the ADR rather than re-explaining the
+   reasoning.
 6. If this ADR changes direction from an earlier one — its core Decision
    Outcome is being replaced, not just corrected or extended — set the
    earlier ADR's `Status` to `Superseded by ADR-XXXX` — don't edit its
