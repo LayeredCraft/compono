@@ -255,11 +255,29 @@ internal static class TestDoubleAnalyzer
         // The mirror image of round 12's finding - that one was a non-emitting member polluting a real
         // one; this one is a DIFFERENT real emitter polluting another real one via an unrelated naming
         // scheme. Codex review, PR #107 (round 13).
+        //
+        // ADR-0050: a matching-eligible candidate (real parameters, non-overloaded, not a self-
+        // referencing generic method, no ref-like-typed parameter, not `Equals(object)`) ALSO never
+        // emits the plain `__{Name}` field any more - it gets the `__{Name}_Entry`/`__{Name}_entries`
+        // layout instead (reserved separately, below). Left unexcluded, an unrelated matching-eligible
+        // sibling literally named e.g. "Foo_calls" reserves the phantom "__Foo_calls" here, which then
+        // falsely collides with a DIFFERENT matching-eligible member "Foo"'s own real, actually-emitted
+        // "__Foo_calls" call-log field name - disabling argument matching and multi-entry configuration
+        // for "Foo" even though the final layout has no real declaration collision. This mirrors the
+        // closed-instantiation exclusion just above; intentionally omits the collision-fallback check
+        // (`derivedNameCollisionMembers`, not yet computed at this point in the pipeline) for the same
+        // reason the ADR-0048 pre-pass below already omits it. Codex review, PR #108 (round 7).
         foreach (var candidate in eligibleCandidates)
         {
             if (!overloadedNames.Contains(candidate.Name) &&
                 WouldGetConfigurationSurface(candidate, diamondCollisionIdentities) &&
-                !(candidate is IMethodSymbol candidateAsMethod && IsClosedInstantiationEligibleCandidate(candidateAsMethod, compilation)))
+                !(candidate is IMethodSymbol candidateAsMethod &&
+                  (IsClosedInstantiationEligibleCandidate(candidateAsMethod, compilation) ||
+                   (candidateAsMethod.Parameters.Length > 0 &&
+                    !(candidateAsMethod.IsGenericMethod &&
+                      candidateAsMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateAsMethod))) &&
+                    !candidateAsMethod.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                    !(candidateAsMethod.Name == "Equals" && candidateAsMethod.Parameters.Length == 1)))))
                 usedFieldNames.Add($"__{candidate.Name}");
         }
 

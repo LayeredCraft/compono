@@ -75,9 +75,17 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 if ((__entry.Matcher_name is not { } __m_name || __m_name.Matches(name)))
                 {
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
-                    // value-returning branch below for the full reasoning; a matched entry with no
-                    // configured exception must not shadow an older, configured matching entry.
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
                 }
             }
         }

@@ -141,9 +141,17 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
-                    // value-returning branch below for the full reasoning; a matched entry with no
-                    // configured exception must not shadow an older, configured matching entry.
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return;
                 }
             }
         }

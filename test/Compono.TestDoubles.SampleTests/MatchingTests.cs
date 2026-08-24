@@ -65,6 +65,19 @@ public interface IAuxiliaryNameCollisionRepository
     bool Foo_m_x(int z);
 }
 
+// Codex review, PR #108 (round 7): a matching-eligible candidate no longer emits a plain `__{Name}`
+// field either (ADR-0050 replaced it with `__{Name}_Entry`/`__{Name}_entries`) - but the base-slot
+// reservation pre-pass didn't know that yet, so a matching-eligible sibling literally named
+// "Foo_calls" reserved the phantom "__Foo_calls" base slot, which then falsely collided with Foo's
+// own real, actually-emitted "__Foo_calls" call-log field name, disabling matching for Foo even
+// though nothing in the final generated layout actually collides.
+public interface IBaseSlotCollisionRepository
+{
+    bool Foo(int x);
+
+    bool Foo_calls(int z);
+}
+
 // Codex review, PR #106 (round 2), Finding B: a non-overloaded member literally named "Equals" with
 // one real parameter would, if made eligible, emit a Match<T>-typed extension with the same call-site
 // arity as the inherited object.Equals(object) instance method - which C# always prefers over an
@@ -214,6 +227,26 @@ public sealed class AuxiliaryNameCollisionTests
     }
 }
 
+public sealed class BaseSlotCollisionTests
+{
+    // Regression (Codex review, PR #108 round 7): both Foo and Foo_calls must be full matching-
+    // eligible members (accepting a Match<int> and supporting multi-entry Configure()), not silently
+    // downgraded to the argument-independent fallback by a phantom reservation collision.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void MembersWithNoRealCollision_BothStayMatchingEligible(
+        [Shared] IBaseSlotCollisionRepository repository)
+    {
+        repository.Configure().Foo(Compono.Match.Is<int>(x => x == 1)).Returns(true);
+        repository.Configure().Foo(Compono.Match.Is<int>(x => x == 2)).Returns(false);
+        repository.Configure().Foo_calls(Compono.Match.Any<int>()).Returns(true);
+
+        repository.Foo(1).Should().BeTrue();
+        repository.Foo(2).Should().BeFalse();
+        repository.Foo_calls(99).Should().BeTrue();
+    }
+}
+
 public sealed class ObjectMemberCollisionTests
 {
     [Theory]
@@ -351,6 +384,29 @@ public sealed class MultiEntryTests
             .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>());
 
         repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+    }
+
+    // Regression (Codex review, PR #108 round 7): a void member's ReturnConfig<Unit> DOES have a
+    // genuine "configured" state distinct from "incomplete" - .Returns(default) sets
+    // HasConfiguredValue even though there's nothing to return. A newer matching entry configured
+    // this way must win over (i.e. stop the scan before reaching) an older matching entry configured
+    // to throw - the void dispatch loop must treat "HasConfiguredValue" as a stop condition exactly
+    // like the value-returning branch does, not as equivalent to an unconfigured/incomplete entry.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void NewerConfiguredVoidEntry_WinsOverAnOlderThrowingEntry(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Rename(Compono.Match.Any<string>())
+            .Throws(new InvalidOperationException("should not be reached - the newer entry should win"));
+        repository.Configure()
+            .Rename(Compono.Match.Any<string>())
+            .Returns(default);
+
+        var act = () => repository.Rename("acct-1");
+
+        act.Should().NotThrow();
     }
 }
 

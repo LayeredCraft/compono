@@ -541,3 +541,66 @@ snapshots re-baselined (each diff hand-reviewed - confirmed exactly the
 
 No commits or pushes made beyond what's already on the PR branch at the
 time of this run. Awaiting further review.
+
+### 2026-08-24 — Re-run after round-7 codex feedback (PR #108)
+
+Changed since the prior run: two real bugs.
+
+1. Void members have a genuine "configured" state via `ReturnConfig<Unit>`
+   (`.Returns(default)` sets `HasConfiguredValue` even with nothing to
+   return) - the round-6 fix's void branch only stopped the scan on
+   `HasConfiguredException`, so a newer entry configured to succeed
+   silently (`.Returns(default)`) was incorrectly treated as "incomplete"
+   and skipped past, letting an older entry's `.Throws()` win instead.
+   Fixed by also checking `HasConfiguredValue` and `return`ing (void) when
+   set, mirroring the value-returning branch.
+2. `TestDoubleAnalyzer.cs`'s base-slot reservation pre-pass
+   (`usedFieldNames`) still reserved the plain `__{Name}` field for a
+   matching-eligible candidate, even though ADR-0050 means such a
+   candidate no longer emits that field either (it gets
+   `__{Name}_Entry`/`__{Name}_entries` instead). A matching-eligible
+   sibling literally named e.g. "Foo_calls" therefore reserved the phantom
+   "__Foo_calls" base slot, which falsely collided with an unrelated
+   member "Foo"'s own real, actually-emitted "__Foo_calls" call-log field
+   name, disabling matching entirely for "Foo". Fixed by excluding
+   matching-eligible-shaped candidates from that reservation the same way
+   closed-instantiation-eligible ones already were.
+
+Added two regression tests (`test/Compono.TestDoubles.SampleTests/MatchingTests.cs`):
+`MultiEntryTests.NewerConfiguredVoidEntry_WinsOverAnOlderThrowingEntry` and
+`BaseSlotCollisionTests.MembersWithNoRealCollision_BothStayMatchingEligible`.
+Both proven to fail under the pre-fix code before being added: the first
+throws (via `git stash` on just the scriban change and re-running); the
+second fails to COMPILE at all under the pre-fix analyzer (`Foo` falls
+back to the argument-independent shape, so `.Foo(Match.Is<int>(...))`
+doesn't resolve - `CS1929`, verified via `git stash` on just the analyzer
+change). 6 generator snapshots re-baselined (hand-reviewed).
+
+**Process note:** this run's first verification pass produced a false
+failure - a stale MSBuild/Roslyn compiler server (left over from the
+`git stash`/`git stash pop` cycle used to prove the regressions above) was
+still serving an old generator DLL, making the freshly-added void
+regression test appear to fail. Caught by re-running after
+`dotnet build-server shutdown` plus a full `obj`/`bin` wipe, which passed
+cleanly. Also used this same clean-slate rebuild to confirm the persistent
+40 `xUnit1031`/`xUnit1051` warnings in
+`Compono.DependencyInjection.Tests/ComposedRowServiceProviderTests.cs`
+(seen intermittently across earlier rounds in this Notes log) are
+pre-existing on the base branch, unrelated to this PR, and only ever an
+artifact of incremental-build caching state, not a real regression -
+confirmed by stashing all PR changes and rebuilding clean, which reproduced
+the identical 40 warnings.
+
+- `dotnet build` (from a fully clean `obj`/`bin`, fresh compiler server):
+  0 warnings / 0 errors.
+- `dotnet test` (full solution): 2376/2376 passed.
+- `dotnet test test/Compono.TestDoubles.SampleTests`: 252/252 passed (all
+  4 TFMs, including both new regression tests).
+- AOT smoke test: clean publish from scratch, zero warnings, correct
+  runtime output.
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824104848-38647-4169`, full trivia-platform suite:
+  **783/783 passed**. Consumer git tree confirmed clean afterward.
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run. Awaiting further review.
