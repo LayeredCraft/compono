@@ -604,3 +604,54 @@ the identical 40 warnings.
 
 No commits or pushes made beyond what's already on the PR branch at the
 time of this run. Awaiting further review.
+
+### 2026-08-24 — Re-run after round-8/round-9 codex feedback (PR #108)
+
+Changed since the prior run: two more real bugs in `TestDoubleAnalyzer.cs`,
+both in the round-7 fix's own follow-through:
+
+1. Round-7 excluded a matching-eligible-SHAPED candidate from the base-slot
+   `usedFieldNames` reservation on the assumption it would stay matching-
+   eligible - but such a candidate can still land in
+   `derivedNameCollisionMembers` later (via its own `_calls`/`_lock`
+   auxiliary names colliding with something else) and fall back to the
+   plain `__{Name}` field after all, a name never reserved. Round 8 fixed
+   this with one retroactive-reservation pass after
+   `derivedNameCollisionMembers` was fully known - but one pass wasn't
+   enough: reserving one deferred candidate's fallback name can itself
+   newly disqualify a *different* deferred candidate, whose own fallback
+   then goes unreserved (round 8's single pass had already moved on).
+   Fixed by looping reservation + re-detection to a fixed point instead of
+   a fixed one extra pass.
+2. The CS0694 self-collision check for a matched-parameter, non-overloaded
+   closed-instantiation state class still checked `Config`/`Matcher_{param}`
+   against the state class's own type parameter - but ADR-0050 moved those
+   members one level deeper, into the nested `Entry` class
+   (`TestDouble.scriban` lines 15-25); the state class's own direct members
+   are just `Entries`/`Calls`/`Lock`. The phantom check could falsely
+   reject a fully-supported interface via CMP0031. Fixed to check only the
+   state class's own direct members for that branch.
+
+Added two regression tests
+(`test/Compono.Generators.Tests/TestDoubleVerifyTests.cs`):
+`CascadingLateDerivedNameCollisionAcrossMultipleDeferredCandidates_FallsBackCleanlyInsteadOfDuplicateMember`
+(proven to reach CS0102 under the pre-fix single-pass code) and
+`ClosedInstantiationMatchedParameterTypeParameterNamedAfterNestedEntryMember_GeneratesSupportedDouble`
+(proven to falsely reject via CMP0031 under the pre-fix phantom check).
+
+- `dotnet build-server shutdown` + full `obj`/`bin` wipe, then `dotnet
+  build Compono.slnx -c Release`: 0 errors, the same 40 pre-existing
+  `xUnit1031`/`xUnit1051` warnings noted in the round-7 entry above
+  (unrelated to this PR).
+- `dotnet test Compono.slnx -c Release`: 2382/2382 passed.
+- `dotnet test test/Compono.TestDoubles.SampleTests -c Release`: 252/252
+  passed (all 4 TFMs).
+- AOT smoke test (`test/Compono.TestDoubles.AotSmokeTest`, `dotnet publish
+  -c Release -f net10.0 -p:PublishAot=true`): zero warnings, correct
+  runtime output.
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824112609-49934-5571`, full trivia-platform suite:
+  **783/783 passed**.
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run (`63fc5e9`). Awaiting further review.
