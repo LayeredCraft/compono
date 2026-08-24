@@ -405,3 +405,38 @@ index (was missing).
 
 No commits or pushes made beyond what's already on the PR branch at the
 time of this run. Awaiting further review.
+
+### 2026-08-24 — Re-run after round-3 codex feedback (PR #108, script-only)
+
+Changed since the prior run: `dogfood-validate.sh`'s pack lock moved from
+`$feed_dir/.dogfood-pack.lock` to a fixed `$repo_root/.pack.lock` (the
+prior comment overclaimed coordination with the sample projects' own
+pack-to-local-feed.sh scripts, which it never actually provided since they
+lock under their own project-local feed dirs); the anti-stale-cache check
+now tracks each of the four packages independently (plain indexed array,
+not `declare -A` - macOS system bash is 3.2, no associative-array support)
+instead of one shared "found any" flag, so a consumer referencing only
+some of the four packages no longer silently passes for all of them. No
+`src/`/`test/` changes this round (script-only), so no C# rebuild was
+needed beyond a sanity `dotnet build`.
+
+- `dotnet build`: 0 warnings / 0 errors (clean rebuild).
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824094151-16715-28237`, all four packages confirmed
+  resolved (per-package check exercised, not just the aggregate case),
+  full trivia-platform suite: **783/783 passed**. Consumer git tree
+  confirmed clean afterward (same pre-existing 0.6.0→0.7.0-preview.81 bump
+  only).
+
+Two further round-3 findings (lock-name collision risk with the *other*
+sample-project pack scripts under concurrent use; PLAN-0050 status stuck
+at "In Progress") - the status one is fixed above; the sample-script lock
+coordination was deliberately left as-is beyond the comment correction: it
+describes a pre-existing repo-wide pattern (each sample script already
+locks under its own separate feed dir) that predates this PR, and fully
+unifying it would mean editing three unrelated, already-shipped sample
+scripts - out of scope for this plan, and low-value for a dev-only,
+never-published validation script per explicit product guidance.
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run. Awaiting further review.

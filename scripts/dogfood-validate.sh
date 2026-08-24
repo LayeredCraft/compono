@@ -238,13 +238,18 @@ echo "dogfood-validate.sh: local package version: $version"
 
 # ---------------------------------------------------------------------------------------------
 # Step 2: pack the four packages from the current working tree into the local feed, serialized
-# behind a cross-process mkdir lock (same pattern as pack-to-local-feed.sh's own lock, so a
-# concurrent run of this script or of the in-repo sample projects' own pack steps can't race on
-# src/Compono*/bin/obj).
+# behind a cross-process mkdir lock. Deliberately at a fixed repo-root path, NOT under $feed_dir -
+# the actual shared resource two concurrent packers can corrupt is src/Compono*/bin/obj, which is
+# the same regardless of which feed directory either caller targets, so the lock needs to be keyed
+# on the repo, not on the (possibly different) output directory. This does not coordinate with the
+# existing per-sample-project pack-to-local-feed.sh scripts (each locks under its own project-local
+# feed dir, a pre-existing repo-wide pattern this script doesn't change) - only with concurrent runs
+# of dogfood-validate.sh itself. Codex review, PR #108 (round 3): the prior comment here overclaimed
+# coordination with the sample scripts, which this lock never actually provided.
 # ---------------------------------------------------------------------------------------------
 
 mkdir -p "$feed_dir"
-lock_dir="$feed_dir/.dogfood-pack.lock"
+lock_dir="$repo_root/.pack.lock"
 
 max_wait_attempts=120
 attempt=0
@@ -337,26 +342,47 @@ if [ "${#assets_files[@]}" -eq 0 ]; then
     exit 1
 fi
 
-found_any=0
+# Tracks, per package (not a single shared flag), whether it was found anywhere - a consumer that
+# only references e.g. Compono.TestDoubles must not let that one hit silently satisfy the check for
+# Compono/Compono.NSubstitute/Compono.XunitV3 too. Plain indexed array parallel to $packages, NOT
+# an associative array (`declare -A`) - macOS's system /bin/bash is 3.2, which predates bash 4's
+# associative-array support (same constraint noted above for `mapfile`). Codex review, PR #108
+# (round 3).
+pkg_found=()
+for pkg in "${packages[@]}"; do
+    pkg_found+=(0)
+done
 mismatch=0
+pkg_index=0
 for pkg in "${packages[@]}"; do
     for f in "${assets_files[@]}"; do
         # Matches lines like:  "Compono/0.0.0-local...": {   or   "Compono.TestDoubles/1.2.3": {
         matches="$(grep -oE "\"$pkg/[^\"]+\"" "$f" | sed -E 's#^"'"$pkg"'/##; s#"$##' || true)"
         for resolved in $matches; do
-            found_any=1
+            pkg_found[$pkg_index]=1
             if [ "$resolved" != "$version" ]; then
                 echo "dogfood-validate.sh: STALE VERSION - $f resolved $pkg @ $resolved, expected $version" >&2
                 mismatch=1
             fi
         done
     done
+    pkg_index=$((pkg_index + 1))
 done
 
-if [ "$found_any" -eq 0 ]; then
-    echo "dogfood-validate.sh: none of the four Compono packages were found in any project.assets.json -" >&2
-    echo "nothing in '$consumer_repo' currently references them, so this run validated nothing. Check the" >&2
-    echo "consumer repo's csproj files." >&2
+missing_packages=()
+pkg_index=0
+for pkg in "${packages[@]}"; do
+    if [ "${pkg_found[$pkg_index]}" -eq 0 ]; then
+        missing_packages+=("$pkg")
+    fi
+    pkg_index=$((pkg_index + 1))
+done
+if [ "${#missing_packages[@]}" -gt 0 ]; then
+    echo "dogfood-validate.sh: the following packed package(s) were not found in any" >&2
+    echo "project.assets.json under '$consumer_repo', so this run did not validate them:" >&2
+    printf '  %s\n' "${missing_packages[@]}" >&2
+    echo "Check the consumer repo's csproj files, or pass --consumer-solution to target a solution" >&2
+    echo "that actually references all four packages." >&2
     exit 1
 fi
 if [ "$mismatch" -ne 0 ]; then
