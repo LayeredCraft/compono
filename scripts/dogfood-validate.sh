@@ -161,6 +161,7 @@ echo "dogfood-validate.sh: configuration:      $configuration"
 work_tmp_dir=""
 lock_dir=""
 consumer_status_before_file=""
+consumer_packages_props_backup=""
 
 cleanup() {
     local exit_code=$?
@@ -174,8 +175,15 @@ cleanup() {
         status_after="$(cd "$consumer_repo" && git status --porcelain)"
         if [ "$status_after" != "$(cat "$consumer_status_before_file")" ]; then
             echo "dogfood-validate.sh: WARNING - consumer repo git status changed during this run;" >&2
-            echo "restoring tracked files to their pre-run state as a safety net." >&2
-            (cd "$consumer_repo" && git checkout -- Directory.Packages.props 2>/dev/null || true)
+            echo "restoring Directory.Packages.props to its pre-run content as a safety net." >&2
+            # Restore from the byte-for-byte snapshot taken before this run, NOT `git checkout`
+            # (which resets to committed HEAD) - the consumer repo may legitimately have had its
+            # own uncommitted edits to this exact file before this script ever ran (e.g. a version
+            # pin bump in progress), and `git checkout` would silently discard that real work
+            # instead of restoring the pre-run state. Codex review, PR #108 (round 1).
+            if [ -n "$consumer_packages_props_backup" ] && [ -f "$consumer_packages_props_backup" ]; then
+                cp "$consumer_packages_props_backup" "$consumer_repo/Directory.Packages.props"
+            fi
             local status_restored
             status_restored="$(cd "$consumer_repo" && git status --porcelain)"
             if [ "$status_restored" != "$(cat "$consumer_status_before_file")" ]; then
@@ -205,6 +213,8 @@ trap cleanup EXIT
 work_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dogfood-validate.XXXXXX")"
 consumer_status_before_file="$work_tmp_dir/consumer-status-before.txt"
 (cd "$consumer_repo" && git status --porcelain) > "$consumer_status_before_file"
+consumer_packages_props_backup="$work_tmp_dir/Directory.Packages.props.before"
+cp "$consumer_repo/Directory.Packages.props" "$consumer_packages_props_backup"
 
 # ---------------------------------------------------------------------------------------------
 # Step 1: generate a unique local prerelease version. 0.0.0 sorts below every real 0.x release
