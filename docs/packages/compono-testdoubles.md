@@ -404,6 +404,61 @@ avoids the collision entirely and names the actual Compono concept
 (matching an argument), rather than borrowing NSubstitute's own
 vocabulary.
 
+## Multiple response configurations per member
+
+A matching-eligible member (or a [closed-instantiation-eligible
+member](#per-closed-instantiation-configuration-for-self-referencing-generic-returns))
+isn't limited to one `Configure()` call. Each call **appends** a new,
+independent response configuration instead of overwriting the previous
+one - a broad default and one or more narrower, argument-distinguished
+overrides can coexist on the same member in the same test:
+
+```csharp
+repository.Configure()
+    .Withdraw(Match.Any<string>(), Match.Any<decimal>(), Match.Any<bool>())
+    .Returns(false);
+repository.Configure()
+    .Withdraw("acct-1", Match.Any<decimal>(), Match.Any<bool>())
+    .Returns(true);
+
+repository.Withdraw("acct-1", 50m, overdraftAllowed: true);  // true - the more specific entry
+repository.Withdraw("acct-9", 50m, overdraftAllowed: true);  // false - falls through to the default entry
+```
+
+**Precedence: last matching registration wins.** A call dispatches to the
+*most recently registered* `Configure()` entry whose matchers all match -
+registration order, not matcher "specificity", decides which entry wins
+when more than one entry could match the same call. There's no comparison
+between matchers (a `Match.Is<T>(predicate)` entry is never treated as
+"more specific" than a `Match.Any<T>()` entry, for example) - if two
+entries could both match a call, whichever was configured later wins,
+full stop. This keeps dispatch simple and its outcome fully determined by
+the order `Configure()` calls appear, with no ranking heuristic to reason
+about.
+
+**Compatibility note (pre-1.0).** Before this capability existed, a
+second `Configure()` call on the same member *overwrote* the first -
+observable as the second call always winning, since only one
+configuration could exist at a time. That's now a special case of
+"last matching registration wins": a second call still wins whenever it
+could have won before (it's always the most recently registered, and an
+argument-independent `Configure()` call always matches), so ordinary,
+single- or sequential-override usage is unaffected. What changes is that
+the *first* configuration is no longer discarded - it's still reachable
+by any call the second configuration's matchers don't cover, rather than
+falling through to the member's deterministic default. This is an
+intentional pre-1.0 semantic correction, not a breaking change to guard
+against: the previous overwrite behavior was never separately documented
+as guaranteed, and every existing single-`Configure()`-call usage keeps
+its exact same observable behavior.
+
+**What this deliberately doesn't do.** No matcher-specificity ranking (see
+above). No sequential/call-count-based responses (`Configure()` doesn't
+support "return X on the first call, Y on the second"). No
+`Returns(Func<...>)` callback responses. Verification (`Verify()`) is
+completely unaffected - it stays a count over the member's shared call
+log, independent of how many response configurations exist.
+
 ## Configuration-required members
 
 A member returning a non-nullable reference type (or a `Task<T>`/
@@ -515,7 +570,14 @@ cases the other.
 Argument matching and argument-filtered verification exist now, but only
 for a member satisfying all five eligibility conditions — see "Argument
 matching and argument-filtered verification" above (and ADR-0048 Amendment
-1 for the three conditions added after initial release). Still no argument
+1 for the three conditions added after initial release). Multiple response
+configurations per member are supported for those same eligible members
+(and their closed-instantiation-eligible counterparts) — see "Multiple
+response configurations per member" above and
+[ADR-0050](../adr/0050-testdoubles-multi-entry-argument-distinguished-configuration.md)
+— but strictly last-matching-registration-wins, with no matcher-specificity
+ranking, no sequential/call-count-based responses, and no
+`Returns(Func<...>)` callbacks. Still no argument
 matching on an overloaded member (a real compiler
 spike proved it, see above), no call-order verification, no
 `ReturnsForAnyArgs`/`When().Do(...)`/strict or partial substitutes/

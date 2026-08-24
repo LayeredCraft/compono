@@ -7,8 +7,16 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
 {
     internal sealed class __GetContextDataAsync_State<T> where T : class
     {
-        internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
-        internal global::Compono.Match<string>? Matcher_key;
+        // ADR-0050: multi-entry response configuration composed inside ADR-0049's
+        // per-closed-T state - same Entry shape as the plain matching-eligible branch below, just
+        // nested one level deeper (per closed T instead of per member).
+        internal sealed class Entry
+        {
+            internal global::Compono.Match<string>? Matcher_key;
+            internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
+        }
+
+        internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
         internal readonly global::System.Collections.Generic.List<string> Calls = [];
         internal readonly object Lock = new();
     }
@@ -33,12 +41,19 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
     global::System.Threading.Tasks.Task<T> global::TestNamespace.IContextManager.GetContextDataAsync<T>(string key)
     {
         var __bucket = __GetContextDataAsync_Bucket<T>();
-        __bucket.Config.RecordCall();
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins.
         lock (__bucket.Lock) { __bucket.Calls.Add(key); }
-        var __matches = (__bucket.Matcher_key is not { } __m_key || __m_key.Matches(key));
-        return __matches && __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
-            : __matches && __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
-            : global::System.Threading.Tasks.Task.FromResult<T?>(default);
+        for (var __i = __bucket.Entries.Count - 1; __i >= 0; __i--)
+        {
+            var __entry = __bucket.Entries[__i];
+            if ((__entry.Matcher_key is not { } __m_key || __m_key.Matches(key)))
+            {
+                if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                break;
+            }
+        }
+        return global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
 #pragma warning restore CS8603, CS8616, CS8619
 }
@@ -47,9 +62,15 @@ internal static class TestNamespace_IContextManager_d05603ce_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>> GetContextDataAsync<T>(this global::TestNamespace_IContextManager_d05603ce_Double __self, global::Compono.Match<string> key) where T : class
     {
+        // ADR-0050: appends a new entry rather than overwriting the (removed) single
+        // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
+        // list's backing array, since the ref targets the Entry object itself (heap-stable), not a
+        // slot inside the list's array. See spike report for the reallocation-hazard proof.
         var __bucket = __self.__GetContextDataAsync_Bucket<T>();
-        __bucket.Matcher_key = key;
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __bucket.Config);
+        var __entry = new global::TestNamespace_IContextManager_d05603ce_Double.__GetContextDataAsync_State<T>.Entry();
+        __entry.Matcher_key = key;
+        __bucket.Entries.Add(__entry);
+        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __entry.Config);
     }
 
 }

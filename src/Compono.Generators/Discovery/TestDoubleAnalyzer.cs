@@ -345,7 +345,17 @@ internal static class TestDoubleAnalyzer
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
-            var derivedNames = new[] { $"__{candidateMethod.Name}_calls", $"__{candidateMethod.Name}_lock" }
+            // ADR-0050: multi-entry response configuration replaces the per-parameter
+            // "__{Name}_m_{param}" matcher fields (still reserved above, harmlessly, per the
+            // over-reservation rationale this comment block already documents) with a generated
+            // per-entry class ("__{Name}_Entry") and its backing ordered list ("__{Name}_entries") -
+            // reserved through the same pool for the identical reason: two unremarkable members can
+            // independently derive the same auxiliary name from otherwise-unrelated real names.
+            var derivedNames = new[]
+                {
+                    $"__{candidateMethod.Name}_calls", $"__{candidateMethod.Name}_lock",
+                    $"__{candidateMethod.Name}_Entry", $"__{candidateMethod.Name}_entries",
+                }
                 .Concat(candidateMethod.Parameters.Select(p => $"__{candidateMethod.Name}_m_{p.Name}"));
 
             foreach (var name in derivedNames)
@@ -421,8 +431,14 @@ internal static class TestDoubleAnalyzer
 
             if (candidateMethod.Parameters.Length > 0 && !overloadedNames.Contains(candidateMethod.Name))
             {
+                // ADR-0050: the nested "Entry"/"Entries" members only exist for a matched-parameter,
+                // non-overloaded state class (closed_instantiation_has_matched_parameters in the
+                // template/emitter) - the same gate "Calls"/"Lock"/"Matcher_{param}" already use, since
+                // those are exactly the members multi-entry storage nests one level deeper alongside.
                 stateClassMemberNames.Add("Calls");
                 stateClassMemberNames.Add("Lock");
+                stateClassMemberNames.Add("Entry");
+                stateClassMemberNames.Add("Entries");
                 stateClassMemberNames.AddRange(candidateMethod.Parameters.Select(p => $"Matcher_{p.Name}"));
             }
 

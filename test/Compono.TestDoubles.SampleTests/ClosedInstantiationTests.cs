@@ -183,6 +183,67 @@ public sealed class ClosedInstantiationTests
     }
 }
 
+// ADR-0050: multi-entry response configuration composes with ADR-0049's per-closed-T bucket with no
+// new machinery - the same reverse-scan, last-matching-registration-wins entry list, nested one level
+// deeper (inside each closed T's own state) rather than declared once per member.
+public sealed class ClosedInstantiationMultiEntryTests
+{
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public async Task TwoDisjointEntries_OnTheSameClosedT_EachRespondWithTheirOwnConfiguredValue(
+        [Shared] IContextManager contextManager)
+    {
+        var first = new UserContext("sub-1");
+        var second = new UserContext("sub-2");
+
+        contextManager.Configure().GetContextDataAsync<UserContext>("first").Returns(Task.FromResult<UserContext?>(first));
+        contextManager.Configure().GetContextDataAsync<UserContext>("second").Returns(Task.FromResult<UserContext?>(second));
+
+        (await contextManager.GetContextDataAsync<UserContext>("first")).Should().BeSameAs(first);
+        (await contextManager.GetContextDataAsync<UserContext>("second")).Should().BeSameAs(second);
+    }
+
+    // Same reverse-scan-last-*matching*-wins proof as the plain-member case, on a closed T's own entry
+    // list: a broad Match.Any() entry registered first, a narrower literal entry registered second -
+    // the narrow entry wins for its own key, the broad entry still answers everything else.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public async Task SpecificEntryRegisteredAfterAMatchAnyEntry_WinsForItsOwnKey_DefaultEntryHandlesTheRest(
+        [Shared] IContextManager contextManager)
+    {
+        var fallback = new UserContext("fallback");
+        var specific = new UserContext("specific");
+
+        contextManager.Configure().GetContextDataAsync<UserContext>(Compono.Match.Any<string>())
+            .Returns(Task.FromResult<UserContext?>(fallback));
+        contextManager.Configure().GetContextDataAsync<UserContext>("user")
+            .Returns(Task.FromResult<UserContext?>(specific));
+
+        (await contextManager.GetContextDataAsync<UserContext>("user")).Should().BeSameAs(specific);
+        (await contextManager.GetContextDataAsync<UserContext>("anything-else")).Should().BeSameAs(fallback);
+    }
+
+    // Each closed T independently holds its own multi-entry list - a second entry registered on one
+    // closed T never affects another closed T's own entries.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public async Task MultiEntryListsOnDifferentClosedTs_StayFullyIndependent(
+        [Shared] IContextManager contextManager)
+    {
+        var userA = new UserContext("sub-a");
+        var userB = new UserContext("sub-b");
+        var payload = new UpsellPayload("prod-1");
+
+        contextManager.Configure().GetContextDataAsync<UserContext>("a").Returns(Task.FromResult<UserContext?>(userA));
+        contextManager.Configure().GetContextDataAsync<UserContext>("b").Returns(Task.FromResult<UserContext?>(userB));
+        contextManager.Configure().GetContextDataAsync<UpsellPayload>("p").Returns(Task.FromResult<UpsellPayload?>(payload));
+
+        (await contextManager.GetContextDataAsync<UserContext>("a")).Should().BeSameAs(userA);
+        (await contextManager.GetContextDataAsync<UserContext>("b")).Should().BeSameAs(userB);
+        (await contextManager.GetContextDataAsync<UpsellPayload>("p")).Should().BeSameAs(payload);
+    }
+}
+
 // Regression/composition: an overloaded closed-instantiation-eligible member - Configure<T>()/
 // Verify<T>() on each overload only affects that overload's own bucket, proven with the *same* closed
 // T used on both overloads to rule out any cross-overload bucket-key collision, not just

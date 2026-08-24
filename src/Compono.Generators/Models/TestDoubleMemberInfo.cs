@@ -221,4 +221,21 @@ internal sealed record TestDoubleMemberInfo(
 
     /// <summary>Space-joined <c>where</c> clauses, ready to splice after the extension's parameter list.</summary>
     public string ConstraintClausesText => ConstraintClauses.Count == 0 ? "" : " " + string.Join(" ", ConstraintClauses);
+
+    /// <summary>
+    /// ADR-0050: the generated per-entry class name backing this <see cref="IsEligibleForMatching"/>
+    /// member's ordered, multi-entry response configuration - replaces the single
+    /// <c>{FieldName}_m_{param}</c> matcher fields with one <c>Match&lt;TParam&gt;?</c> per parameter
+    /// plus its own <c>ReturnConfig&lt;TSlot&gt;</c>, bundled per registered <c>Configure()</c> call.
+    /// Reserved in <c>TestDoubleAnalyzer</c>'s derived-name collision pool alongside <see cref="EntriesFieldName"/>.
+    /// </summary>
+    public string EntryClassName => $"{FieldName}_Entry";
+
+    /// <summary>
+    /// ADR-0050: the generated ordered <c>List&lt;Entry&gt;</c> field name backing this
+    /// <see cref="IsEligibleForMatching"/> member's multi-entry response configuration - appended to by
+    /// each <c>Configure()</c> call, scanned in reverse registration order by dispatch (last-matching-
+    /// registration-wins).
+    /// </summary>
+    public string EntriesFieldName => $"{FieldName}_entries";
 }

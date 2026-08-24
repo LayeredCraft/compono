@@ -243,6 +243,96 @@ public sealed class TypeParameterCollisionTests
     }
 }
 
+// ADR-0050: multiple Configure() calls append entries instead of overwriting the member's one slot.
+// Dispatch scans the ordered entry list in reverse registration order - the most recently registered
+// matching entry wins; no match falls through to ADR-0045's existing default/throw behavior unchanged.
+public sealed class MultiEntryTests
+{
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void TwoDisjointLiteralEntries_EachRespondsWithItsOwnConfiguredValue(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+        repository.Configure()
+            .Withdraw("acct-2", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(false);
+
+        repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+        repository.Withdraw("acct-2", 10m, overdraftAllowed: false).Should().BeFalse();
+    }
+
+    // A call matching neither registered entry falls through to the existing configuration-required/
+    // deterministic-default behavior, unchanged by how many entries exist.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void CallMatchingNeitherEntry_FallsThroughToTheExistingDefaultBehavior(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+        repository.Configure()
+            .Withdraw("acct-2", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(false);
+
+        repository.Withdraw("acct-3", 10m, overdraftAllowed: false).Should().BeFalse();
+    }
+
+    // Proves reverse-scan-last-*matching*-wins, not just "the last entry always wins regardless of
+    // match": the broad Match.Any() entry is registered first, a narrower literal-argument entry is
+    // registered second - the narrower entry wins for its own argument, but the broad entry still
+    // answers everything else, since it's still the first match found scanning backward past the
+    // non-matching narrow entry.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void SpecificLiteralEntryRegisteredAfterAMatchAnyEntry_WinsForItsOwnArgument_DefaultEntryHandlesTheRest(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw(Compono.Match.Any<string>(), Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(false);
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+
+        repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+        repository.Withdraw("acct-9", 10m, overdraftAllowed: false).Should().BeFalse();
+    }
+
+    // The zero-argument Configure()/Verify() compatibility overloads: a single call configures an
+    // always-matching entry; a repeated call appends another, most-recently-registered entry that wins
+    // by recency (reproducing v1/v2's "second Configure() call overwrites" observable behavior without
+    // mutating the first entry) - and Verify()'s call count reads the shared call log, unaffected by
+    // how many response entries exist.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void ZeroArgumentConfigure_RepeatedCall_MostRecentlyRegisteredEntryWinsByRecency(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure().Withdraw().Returns(false);
+        repository.Configure().Withdraw().Returns(true);
+
+        repository.Withdraw("any-account", 1m, overdraftAllowed: true).Should().BeTrue();
+    }
+
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void ZeroArgumentVerify_CountsAllCallsRegardlessOfHowManyResponseEntriesExist(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure().Withdraw().Returns(false);
+        repository.Configure().Withdraw().Returns(true);
+
+        repository.Withdraw("acct-1", 1m, overdraftAllowed: true);
+        repository.Withdraw("acct-2", 1m, overdraftAllowed: true);
+
+        repository.Verify().Withdraw().Exactly(2);
+    }
+}
+
 public sealed class CollisionProneNameTests
 {
     [Theory]

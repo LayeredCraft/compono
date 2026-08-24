@@ -338,4 +338,43 @@ public sealed class TestDoubleVerificationExecutionTests
 
         act.Should().NotThrow();
     }
+
+    // ADR-0050 regression: the zero-argument Verify() compatibility overload for a matching-eligible
+    // member (Save(string) - real parameter, non-overloaded) must read the shared call-log list's
+    // Count, not a removed per-entry field - the exact bug the ADR-0050 spike hit (16/18 execution
+    // tests before the fix). Two zero-argument Configure() calls (appending two entries, per the
+    // "repeated call wins by recency" compatibility shape) followed by two real calls must still
+    // report exactly 2, regardless of how many response entries exist.
+    [Fact]
+    public void ZeroArgumentVerify_OnMatchingEligibleMember_CountsFromTheSharedCallLog_NotARemovedPerEntryField()
+    {
+        var act = () => GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var repository = (IRepository)CreateDouble();
+                        repository.Configure().Save().Returns(default(Compono.Unit));
+                        repository.Configure().Save().Returns(default(Compono.Unit));
+
+                        repository.Save("first");
+                        repository.Save("second");
+
+                        repository.Verify().Save().Exactly(2);
+                        return repository;
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        act.Should().NotThrow();
+    }
 }
