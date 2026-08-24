@@ -467,25 +467,24 @@ internal static class TestDoubleAnalyzer
             // too, not just its own class/method names above - `class __Create_State<Config> {
             // internal ReturnConfig<Config> Config; }` collides a member named "Config" with its
             // enclosing type's own type parameter "Config" when the consumer's type parameter is
-            // literally named that. "Calls"/"Lock"/"Matcher_{param}" only actually get emitted when
-            // this candidate has real parameters and isn't overloaded (closed_instantiation_has_matched_parameters
-            // in the template/emitter) - an overloaded or zero-parameter candidate's state class never
-            // declares those fields at all, so checking against them for such a candidate would be a
-            // phantom check with nothing to actually collide with.
-            var stateClassMemberNames = new List<string> { "Config" };
-
-            if (candidateMethod.Parameters.Length > 0 && !overloadedNames.Contains(candidateMethod.Name))
-            {
-                // ADR-0050: the nested "Entry"/"Entries" members only exist for a matched-parameter,
-                // non-overloaded state class (closed_instantiation_has_matched_parameters in the
-                // template/emitter) - the same gate "Calls"/"Lock"/"Matcher_{param}" already use, since
-                // those are exactly the members multi-entry storage nests one level deeper alongside.
-                stateClassMemberNames.Add("Calls");
-                stateClassMemberNames.Add("Lock");
-                stateClassMemberNames.Add("Entry");
-                stateClassMemberNames.Add("Entries");
-                stateClassMemberNames.AddRange(candidateMethod.Parameters.Select(p => $"Matcher_{p.Name}"));
-            }
+            // literally named that.
+            //
+            // ADR-0050 moved "Config"/"Matcher_{param}" one level deeper for a matched-parameter,
+            // non-overloaded state class (closed_instantiation_has_matched_parameters in the
+            // template/emitter, TestDouble.scriban lines 15-25): they now live inside the nested
+            // "Entry" class, not directly on the state class itself, whose own direct members become
+            // just "Entries"/"Calls"/"Lock". Checking "Config"/"Matcher_{param}" against the state
+            // class's own type parameter for this branch was itself a phantom check - those names
+            // are scoped to Entry, a different declaration the outer type parameter isn't in scope
+            // for, so it could never actually be a real CS0694 collision - and, worse, it can
+            // falsely disqualify an otherwise-fully-supported member and reject the whole interface
+            // over a collision that was never real. The non-matched-parameter branch (zero
+            // parameters, or overloaded) keeps "Config" directly on the state class exactly as
+            // before (template lines 26-27) - only the matched-parameter branch relocates it. Codex
+            // review, PR #108 (round 9).
+            var stateClassMemberNames = candidateMethod.Parameters.Length > 0 && !overloadedNames.Contains(candidateMethod.Name)
+                ? new List<string> { "Entry", "Entries", "Calls", "Lock" }
+                : new List<string> { "Config" };
 
             if (candidateMethod.TypeParameters[0].Name is var typeParameterName &&
                 (typeParameterName == $"{baseFieldName}_State" || typeParameterName == $"{baseFieldName}_Bucket" ||
@@ -517,27 +516,38 @@ internal static class TestDoubleAnalyzer
         // `usedFieldNames` because the earlier loop assumed it would stay matching-eligible. Reserve
         // those now-known-real fallback names, then re-run the SAME collision-detection loop once
         // more so a fallback name that newly collides with some other real emitter is still caught
-        // (rather than silently producing a duplicate-member CS0102). One extra pass suffices: this
-        // only ever ADDS reservations, and a matching-eligible-shaped candidate's own membership in
-        // `pendingMatchingEligibleShapedFallbacks` is independent of any OTHER such candidate's -
-        // there's no cascade back into a candidate already resolved by the first pass.
-        var addedFallbackReservation = false;
-        foreach (var (candidate, name) in pendingMatchingEligibleShapedFallbacks)
+        // (rather than silently producing a duplicate-member CS0102).
+        //
+        // A single extra pass isn't enough (Codex review, PR #108 round 9): reserving one pending
+        // candidate's fallback name can itself newly disqualify a DIFFERENT pending candidate (e.g.
+        // reserving "__Bar_State_calls" collides with a sibling's own derived name, which disqualifies
+        // "Bar_State_calls" from matching eligibility - but "Bar_State_calls" is itself one of THIS
+        // loop's pending candidates, and its own fallback name was never reserved because the single
+        // extra pass had already moved on). Loop reservation + re-detection to a fixed point instead
+        // of a fixed one extra pass - each iteration can only ever ADD to `usedFieldNames` (monotonic,
+        // bounded by the finite candidate set), so this always terminates.
+        bool addedFallbackReservation;
+        do
         {
-            if (derivedNameCollisionMembers.Contains(candidate) && usedFieldNames.Add(name))
-                addedFallbackReservation = true;
-        }
-        if (addedFallbackReservation)
-        {
-            foreach (var (name, owners) in derivedAuxiliaryNameOwners)
+            addedFallbackReservation = false;
+            foreach (var (candidate, name) in pendingMatchingEligibleShapedFallbacks)
             {
-                if (owners.Count <= 1 && !usedFieldNames.Contains(name))
-                    continue;
-
-                foreach (var owner in owners)
-                    derivedNameCollisionMembers.Add(owner);
+                if (derivedNameCollisionMembers.Contains(candidate) && usedFieldNames.Add(name))
+                    addedFallbackReservation = true;
             }
-        }
+
+            if (addedFallbackReservation)
+            {
+                foreach (var (name, owners) in derivedAuxiliaryNameOwners)
+                {
+                    if (owners.Count <= 1 && !usedFieldNames.Contains(name))
+                        continue;
+
+                    foreach (var owner in owners)
+                        derivedNameCollisionMembers.Add(owner);
+                }
+            }
+        } while (addedFallbackReservation);
 
         var reportedDiamondIdentities = new HashSet<(string Name, string Canonical)>();
         var reportedZeroArgCollisionNames = new HashSet<string>();

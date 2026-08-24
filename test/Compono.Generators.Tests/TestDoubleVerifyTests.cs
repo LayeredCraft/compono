@@ -3300,6 +3300,107 @@ public sealed class TestDoubleVerifyTests
             "CMP0031",
             TestContext.Current.CancellationToken);
 
+    // Codex review, PR #108 (round 9, finding 1): round 8's own retroactive-reservation fix (just
+    // above) only ran ONE extra pass past the first collision-detection sweep - but reserving one
+    // deferred candidate's fallback name can itself newly disqualify a DIFFERENT deferred candidate,
+    // whose own fallback name is then never reserved because the single extra pass already moved on.
+    // Here, `Bar_State_calls(int)` is matching-eligible-shaped and deferred, but its own derived
+    // call-log name "__Bar_State_calls_calls" collides with the real property
+    // `Bar_State_calls_calls`'s phantom top-level reservation - disqualifying it in the FIRST
+    // collision-detection sweep, before round 8's extra pass even starts. Reserving its fallback name
+    // "__Bar_State_calls" then newly collides with a SECOND matching-eligible-shaped, deferred
+    // candidate `Bar_State(int)`'s own derived call-log name (also "__Bar_State_calls" - "Bar_State" +
+    // "_calls") - disqualifying Bar_State too, but only discovered mid-way through round 8's single
+    // extra pass, too late for that same pass to also reserve Bar_State's own fallback name
+    // "__Bar_State". That fallback then silently collides with `T Bar<T>()`'s real, actually-emitted
+    // closed-instantiation state-class name (also "__Bar_State"), reaching CS0102 instead of the
+    // documented CMP0031 whole-interface fallback. Looping reservation + re-detection to a fixed
+    // point (this fix) catches the cascade regardless of how many candidates chain together.
+    [Fact]
+    public Task CascadingLateDerivedNameCollisionAcrossMultipleDeferredCandidates_FallsBackCleanlyInsteadOfDuplicateMember() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        bool Bar_State_calls(int x);
+
+                        bool Bar_State(int x);
+
+                        bool Bar_State_calls_calls { get; }
+
+                        T Bar<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #108 (round 9, finding 2): ADR-0050 moved a closed-instantiation state class's
+    // "Config"/"Matcher_{param}" members one level deeper for a matched-parameter, non-overloaded
+    // candidate - they now live inside the nested "Entry" class (TestDouble.scriban lines 15-25), not
+    // directly on the state class itself, whose own direct members are just "Entries"/"Calls"/"Lock".
+    // The CS0694 self-collision check (round 10 of PR #107) still checked "Config"/"Matcher_{param}"
+    // against the state class's own type parameter for this branch - a phantom check, since those
+    // names are scoped to Entry, a declaration the state class's own type parameter was never in
+    // scope for, so it could never be a real collision. Here, `Config Create<Config>(int id)`'s own
+    // type parameter is literally named "Config" - the phantom check falsely flagged this as a CS0694
+    // self-collision and rejected the whole interface via CMP0031, even though the actually-emitted
+    // code (Config nested inside Entry, not on the state class) never collides with anything. Fixing
+    // the member-name list to only the state class's OWN direct members means this now generates a
+    // fully-supported double - it still reports CMP0032 (this member's non-nullable, no-default
+    // return requires explicit configuration, ADR-0045 - unrelated to the CS0694 fix, and exercised
+    // below via Configure()/Verify()), not the CMP0031 whole-interface rejection.
+    [Fact]
+    public Task ClosedInstantiationMatchedParameterTypeParameterNamedAfterNestedEntryMember_GeneratesSupportedDouble() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        Config Create<Config>(int id);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Create<string>(1).Returns("Ada");
+
+                            var config = factory.Create<string>(1);
+
+                            factory.Verify().Create<string>(1).Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
     // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
     // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
     // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter
