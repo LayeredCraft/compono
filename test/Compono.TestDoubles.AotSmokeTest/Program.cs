@@ -186,22 +186,39 @@ internal static class Program
 
             // PLAN-0048: argument-matched Configure() (mixed literal/Match.Any/Match.Is) and
             // argument-filtered Verify(), under Native AOT.
+            //
+            // ADR-0050: three Configure() calls on the same member append three entries, not
+            // overwrite one slot - a broad Match.Any() default registered first, then two disjoint
+            // literal-account entries registered after it. Dispatch's reverse scan (last-matching-
+            // registration-wins) must find the correct one of the three for each account, and still
+            // fall back to the broad default for any other account, all through the real generator
+            // under Native AOT.
+            accountRepository.Configure()
+                .Withdraw(Match.Any<string>(), Match.Any<decimal>(), Match.Any<bool>())
+                .Returns(false);
             accountRepository.Configure()
                 .Withdraw("acct-1", Match.Any<decimal>(), Match.Is<bool>(allowed => allowed))
                 .Returns(true);
+            accountRepository.Configure()
+                .Withdraw("acct-2", Match.Any<decimal>(), Match.Any<bool>())
+                .Returns(true);
 
             var matchingCall = accountRepository.Withdraw("acct-1", 50m, overdraftAllowed: true);
-            var wrongAccount = accountRepository.Withdraw("acct-2", 50m, overdraftAllowed: true);
+            var secondEntryCall = accountRepository.Withdraw("acct-2", 50m, overdraftAllowed: false);
             var wrongOverdraftFlag = accountRepository.Withdraw("acct-1", 50m, overdraftAllowed: false);
+            var fallsThroughToDefault = accountRepository.Withdraw("acct-3", 50m, overdraftAllowed: true);
 
             if (!matchingCall)
                 throw new InvalidOperationException("Expected a matching Withdraw() call to return true.");
 
-            if (wrongAccount)
-                throw new InvalidOperationException("Expected a non-matching account id to fall through to the default, not the configured value.");
+            if (!secondEntryCall)
+                throw new InvalidOperationException("Expected the second, independently-registered entry (acct-2) to return its own configured value.");
 
             if (wrongOverdraftFlag)
-                throw new InvalidOperationException("Expected a non-matching overdraft flag to fall through to the default, not the configured value.");
+                throw new InvalidOperationException("Expected a non-matching overdraft flag to fall through to the broad Match.Any() default entry, not the configured value.");
+
+            if (fallsThroughToDefault)
+                throw new InvalidOperationException("Expected acct-3 to fall through to the broad Match.Any() default entry registered first.");
 
             accountRepository.Verify()
                 .Withdraw(Match.Is<string>(id => id == "acct-1"), Match.Any<decimal>(), Match.Any<bool>())
@@ -209,7 +226,7 @@ internal static class Program
             accountRepository.Verify()
                 .Withdraw(Match.Is<string>(id => id == "acct-2"), Match.Any<decimal>(), Match.Any<bool>())
                 .Once();
-            accountRepository.Verify().Withdraw().Exactly(3);
+            accountRepository.Verify().Withdraw().Exactly(4);
 
             // PLAN-0049: real generated (not hand-written) closed-instantiation-eligible members
             // under Native AOT - two closed T's on GetContextDataAsync<T> independently configured

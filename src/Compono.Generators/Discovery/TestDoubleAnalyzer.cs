@@ -255,11 +255,53 @@ internal static class TestDoubleAnalyzer
         // The mirror image of round 12's finding - that one was a non-emitting member polluting a real
         // one; this one is a DIFFERENT real emitter polluting another real one via an unrelated naming
         // scheme. Codex review, PR #107 (round 13).
+        //
+        // ADR-0050: a matching-eligible-SHAPED candidate (real parameters, non-overloaded, not a
+        // self-referencing generic method, no ref-like-typed parameter, not `Equals(object)`) ALSO
+        // never emits the plain `__{Name}` field any more IF it actually ends up matching-eligible -
+        // it gets the `__{Name}_Entry`/`__{Name}_entries` layout instead (reserved separately,
+        // below). Left unexcluded, an unrelated matching-eligible sibling literally named e.g.
+        // "Foo_calls" reserves the phantom "__Foo_calls" here, which then falsely collides with a
+        // DIFFERENT matching-eligible member "Foo"'s own real, actually-emitted "__Foo_calls"
+        // call-log field name - disabling argument matching and multi-entry configuration for "Foo"
+        // even though the final layout has no real declaration collision. This mirrors the closed-
+        // instantiation exclusion just above. Codex review, PR #108 (round 7).
+        //
+        // BUT shape alone isn't final eligibility - a matching-eligible-SHAPED candidate can still
+        // end up in `derivedNameCollisionMembers` below (computed from THIS candidate's own OTHER
+        // derived names, e.g. its `_calls`/`_lock` auxiliary names colliding with something else),
+        // in which case it falls back to the plain `__{Name}` field after all - and by then it's too
+        // late to add it to `usedFieldNames` through this loop. Deferred candidates are recorded here
+        // and their bare names are retroactively reserved (with one extra collision-detection pass)
+        // once `derivedNameCollisionMembers` is fully known, below. Closed-instantiation-eligible-
+        // SHAPED candidates need no equivalent deferral - a closed-instantiation-shaped candidate can
+        // only fail to be closed-instantiation-eligible by failing `WouldGetConfigurationSurface`
+        // itself, which ALSO excludes it from the plain-field fallback shape, so there is no fallback
+        // scenario to protect against for that path. Codex review, PR #108 (round 8).
+        var pendingMatchingEligibleShapedFallbacks = new List<(ISymbol Candidate, string Name)>();
         foreach (var candidate in eligibleCandidates)
         {
-            if (!overloadedNames.Contains(candidate.Name) &&
-                WouldGetConfigurationSurface(candidate, diamondCollisionIdentities) &&
-                !(candidate is IMethodSymbol candidateAsMethod && IsClosedInstantiationEligibleCandidate(candidateAsMethod, compilation)))
+            if (overloadedNames.Contains(candidate.Name) || !WouldGetConfigurationSurface(candidate, diamondCollisionIdentities))
+                continue;
+
+            if (candidate is not IMethodSymbol candidateAsMethod)
+            {
+                usedFieldNames.Add($"__{candidate.Name}");
+                continue;
+            }
+
+            if (IsClosedInstantiationEligibleCandidate(candidateAsMethod, compilation))
+                continue;
+
+            var isMatchingEligibleShaped = candidateAsMethod.Parameters.Length > 0 &&
+                !(candidateAsMethod.IsGenericMethod &&
+                  candidateAsMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateAsMethod))) &&
+                !candidateAsMethod.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                !(candidateAsMethod.Name == "Equals" && candidateAsMethod.Parameters.Length == 1);
+
+            if (isMatchingEligibleShaped)
+                pendingMatchingEligibleShapedFallbacks.Add((candidateAsMethod, $"__{candidate.Name}"));
+            else
                 usedFieldNames.Add($"__{candidate.Name}");
         }
 
@@ -345,8 +387,21 @@ internal static class TestDoubleAnalyzer
                 !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                 continue;
 
-            var derivedNames = new[] { $"__{candidateMethod.Name}_calls", $"__{candidateMethod.Name}_lock" }
-                .Concat(candidateMethod.Parameters.Select(p => $"__{candidateMethod.Name}_m_{p.Name}"));
+            // ADR-0050: multi-entry response configuration replaces the per-parameter
+            // "__{Name}_m_{param}" matcher fields with a generated per-entry class
+            // ("__{Name}_Entry", carrying its own "Matcher_{param}" fields scoped inside that
+            // nested type) and a backing ordered list ("__{Name}_entries") at this member's own
+            // scope. The old per-parameter fields are no longer emitted here at all, so they must
+            // NOT be reserved any more - doing so both reserves a name nothing produces AND, worse,
+            // can mark an unrelated member with a real parameter merely named e.g. "x_calls" as a
+            // phantom collision, silently excluding it from argument matching entirely. Codex
+            // review, PR #108 (round 1). Reserve only what this layout actually emits at this scope:
+            // "_calls"/"_lock"/"_Entry"/"_entries".
+            var derivedNames = new[]
+                {
+                    $"__{candidateMethod.Name}_calls", $"__{candidateMethod.Name}_lock",
+                    $"__{candidateMethod.Name}_Entry", $"__{candidateMethod.Name}_entries",
+                };
 
             foreach (var name in derivedNames)
             {
@@ -412,19 +467,24 @@ internal static class TestDoubleAnalyzer
             // too, not just its own class/method names above - `class __Create_State<Config> {
             // internal ReturnConfig<Config> Config; }` collides a member named "Config" with its
             // enclosing type's own type parameter "Config" when the consumer's type parameter is
-            // literally named that. "Calls"/"Lock"/"Matcher_{param}" only actually get emitted when
-            // this candidate has real parameters and isn't overloaded (closed_instantiation_has_matched_parameters
-            // in the template/emitter) - an overloaded or zero-parameter candidate's state class never
-            // declares those fields at all, so checking against them for such a candidate would be a
-            // phantom check with nothing to actually collide with.
-            var stateClassMemberNames = new List<string> { "Config" };
-
-            if (candidateMethod.Parameters.Length > 0 && !overloadedNames.Contains(candidateMethod.Name))
-            {
-                stateClassMemberNames.Add("Calls");
-                stateClassMemberNames.Add("Lock");
-                stateClassMemberNames.AddRange(candidateMethod.Parameters.Select(p => $"Matcher_{p.Name}"));
-            }
+            // literally named that.
+            //
+            // ADR-0050 moved "Config"/"Matcher_{param}" one level deeper for a matched-parameter,
+            // non-overloaded state class (closed_instantiation_has_matched_parameters in the
+            // template/emitter, TestDouble.scriban lines 15-25): they now live inside the nested
+            // "Entry" class, not directly on the state class itself, whose own direct members become
+            // just "Entries"/"Calls"/"Lock". Checking "Config"/"Matcher_{param}" against the state
+            // class's own type parameter for this branch was itself a phantom check - those names
+            // are scoped to Entry, a different declaration the outer type parameter isn't in scope
+            // for, so it could never actually be a real CS0694 collision - and, worse, it can
+            // falsely disqualify an otherwise-fully-supported member and reject the whole interface
+            // over a collision that was never real. The non-matched-parameter branch (zero
+            // parameters, or overloaded) keeps "Config" directly on the state class exactly as
+            // before (template lines 26-27) - only the matched-parameter branch relocates it. Codex
+            // review, PR #108 (round 9).
+            var stateClassMemberNames = candidateMethod.Parameters.Length > 0 && !overloadedNames.Contains(candidateMethod.Name)
+                ? new List<string> { "Entry", "Entries", "Calls", "Lock" }
+                : new List<string> { "Config" };
 
             if (candidateMethod.TypeParameters[0].Name is var typeParameterName &&
                 (typeParameterName == $"{baseFieldName}_State" || typeParameterName == $"{baseFieldName}_Bucket" ||
@@ -448,6 +508,46 @@ internal static class TestDoubleAnalyzer
             foreach (var owner in owners)
                 derivedNameCollisionMembers.Add(owner);
         }
+
+        // Codex review, PR #108 (round 8): a matching-eligible-SHAPED candidate deferred above can
+        // have just been added to `derivedNameCollisionMembers` by the pass immediately above (via
+        // its OWN `_calls`/`_lock`/etc. auxiliary names colliding with something else) - meaning it
+        // will actually fall back to the plain `__{Name}` field after all, a name never reserved in
+        // `usedFieldNames` because the earlier loop assumed it would stay matching-eligible. Reserve
+        // those now-known-real fallback names, then re-run the SAME collision-detection loop once
+        // more so a fallback name that newly collides with some other real emitter is still caught
+        // (rather than silently producing a duplicate-member CS0102).
+        //
+        // A single extra pass isn't enough (Codex review, PR #108 round 9): reserving one pending
+        // candidate's fallback name can itself newly disqualify a DIFFERENT pending candidate (e.g.
+        // reserving "__Bar_State_calls" collides with a sibling's own derived name, which disqualifies
+        // "Bar_State_calls" from matching eligibility - but "Bar_State_calls" is itself one of THIS
+        // loop's pending candidates, and its own fallback name was never reserved because the single
+        // extra pass had already moved on). Loop reservation + re-detection to a fixed point instead
+        // of a fixed one extra pass - each iteration can only ever ADD to `usedFieldNames` (monotonic,
+        // bounded by the finite candidate set), so this always terminates.
+        bool addedFallbackReservation;
+        do
+        {
+            addedFallbackReservation = false;
+            foreach (var (candidate, name) in pendingMatchingEligibleShapedFallbacks)
+            {
+                if (derivedNameCollisionMembers.Contains(candidate) && usedFieldNames.Add(name))
+                    addedFallbackReservation = true;
+            }
+
+            if (addedFallbackReservation)
+            {
+                foreach (var (name, owners) in derivedAuxiliaryNameOwners)
+                {
+                    if (owners.Count <= 1 && !usedFieldNames.Contains(name))
+                        continue;
+
+                    foreach (var owner in owners)
+                        derivedNameCollisionMembers.Add(owner);
+                }
+            }
+        } while (addedFallbackReservation);
 
         var reportedDiamondIdentities = new HashSet<(string Name, string Canonical)>();
         var reportedZeroArgCollisionNames = new HashSet<string>();

@@ -65,6 +65,19 @@ public interface IAuxiliaryNameCollisionRepository
     bool Foo_m_x(int z);
 }
 
+// Codex review, PR #108 (round 7): a matching-eligible candidate no longer emits a plain `__{Name}`
+// field either (ADR-0050 replaced it with `__{Name}_Entry`/`__{Name}_entries`) - but the base-slot
+// reservation pre-pass didn't know that yet, so a matching-eligible sibling literally named
+// "Foo_calls" reserved the phantom "__Foo_calls" base slot, which then falsely collided with Foo's
+// own real, actually-emitted "__Foo_calls" call-log field name, disabling matching for Foo even
+// though nothing in the final generated layout actually collides.
+public interface IBaseSlotCollisionRepository
+{
+    bool Foo(int x);
+
+    bool Foo_calls(int z);
+}
+
 // Codex review, PR #106 (round 2), Finding B: a non-overloaded member literally named "Equals" with
 // one real parameter would, if made eligible, emit a Match<T>-typed extension with the same call-site
 // arity as the inherited object.Equals(object) instance method - which C# always prefers over an
@@ -214,6 +227,26 @@ public sealed class AuxiliaryNameCollisionTests
     }
 }
 
+public sealed class BaseSlotCollisionTests
+{
+    // Regression (Codex review, PR #108 round 7): both Foo and Foo_calls must be full matching-
+    // eligible members (accepting a Match<int> and supporting multi-entry Configure()), not silently
+    // downgraded to the argument-independent fallback by a phantom reservation collision.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void MembersWithNoRealCollision_BothStayMatchingEligible(
+        [Shared] IBaseSlotCollisionRepository repository)
+    {
+        repository.Configure().Foo(Compono.Match.Is<int>(x => x == 1)).Returns(true);
+        repository.Configure().Foo(Compono.Match.Is<int>(x => x == 2)).Returns(false);
+        repository.Configure().Foo_calls(Compono.Match.Any<int>()).Returns(true);
+
+        repository.Foo(1).Should().BeTrue();
+        repository.Foo(2).Should().BeFalse();
+        repository.Foo_calls(99).Should().BeTrue();
+    }
+}
+
 public sealed class ObjectMemberCollisionTests
 {
     [Theory]
@@ -240,6 +273,140 @@ public sealed class TypeParameterCollisionTests
 
         act.Should().Throw<InvalidOperationException>();
         repository.Verify().Log(Compono.Match.Any<string>()).Once();
+    }
+}
+
+// ADR-0050: multiple Configure() calls append entries instead of overwriting the member's one slot.
+// Dispatch scans the ordered entry list in reverse registration order - the most recently registered
+// matching entry wins; no match falls through to ADR-0045's existing default/throw behavior unchanged.
+public sealed class MultiEntryTests
+{
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void TwoDisjointLiteralEntries_EachRespondsWithItsOwnConfiguredValue(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+        repository.Configure()
+            .Withdraw("acct-2", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(false);
+
+        repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+        repository.Withdraw("acct-2", 10m, overdraftAllowed: false).Should().BeFalse();
+    }
+
+    // A call matching neither registered entry falls through to the existing configuration-required/
+    // deterministic-default behavior, unchanged by how many entries exist.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void CallMatchingNeitherEntry_FallsThroughToTheExistingDefaultBehavior(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+        repository.Configure()
+            .Withdraw("acct-2", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(false);
+
+        repository.Withdraw("acct-3", 10m, overdraftAllowed: false).Should().BeFalse();
+    }
+
+    // Proves reverse-scan-last-*matching*-wins, not just "the last entry always wins regardless of
+    // match": the broad Match.Any() entry is registered first, a narrower literal-argument entry is
+    // registered second - the narrower entry wins for its own argument, but the broad entry still
+    // answers everything else, since it's still the first match found scanning backward past the
+    // non-matching narrow entry.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void SpecificLiteralEntryRegisteredAfterAMatchAnyEntry_WinsForItsOwnArgument_DefaultEntryHandlesTheRest(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw(Compono.Match.Any<string>(), Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(false);
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+
+        repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+        repository.Withdraw("acct-9", 10m, overdraftAllowed: false).Should().BeFalse();
+    }
+
+    // The zero-argument Configure()/Verify() compatibility overloads: a single call configures an
+    // always-matching entry; a repeated call appends another, most-recently-registered entry that wins
+    // by recency (reproducing v1/v2's "second Configure() call overwrites" observable behavior without
+    // mutating the first entry) - and Verify()'s call count reads the shared call log, unaffected by
+    // how many response entries exist.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void ZeroArgumentConfigure_RepeatedCall_MostRecentlyRegisteredEntryWinsByRecency(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure().Withdraw().Returns(false);
+        repository.Configure().Withdraw().Returns(true);
+
+        repository.Withdraw("any-account", 1m, overdraftAllowed: true).Should().BeTrue();
+    }
+
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void ZeroArgumentVerify_CountsAllCallsRegardlessOfHowManyResponseEntriesExist(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure().Withdraw().Returns(false);
+        repository.Configure().Withdraw().Returns(true);
+
+        repository.Withdraw("acct-1", 1m, overdraftAllowed: true);
+        repository.Withdraw("acct-2", 1m, overdraftAllowed: true);
+
+        repository.Verify().Withdraw().Exactly(2);
+    }
+
+    // Regression (Codex review, PR #108 round 6): a newer matching entry that has been Configure()d
+    // but never had .Returns()/.Throws() called on it - i.e. it matched, but has neither a
+    // configured exception nor a configured value - must not shadow an older, fully-configured
+    // matching entry. The reverse scan must keep going past it rather than stopping and falling
+    // through to the default/required-configuration rule.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void NewerMatchingEntryWithNoConfiguredResponse_DoesNotShadowAnOlderConfiguredEntry(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>())
+            .Returns(true);
+        // Retains the builder without ever calling .Returns()/.Throws() on it - this entry matches
+        // "acct-1" but has no configured response of its own.
+        _ = repository.Configure()
+            .Withdraw("acct-1", Compono.Match.Any<decimal>(), Compono.Match.Any<bool>());
+
+        repository.Withdraw("acct-1", 10m, overdraftAllowed: false).Should().BeTrue();
+    }
+
+    // Regression (Codex review, PR #108 round 7): a void member's ReturnConfig<Unit> DOES have a
+    // genuine "configured" state distinct from "incomplete" - .Returns(default) sets
+    // HasConfiguredValue even though there's nothing to return. A newer matching entry configured
+    // this way must win over (i.e. stop the scan before reaching) an older matching entry configured
+    // to throw - the void dispatch loop must treat "HasConfiguredValue" as a stop condition exactly
+    // like the value-returning branch does, not as equivalent to an unconfigured/incomplete entry.
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void NewerConfiguredVoidEntry_WinsOverAnOlderThrowingEntry(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Rename(Compono.Match.Any<string>())
+            .Throws(new InvalidOperationException("should not be reached - the newer entry should win"));
+        repository.Configure()
+            .Rename(Compono.Match.Any<string>())
+            .Returns(default);
+
+        var act = () => repository.Rename("acct-1");
+
+        act.Should().NotThrow();
     }
 }
 

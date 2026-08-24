@@ -5,49 +5,41 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
-    internal sealed class __Get_State<T> where T : class
+    internal sealed class __Create_State<Config>
     {
         // ADR-0050: multi-entry response configuration composed inside ADR-0049's
         // per-closed-T state - same Entry shape as the plain matching-eligible branch below, just
         // nested one level deeper (per closed T instead of per member).
         internal sealed class Entry
         {
-            internal global::Compono.Match<string>? Matcher_key;
-            internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
+            internal global::Compono.Match<int>? Matcher_id;
+            internal global::Compono.ReturnConfig<Config> Config;
         }
 
         internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
-        internal readonly global::System.Collections.Generic.List<string> Calls = [];
+        internal readonly global::System.Collections.Generic.List<int> Calls = [];
         internal readonly object Lock = new();
     }
 
-    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_buckets = new();
+    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Create_buckets = new();
 
-    internal __Get_State<T> __Get_Bucket<T>() where T : class
+    internal __Create_State<Config> __Create_Bucket<Config>()
     {
-        lock (__Get_buckets)
+        lock (__Create_buckets)
         {
-            if (!__Get_buckets.TryGetValue(typeof(T), out var __boxed))
+            if (!__Create_buckets.TryGetValue(typeof(Config), out var __boxed))
             {
-                __boxed = new __Get_State<T>();
-                __Get_buckets[typeof(T)] = __boxed;
+                __boxed = new __Create_State<Config>();
+                __Create_buckets[typeof(Config)] = __boxed;
             }
 
-            return (__Get_State<T>)__boxed;
+            return (__Create_State<Config>)__boxed;
         }
     }
 
-#pragma warning disable CS8603, CS8616, CS8619
-    global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(ref int x)
+    Config global::TestNamespace.IFactory.Create<Config>(int id)
     {
-        return global::System.Threading.Tasks.Task.FromResult<T?>(default);
-    }
-#pragma warning restore CS8603, CS8616, CS8619
-
-#pragma warning disable CS8603, CS8616, CS8619
-    global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(string key)
-    {
-        var __bucket = __Get_Bucket<T>();
+        var __bucket = __Create_Bucket<Config>();
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
@@ -57,11 +49,11 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
         // the equivalent of try/finally), so returning directly from inside the block below is safe.
         lock (__bucket.Lock)
         {
-            __bucket.Calls.Add(key);
+            __bucket.Calls.Add(id);
             for (var __i = __bucket.Entries.Count - 1; __i >= 0; __i--)
             {
                 var __entry = __bucket.Entries[__i];
-                if ((__entry.Matcher_key is not { } __m_key || __m_key.Matches(key)))
+                if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
                 {
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
@@ -73,14 +65,14 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
                 }
             }
         }
-        return global::System.Threading.Tasks.Task.FromResult<T?>(default);
+        throw new global::Compono.TestDoubleNotConfiguredException(
+            "'global::TestNamespace.IFactory.Create' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().Create<Config>(...).Returns(...) or .Throws(...) before invoking it.");
     }
-#pragma warning restore CS8603, CS8616, CS8619
 }
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<string> key) where T : class
+    public static global::Compono.ReturnConfigBuilder<Config> Create<Config>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<int> id)
     {
         // ADR-0050: appends a new entry rather than overwriting the (removed) single
         // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
@@ -89,11 +81,11 @@ internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
         // Add() itself is under the same member lock dispatch scans under (Codex review, PR #108
         // round 5) - concurrent Configure() calls must not race each other or a concurrent
         // in-progress dispatch scan while mutating the shared List<T>.
-        var __bucket = __self.__Get_Bucket<T>();
-        var __entry = new global::TestNamespace_IFactory_993557a2_Double.__Get_State<T>.Entry();
-        __entry.Matcher_key = key;
+        var __bucket = __self.__Create_Bucket<Config>();
+        var __entry = new global::TestNamespace_IFactory_993557a2_Double.__Create_State<Config>.Entry();
+        __entry.Matcher_id = id;
         lock (__bucket.Lock) { __bucket.Entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __entry.Config);
+        return new global::Compono.ReturnConfigBuilder<Config>(ref __entry.Config);
     }
 
 }
@@ -118,20 +110,20 @@ internal static class TestNamespace_IFactory_993557a2_VerifyExtension
 
 internal static class TestNamespace_IFactory_993557a2_DoubleVerification
 {
-    public static global::Compono.CallVerifier Get<T>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self, global::Compono.Match<string> key) where T : class
+    public static global::Compono.CallVerifier Create<Config>(this global::TestNamespace_IFactory_993557a2_DoubleVerifier __self, global::Compono.Match<int> id)
     {
-        var __bucket = __self.Instance.__Get_Bucket<T>();
+        var __bucket = __self.Instance.__Create_Bucket<Config>();
         int __count;
         lock (__bucket.Lock)
         {
             __count = 0;
             foreach (var call in __bucket.Calls)
             {
-                if (key.Matches(call))
+                if (id.Matches(call))
                     __count++;
             }
         }
-        return new(__count, "global::TestNamespace.IFactory.Get");
+        return new(__count, "global::TestNamespace.IFactory.Create");
     }
 
 }

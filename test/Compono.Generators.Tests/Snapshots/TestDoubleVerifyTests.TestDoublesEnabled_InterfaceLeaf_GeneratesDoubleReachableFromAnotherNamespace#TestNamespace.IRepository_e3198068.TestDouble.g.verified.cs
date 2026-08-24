@@ -5,33 +5,91 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<string?>> __FindNameAsync;
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Save;
     internal global::Compono.ReturnConfig<int> __Count;
-    internal global::Compono.Match<global::System.Guid>? __FindNameAsync_m_id;
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __FindNameAsync/__FindNameAsync_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __FindNameAsync_Entry
+    {
+        internal global::Compono.Match<global::System.Guid>? Matcher_id;
+        internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<string?>> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__FindNameAsync_Entry> __FindNameAsync_entries = [];
     internal readonly global::System.Collections.Generic.List<global::System.Guid> __FindNameAsync_calls = [];
     internal readonly object __FindNameAsync_lock = new();
-    internal global::Compono.Match<string>? __Save_m_name;
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Save/__Save_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Save_Entry
+    {
+        internal global::Compono.Match<string>? Matcher_name;
+        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__Save_Entry> __Save_entries = [];
     internal readonly global::System.Collections.Generic.List<string> __Save_calls = [];
     internal readonly object __Save_lock = new();
 
     global::System.Threading.Tasks.Task<string?> global::TestNamespace.IRepository.FindNameAsync(global::System.Guid id)
     {
-        __FindNameAsync.RecordCall();
-        lock (__FindNameAsync_lock) { __FindNameAsync_calls.Add(id); }
-        var __matches = (__FindNameAsync_m_id is not { } __m_id || __m_id.Matches(id));
-        return __matches && __FindNameAsync.HasConfiguredException ? throw __FindNameAsync.ConfiguredException
-            : __matches && __FindNameAsync.HasConfiguredValue ? __FindNameAsync.ConfiguredValue
-            : global::System.Threading.Tasks.Task.FromResult<string?>(default);
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock (__FindNameAsync_lock)
+        {
+            __FindNameAsync_calls.Add(id);
+            for (var __i = __FindNameAsync_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __FindNameAsync_entries[__i];
+                if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                }
+            }
+        }
+        return global::System.Threading.Tasks.Task.FromResult<string?>(default);
     }
 
     void global::TestNamespace.IRepository.Save(string name)
     {
-        __Save.RecordCall();
-        lock (__Save_lock) { __Save_calls.Add(name); }
-        var __matches = (__Save_m_name is not { } __m_name || __m_name.Matches(name));
-        if (__matches && __Save.HasConfiguredException)
-            throw __Save.ConfiguredException;
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        lock (__Save_lock)
+        {
+            __Save_calls.Add(name);
+            for (var __i = __Save_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __Save_entries[__i];
+                if ((__entry.Matcher_name is not { } __m_name || __m_name.Matches(name)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 
     int global::TestNamespace.IRepository.Count
@@ -55,44 +113,52 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<global::System.Guid> id)
     {
-        __self.__FindNameAsync_m_id = id;
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref __self.__FindNameAsync);
+        // ADR-0050: appends a new entry - see the closed-instantiation Configure()
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__FindNameAsync_Entry();
+        __entry.Matcher_id = id;
+        lock (__self.__FindNameAsync_lock) { __self.__FindNameAsync_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref __entry.Config);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
-    // zero-argument Configure(), regardless of real arity - a real existing call site
-    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Explicitly clearing every
-    // matcher field (not merely leaving them alone) is what makes this overload reproduce v1/v2's
-    // exact argument-independent behavior even on a double a prior Configure() call already gave
-    // matchers to - dispatch's `is not { } m || m.Matches(...)` treats null as always-matching, so a
-    // second call through this overload has to actually null them out, not just skip setting new
-    // ones, to make "the second Configure() call overwrites" true regardless of which overload either
-    // call went through (Codex review, PR #106).
+    // zero-argument Configure(), regardless of real arity. ADR-0050: under multi-entry,
+    // this no longer needs to null out prior matchers to reproduce "last wins" - it just appends its
+    // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
+    // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
+    // argument-independent override behavior without mutating any earlier entry's state at all.
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>> FindNameAsync(this global::TestNamespace_IRepository_e3198068_Double self)
     {
-        self.__FindNameAsync_m_id = null;
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref self.__FindNameAsync);
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__FindNameAsync_Entry();
+        lock (self.__FindNameAsync_lock) { self.__FindNameAsync_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<string?>>(ref __entry.Config);
     }
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> name)
     {
-        __self.__Save_m_name = name;
-        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Save);
+        // ADR-0050: appends a new entry - see the closed-instantiation Configure()
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Save_Entry();
+        __entry.Matcher_name = name;
+        lock (__self.__Save_lock) { __self.__Save_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
-    // zero-argument Configure(), regardless of real arity - a real existing call site
-    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Explicitly clearing every
-    // matcher field (not merely leaving them alone) is what makes this overload reproduce v1/v2's
-    // exact argument-independent behavior even on a double a prior Configure() call already gave
-    // matchers to - dispatch's `is not { } m || m.Matches(...)` treats null as always-matching, so a
-    // second call through this overload has to actually null them out, not just skip setting new
-    // ones, to make "the second Configure() call overwrites" true regardless of which overload either
-    // call went through (Codex review, PR #106).
+    // zero-argument Configure(), regardless of real arity. ADR-0050: under multi-entry,
+    // this no longer needs to null out prior matchers to reproduce "last wins" - it just appends its
+    // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
+    // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
+    // argument-independent override behavior without mutating any earlier entry's state at all.
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Save(this global::TestNamespace_IRepository_e3198068_Double self)
     {
-        self.__Save_m_name = null;
-        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Save);
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Save_Entry();
+        lock (self.__Save_lock) { self.__Save_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
     public static global::Compono.ReturnConfigBuilder<int> Count(this global::TestNamespace_IRepository_e3198068_Double self) =>
@@ -135,11 +201,16 @@ internal static class TestNamespace_IRepository_e3198068_DoubleVerification
         return new(__count, "global::TestNamespace.IRepository.FindNameAsync");
     }
 
-    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
-    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
-    // reproducing v1/v2's exact argument-independent Verify() for this member.
-    public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
-        new(self.Instance.__FindNameAsync.ConfiguredCallCount, "global::TestNamespace.IRepository.FindNameAsync");
+    // Compatibility overload - ADR-0050: the removed single-slot field no longer
+    // tracks a call count at all (RecordCall() is gone from dispatch for this shape) - the call
+    // log's own Count, under its existing lock, is exactly the same number and is already
+    // maintained regardless of how many response entries exist.
+    public static global::Compono.CallVerifier FindNameAsync(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self)
+    {
+        int __count;
+        lock (self.Instance.__FindNameAsync_lock) { __count = self.Instance.__FindNameAsync_calls.Count; }
+        return new(__count, "global::TestNamespace.IRepository.FindNameAsync");
+    }
 
     public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<string> name)
     {
@@ -156,11 +227,16 @@ internal static class TestNamespace_IRepository_e3198068_DoubleVerification
         return new(__count, "global::TestNamespace.IRepository.Save");
     }
 
-    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
-    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
-    // reproducing v1/v2's exact argument-independent Verify() for this member.
-    public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
-        new(self.Instance.__Save.ConfiguredCallCount, "global::TestNamespace.IRepository.Save");
+    // Compatibility overload - ADR-0050: the removed single-slot field no longer
+    // tracks a call count at all (RecordCall() is gone from dispatch for this shape) - the call
+    // log's own Count, under its existing lock, is exactly the same number and is already
+    // maintained regardless of how many response entries exist.
+    public static global::Compono.CallVerifier Save(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self)
+    {
+        int __count;
+        lock (self.Instance.__Save_lock) { __count = self.Instance.__Save_calls.Count; }
+        return new(__count, "global::TestNamespace.IRepository.Save");
+    }
 
     public static global::Compono.CallVerifier Count(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
         new(self.Instance.__Count.ConfiguredCallCount, "global::TestNamespace.IRepository.Count");

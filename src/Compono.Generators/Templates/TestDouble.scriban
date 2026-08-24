@@ -8,13 +8,23 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_closed_instantiation_eligible ~}}
     internal sealed class {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>{{ member.constraint_clauses_text }}
     {
-        internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
 {{~ if member.closed_instantiation_has_matched_parameters ~}}
+        // ADR-0050: multi-entry response configuration composed inside ADR-0049's
+        // per-closed-T state - same Entry shape as the plain matching-eligible branch below, just
+        // nested one level deeper (per closed T instead of per member).
+        internal sealed class Entry
+        {
 {{~ for p in member.parameters ~}}
-        internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? Matcher_{{ p.original_name }};
+            internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? Matcher_{{ p.original_name }};
 {{~ end ~}}
+            internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
+        }
+
+        internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
         internal readonly global::System.Collections.Generic.List<{{ member.call_log_type_text }}> Calls = [];
         internal readonly object Lock = new();
+{{~ else ~}}
+        internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
 {{~ end ~}}
     }
 
@@ -33,15 +43,24 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             return ({{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>){{ member.boxed_local_name }};
         }
     }
-{{~ else if member.has_configuration_surface ~}}
+{{~ else if member.has_configuration_surface && !member.is_eligible_for_matching ~}}
     internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> {{ member.field_name }};
 {{~ end ~}}
 {{~ end ~}}
 {{~ for member in members ~}}
 {{~ if member.is_eligible_for_matching ~}}
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // {{ member.field_name }}/{{ member.field_name }}_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class {{ member.entry_class_name }}
+    {
 {{~ for p in member.parameters ~}}
-    internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? {{ member.field_name }}_m_{{ p.original_name }};
+        internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? Matcher_{{ p.original_name }};
 {{~ end ~}}
+        internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<{{ member.entry_class_name }}> {{ member.entries_field_name }} = [];
     internal readonly global::System.Collections.Generic.List<{{ member.call_log_type_text }}> {{ member.field_name }}_calls = [];
     internal readonly object {{ member.field_name }}_lock = new();
 {{~ end ~}}
@@ -57,21 +76,48 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {{ member.closed_instantiation_explicit_implementation_return_type }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         var {{ member.bucket_local_name }} = {{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
-        {{ member.bucket_local_name }}.Config.RecordCall();
 {{~ if member.closed_instantiation_has_matched_parameters ~}}
-        lock ({{ member.bucket_local_name }}.Lock) { {{ member.bucket_local_name }}.Calls.Add({{ member.call_log_construct_expression }}); }
-        var {{ member.matches_local_name }} = {{ for p in member.parameters }}({{ member.bucket_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }};
-        return {{ member.matches_local_name }} && {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
-            : {{ member.matches_local_name }} && {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
+        // (a short lock around Calls.Add() only, then an unlocked scan) let a concurrent
+        // Configure() call mutate List<T>'s backing array while dispatch was still iterating it.
+        // `return`/`throw` inside a C# `lock` block still releases the lock (the compiler emits
+        // the equivalent of try/finally), so returning directly from inside the block below is safe.
+        lock ({{ member.bucket_local_name }}.Lock)
+        {
+            {{ member.bucket_local_name }}.Calls.Add({{ member.call_log_construct_expression }});
+            for (var {{ member.entry_index_local_name }} = {{ member.bucket_local_name }}.Entries.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
+            {
+                var {{ member.entry_local_name }} = {{ member.bucket_local_name }}.Entries[{{ member.entry_index_local_name }}];
+                if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
+                }
+            }
+        }
+{{~ if member.is_configuration_required ~}}
+        throw new global::Compono.TestDoubleNotConfiguredException(
+            "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
 {{~ else ~}}
+        return {{ member.default_expression }};
+{{~ end ~}}
+{{~ else ~}}
+        {{ member.bucket_local_name }}.Config.RecordCall();
         return {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
             : {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
-{{~ end ~}}
 {{~ if member.is_configuration_required ~}}
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
 {{~ else ~}}
             : {{ member.default_expression }};
+{{~ end ~}}
 {{~ end ~}}
     }
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
@@ -81,25 +127,67 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_void ~}}
     void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
-        {{ member.field_name }}.RecordCall();
-        lock ({{ member.field_name }}_lock) { {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }}); }
-        var {{ member.matches_local_name }} = {{ for p in member.parameters }}({{ member.field_name }}_m_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }};
-        if ({{ member.matches_local_name }} && {{ member.field_name }}.HasConfiguredException)
-            throw {{ member.field_name }}.ConfiguredException;
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        lock ({{ member.field_name }}_lock)
+        {
+            {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }});
+            for (var {{ member.entry_index_local_name }} = {{ member.entries_field_name }}.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
+            {
+                var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
+                if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 {{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
-        {{ member.field_name }}.RecordCall();
-        lock ({{ member.field_name }}_lock) { {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }}); }
-        var {{ member.matches_local_name }} = {{ for p in member.parameters }}({{ member.field_name }}_m_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }};
-        return {{ member.matches_local_name }} && {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
-            : {{ member.matches_local_name }} && {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock ({{ member.field_name }}_lock)
+        {
+            {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }});
+            for (var {{ member.entry_index_local_name }} = {{ member.entries_field_name }}.Count - 1; {{ member.entry_index_local_name }} >= 0; {{ member.entry_index_local_name }}--)
+            {
+                var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
+                if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
+                }
+            }
+        }
 {{~ if member.is_configuration_required ~}}
-            : throw new global::Compono.TestDoubleNotConfiguredException(
-                "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
+        throw new global::Compono.TestDoubleNotConfiguredException(
+            "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
 {{~ else ~}}
-            : {{ member.default_expression }};
+        return {{ member.default_expression }};
 {{~ end ~}}
     }
 {{~ end ~}}
@@ -203,37 +291,48 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
 {{~ else ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
     {
+        // ADR-0050: appends a new entry rather than overwriting the (removed) single
+        // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
+        // list's backing array, since the ref targets the Entry object itself (heap-stable), not a
+        // slot inside the list's array. See spike report for the reallocation-hazard proof. The
+        // Add() itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5) - concurrent Configure() calls must not race each other or a concurrent
+        // in-progress dispatch scan while mutating the shared List<T>.
         var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+        var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>.Entry();
 {{~ for p in member.parameters ~}}
-        {{ member.bucket_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
+        {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.bucket_local_name }}.Config);
+        lock ({{ member.bucket_local_name }}.Lock) { {{ member.bucket_local_name }}.Entries.Add({{ member.entry_local_name }}); }
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
 {{~ end ~}}
 {{~ else if member.is_eligible_for_matching ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
+        // ADR-0050: appends a new entry - see the closed-instantiation Configure()
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
+        var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
 {{~ for p in member.parameters ~}}
-        {{ member.extension_receiver_name }}.{{ member.field_name }}_m_{{ p.original_name }} = {{ p.escaped_name }};
+        {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.extension_receiver_name }}.{{ member.field_name }});
+        lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
-    // zero-argument Configure(), regardless of real arity - a real existing call site
-    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Explicitly clearing every
-    // matcher field (not merely leaving them alone) is what makes this overload reproduce v1/v2's
-    // exact argument-independent behavior even on a double a prior Configure() call already gave
-    // matchers to - dispatch's `is not { } m || m.Matches(...)` treats null as always-matching, so a
-    // second call through this overload has to actually null them out, not just skip setting new
-    // ones, to make "the second Configure() call overwrites" true regardless of which overload either
-    // call went through (Codex review, PR #106).
+    // zero-argument Configure(), regardless of real arity. ADR-0050: under multi-entry,
+    // this no longer needs to null out prior matchers to reproduce "last wins" - it just appends its
+    // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
+    // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
+    // argument-independent override behavior without mutating any earlier entry's state at all.
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self)
     {
-{{~ for p in member.parameters ~}}
-        self.{{ member.field_name }}_m_{{ p.original_name }} = null;
-{{~ end ~}}
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }});
+        var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
+        lock (self.{{ member.field_name }}_lock) { self.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
 {{~ else if member.is_overloaded ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
@@ -309,11 +408,16 @@ internal static class {{ safe_identifier }}_DoubleVerification
         return new({{ member.count_local_name }}, "{{ member.member_description }}");
     }
 
-    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
-    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
-    // reproducing v1/v2's exact argument-independent Verify() for this member.
-    public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier self) =>
-        new(self.Instance.{{ member.field_name }}.ConfiguredCallCount, "{{ member.member_description }}");
+    // Compatibility overload - ADR-0050: the removed single-slot field no longer
+    // tracks a call count at all (RecordCall() is gone from dispatch for this shape) - the call
+    // log's own Count, under its existing lock, is exactly the same number and is already
+    // maintained regardless of how many response entries exist.
+    public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier self)
+    {
+        int {{ member.count_local_name }};
+        lock (self.Instance.{{ member.field_name }}_lock) { {{ member.count_local_name }} = self.Instance.{{ member.field_name }}_calls.Count; }
+        return new({{ member.count_local_name }}, "{{ member.member_description }}");
+    }
 {{~ else if member.is_overloaded ~}}
     public static global::Compono.CallVerifier {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
         new({{ member.extension_receiver_name }}.Instance.{{ member.field_name }}.ConfiguredCallCount, "{{ member.member_description }}");

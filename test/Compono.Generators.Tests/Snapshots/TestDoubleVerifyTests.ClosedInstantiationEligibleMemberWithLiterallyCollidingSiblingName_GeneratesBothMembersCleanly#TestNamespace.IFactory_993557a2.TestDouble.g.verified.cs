@@ -7,8 +7,16 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 {
     internal sealed class __Get_State<T> where T : class
     {
-        internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
-        internal global::Compono.Match<string>? Matcher_key;
+        // ADR-0050: multi-entry response configuration composed inside ADR-0049's
+        // per-closed-T state - same Entry shape as the plain matching-eligible branch below, just
+        // nested one level deeper (per closed T instead of per member).
+        internal sealed class Entry
+        {
+            internal global::Compono.Match<string>? Matcher_key;
+            internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
+        }
+
+        internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
         internal readonly global::System.Collections.Generic.List<string> Calls = [];
         internal readonly object Lock = new();
     }
@@ -34,12 +42,32 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(string key)
     {
         var __bucket = __Get_Bucket<T>();
-        __bucket.Config.RecordCall();
-        lock (__bucket.Lock) { __bucket.Calls.Add(key); }
-        var __matches = (__bucket.Matcher_key is not { } __m_key || __m_key.Matches(key));
-        return __matches && __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
-            : __matches && __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
-            : global::System.Threading.Tasks.Task.FromResult<T?>(default);
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
+        // (a short lock around Calls.Add() only, then an unlocked scan) let a concurrent
+        // Configure() call mutate List<T>'s backing array while dispatch was still iterating it.
+        // `return`/`throw` inside a C# `lock` block still releases the lock (the compiler emits
+        // the equivalent of try/finally), so returning directly from inside the block below is safe.
+        lock (__bucket.Lock)
+        {
+            __bucket.Calls.Add(key);
+            for (var __i = __bucket.Entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __bucket.Entries[__i];
+                if ((__entry.Matcher_key is not { } __m_key || __m_key.Matches(key)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                }
+            }
+        }
+        return global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
 #pragma warning restore CS8603, CS8616, CS8619
 
@@ -59,9 +87,18 @@ internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<string> key) where T : class
     {
+        // ADR-0050: appends a new entry rather than overwriting the (removed) single
+        // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
+        // list's backing array, since the ref targets the Entry object itself (heap-stable), not a
+        // slot inside the list's array. See spike report for the reallocation-hazard proof. The
+        // Add() itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5) - concurrent Configure() calls must not race each other or a concurrent
+        // in-progress dispatch scan while mutating the shared List<T>.
         var __bucket = __self.__Get_Bucket<T>();
-        __bucket.Matcher_key = key;
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __bucket.Config);
+        var __entry = new global::TestNamespace_IFactory_993557a2_Double.__Get_State<T>.Entry();
+        __entry.Matcher_key = key;
+        lock (__bucket.Lock) { __bucket.Entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __entry.Config);
     }
 
     public static global::Compono.ReturnConfigBuilder<string?> Get_calls(this global::TestNamespace_IFactory_993557a2_Double self) =>

@@ -5,8 +5,16 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Seek;
-    internal global::Compono.Match<int>? __Seek_m_value;
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Seek/__Seek_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Seek_Entry
+    {
+        internal global::Compono.Match<int>? Matcher_value;
+        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__Seek_Entry> __Seek_entries = [];
     internal readonly global::System.Collections.Generic.List<int> __Seek_calls = [];
     internal readonly object __Seek_lock = new();
 
@@ -16,11 +24,34 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IRepository.Seek(int value)
     {
-        __Seek.RecordCall();
-        lock (__Seek_lock) { __Seek_calls.Add(value); }
-        var __matches = (__Seek_m_value is not { } __m_value || __m_value.Matches(value));
-        if (__matches && __Seek.HasConfiguredException)
-            throw __Seek.ConfiguredException;
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        lock (__Seek_lock)
+        {
+            __Seek_calls.Add(value);
+            for (var __i = __Seek_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __Seek_entries[__i];
+                if ((__entry.Matcher_value is not { } __m_value || __m_value.Matches(value)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 }
 
@@ -28,23 +59,27 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> value)
     {
-        __self.__Seek_m_value = value;
-        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Seek);
+        // ADR-0050: appends a new entry - see the closed-instantiation Configure()
+        // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
+        // itself is under the same member lock dispatch scans under (Codex review, PR #108
+        // round 5).
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Seek_Entry();
+        __entry.Matcher_value = value;
+        lock (__self.__Seek_lock) { __self.__Seek_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
-    // zero-argument Configure(), regardless of real arity - a real existing call site
-    // (Compono.TestDoubles.SampleTests' Save(int) usage) still uses it. Explicitly clearing every
-    // matcher field (not merely leaving them alone) is what makes this overload reproduce v1/v2's
-    // exact argument-independent behavior even on a double a prior Configure() call already gave
-    // matchers to - dispatch's `is not { } m || m.Matches(...)` treats null as always-matching, so a
-    // second call through this overload has to actually null them out, not just skip setting new
-    // ones, to make "the second Configure() call overwrites" true regardless of which overload either
-    // call went through (Codex review, PR #106).
+    // zero-argument Configure(), regardless of real arity. ADR-0050: under multi-entry,
+    // this no longer needs to null out prior matchers to reproduce "last wins" - it just appends its
+    // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
+    // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
+    // argument-independent override behavior without mutating any earlier entry's state at all.
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self)
     {
-        self.__Seek_m_value = null;
-        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Seek);
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Seek_Entry();
+        lock (self.__Seek_lock) { self.__Seek_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
 }
@@ -84,11 +119,16 @@ internal static class TestNamespace_IRepository_e3198068_DoubleVerification
         return new(__count, "global::TestNamespace.IRepository.Seek");
     }
 
-    // Compatibility overload - same reasoning as DoubleConfiguration's zero-argument sibling above:
-    // reuses the still-maintained, unfiltered ConfiguredCallCount rather than walking the call log,
-    // reproducing v1/v2's exact argument-independent Verify() for this member.
-    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self) =>
-        new(self.Instance.__Seek.ConfiguredCallCount, "global::TestNamespace.IRepository.Seek");
+    // Compatibility overload - ADR-0050: the removed single-slot field no longer
+    // tracks a call count at all (RecordCall() is gone from dispatch for this shape) - the call
+    // log's own Count, under its existing lock, is exactly the same number and is already
+    // maintained regardless of how many response entries exist.
+    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self)
+    {
+        int __count;
+        lock (self.Instance.__Seek_lock) { __count = self.Instance.__Seek_calls.Count; }
+        return new(__count, "global::TestNamespace.IRepository.Seek");
+    }
 
 }
 

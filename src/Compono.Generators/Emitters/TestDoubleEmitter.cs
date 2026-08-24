@@ -87,6 +87,11 @@ internal static class TestDoubleEmitter
                 // synthetic local's precedent above.
                 var boxedLocalName = SafeLocalName("__boxed", new[] { closedInstantiationTypeParameterName });
 
+                // ADR-0050: multi-entry response configuration - the reverse-scan loop's
+                // own locals, same collision-safe allocation as every other synthetic local above.
+                var entryLocalName = SafeLocalName("__entry", parameterEscapedNames.Append(matchesLocalName));
+                var entryIndexLocalName = SafeLocalName("__i", parameterEscapedNames.Append(entryLocalName));
+
                 return new
                 {
                     m.FieldName,
@@ -161,6 +166,10 @@ internal static class TestDoubleEmitter
                         closedInstantiationExplicitImplementationReturnType != m.ReturnTypeFullyQualifiedName,
                     BucketLocalName = bucketLocalName,
                     BoxedLocalName = boxedLocalName,
+                    EntryClassName = m.EntryClassName,
+                    EntriesFieldName = m.EntriesFieldName,
+                    EntryLocalName = entryLocalName,
+                    EntryIndexLocalName = entryIndexLocalName,
                     Parameters = m.Parameters
                         .Select((p, i) => new
                         {

@@ -119,6 +119,30 @@ compiles and runs in a real consuming project. `tasks/implement.md` and
 recent plan Notes entries (e.g. Phase 2/Phase 3 in
 `docs/plans/0001-...md`) show this pattern in detail.
 
+### Consumer/dogfood validation gate
+
+For a `Compono.TestDoubles`/`Compono.Generators` change with a live dogfood
+consumer (currently `ncipollina/trivia-platform`), **Compono's own tests
+being green is necessary but not sufficient.** Verification requires all
+of:
+
+1. `dotnet build`/`dotnet test` green in this repo.
+2. `scripts/dogfood-validate.sh` green — packs the current working tree
+   under a unique local prerelease version, restores the consumer against
+   it (via a temporary `Directory.Packages.props` override, never editing
+   the consumer's real file), asserts the consumer actually resolved that
+   exact version (not a stale cache hit), and runs the consumer's full
+   test suite.
+
+Both must be repeated after every substantive PR feedback change — a
+consumer run performed before the latest code change does not validate the
+revised code; running it once at PR-open time and treating that as
+standing proof for later revisions is not sufficient. This is a
+development/PR-validation discipline, not a GitHub Actions requirement —
+see `scripts/dogfood-validate.sh --help` for usage and
+`docs/research/0008-trivia-platform-multi-entry-testdoubles-dogfood.md` for
+the dogfood pass that established this gate.
+
 ## Generated code
 
 What `Compono.Generators` emits into a consumer's compilation follows its
