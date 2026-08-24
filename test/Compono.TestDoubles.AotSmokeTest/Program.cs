@@ -75,6 +75,26 @@ internal interface IAccountRepository
     bool Withdraw(string accountId, decimal amount, bool overdraftAllowed);
 }
 
+// PLAN-0049: a generic method whose return type depends on its own type parameter - the exact
+// closed-instantiation-eligible shape ADR-0049 adds (real trivia-platform GetContextDataAsync<T>
+// shape), exercised through the real generator under Native AOT this time, not the hand-written
+// spike ADR-0049's own design pass proved before this ADR was drafted. GetContextDataAsync<T> (Task<T?>,
+// nullable) and GetRequiredDataAsync<T> (Task<T>, non-nullable) mirror that spike's own two-member
+// shape, proving both ADR-0045 dispatch branches (deterministic-default, configuration-required)
+// compose correctly with the new bucket mechanism through real generated code. Match.Any/Match.Is
+// argument-aware Configure()/Verify() (ADR-0048 reuse) and two independent closed T's on the same
+// double instance are both exercised below.
+internal interface IReproContextManager
+{
+    Task<T?> GetContextDataAsync<T>(string key) where T : class;
+
+    Task<T> GetRequiredDataAsync<T>(string key) where T : class;
+}
+
+internal sealed record ReproUserContext(string Sub);
+
+internal sealed record ReproUpsellPayload(string ProductId);
+
 internal static class Program
 {
     private static async Task<int> Main()
@@ -191,16 +211,60 @@ internal static class Program
                 .Once();
             accountRepository.Verify().Withdraw().Exactly(3);
 
+            // PLAN-0049: real generated (not hand-written) closed-instantiation-eligible members
+            // under Native AOT - two closed T's on GetContextDataAsync<T> independently configured
+            // and verified, the deterministic-default branch (unconfigured Task<T?> returns null,
+            // never leaking the other closed T's configured value), and the configuration-required
+            // branch (unconfigured Task<T> throws) on GetRequiredDataAsync<T>, all through the same
+            // double instance.
+            var contextManager = composer.Create<IReproContextManager>();
+            var user = new ReproUserContext("sub-1");
+            var payload = new ReproUpsellPayload("prod-1");
+
+            contextManager.Configure().GetContextDataAsync<ReproUserContext>(Match.Any<string>())
+                .Returns(Task.FromResult<ReproUserContext?>(user));
+            contextManager.Configure().GetContextDataAsync<ReproUpsellPayload>(Match.Is<string>(key => key == "upsell"))
+                .Returns(Task.FromResult<ReproUpsellPayload?>(payload));
+
+            var resolvedUser = await contextManager.GetContextDataAsync<ReproUserContext>("user");
+            var resolvedPayload = await contextManager.GetContextDataAsync<ReproUpsellPayload>("upsell");
+            var resolvedPayloadWrongKey = await contextManager.GetContextDataAsync<ReproUpsellPayload>("not-upsell");
+
+            if (!ReferenceEquals(resolvedUser, user))
+                throw new InvalidOperationException("Expected GetContextDataAsync<ReproUserContext>('user') to return the configured user instance.");
+
+            if (!ReferenceEquals(resolvedPayload, payload))
+                throw new InvalidOperationException("Expected GetContextDataAsync<ReproUpsellPayload>('upsell') to return the configured payload instance.");
+
+            if (resolvedPayloadWrongKey is not null)
+                throw new InvalidOperationException("Expected a non-matching key to fall through to the deterministic default (null), not the configured value.");
+
+            contextManager.Verify().GetContextDataAsync<ReproUserContext>(Match.Any<string>()).Once();
+            contextManager.Verify().GetContextDataAsync<ReproUpsellPayload>(Match.Any<string>()).Exactly(2);
+
+            var unconfiguredRequiredMethod = () => contextManager.GetRequiredDataAsync<ReproUserContext>("user");
+            if (!await ThrowsNotConfiguredAsync(unconfiguredRequiredMethod))
+                throw new InvalidOperationException("Expected unconfigured GetRequiredDataAsync<ReproUserContext>('user') to throw TestDoubleNotConfiguredException.");
+
+            contextManager.Configure().GetRequiredDataAsync<ReproUserContext>(Match.Any<string>()).Returns(Task.FromResult(user));
+            var requiredUser = await contextManager.GetRequiredDataAsync<ReproUserContext>("user");
+
+            if (!ReferenceEquals(requiredUser, user))
+                throw new InvalidOperationException("Expected GetRequiredDataAsync<ReproUserContext>('user') to return the configured user instance once configured.");
+
             Console.WriteLine(
                 $"PASS: generated doubles (composer.Create<T>() + UseGeneratedTestDoubles(), full " +
                 $"base-interface closure, overloaded member, generic method, call verification, " +
                 $"configuration-required sync method/property/Task<T> method both unconfigured-throws " +
                 $"and configured, a leaf interface whose base declares a static abstract member " +
                 $"already resolved by the leaf itself, argument-matched Configure()/argument-filtered " +
-                $"Verify() via Match<T>) survived Native AOT - CountAsync()={count}, " +
+                $"Verify() via Match<T>, and a closed-instantiation-eligible generic-return member " +
+                $"(PLAN-0049) with two independently-configured closed T's and both ADR-0045 dispatch " +
+                $"branches) survived Native AOT - CountAsync()={count}, " +
                 $"UtcNow={utcNow}, GetName()={name}, Description={description}, " +
                 $"GetNameAsync()={asyncName}, static-abstract-base GetName()={staticAbstractBaseName}, " +
-                $"Withdraw matching={matchingCall}.");
+                $"Withdraw matching={matchingCall}, GetContextDataAsync<ReproUserContext>()={resolvedUser}, " +
+                $"GetRequiredDataAsync<ReproUserContext>()={requiredUser}.");
             return 0;
         }
         catch (Exception ex)

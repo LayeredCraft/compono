@@ -5,7 +5,35 @@
 internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualified_name }}
 {
 {{~ for member in members ~}}
-{{~ if member.has_configuration_surface ~}}
+{{~ if member.is_closed_instantiation_eligible ~}}
+    internal sealed class {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>{{ member.constraint_clauses_text }}
+    {
+        internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
+{{~ if member.closed_instantiation_has_matched_parameters ~}}
+{{~ for p in member.parameters ~}}
+        internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? Matcher_{{ p.original_name }};
+{{~ end ~}}
+        internal readonly global::System.Collections.Generic.List<{{ member.call_log_type_text }}> Calls = [];
+        internal readonly object Lock = new();
+{{~ end ~}}
+    }
+
+    internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> {{ member.closed_instantiation_bucket_field_name }} = new();
+
+    internal {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}> {{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>(){{ member.constraint_clauses_text }}
+    {
+        lock ({{ member.closed_instantiation_bucket_field_name }})
+        {
+            if (!{{ member.closed_instantiation_bucket_field_name }}.TryGetValue(typeof({{ member.closed_instantiation_type_parameter_name }}), out var {{ member.boxed_local_name }}))
+            {
+                {{ member.boxed_local_name }} = new {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+                {{ member.closed_instantiation_bucket_field_name }}[typeof({{ member.closed_instantiation_type_parameter_name }})] = {{ member.boxed_local_name }};
+            }
+
+            return ({{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>){{ member.boxed_local_name }};
+        }
+    }
+{{~ else if member.has_configuration_surface ~}}
     internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> {{ member.field_name }};
 {{~ end ~}}
 {{~ end ~}}
@@ -22,7 +50,34 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 
 {{~ if member.kind == "Method" ~}}
 {{~ if member.has_configuration_surface ~}}
-{{~ if member.is_eligible_for_matching ~}}
+{{~ if member.is_closed_instantiation_eligible ~}}
+{{~ if member.closed_instantiation_needs_nullable_suppression ~}}
+#pragma warning disable CS8603, CS8616, CS8619
+{{~ end ~}}
+    {{ member.closed_instantiation_explicit_implementation_return_type }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    {
+        var {{ member.bucket_local_name }} = {{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+        {{ member.bucket_local_name }}.Config.RecordCall();
+{{~ if member.closed_instantiation_has_matched_parameters ~}}
+        lock ({{ member.bucket_local_name }}.Lock) { {{ member.bucket_local_name }}.Calls.Add({{ member.call_log_construct_expression }}); }
+        var {{ member.matches_local_name }} = {{ for p in member.parameters }}({{ member.bucket_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }};
+        return {{ member.matches_local_name }} && {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
+            : {{ member.matches_local_name }} && {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
+{{~ else ~}}
+        return {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
+            : {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
+{{~ end ~}}
+{{~ if member.is_configuration_required ~}}
+            : throw new global::Compono.TestDoubleNotConfiguredException(
+                "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
+{{~ else ~}}
+            : {{ member.default_expression }};
+{{~ end ~}}
+    }
+{{~ if member.closed_instantiation_needs_nullable_suppression ~}}
+#pragma warning restore CS8603, CS8616, CS8619
+{{~ end ~}}
+{{~ else if member.is_eligible_for_matching ~}}
 {{~ if member.is_void ~}}
     void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
@@ -70,7 +125,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     }
 {{~ end ~}}
 {{~ else ~}}
-    {{ if member.is_void }}void{{ else }}{{ member.return_type_fully_qualified_name }}{{ end }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+{{~ if member.closed_instantiation_needs_nullable_suppression ~}}
+#pragma warning disable CS8603, CS8616, CS8619
+{{~ end ~}}
+    {{ if member.is_void }}void{{ else if member.closed_instantiation_needs_nullable_suppression }}{{ member.closed_instantiation_explicit_implementation_return_type }}{{ else }}{{ member.return_type_fully_qualified_name }}{{ end }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
 {{~ for assignment in member.out_parameter_assignments ~}}
         {{ assignment }}
@@ -79,6 +137,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         return {{ member.default_expression }};
 {{~ end ~}}
     }
+{{~ if member.closed_instantiation_needs_nullable_suppression ~}}
+#pragma warning restore CS8603, CS8616, CS8619
+{{~ end ~}}
 {{~ end ~}}
 {{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}
@@ -126,7 +187,30 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
 {
 {{~ for member in members ~}}
 {{~ if member.has_configuration_surface ~}}
-{{~ if member.is_eligible_for_matching ~}}
+{{~ if member.is_closed_instantiation_eligible ~}}
+{{~ if !member.closed_instantiation_has_parameters ~}}
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}){{ member.constraint_clauses_text }}
+    {
+        var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.bucket_local_name }}.Config);
+    }
+{{~ else if member.is_overloaded ~}}
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.bucket_local_name }}.Config);
+    }
+{{~ else ~}}
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+{{~ for p in member.parameters ~}}
+        {{ member.bucket_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
+{{~ end ~}}
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.bucket_local_name }}.Config);
+    }
+{{~ end ~}}
+{{~ else if member.is_eligible_for_matching ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
 {{~ for p in member.parameters ~}}
@@ -185,7 +269,31 @@ internal static class {{ safe_identifier }}_DoubleVerification
 {
 {{~ for member in members ~}}
 {{~ if member.has_configuration_surface ~}}
-{{~ if member.is_eligible_for_matching ~}}
+{{~ if member.is_closed_instantiation_eligible ~}}
+{{~ if !member.closed_instantiation_has_parameters ~}}
+    public static global::Compono.CallVerifier {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}){{ member.constraint_clauses_text }} =>
+        new({{ member.extension_receiver_name }}.Instance.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>().Config.ConfiguredCallCount, "{{ member.member_description }}");
+{{~ else if member.is_overloaded ~}}
+    public static global::Compono.CallVerifier {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
+        new({{ member.extension_receiver_name }}.Instance.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>().Config.ConfiguredCallCount, "{{ member.member_description }}");
+{{~ else ~}}
+    public static global::Compono.CallVerifier {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.Instance.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
+        int {{ member.count_local_name }};
+        lock ({{ member.bucket_local_name }}.Lock)
+        {
+            {{ member.count_local_name }} = 0;
+            foreach (var {{ member.call_loop_variable_name }} in {{ member.bucket_local_name }}.Calls)
+            {
+                if ({{ for p in member.parameters }}{{ p.escaped_name }}.Matches({{ p.call_log_access_expression }}){{ if !for.last }} && {{ end }}{{ end }})
+                    {{ member.count_local_name }}++;
+            }
+        }
+        return new({{ member.count_local_name }}, "{{ member.member_description }}");
+    }
+{{~ end ~}}
+{{~ else if member.is_eligible_for_matching ~}}
     public static global::Compono.CallVerifier {{ member.escaped_name }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
         int {{ member.count_local_name }};

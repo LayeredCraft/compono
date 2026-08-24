@@ -2522,12 +2522,844 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
-    // ADR-0044 Requirement 2 / Amendment 13: a generic method whose return type references its own
-    // type parameter has no constructible body at any granularity - diagnosed and excluded, whole
-    // interface falls back to the runtime-provider path.
+    // ADR-0044 Requirement 2 / Amendment 13, ADR-0049: a generic method whose return type references
+    // its own type parameter has no constructible body at any granularity - diagnosed and excluded,
+    // whole interface falls back to the runtime-provider path - UNLESS it matches ADR-0049's
+    // narrower closed-instantiation-eligible shape (exactly T, or the sole type argument of
+    // Task<T>/ValueTask<T>, for a single method-type-parameter - see the
+    // ClosedInstantiationEligible* tests below). T nested deeper (here, inside a List<T> inside a
+    // Task<T>) is exactly the shape ADR-0049's own "Scope boundary" left out of scope, unevidenced -
+    // this fixture was the original PLAN-0044-era `T Create<T>()` case, moved to this deeper-nesting
+    // shape once ADR-0049 made the plain `T Create<T>()` case itself succeed (see
+    // ClosedInstantiationEligibleSoloMember_GeneratesDoubleWithGenericConfigurationExtension below).
     [Fact]
-    public Task GenericMethodWithReturnTypeDependentOnOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+    public Task GenericMethodWithReturnTypeNestedDeeperThanOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
         GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<System.Collections.Generic.List<T>> CreateMany<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0049's "Scope boundary": a self-referencing return with more than one method-type-parameter
+    // stays whole-interface-rejected, unevidenced - IConversationalContextManager's real
+    // GetContextDataAsync<T> has exactly one.
+    [Fact]
+    public Task MultiTypeParameterGenericMethodWithReturnTypeDependentOnOwnTypeParameter_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        TResult Get<TKey, TResult>(TKey key);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107: a type parameter declared `where T : allows ref struct` (C# 13's
+    // ref-like-capable anti-constraint) otherwise matches ADR-0049's closed-instantiation-eligible
+    // return shape (T itself), but the generated state class's ReturnConfig<T>/ReturnConfigBuilder<T>
+    // fields (Compono's existing, unmodified runtime types) declare no `allows ref struct` on their
+    // own T - a real caller closing this method's T over an actual ref struct would fail to compile
+    // with CS9244 inside generated code instead of getting the clean CMP0031 whole-interface-fallback
+    // diagnostic every other unsupported shape gets. Excluded at the source
+    // (IsClosedInstantiationEligibleReturnShape), so it falls back to whole-interface rejection
+    // exactly like every other no-constructible-body shape.
+    [Fact]
+    public Task GenericMethodWithRefStructCapableTypeParameterReturningItself_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T Create<T>() where T : allows ref struct;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 4): the BCL Task<T>/ValueTask<T> shape check only compared
+    // ContainingNamespace + simple Name, never ContainingType - a consumer's own nested type also
+    // named "Task<T>", declared inside some other type living in the "System.Threading.Tasks"
+    // namespace, shares both of those with the real BCL Task<T> (a namespace is the same regardless
+    // of nesting depth) and was misclassified as the supported shape. Downstream, TestDoubleDefaults
+    // would then emit a real global::System.Threading.Tasks.Task.FromResult<T>(...) default-value
+    // expression for a member whose actual declared return type is this unrelated nested type - a
+    // real type-mismatch compile error in generated code. Fixed by also requiring ContainingType is
+    // null (the real BCL Task<T>/ValueTask<T> are always top-level). VerifyFailure proves the fake
+    // nested Task<T> now correctly falls back to whole-interface CMP0031, not broken generated code.
+    [Fact]
+    public Task GenericMethodReturningNestedTypeNamedLikeBclTask_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace System.Threading.Tasks
+                    {
+                        public sealed class Container
+                        {
+                            public sealed class Task<T>
+                            {
+                            }
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public interface IFactory
+                        {
+                            System.Threading.Tasks.Container.Task<T?> Get<T>() where T : class;
+                        }
+
+                        public sealed class OrderService
+                        {
+                            public OrderService(IFactory factory) { }
+                        }
+
+                        public static class EntryPoint
+                        {
+                            public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 5, finding 1, P1): TestDoubleDefaults' ValueTask<T> default-value
+    // expression used `new ValueTask<TResult>(inner)`, and ValueTask<TResult> has TWO constructors -
+    // (TResult result) and (Task<TResult> task) - both of which the bare `default` literal converts
+    // to with no better-conversion tie-breaker, a real CS0121 ambiguous-call compiler error. This was
+    // a latent, pre-existing bug in TestDoubleDefaults.cs itself (reachable by ANY defaultable
+    // ValueTask<T> member, not just a closed-instantiation-eligible one), never actually exercised by
+    // an existing test until ADR-0049 made ValueTask<T>/ValueTask<T?> the return type of a
+    // self-referencing generic member for the first time. Fixed by switching to the unambiguous
+    // static ValueTask.FromResult<TResult>(TResult) factory (mirrors the Task<T> branch's own,
+    // already-unambiguous Task.FromResult<T>(...) shape). Verify proves the real generated code
+    // compiles - the actual check that would have caught this.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberReturningNullableValueTask_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IFactory
+                {
+                    System.Threading.Tasks.ValueTask<T?> Get<T>() where T : class;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IFactory factory) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IFactory factory)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        factory.Configure().Get<string>().Returns(new System.Threading.Tasks.ValueTask<string?>("Ada"));
+
+                        var value = await factory.Get<string>();
+
+                        factory.Verify().Get<string>().Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 5, finding 2): round 4's "ContainingType is null" fix only ruled
+    // out a NESTED impostor sharing the BCL Task<T>'s namespace/simple-name - it didn't cover a
+    // genuinely TOP-LEVEL consumer type reopening the exact same "System.Threading.Tasks" namespace
+    // with their own "Task<T>" (legal C# - a source-declared type is even permitted to shadow an
+    // imported one of the identical fully-qualified name, CS0436, a warning not an error).
+    // ContainingType is null for a top-level type regardless of which assembly/source declares it, so
+    // that check alone can't distinguish the two. An interim fix comparing symbol identity via the
+    // simpler, singular Compilation.GetTypeByMetadataName looked plausible but was PROVEN WRONG by
+    // this very test: GetTypeByMetadataName follows the same "source wins" rule as ordinary C# name
+    // resolution (CS0436) rather than returning null for the ambiguity, so it silently returned the
+    // consumer's own shadow type - the fix appeared to do nothing, and this test (run as Verify(),
+    // not VerifyFailure(), specifically to force a real recompile) caught a genuine CS0029 in the
+    // generated code before the real fix was found. TaskWellKnownTypes now resolves the real,
+    // externally-referenced BCL type via GetTypesByMetadataName (plural) filtered to exclude any
+    // candidate declared in the current compilation's own assembly - the interface's own declared
+    // return type still resolves to the shadow (per the same source-wins rule), so the identity
+    // comparison now correctly fails, and this member falls back to whole-interface CMP0031.
+    [Fact]
+    public Task GenericMethodReturningTopLevelTypeShadowingBclTaskNamespace_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace System.Threading.Tasks
+                    {
+                        public sealed class Task<T>
+                        {
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public interface IFactory
+                        {
+                            System.Threading.Tasks.Task<T?> Get<T>() where T : class;
+                        }
+
+                        public sealed class OrderService
+                        {
+                            public OrderService(IFactory factory) { }
+                        }
+
+                        public static class EntryPoint
+                        {
+                            public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 6, finding 1): the generated state class's own type parameter can't
+    // be renamed away from the real method's type parameter identifier - it's baked verbatim into
+    // every pre-rendered type-string this candidate's slot/parameter types already use (Roslyn's own
+    // ToDisplayString, not a name this code chooses). So when the consumer's own type parameter is
+    // literally named the same as this file's derived state-class name ("__Get_State" for a member
+    // named "Get"), the generated `class __Get_State<__Get_State>` is CS0694 ("type parameter has the
+    // same name as the type"), a real compiler error. Fixed by reserving the candidate's own type
+    // parameter name as an already-taken literal field name before the derived-name collision check
+    // runs, routing this through the same collision detection every other derived name in this file
+    // already uses - falls back to whole-interface CMP0031, not a new exclusion mechanism.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeGeneratedStateClass_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        __Get_State Get<__Get_State>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 8, finding 1): fresh evidence beyond the earlier state-class-name
+    // self-collision fix - a generic method's own name colliding with its own type parameter is
+    // CS0694 too, not just a type's. For `__Get_Bucket Get<__Get_Bucket>()`, the consumer's own type
+    // parameter matches this file's derived BUCKET METHOD name (not the state class name), producing
+    // `internal __Get_State<__Get_Bucket> __Get_Bucket<__Get_Bucket>()` - a method sharing its own
+    // name with its own type parameter. Fixed by extending the same self-scoped collision check to
+    // also cover the bucket method's derived name, not just the state class's.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeGeneratedBucketMethod_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        __Get_Bucket Get<__Get_Bucket>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 8, finding 2): `Task<T?> Get<T>() where T : struct` reports
+    // CMP0031, not the closed-instantiation surface - for a value-type T, C# represents `T?` as the
+    // distinct generic type System.Nullable<T>, not as T with a nullable annotation (annotations only
+    // apply to reference types), so the eligibility check's direct symbol-equality comparison against
+    // the method's own T never matches. This is NOT a bug: every real trivia-platform evidence this
+    // ADR cites is `where T : class`, and recognizing Nullable<T> would be new, unevidenced capability
+    // per ADR-0029's discipline, not a fix to the shape actually designed and spiked. Classified as a
+    // named, out-of-scope shape (ADR-0049 Amendment 1) rather than silently left unexplained - this
+    // test documents and locks in the current, correct, safe fallback behavior.
+    [Fact]
+    public Task ClosedInstantiationShapedMemberWithValueTypeConstrainedNullableReturn_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<T?> Get<T>() where T : struct;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 9, finding 1): the bucket lookup method's own local variable name
+    // was hardcoded as "boxed" directly in the scriban template, never reserved collision-safely. For
+    // `T Create<boxed>()`, the generated bucket method's own type parameter is ALSO literally "boxed" -
+    // `out var boxed` inside a method whose own type parameter is "boxed" is CS0412. Fixed by computing
+    // this local's name in the emitter (SafeLocalName, reserved against the method's own type
+    // parameter), matching every other synthetic local's precedent. Verify (full recompile) proves the
+    // generated code actually compiles.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeBoxedLocal_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        boxed Create<boxed>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Create<string>().Returns("Ada");
+
+                            var value = factory.Create<string>();
+
+                            factory.Verify().Create<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 9, finding 2): `Task<T?> Get<T>()` with an UNCONSTRAINED T reported
+    // the full closed-instantiation surface instead of CMP0031 - unlike a value-type-constrained T?
+    // (Roslyn represents that as the distinct type System.Nullable<T>, already correctly rejected),
+    // unconstrained T? stays the SAME symbol T with a nullable annotation, which
+    // SymbolEqualityComparer.Default ignores - so the equality check passed even though ADR-0049
+    // Amendment 1 (and the docs corrected in round 8) require `where T : class` for any T? shape. Not
+    // evidenced - every real trivia-platform call site is `where T : class`. Fixed by requiring
+    // HasReferenceTypeConstraint whenever the matched position is nullable-annotated.
+    [Fact]
+    public Task ClosedInstantiationShapedMemberWithUnconstrainedNullableReturn_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<T?> Get<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 9, finding 3): the OLD ADR-0048 derivedAuxiliaryNameOwners pre-pass
+    // (over-approximate by design - reserves names regardless of eventual eligibility) didn't exclude
+    // a generic method whose own real parameter references its own type parameter (`void M<T>(T x)`) -
+    // categorically ineligible for ADR-0048 matching, so it will NEVER emit ANY _m_{param} field, for
+    // ANY parameter. Here, `void M<T>(T x_State)`'s phantom reservation "__M_m_x_State" (derived from
+    // the never-emitted matcher field for a parameter merely named "x_State") exactly matched an
+    // UNRELATED closed-instantiation-eligible member `U M_m_x<U>()`'s own real, actually-emitted
+    // derived state-class name ("__M_m_x_State") - a false collision that rejected the whole interface
+    // even though the two members' generated names never actually conflict. Fixed by excluding a
+    // self-referencing-parameter generic method from this pre-pass entirely. Verify (full recompile)
+    // proves both members generate real, independently-working surfaces.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithPhantomAuxiliaryNameCollision_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        U M_m_x<U>();
+
+                        void M<T>(T x_State);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().M_m_x<string>().Returns("Ada");
+
+                            var value = factory.M_m_x<string>();
+                            factory.M(5);
+
+                            factory.Verify().M_m_x<string>().Once();
+                            factory.Verify().M().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 10, finding 1): the self-scoped CS0694 collision check (rounds 6-9)
+    // only compared the consumer's type parameter against the derived state-class/bucket-method NAMES
+    // - not the state class's own MEMBER names. `Config Create<Config>()`'s type parameter matches the
+    // state class's own "Config" field literally (`internal ReturnConfig<Config> Config;` inside
+    // `class __Create_State<Config>`), a real declaration collision. Fixed by extending the same self-
+    // scoped check to also cover "Config" (always emitted) and, when the candidate has real parameters
+    // and isn't overloaded, "Calls"/"Lock"/"Matcher_{param}" (only emitted in that shape).
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithTypeParameterNamedLikeStateClassMember_ReportsUnsupportedGenericReturnShapeDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        Config Create<Config>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0031",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 10, finding 2): `T ToString<T>() where T : class` reported CMP0025
+    // (object-member collision), not the closed-instantiation surface. A separate, HOISTED copy of the
+    // object-collision check (evaluated before hasConfigurationSurface/defaultExpression, specifically
+    // so a member with no deterministic default is still diagnosed correctly) only exempted an
+    // overloaded generic member from the "solo member's extension is zero-arity, non-generic" object-
+    // collision assumption - never a solo closed-instantiation-eligible one, even though its own
+    // Configure<T>()/Verify<T>() extension is genuinely generic and distinguishable from
+    // object.ToString(), matching the reasoning the later, already-correct exemption already used.
+    // Fixed by mirroring that later exemption's shape in this hoisted copy too. VerifyWithInfoDiagnostic
+    // (full recompile) proves the generated code actually compiles, calling the interface's own generic
+    // ToString<T>() via an explicit type argument.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberNamedLikeObjectToString_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T ToString<T>() where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().ToString<string>().Returns("Ada");
+
+                            var value = factory.ToString<string>();
+
+                            factory.Verify().ToString<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 11): the direct (non-Task/ValueTask-wrapped) `T? Get<T>() where T :
+    // class` shape strips the `?` for the explicit implementation's declared return type (T, not T?),
+    // per the round-1 CS9334/CS0453 fix - but its fallback dispatch expression is the bare `default`
+    // literal, i.e. null, returned from a method now declared to return non-nullable T. That's a real
+    // CS8603 ("possible null reference return") the existing CS8616/CS8619 pragma never covered - those
+    // two only suppress signature/generic-argument nullability mismatches, not a direct return-statement
+    // analysis. A consumer building with warnings-as-errors couldn't compile this advertised-supported
+    // shape. Fixed by adding CS8603 to both pragma disable/restore pairs in the template.
+    // VerifyWithNoWarnings recompiles and asserts none of the three warning codes appear anywhere in the
+    // output, at any severity - the check Verify/VerifyWithInfoDiagnostic's own Error-only filter would
+    // never have caught.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithDirectNullableReturn_GeneratesDoubleWithNoNullableWarnings() =>
+        GeneratorTestHelpers.VerifyWithNoWarnings(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T? Get<T>() where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+
+                            var value = factory.Get<string>();
+
+                            factory.Verify().Get<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            new[] { "CS8603", "CS8616", "CS8619" },
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 12, finding 1): the EARLY blanket usedFieldNames reservation pass
+    // (`__{candidate.Name}` for every non-overloaded eligible candidate) never checked
+    // WouldGetConfigurationSurface, unlike every other pass in this file - so a DIAMOND-COLLIDING
+    // member (two base interfaces both declaring `string? Get_State()`, no configuration surface, no
+    // field ever emitted under any name) still reserved "__Get_State". An unrelated closed-
+    // instantiation-eligible member `T Get<T>()` deriving that exact same suffixed name for its own
+    // real, actually-emitted nested state class then got falsely flagged as colliding with a name
+    // nothing ever actually emits, rejecting the whole interface. Fixed by gating that reservation on
+    // WouldGetConfigurationSurface, matching every other reservation pass. VerifyWithInfoDiagnostic
+    // (full recompile) proves the generated code actually compiles - both the diamond-colliding
+    // fallback members and the closed-instantiation member coexist correctly.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithDiamondCollidingPhantomNameReservation_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBaseA
+                    {
+                        string? Get_State();
+                    }
+
+                    public interface IBaseB
+                    {
+                        string? Get_State();
+                    }
+
+                    public interface IFactory : IBaseA, IBaseB
+                    {
+                        T Get<T>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+
+                            var value = factory.Get<string>();
+
+                            factory.Verify().Get<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 13, finding 1): the mirror image of round 12's finding - that one
+    // was a NON-emitting member (diamond collision) polluting a real closed-instantiation member's
+    // derived name; this one is a DIFFERENT REAL EMITTER doing the same. `U B_State<U>()` is ITSELF
+    // closed-instantiation-eligible WITH a configuration surface, so round 12's WouldGetConfigurationSurface
+    // gate alone doesn't exclude it - but a closed-instantiation-eligible candidate never emits the
+    // ordinary `__{Name}` field regardless (it emits `__{Name}_State`/`_buckets`/`_Bucket` instead), so
+    // reserving "__B_State" on ITS behalf here is still a phantom reservation - one that then falsely
+    // collides with an UNRELATED closed-instantiation member `T B<T>()`'s own real, actually-emitted
+    // derived state-class name (also "__B_State", from "B" + "_State"). Fixed by also excluding closed-
+    // instantiation candidates from this early reservation loop. VerifyWithInfoDiagnostic (full
+    // recompile) proves both members generate real, independently-working surfaces.
+    [Fact]
+    public Task ClosedInstantiationEligibleMembersWithCrossDerivedNameCollision_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T B<T>();
+
+                        U B_State<U>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().B<string>().Returns("Ada");
+                            factory.Configure().B_State<string>().Returns("Bob");
+
+                            var b = factory.B<string>();
+                            var bState = factory.B_State<string>();
+
+                            factory.Verify().B<string>().Once();
+                            factory.Verify().B_State<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 7, finding 1): round 6's own fix for the CS0694 self-collision
+    // above was itself a real bug - it reserved the candidate's type parameter name into the SHARED,
+    // interface-wide usedFieldNames set, so an entirely UNRELATED method whose own type parameter
+    // merely happens to share that string (not because it collides with anything, just coincidence)
+    // wrongly poisoned the first method too. Here, `Get<T>()` derives the state-class name
+    // "__Get_State", and the unrelated `Other<__Get_State>()` has its own type parameter literally
+    // named "__Get_State" - the two are never actually in the same declaration and never actually
+    // collide (Other's own derived state-class name is "__Other_State", not "__Get_State"). Fixed by
+    // making the check strictly self-scoped: compare a candidate's own type parameter name only
+    // against its OWN derived state-class name, never reserved into the shared pool. Verify (full
+    // recompile) proves both members generate real, independently-working surfaces.
+    [Fact]
+    public Task ClosedInstantiationEligibleMembersWithUnrelatedTypeParameterNameCollision_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        T Get<T>();
+
+                        __Get_State Other<__Get_State>();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+                            factory.Configure().Other<string>().Returns("Bob");
+
+                            var get = factory.Get<string>();
+                            var other = factory.Other<string>();
+
+                            factory.Verify().Get<string>().Once();
+                            factory.Verify().Other<string>().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 7, finding 2): TestDoubleDefaults.TryGetDefaultExpression's own
+    // Task/ValueTask identification had the identical namespace/simple-name-only imprecision the
+    // eligibility check in TestDoubleAnalyzer already had fixed (rounds 4-5) - and unlike that check,
+    // this one is reached by ANY member whose declared return type is Task/Task<T>/ValueTask<T>, not
+    // just a closed-instantiation-eligible one, so it was never actually gated behind ADR-0049 at all.
+    // A consumer's own top-level ValueTask<T> reopening the BCL namespace, returned from an entirely
+    // ordinary (non-generic) member, would be misidentified as the real BCL type, and the generated
+    // default-value expression would return the real BCL ValueTask<T> for a member whose actual
+    // declared return type is the consumer's shadow type - a genuine CS0029. Fixed by verifying
+    // symbol identity here too (TaskWellKnownTypes), mirroring the analyzer's own fix. Verify (full
+    // recompile, not VerifyFailure) proves the generated code actually compiles.
+    [Fact]
+    public Task OrdinaryMemberReturningShadowedValueTaskOfT_GeneratesDoubleThatCompiles() =>
+        GeneratorTestHelpers.Verify(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace System.Threading.Tasks
+                    {
+                        public readonly struct ValueTask<T>
+                        {
+                            public ValueTask(T result) { }
+                        }
+                    }
+
+                    namespace TestNamespace
+                    {
+                        public interface IRepository
+                        {
+                            System.Threading.Tasks.ValueTask<string?> GetNameAsync();
+                        }
+
+                        public sealed class OrderService
+                        {
+                            public OrderService(IRepository repository) { }
+                        }
+
+                        public static class EntryPoint
+                        {
+                            public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            TestContext.Current.CancellationToken);
+
+    // ADR-0049: the narrowest evidenced closed-instantiation-eligible shape - a solo (non-overloaded)
+    // generic method returning exactly its own unconstrained type parameter T. Unconstrained T has no
+    // deterministic default, so this member is also configuration-required (ADR-0045, CMP0032) - both
+    // capabilities compose. Proves the generated Configure<T>()/Verify<T>() surface is generic, that
+    // two different closed T's are independently configurable/verifiable on the same double instance,
+    // and that the member is genuinely callable (not just diagnosed away) once configured.
+    [Fact]
+    public Task ClosedInstantiationEligibleSoloMember_GeneratesDoubleWithGenericConfigurationExtension() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
             new CodeGenerationOptions
             {
                 SourceCode = """
@@ -2545,12 +3377,268 @@ public sealed class TestDoubleVerifyTests
 
                     public static class EntryPoint
                     {
-                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Create<string>().Returns("widget");
+                            factory.Configure().Create<int>().Returns(42);
+                            var widget = factory.Create<string>();
+                            var count = factory.Create<int>();
+                            factory.Verify().Create<string>().Once();
+                            factory.Verify().Create<int>().Once();
+                        }
                     }
                     """,
                 MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
             },
-            "CMP0031",
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+    // ADR-0049: the real evidenced shape - a solo generic method returning Task<T?>, with real
+    // (non-T) parameters that get ADR-0048's Match<TParam>-wrapped argument-aware Configure<T>()/
+    // Verify<T>() surface scoped per closed T, mirroring IConversationalContextManager.GetContextDataAsync<T>
+    // exactly. T? is a real nullable reference constraint (where T : class), so this member has a
+    // deterministic default (null) and is NOT configuration-required - both ADR-0045 branches are
+    // exercised across this test and the solo-unconstrained-T test above.
+    [Fact]
+    public Task ClosedInstantiationEligibleSoloMemberWithRealParameters_GeneratesDoubleWithArgumentAwareGenericConfiguration() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IContextManager
+                {
+                    System.Threading.Tasks.Task<T?> GetContextDataAsync<T>(string key) where T : class;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IContextManager contextManager) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IContextManager contextManager)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        contextManager.Configure().GetContextDataAsync<string>(Compono.Match.Is<string>(k => k == "user"))
+                            .Returns(System.Threading.Tasks.Task.FromResult<string?>("Ada"));
+
+                        var value = await contextManager.GetContextDataAsync<string>("user");
+                        var unconfigured = await contextManager.GetContextDataAsync<object>("other");
+
+                        contextManager.Verify().GetContextDataAsync<string>(Compono.Match.Any<string>()).Once();
+                        contextManager.Verify().GetContextDataAsync<object>(Compono.Match.Any<string>()).Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // ADR-0049 / PLAN-0049 (revised eligibility): an overloaded closed-instantiation-eligible member
+    // is eligible, not excluded - it reuses ADR-0044 Requirement 1's existing overload-discriminator
+    // machinery (real, un-wrapped parameter types, per-overload suffix) rather than ADR-0048's
+    // Match<TParam> surface, the same disposition every other overloaded member already has. Proves
+    // the per-overload bucket-by-closed-T mechanism composes with per-overload discriminators, and
+    // that the *same* closed T used on both overloads keeps fully independent state (mirrors the
+    // ADR-0049 design spike's own proof).
+    [Fact]
+    public Task OverloadedClosedInstantiationEligibleMember_GeneratesDoubleWithPerOverloadGenericConfiguration() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IContextManager
+                {
+                    System.Threading.Tasks.Task<T?> GetDataAsync<T>(string id) where T : class;
+
+                    System.Threading.Tasks.Task<T?> GetDataAsync<T>(string id, int version) where T : class;
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IContextManager contextManager) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IContextManager contextManager)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        contextManager.Configure().GetDataAsync<string>("user").Returns(System.Threading.Tasks.Task.FromResult<string?>("v1"));
+                        contextManager.Configure().GetDataAsync<string>("user", 2).Returns(System.Threading.Tasks.Task.FromResult<string?>("v2"));
+
+                        var first = await contextManager.GetDataAsync<string>("user");
+                        var second = await contextManager.GetDataAsync<string>("user", 2);
+
+                        contextManager.Verify().GetDataAsync<string>("user").Once();
+                        contextManager.Verify().GetDataAsync<string>("user", 2).Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 2): a closed-instantiation-shaped member can match ADR-0049's
+    // return-shape check (so it isn't whole-interface-rejected) yet still end up with NO configuration
+    // surface for an unrelated reason - here, ADR-0044 Amendment 5's ref/out/in overload-set-internal
+    // fallback (a ref parameter, with a sibling overload to preserve). That member still gets a real
+    // explicit interface implementation (a deterministic-default-only fallback body, no Configure()/
+    // Verify()) - and since its return type is `Task<T?>` on a `where T : class`-constrained method,
+    // that fallback implementation hits the exact same CS9334/CS0453 cascade the round-1 fix
+    // (IsClosedInstantiationEligible-only stripping) didn't cover, because it was gated on
+    // HasConfigurationSurface too. Fixed by keying the nullable-stripping fix off the new, surface-
+    // independent IsClosedInstantiationEligibleShape flag instead. VerifyWithInfoDiagnostic proves both
+    // halves: the ref-parameter overload falls back with an informational CMP0030 (not a whole-
+    // interface CMP0026/CMP0031), AND the generated code actually compiles - which is exactly the
+    // check that would have caught the CS9334 cascade if this fix were missing.
+    [Fact]
+    public Task ClosedInstantiationShapedRefParameterOverloadFallback_CompilesWithoutConfigurationSurface() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactory
+                    {
+                        System.Threading.Tasks.Task<T?> Get<T>(ref int x) where T : class;
+
+                        System.Threading.Tasks.Task<T?> Get<T>(string key) where T : class;
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static async System.Threading.Tasks.Task Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>("user").Returns(System.Threading.Tasks.Task.FromResult<string?>("Ada"));
+
+                            var value = await factory.Get<string>("user");
+
+                            factory.Verify().Get<string>("user").Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0030",
+            TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 3, finding A): the OLD ADR-0048 derived-auxiliary-name pre-pass
+    // (`_calls`/`_lock`/`_m_{param}`) didn't exclude closed-instantiation-eligible candidates, so it
+    // wrongly reserved `__Get_calls` on behalf of `Get<T>(string key)` even though that member never
+    // emits an outer `_calls` field at all (its own Calls list lives inside `__Get_State<T>` instead).
+    // An unrelated sibling literally named `Get_calls` then collided with that phantom reservation,
+    // stripping `Get<T>`'s configuration surface via `derivedNameCollisionMembers` and rejecting the
+    // WHOLE interface (it has no deterministic default). Fixed by excluding closed-instantiation
+    // candidates from that old pre-pass (they're reserved through their own, differently-named
+    // `_State`/`_buckets`/`_Bucket` pass instead). Plain `Verify()` proves the whole interface
+    // generates cleanly and BOTH members are independently configurable - no false collision at all.
+    [Fact]
+    public Task ClosedInstantiationEligibleMemberWithLiterallyCollidingSiblingName_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IFactory
+                {
+                    System.Threading.Tasks.Task<T?> Get<T>(string key) where T : class;
+
+                    string? Get_calls { get; }
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IFactory factory) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static async System.Threading.Tasks.Task Run(IFactory factory)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        factory.Configure().Get<string>(Compono.Match.Any<string>()).Returns(System.Threading.Tasks.Task.FromResult<string?>("Ada"));
+                        factory.Configure().Get_calls().Returns("sibling-value");
+
+                        var value = await factory.Get<string>("user");
+                        var sibling = factory.Get_calls;
+
+                        factory.Verify().Get<string>(Compono.Match.Any<string>()).Once();
+                        factory.Verify().Get_calls().Once();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Codex review, PR #107 (round 3, finding B): the zeroArgExtensionSharers collision-detection
+    // pre-pass still assumed the pre-ADR-0049 rule that a NON-overloaded generic method's extension
+    // is always non-generic (Requirement 2) - so a solo closed-instantiation-eligible member's real
+    // generic arity was computed as 0, the same as an unrelated zero-arg, non-generic sibling (a
+    // property of the same name inherited from a different base interface). That false collision
+    // stripped the closed-instantiation member's configuration surface, and since it's an
+    // unconstrained `T Get<T>()` with no deterministic default, rejected the WHOLE interface. Fixed
+    // by mirroring the new rule (a closed-instantiation-eligible candidate's real extension IS
+    // generic even when solo) in this pre-pass's own arity/genericity computation. Plain `Verify()`
+    // proves both differently-shaped `Get` members (one generic, one not, from separate base
+    // interfaces) generate real, independently-working surfaces - the actual emitted
+    // `Get<T>(this Double)`/`Get(this Double)` signatures are genuinely distinct, never a real
+    // CS0111 collision in the first place.
+    [Fact]
+    public Task ClosedInstantiationEligibleSoloMemberWithZeroArgSiblingFromDifferentBaseInterface_GeneratesBothMembersCleanly() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IFactoryA
+                    {
+                        T Get<T>();
+                    }
+
+                    public interface IFactoryB
+                    {
+                        string? Get { get; }
+                    }
+
+                    public interface IFactory : IFactoryA, IFactoryB
+                    {
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IFactory factory) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run(IFactory factory)
+                        {
+                            Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                            factory.Configure().Get<string>().Returns("Ada");
+                            factory.Configure().Get().Returns("prop-value");
+
+                            var generic = factory.Get<string>();
+                            var property = ((IFactoryB)factory).Get;
+
+                            factory.Verify().Get<string>().Once();
+                            factory.Verify().Get().Once();
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0032",
             TestContext.Current.CancellationToken);
 
     // Amendment 5 Finding 11, moved here from Phase 0 now that generic methods exist to construct

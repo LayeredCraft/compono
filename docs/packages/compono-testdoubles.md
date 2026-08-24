@@ -185,9 +185,16 @@ widget.Configure().Process<string>(someListOfString).Returns(default);        //
 **What stays unsupported:**
 
 - A generic method whose return type references its own type parameter
-  anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`,
+  *nested deeper* than a direct return or the sole type argument of
+  `Task`/`ValueTask` (`Task<List<T>> GetAllAsync<T>()`,
   `IEnumerable<T> Filter<T>()`) — no constructible fallback body, so the
-  whole interface falls back to the runtime-provider path (`CMP0031`).
+  whole interface falls back to the runtime-provider path (`CMP0031`). The
+  narrower, directly-self-referencing shape (`T Get<T>()`,
+  `Task<T> GetAsync<T>()`) *is* supported — see "Per-closed-instantiation
+  configuration for self-referencing generic returns" below.
+- A self-referencing return on a method with more than one of its own type
+  parameters (`TResult Get<TKey, TResult>(TKey key)`) — same
+  no-constructible-fallback-body reasoning, unevidenced and out of scope.
 - **Any** type parameter used as `T?` in a parameter (or the method's own
   declaration) — constrained or unconstrained, regardless of which
   constraint. Correctly modeling exactly when (and with which keyword) a
@@ -195,6 +202,101 @@ widget.Configure().Process<string>(someListOfString).Returns(default);        //
   isn't something this feature attempts — two review rounds gave
   conflicting answers even for the constrained case — so every `T?`-using
   type parameter is diagnosed and excluded alike (`CMP0026`).
+
+## Per-closed-instantiation configuration for self-referencing generic returns
+
+A generic method whose return type *is* its own sole type parameter — or
+the sole type argument of `Task<T>`/`Task<T?>`/`ValueTask<T>`/
+`ValueTask<T?>` — is supported with independent `Configure<T>()`/
+`Verify<T>()` state per closed `T` (v4,
+[ADR-0049](../adr/0049-testdoubles-generic-return-closed-instantiation-configuration.md)).
+The `T?` shapes require `T` constrained to a reference type (`where T :
+class`) — for a value-type `T`, C# represents `T?` as the distinct generic
+type `System.Nullable<T>`, which this recognition doesn't (yet) unwrap;
+`Task<T?> Get<T>() where T : struct` falls back to `CMP0031` like any
+other unrecognized shape, safely (ADR-0049 Amendment 1). The motivating
+shape is a conversational-context store keyed by both a string and the
+caller's own requested type:
+
+```csharp
+public interface IContextManager
+{
+    Task<T?> GetContextDataAsync<T>(string key) where T : class;
+}
+
+contextManager.Configure()
+    .GetContextDataAsync<UserContext>(Match.Any<string>())
+    .Returns(Task.FromResult<UserContext?>(currentUser));
+contextManager.Configure()
+    .GetContextDataAsync<UpsellPayload>(Match.Is<string>(key => key == "upsell"))
+    .Returns(Task.FromResult<UpsellPayload?>(payload));
+
+// Two genuinely different closed T's, same double instance, fully independent:
+await contextManager.GetContextDataAsync<UserContext>("user");     // the configured UserContext
+await contextManager.GetContextDataAsync<UpsellPayload>("upsell"); // the configured UpsellPayload
+
+contextManager.Verify().GetContextDataAsync<UserContext>(Match.Any<string>()).Once();
+contextManager.Verify().GetContextDataAsync<UpsellPayload>(Match.Any<string>()).Once();
+```
+
+`Configure<T>()`/`Verify<T>()` are generic in the method's own type
+parameter — each closed `T` a real call site (or a `Configure<T>()`/
+`Verify<T>()` call) closes to gets its own independent state, reached
+through an internal `Dictionary<System.Type, object>` bucket keyed by
+`typeof(T)`; nothing about that bucket is ever observable through the
+public `Configure()`/`Verify()` surface, which returns the exact same
+`ReturnConfigBuilder<T>`/`CallVerifier` types every other member already
+does. `Returns`/`Throws` ergonomics are identical to the equivalent
+non-generic member with that same closed return type — a
+`Task<UpsellPayload?>`-returning member still needs
+`.Returns(Task.FromResult<UpsellPayload?>(payload))`, the same convention
+every other `Task<T>`-returning member already follows.
+
+**Composes with everything else on this page.** The real (non-`T`)
+parameters reuse ["Argument matching and argument-filtered
+verification"](#argument-matching-and-argument-filtered-verification)
+directly, scoped per closed `T` (`Match<TParam>`/`Match.Any`/`Match.Is`, an
+argument-filtered `Verify()`); an unconfigured closed `T` follows the same
+["Configuration-required members"](#configuration-required-members) rule
+(a real deterministic default like `null` for a nullable-reference return
+dispatches without a throw, a non-nullable return throws
+`TestDoubleNotConfiguredException`); and an **overloaded**
+closed-instantiation-eligible member reuses the plain
+[per-overload discriminator shape](#overloaded-members) unchanged — real,
+un-wrapped parameter types (not `Match<TParam>`-wrapped), the same
+disposition every other overloaded member already has:
+
+```csharp
+public interface IContextManager
+{
+    Task<T?> GetDataAsync<T>(string id) where T : class;
+    Task<T?> GetDataAsync<T>(string id, int version) where T : class;
+}
+
+contextManager.Configure().GetDataAsync<UpsellPayload>("id").Returns(Task.FromResult<UpsellPayload?>(v1));
+contextManager.Configure().GetDataAsync<UpsellPayload>("id", 2).Returns(Task.FromResult<UpsellPayload?>(v2));
+// The same closed T (UpsellPayload) on both overloads stays fully independent -
+// each overload keeps its own bucket, keyed by its own discriminator.
+```
+
+**Scope boundary** — a single method-type-parameter, referenced only as
+the method's direct return type or the sole type argument of
+`Task`/`ValueTask`; no ref-like real parameter; no real parameter itself
+referencing the method's own type parameter (that's the separate,
+unaffected `SetContextDataAsync<T>`-shaped case below). Anything past that
+boundary keeps the "What stays unsupported" disposition above, unchanged.
+
+**A related, deliberately untouched shape: `T` in a *parameter*.** A
+member like `Task SetContextDataAsync<T>(string key, T data, ...)` has `T`
+in a parameter, not the return type — that's the "Generic methods" section
+above (`ILogger<TState>.Log`-shaped), already supported today with an
+argument-*independent* `Configure()`/`Verify()`. Argument-aware matching
+against that `T`-typed parameter itself (e.g. matching *which* payload was
+passed, not just *that* one was) is a distinct, real, and separately
+evidenced gap this feature does not resolve — it needs its own storage/
+typing design (recording and matching an *open*-`T`-typed argument value is
+a different problem from this feature's closed-return-position bucketing)
+and remains unsupported until a future design addresses it.
 
 ## Call verification
 
@@ -418,11 +520,18 @@ matching on an overloaded member (a real compiler
 spike proved it, see above), no call-order verification, no
 `ReturnsForAnyArgs`/`When().Do(...)`/strict or partial substitutes/
 recursive auto-configuration, and no support for classes, delegates,
-indexers, events, or a generic method whose return type depends on its own
-type parameter — see
+indexers, events, or a generic method whose return type references its own
+type parameter *nested deeper* than a direct return or the sole type
+argument of `Task`/`ValueTask`, with more than one of the method's own
+type parameters, or with a value-type-constrained `T?` (`System.Nullable<T>`,
+unrecognized — see ADR-0049 Amendment 1) — see "Per-closed-instantiation
+configuration for self-referencing generic returns" above for the
+narrower, now-supported shape (`T`/`Task<T>`/`Task<T?>`/`ValueTask<T>`/
+`ValueTask<T?>`, a single type parameter, `T?` requiring `where T : class`) and
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals and [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)'s
-Non-Goals for the full scope boundary. A genuinely unimplemented static
+Non-Goals, [ADR-0048](../adr/0048-testdoubles-argument-matching-and-call-verification.md)'s
+Non-Goals, and [ADR-0049](../adr/0049-testdoubles-generic-return-closed-instantiation-configuration.md)'s
+own scope boundary for the full picture. A genuinely unimplemented static
 abstract member still rejects its whole interface, the same as the shapes
 above — but one already resolved via a more-derived interface's own
 concrete implementation is fully supported; see "Static abstract members

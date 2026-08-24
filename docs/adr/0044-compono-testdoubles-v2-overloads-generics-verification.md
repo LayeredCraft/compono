@@ -1939,6 +1939,54 @@ evidence-based call at the time this ADR shipped; this Amendment records
 what later evidence changed, per the same Amendment mechanic ADR-0042
 Amendment 2 already set precedent for.
 
+## Amendment 19 (2026-08-23): generic methods whose return type depends on their own type parameter are no longer a permanent boundary — reopened by ADR-0049
+
+Dogfooding against `ncipollina/trivia-platform` (this repo's second, larger
+real dogfood target after `ncipollina/trivia-manager`) found a real,
+load-bearing member this ADR's Requirement 2 declined to support:
+`IConversationalContextManager.GetContextDataAsync<T>(IHandlerInput input,
+string key, CancellationToken ct = default) : Task<T?>` — a generic method
+whose return type depends on its own type parameter, configured
+independently per closed `T` across different real tests — verified
+directly against the real repo's `test/` tree: five distinct closed `T`s
+(`ConversationContext`, `UpsellPayload`, `UserContextBase`,
+`CategorySelectionResponseModel`, `PurchaseFlowRepeatModel`), e.g.
+`GetContextDataAsync<ConversationContext>` and
+`GetContextDataAsync<UpsellPayload>` independently configured on the same
+double instance.
+
+This Amendment reverses this ADR's Requirement 2 Option 1 exclusion
+("stays diagnosed and unsupported") and the "no per-closed-generic-
+instantiation configuration" Non-Goal bullet, **scoped exactly to**: a
+single method-type-parameter, referenced only as the method's direct
+return type or as the sole type argument of `Task<T>`/`Task<T?>`/
+`ValueTask<T>`/`ValueTask<T?>`. [ADR-0049](0049-testdoubles-generic-return-closed-instantiation-configuration.md)
+is the design home for the actual mechanism (a `Dictionary<Type, object>`
+bucket keyed by `typeof(T)`, valued by a generator-emitted nested class
+generic in `T`, proven under a real Native AOT publish-and-run spike
+before that ADR was drafted, per this repo's own "prove it, don't assume
+it" standard). Every other part of Requirement 2 — generic methods
+independent of their own type parameter (`ILogger<T>.Log<TState>`), the
+per-closed-`T`-nested-deeper case (`Task<List<T>>` and similar), and
+multiple-method-type-parameter self-referencing returns — is unaffected
+and remains exactly as this ADR originally specified; ADR-0049 names each
+of those boundaries explicitly rather than silently broadening scope
+beyond the actual evidence. `SetContextDataAsync<T>`\-shaped members (`T`
+referenced in a *parameter*, not the return type) are also unaffected —
+that shape's existing argument-independent `Configure()` surface (this
+ADR) and ADR-0048's existing exclusion of argument-aware matching for it
+both stand unchanged. The same dogfood pass found real
+`Arg.Is<T>(predicate)`-shaped verification against `SetContextDataAsync<T>`'s
+own `T`-typed parameter in the real repo — a second, separate gap
+ADR-0049 explicitly does not resolve; see that ADR's own section on this
+shape for the classification.
+
+This ADR's original Requirement 2 text stands as written throughout, per
+this ADR's own immutability rule — the original exclusion was the
+correct, evidence-based call at the time this ADR shipped; this Amendment
+records what later evidence changed, per the same Amendment mechanic
+ADR-0042 Amendment 2 already set precedent for.
+
 ## Links
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
