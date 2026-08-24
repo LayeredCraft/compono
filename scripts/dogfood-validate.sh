@@ -162,6 +162,7 @@ work_tmp_dir=""
 lock_dir=""
 lock_owned=0
 consumer_status_before_file=""
+consumer_diff_before_file=""
 consumer_packages_props_backup=""
 
 cleanup() {
@@ -177,10 +178,20 @@ cleanup() {
     fi
 
     if [ -n "$consumer_status_before_file" ] && [ -f "$consumer_status_before_file" ]; then
-        local status_after
+        local status_after diff_after changed=0
         status_after="$(cd "$consumer_repo" && git status --porcelain)"
-        if [ "$status_after" != "$(cat "$consumer_status_before_file")" ]; then
-            echo "dogfood-validate.sh: WARNING - consumer repo git status changed during this run;" >&2
+        # Compare actual tracked-file CONTENT (`git diff`), not just porcelain status codes - a
+        # file that was already dirty (e.g. packages.lock.json mid-edit) before this run and gets
+        # modified AGAIN by `dotnet restore` during it can keep the exact same " M path" status
+        # line throughout, which a status-only comparison would wrongly read as "unchanged".
+        # Codex review, PR #108 (round 4).
+        diff_after="$(cd "$consumer_repo" && git diff)"
+        if [ "$status_after" != "$(cat "$consumer_status_before_file")" ] || \
+           [ "$diff_after" != "$(cat "$consumer_diff_before_file")" ]; then
+            changed=1
+        fi
+        if [ "$changed" -eq 1 ]; then
+            echo "dogfood-validate.sh: WARNING - consumer repo git status/content changed during this run;" >&2
             echo "restoring Directory.Packages.props to its pre-run content as a safety net." >&2
             # Restore from the byte-for-byte snapshot taken before this run, NOT `git checkout`
             # (which resets to committed HEAD) - the consumer repo may legitimately have had its
@@ -190,13 +201,18 @@ cleanup() {
             if [ -n "$consumer_packages_props_backup" ] && [ -f "$consumer_packages_props_backup" ]; then
                 cp "$consumer_packages_props_backup" "$consumer_repo/Directory.Packages.props"
             fi
-            local status_restored
+            local status_restored diff_restored restored_ok=1
             status_restored="$(cd "$consumer_repo" && git status --porcelain)"
-            if [ "$status_restored" != "$(cat "$consumer_status_before_file")" ]; then
-                echo "dogfood-validate.sh: ERROR - consumer repo git status still differs after safety-net restore." >&2
-                echo "--- before ---" >&2
+            diff_restored="$(cd "$consumer_repo" && git diff)"
+            if [ "$status_restored" != "$(cat "$consumer_status_before_file")" ] || \
+               [ "$diff_restored" != "$(cat "$consumer_diff_before_file")" ]; then
+                restored_ok=0
+            fi
+            if [ "$restored_ok" -eq 0 ]; then
+                echo "dogfood-validate.sh: ERROR - consumer repo git status/content still differs after safety-net restore." >&2
+                echo "--- status before ---" >&2
                 cat "$consumer_status_before_file" >&2
-                echo "--- after ---" >&2
+                echo "--- status after ---" >&2
                 echo "$status_restored" >&2
                 # The restore only covers Directory.Packages.props - if some OTHER tracked file
                 # (e.g. packages.lock.json) also changed and can't be accounted for, the consumer
@@ -224,6 +240,8 @@ trap cleanup EXIT
 work_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dogfood-validate.XXXXXX")"
 consumer_status_before_file="$work_tmp_dir/consumer-status-before.txt"
 (cd "$consumer_repo" && git status --porcelain) > "$consumer_status_before_file"
+consumer_diff_before_file="$work_tmp_dir/consumer-diff-before.txt"
+(cd "$consumer_repo" && git diff) > "$consumer_diff_before_file"
 consumer_packages_props_backup="$work_tmp_dir/Directory.Packages.props.before"
 cp "$consumer_repo/Directory.Packages.props" "$consumer_packages_props_backup"
 

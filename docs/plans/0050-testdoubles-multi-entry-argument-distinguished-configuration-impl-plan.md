@@ -440,3 +440,33 @@ never-published validation script per explicit product guidance.
 
 No commits or pushes made beyond what's already on the PR branch at the
 time of this run. Awaiting further review.
+
+### 2026-08-24 — Re-run after round-4 codex feedback (PR #108, script-only)
+
+Changed since the prior run: the cleanup trap's "did anything change"
+check now compares `git diff` content, not just `git status --porcelain`
+status codes — a file already dirty before the run (e.g. mid-edit
+`packages.lock.json`) that `dotnet restore` modifies again during the run
+could keep the exact same status line (` M path`) throughout, which the
+prior status-only comparison would have wrongly read as "unchanged" and
+skipped the safety-net restore entirely. Fixed by snapshotting `git diff`
+output before the run and comparing it too.
+
+One further round-4 finding (repo-wide `project.assets.json` search can
+pick up unrelated projects' stale files when `--consumer-solution` scopes
+to a subset of a multi-solution repo) was left unaddressed: trivia-platform
+is a single-solution repo at its root (the actual, only consumer this
+script runs against today), so the scenario doesn't arise in practice, and
+per explicit product guidance this dev-only, never-published script
+doesn't need to chase every theoretical multi-solution edge case. Replied
+with this rationale on the review thread.
+
+- `dotnet build`: 0 warnings / 0 errors (clean rebuild; script-only change,
+  no `src/`/`test/` diff).
+- `scripts/dogfood-validate.sh` (default consumer/solution): packed
+  `0.0.0-local.20260824095225-20368-26153`, full trivia-platform suite:
+  **783/783 passed**. Consumer git tree confirmed clean afterward (same
+  pre-existing 0.6.0→0.7.0-preview.81 bump only).
+
+No commits or pushes made beyond what's already on the PR branch at the
+time of this run. Awaiting further review.
