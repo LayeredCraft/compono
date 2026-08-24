@@ -1,6 +1,6 @@
 # [PLAN-0050] Compono.TestDoubles: Multi-Entry, Argument-Distinguished Response Configuration
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0050](../adr/0050-testdoubles-multi-entry-argument-distinguished-configuration.md)
 
