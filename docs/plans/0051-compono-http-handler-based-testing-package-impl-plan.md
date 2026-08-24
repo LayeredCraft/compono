@@ -232,6 +232,30 @@ these, even if implementation makes one look easy to add along the way:
       the 4 new regression tests × 4 TFMs); both AOT proofs — PASS; fresh
       dogfood run vs. `alexa-vox-craft` (`0.0.0-local.20260824160923-28165-4975`) —
       2816/2784/32/0, consumer dirty state (28 files) unchanged before/after.
+      **Second PR-review round (2026-08-24)**: two more Codex findings.
+      (1) `Finish` (`HttpResponseRegistrationBuilder.cs`) had no guard
+      against being called twice on the same retained builder — a second
+      `Respond*`/`Throws` call silently overwrote the first registration's
+      response factory and re-added the same `HttpResponseRegistration` to
+      the handler's list a second time, so a caller holding onto the
+      "first" handle would see it silently start returning the "second"
+      response. Fixed with a `_finished` guard throwing
+      `InvalidOperationException` on reuse, with two regression tests
+      (`FinalizingTheSameBuilderTwice_ThrowsInvalidOperationException`,
+      `FinalizingTheSameBuilderTwice_FirstRegistrationHandleKeepsItsOriginalResponse`).
+      (2) `test/Compono.Http.AotSmokeTest/AnalyzerContract/verify-analyzer-contract.sh`
+      only cleared `pack-compono.sh`'s own restore cache, not the two
+      analyzer caller projects' own separate, isolated
+      `RestorePackagesPath` caches — since every pack reuses the fixed
+      version `1.0.0`, a rerun after editing `Compono.Http` source could
+      silently keep validating a stale extracted copy and report a false
+      PASS. Fixed by clearing both callers' `obj/.nuget-packages` before
+      building. Re-ran the full gate again: `dotnet test Compono.slnx -c
+      Release` — 2498/2498; Proof A (rerun with the cache fix in place,
+      confirming it now genuinely rebuilds against current source) — PASS;
+      Proof B — PASS; fresh dogfood run vs. `alexa-vox-craft`
+      (`0.0.0-local.20260824162119-31825-24977`) — 2816/2784/32/0, consumer
+      dirty state (28 files) unchanged before/after.
 - [x] `registration.Verify().Never()/.Once()/.Exactly(n)` all work
       unchanged via the reused `CallVerifier` API.
 

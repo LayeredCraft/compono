@@ -17,6 +17,7 @@ public sealed class HttpResponseRegistrationBuilder
 {
     private readonly TestHttpHandler _handler;
     private readonly HttpResponseRegistration _registration;
+    private bool _finished;
 
     internal HttpResponseRegistrationBuilder(TestHttpHandler handler, Func<HttpRequestMessage, bool> matcher, string description)
     {
@@ -106,6 +107,19 @@ public sealed class HttpResponseRegistrationBuilder
 
     private HttpResponseRegistration Finish(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
     {
+        // Each OnX(...)/When(...) call produces one builder, meant to be finalized by exactly one
+        // Respond*/Throws call. Without this guard, a caller retaining the builder and calling a
+        // second Respond*/Throws on it would silently overwrite the first registration's response
+        // factory and re-add the same HttpResponseRegistration to the handler's list a second time
+        // - the two returned handles would be the same object, and the "first" response would
+        // silently start returning the "second" one.
+        if (_finished)
+        {
+            throw new InvalidOperationException(
+                "This HttpResponseRegistrationBuilder was already finalized by a prior Respond*/Throws call. Each OnGet/OnPost/etc./When(...) call returns a new builder - call it again to add another registration instead of reusing this one.");
+        }
+
+        _finished = true;
         _registration.SetResponseFactory(responseFactory);
         _handler.AddRegistration(_registration);
         return _registration;

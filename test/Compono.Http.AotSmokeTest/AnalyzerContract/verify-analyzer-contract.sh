@@ -24,6 +24,15 @@ bash "$script_dir/../pack-compono.sh"
 options_project="$script_dir/OptionsOverloadCaller/OptionsOverloadCaller.csproj"
 jsontypeinfo_project="$script_dir/JsonTypeInfoOverloadCaller/JsonTypeInfoOverloadCaller.csproj"
 
+# ../pack-compono.sh only clears its own project's (Compono.Http.AotSmokeTest's) restore cache -
+# both caller projects here declare their own separate, isolated RestorePackagesPath (see either
+# .csproj). Every pack republishes the fixed version 1.0.0, and NuGet treats an already-extracted
+# id+version as immutable, so without clearing these too, a rerun after editing Compono.Http source
+# could silently keep building both callers against a stale extracted copy and report a false PASS
+# on the previous contract instead of the current one.
+rm -rf "$script_dir/OptionsOverloadCaller/obj/.nuget-packages"
+rm -rf "$script_dir/JsonTypeInfoOverloadCaller/obj/.nuget-packages"
+
 echo "verify-analyzer-contract.sh: building OptionsOverloadCaller (expected to FAIL: IL2026+IL3050 as errors) ..."
 if dotnet build "$options_project" -c Release --nologo -p:WarningsAsErrors="IL2026%3BIL3050" > "$script_dir/.options-build.log" 2>&1; then
     echo "verify-analyzer-contract.sh: FAIL - expected RespondJson(value, JsonSerializerOptions?) to" >&2

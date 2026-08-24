@@ -344,4 +344,32 @@ public sealed class TestHttpHandlerTests
 
         second.Content.Headers.ContentType!.CharSet.Should().Be("utf-8");
     }
+
+    [Fact]
+    public void FinalizingTheSameBuilderTwice_ThrowsInvalidOperationException()
+    {
+        using var handler = new TestHttpHandler();
+        var builder = handler.OnGet("/x");
+        builder.Respond(HttpStatusCode.OK);
+
+        var act = () => builder.Respond(HttpStatusCode.NotFound);
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task FinalizingTheSameBuilderTwice_FirstRegistrationHandleKeepsItsOriginalResponse()
+    {
+        using var handler = new TestHttpHandler();
+        var builder = handler.OnGet("/x");
+        var first = builder.Respond(HttpStatusCode.OK);
+        var secondAct = () => builder.Respond(HttpStatusCode.NotFound);
+        secondAct.Should().Throw<InvalidOperationException>();
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var response = await client.GetAsync("/x", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        first.Verify().Once();
+    }
 }
