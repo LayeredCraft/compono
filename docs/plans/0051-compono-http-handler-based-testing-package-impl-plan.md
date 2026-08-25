@@ -256,6 +256,62 @@ these, even if implementation makes one look easy to add along the way:
       Proof B — PASS; fresh dogfood run vs. `alexa-vox-craft`
       (`0.0.0-local.20260824162119-31825-24977`) — 2816/2784/32/0, consumer
       dirty state (28 files) unchanged before/after.
+      **Third PR-review round (2026-08-24)**: three Codex findings, all
+      documentation/CI-wiring gaps rather than `Compono.Http` code defects
+      — the package was never actually wired into this repo's own package-
+      readiness gate or docs pipeline once shipped. (1)
+      `.github/workflows/package-validation.yaml` and
+      `.github/scripts/inspect-packed-nupkgs.sh` had hardcoded seven-
+      package lists that never included `Compono.Http` — it was never
+      baseline-checked, never CS1591-enforced, never `.nupkg`-content-
+      inspected by the pre-merge gate. Fixed: added to both scripts'
+      package lists/loops, plus `inspect-packed-nupkgs.sh`'s own
+      `Compono.Http` case branch (title, exact-pin `Compono` dependency,
+      no third-party dependency to range-assert). No new "local-feed
+      packed-consumer smoke test" step added — `Compono.Http` has no
+      `SampleTests` project (unlike `Compono.XunitV3`/`Compono.TUnit`/
+      `Compono.TestDoubles`, which do), the same situation
+      `Compono.NSubstitute`/`Compono.Bogus`/`Compono.DependencyInjection`
+      are already in, so this matches existing precedent rather than
+      inventing new infrastructure. (2) `mkdocs.yml`,
+      `.github/scripts/generate-api-reference.sh`, and
+      `.github/workflows/docs.yml` all still only knew about the prior
+      seven packages — no nav entry, no generated API reference, and
+      `src/Compono.Http/**` changes wouldn't even trigger the docs
+      workflow. Fixed: added `Compono.Http` to `mkdocs.yml`'s Package
+      Guides/API Reference nav, `generate-api-reference.sh`'s
+      `integration_pkgs` array (also fixed two now-doubly-stale "four
+      publishable"/"three integration packages" comments in the same
+      file, predating this PR), and both of `docs.yml`'s path triggers
+      plus its build loop and drift-check error message; regenerated
+      `docs/reference/api/Compono.Http/` for real (`dotnet build` all
+      eight packages, then `generate-api-reference.sh`) — confirmed via
+      `git status` that no *other* package's generated pages drifted, only
+      `Compono.Http`'s were added — and ran `uv run mkdocs build --strict`
+      clean (exit 0, no broken nav/links). (3) Several canonical current-
+      state docs still said "seven" and omitted `Compono.Http`:
+      `docs/roadmap/index.md` (Today's package list — also corrected the
+      wording to say `Compono.Http`, like `Compono.DependencyInjection`,
+      didn't graduate from `future-packages.md`'s own Gate A/Gate B
+      candidate list — it came from a dedicated admission research doc
+      instead), `docs/roadmap/future-packages.md` (intro package count +
+      a new explanatory paragraph matching the existing
+      `Compono.DependencyInjection` one), `docs/public-api.md`,
+      `docs/contributing.md`, `docs/documentation-architecture.md` (two
+      separate stale counts), `docs/packages/index.md` (one more "seven"
+      instance in its own Version Compatibility section, missed in this
+      plan's original task 12 pass), and `docs/getting-started/installation.md`
+      (added a `Compono.Http` install line for consistency with the other
+      "add as your tests need it" packages, not itself named by the
+      review but directly adjacent). Re-ran the full gate a third time:
+      `dotnet test Compono.slnx -c Release` — 2498/2498 (unchanged, no
+      test code touched this round); `dotnet build
+      src/Compono.Http/Compono.Http.csproj -c Release
+      -p:WarningsAsErrors=CS1591` — clean, matching the CI gate's own
+      enforcement step; Proof A — PASS; Proof B — PASS; fresh dogfood run
+      vs. `alexa-vox-craft` (`0.0.0-local.20260824201408-40021-18964`) —
+      2816/2784/32/0, consumer dirty state (28 files) unchanged
+      before/after.
 - [x] `registration.Verify().Never()/.Once()/.Exactly(n)` all work
       unchanged via the reused `CallVerifier` API.
 

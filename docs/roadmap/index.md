@@ -9,8 +9,9 @@ today.
   [`Compono.NSubstitute`](../packages/compono-nsubstitute.md),
   [`Compono.Bogus`](../packages/compono-bogus.md),
   [`Compono.TUnit`](../packages/compono-tunit.md),
-  [`Compono.TestDoubles`](../packages/compono-testdoubles.md), and
-  [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md)
+  [`Compono.TestDoubles`](../packages/compono-testdoubles.md),
+  [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md), and
+  [`Compono.Http`](../packages/compono-http.md)
   — covers the full MVP package set (`docs/mvp.md`'s "MVP Package Set")
   plus `Compono.TUnit` and `Compono.TestDoubles`, the two candidates to
   graduate the whole way through [Future Packages](future-packages.md)'
@@ -19,7 +20,13 @@ today.
   `Compono.DependencyInjection` ([ADR-0047](../adr/0047-compono-dependencyinjection-configured-resolution-bridge.md)),
   which didn't graduate through that admission model at all — see that
   ADR and [RESEARCH-0007](../research/0007-trivia-manager-bunit-dependency-injection.md)
-  for how it came about instead. If a capability isn't documented in
+  for how it came about instead — and, the same way,
+  `Compono.Http` ([ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md)),
+  which also didn't graduate from [Future Packages](future-packages.md)'
+  own candidate list; it came from a dedicated admission research doc
+  triggered by a real `alexa-vox-craft` dogfooding need — see
+  [RESEARCH-0009](../research/0009-compono-http-admission-research.md).
+  If a capability isn't documented in
   [Concepts](../concepts/index.md), [How-to Guides](../how-to/index.md),
   or a [Package Guide](../packages/index.md), it isn't available yet —
   see below for where it might be headed.

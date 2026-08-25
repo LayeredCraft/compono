@@ -48,7 +48,7 @@ whether or not you're also using xUnit v3 integration).
 
 ## Version compatibility
 
-All seven packages ship in lockstep during the `0.x` line — each integration
+All eight packages ship in lockstep during the `0.x` line — each integration
 package's dependency on `Compono` is exact-pinned at pack time, so mixing
 versions across packages (e.g. `Compono.XunitV3 0.3.0` with `Compono
 0.5.0`) is not supported and will fail to restore. Always update all
