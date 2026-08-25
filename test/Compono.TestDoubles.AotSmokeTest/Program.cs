@@ -91,6 +91,22 @@ internal interface IReproContextManager
     Task<T> GetRequiredDataAsync<T>(string key) where T : class;
 }
 
+// ADR-0044 Amendment 20: a base interface's abstract declaration resolved by a more-derived
+// interface's own concrete (default-interface-member) redeclaration via `new` - the
+// IDefaultRequestHandler.CanHandle shape that motivated PLAN-0053. Exercised under Native AOT
+// specifically: both the unconfigured fallback (must call through the owner-forwarding dispatch
+// helper to run the real DIM body, not a fabricated computed default) and the configured path, plus
+// the base-interface view sharing the same call-recording state as the derived view.
+internal interface IDefaultHandlerBase
+{
+    bool CanHandle(string input);
+}
+
+internal interface IDefaultHandler : IDefaultHandlerBase
+{
+    new bool CanHandle(string input) => true;
+}
+
 internal sealed record ReproUserContext(string Sub);
 
 internal sealed record ReproUpsellPayload(string ProductId);
@@ -268,6 +284,31 @@ internal static class Program
 
             if (!ReferenceEquals(requiredUser, user))
                 throw new InvalidOperationException("Expected GetRequiredDataAsync<ReproUserContext>('user') to return the configured user instance once configured.");
+
+            // ADR-0044 Amendment 20: unconfigured resolved-DIM fallback runs the real interface
+            // default body (via the owner-forwarding dispatch helper), not a fabricated computed
+            // default - and the base-interface view shares the same call-recording state as the
+            // derived view (no independent recording on the forwarding-only base implementation).
+            var defaultHandler = composer.Create<IDefaultHandler>();
+            var unconfiguredDimResult = defaultHandler.CanHandle("anything");
+
+            if (unconfiguredDimResult != true)
+                throw new InvalidOperationException(
+                    $"Expected unconfigured IDefaultHandler.CanHandle(...) to run the real DIM body " +
+                    $"(true), got {unconfiguredDimResult}.");
+
+            IDefaultHandlerBase baseHandlerView = defaultHandler;
+            baseHandlerView.CanHandle("via base view");
+
+            defaultHandler.Verify().CanHandle(Match.Any<string>()).Exactly(2);
+
+            defaultHandler.Configure().CanHandle(Match.Any<string>()).Returns(false);
+            var configuredDimResult = defaultHandler.CanHandle("anything");
+
+            if (configuredDimResult != false)
+                throw new InvalidOperationException(
+                    $"Expected configured IDefaultHandler.CanHandle(...) to return the configured " +
+                    $"value (false), got {configuredDimResult}.");
 
             Console.WriteLine(
                 $"PASS: generated doubles (composer.Create<T>() + UseGeneratedTestDoubles(), full " +

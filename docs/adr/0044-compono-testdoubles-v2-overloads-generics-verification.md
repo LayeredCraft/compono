@@ -1987,7 +1987,228 @@ correct, evidence-based call at the time this ADR shipped; this Amendment
 records what later evidence changed, per the same Amendment mechanic
 ADR-0042 Amendment 2 already set precedent for.
 
+## Amendment 20 (2026-08-25): effective-declaration resolution corrected for base/derived member identity; concrete default-interface-member bodies now honored as the unconfigured fallback (bug fix)
+
+`alexa-vox-craft` dogfooding (RESEARCH-0011 Stage 2,
+`AlexaVoxCraft.IDefaultRequestHandler : IRequestHandler`, which re-declares
+`CanHandle` via `new` with a real default body — `public new Task<bool>
+CanHandle(...) => Task.FromResult(true);`) found a genuine generator
+correctness bug in this ADR's own diamond-collision rule (Amendment 3
+Finding 8's "same `(Name, CanonicalSignature)` reached more than once ⇒
+diamond, withhold `Configure()`/`Verify()`"): that rule does not
+distinguish a genuine diamond (two *unrelated* base interfaces
+independently declaring the same shape) from a base interface's abstract
+declaration resolved by a *more-derived* interface's own concrete
+redeclaration — the latter is not ambiguous at all, C# itself picks the
+derived one via its "most specific default implementation" rule. The
+misclassification silently withheld `Configure()`/`Verify()` for
+`IDefaultRequestHandler.CanHandle` entirely, and the resulting fallback —
+computed per [ADR-0045](0045-testdoubles-configuration-required-members.md)'s
+deterministic-default rule (`Task<bool>` → `Task.FromResult<bool>(default)`)
+— silently returned `false`, the opposite of the interface's own declared
+default (`true`).
+
+Investigating further (this ADR's own eligibility filter, no `IsAbstract`
+branch anywhere past it) found a second, broader instance of the same root
+omission, present with or without any collision: **a concrete default
+interface member's real body has never been consulted for the unconfigured
+fallback** — a plain, non-inherited, non-colliding interface member like
+`string GetValue() => "default";` also gets ADR-0045's computed default in
+place of its own declared body today. No existing `TestDoubleVerifyTests.cs`
+coverage exercises a default interface member at all — this was never
+decided against, just never tested.
+
+**Classification (ADR-0029 applied explicitly, not assumed from an ADR's
+silence):** **Bug**, not a roadmap candidate. `Compono.TestDoubles`'
+existing, `Accepted` contract already promises deterministic-not-wrong
+fallback behavior (ADR-0045's own name); silently discarding a member's
+*real*, declared body in favor of a synthetic and incorrect one is a defect
+against that existing promise, not a new capability question. Fixed here
+via this Amendment plus its own scoped implementation
+([PLAN-0053](../plans/0053-testdoubles-default-interface-member-fallback-fix-impl-plan.md)),
+per `tasks/implement.md`/`tasks/pr-review.md` — no new capability ADR, per
+ADR-0029's own "Bug handling."
+
+### Decision Outcome (the fix)
+
+**1. Effective-declaration resolution (corrects this ADR's own Amendment 3
+Finding 8 rule).** Within one `(Name, CanonicalSignature)` identity group,
+resolve using interface inheritance, not raw occurrence count:
+
+Resolution is a **unique-dominant-declaration** test, not a pairwise-
+relatedness test — a pairwise rule ("every pair in the group must have a
+base/derived relationship") was spiked first and found too restrictive: it
+misclassifies a *convergent* diamond (two genuinely unrelated concrete
+sibling branches off a common abstract ancestor — a real collision on
+their own) as still a collision even when a leaf interface directly
+redeclares the member itself, which C# treats as an unambiguous
+resolution. The corrected rule, spiked and confirmed against that exact
+convergent shape as well as every shape from the original spike (base
+abstract → derived concrete; base concrete → derived concrete, different
+bodies; a three-level chain; unrelated siblings with no leaf resolution):
+
+1. `candidates = { d ∈ group : no other member's declaring interface is a
+   base of d's }` — i.e. declarations that are not themselves a base
+   interface of any other declaration in the group (`INamedTypeSymbol
+   .AllInterfaces.Contains(...)`, per the original spike's API).
+2. If `candidates` has more than one member, the group is a genuine
+   collision — unchanged from today.
+3. Otherwise, the sole candidate resolves the group **only if** its
+   declaring interface is derived from *every other* member's declaring
+   interface in the group (a defensive second check, kept explicit rather
+   than assumed redundant with step 1) — it becomes the sole eligible
+   candidate (excluded from `eligibleCandidates` the same way
+   [ADR-0046](0046-static-abstract-member-conformance-only-generation.md)
+   already excludes a resolved static abstract member — the *base*
+   declaration(s) are what's excluded here, not the resolved one), and
+   flows through the ordinary single-member emission path with a full
+   `Configure()`/`Verify()` surface. If that check fails, the group stays
+   a genuine collision.
+
+Convergent-diamond spike result (`ILeafResolved : IBranchA, IBranchB`,
+both branches independently redeclaring the member from a common abstract
+ancestor, `ILeafResolved` itself redeclaring it again to resolve the
+ambiguity):
+```
+candidates (not-an-ancestor-of-another): ILeafResolved
+=> RESOLVES to ILeafResolved
+```
+against the same shape with no leaf-level redeclaration
+(`ILeafUnresolved : IBranchA, IBranchB`, nothing of its own):
+```
+candidates (not-an-ancestor-of-another): IBranchA, IBranchB
+=> COLLISION (not exactly one candidate)
+```
+
+This is `FindImplementationForInterfaceMember`'s "most specific
+implementation" lesson (ADR-0046), generalized to instance members reached
+via `new`-hiding — **not** the same API, and deliberately not assumed to
+transfer: a compile spike confirmed
+`someType.FindImplementationForInterfaceMember(baseInterfaceMember)`
+returns `null` for a `new`-hidden instance member (it resolves class-level
+interface implementation and static-member "most specific" resolution,
+not interface-to-interface instance hiding) — the same spike also confirmed
+`new` does **not** let a derived interface's concrete redeclaration satisfy
+the base interface's own abstract requirement for an implementing class
+(`CS0535` on the base member, still required as its own explicit
+implementation). The fix therefore still emits **two** explicit interface
+implementations where the base and derived interface both require one
+(one CLR requirement per interface, unchanged) — it changes only *which
+logical TestDoubles state* those two implementations share (below), not
+how many the emitted class must provide.
+
+**2. Concrete default-interface-member fallback (extends
+[ADR-0045](0045-testdoubles-configuration-required-members.md)'s
+fallback-decision framework with a case it never considered).** When the
+member an identity group resolves to (per part 1) — or a plain,
+non-colliding member reached directly — is **concrete** (has a real
+default body, `IsAbstract: false`), the *unconfigured* fallback is that
+body itself, not ADR-0045's computed deterministic default. Implemented
+via a per-member, generated **owner-forwarding dispatch helper** — spiked
+directly, not assumed:
+
+```csharp
+// Generated once per DIM being defaulted. Holds the real double, implements
+// the leaf interface, does NOT override the one member being defaulted
+// (so C#'s own DIM dispatch resolves it), forwards every OTHER interface
+// member back to the owner.
+internal sealed class __CanHandle_DefaultDispatch(IDefaultRequestHandler owner) : IDefaultRequestHandler
+{
+    Task<string> IRequestHandler.Handle(...) => owner.Handle(...);
+    // CanHandle intentionally not implemented here.
+}
+```
+The real double's resolved-member implementation: record the call, check
+configured entries (unchanged ADR-0050 multi-entry/ADR-0048 matcher
+logic), and on no match, `return ((LeafInterface)dispatchHelper).Member(...)`
+instead of a computed default. The base interface's own required explicit
+implementation (`IRequestHandler.CanHandle` here) forwards to the resolved
+member's implementation, so both interface views share one entry-list/call-log
+— spiked and confirmed correct for methods, properties, both interface
+views, and (the case that actually motivates the helper design over a
+simpler "just leave the member abstract-shaped") **a DIM body that itself
+calls another interface member through `this`**: because the helper
+forwards every *other* member to the real owner, that nested call resolves
+against the owner's own real Configure()/fallback state, not a
+helper-local default — spiked with both an abstract-member and a
+concrete-DIM second member, including the mutual-DIM case (A's DIM calls
+B, B's DIM independently calls nothing back — each direction uses its own
+dedicated helper; a spiked non-issue since a helper only ever forwards the
+*other* member, never itself, so there is no shared-helper recursion path
+to reason about). **No DIM source-body inspection or special diagnostic
+is needed** — this was investigated and deliberately rejected in favor of
+the owner-forwarding design specifically because it does not require
+predicting what a DIM body does; it lets the DIM's own body run for real,
+against real (owner-routed) dependencies.
+
+A member that resolves to an **abstract** declaration (no concrete body
+anywhere in its identity group) is completely unaffected — ADR-0045's
+deterministic-default/configuration-required fallback applies exactly as
+before.
+
+**Call-recording invariant.** Exactly one place owns a resolved member's
+call-log/entry-list state — its own single implementation. Both the
+base-interface forward and every member the dispatch helper forwards back
+to the owner are pure delegation, with no recording of their own: one
+consumer invocation produces exactly one logical recorded invocation of
+the member actually invoked, regardless of which interface view it
+entered through. A cross-member call made *from inside* a DIM body (`A`'s
+default body calling `this.B()`, forwarded by `A`'s dispatch helper back
+to the owner) is a second, genuinely distinct invocation and **is**
+recorded — one entry for `A`, one for `B`, never two for either. PLAN-0053
+carries dedicated tests asserting exact call counts for this, not merely
+tests that happen to pass.
+
+**AOT proof scope.** The existing AOT fixtures (Proof A's analyzer-contract
+diagnostics, Proof B's real `PublishAot=true` publish-and-run) contain no
+default-interface-member shape today — re-running them unchanged would
+prove nothing about this fix's own generated code path. PLAN-0053 extends
+the AOT fixture with a DIM-shaped interface (mirroring
+`IDefaultRequestHandler`'s real shape) before re-running both proofs.
+
+### What this Amendment does not change
+
+- Real diamond collisions: unaffected, still no surface (Amendment 3
+  Finding 8's original disposition, now correctly scoped).
+- Static abstract member resolution: unaffected — ADR-0046's own
+  `FindImplementationForInterfaceMember`-based mechanism is untouched;
+  this Amendment adds a parallel, differently-implemented resolution path
+  for the instance/`new`-hiding case it doesn't cover, not a replacement.
+- Generic-member eligibility (Requirement 2, Amendment 19/ADR-0049): a
+  generic DIM is subject to exactly the same existing rules as a
+  non-generic one for whether it's eligible at all; this Amendment only
+  changes what an *already-eligible* concrete member's unconfigured
+  fallback does.
+- No new public API. `Configure()`/`Verify()`/`Match<T>` call sites are
+  unaffected — a consumer's existing test code for a member that happens
+  to be a DIM does not change; only the *previously-wrong* unconfigured
+  value does.
+
 ## Links
+
+- [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md) —
+  the real `alexa-vox-craft` migration evidence Amendment 20 fixes; the
+  five blocked `AlexaVoxCraft.MediatR.Tests` call sites this closes.
+- [PLAN-0053](../plans/0053-testdoubles-default-interface-member-fallback-fix-impl-plan.md) —
+  Amendment 20's own implementation plan (analyzer fix, emitter fix, new
+  generator/behavior tests, snapshot review).
+- [ADR-0045](0045-testdoubles-configuration-required-members.md) — the
+  unconfigured-fallback framework Amendment 20 extends with a new case
+  (a concrete member's own body); ADR-0045's original
+  deterministic-default/configuration-required decision for *abstract*
+  members is unchanged.
+- [ADR-0046](0046-static-abstract-member-conformance-only-generation.md) —
+  the "effective interface contract, not raw per-interface declarations"
+  precedent Amendment 20 generalizes from static abstract members to
+  instance members reached via `new`-hiding, using a different Roslyn
+  mechanism (no `FindImplementationForInterfaceMember` equivalent exists
+  for this shape, confirmed by spike) since the static-member API doesn't
+  transfer.
+- [ADR-0029](0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md) —
+  the rubric applied above; "Bug handling"'s "no new capability ADR" rule
+  is why this is an Amendment plus a plan, not a new roadmap ADR.
+
+## Links (original, 2026-08-14)
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —
   the PLAN-0044 Phase 5 dogfood pass Amendment 17 records and corrects

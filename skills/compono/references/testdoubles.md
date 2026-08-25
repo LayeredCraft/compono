@@ -93,6 +93,16 @@ nothing to disambiguate) and a `ref`/`out`/`in` parameter's own overload
 cases only that one identity loses its surface, every other member and
 overload of the interface is unaffected.
 
+A base interface's abstract declaration resolved by a more-derived
+interface's own concrete (default-interface-member) redeclaration via `new`
+is **not** a diamond collision (ADR-0044 Amendment 20) - the dominant
+(derived) declaration gets a real `Configure()`/`Verify()` surface, and its
+unconfigured fallback runs the interface's own real body instead of a
+computed default; the losing (base) declaration purely forwards to it, so
+both interface views share one call-recording state. See
+`docs/packages/compono-testdoubles.md`'s "Default interface members" section
+for the full example.
+
 ## Generic methods (v2)
 
 A generic method is supported when its return type doesn't reference its

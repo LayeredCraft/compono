@@ -96,25 +96,61 @@ internal static class TestDoubleAnalyzer
         // Configure()/Verify() surface - or, combined with ADR-0045, incorrectly rejecting the whole
         // interface if that instance member also has no deterministic default. Excluded here so this
         // preprocessing only ever sees the members the emission loop below might actually surface.
-        var eligibleCandidates = closure
+        var allEligibleCandidates = closure
             .SelectMany(i => i.GetMembers())
             .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
             .Where(m => m.IsAbstract || (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public))
             .Where(m => !(m.IsStatic && m.IsAbstract && interfaceType.FindImplementationForInterfaceMember(m) is not null))
             .ToArray();
 
-        var identityGroups = eligibleCandidates
+        var identityGroups = allEligibleCandidates
             .GroupBy(m => (m.Name, Canonical: IdentityFor(m)))
             .ToArray();
 
-        // A diamond collision: the *same* full-signature identity reached more than once (two
-        // different base interfaces independently declaring the same-named, same-shaped member).
-        // This identity gets no Configure()/Verify() surface at all - not a whole-interface rejection
-        // (Amendment 3 Finding 8, a real improvement over v1's blanket rejection for this case).
-        var diamondCollisionIdentities = identityGroups
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToHashSet();
+        // ADR-0044 Amendment 20: the *same* full-signature identity reached more than once isn't
+        // automatically a diamond collision - it might be a base interface's own abstract declaration
+        // resolved by a more-derived interface's own concrete (default-interface-member) redeclaration
+        // via `new`, which TestDoubleMemberIdentityResolver's "unique dominant declaration" rule
+        // resolves unambiguously. A resolved group's losing (non-dominant) declaration(s) still need a
+        // real explicit interface implementation (`new`-hiding alone doesn't satisfy the base
+        // interface's own abstract-member requirement, CS0535) - resolvedAwayForwardsTo below records,
+        // per losing declaration, which dominant declaration it forwards to; the emission loop
+        // recognizes a key in this map and emits a pure-forwarding member instead of its own
+        // Configure()/Verify() surface, so exactly one place per resolved member ever owns
+        // call-recording state. Only a genuine collision (TryResolve returns null) keeps the original
+        // "no Configure()/Verify() surface at all" disposition (Amendment 3 Finding 8).
+        var diamondCollisionIdentities = new HashSet<(string Name, string Canonical)>();
+        var resolvedAwayForwardsTo = new Dictionary<ISymbol, ISymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var group in identityGroups.Where(g => g.Count() > 1))
+        {
+            var dominant = TestDoubleMemberIdentityResolver.TryResolve(group.ToArray());
+
+            if (dominant is null)
+            {
+                diamondCollisionIdentities.Add(group.Key);
+                continue;
+            }
+
+            foreach (var member in group)
+            {
+                if (!SymbolEqualityComparer.Default.Equals(member, dominant))
+                    resolvedAwayForwardsTo[member] = dominant;
+            }
+        }
+
+
+        // ADR-0044 Amendment 20: a resolved group's dominant declaration only needs the
+        // owner-forwarding dispatch-helper machinery when it's genuinely concrete (a real default
+        // interface member body to prefer over ADR-0045's computed default) - a resolved group whose
+        // dominant declaration is itself still abstract has no real body to honor, so it keeps the
+        // ordinary computed-default fallback unchanged.
+        var dimFallbackTargets = new HashSet<ISymbol>(
+            resolvedAwayForwardsTo.Values.Where(d => !d.IsAbstract), SymbolEqualityComparer.Default);
+
+        var eligibleCandidates = allEligibleCandidates
+            .Where(m => !resolvedAwayForwardsTo.ContainsKey(m))
+            .ToArray();
 
         // A name shared by more than one member that would *otherwise* get a Configure()/Verify()
         // surface - a zero-argument configuration extension can only fail to disambiguate when more
@@ -630,6 +666,44 @@ internal static class TestDoubleAnalyzer
                         if (method.IsStatic)
                             continue;
 
+                        // ADR-0044 Amendment 20: this method is the losing (non-dominant) declaration
+                        // of a resolved diamond identity - still needs a real explicit interface
+                        // implementation against declaringInterface (CS0535 otherwise), but it purely
+                        // forwards to the dominant declaration's own explicit implementation instead of
+                        // getting its own field/Configure()/Verify() surface, so exactly one place ever
+                        // owns this member's call-recording state.
+                        if (resolvedAwayForwardsTo.TryGetValue(method, out var dominantMethod))
+                        {
+                            members.Add(new TestDoubleMemberInfo(
+                                method.Name,
+                                RequiredMemberCollector.EscapeIdentifier(method.Name),
+                                declaringInterfaceFullyQualifiedName,
+                                TestDoubleMemberKind.Method,
+                                TestDoublePropertyAccessorKind.None,
+                                method.ReturnsVoid ? "" : method.ReturnType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                method.ReturnsVoid,
+                                "",
+                                method.Parameters.Select(p => new TestDoubleParameterInfo(
+                                    RequiredMemberCollector.EscapeIdentifier(p.Name),
+                                    p.Name,
+                                    p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                    p.RefKind switch
+                                    {
+                                        RefKind.Ref => "ref ",
+                                        RefKind.Out => "out ",
+                                        RefKind.In => "in ",
+                                        _ => "",
+                                    })).ToEquatableArray(),
+                                HasConfigurationSurface: false,
+                                IsGenericMethod: method.IsGenericMethod,
+                                TypeParameterNames: method.IsGenericMethod
+                                    ? method.TypeParameters.Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name)).ToEquatableArray()
+                                    : EquatableArray<string>.Empty,
+                                IsForwarding: true,
+                                ForwardsToInterfaceFullyQualifiedName: dominantMethod.ContainingType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                            continue;
+                        }
+
                         // A non-abstract instance member with a default implementation (C# 8+ default
                         // interface members) that isn't public - most commonly `private` - is never
                         // part of any implementing type's contract at all; it's only callable from
@@ -808,6 +882,7 @@ internal static class TestDoubleAnalyzer
 
                         var isZeroArgCollision = zeroArgCollisionMembers.Contains(method);
                         var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter && !isZeroArgCollision;
+                        var isDimFallbackTarget = dimFallbackTargets.Contains(method);
 
                         if (isZeroArgCollision && reportedZeroArgCollisionNames.Add(method.Name))
                         {
@@ -855,7 +930,16 @@ internal static class TestDoubleAnalyzer
                                 // Amendment 6) keeps today's unchanged whole-interface CMP0025
                                 // rejection, so no member ever ends up throwing unconditionally
                                 // with no way to configure it.
-                                if (hasConfigurationSurface && !isObjectMemberCollisionShaped)
+                                if (isDimFallbackTarget)
+                                {
+                                    // ADR-0044 Amendment 20: this member's unconfigured fallback
+                                    // calls through the owner-forwarding dispatch helper (a real
+                                    // interface default-member body), not a computed default - it
+                                    // has a real value to fall back to even with no deterministic
+                                    // default for its return type, so it never needs the
+                                    // configuration-required disposition.
+                                }
+                                else if (hasConfigurationSurface && !isObjectMemberCollisionShaped)
                                 {
                                     isConfigurationRequired = true;
                                 }
@@ -1158,7 +1242,11 @@ internal static class TestDoubleAnalyzer
                             IsConfigurationRequired: isConfigurationRequired,
                             IsEligibleForMatching: isEligibleForMatching,
                             IsClosedInstantiationEligible: isClosedInstantiationEligible,
-                            IsClosedInstantiationEligibleShape: isClosedInstantiationEligibleShape));
+                            IsClosedInstantiationEligibleShape: isClosedInstantiationEligibleShape,
+                            IsDimFallbackTarget: isDimFallbackTarget,
+                            DimFallbackSiblings: isDimFallbackTarget
+                                ? BuildDimFallbackSiblings(method, interfaceType)
+                                : EquatableArray<TestDoubleDimFallbackSiblingInfo>.Empty));
 
                         break;
                     }
@@ -1191,6 +1279,33 @@ internal static class TestDoubleAnalyzer
                         // explicitly implemented. PR #83 review round 2.
                         if (!property.IsAbstract && property.DeclaredAccessibility != Accessibility.Public)
                             continue;
+
+                        // ADR-0044 Amendment 20: same forwarding-only disposition as the method branch
+                        // above - this property is the losing (non-dominant) declaration of a resolved
+                        // diamond identity.
+                        if (resolvedAwayForwardsTo.TryGetValue(property, out var dominantProperty))
+                        {
+                            var forwardingAccessorKind = property.SetMethod is null
+                                ? TestDoublePropertyAccessorKind.GetOnly
+                                : property.SetMethod.IsInitOnly
+                                    ? TestDoublePropertyAccessorKind.GetInit
+                                    : TestDoublePropertyAccessorKind.GetSet;
+
+                            members.Add(new TestDoubleMemberInfo(
+                                property.Name,
+                                RequiredMemberCollector.EscapeIdentifier(property.Name),
+                                declaringInterfaceFullyQualifiedName,
+                                TestDoubleMemberKind.Property,
+                                forwardingAccessorKind,
+                                property.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                IsVoid: false,
+                                DefaultExpression: "",
+                                Parameters: EquatableArray<TestDoubleParameterInfo>.Empty,
+                                HasConfigurationSurface: false,
+                                IsForwarding: true,
+                                ForwardsToInterfaceFullyQualifiedName: dominantProperty.ContainingType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                            continue;
+                        }
 
                         var identity = (property.Name, Canonical: IdentityFor(property));
                         var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
@@ -1270,10 +1385,17 @@ internal static class TestDoubleAnalyzer
                         var hasPropertyConfigurationSurface = !isDiamondCollision && !isZeroArgCollision;
                         var isPropertyConfigurationRequired = false;
                         var propertyDefault = "";
+                        var isPropertyDimFallbackTarget = dimFallbackTargets.Contains(property);
 
                         if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, compilation, out propertyDefault))
                         {
-                            if (hasPropertyConfigurationSurface)
+                            if (isPropertyDimFallbackTarget)
+                            {
+                                // ADR-0044 Amendment 20: same reasoning as the method branch above -
+                                // the owner-forwarding dispatch helper gives this member a real
+                                // fallback value even with no deterministic default.
+                            }
+                            else if (hasPropertyConfigurationSurface)
                             {
                                 isPropertyConfigurationRequired = true;
                             }
@@ -1313,7 +1435,11 @@ internal static class TestDoubleAnalyzer
                             hasPropertyConfigurationSurface,
                             false,
                             "",
-                            IsConfigurationRequired: isPropertyConfigurationRequired));
+                            IsConfigurationRequired: isPropertyConfigurationRequired,
+                            IsDimFallbackTarget: isPropertyDimFallbackTarget,
+                            DimFallbackSiblings: isPropertyDimFallbackTarget
+                                ? BuildDimFallbackSiblings(property, interfaceType)
+                                : EquatableArray<TestDoubleDimFallbackSiblingInfo>.Empty));
 
                         break;
                     }
@@ -1616,6 +1742,89 @@ internal static class TestDoubleAnalyzer
         IPropertySymbol property => TestDoubleOverloadIdentity.CanonicalSignatureFor(property),
         _ => "",
     };
+
+    // ADR-0044 Amendment 20: every member the owner-forwarding dispatch helper must itself implement
+    // to satisfy its own declaring interface's full contract (target.ContainingType) - everything in
+    // that interface's own transitive closure (AllInterfaces + itself) except target, mirroring the
+    // same eligibility filter allEligibleCandidates already applies (abstract, or a public non-static
+    // default implementation) so a private/non-abstract-static default member is correctly left out
+    // here too. Never re-validates shape support (events/indexers/etc.) - target.ContainingType's own
+    // closure is always a subset of the leaf interfaceType's own closure (interfaceType.AllInterfaces
+    // transitively includes it), which already passed every earlier shape check for this Analyze call.
+    private static EquatableArray<TestDoubleDimFallbackSiblingInfo> BuildDimFallbackSiblings(
+        ISymbol target, INamedTypeSymbol interfaceType)
+    {
+        var declaringType = target.ContainingType!;
+        var dimClosure = new List<INamedTypeSymbol> { declaringType };
+        dimClosure.AddRange(declaringType.AllInterfaces);
+
+        var siblings = new List<TestDoubleDimFallbackSiblingInfo>();
+
+        foreach (var iface in dimClosure)
+        {
+            var declaringInterfaceFullyQualifiedName = iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            foreach (var member in iface.GetMembers())
+            {
+                if (SymbolEqualityComparer.Default.Equals(member, target))
+                    continue;
+
+                if (member is not (IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false }))
+                    continue;
+
+                if (member.IsStatic)
+                    continue;
+
+                if (!member.IsAbstract && member.DeclaredAccessibility != Accessibility.Public)
+                    continue;
+
+                if (member is IMethodSymbol siblingMethod)
+                {
+                    siblings.Add(new TestDoubleDimFallbackSiblingInfo(
+                        RequiredMemberCollector.EscapeIdentifier(siblingMethod.Name),
+                        declaringInterfaceFullyQualifiedName,
+                        TestDoubleMemberKind.Method,
+                        TestDoublePropertyAccessorKind.None,
+                        siblingMethod.ReturnsVoid ? "" : siblingMethod.ReturnType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                        siblingMethod.ReturnsVoid,
+                        siblingMethod.Parameters.Select(p => new TestDoubleParameterInfo(
+                            RequiredMemberCollector.EscapeIdentifier(p.Name),
+                            p.Name,
+                            p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                            p.RefKind switch
+                            {
+                                RefKind.Ref => "ref ",
+                                RefKind.Out => "out ",
+                                RefKind.In => "in ",
+                                _ => "",
+                            })).ToEquatableArray(),
+                        siblingMethod.IsGenericMethod,
+                        siblingMethod.IsGenericMethod
+                            ? siblingMethod.TypeParameters.Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name)).ToEquatableArray()
+                            : EquatableArray<string>.Empty));
+                }
+                else if (member is IPropertySymbol siblingProperty)
+                {
+                    var accessorKind = siblingProperty.SetMethod is null
+                        ? TestDoublePropertyAccessorKind.GetOnly
+                        : siblingProperty.SetMethod.IsInitOnly
+                            ? TestDoublePropertyAccessorKind.GetInit
+                            : TestDoublePropertyAccessorKind.GetSet;
+
+                    siblings.Add(new TestDoubleDimFallbackSiblingInfo(
+                        RequiredMemberCollector.EscapeIdentifier(siblingProperty.Name),
+                        declaringInterfaceFullyQualifiedName,
+                        TestDoubleMemberKind.Property,
+                        accessorKind,
+                        siblingProperty.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                        false,
+                        EquatableArray<TestDoubleParameterInfo>.Empty));
+                }
+            }
+        }
+
+        return siblings.ToEquatableArray();
+    }
 
     private static DiscoveredTestDoubleInfo Failure(string fullyQualifiedName, string safeIdentifier, DiagnosticInfo diagnostic) =>
         new(fullyQualifiedName, safeIdentifier, EquatableArray<TestDoubleMemberInfo>.Empty, new[] { diagnostic }.ToEquatableArray());

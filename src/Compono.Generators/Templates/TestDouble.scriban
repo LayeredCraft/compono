@@ -66,8 +66,65 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
 {{~ end ~}}
 {{~ for member in members ~}}
+{{~ if member.is_dim_fallback_target ~}}
+    // ADR-0044 Amendment 20: owner-forwarding dispatch helper - holds the real generated double,
+    // implements {{ member.declaring_interface_fully_qualified_name }} but deliberately does NOT
+    // override {{ member.escaped_name }}, so calling {{ member.escaped_name }} through this helper's
+    // own {{ member.declaring_interface_fully_qualified_name }} view lets C#'s own default-interface-
+    // member dispatch resolve to the interface's real body. Every OTHER member this helper must
+    // implement to satisfy that interface's full contract is a pure forward back to the owner's own
+    // explicit implementation - never independently recorded, so exactly one place (the owner's own
+    // {{ member.escaped_name }} implementation, below) ever records a call to this member.
+    internal sealed class {{ member.dim_fallback_helper_class_name }} : {{ member.declaring_interface_fully_qualified_name }}
+    {
+        private readonly {{ safe_identifier }}_Double _owner;
 
+        internal {{ member.dim_fallback_helper_class_name }}({{ safe_identifier }}_Double owner) => _owner = owner;
+{{~ for sibling in member.dim_fallback_siblings ~}}
+{{~ if sibling.kind == "Method" ~}}
+        {{ if sibling.is_void }}void{{ else }}{{ sibling.return_type_fully_qualified_name }}{{ end }} {{ sibling.declaring_interface_fully_qualified_name }}.{{ sibling.escaped_name }}{{ sibling.generic_suffix }}({{ for p in sibling.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }}) =>
+            {{ if !sibling.is_void }}{{ end }}(({{ sibling.declaring_interface_fully_qualified_name }})_owner).{{ sibling.escaped_name }}{{ sibling.generic_suffix }}({{ for p in sibling.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+{{~ else ~}}
+        {{ sibling.return_type_fully_qualified_name }} {{ sibling.declaring_interface_fully_qualified_name }}.{{ sibling.escaped_name }}
+        {
+            get => (({{ sibling.declaring_interface_fully_qualified_name }})_owner).{{ sibling.escaped_name }};
+{{~ if sibling.accessor_kind == "GetSet" ~}}
+            set => (({{ sibling.declaring_interface_fully_qualified_name }})_owner).{{ sibling.escaped_name }} = value;
+{{~ else if sibling.accessor_kind == "GetInit" ~}}
+            init => throw new global::System.NotSupportedException(
+                "'{{ sibling.declaring_interface_fully_qualified_name }}.{{ sibling.escaped_name }}' is an init-only property " +
+                "reached through an ADR-0044 Amendment 20 owner-forwarding dispatch helper, which cannot forward an init " +
+                "accessor (only callable from within an object's own construction).");
+{{~ end ~}}
+        }
+{{~ end ~}}
+{{~ end ~}}
+    }
+{{~ end ~}}
+{{~ end ~}}
+{{~ for member in members ~}}
+
+{{~ if member.is_forwarding ~}}
 {{~ if member.kind == "Method" ~}}
+    {{ if member.is_void }}void{{ else }}{{ member.return_type_fully_qualified_name }}{{ end }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    {
+        {{ if !member.is_void }}return {{ end }}(({{ member.forwards_to_interface_fully_qualified_name }})this).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+    }
+{{~ else ~}}
+    {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}
+    {
+        get => (({{ member.forwards_to_interface_fully_qualified_name }})this).{{ member.escaped_name }};
+{{~ if member.accessor_kind == "GetSet" ~}}
+        set => (({{ member.forwards_to_interface_fully_qualified_name }})this).{{ member.escaped_name }} = value;
+{{~ else if member.accessor_kind == "GetInit" ~}}
+        init => throw new global::System.NotSupportedException(
+            "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' is an init-only property " +
+            "resolved through a default-interface-member forwarding shape, which Compono cannot generate a real forward " +
+            "for (an init accessor is only callable from within an object's own construction).");
+{{~ end ~}}
+    }
+{{~ end ~}}
+{{~ else if member.kind == "Method" ~}}
 {{~ if member.has_configuration_surface ~}}
 {{~ if member.is_closed_instantiation_eligible ~}}
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
@@ -155,6 +212,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 }
             }
         }
+{{~ if member.is_dim_fallback_target ~}}
+        (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+{{~ end ~}}
     }
 {{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
@@ -186,6 +246,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_configuration_required ~}}
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
+{{~ else if member.is_dim_fallback_target ~}}
+        return (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ else ~}}
         return {{ member.default_expression }};
 {{~ end ~}}
@@ -197,6 +259,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         {{ member.field_name }}.RecordCall();
         if ({{ member.field_name }}.HasConfiguredException)
             throw {{ member.field_name }}.ConfiguredException;
+{{~ if member.is_dim_fallback_target ~}}
+        else
+            (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+{{~ end ~}}
     }
 {{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
@@ -207,6 +273,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_configuration_required ~}}
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}{{ if member.is_overloaded && member.extension_is_generic }}{{ member.generic_suffix }}{{ end }}({{ if member.is_overloaded }}...{{ end }}).Returns(...) or .Throws(...) before invoking it.");
+{{~ else if member.is_dim_fallback_target ~}}
+            : (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ else ~}}
             : {{ member.default_expression }};
 {{~ end ~}}
@@ -241,6 +309,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_configuration_required ~}}
                 : throw new global::Compono.TestDoubleNotConfiguredException(
                     "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}().Returns(...) or .Throws(...) before invoking it.");
+{{~ else if member.is_dim_fallback_target ~}}
+                : (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }};
 {{~ else ~}}
                 : {{ member.default_expression }};
 {{~ end ~}}
