@@ -575,4 +575,77 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
 
         result.Should().Be(true);
     }
+
+    private const string StandaloneClosedInstantiationDimSource = """
+        namespace TestNamespace;
+
+        // A standalone (non-colliding) DIM whose return type depends on its own type parameter
+        // (T?, constrained `where T : class`) - ADR-0049's closed-instantiation-eligible shape,
+        // a THIRD template branch separate from the ordinary is_eligible_for_matching path the
+        // other StandaloneConcreteDim test above covers. Round-5 code-review finding: this
+        // branch's own fallback spots never checked is_dim_fallback_target at all, so an
+        // unconfigured closed instantiation always fell through to ADR-0045's computed default
+        // instead of running Get<T>()'s own real body. The real body and the computed default
+        // both evaluate to null for a reference T, so the assertion below can't just check the
+        // return value - it counts real-body executions instead, since the computed-default path
+        // never executes the DIM body at all.
+        public static class StandaloneGenericCallCounter
+        {
+            public static int Count;
+        }
+
+        public interface IStandaloneGeneric
+        {
+            T? Get<T>() where T : class
+            {
+                StandaloneGenericCallCounter.Count++;
+                return default;
+            }
+        }
+
+        public sealed class StandaloneGenericToken;
+
+        public sealed class Consumer
+        {
+            public Consumer(IStandaloneGeneric handler) { }
+        }
+
+        public static class EntryPoint
+        {
+            private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+            public static object CreateDouble()
+            {
+                Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IStandaloneGeneric), out var value);
+                return value!;
+            }
+        }
+        """;
+
+    [Fact]
+    public void StandaloneClosedInstantiationDim_UnconfiguredView_ExecutesRealDimBody_NotComputedDefault()
+    {
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = StandaloneClosedInstantiationDimSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var handler = (IStandaloneGeneric)CreateDouble();
+                        handler.Get<StandaloneGenericToken>();
+                        return StandaloneGenericCallCounter.Count;
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(1);
+    }
 }

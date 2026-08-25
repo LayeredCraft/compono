@@ -172,6 +172,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_configuration_required ~}}
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
+{{~ else if member.is_dim_fallback_target ~}}
+        return (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.call_site_ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ else ~}}
         return {{ member.default_expression }};
 {{~ end ~}}
@@ -182,6 +184,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.is_configuration_required ~}}
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
+{{~ else if member.is_dim_fallback_target ~}}
+            : (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.call_site_ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ else ~}}
             : {{ member.default_expression }};
 {{~ end ~}}
