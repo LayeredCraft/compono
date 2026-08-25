@@ -607,10 +607,46 @@ internal static class TestDoubleAnalyzer
             }
         } while (addedFallbackReservation);
 
+        // ADR-0044 Amendment 20: a DIM fallback target's cached dispatch-helper field
+        // (`{FieldName}_dimHelper`) and helper class (`{FieldName}_DimFallback`) are derived names
+        // just like the ADR-0048/0049 auxiliary names above, but were never reserved against
+        // `usedFieldNames` at all - a real, differently-shaped sibling member literally named e.g.
+        // "Foo_dimHelper" independently derives that exact same field name via the ordinary
+        // `__{Name}` formula, producing CS0102 (duplicate field) in the consumer's generated double.
+        // Checked (not reserved into the shared pool) against `usedFieldNames` as it stands once
+        // fully settled above - a DIM fallback target's own derived names are never themselves a
+        // *source* of collision for anything else (each is unique per member, scoped by that
+        // member's own already-unique FieldName), only ever a potential *victim* of an unrelated
+        // real member's ordinary name. Genuinely obscure (a consumer would have to name a member
+        // after Compono's own generated-suffix convention) but real - reported, not silently
+        // swallowed, and gracefully degraded to the ordinary computed-default fallback (same
+        // disposition CMP0022/23/24 already use for a name collision) rather than emitting broken
+        // code. Codex review, PR #111 (round 6).
+        var dimHelperNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var dimHelperNameCollisionDiagnostics = new List<DiagnosticInfo>();
+
+        foreach (var candidate in dimFallbackTargets)
+        {
+            var candidateFieldName = overloadedNames.Contains(candidate.Name) && candidate is IMethodSymbol candidateAsMethod
+                ? $"__{candidate.Name}{discriminatorSuffixByIdentity[(candidate.Name, Canonical: IdentityFor(candidateAsMethod))]}"
+                : $"__{candidate.Name}";
+
+            var dimHelperFieldName = $"{candidateFieldName}_dimHelper";
+            var dimHelperClassName = $"{candidateFieldName}_DimFallback";
+
+            if (usedFieldNames.Contains(dimHelperFieldName) || usedFieldNames.Contains(dimHelperClassName))
+            {
+                dimHelperNameCollisionMembers.Add(candidate);
+                dimHelperNameCollisionDiagnostics.Add(new DiagnosticInfo(
+                    DiagnosticDescriptors.TestDoubleDimHelperNameCollision, null,
+                    interfaceType.ToDisplayString(), candidate.Name));
+            }
+        }
+
         var reportedDiamondIdentities = new HashSet<(string Name, string Canonical)>();
         var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
-        var infoDiagnostics = new List<DiagnosticInfo>();
+        var infoDiagnostics = new List<DiagnosticInfo>(dimHelperNameCollisionDiagnostics);
         var configurationRequiredCount = 0;
 
         foreach (var declaringInterface in closure)
@@ -899,7 +935,7 @@ internal static class TestDoubleAnalyzer
 
                         var isZeroArgCollision = zeroArgCollisionMembers.Contains(method);
                         var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter && !isZeroArgCollision;
-                        var isDimFallbackTarget = dimFallbackTargets.Contains(method);
+                        var isDimFallbackTarget = dimFallbackTargets.Contains(method) && !dimHelperNameCollisionMembers.Contains(method);
 
                         if (isZeroArgCollision && reportedZeroArgCollisionNames.Add(method.Name))
                         {
@@ -1368,7 +1404,7 @@ internal static class TestDoubleAnalyzer
                         var hasPropertyConfigurationSurface = !isDiamondCollision && !isZeroArgCollision;
                         var isPropertyConfigurationRequired = false;
                         var propertyDefault = "";
-                        var isPropertyDimFallbackTarget = dimFallbackTargets.Contains(property);
+                        var isPropertyDimFallbackTarget = dimFallbackTargets.Contains(property) && !dimHelperNameCollisionMembers.Contains(property);
 
                         if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, compilation, out propertyDefault))
                         {

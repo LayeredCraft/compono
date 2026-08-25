@@ -648,4 +648,101 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
 
         result.Should().Be(1);
     }
+
+    [Fact]
+    public Task NoSurfacePropertyDim_RoutesThroughDimHelper_ReportsCmp0029()
+    {
+        // A concrete default property whose name collides with a zero-argument method inherited by
+        // the same leaf interface (ADR-0044's zero-argument-extension-collision disposition,
+        // CMP0029) - the collision withholds Value's Configure()/Verify() surface
+        // (hasPropertyConfigurationSurface = false), but Value is still, independently, a standalone
+        // DIM fallback target (its own identity group has exactly one member - no base/derived
+        // redeclaration at all). Round-6 code-review finding: the template's no-surface property
+        // branch never checked is_dim_fallback_target, so this shape always emitted
+        // `get => {{ default_expression }}` (0 for int) instead of routing through Value's own real
+        // body (7) via the generated dispatch helper - verified here by snapshotting the generated
+        // getter, the same way RefReadOnlySiblingParameter_PreservesModifier_ConsumerCompiles above
+        // verifies its own template-routing fix.
+        const string noSurfacePropertySource = """
+            namespace TestNamespace;
+
+            public interface IHasValueProp
+            {
+                int Value => 7;
+            }
+
+            public interface IHasValueMethod
+            {
+                int Value();
+            }
+
+            public interface ILeaf : IHasValueProp, IHasValueMethod
+            {
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf leaf) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = noSurfacePropertySource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0029",
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public Task DimHelperFieldNameCollidesWithRealMember_ReportsCmp0035_ConsumerCompiles()
+    {
+        // Foo is a standalone concrete DIM (own identity group of one) - its generated dispatch-
+        // helper field derives "__Foo_dimHelper" from Foo's own FieldName ("__Foo"). A real sibling
+        // member literally named "Foo_dimHelper" independently derives that exact same field name
+        // via the ordinary FieldName formula ("__Foo_dimHelper"), which would otherwise emit two
+        // fields with the same name (CS0102). Round-6 code-review finding.
+        const string collisionSource = """
+            namespace TestNamespace;
+
+            public interface ICollision
+            {
+                bool Foo() => true;
+
+                void Foo_dimHelper();
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ICollision handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = collisionSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0035",
+            TestContext.Current.CancellationToken);
+    }
 }

@@ -303,4 +303,14 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleDimHelperNameCollision = new(
+        "CMP0035",
+        "Test-double DIM fallback helper name collides with another member",
+        "'{0}' declares default-interface member '{1}', whose generated fallback dispatch-helper " +
+        "field/class name collides with another member of the same interface. '{1}' falls back to " +
+        "the ordinary computed-default behavior instead of its real default-interface-member body.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

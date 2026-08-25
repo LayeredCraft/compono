@@ -345,7 +345,11 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         }
 {{~ end ~}}
 {{~ else ~}}
+{{~ if member.is_dim_fallback_target ~}}
+        get => (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }};
+{{~ else ~}}
         get => {{ member.default_expression }};
+{{~ end ~}}
 {{~ if member.accessor_kind == "GetSet" ~}}
         set { }
 {{~ else if member.accessor_kind == "GetInit" ~}}
