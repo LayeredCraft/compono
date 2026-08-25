@@ -121,10 +121,27 @@ internal static class TestDoubleAnalyzer
         // "no Configure()/Verify() surface at all" disposition (Amendment 3 Finding 8).
         var diamondCollisionIdentities = new HashSet<(string Name, string Canonical)>();
         var resolvedAwayForwardsTo = new Dictionary<ISymbol, ISymbol>(SymbolEqualityComparer.Default);
+        // A concrete DIM's real body must be honored whether or not it's also involved in a
+        // multi-declaration identity group - a plain, non-colliding `bool Flag() => true` (group of
+        // one, no base/derived redeclaration anywhere in the closure) is the common case Amendment
+        // 20 was meant to cover in the first place, not just the diamond-adjacent one (code review:
+        // the original loop below only ever considered groups with more than one member, so this
+        // ordinary shape silently kept ADR-0045's computed default instead of its own real body).
+        var standaloneDimTargets = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
 
-        foreach (var group in identityGroups.Where(g => g.Count() > 1))
+        foreach (var group in identityGroups)
         {
-            var dominant = TestDoubleMemberIdentityResolver.TryResolve(group.ToArray());
+            var groupMembers = group.ToArray();
+
+            if (groupMembers.Length == 1)
+            {
+                if (!groupMembers[0].IsAbstract)
+                    standaloneDimTargets.Add(groupMembers[0]);
+
+                continue;
+            }
+
+            var dominant = TestDoubleMemberIdentityResolver.TryResolve(groupMembers);
 
             if (dominant is null)
             {
@@ -132,7 +149,7 @@ internal static class TestDoubleAnalyzer
                 continue;
             }
 
-            foreach (var member in group)
+            foreach (var member in groupMembers)
             {
                 if (!SymbolEqualityComparer.Default.Equals(member, dominant))
                     resolvedAwayForwardsTo[member] = dominant;
@@ -144,9 +161,14 @@ internal static class TestDoubleAnalyzer
         // owner-forwarding dispatch-helper machinery when it's genuinely concrete (a real default
         // interface member body to prefer over ADR-0045's computed default) - a resolved group whose
         // dominant declaration is itself still abstract has no real body to honor, so it keeps the
-        // ordinary computed-default fallback unchanged.
+        // ordinary computed-default fallback unchanged. Standalone concrete DIMs (above) are always
+        // fallback targets - a group of one is never abstract-with-no-body by construction (an
+        // abstract member with no other declaration reaching the closure just stays an ordinary,
+        // unconfigured-throws-or-computed-default candidate, never entering standaloneDimTargets at
+        // all per the `!IsAbstract` check above).
         var dimFallbackTargets = new HashSet<ISymbol>(
-            resolvedAwayForwardsTo.Values.Where(d => !d.IsAbstract), SymbolEqualityComparer.Default);
+            resolvedAwayForwardsTo.Values.Where(d => !d.IsAbstract).Concat(standaloneDimTargets),
+            SymbolEqualityComparer.Default);
 
         var eligibleCandidates = allEligibleCandidates
             .Where(m => !resolvedAwayForwardsTo.ContainsKey(m))
@@ -687,13 +709,8 @@ internal static class TestDoubleAnalyzer
                                     RequiredMemberCollector.EscapeIdentifier(p.Name),
                                     p.Name,
                                     p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                                    p.RefKind switch
-                                    {
-                                        RefKind.Ref => "ref ",
-                                        RefKind.Out => "out ",
-                                        RefKind.In => "in ",
-                                        _ => "",
-                                    })).ToEquatableArray(),
+                                    RefKindPrefixFor(p),
+                                    CallSiteRefKindPrefix: CallSiteRefKindPrefixFor(p))).ToEquatableArray(),
                                 HasConfigurationSurface: false,
                                 IsGenericMethod: method.IsGenericMethod,
                                 TypeParameterNames: method.IsGenericMethod
@@ -1081,7 +1098,8 @@ internal static class TestDoubleAnalyzer
                                 // reachable through Configure() too - same "keep every real call
                                 // shape reachable" reasoning already applied to params. Codex review,
                                 // PR #88.
-                                DefaultValueExpressionFor(p)))
+                                DefaultValueExpressionFor(p),
+                                CallSiteRefKindPrefix: CallSiteRefKindPrefixFor(p)))
                             .ToEquatableArray();
 
                         var discriminatorSuffix = hasConfigurationSurface && isOverloaded
@@ -1691,6 +1709,22 @@ internal static class TestDoubleAnalyzer
             _ => "",
         });
 
+    // The by-ref modifier to restate at a CALL SITE forwarding to this parameter - genuinely
+    // different rules from RefKindPrefixFor's declaration-site text (code-review finding: reusing
+    // RefKindPrefixFor's text at a call site is a syntax error for `ref readonly`/`scoped`/
+    // `[UnscopedRef]`, none of which are legal at a call site at all - only ref/out must be
+    // restated there; in, ref readonly, scoped, and [UnscopedRef] all accept a plain by-value
+    // argument expression with no modifier). Every forwarding call site (an IsForwarding member's
+    // own body, a DIM fallback dispatch, a DIM sibling's forwarding declaration) must use this,
+    // never RefKindPrefixFor's result, for its argument list.
+    private static string CallSiteRefKindPrefixFor(IParameterSymbol p) =>
+        p.RefKind switch
+        {
+            RefKind.Ref => "ref ",
+            RefKind.Out => "out ",
+            _ => "",
+        };
+
     // A C# literal expression for a parameter's optional default value, only ever rendered onto an
     // overloaded member's generated extension (never the explicit interface implementation, which
     // can't usefully redeclare one - callers always go through the interface's own default, not the
@@ -1795,7 +1829,8 @@ internal static class TestDoubleAnalyzer
                             RequiredMemberCollector.EscapeIdentifier(p.Name),
                             p.Name,
                             p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                            RefKindPrefixFor(p))).ToEquatableArray(),
+                            RefKindPrefixFor(p),
+                            CallSiteRefKindPrefix: CallSiteRefKindPrefixFor(p))).ToEquatableArray(),
                         siblingMethod.IsGenericMethod,
                         siblingMethod.IsGenericMethod
                             ? siblingMethod.TypeParameters.Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name)).ToEquatableArray()

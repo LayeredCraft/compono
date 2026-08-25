@@ -5,6 +5,12 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IBase5_4a46deac_Double : global::TestNamespace.IBase5
 {
+    // ADR-0044 Amendment 20: the owner-forwarding dispatch helper is a pure, stateless forward to
+    // `this` (never independently mutated), so one instance is reused for every unconfigured call
+    // to this member instead of allocating a fresh one per call (code-review finding). A benign
+    // race under concurrent first-use (two threads each constructing one before either publishes)
+    // is harmless - both forward identically, and only one is kept.
+    private __Flag_DimFallback? __Flag_dimHelper;
     internal global::Compono.ReturnConfig<bool> __Flag;
     // ADR-0050: multi-entry response configuration - replaces the single
     // __Visit/__Visit_m_{param} shape with an ordered, append-only
@@ -18,13 +24,31 @@ internal sealed class TestNamespace_IBase5_4a46deac_Double : global::TestNamespa
     internal readonly global::System.Collections.Generic.List<__Visit_Entry> __Visit_entries = [];
     internal readonly global::System.Collections.Generic.List<string> __Visit_calls = [];
     internal readonly object __Visit_lock = new();
+    // ADR-0044 Amendment 20: owner-forwarding dispatch helper - holds the real generated double,
+    // implements global::TestNamespace.IBase5 but deliberately does NOT
+    // override Flag, so calling Flag through this helper's
+    // own global::TestNamespace.IBase5 view lets C#'s own default-interface-
+    // member dispatch resolve to the interface's real body. Every OTHER member this helper must
+    // implement to satisfy that interface's full contract is a pure forward back to the owner's own
+    // explicit implementation - never independently recorded, so exactly one place (the owner's own
+    // Flag implementation, below) ever records a call to this member.
+    internal sealed class __Flag_DimFallback : global::TestNamespace.IBase5
+    {
+        private readonly TestNamespace_IBase5_4a46deac_Double _owner;
+
+        internal __Flag_DimFallback(TestNamespace_IBase5_4a46deac_Double owner) => _owner = owner;
+        void global::TestNamespace.IBase5.Visit(ref readonly int value) =>
+            ((global::TestNamespace.IBase5)_owner).Visit(value);
+        void global::TestNamespace.IBase5.Visit(string label) =>
+            ((global::TestNamespace.IBase5)_owner).Visit(label);
+    }
 
     bool global::TestNamespace.IBase5.Flag()
     {
         __Flag.RecordCall();
         return __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
             : __Flag.HasConfiguredValue ? __Flag.ConfiguredValue
-            : default;
+            : ((global::TestNamespace.IBase5)(__Flag_dimHelper ??= new __Flag_DimFallback(this))).Flag();
     }
 
     void global::TestNamespace.IBase5.Visit(ref readonly int value)

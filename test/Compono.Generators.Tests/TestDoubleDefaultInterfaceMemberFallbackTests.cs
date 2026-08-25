@@ -518,4 +518,61 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
 
         act.Should().NotThrow();
     }
+
+    private const string StandaloneConcreteDimSource = """
+        namespace TestNamespace;
+
+        // A plain, non-colliding default interface member - no base/derived redeclaration
+        // anywhere, no identity group with more than one member at all. This is the common case
+        // Amendment 20 was meant to cover in the first place (code-review finding, P1): the
+        // original resolution loop only ever considered identity groups with MORE than one
+        // member, so this ordinary shape never became a DIM fallback target and silently kept
+        // ADR-0045's computed default (false) instead of its own real body (true).
+        public interface IStandalone
+        {
+            bool Flag() => true;
+        }
+
+        public sealed class Consumer
+        {
+            public Consumer(IStandalone handler) { }
+        }
+
+        public static class EntryPoint
+        {
+            private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+            public static object CreateDouble()
+            {
+                Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IStandalone), out var value);
+                return value!;
+            }
+        }
+        """;
+
+    [Fact]
+    public void StandaloneConcreteDim_UnconfiguredView_ReturnsRealDimBody_NotComputedDefault()
+    {
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = StandaloneConcreteDimSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var handler = (IStandalone)CreateDouble();
+                        return handler.Flag();
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(true);
+    }
 }
