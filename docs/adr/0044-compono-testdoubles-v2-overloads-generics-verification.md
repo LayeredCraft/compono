@@ -2184,6 +2184,42 @@ the AOT fixture with a DIM-shaped interface (mirroring
   to be a DIM does not change; only the *previously-wrong* unconfigured
   value does.
 
+### Known, real, still-open gap (code review, 2026-08-25 follow-up round, not fixed here)
+
+The "unique dominant declaration" resolution this Amendment added
+(`TestDoubleMemberIdentityResolver`) decides *which* declaration wins
+purely by inheritance shape (a more-derived interface's own redeclaration
+beats a less-derived one) - it never validates that the winning
+declaration can actually **satisfy** the losing declaration's own
+contract. Two concrete failure shapes were identified but not fixed:
+
+- A property: `IBase.Value { get; set; }` hidden by a derived
+  `new Value { get; }` (get-only) resolves to the derived (get-only)
+  declaration as dominant, but the *losing* `IBase.Value` forwarding
+  declaration still has to satisfy `IBase`'s own `{ get; set; }` contract
+  - its generated setter would assign through the dominant property's
+    own accessor, which doesn't exist, failing the consumer's compilation
+    (not caught by this PR's earlier `DeclaredAccessibility == Public`
+    fix, which only handles a setter's *accessibility*, not its
+    *presence* on the winning declaration).
+- A method: `IBase.Get()` returning `string` hidden by a derived
+  `Get()` returning `object` - the losing forwarding declaration must
+  return `string` while its body calls through the dominant `object`-
+  returning method, which isn't implicitly convertible back to `string`,
+  again failing the consumer's compilation.
+
+Both require a real return-type/accessor-compatibility check between the
+dominant and every losing declaration before treating the identity as
+resolved - and a real design decision for what happens when
+compatibility fails (most likely: fall back to this identity's original,
+pre-Amendment-20 diamond-collision disposition, since the interfaces
+genuinely can't share one implementation in that case). Not attempted in
+this remediation round - the compatibility rule itself (especially method
+return-type covariance under C#'s own explicit-interface-implementation
+rules) needs its own careful design and test pass, not a hurried fix
+layered onto an already-large PR. Tracked here as an explicit, honest
+open item.
+
 ## Links
 
 - [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md) —
