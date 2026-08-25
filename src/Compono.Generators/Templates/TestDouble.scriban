@@ -5,6 +5,16 @@
 internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualified_name }}
 {
 {{~ for member in members ~}}
+{{~ if member.is_dim_fallback_target ~}}
+    // ADR-0044 Amendment 20: the owner-forwarding dispatch helper is a pure, stateless forward to
+    // `this` (never independently mutated), so one instance is reused for every unconfigured call
+    // to this member instead of allocating a fresh one per call (code-review finding). A benign
+    // race under concurrent first-use (two threads each constructing one before either publishes)
+    // is harmless - both forward identically, and only one is kept.
+    private {{ member.dim_fallback_helper_class_name }}? {{ member.field_name }}_dimHelper;
+{{~ end ~}}
+{{~ end ~}}
+{{~ for member in members ~}}
 {{~ if member.is_closed_instantiation_eligible ~}}
     internal sealed class {{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>{{ member.constraint_clauses_text }}
     {
@@ -213,7 +223,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             }
         }
 {{~ if member.is_dim_fallback_target ~}}
-        (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+        (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ end ~}}
     }
 {{~ else ~}}
@@ -247,7 +257,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
 {{~ else if member.is_dim_fallback_target ~}}
-        return (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+        return (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ else ~}}
         return {{ member.default_expression }};
 {{~ end ~}}
@@ -261,7 +271,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             throw {{ member.field_name }}.ConfiguredException;
 {{~ if member.is_dim_fallback_target ~}}
         else
-            (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+            (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ end ~}}
     }
 {{~ else ~}}
@@ -274,7 +284,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}{{ if member.is_overloaded && member.extension_is_generic }}{{ member.generic_suffix }}{{ end }}({{ if member.is_overloaded }}...{{ end }}).Returns(...) or .Throws(...) before invoking it.");
 {{~ else if member.is_dim_fallback_target ~}}
-            : (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+            : (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ else ~}}
             : {{ member.default_expression }};
 {{~ end ~}}
@@ -310,7 +320,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 : throw new global::Compono.TestDoubleNotConfiguredException(
                     "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured - call Configure().{{ member.escaped_name }}().Returns(...) or .Throws(...) before invoking it.");
 {{~ else if member.is_dim_fallback_target ~}}
-                : (({{ member.declaring_interface_fully_qualified_name }})new {{ member.dim_fallback_helper_class_name }}(this)).{{ member.escaped_name }};
+                : (({{ member.declaring_interface_fully_qualified_name }})({{ member.field_name }}_dimHelper ??= new {{ member.dim_fallback_helper_class_name }}(this))).{{ member.escaped_name }};
 {{~ else ~}}
                 : {{ member.default_expression }};
 {{~ end ~}}
