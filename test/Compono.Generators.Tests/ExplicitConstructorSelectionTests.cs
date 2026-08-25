@@ -226,6 +226,50 @@ public sealed class ExplicitConstructorSelectionTests
     }
 
     [Fact]
+    public Task RepeatedInvalidSelections_ReportsCanonicallyOrderedChoice_NotDeclarationOrder()
+    {
+        // Two distinct invalid selections for the same type - neither matches any constructor -
+        // deliberately declared so the alphabetically LATER requested-type-list text ("IQux") is
+        // declared FIRST, and the alphabetically SMALLER text ("IBaz") is declared LAST.
+        // Reporting "whichever invalid selection was visited first" (the pre-fix behavior) would
+        // have named the IQux attempt here; the fix instead always reports the invalid selection
+        // whose requested-type-list text sorts alphabetically smallest, regardless of declaration
+        // order (code-review finding, mirrors the conflicting-selection determinism fix above).
+        const string repeatedInvalidSource = """
+            namespace SpikeRepeatedInvalid;
+
+            public interface IBar { }
+            public interface IBaz { }
+            public interface IQux { }
+
+            public sealed class Foo
+            {
+                public Foo() { }
+                public Foo(IBar bar) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void RunWithIQuxFirst()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IQux>());
+                }
+
+                public static void RunWithIBazLast()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBaz>());
+                }
+            }
+            """;
+
+        var options = new CodeGenerationOptions { SourceCode = repeatedInvalidSource };
+
+        return GeneratorTestHelpers.VerifyFailure(options, "CMP0034", TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public Task IdenticalRepeatedSelection_IsIdempotent_NotAConflict()
     {
         const string repeatedSource = """

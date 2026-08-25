@@ -66,7 +66,13 @@ internal static class ConstructorSelectionScanner
         // a conflict incrementally, keyed on "whichever was visited first vs. second," let both the
         // reported pair and the diagnostic location change across builds for the same source).
         var selectionsByType = new Dictionary<INamedTypeSymbol, List<(IMethodSymbol Constructor, LocationInfo? Location)>>(SymbolEqualityComparer.Default);
-        var invalid = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
+        // Same "collect during the walk, resolve once after it" shape as selectionsByType above -
+        // an incremental `invalid[targetType] = ...` assignment let a type with more than one
+        // invalid UseConstructor(...) call report whichever attempt was visited LAST by
+        // Compilation.SyntaxTrees' own unspecified enumeration order, so the reported requested-
+        // type-list text and location could both change across otherwise-identical builds
+        // (code-review finding, same root cause as the conflict-diagnostic determinism fix above).
+        var invalidByType = new Dictionary<INamedTypeSymbol, List<(string RequestedTypesText, LocationInfo? Location)>>(SymbolEqualityComparer.Default);
 
         // Resolved once per compilation and compared by symbol identity below, not by matching the
         // containing type's simple name/arity - a consumer-defined type also named
@@ -76,7 +82,7 @@ internal static class ConstructorSelectionScanner
         // call anywhere in it can possibly be a real `UseConstructor` selection.
         var realBuilderType = GetRealCompositionTypeRuleBuilder(compilation);
         if (realBuilderType is null)
-            return new Result([], [], invalid);
+            return new Result([], [], []);
 
         foreach (var tree in compilation.SyntaxTrees)
         {
@@ -143,11 +149,15 @@ internal static class ConstructorSelectionScanner
 
                 if (matched is null)
                 {
-                    invalid[targetType] = new DiagnosticInfo(
-                        DiagnosticDescriptors.InvalidConstructorSelection,
-                        LocationInfo.From(invocation),
-                        targetType.ToDisplayString(),
-                        string.Join(", ", requestedParamTypes.Select(t => t.ToDisplayString())));
+                    if (!invalidByType.TryGetValue(targetType, out var invalidList))
+                    {
+                        invalidList = [];
+                        invalidByType[targetType] = invalidList;
+                    }
+
+                    invalidList.Add((
+                        string.Join(", ", requestedParamTypes.Select(t => t.ToDisplayString())),
+                        LocationInfo.From(invocation)));
                     continue;
                 }
 
@@ -196,6 +206,26 @@ internal static class ConstructorSelectionScanner
                 targetType.ToDisplayString(),
                 ordered[0].Constructor.ToDisplayString(),
                 ordered[1].Constructor.ToDisplayString());
+        }
+
+        // Same canonicalization as conflicts, above: one or more invalid attempts for the same
+        // type are resolved to a single, deterministic (requested-types-text-ordinal-ordered)
+        // representative, never "whichever attempt the walk happened to visit last."
+        var invalid = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
+
+        foreach (var (targetType, list) in invalidByType)
+        {
+            var canonical = list
+                .OrderBy(e => e.RequestedTypesText, StringComparer.Ordinal)
+                .ThenBy(e => e.Location?.FilePath, StringComparer.Ordinal)
+                .ThenBy(e => e.Location?.TextSpan.Start ?? 0)
+                .First();
+
+            invalid[targetType] = new DiagnosticInfo(
+                DiagnosticDescriptors.InvalidConstructorSelection,
+                canonical.Location,
+                targetType.ToDisplayString(),
+                canonical.RequestedTypesText);
         }
 
         return new Result(selections, conflicts, invalid);
