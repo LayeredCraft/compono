@@ -1204,6 +1204,31 @@ hardened as production code, not reverted:
   Tracked here as an explicit, honest open item - not a design gap, but
   also no longer described as "the next PR will handle it" without a
   next PR actually doing so.
+  Conflict diagnostics (`CMP0033`) also hardened for determinism: two or
+  more distinct selections for the same type are now resolved once, after
+  the full syntax-tree walk completes, into a canonical
+  (`ToDisplayString()`-ordinal-ordered) pair and a deterministic location
+  - previously, the reported pair and location depended on
+  `Compilation.SyntaxTrees`' own unspecified enumeration order, so the
+  same source could report a different pair/location across builds, and a
+  third conflicting selection silently discarded the second one's
+  information entirely (code review, 2026-08-25).
+  **A second known, real, still-open gap surfaced by the same review
+  round, also not fixed here:** `CMP0033`/`CMP0034` are only ever reported
+  as a side effect of `ConstructorSelector.Select` running for a type that
+  is actually discovered/composed somewhere in the compilation. A
+  `UseConstructor<...>()` selection (invalid, or conflicting with another)
+  for a type that's never actually composed - e.g. dead/stale
+  configuration left behind after refactoring - currently produces *no*
+  diagnostic at all, silently, even though the public API's own
+  documentation says a bad selection "is a compile-time diagnostic
+  (CMP0034), not a silent fallback." Fixing this correctly means
+  publishing every scan-discovered conflict/invalid entry unconditionally
+  from this generator's `Initialize` wiring, decoupled from ordinary
+  composed-type discovery - and doing that without double-reporting the
+  same diagnostic for a type that *is* also independently discovered (the
+  common case) needs a real design pass to reconcile the two reporting
+  paths, not a rushed patch. Tracked here as an explicit, honest open item.
 - `CMP0033`/`CMP0034` added to `AnalyzerReleases.Unshipped.md` alongside
   the rest of this generator's tracked rules.
 - Test file promoted from `ConstructorSelectionSpikeTests.cs` to

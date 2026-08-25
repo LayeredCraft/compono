@@ -59,8 +59,13 @@ internal static class ConstructorSelectionScanner
 
     private static Result Scan(Compilation compilation)
     {
-        var selections = new Dictionary<INamedTypeSymbol, (IMethodSymbol Constructor, Location Location)>(SymbolEqualityComparer.Default);
-        var conflicts = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
+        // Every DISTINCT selection (by constructor symbol identity) found for each type, collected
+        // during the single tree walk below with no attempt at conflict resolution yet - resolving
+        // conflicts only after the full walk (below) is what makes the outcome independent of
+        // Compilation.SyntaxTrees' own unspecified enumeration order (code-review finding: reporting
+        // a conflict incrementally, keyed on "whichever was visited first vs. second," let both the
+        // reported pair and the diagnostic location change across builds for the same source).
+        var selectionsByType = new Dictionary<INamedTypeSymbol, List<(IMethodSymbol Constructor, LocationInfo? Location)>>(SymbolEqualityComparer.Default);
         var invalid = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
 
         // Resolved once per compilation and compared by symbol identity below, not by matching the
@@ -71,7 +76,7 @@ internal static class ConstructorSelectionScanner
         // call anywhere in it can possibly be a real `UseConstructor` selection.
         var realBuilderType = GetRealCompositionTypeRuleBuilder(compilation);
         if (realBuilderType is null)
-            return new Result(selections, conflicts, invalid);
+            return new Result([], [], invalid);
 
         foreach (var tree in compilation.SyntaxTrees)
         {
@@ -134,23 +139,51 @@ internal static class ConstructorSelectionScanner
                     continue;
                 }
 
-                if (selections.TryGetValue(targetType, out var existing))
+                if (!selectionsByType.TryGetValue(targetType, out var list))
                 {
-                    // Idempotent repeat (same real constructor symbol) - accept silently, no conflict.
-                    if (SymbolEqualityComparer.Default.Equals(existing.Constructor, matched))
-                        continue;
-
-                    conflicts[targetType] = new DiagnosticInfo(
-                        DiagnosticDescriptors.ConflictingConstructorSelection,
-                        LocationInfo.From(invocation),
-                        targetType.ToDisplayString(),
-                        existing.Constructor.ToDisplayString(),
-                        matched.ToDisplayString());
-                    continue;
+                    list = [];
+                    selectionsByType[targetType] = list;
                 }
 
-                selections[targetType] = (matched, invocation.GetLocation());
+                // De-duplicated by constructor symbol identity here (not just left to the resolution
+                // pass below) - an identical selection repeated many times must never inflate the
+                // list past the two-or-more-distinct-entries threshold that pass uses to decide
+                // "conflict."
+                if (!list.Any(e => SymbolEqualityComparer.Default.Equals(e.Constructor, matched)))
+                    list.Add((matched, LocationInfo.From(invocation)));
             }
+        }
+
+        // Resolved once, after the full walk, from each type's complete distinct-selection list -
+        // never incrementally during the walk above. A single distinct selection is simply the
+        // answer; two or more is a conflict, reported via a canonical (ToDisplayString-ordinal)
+        // ordering of the constructors and the location belonging to whichever constructor sorts
+        // first - both fully determined by the *set* of selections found, never by which
+        // Compilation.SyntaxTrees entry happened to be walked first.
+        var selections = new Dictionary<INamedTypeSymbol, (IMethodSymbol Constructor, Location Location)>(SymbolEqualityComparer.Default);
+        var conflicts = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
+
+        foreach (var (targetType, list) in selectionsByType)
+        {
+            if (list.Count == 1)
+            {
+                var (constructor, location) = list[0];
+                selections[targetType] = (constructor, location?.ToLocation() ?? Location.None);
+                continue;
+            }
+
+            var ordered = list
+                .OrderBy(e => e.Constructor.ToDisplayString(), StringComparer.Ordinal)
+                .ThenBy(e => e.Location?.FilePath, StringComparer.Ordinal)
+                .ThenBy(e => e.Location?.TextSpan.Start ?? 0)
+                .ToArray();
+
+            conflicts[targetType] = new DiagnosticInfo(
+                DiagnosticDescriptors.ConflictingConstructorSelection,
+                ordered[0].Location,
+                targetType.ToDisplayString(),
+                ordered[0].Constructor.ToDisplayString(),
+                ordered[1].Constructor.ToDisplayString());
         }
 
         return new Result(selections, conflicts, invalid);

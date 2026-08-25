@@ -154,6 +154,58 @@ public sealed class ExplicitConstructorSelectionTests
     }
 
     [Fact]
+    public Task ThreeConflictingSelections_ReportsCanonicallyOrderedPair_NotDeclarationOrder()
+    {
+        // Three distinct selections for the same type, deliberately declared in an order that
+        // does NOT match the alphabetical order of their own ToDisplayString() text - the largest
+        // (three-arg) selection is declared FIRST, the smallest (one-arg) selection declared LAST.
+        // Reporting "whichever was visited first vs. last" (the pre-fix behavior) would have named
+        // the three-arg and two-arg selections here, since Compilation.SyntaxTrees/descendant-node
+        // walk order for a single file tracks declaration order; the fix instead always reports the
+        // two constructors with the alphabetically smallest ToDisplayString() text, regardless of
+        // where in the source (or in which order) each selection was declared (code-review finding).
+        const string threeWayConflictSource = """
+            namespace SpikeThreeWayConflict;
+
+            public interface IBar { }
+            public interface IBaz { }
+            public interface IQux { }
+
+            public sealed class Foo
+            {
+                public Foo() { }
+                public Foo(IBar bar) { }
+                public Foo(IBar bar, IBaz baz) { }
+                public Foo(IBar bar, IBaz baz, IQux qux) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void RunWithLargestSelectionFirst()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBar, IBaz, IQux>());
+                }
+
+                public static void RunWithMiddleSelection()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBar, IBaz>());
+                }
+
+                public static void RunWithSmallestSelectionLast()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBar>());
+                }
+            }
+            """;
+
+        var options = new CodeGenerationOptions { SourceCode = threeWayConflictSource };
+
+        return GeneratorTestHelpers.VerifyFailure(options, "CMP0033", TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public Task InvalidSelection_NoMatchingConstructor_ReportsCmp0034()
     {
         var options = new CodeGenerationOptions
