@@ -106,7 +106,7 @@ list of BCL primitives/value types). It never consults the registration
 table, and it never treats an arbitrary lambda body (a registration
 factory's own code) as a discovery root.
 
-**Finding A** ([RESEARCH-0010 §10](../research/0010-alexa-vox-craft-compono-ecosystem-migration.md#10-finding-a--ambiguous-constructor-selection-has-no-registert-escape-hatch-when-reached-through-another-composed-types-constructor)):
+**Finding A** ([RESEARCH-0010 §10](../research/0010-alexa-vox-craft-compono-ecosystem-migration.md#10-finding-a-ambiguous-constructor-selection-has-no-registert-escape-hatch-when-reached-through-another-composed-types-constructor)):
 `AlexaInteractionModelClient(HttpClient client, ILogger<...> logger)`,
 composed as a theory parameter, hits `CMP0001` on `HttpClient`'s 3
 accessible constructors — a **compile-time** diagnostic — even though the
@@ -122,7 +122,7 @@ information Amendment 1 didn't have — occurring specifically as a *nested*
 constructor parameter of another composed type, not `HttpClient` composed
 at the root.
 
-**Finding B** ([RESEARCH-0010 §11](../research/0010-alexa-vox-craft-compono-ecosystem-migration.md#11-finding-b--a-type-reachable-only-via-nested-contextresolvet-inside-a-registration-factory-may-have-no-generated-plan)):
+**Finding B** ([RESEARCH-0010 §11](../research/0010-alexa-vox-craft-compono-ecosystem-migration.md#11-finding-b-a-type-reachable-only-via-nested-contextresolvet-inside-a-registration-factory-may-have-no-generated-plan)):
 `SmapiHttpTestProfile`'s registration factory —
 `Register<IOptions<T>>(context => Options.Create(context.Resolve<SmapiDeveloperAccessTokenOptions>()))`
 — fails at **runtime**, not compile time, with `CompositionException: No

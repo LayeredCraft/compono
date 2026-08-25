@@ -63,6 +63,16 @@ internal static class ConstructorSelectionScanner
         var conflicts = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
         var invalid = new Dictionary<INamedTypeSymbol, DiagnosticInfo>(SymbolEqualityComparer.Default);
 
+        // Resolved once per compilation and compared by symbol identity below, not by matching the
+        // containing type's simple name/arity - a consumer-defined type also named
+        // `CompositionTypeRuleBuilder<T>` with its own generic `UseConstructor` method must never be
+        // mistaken for Compono's real one (code-review finding). `null` means the real
+        // `Compono.CompositionTypeRuleBuilder<T>` isn't even referenced by this compilation, so no
+        // call anywhere in it can possibly be a real `UseConstructor` selection.
+        var realBuilderType = GetRealCompositionTypeRuleBuilder(compilation);
+        if (realBuilderType is null)
+            return new Result(selections, conflicts, invalid);
+
         foreach (var tree in compilation.SyntaxTrees)
         {
             var model = compilation.GetSemanticModel(tree);
@@ -78,11 +88,14 @@ internal static class ConstructorSelectionScanner
                 if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol
                     {
                         Name: "UseConstructor",
-                        ContainingType: { Name: "CompositionTypeRuleBuilder", TypeArguments: [var targetTypeArg] },
+                        ContainingType: { TypeArguments: [var targetTypeArg] } containingType,
                     } method)
                 {
                     continue;
                 }
+
+                if (!SymbolEqualityComparer.Default.Equals(containingType.OriginalDefinition, realBuilderType))
+                    continue;
 
                 if (targetTypeArg is not INamedTypeSymbol targetType)
                     continue;
@@ -125,6 +138,23 @@ internal static class ConstructorSelectionScanner
         }
 
         return new Result(selections, conflicts, invalid);
+    }
+
+    // Same "filter to the well-known assembly" shape as
+    // Compono.Generators.WellKnownTypes.WellKnownTypes.GetTypeByMetadataNameInTargetAssembly - not
+    // reused directly since that cache's table doesn't carry generic-arity metadata names, and this
+    // scanner only ever needs this one open-generic type, resolved once per compilation.
+    private static INamedTypeSymbol? GetRealCompositionTypeRuleBuilder(Compilation compilation)
+    {
+        var candidates = compilation.GetTypesByMetadataName("Compono.CompositionTypeRuleBuilder`1");
+
+        return candidates.Length switch
+        {
+            0 => null,
+            1 => candidates[0],
+            _ => candidates.FirstOrDefault(t =>
+                t.ContainingAssembly.Identity.Name.Equals("Compono", StringComparison.Ordinal)),
+        };
     }
 
     internal sealed class Result

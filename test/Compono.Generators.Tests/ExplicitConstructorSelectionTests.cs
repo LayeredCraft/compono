@@ -356,4 +356,48 @@ public sealed class ExplicitConstructorSelectionTests
         return GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions { SourceCode = paramsSource }, "CMP0034", TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task UnrelatedSameNamedBuilderType_IsNotMistakenForCompono_StillReportsCmp0001()
+    {
+        // A consumer-defined type that happens to share the name/arity/method-name shape of
+        // Compono's own CompositionTypeRuleBuilder<T>.UseConstructor<...>() must never be mistaken
+        // for a real selection - the scanner must compare against Compono's actual symbol, not just
+        // the containing type's simple name (code-review finding). Foo stays genuinely ambiguous
+        // (CMP0001), even though a decoy call with an identical-looking shape exists elsewhere in
+        // the same compilation and would, if wrongly matched, either "select" a constructor Foo
+        // doesn't have (CMP0034) or accidentally resolve Foo's own ambiguity.
+        const string decoySource = """
+            namespace SpikeDecoy;
+
+            public interface IBar { }
+            public interface IBaz { }
+
+            public sealed class Foo
+            {
+                public Foo() { }
+                public Foo(IBar bar, IBaz baz) { }
+            }
+
+            // Same simple name, same arity, same generic method name as Compono's real
+            // CompositionTypeRuleBuilder<T> - deliberately NOT Compono's type.
+            public sealed class CompositionTypeRuleBuilder<T>
+            {
+                public void UseConstructor<T1>() { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void Run()
+                {
+                    new CompositionTypeRuleBuilder<Foo>().UseConstructor<IBar>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions { SourceCode = decoySource }, "CMP0001", TestContext.Current.CancellationToken);
+    }
 }

@@ -278,7 +278,7 @@ it. `Compono.TestDoubles` has no equivalent (`docs/packages/compono-testdoubles.
 complete git history: exactly one real site, ever, needed this shape.
 Frequency alone would ordinarily classify this "intentional design
 difference" under ADR-0029's general discretion, but
-[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration)
+[ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration)
 overrides that discretion for this exact category: `Compono.NSubstitute`
 (a real NSubstitute substitute, confirmed by reading its provider source)
 satisfies this shape natively, so a real, evidenced

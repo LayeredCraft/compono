@@ -84,7 +84,7 @@ ADR, the research doc, the plan).
   do"). Observed frequency alone (exactly one real site across
   `alexa-vox-craft`'s complete history) would ordinarily weigh toward
   "intentional design difference" under ADR-0029's general discretion, but
-  [ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration)
+  [ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration)
   overrides that discretion for any real, evidenced
   `Compono.NSubstitute`-vs-`Compono.TestDoubles` gap — confirmed
   `Compono.NSubstitute` (a real NSubstitute substitute) satisfies this

@@ -78,7 +78,7 @@ lines, one member), used only by this one test
 Taken on its own, (1) and (3) would normally point toward "intentional
 design difference" under ADR-0029's ordinary frequency/cost weighting - one
 real site, cheap workaround. **That weighting does not apply here.**
-[ADR-0042 Amendment 2](0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration)
+[ADR-0042 Amendment 2](0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration)
 already established a binding override for this exact category: `Compono.NSubstitute`
 resolves an interface to a real `NSubstitute.Substitute.For<T>()` instance
 (confirmed by reading `src/Compono.NSubstitute/NSubstituteProvider.cs` - it
