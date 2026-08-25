@@ -1805,7 +1805,11 @@ internal static class TestDoubleAnalyzer
                 }
                 else if (member is IPropertySymbol siblingProperty)
                 {
-                    var accessorKind = siblingProperty.SetMethod is null
+                    // Mirror the main property path's accessibility check (Amendment 9, Finding U /
+                    // PR #83 review round 5) - a setter that exists but isn't public (a default-
+                    // implemented `private set` alongside a default-implemented `get`) isn't part of
+                    // the implementable contract, so it's treated the same as no setter at all.
+                    var accessorKind = siblingProperty.SetMethod is not { DeclaredAccessibility: Accessibility.Public }
                         ? TestDoublePropertyAccessorKind.GetOnly
                         : siblingProperty.SetMethod.IsInitOnly
                             ? TestDoublePropertyAccessorKind.GetInit

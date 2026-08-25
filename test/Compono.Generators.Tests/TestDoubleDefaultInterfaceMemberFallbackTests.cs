@@ -336,4 +336,72 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
 
         act.Should().NotThrow();
     }
+
+    private const string NonPublicSiblingSetterDimSource = """
+        namespace TestNamespace;
+
+        public interface IBase4
+        {
+            bool Flag();
+
+            // A default-implemented property whose setter isn't public - not part of the
+            // implementable contract (same reasoning as a private default method), so the DIM
+            // fallback dispatch helper built for the sibling Flag() below must treat this as
+            // get-only, never emit a call through an inaccessible private setter. Code-review
+            // finding: the sibling-collection path originally classified this GetSet purely from
+            // `SetMethod is not null`, without checking `DeclaredAccessibility`.
+            int Value { get => 0; private set { } }
+        }
+
+        public interface IDerived4 : IBase4
+        {
+            new bool Flag() => true;
+        }
+
+        public sealed class Consumer
+        {
+            public Consumer(IDerived4 derived) { }
+        }
+
+        public static class EntryPoint
+        {
+            private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+            public static object CreateDouble()
+            {
+                Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IDerived4), out var value);
+                return value!;
+            }
+        }
+        """;
+
+    [Fact]
+    public void NonPublicSiblingSetter_TreatedAsGetOnly_ConsumerCompiles()
+    {
+        // The regression itself is a consumer COMPILE failure (the generated dispatch helper
+        // emitting an assignment through an inaccessible private setter) - CompileAndExecute
+        // throwing at all (rather than the assertion below) is exactly what a reintroduction of
+        // this bug looks like.
+        var act = () => GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = NonPublicSiblingSetterDimSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var derived = (IDerived4)CreateDouble();
+                        return derived.Flag();
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        act.Should().NotThrow();
+    }
 }
