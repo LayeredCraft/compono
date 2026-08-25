@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (25,70)-(25,75),
+      Message: 'Spike.Foo' (reached via Outer.foo) has 2 accessible constructors and no way to disambiguate them,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0001,
+        Title: Ambiguous construction path,
+        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

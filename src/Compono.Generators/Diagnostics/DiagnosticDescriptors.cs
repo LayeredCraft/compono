@@ -284,4 +284,23 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    // ADR-0052 (Part B, explicit constructor selection).
+    public static readonly DiagnosticDescriptor ConflictingConstructorSelection = new(
+        "CMP0033",
+        "Conflicting explicit constructor selection",
+        "'{0}' has more than one explicit UseConstructor(...) selection in this compilation " +
+        "({1} and {2}) - only one construction path is allowed per type per compilation " +
+        "(ADR-0052)",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidConstructorSelection = new(
+        "CMP0034",
+        "Invalid explicit constructor selection",
+        "'{0}' has no accessible constructor matching the requested parameter types ({1})",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

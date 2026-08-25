@@ -2,11 +2,13 @@
 
 Two completely different failure classes — don't confuse them:
 
-- **Compile-time**: `CMP0001`-`CMP0013` (errors — fail `dotnet build`) and
+- **Compile-time**: `CMP0001`-`CMP0013` (errors — fail `dotnet build`),
   `CMP0020`-`CMP0032` (informational — never fail the build, only relevant
   if `ComponoGeneratedTestDoubles=true` is set, whether or not
-  `Compono.TestDoubles` is referenced), both emitted by
-  `Compono.Generators` (a Roslyn analyzer). Look up the code below.
+  `Compono.TestDoubles` is referenced), and `CMP0033`-`CMP0034` (errors —
+  explicit constructor selection, ADR-0002 Amendment 3/ADR-0052 Part B),
+  all emitted by `Compono.Generators` (a Roslyn analyzer). Look up the
+  code below.
 - **Runtime**: `CompositionException`, thrown from `composer.Create<T>()`
   or a `[Compose]` theory row when the code compiled fine but the
   pipeline couldn't satisfy a request — most commonly a missing provider
@@ -21,7 +23,7 @@ and then threw is runtime (the tree-path section).
 
 | Code | Meaning | Fix |
 |---|---|---|
-| CMP0001 | Ambiguous construction — the type has more than one accessible constructor | Reduce to one accessible constructor, or compose an interface/wrapper instead (interfaces are always provider-resolved, never routed through constructor selection) — no registration rescues this |
+| CMP0001 | Ambiguous construction — the type has more than one accessible constructor | Prefer `builder.For<T>().UseConstructor<T1, ...>()` (name the intended constructor's own parameter types, in order — see `references/registrations-profiles-and-scopes.md`'s "Constructor selection" section); reducing to one accessible constructor or composing an interface/wrapper still work too — `Register<T>()` alone does not rescue this unless it supplies the whole value itself |
 | CMP0002 | No accessible constructor at all (only `private`, or a `static` type) | Give it an accessible constructor, or compose something else |
 | CMP0003 | (Historical/rare) — interfaces, abstract classes, and delegates are always classified provider-resolved today, both at root and member position, so this shouldn't surface for those. A missing provider for one is a *runtime* `CompositionException`, not this diagnostic. | Install/configure a provider: `UseNSubstitute()`, `Register<T>()`, or `.For<T>()` |
 | CMP0004 | Unsupported constructor parameter kind — `ref`/`out`/`ref readonly`, ref struct, pointer, or function-pointer parameter (`in` parameters ARE supported) | Remove/change the parameter kind, or `Register<T>()` by hand |
@@ -35,10 +37,25 @@ and then threw is runtime (the tree-path section).
 | CMP0012 | A collection's element/key type isn't accessible (private/protected) from the generated collection-plan type | Use an accessible element/key type |
 | CMP0013 | A `[Compose]`-attributed parameter type isn't accessible (private/protected) from the generated row-binding dispatch type | Use an accessible parameter type, or widen the type's accessibility |
 
-This is the complete core diagnostic set — CMP0001 through CMP0013, no
-more, no fewer. `CMP0020`-`CMP0032` (below) are real too, but belong to
-generated test doubles, not core composition. If something references a
-`CMP00xx` code outside these two ranges, it isn't real; don't invent one.
+This is the complete core, always-on diagnostic set — CMP0001 through
+CMP0013, no more, no fewer. `CMP0020`-`CMP0032` (below) belong to
+generated test doubles, not core composition. `CMP0033`-`CMP0034` (below)
+are also always-on core diagnostics — explicit constructor selection —
+listed separately only because they shipped later than CMP0001-CMP0013.
+If something references a `CMP00xx` code outside these three ranges, it
+isn't real; don't invent one.
+
+## Compile-time, explicit constructor selection: CMP0033-CMP0034
+
+Always on (no opt-in), emitted only when `builder.For<T>().UseConstructor<...>()`
+is used somewhere in the compilation — see
+`references/registrations-profiles-and-scopes.md`'s "Constructor
+selection" section.
+
+| Code | Meaning | Fix |
+|---|---|---|
+| CMP0033 | Conflicting explicit selection — two *different* `UseConstructor<...>()` selections for the same type appear anywhere in the compilation (scope is compilation-wide, not per-profile) | Consolidate to one selection for that type. Calling the identical selection more than once is fine — only a genuinely different selection conflicts |
+| CMP0034 | Invalid explicit selection — the requested parameter-type list matches no accessible constructor on the type (including a constructor that exists but isn't accessible from the calling compilation) | Match the type list to a real, accessible constructor's parameters, in order — never falls back to a different constructor silently |
 
 ## Compile-time, generated-test-double opt-in only: CMP0020-CMP0032
 

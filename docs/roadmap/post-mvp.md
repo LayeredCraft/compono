@@ -15,13 +15,88 @@ acceptable alternatives do not become roadmap items" — this page is not a
 general findings log, and non-candidate findings belong in the research
 record and their governing ADR's Amendments, not here.
 
-## Current state: no outstanding roadmap candidates
+## Current state: two outstanding roadmap candidates
 
 Per `docs/roadmap/index.md`, this page is a status-filtered index of
 capability gaps that are **not yet available** — a shipped capability
 doesn't stay listed here once it's implemented, even though the evidence
 that motivated it remains a permanent part of the record elsewhere (the
-ADR, the research doc, the plan). Seven dogfooding passes have run so far:
+ADR, the research doc, the plan).
+
+- An eighth pass — migrating `alexa-vox-craft`'s AutoFixture/AutoNSubstitute
+  test kit to Compono, Compono.TestDoubles, and the newly-shipped
+  Compono.Http (PLAN-0051 Task 10, see
+  [RESEARCH-0010](../research/0010-alexa-vox-craft-compono-ecosystem-migration.md))
+  — surfaced two findings classified roadmap candidate under a single
+  compile-time composition-discovery question: **Finding A**, an
+  ambiguous-constructor BCL type (`HttpClient`) reached as a *nested*
+  constructor parameter of another composed type hits `CMP0001` at compile
+  time with no compile-time-visible `Register<T>` escape hatch (RESEARCH-0010
+  §10); **Finding B**, a user-defined type reachable only from inside a
+  registration factory's own `context.Resolve<T>()` call has no generated
+  plan and fails at runtime instead (RESEARCH-0010 §11). Both are recorded
+  as evidence for one roadmap candidate — not yet proven to be one
+  architectural problem or two — tracked by
+  [ADR-0052](../adr/0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md),
+  **`Partially Accepted` as of 2026-08-25**. ADR-0052's design dive
+  separated two related but distinct capabilities: **Part A,
+  registration-aware discovery** — teaching the generator to statically
+  recognize a matching `Register<T>(...)` call in a profile's `Configure`
+  method as a compile-time signal to treat `T` as a leaf, closing the
+  `HttpClient` evidence specifically (no new API, `ConstructorSelector`
+  unchanged) — and **Part B, explicit constructor selection** — a new
+  `CompositionBuilder.For<T>().UseConstructor<...>()` surface
+  (source-generator-recognized the same way) letting a consumer pick
+  *which* constructor while Compono still composes its parameters
+  normally. **Part B is `Accepted` and shipped** (`UseConstructor<...>()`,
+  `CMP0033`/`CMP0034`, ADR-0002 Amendment 3) — no longer listed as
+  outstanding here, per this page's own "a shipped capability doesn't stay
+  listed" rule, above. **Part A remains open and `Proposed`, not
+  implemented** — `Register<HttpClient>` still doesn't close `CMP0001` for
+  a nested `HttpClient` constructor parameter at compile time (confirmed
+  again, unchanged, by real `alexa-vox-craft` evidence in
+  [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md)'s
+  "Real consumer proof" section — `UseConstructor` closes the *ambiguity*,
+  Part A's discovery gap is a separate, still-unclosed question). Finding B
+  (nested `context.Resolve<T>()` discovery) also stays open, deliberately
+  not bundled into Part B's implementation. No plan yet for either Part A
+  or Finding B. A
+  first real migration slice
+  through `AlexaVoxCraft.TestKit` (see
+  [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md),
+  `AlexaVoxCraft.MediatR.Tests`, 154/154 under current Compono) reached
+  154/154 without reproducing Finding A or B, and added negative evidence
+  narrowing Finding B's boundary (a nested `context.Resolve<T>()` for a
+  type satisfied by a test-double *provider*, not a generated plan, works
+  fine) — recorded against this same candidate, no change to its status.
+
+- The same eighth pass's first real migration slice
+  ([RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md),
+  `AlexaVoxCraft.MediatR.Tests`) also surfaced a second, independent
+  finding while converting `Wrappers/RequestHandlerWrapperTests.cs`'s
+  `Handle_WithPipelineBehaviors_ExecutesBehaviorsInReverseOrder`:
+  `Compono.TestDoubles` has no invocation-aware callback response
+  (`Returns(Func<CallInfo, T>)`-style) for a generated double's member -
+  the pre-migration NSubstitute test invoked a captured
+  `RequestHandlerDelegate` argument and recorded side effects around it, a
+  shape `Compono.TestDoubles` deliberately doesn't support
+  (`docs/packages/compono-testdoubles.md`'s "What it deliberately doesn't
+  do"). Observed frequency alone (exactly one real site across
+  `alexa-vox-craft`'s complete history) would ordinarily weigh toward
+  "intentional design difference" under ADR-0029's general discretion, but
+  [ADR-0042 Amendment 2](../adr/0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-componononsubstitute-substitutability-is-a-goal-not-an-aspiration)
+  overrides that discretion for any real, evidenced
+  `Compono.NSubstitute`-vs-`Compono.TestDoubles` gap — confirmed
+  `Compono.NSubstitute` (a real NSubstitute substitute) satisfies this
+  shape natively — so rarity does not downgrade it here. Tracked by
+  [ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)
+  (`Proposed`; problem and design evidence recorded only, no API decided).
+  The migrated test's interim workaround
+  (`test/AlexaVoxCraft.MediatR.Tests/TestKit/FakeDelegates.cs`'s
+  `FakePipelineBehavior`) is the accepted project-local alternative while
+  this candidate is unresolved, not a permanent verdict.
+
+Seven earlier dogfooding passes have also run:
 
 - A seventh pass — a gating investigation for a hypothesized `Compono.BUnit`
   package, using `ncipollina/trivia-manager`'s real bUnit test suite as

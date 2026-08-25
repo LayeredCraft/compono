@@ -183,3 +183,73 @@ support for disambiguating construction of a registered/external
 ambiguous type — should a real pre-existing call site surface it later,
 not as a decision to build that mechanism today.
 
+## Amendment 2 (2026-08-24): the real pre-existing call site Amendment 1 anticipated has now surfaced
+
+`alexa-vox-craft`'s migration (PLAN-0051 Task 10, per
+[RESEARCH-0010](../research/0010-alexa-vox-craft-compono-ecosystem-migration.md)
+§10) hit the same `HttpClient` `CMP0001` shape Amendment 1 recorded, but
+this time as a genuine pre-existing call site: composing
+`AlexaInteractionModelClient(HttpClient client, ...)` directly, the
+natural way to write the migrated test, not a capability preserved for a
+hypothetical future one. This clears the bar Amendment 1 explicitly said
+the `cosmere-tracker` evidence didn't. **Still no change to this ADR's
+decision** — per ADR-0029's process, evidence clearing that bar makes this
+a roadmap candidate, recorded and classified in its own dedicated ADR
+rather than folded into this one, since the registered/external-type
+disambiguation mechanism Amendment 1 anticipated is a materially
+different, not-yet-designed capability from anything this ADR decided. See
+[ADR-0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md).
+
+## Amendment 3 (2026-08-25): explicit constructor selection ships - the rule genuinely changes, this ADR's core decision does not
+
+[ADR-0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md)'s
+Part B (explicit constructor selection) is now `Accepted` and shipped -
+`CompositionTypeRuleBuilder<T>.UseConstructor<T1, ...>()`. This ADR's
+Decision Outcome, as originally written, stated the rule unconditionally:
+"If a type has more than one accessible constructor and nothing else
+disambiguates it, that is a compile-time diagnostic... rather than a
+guess." That statement is **no longer wholly accurate** as of this
+Amendment - claiming otherwise would misstate Compono's own shipped
+behavior. The corrected rule:
+
+> A type with exactly one accessible constructor still selects it
+> automatically - unchanged. A type with more than one accessible
+> constructor and **no explicit `UseConstructor<...>()` selection in
+> scope** (compilation-wide - see ADR-0052) still reports `CMP0001`,
+> unchanged. A type with more than one accessible constructor **and** an
+> explicit selection in scope uses the selected constructor - Compono
+> still composes that constructor's own parameters exactly as it would
+> for an unambiguous type, recursively, through the same discovery graph.
+
+**This is not a reversal of this ADR's Decision Outcome, and not the
+disambiguation mechanism this ADR's original text anticipated.** The
+original text presumed a future `[CompositionConstructor]`-style
+attribute applied to the ambiguous type itself - product direction
+explicitly rejected that shape during ADR-0052's design dive: a
+test-composition library must not require production code to carry
+test-only annotations, especially for a BCL/third-party type the consumer
+doesn't own and can't annotate. `UseConstructor<...>()` lives entirely in
+profile/composition-configuration code (`CompositionBuilder.For<T>()`),
+never on the type being composed - satisfying this ADR's own "useful
+failure is better than a clever fallback" and "predictability over
+magic" principles exactly as originally reasoned: there is still no
+heuristic anywhere in this rule, an unresolved ambiguity is still a
+compile-time diagnostic, and the *only* new behavior is an explicit,
+strongly-typed, source-generator-recognized way for a consumer to say
+which constructor to use - see ADR-0052's own "Part A recommendation
+under the corrected constraint" and "Real implementation spike results"
+sections for the full design and proof.
+
+**What this Amendment does not change:** `ConstructorSelector.Select`'s
+own arity-based logic for a type with **no** explicit selection is
+completely unmodified - single accessible constructor still selects
+automatically, `>1` with no selection is still exactly today's `CMP0001`,
+`0` accessible constructors is still `CMP0002`. `Register<T>` remains a
+separate capability (supplying/controlling construction of `T` entirely)
+and is explicitly **not** treated as a constructor-selection substitute -
+ADR-0052's own real evidence (`AlexaInteractionModelClient`'s registered
+`HttpClient`) proved `UseConstructor` cannot serve every case
+`Register<T>` already does, and that gap (registration-aware discovery)
+remains open, tracked separately in ADR-0052's own still-`Proposed` Part
+A.
+

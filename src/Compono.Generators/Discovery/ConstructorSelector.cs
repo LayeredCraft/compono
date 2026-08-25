@@ -63,6 +63,23 @@ internal static class ConstructorSelector
         if (constructors.Length == 1)
             return ValidateParameterKinds(type, constructors[0], location, path);
 
+        // ADR-0052 (Part B, explicit constructor selection).
+        // Consulted only once a type is already known to be ambiguous (>1 accessible constructor) -
+        // an explicit selection never changes behavior for an unambiguous type. Compilation-wide
+        // scoping (ADR-0052's corrected model): a conflicting or invalid selection is diagnosed
+        // regardless of which composition path triggered this Analyze call, since there is exactly
+        // one generated plan for `type` shared by every path that reaches it.
+        var scan = ConstructorSelectionScanner.GetOrCreate(compilation);
+
+        if (scan.TryGetConflict(type, out var conflictDiagnostic))
+            return Result.Failure(conflictDiagnostic);
+
+        if (scan.TryGetInvalid(type, out var invalidDiagnostic))
+            return Result.Failure(invalidDiagnostic);
+
+        if (scan.TryGetSelection(type, out var selectedConstructor))
+            return ValidateParameterKinds(type, selectedConstructor, location, path);
+
         return Result.Failure(new DiagnosticInfo(
             DiagnosticDescriptors.AmbiguousConstructor,
             location,
