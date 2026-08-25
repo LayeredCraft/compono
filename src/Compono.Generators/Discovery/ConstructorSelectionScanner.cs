@@ -79,8 +79,15 @@ internal static class ConstructorSelectionScanner
 
             foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
+                // Recognizes both the generic overloads (UseConstructor<T1, ...>()) and the
+                // non-generic, arity-0 overload (UseConstructor(), selecting a parameterless
+                // constructor - code-review finding: only the generic syntax was ever matched, so
+                // a consumer had no way to select a parameterless constructor at all).
                 if (invocation.Expression is not MemberAccessExpressionSyntax
-                    { Name: GenericNameSyntax { Identifier.Text: "UseConstructor" } })
+                    {
+                        Name: GenericNameSyntax { Identifier.Text: "UseConstructor" }
+                            or IdentifierNameSyntax { Identifier.Text: "UseConstructor" },
+                    })
                 {
                     continue;
                 }

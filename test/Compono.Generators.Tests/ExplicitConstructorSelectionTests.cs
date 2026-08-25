@@ -477,4 +477,51 @@ public sealed class ExplicitConstructorSelectionTests
 
         result.Should().BeOfType<int>();
     }
+
+    [Fact]
+    public void ParameterlessSelection_SelectsParameterlessConstructor()
+    {
+        // Foo has both a parameterless constructor and a one-arg constructor - a consumer who
+        // wants the PARAMETERLESS one had no way to express that selection before, since C# has no
+        // empty generic argument-list syntax and UseConstructor started at arity one (code-review
+        // finding). The non-generic UseConstructor() overload closes this gap.
+        const string parameterlessSource = """
+            namespace SpikeParameterless;
+
+            public interface IBar { }
+            public sealed class BarImpl : IBar { }
+
+            public sealed class Foo
+            {
+                public Foo() { Bar = null; }
+                public Foo(IBar bar) { Bar = bar; }
+
+                public IBar? Bar { get; }
+            }
+
+            public static class EntryPoint
+            {
+                public static object? Run()
+                {
+                    var composer = Compono.Composer.Create(builder =>
+                    {
+                        builder.For<Foo>().UseConstructor();
+                        builder.Register<IBar>(() => new BarImpl());
+                    });
+
+                    // If the (IBar) constructor had been selected instead, Bar would be a real
+                    // BarImpl, not null - reaching null proves the parameterless constructor ran.
+                    return composer.Create<Foo>().Bar;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions { SourceCode = parameterlessSource },
+            "SpikeParameterless.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().BeNull();
+    }
 }

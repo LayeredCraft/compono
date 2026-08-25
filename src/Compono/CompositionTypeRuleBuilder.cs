@@ -73,6 +73,17 @@ public sealed class CompositionTypeRuleBuilder<T>
     }
 
     /// <summary>
+    /// Selects <typeparamref name="T"/>'s parameterless constructor, for <c>Compono.Generators</c>'
+    /// compile-time composition plan - the arity-0 counterpart to <see cref="UseConstructor{T1}"/>,
+    /// needed because C# has no empty generic type-argument-list syntax to select a parameterless
+    /// constructor through the generic overloads alone. See
+    /// <see cref="UseConstructor{T1}"/>'s remarks - every rule there (compile-time-only marker,
+    /// <c>Register&lt;T&gt;</c> distinction, compilation-wide scope, <c>CMP0033</c>/<c>CMP0034</c>)
+    /// applies identically here.
+    /// </summary>
+    public void UseConstructor() { }
+
+    /// <summary>
     /// Selects the constructor of <typeparamref name="T"/> whose parameter types are exactly
     /// <c>(T1)</c>, in order, for <c>Compono.Generators</c>' compile-time composition plan -
     /// <typeparamref name="T"/> is still composed by Compono exactly as an unambiguous type would
