@@ -60,15 +60,15 @@ internal static class ConstructorSelector
                 location,
                 DisplayName(type, path)));
 
-        if (constructors.Length == 1)
-            return ValidateParameterKinds(type, constructors[0], location, path);
-
         // ADR-0052 (Part B, explicit constructor selection).
-        // Consulted only once a type is already known to be ambiguous (>1 accessible constructor) -
-        // an explicit selection never changes behavior for an unambiguous type. Compilation-wide
-        // scoping (ADR-0052's corrected model): a conflicting or invalid selection is diagnosed
-        // regardless of which composition path triggered this Analyze call, since there is exactly
-        // one generated plan for `type` shared by every path that reaches it.
+        // Consulted unconditionally, even when `type` has exactly one accessible constructor - a
+        // stale UseConstructor<...>() left behind after an overload was removed must still be
+        // diagnosed (CMP0033/CMP0034), not silently ignored just because the type happens to be
+        // unambiguous today (code-review finding: the single-constructor fast path previously
+        // returned before this scan ever ran). Compilation-wide scoping (ADR-0052's corrected
+        // model): a conflicting or invalid selection is diagnosed regardless of which composition
+        // path triggered this Analyze call, since there is exactly one generated plan for `type`
+        // shared by every path that reaches it.
         var scan = ConstructorSelectionScanner.GetOrCreate(compilation);
 
         if (scan.TryGetConflict(type, out var conflictDiagnostic))
@@ -79,6 +79,9 @@ internal static class ConstructorSelector
 
         if (scan.TryGetSelection(type, out var selectedConstructor))
             return ValidateParameterKinds(type, selectedConstructor, location, path);
+
+        if (constructors.Length == 1)
+            return ValidateParameterKinds(type, constructors[0], location, path);
 
         return Result.Failure(new DiagnosticInfo(
             DiagnosticDescriptors.AmbiguousConstructor,

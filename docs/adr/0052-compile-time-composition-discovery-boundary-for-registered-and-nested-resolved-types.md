@@ -1179,10 +1179,31 @@ hardened as production code, not reverted:
   with full XML documentation of its one responsibility (recognizes
   exactly one call shape, nothing else), its determinism/order-
   independence guarantee, and its malformed/incomplete-source behavior
-  (an unresolvable call is skipped, never a generator crash). Still uses
-  `ConditionalWeakTable`-per-`Compilation` caching rather than a proper
-  `IncrementalValueProvider` — recorded as a real follow-up for whoever
-  turns this into the actual merge-ready PR, not a design gap.
+  (an unresolvable call is skipped, never a generator crash). Also bound
+  to Compono's real `CompositionTypeRuleBuilder<T>` symbol (resolved once
+  per compilation, compared by identity) rather than matching the
+  containing type's simple name/arity, and its constructor-parameter
+  matching now excludes `ref`/`out`/`ref readonly` parameters so an
+  unsupported-by-ref overload can never win a type-only match over a
+  usable one regardless of declaration order (both real correctness bugs,
+  code review, 2026-08-25).
+  **Known, real, still-open cost — corrected from an earlier, inaccurate
+  claim here that this merge-ready PR would fix it (code review,
+  2026-08-25):** still uses `ConditionalWeakTable`-per-`Compilation`
+  caching, not a proper `IncrementalValueProvider`. Every analysis of an
+  ambiguous composed type re-walks every syntax tree in the whole
+  compilation from scratch on a cache miss - and an IDE/live-analysis
+  session creates a fresh `Compilation` instance on most edits, so this is
+  a genuine, non-trivial per-keystroke cost near a composed type, not a
+  cosmetic one. Not fixed in this PR: doing so correctly means threading
+  an incremental syntax-provider-fed candidate list through this
+  generator's `Initialize` wiring down to wherever `ConstructorSelector.Select`
+  is invoked - a pipeline-plumbing change this remediation pass judged too
+  large and too risky to make safely without its own dedicated design/test
+  pass, not something to rush under review-response time pressure.
+  Tracked here as an explicit, honest open item - not a design gap, but
+  also no longer described as "the next PR will handle it" without a
+  next PR actually doing so.
 - `CMP0033`/`CMP0034` added to `AnalyzerReleases.Unshipped.md` alongside
   the rest of this generator's tracked rules.
 - Test file promoted from `ConstructorSelectionSpikeTests.cs` to

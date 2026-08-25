@@ -400,4 +400,81 @@ public sealed class ExplicitConstructorSelectionTests
         return GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions { SourceCode = decoySource }, "CMP0001", TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task StaleSelectionOnUnambiguousType_StillReportsCmp0034()
+    {
+        // Foo now has exactly one accessible constructor - Compono would auto-select it with no
+        // UseConstructor<...>() call at all - but a selection naming a signature that matches
+        // nothing must still be diagnosed, not silently ignored just because the type happens to
+        // be unambiguous today (code-review finding: the single-constructor fast path previously
+        // returned before the scanner was ever consulted, so a stale selection left behind after a
+        // constructor overload was removed would go completely unreported).
+        const string staleSource = """
+            namespace SpikeStale;
+
+            public interface IBar { }
+            public interface IBaz { }
+
+            public sealed class Foo
+            {
+                public Foo(IBar bar) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void Run()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBar, IBaz>());
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions { SourceCode = staleSource }, "CMP0034", TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public void ByRefOverload_ExcludedFromMatching_UsableOverloadSelectedRegardlessOfDeclarationOrder()
+    {
+        // Foo(ref int) is declared BEFORE Foo(int) - both satisfy a pure parameter-type comparison
+        // for UseConstructor<int>(), so matching by type alone would let source declaration order
+        // decide which one FirstOrDefault picks. Excluding ref/out/ref-readonly parameters from
+        // matching entirely means the usable by-value overload is selected regardless of which one
+        // was declared first (code-review finding).
+        const string byRefSource = """
+            namespace SpikeByRef;
+
+            public sealed class Foo
+            {
+                public Foo(ref int value) { }
+                public Foo(int value) { Value = value; }
+
+                public int Value { get; }
+            }
+
+            public static class EntryPoint
+            {
+                public static object Run()
+                {
+                    var composer = Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<int>());
+
+                    return composer.Create<Foo>().Value;
+                }
+            }
+            """;
+
+        // If the ref overload had been matched instead, generation would report CMP0004
+        // (unsupported ref parameter kind) and CompileAndExecute would throw well before this
+        // assertion - reaching a real int value at all proves the by-value overload was selected.
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions { SourceCode = byRefSource },
+            "SpikeByRef.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().BeOfType<int>();
+    }
 }

@@ -102,10 +102,19 @@ internal static class ConstructorSelectionScanner
 
                 var requestedParamTypes = method.TypeArguments;
 
+                // Excludes ref/out/ref-readonly parameters from matching entirely, not just type -
+                // ConstructorSelector.ValidateParameterKinds rejects those unconditionally after a
+                // selection resolves a constructor, so a by-ref overload can never actually be the
+                // one a consumer's UseConstructor<...>() call means to select. Leaving it in the
+                // match candidates let pure parameter-type equality (e.g. Foo(ref int) vs. Foo(int))
+                // pick whichever overload happened to come first in source declaration order -
+                // matching by type alone can't tell them apart. `in` is deliberately still matched
+                // (ValidateParameterKinds allows it too).
                 var matched = targetType.Constructors.FirstOrDefault(c =>
                     !c.IsStatic &&
                     compilation.IsSymbolAccessibleWithin(c, compilation.Assembly) &&
                     c.Parameters.Length == requestedParamTypes.Length &&
+                    c.Parameters.All(p => p.RefKind is RefKind.None or RefKind.In) &&
                     c.Parameters.Select(p => p.Type).SequenceEqual(requestedParamTypes, SymbolEqualityComparer.Default));
 
                 if (matched is null)
