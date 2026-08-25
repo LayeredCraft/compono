@@ -135,7 +135,7 @@ assert_dependency_range() {
     fi
 }
 
-for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection; do
+for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -200,6 +200,13 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
             # No third-party dependency: row.AsServiceProvider() returns a plain
             # System.IServiceProvider (BCL) - nothing else to range-assert here (ADR-0047
             # Amendment 1).
+            ;;
+        Compono.Http)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — HTTP Client Testing"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            # No third-party dependency: TestHttpHandler is a plain HttpMessageHandler subclass
+            # over System.Net.Http (BCL) - nothing else to range-assert here (ADR-0051 "Minimal
+            # dependency graph").
             ;;
     esac
 done

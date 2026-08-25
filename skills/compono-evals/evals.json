@@ -240,6 +240,19 @@
         "Uses [Shared] only on the substitute parameter that needs to be asserted against",
         "Does not mix Compono.XunitV3-only constructs (e.g. [Theory]) into a TUnit test"
       ]
+    },
+    {
+      "id": 22,
+      "category": "routing",
+      "prompt": "I need to test AlertsClient, which takes an HttpClient in its constructor and calls a real endpoint. The project references Compono, Compono.XunitV3, and Compono.Http. Write a test that verifies the client sends the correct request and handles a 404 as a null result, without setting up a fake IAlertsApi interface.",
+      "expected_output": "Recommends Compono.Http's TestHttpHandler ([Shared] TestHttpHandler in the composed theory), configures the 404 response via handler.OnGet(path).Respond(HttpStatusCode.NotFound), constructs AlertsClient by hand from handler.CreateClient(...) (since HttpClient itself can't be composed directly - CMP0001), and verifies via registration.Verify() or handler.Requests rather than inventing an IHttpClientFactory mocking helper or a header/body matcher DSL Compono.Http doesn't ship.",
+      "files": [],
+      "expectations": [
+        "Uses Compono.Http's TestHttpHandler (OnGet/When + Respond*) instead of a hand-rolled or reflection-based HttpMessageHandler fake",
+        "Does not attempt to compose HttpClient itself via Composer.Create<HttpClient>() - constructs the client from handler.CreateClient(...) by hand, since that still hits CMP0001",
+        "Does not invent an IHttpClientFactory integration, a header/query/body matcher DSL, or any other API Compono.Http doesn't ship in v1",
+        "Uses registration.Verify() and/or handler.Requests for assertions, not a re-declared verification predicate"
+      ]
     }
   ]
 }

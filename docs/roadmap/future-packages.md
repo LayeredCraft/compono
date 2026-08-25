@@ -1,10 +1,10 @@
 # Future Packages
 
 Compono's shipped package set (see [Package Guides](../packages/index.md))
-is seven independently installable packages — `Compono`, `Compono.XunitV3`,
+is eight independently installable packages — `Compono`, `Compono.XunitV3`,
 `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TUnit`,
-`Compono.TestDoubles`, and `Compono.DependencyInjection` — plus
-`Compono.Generators`, which is not an eighth installable package at all.
+`Compono.TestDoubles`, `Compono.DependencyInjection`, and `Compono.Http` —
+plus `Compono.Generators`, which is not a ninth installable package at all.
 It's `IsPackable=false`
 ([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
 embedded inside `Compono`'s own `.nupkg` as an analyzer
@@ -28,7 +28,16 @@ and [RESEARCH-0007](../research/0007-trivia-manager-bunit-dependency-injection.m
 for the full account, and [`Compono.DependencyInjection`](../packages/compono-dependencyinjection.md)
 for what it ships. See also the "richer `Microsoft.Extensions.DependencyInjection`
 integration" entry below — that's a **different**, larger idea this
-package's narrower scope deliberately didn't attempt.
+package's narrower scope deliberately didn't attempt. `Compono.Http`
+likewise didn't graduate from this page — it was never listed here as an
+admitted candidate first either. It came out of a dedicated admission
+research doc triggered by a real `alexa-vox-craft` dogfooding need (an
+existing reflection-based `HttpMessageHandler` fake with no Compono
+equivalent), not this page's candidate pipeline — see
+[ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md) and
+[RESEARCH-0009](../research/0009-compono-http-admission-research.md) for
+the full account, and [`Compono.Http`](../packages/compono-http.md) for
+what it ships.
 
 ## Admission model
 

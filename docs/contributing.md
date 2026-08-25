@@ -80,7 +80,7 @@ need to scope a run to one project or class.
   for a published package.
 - Fill in the PR template's checklist honestly — it exists to make review
   faster, not as ceremony.
-- CI runs a full build/test pass, plus (for the seven publishable
+- CI runs a full build/test pass, plus (for the eight publishable
   packages) a package-validation gate: API-compatibility baseline check,
   packed `.nupkg` contents inspection, and a local-feed consumer smoke
   test. All of these must pass before merge.
