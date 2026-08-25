@@ -745,4 +745,209 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
             "CMP0035",
             TestContext.Current.CancellationToken);
     }
+
+    private const string VoidStandaloneDimSource = """
+        namespace TestNamespace;
+
+        public static class FooCallCounter
+        {
+            public static int Count;
+        }
+
+        // A standalone concrete void DIM, argument-independent - Amendment 20's dispatch-helper
+        // fallback path for this exact shape. Round-7 code-review finding (P1): this branch only
+        // checked HasConfiguredException before invoking the real body, never HasConfiguredValue -
+        // `.Returns(default)` sets HasConfiguredValue (a `Unit`) on a void member's slot even though
+        // there's nothing to return, meaning a consumer configuring an explicit no-op still had the
+        // real DIM body (with its own side effects) invoked underneath. Mirrors the matching-eligible
+        // void branch's own long-established HasConfiguredValue early return.
+        public interface IVoidDim
+        {
+            void Foo() => FooCallCounter.Count++;
+        }
+
+        public sealed class Consumer
+        {
+            public Consumer(IVoidDim handler) { }
+        }
+
+        public static class EntryPoint
+        {
+            private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+            public static object CreateDouble()
+            {
+                Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IVoidDim), out var value);
+                return value!;
+            }
+        }
+        """;
+
+    [Fact]
+    public void ConfiguredVoidDimNoOp_HonorsConfiguredValue_DoesNotInvokeRealBody()
+    {
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = VoidStandaloneDimSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var handler = (IVoidDim)CreateDouble();
+                        handler.Configure().Foo().Returns(default);
+                        handler.Foo();
+                        return FooCallCounter.Count;
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(0);
+    }
+
+    [Fact]
+    public void UnconfiguredVoidDim_StillInvokesRealBody()
+    {
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = VoidStandaloneDimSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var handler = (IVoidDim)CreateDouble();
+                        handler.Foo();
+                        return FooCallCounter.Count;
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public void ParameterNameShadowsDimHelperCacheField_ConsumerCompiles()
+    {
+        // A real, non-ref parameter literally named after the derived dispatch-helper cache field
+        // ("__Foo_dimHelper") shadows it inside Foo's own generated body - the unqualified
+        // `{{ member.field_name }}_dimHelper ??= ...` bound to the parameter instead of the field,
+        // which is either a compile error (wrong type) or, worse, a silent miscompile. Round-7
+        // code-review finding: fixed by qualifying every dimHelper cache access with `this.`.
+        const string paramShadowSource = """
+            namespace TestNamespace;
+
+            public interface IParamShadowsDimHelper
+            {
+                bool Foo(int __Foo_dimHelper) => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(IParamShadowsDimHelper handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+                public static object CreateDouble()
+                {
+                    Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IParamShadowsDimHelper), out var value);
+                    return value!;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = paramShadowSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var handler = (IParamShadowsDimHelper)CreateDouble();
+                        return handler.Foo(1);
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(true);
+    }
+
+    [Fact]
+    public void SiblingParameterNameShadowsOwnerField_ConsumerCompiles()
+    {
+        // A sibling member's parameter literally named "_owner" shadows the dispatch helper's own
+        // `_owner` field inside the sibling-forwarding expression the helper class must generate to
+        // satisfy the interface's full contract. Round-7 code-review finding: fixed by qualifying
+        // every `_owner` reference in the sibling-forwarding template with `this.`.
+        const string siblingParamShadowSource = """
+            namespace TestNamespace;
+
+            public interface IParamShadowsOwnerField
+            {
+                bool Flag() => true;
+
+                void Visit(int _owner);
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(IParamShadowsOwnerField handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+                public static object CreateDouble()
+                {
+                    Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IParamShadowsOwnerField), out var value);
+                    return value!;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = siblingParamShadowSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var handler = (IParamShadowsOwnerField)CreateDouble();
+                        return handler.Flag();
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(true);
+    }
 }

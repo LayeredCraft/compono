@@ -38,9 +38,9 @@ internal sealed class TestNamespace_IBase5_4a46deac_Double : global::TestNamespa
 
         internal __Flag_DimFallback(TestNamespace_IBase5_4a46deac_Double owner) => _owner = owner;
         void global::TestNamespace.IBase5.Visit(ref readonly int value) =>
-            ((global::TestNamespace.IBase5)_owner).Visit(value);
+            ((global::TestNamespace.IBase5)this._owner).Visit(value);
         void global::TestNamespace.IBase5.Visit(string label) =>
-            ((global::TestNamespace.IBase5)_owner).Visit(label);
+            ((global::TestNamespace.IBase5)this._owner).Visit(label);
     }
 
     bool global::TestNamespace.IBase5.Flag()
@@ -48,7 +48,7 @@ internal sealed class TestNamespace_IBase5_4a46deac_Double : global::TestNamespa
         __Flag.RecordCall();
         return __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
             : __Flag.HasConfiguredValue ? __Flag.ConfiguredValue
-            : ((global::TestNamespace.IBase5)(__Flag_dimHelper ??= new __Flag_DimFallback(this))).Flag();
+            : ((global::TestNamespace.IBase5)(this.__Flag_dimHelper ??= new __Flag_DimFallback(this))).Flag();
     }
 
     void global::TestNamespace.IBase5.Visit(ref readonly int value)

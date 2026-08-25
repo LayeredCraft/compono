@@ -28,7 +28,7 @@ internal sealed class TestNamespace_ILeaf_1497661c_Double : global::TestNamespac
 
     int global::TestNamespace.IHasValueProp.Value
     {
-        get => ((global::TestNamespace.IHasValueProp)(__Value_dimHelper ??= new __Value_DimFallback(this))).Value;
+        get => ((global::TestNamespace.IHasValueProp)(this.__Value_dimHelper ??= new __Value_DimFallback(this))).Value;
     }
 
     int global::TestNamespace.IHasValueMethod.Value()

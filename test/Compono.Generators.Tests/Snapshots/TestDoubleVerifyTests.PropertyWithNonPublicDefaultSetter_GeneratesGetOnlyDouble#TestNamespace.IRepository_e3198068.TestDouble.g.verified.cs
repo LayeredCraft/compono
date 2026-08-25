@@ -34,7 +34,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
             __Value.RecordCall();
             return __Value.HasConfiguredException ? throw __Value.ConfiguredException
                 : __Value.HasConfiguredValue ? __Value.ConfiguredValue
-                : ((global::TestNamespace.IRepository)(__Value_dimHelper ??= new __Value_DimFallback(this))).Value;
+                : ((global::TestNamespace.IRepository)(this.__Value_dimHelper ??= new __Value_DimFallback(this))).Value;
         }
     }
 }
