@@ -404,4 +404,118 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
 
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public Task RefReadOnlySiblingParameter_PreservesModifier_ConsumerCompiles()
+    {
+        // A `ref readonly` sibling abstract member the fallback dispatch helper must also
+        // implement to satisfy IBase5's full contract - omitting the "ref readonly " modifier here
+        // would emit Visit(int) instead of Visit(ref readonly int), which doesn't implement the
+        // interface member at all (CS0535/signature mismatch). Code-review finding.
+        //
+        // Needs a same-named overload (Visit(string)) so this doesn't instead trip the pre-existing
+        // "solo ref/out/in member rejects the whole interface" CMP0026 disposition (ADR-0044
+        // Amendment 5) before ever reaching the sibling-forwarding code this test targets -
+        // confirmed empirically: without the overload, the whole double generation is rejected
+        // gracefully (CMP0026, no double at all), which isn't the failure mode under test here.
+        // With the overload, generation proceeds and reports the narrower, scoped CMP0030 instead
+        // (this specific overload has no Configure() surface, everything else is unaffected) - the
+        // same established pattern TestDoubleVerifyTests.cs's own CMP0030 tests use
+        // (VerifyWithInfoDiagnostic, which - unlike CompileAndExecute/Verify - tolerates that one
+        // expected Info diagnostic while still proving the generated code actually compiles).
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBase5
+                    {
+                        bool Flag() => true;
+
+                        void Visit(ref readonly int value);
+                        void Visit(string label);
+                    }
+
+                    public sealed class Consumer
+                    {
+                        public Consumer(IBase5 handler) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            Compono.Composer.Create().Create<Consumer>();
+                            Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IBase5), out var value);
+                            ((IBase5)value!).Configure().Visit(Compono.Match.Any<string>());
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0030",
+            TestContext.Current.CancellationToken);
+    }
+
+    private const string NonPublicSetterOnLosingPropertyDimSource = """
+        namespace TestNamespace;
+
+        public interface IBaseProp5
+        {
+            // Losing (non-dominant) declaration once IDerivedProp5 redeclares Value below - the
+            // forwarding member the double emits for this losing declaration must not try to
+            // implement the non-public setter (code-review finding: this forwarding branch
+            // originally checked SetMethod is not null, without checking DeclaredAccessibility,
+            // mirroring the sibling-collection bug fixed earlier in this same file).
+            int Value { get => 0; private set { } }
+        }
+
+        public interface IDerivedProp5 : IBaseProp5
+        {
+            new int Value => 42;
+        }
+
+        public sealed class Consumer
+        {
+            public Consumer(IDerivedProp5 derived) { }
+        }
+
+        public static class EntryPoint
+        {
+            private static void Discover() => Compono.Composer.Create().Create<Consumer>();
+
+            public static object CreateDouble()
+            {
+                Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IDerivedProp5), out var value);
+                return value!;
+            }
+        }
+        """;
+
+    [Fact]
+    public void NonPublicSetterOnLosingPropertyDeclaration_TreatedAsGetOnly_ConsumerCompiles()
+    {
+        var act = () => GeneratorTestHelpers.CompileAndExecute(
+            new CodeGenerationOptions
+            {
+                SourceCode = NonPublicSetterOnLosingPropertyDimSource.Replace(
+                    "public static object CreateDouble()",
+                    """
+                    public static object Run()
+                    {
+                        var derived = (IDerivedProp5)CreateDouble();
+                        return derived.Value;
+                    }
+
+                    public static object CreateDouble()
+                    """),
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "TestNamespace.EntryPoint",
+            "Run",
+            TestContext.Current.CancellationToken);
+
+        act.Should().NotThrow();
+    }
 }

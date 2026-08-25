@@ -20,7 +20,9 @@ namespace Compono.Generators.Models;
 /// </param>
 /// <param name="FullyQualifiedTypeName">This parameter's type, fully qualified.</param>
 /// <param name="RefKindPrefix">
-/// <c>""</c>, <c>"ref "</c>, <c>"out "</c>, or <c>"in "</c> - only a member with no
+/// <c>""</c>, <c>"ref "</c>, <c>"out "</c>, <c>"in "</c>, or <c>"ref readonly "</c>, optionally
+/// preceded by <c>"scoped "</c> and/or <c>"[global::System.Diagnostics.CodeAnalysis.UnscopedRef] "</c>
+/// (see <c>TestDoubleAnalyzer.RefKindPrefixFor</c>) - only a member with no
 /// <c>Configure()</c>/<c>Verify()</c> surface (<see cref="TestDoubleMemberInfo.HasConfigurationSurface"/>
 /// <see langword="false"/>) can have a non-empty value here (ADR-0044 Amendment 5: a
 /// <see langword="ref"/>/<see langword="out"/>/<see langword="in"/> parameter is an

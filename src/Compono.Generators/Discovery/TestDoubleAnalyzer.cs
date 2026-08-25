@@ -1074,45 +1074,7 @@ internal static class TestDoubleAnalyzer
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
                                 p.Name,
                                 p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                                // The explicit implementation's ref-safety contract has to match the
-                                // interface member's exactly, or the consumer gets CS8987, not a
-                                // supported double or a diagnostic. Three distinct cases, all verified
-                                // with real compile spikes (Codex review, PR #88):
-                                //  - ScopedKind.ScopedRef on a ref/in/ref-readonly parameter: restate
-                                //    "scoped ", *except* for "out" - every out parameter is
-                                //    unconditionally ScopedRef even with no "scoped" written in source,
-                                //    so restating it there is always redundant (confirmed: `out int x`
-                                //    and `scoped out int x` both report ScopedKind.ScopedRef).
-                                //  - ScopedKind.ScopedValue on an ordinary by-value ref-like parameter
-                                //    (e.g. `scoped Span<int> value`): always restate "scoped " -
-                                //    by-value ref-like parameters get *no* implicit scoping by default
-                                //    (confirmed: a plain `Span<int> value` reports ScopedKind.None, only
-                                //    `scoped Span<int> value` reports ScopedValue), so this one is never
-                                //    redundant.
-                                //  - The *inverse* of the "out" case above: `[UnscopedRef] out` reports
-                                //    ScopedKind.None (confirmed) - the attribute removes out's normal
-                                //    implicit scoping. A plain generated "out" parameter would still be
-                                //    implicitly scoped, disagreeing with the interface's explicitly
-                                //    unscoped contract - the UnscopedRefAttribute itself has to be
-                                //    restated on the explicit implementation.
-                                (p.RefKind == RefKind.Out && p.ScopedKind == ScopedKind.None
-                                    ? "[global::System.Diagnostics.CodeAnalysis.UnscopedRef] "
-                                    : "") +
-                                ((p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out) ||
-                                 p.ScopedKind == ScopedKind.ScopedValue ? "scoped " : "") +
-                                (p.RefKind switch
-                                {
-                                    RefKind.Ref => "ref ",
-                                    RefKind.Out => "out ",
-                                    RefKind.In => "in ",
-                                    // A C# 12 `ref readonly` parameter - distinct from RefKind.RefReadOnly,
-                                    // which describes a by-ref-readonly *return*, not a parameter. Omitting
-                                    // this case would silently emit the explicit interface implementation
-                                    // with no ref modifier at all, producing a signature that doesn't match
-                                    // the interface member it's implementing (CS0535).
-                                    RefKind.RefReadOnlyParameter => "ref readonly ",
-                                    _ => "",
-                                }),
+                                RefKindPrefixFor(p),
                                 p.IsParams,
                                 // Mirrored onto an overloaded member's own extension so a real
                                 // optional-parameter call shape (M() against M(int value = 0)) stays
@@ -1285,7 +1247,10 @@ internal static class TestDoubleAnalyzer
                         // diamond identity.
                         if (resolvedAwayForwardsTo.TryGetValue(property, out var dominantProperty))
                         {
-                            var forwardingAccessorKind = property.SetMethod is null
+                            // Same accessibility check as the main property path and
+                            // BuildDimFallbackSiblings (code review, 2026-08-25 follow-up round) - a
+                            // non-public setter here isn't part of the implementable contract either.
+                            var forwardingAccessorKind = property.SetMethod is not { DeclaredAccessibility: Accessibility.Public }
                                 ? TestDoublePropertyAccessorKind.GetOnly
                                 : property.SetMethod.IsInitOnly
                                     ? TestDoublePropertyAccessorKind.GetInit
@@ -1687,6 +1652,45 @@ internal static class TestDoubleAnalyzer
             : $"where {RequiredMemberCollector.EscapeIdentifier(typeParameter.Name)} : {string.Join(", ", parts)}";
     }
 
+    // The explicit implementation's ref-safety contract has to match the interface member's
+    // exactly, or the consumer gets CS8987, not a supported double or a diagnostic. Three distinct
+    // cases, all verified with real compile spikes (Codex review, PR #88) - shared by the main
+    // member-emission path above and BuildDimFallbackSiblings' forwarding declarations below, since
+    // a sibling forwarding declaration has to satisfy the exact same interface contract (code
+    // review: a sibling with a `ref readonly`/`scoped` parameter was silently emitted with no
+    // modifier at all before this was extracted and reused):
+    //  - ScopedKind.ScopedRef on a ref/in/ref-readonly parameter: restate "scoped ", *except* for
+    //    "out" - every out parameter is unconditionally ScopedRef even with no "scoped" written in
+    //    source, so restating it there is always redundant (confirmed: `out int x` and
+    //    `scoped out int x` both report ScopedKind.ScopedRef).
+    //  - ScopedKind.ScopedValue on an ordinary by-value ref-like parameter (e.g. `scoped Span<int>
+    //    value`): always restate "scoped " - by-value ref-like parameters get *no* implicit scoping
+    //    by default (confirmed: a plain `Span<int> value` reports ScopedKind.None, only
+    //    `scoped Span<int> value` reports ScopedValue), so this one is never redundant.
+    //  - The *inverse* of the "out" case above: `[UnscopedRef] out` reports ScopedKind.None
+    //    (confirmed) - the attribute removes out's normal implicit scoping. A plain generated "out"
+    //    parameter would still be implicitly scoped, disagreeing with the interface's explicitly
+    //    unscoped contract - the UnscopedRefAttribute itself has to be restated on the explicit
+    //    implementation.
+    private static string RefKindPrefixFor(IParameterSymbol p) =>
+        (p.RefKind == RefKind.Out && p.ScopedKind == ScopedKind.None
+            ? "[global::System.Diagnostics.CodeAnalysis.UnscopedRef] "
+            : "") +
+        ((p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out) ||
+         p.ScopedKind == ScopedKind.ScopedValue ? "scoped " : "") +
+        (p.RefKind switch
+        {
+            RefKind.Ref => "ref ",
+            RefKind.Out => "out ",
+            RefKind.In => "in ",
+            // A C# 12 `ref readonly` parameter - distinct from RefKind.RefReadOnly, which describes
+            // a by-ref-readonly *return*, not a parameter. Omitting this case would silently emit
+            // the explicit interface implementation with no ref modifier at all, producing a
+            // signature that doesn't match the interface member it's implementing (CS0535).
+            RefKind.RefReadOnlyParameter => "ref readonly ",
+            _ => "",
+        });
+
     // A C# literal expression for a parameter's optional default value, only ever rendered onto an
     // overloaded member's generated extension (never the explicit interface implementation, which
     // can't usefully redeclare one - callers always go through the interface's own default, not the
@@ -1791,13 +1795,7 @@ internal static class TestDoubleAnalyzer
                             RequiredMemberCollector.EscapeIdentifier(p.Name),
                             p.Name,
                             p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                            p.RefKind switch
-                            {
-                                RefKind.Ref => "ref ",
-                                RefKind.Out => "out ",
-                                RefKind.In => "in ",
-                                _ => "",
-                            })).ToEquatableArray(),
+                            RefKindPrefixFor(p))).ToEquatableArray(),
                         siblingMethod.IsGenericMethod,
                         siblingMethod.IsGenericMethod
                             ? siblingMethod.TypeParameters.Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name)).ToEquatableArray()
