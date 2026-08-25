@@ -576,4 +576,40 @@ public sealed class ExplicitConstructorSelectionTests
 
         result.Should().BeNull();
     }
+
+    [Fact]
+    public Task InAndByValueOverloads_SameRequestedTypes_ReportsCmp0034NotAmbiguousPick()
+    {
+        // Foo(in int) and Foo(int) both satisfy a pure parameter-TYPE match for
+        // UseConstructor<int>() - "in" is otherwise deliberately still matchable (a plain by-value
+        // argument legally binds to an "in" parameter). But the generated call site never writes
+        // "in" (an ordinary expression), so real C# overload resolution there always prefers the
+        // by-value constructor over the "in" one, regardless of which one this scanner's matching
+        // logic happens to record as "selected" - a genuine risk of the scanner claiming/validating
+        // one constructor while a different one actually executes every time (code-review finding).
+        // Treated as no unambiguous match at all (CMP0034), not a silent declaration-order pick.
+        const string inVsByValueSource = """
+            namespace SpikeInVsByValue;
+
+            public sealed class Foo
+            {
+                public Foo() { }
+                public Foo(in int value) { }
+                public Foo(int value) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void Run()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<int>());
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions { SourceCode = inVsByValueSource }, "CMP0034", TestContext.Current.CancellationToken);
+    }
 }

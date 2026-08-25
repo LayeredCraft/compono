@@ -121,13 +121,25 @@ internal static class ConstructorSelectionScanner
                 // match candidates let pure parameter-type equality (e.g. Foo(ref int) vs. Foo(int))
                 // pick whichever overload happened to come first in source declaration order -
                 // matching by type alone can't tell them apart. `in` is deliberately still matched
-                // (ValidateParameterKinds allows it too).
-                var matched = targetType.Constructors.FirstOrDefault(c =>
+                // (ValidateParameterKinds allows it too) - but see the ambiguity check just below.
+                var matches = targetType.Constructors.Where(c =>
                     !c.IsStatic &&
                     compilation.IsSymbolAccessibleWithin(c, compilation.Assembly) &&
                     c.Parameters.Length == requestedParamTypes.Length &&
                     c.Parameters.All(p => p.RefKind is RefKind.None or RefKind.In) &&
-                    c.Parameters.Select(p => p.Type).SequenceEqual(requestedParamTypes, SymbolEqualityComparer.Default));
+                    c.Parameters.Select(p => p.Type).SequenceEqual(requestedParamTypes, SymbolEqualityComparer.Default))
+                    .ToArray();
+
+                // A type-only match can't distinguish Foo(int) from Foo(in int) - both have "one
+                // parameter of type int." The generated call site never writes `in` (an ordinary
+                // by-value argument expression legally binds to an `in` parameter too), so if BOTH
+                // exist, real C# overload resolution at that call site always prefers the by-value
+                // constructor over the `in` one - silently diverging from whichever this scanner
+                // happened to pick via a single "first match" (code-review finding: this could
+                // record/validate one constructor as "selected" while a different one actually runs
+                // every time). Treated the same as no match at all - genuinely ambiguous, not a
+                // declaration-order pick.
+                var matched = matches.Length == 1 ? matches[0] : null;
 
                 if (matched is null)
                 {
