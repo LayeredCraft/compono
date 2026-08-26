@@ -126,7 +126,7 @@ internal static class TestDoubleEmitter
                             s.IsVoid,
                             s.GenericSuffix,
                             Parameters = s.Parameters
-                                .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix })
+                                .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.CallSiteRefKindPrefix })
                                 .ToArray(),
                         })
                         .ToArray(),
@@ -196,6 +196,7 @@ internal static class TestDoubleEmitter
                             p.OriginalName,
                             p.FullyQualifiedTypeName,
                             p.RefKindPrefix,
+                            p.CallSiteRefKindPrefix,
                             p.IsParams,
                             p.DefaultValueExpression,
                             // A one-parameter member's call log is a plain List<T> - "(T)" isn't a tuple

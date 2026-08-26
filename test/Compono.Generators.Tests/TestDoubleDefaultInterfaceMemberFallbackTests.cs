@@ -950,4 +950,53 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
 
         result.Should().Be(true);
     }
+
+    [Fact]
+    public Task RefSiblingParameter_RestatesCallSiteModifier_ConsumerCompiles()
+    {
+        // Unlike `ref readonly` (never restated at a call site), `ref`/`out` MUST be restated at
+        // the call site or the call doesn't bind at all (CS1620). Round-8 code-review finding: the
+        // sibling-forwarding render model (TestDoubleEmitter's DimFallbackSiblings projection)
+        // never included CallSiteRefKindPrefix at all, so a `ref`/`out` sibling's forwarding call
+        // always omitted the modifier entirely, regardless of the earlier declaration-vs-call-site
+        // fix - that fix only ever reached the top-level member's OWN forwarding, never a sibling's.
+        //
+        // Needs a same-named overload (Visit(string)) for the same reason
+        // RefReadOnlySiblingParameter_PreservesModifier_ConsumerCompiles above does - a solo
+        // ref/out/in member rejects the whole interface (CMP0026) before ever reaching the
+        // sibling-forwarding code this test targets.
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IBase6
+                    {
+                        bool Flag() => true;
+
+                        void Visit(ref int value);
+                        void Visit(string label);
+                    }
+
+                    public sealed class Consumer
+                    {
+                        public Consumer(IBase6 handler) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run()
+                        {
+                            Compono.Composer.Create().Create<Consumer>();
+                            Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IBase6), out var value);
+                            ((IBase6)value!).Configure().Visit(Compono.Match.Any<string>());
+                        }
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0030",
+            TestContext.Current.CancellationToken);
+    }
 }

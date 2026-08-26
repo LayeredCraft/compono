@@ -2220,6 +2220,43 @@ rules) needs its own careful design and test pass, not a hurried fix
 layered onto an already-large PR. Tracked here as an explicit, honest
 open item.
 
+### Known, real, still-open gap (code review, 2026-08-25 round 8, not fixed here) - DIM fallback dispatch doesn't preserve owner identity
+
+The owner-forwarding dispatch helper (`{Member}_DimFallback`) exists
+specifically so C#'s own default-interface-member resolution runs the
+real body without this generator re-implementing that resolution logic -
+but the helper, not the double itself, is the receiver (`this`) the real
+body executes against. For an *identity-sensitive* DIM body -
+`IFoo Self() => this;`, or any body using `ReferenceEquals`, `GetType`,
+or `GetHashCode` against its own receiver - an unconfigured call through
+the double therefore observes the **helper's** identity, not the real
+test double's, which a real (non-Compono) implementation of the same
+interface would never do.
+
+No fix attempted in this round. The two options considered, both real
+design decisions this remediation loop shouldn't make unilaterally under
+review-loop time pressure:
+
+- Invoke the interface's own default-implementation method via
+  reflection (`typeof(IFoo).GetMethod(...).Invoke(owner, args)`), passing
+  the real double as the receiver instead of the helper - this actually
+  preserves identity correctly, but Compono's foundational design tenet
+  (stated project-wide) is reflection-free source generation; carving out
+  a narrow reflection escape hatch for this one dispatch shape is a real
+  architectural trade-off, not a mechanical fix.
+- Detect identity-sensitive bodies (a real static analysis problem - a
+  body can leak `this` indirectly, e.g. through a helper method) and
+  degrade to a diagnostic instead of silently generating semantically-
+  different code - well-defined for the direct `this`-return/comparison
+  cases the finding names, but incomplete for anything indirect, and
+  still leaves the direct cases unresolved without option one or a
+  redesigned dispatch shape.
+
+Tracked here as an explicit, honest open item - a real semantic gap
+between "the real DIM body runs" (true) and "the real DIM body runs
+against the real double" (not true), narrow in practice (identity-
+sensitive DIM bodies are unusual) but not cosmetic.
+
 ## Links
 
 - [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md) —
