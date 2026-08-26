@@ -625,16 +625,37 @@ internal static class TestDoubleAnalyzer
         var dimHelperNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var dimHelperNameCollisionDiagnostics = new List<DiagnosticInfo>();
 
+        // Two DIM fallback targets sharing a name can independently derive the IDENTICAL
+        // "__{Name}_dimHelper"/"__{Name}_DimFallback" pair when neither (or only one) of them is
+        // present in `overloadedNames` - that set only ever counts members that WOULD get a
+        // Configure()/Verify() surface (see its own comment above), so a ref/out/in-shaped DIM
+        // fallback target (which never gets one, hasConfigurationSurface is unconditionally false
+        // for it) doesn't disambiguate a same-named sibling's FieldName even when BOTH are
+        // independently concrete DIMs each needing their own unique dispatch-helper identity - and
+        // neither is ever reserved in `usedFieldNames` either, since that reservation loop skips
+        // the exact same "wouldn't get configuration surface" candidates. Grouped across ALL DIM
+        // fallback targets first, so a same-name collision between two DIM targets is caught even
+        // though neither one's derived name was ever reserved anywhere else. Codex review, PR #111
+        // (round 12).
+        var candidateFieldNameByDimTarget = dimFallbackTargets.ToDictionary(
+            candidate => candidate,
+            candidate => overloadedNames.Contains(candidate.Name) && candidate is IMethodSymbol candidateAsMethod
+                ? $"__{candidate.Name}{discriminatorSuffixByIdentity[(candidate.Name, Canonical: IdentityFor(candidateAsMethod))]}"
+                : $"__{candidate.Name}",
+            SymbolEqualityComparer.Default);
+
+        var dimTargetsByCandidateFieldName = candidateFieldNameByDimTarget
+            .GroupBy(kvp => kvp.Value, kvp => kvp.Key, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
         foreach (var candidate in dimFallbackTargets)
         {
-            var candidateFieldName = overloadedNames.Contains(candidate.Name) && candidate is IMethodSymbol candidateAsMethod
-                ? $"__{candidate.Name}{discriminatorSuffixByIdentity[(candidate.Name, Canonical: IdentityFor(candidateAsMethod))]}"
-                : $"__{candidate.Name}";
-
+            var candidateFieldName = candidateFieldNameByDimTarget[candidate];
             var dimHelperFieldName = $"{candidateFieldName}_dimHelper";
             var dimHelperClassName = $"{candidateFieldName}_DimFallback";
 
-            if (usedFieldNames.Contains(dimHelperFieldName) || usedFieldNames.Contains(dimHelperClassName))
+            if (usedFieldNames.Contains(dimHelperFieldName) || usedFieldNames.Contains(dimHelperClassName) ||
+                dimTargetsByCandidateFieldName[candidateFieldName] > 1)
             {
                 dimHelperNameCollisionMembers.Add(candidate);
                 dimHelperNameCollisionDiagnostics.Add(new DiagnosticInfo(

@@ -1157,4 +1157,51 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
             "CMP0036",
             TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task TwoDimFallbackTargetsShareUndisambiguatedName_ReportsCmp0035_ConsumerCompiles()
+    {
+        // M() and M(ref int value) are both independently concrete DIMs (each its own identity
+        // group of one, both dimFallbackTargets), but only M() would ever get a Configure()/
+        // Verify() surface (M(ref int) never does, per ADR-0044's ref/out/in exclusion) - so
+        // `overloadedNames` (gated on "would get configuration surface", round-6's own reasoning)
+        // never counts "M" as overloaded, and BOTH independently derive the identical, non-
+        // disambiguated "__M_dimHelper"/"__M_DimFallback" pair. Round-12 code-review finding: the
+        // round-6 CMP0035 fix only ever checked a DIM target's derived name against
+        // `usedFieldNames` (an ordinary real member's own reservation), never against ANOTHER DIM
+        // target's own, independently-computed derived name - and neither of these two candidates
+        // was ever reserved in `usedFieldNames` either, since that reservation loop skips the same
+        // "wouldn't get configuration surface" candidates for the identical reason.
+        const string undisambiguatedDimTargetsSource = """
+            namespace TestNamespace;
+
+            public interface ICollisionM
+            {
+                bool M() => true;
+                bool M(ref int value) => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ICollisionM handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = undisambiguatedDimTargetsSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0035",
+            TestContext.Current.CancellationToken);
+    }
 }
