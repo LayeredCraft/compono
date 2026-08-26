@@ -1107,4 +1107,54 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
             "CMP0036",
             TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task DimOwnInterfaceDeclaresUnresolvedStaticAbstractMember_ReportsCmp0036_ConsumerCompiles()
+    {
+        // Narrower than DimDeclaringInterfaceHasUnresolvedStaticAbstractMember above: there, the
+        // unresolved static abstract member is INHERITED by the DIM's declaring interface from a
+        // separate base interface. Here, IBase9 declares BOTH the static abstract member AND the
+        // DIM directly, itself, with no separate base interface at all - only the more-derived leaf
+        // (ILeaf9) resolves it. Round-10 code-review finding: the original fix's
+        // `declaringInterface.AllInterfaces` check excludes the declaring interface itself, so this
+        // narrower, one-interface-closer case still generated a dispatch helper implementing IBase9
+        // directly, missing Flag() and failing the consumer's compilation.
+        const string ownInterfaceUnresolvedStaticAbstractSource = """
+            namespace TestNamespace;
+
+            public interface IBase9
+            {
+                static abstract bool Flag();
+
+                bool CanHandle(string input) => true;
+            }
+
+            public interface ILeaf9 : IBase9
+            {
+                static bool IBase9.Flag() => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf9 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = ownInterfaceUnresolvedStaticAbstractSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0036",
+            TestContext.Current.CancellationToken);
+    }
 }

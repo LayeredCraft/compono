@@ -1794,8 +1794,14 @@ internal static class TestDoubleAnalyzer
     // does resolve it. The dispatch helper has no such luck: implementing only the declaring
     // interface, C# requires it to supply every one of that interface's own unresolved static
     // abstract members directly, which this generator never emits. Round-9 code-review finding.
+    //
+    // Checks the declaring interface's OWN members too, not just AllInterfaces (which excludes the
+    // type itself) - a static abstract member declared DIRECTLY on the declaring interface
+    // alongside the DIM (not merely inherited from a base interface) hits the exact same unresolved-
+    // in-isolation problem if only a more-derived leaf interface resolves it. Round-10 code-review
+    // finding: the AllInterfaces-only check missed this narrower, one-interface-closer case.
     private static bool DeclaringInterfaceHasUnresolvedStaticAbstractMember(INamedTypeSymbol declaringInterface) =>
-        declaringInterface.AllInterfaces.Any(baseInterface =>
+        declaringInterface.AllInterfaces.Prepend(declaringInterface).Any(baseInterface =>
             baseInterface.GetMembers().Any(m =>
                 m.IsStatic && m.IsAbstract &&
                 declaringInterface.FindImplementationForInterfaceMember(m) is null));
