@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.ILeaf' declares member 'Value', whose generated configuration extension has no parameters to disambiguate it from another same-named member's own generated extension - Compono can't tell them apart, so none of them get a Configure() surface. Every other member of 'TestNamespace.ILeaf' is unaffected.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0029,
+        Title: Test-double members generate colliding zero-argument extensions,
+        MessageFormat: '{0}' declares member '{1}', whose generated configuration extension has no parameters to disambiguate it from another same-named member's own generated extension - Compono can't tell them apart, so none of them get a Configure() surface. Every other member of '{0}' is unaffected.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

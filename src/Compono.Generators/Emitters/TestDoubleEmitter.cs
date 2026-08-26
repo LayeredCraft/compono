@@ -111,6 +111,25 @@ internal static class TestDoubleEmitter
                     m.ExtensionIsGeneric,
                     m.ConstraintClausesText,
                     m.OriginalName,
+                    m.IsForwarding,
+                    m.ForwardsToInterfaceFullyQualifiedName,
+                    m.IsDimFallbackTarget,
+                    DimFallbackHelperClassName = m.DimFallbackHelperClassName,
+                    DimFallbackSiblings = m.DimFallbackSiblings
+                        .Select(s => new
+                        {
+                            s.EscapedName,
+                            s.DeclaringInterfaceFullyQualifiedName,
+                            Kind = s.Kind.ToString(),
+                            AccessorKind = s.AccessorKind.ToString(),
+                            s.ReturnTypeFullyQualifiedName,
+                            s.IsVoid,
+                            s.GenericSuffix,
+                            Parameters = s.Parameters
+                                .Select(p => new { p.EscapedName, p.FullyQualifiedTypeName, p.RefKindPrefix, p.CallSiteRefKindPrefix })
+                                .ToArray(),
+                        })
+                        .ToArray(),
                     Kind = m.Kind.ToString(),
                     AccessorKind = m.AccessorKind.ToString(),
                     MatchesLocalName = matchesLocalName,
@@ -177,6 +196,7 @@ internal static class TestDoubleEmitter
                             p.OriginalName,
                             p.FullyQualifiedTypeName,
                             p.RefKindPrefix,
+                            p.CallSiteRefKindPrefix,
                             p.IsParams,
                             p.DefaultValueExpression,
                             // A one-parameter member's call log is a plain List<T> - "(T)" isn't a tuple

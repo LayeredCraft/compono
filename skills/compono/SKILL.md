@@ -5,7 +5,7 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` (generated-test-double
@@ -18,7 +18,7 @@ description: >-
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
   SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`
+  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -51,6 +51,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
 | `<PackageReference Include="Compono.TestDoubles"` or `UseGeneratedTestDoubles()` in `*.cs` | `.csproj`/`*.cs` | Definitive | Test-double intent present — load `references/testdoubles.md`, which explains that `UseGeneratedTestDoubles()` also needs `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` set (check separately; its absence is the most common setup mistake, not a reason to skip loading the reference) |
 | `<PackageReference Include="Compono.DependencyInjection"` or `.AsServiceProvider()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `row.AsServiceProvider()` available — load `references/dependencyinjection.md` |
+| `<PackageReference Include="Compono.Http"` | `.csproj` | Definitive | `TestHttpHandler`/`OnGet`/`OnPost`/etc. available — load `references/http.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -102,6 +103,13 @@ user to make test-by-test, not something to do as a drive-by.
      matchers) and must survive `PublishAot` → `Compono.TestDoubles`'s
      `UseGeneratedTestDoubles()` instead, if that package is referenced and
      the compile-time opt-in is set — see `references/testdoubles.md`.
+   - A test deliberately needs to exercise the real HTTP client pipeline
+     (real `HttpClient` → `TestHttpHandler` → configured response) rather
+     than substitute an application-level interface away →
+     `Compono.Http`'s `TestHttpHandler`, if that package is referenced —
+     see `references/http.md`. Don't reach for this when the seam is
+     already an ordinary interface the test doesn't specifically care is
+     HTTP-backed — that stays the NSubstitute/TestDoubles bullet above.
    - A `string` member needs a realistic value (email, name, address) →
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
@@ -193,29 +201,57 @@ undermines the reason Compono exists in this project.
   or switching the type to be constructed manually elsewhere just to
   dodge it). Fix the underlying shape, or compose an interface/wrapper
   instead when the diagnostic's fix column says so — see
-  `references/diagnostics.md`. The one documented exception is an
-  ambiguous-constructor BCL type with no registration-based escape hatch
-  (e.g. `HttpClient`, `Exception`) — see "When not to use Compono" below;
-  hand-constructing that one value in Arrange there isn't dodging a fixable
-  diagnostic, it's the current answer for a type that isn't supported for
-  direct composition today (see ADR-0002's Decision Outcome for why a
-  future explicit disambiguation mechanism, not this workaround, is the
-  door left open for that to change).
+  `references/diagnostics.md`. **For `CMP0001` specifically (a type with
+  more than one accessible constructor), the preferred fix is
+  `builder.For<T>().UseConstructor<T1, ...>()`** (ADR-0002 Amendment 3 /
+  ADR-0052) — name the intended constructor's own parameter types, in
+  order, and Compono keeps composing them exactly as it would for an
+  unambiguous type. This works for a type you own **and** for a BCL/
+  third-party type you don't (`HttpClient`, `Exception`) — it requires no
+  annotation on the type being composed, only a call in your own
+  profile/composer configuration. See
+  [Registrations and Rules: "Constructor selection"](https://github.com/LayeredCraft/compono/blob/main/docs/concepts/registrations-and-rules.md#constructor-selection-fortuseconstructor)
+  and `references/registrations-profiles-and-scopes.md`.
+  - **Never recommend adding `[CompositionConstructor]` or any
+    Compono-specific attribute to the composed type** — that was never
+    shipped, and product direction explicitly rejected it as the
+    mechanism (a test-composition library must not require production
+    code to carry test-only annotations). Never recommend greedy/
+    "most-parameters"/first-resolvable-constructor guessing either —
+    `UseConstructor<...>()` is always explicit, never a heuristic.
+  - **`UseConstructor<...>()` is not a substitute for `Register<T>`.** Use
+    it only when Compono should keep *composing* the type from scratch.
+    If the test needs one *specific, already-configured* instance
+    (e.g. an `HttpClient` wrapping a particular `TestHttpHandler`-created
+    handler) rather than something Compono could build from a
+    parameter-type list, that's still `Register<T>`/an interface wrapper
+    — don't tell a user to reach for `UseConstructor<...>()` there; see
+    "When not to use Compono" below for exactly which shape still needs
+    the older workaround.
+  - Scope is compilation-wide, not per-profile: a selection applies to
+    every composition of that type in the compilation. A conflicting
+    selection is `CMP0033`; a selection matching no accessible
+    constructor is `CMP0034`.
 - **Never assume a runtime reflection compatibility mode exists.** It's
   explicitly undecided/future work, not shipped API — don't tell a user
   they can "opt into reflection fallback."
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
-  `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`, and
-  `Compono.DependencyInjection` ship as packages today (`Compono.TUnit`
+  `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`,
+  `Compono.DependencyInjection`, and `Compono.Http` ship as packages today
+  (`Compono.TUnit`
   ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
   see `references/tunit.md`; `Compono.TestDoubles` requires both the
   package reference and the `ComponoGeneratedTestDoubles` compile-time
   opt-in, see `references/testdoubles.md`; `Compono.DependencyInjection`
   ships exactly one member, `row.AsServiceProvider()` — a configured-
-  resolution `IServiceProvider` bridge, see `references/dependencyinjection.md`)
+  resolution `IServiceProvider` bridge, see `references/dependencyinjection.md`;
+  `Compono.Http` ships `TestHttpHandler`, a reflection-free
+  `HttpMessageHandler`-based test double for `HttpClient`-consuming code —
+  does not ship `IHttpClientFactory`/named-client integration, see
+  `references/http.md`)
   — there is no `Compono.NUnit`, `Compono.MSTest`, `Compono.FakeItEasy`, or
   `Compono.Moq`, and never invent a plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
@@ -250,24 +286,40 @@ data when:
 - The setup is one or two trivial values — a composed call adds
   indirection without saving anything real.
 - The type has an ambiguous-constructor BCL shape (e.g. `HttpClient`,
-  `Exception`, both with multiple accessible constructors) — these hit
-  `CMP0001` with no registration-based escape hatch. Wrap in an app-owned
-  interface/factory and compose that instead, or construct it directly by
-  hand in that one spot (for `Exception` specifically: compose the message
-  as a `string` parameter, then `new Exception(message)` by hand in
-  Arrange — preserves randomized-message behavior without asking Compono
-  to build the exception itself — one added line per call site, no
-  readability loss). `HttpClient`'s workaround is heavier: a real
-  interface wrapper (`IHttpClientProvider`), not a one-liner. Seen twice
-  now in real migrations — still the intended pattern, not a gap: both
-  occurrences kept their own workaround's cost low relative to what a new
-  disambiguation mechanism would cost to design and build, so neither
-  justified building the still-undesigned explicit
-  disambiguation mechanism ADR-0002 leaves as the intended escape hatch
-  (ADR-0002's Decision Outcome; `HttpClient`'s occurrence is classified
-  and recorded in [ADR-0002's Amendment 1](https://github.com/LayeredCraft/compono/blob/main/docs/adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
-  `Exception`'s in [RESEARCH-0003](https://github.com/LayeredCraft/compono/blob/main/docs/research/0003-structured-logging-exception-constructor-ambiguity.md)
-  and the [migration guide](https://github.com/LayeredCraft/compono/blob/main/docs/migrating-from-autofixture.md#known-differences-and-limitations)).
+  `Exception`, both with multiple accessible constructors) and Compono
+  should just keep constructing it plainly — that's `CMP0001`, fixed with
+  `builder.For<T>().UseConstructor<...>()` (ADR-0002 Amendment 3/ADR-0052
+  Part B; see `references/registrations-profiles-and-scopes.md`'s
+  "Constructor selection" section) — don't reach for an interface wrapper
+  or hand construction for this case anymore, that's the stale
+  pre-`UseConstructor` workaround.
+  `UseConstructor<...>()` does **not** help the different, still-open
+  case: you need a *specific, already-configured* instance, not just "some
+  accessible constructor." That's still `Register<T>`/an interface
+  wrapper/hand construction — e.g. `Exception`: compose the message as a
+  `string` parameter, then `new Exception(message)` by hand in Arrange
+  (preserves randomized-message behavior, one added line, no readability
+  loss); `HttpClient` wrapping one specific, already-configured
+  `HttpMessageHandler` a fixture built: a real interface wrapper
+  (`IHttpClientProvider`), since no parameter-type list expresses "the
+  exact handler my fixture already configured" — see
+  `docs/concepts/registrations-and-rules.md`'s `Register<T>` vs.
+  `UseConstructor<...>()` table. This distinction, not the shape of the
+  BCL type itself, is what decides which mechanism applies — classification
+  history: [ADR-0002 Amendment 1](https://github.com/LayeredCraft/compono/blob/main/docs/adr/0002-constructor-selection-algorithm.md#amendment-1-2026-08-04-cmp0001-observed-against-a-real-ambiguous-bcl-type-no-change-made),
+  [RESEARCH-0003](https://github.com/LayeredCraft/compono/blob/main/docs/research/0003-structured-logging-exception-constructor-ambiguity.md),
+  [migration guide](https://github.com/LayeredCraft/compono/blob/main/docs/migrating-from-autofixture.md#known-differences-and-limitations).
+  **`Compono.Http` doesn't change the specific-instance case** — composing
+  an already-configured, real `HttpClient` value via
+  `Composer.Create<HttpClient>()` still needs `Register<HttpClient>`/an
+  interface wrapper. What `Compono.Http` answers is the *adjacent*
+  question: testing code that *consumes* an `HttpClient`/
+  `HttpMessageHandler`. If that's the actual goal, use `Compono.Http`'s
+  `TestHttpHandler` (see `references/http.md`) instead of hand-wrapping an
+  interface just to fake HTTP responses — don't conflate the two.
+  Registration-aware discovery (Compono recognizing a `Register<T>` and
+  treating it as a compile-time leaf) remains a separate, unresolved
+  roadmap item (ADR-0052 Part A) — don't imply it's shipped.
 - A collaborator's realistic *content* doesn't matter to the assertion —
   don't reach for `Compono.Bogus` just because it's installed.
 
@@ -287,4 +339,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
 | `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()` work, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
+| `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

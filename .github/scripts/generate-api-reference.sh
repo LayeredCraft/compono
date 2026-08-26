@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regenerates docs/reference/api/<package>/ from each of the four publishable
-# packages' compiled net10.0 assembly + XML doc file, via DefaultDocumentation
+# Regenerates docs/reference/api/<package>/ from each publishable package's
+# compiled net10.0 assembly + XML doc file, via DefaultDocumentation
 # (ADR-0032, PLAN-0008 Phase 1). Not Compono.Generators - IsPackable=false, an
 # internal analyzer implementation verified as package content elsewhere
 # (inspect-packed-nupkgs.sh), not documented as public API here.
@@ -15,7 +15,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
-# Compono core first, then the three integration packages, which all depend
+# Compono core first, then the integration packages, which all depend
 # on it (never the other way around - design-decisions.md rule 3). Core's
 # --LinksOutputFilePath is fed to each integration package's
 # --ExternLinksFilePaths so a <see cref="Compono.Composer"/> in e.g.
@@ -24,7 +24,7 @@ cd "$repo_root"
 # it doesn't recognize as a BCL type and links to a learn.microsoft.com URL
 # that 404s for a Compono type - caught during the Phase 1 tool bake-off.
 core_pkg=Compono
-integration_pkgs=(Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection)
+integration_pkgs=(Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http)
 
 links_dir=$(mktemp -d)
 trap 'rm -rf "$links_dir"' EXIT

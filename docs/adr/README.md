@@ -112,3 +112,6 @@ the mechanics: numbering, status, and the index.
 | [0048](0048-testdoubles-argument-matching-and-call-verification.md) | Compono.TestDoubles: Argument Matching and Argument-Aware Call Verification | Accepted |
 | [0049](0049-testdoubles-generic-return-closed-instantiation-configuration.md) | Compono.TestDoubles: Per-Closed-Instantiation Configuration for Generic Methods Whose Return Type Depends on Their Own Type Parameter | Accepted |
 | [0050](0050-testdoubles-multi-entry-argument-distinguished-configuration.md) | Compono.TestDoubles: Multi-Entry, Argument-Distinguished Response Configuration | Accepted |
+| [0051](0051-compono-http-handler-based-testing-package.md) | Compono.Http: Handler-Based HTTP Client Testing Package | Accepted |
+| [0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md) | Compile-Time Composition-Discovery Boundary for Registered and Nested-Resolved Types | Partially Accepted (Part B shipped; Part A Proposed) |
+| [0053](0053-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | Proposed |

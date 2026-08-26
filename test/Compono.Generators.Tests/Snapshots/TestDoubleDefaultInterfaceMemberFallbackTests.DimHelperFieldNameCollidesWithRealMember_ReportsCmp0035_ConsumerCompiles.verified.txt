@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.ICollision' declares default-interface member 'Foo', whose generated fallback dispatch-helper field/class name collides with another member of the same interface. 'Foo' falls back to the ordinary computed-default behavior instead of its real default-interface-member body.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0035,
+        Title: Test-double DIM fallback helper name collides with another member,
+        MessageFormat: '{0}' declares default-interface member '{1}', whose generated fallback dispatch-helper field/class name collides with another member of the same interface. '{1}' falls back to the ordinary computed-default behavior instead of its real default-interface-member body.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

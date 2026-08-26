@@ -45,6 +45,53 @@ Don't reuse a member rule across unrelated types hoping it'll apply
 broadly — if a rule should really apply everywhere, use a type rule or
 `Register<T>()` instead, not a copy-pasted member rule per type.
 
+## Constructor selection — `.For<T>().UseConstructor<...>()`
+
+A type with exactly one accessible constructor never needs this — Compono
+selects it automatically. A type with more than one accessible
+constructor and no selection is `CMP0001`. Fix it by naming the intended
+constructor's own parameter types, in order:
+
+```csharp
+public sealed class Foo
+{
+    public Foo() { }
+    public Foo(IBar bar, IBaz baz) { }
+}
+
+builder.For<Foo>().UseConstructor<IBar, IBaz>();
+```
+
+Compono still composes `IBar`/`IBaz` itself, recursively, exactly like an
+unambiguous constructor's parameters — the generated code is a direct
+`new Foo(bar, baz)`, never a stored/invoked delegate, never reflection.
+Works identically for a type you own and a BCL/third-party type you don't
+(`HttpClient`, `Exception`) — nothing is annotated on `Foo` itself.
+
+**`Register<T>` vs. `UseConstructor<...>()` — do not conflate these:**
+
+| | `Register<T>` | `UseConstructor<...>()` |
+|---|---|---|
+| Who builds it | You (a real runtime factory) | Compono (the generated plan) |
+| Use when | You need a *specific, already-configured* value, or logic beyond plain construction | The type just has more than one constructor and Compono should keep composing it |
+
+Never recommend `UseConstructor<...>()` for a case that actually needs a
+specific pre-built value (e.g. an `HttpClient` wrapping a particular
+`TestHttpHandler`-created handler) — there's no parameter-type list that
+expresses "the exact instance my fixture already configured"; that stays
+`Register<T>`/an interface wrapper. Never recommend
+`[CompositionConstructor]` or any attribute on the composed type — not
+shipped, explicitly rejected as the mechanism. Never recommend picking
+"the constructor with the most parameters" or "the first one that
+resolves" — always name the exact selection.
+
+**Scope is compilation-wide, not per-profile**: a selection anywhere in
+the compilation applies to every composition of that type. A second,
+different selection for the same type anywhere in the compilation is
+`CMP0033`; an identical repeated selection is harmless. A selection
+matching no accessible constructor is `CMP0034`. Per-profile constructor
+selection isn't supported — don't imply it is.
+
 ## `ICompositionProfile`
 
 ```csharp

@@ -96,25 +96,118 @@ internal static class TestDoubleAnalyzer
         // Configure()/Verify() surface - or, combined with ADR-0045, incorrectly rejecting the whole
         // interface if that instance member also has no deterministic default. Excluded here so this
         // preprocessing only ever sees the members the emission loop below might actually surface.
-        var eligibleCandidates = closure
+        var allEligibleCandidates = closure
             .SelectMany(i => i.GetMembers())
             .Where(m => m is IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false })
             .Where(m => m.IsAbstract || (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public))
             .Where(m => !(m.IsStatic && m.IsAbstract && interfaceType.FindImplementationForInterfaceMember(m) is not null))
             .ToArray();
 
-        var identityGroups = eligibleCandidates
+        var identityGroups = allEligibleCandidates
             .GroupBy(m => (m.Name, Canonical: IdentityFor(m)))
             .ToArray();
 
-        // A diamond collision: the *same* full-signature identity reached more than once (two
-        // different base interfaces independently declaring the same-named, same-shaped member).
-        // This identity gets no Configure()/Verify() surface at all - not a whole-interface rejection
-        // (Amendment 3 Finding 8, a real improvement over v1's blanket rejection for this case).
-        var diamondCollisionIdentities = identityGroups
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToHashSet();
+        // ADR-0044 Amendment 20's own effective-declaration resolution (allEligibleCandidates'
+        // admission filter, TestDoubleMemberIdentityResolver) only ever recognizes a `new`-hiding
+        // concrete redeclaration as resolving a base interface's abstract member - not an EXPLICIT
+        // interface reimplementation (`bool IBase.Flag() => true;` declared on a more-derived
+        // interface). An explicit implementation reports MethodKind.ExplicitInterfaceImplementation
+        // (not Ordinary) and DeclaredAccessibility.Private (not Public), both of which
+        // allEligibleCandidates' filter excludes outright - the resolver never sees it, so the
+        // generated double silently falls back to either ADR-0045's computed default (when the base
+        // member is abstract) or the base DIM body (when the base member is itself concrete) instead
+        // of the leaf interface's own real, resolved value. Not fixed (see ADR-0044's own "Known,
+        // real, still-open gap" section, rounds 13/14 - a real fix
+        // needs three coordinated admission-point changes, not attempted under review-loop time
+        // pressure) - but detected and reported here rather than left completely silent, using the
+        // SAME Roslyn API (ITypeSymbol.FindImplementationForInterfaceMember) ADR-0046 already
+        // trusts for the equivalent static-abstract-member resolution question. Codex review,
+        // PR #111 (round 13).
+        var explicitInterfaceReimplementationDiagnostics = new List<DiagnosticInfo>();
+
+        foreach (var candidate in allEligibleCandidates)
+        {
+            if (candidate.IsStatic)
+                continue;
+
+            var resolution = interfaceType.FindImplementationForInterfaceMember(candidate);
+
+            if (resolution is not null && IsExplicitInterfaceReimplementation(resolution))
+            {
+                explicitInterfaceReimplementationDiagnostics.Add(new DiagnosticInfo(
+                    DiagnosticDescriptors.TestDoubleUnrecognizedExplicitInterfaceReimplementation,
+                    null,
+                    interfaceType.ToDisplayString(),
+                    candidate.Name));
+            }
+        }
+
+        // ADR-0044 Amendment 20: the *same* full-signature identity reached more than once isn't
+        // automatically a diamond collision - it might be a base interface's own abstract declaration
+        // resolved by a more-derived interface's own concrete (default-interface-member) redeclaration
+        // via `new`, which TestDoubleMemberIdentityResolver's "unique dominant declaration" rule
+        // resolves unambiguously. A resolved group's losing (non-dominant) declaration(s) still need a
+        // real explicit interface implementation (`new`-hiding alone doesn't satisfy the base
+        // interface's own abstract-member requirement, CS0535) - resolvedAwayForwardsTo below records,
+        // per losing declaration, which dominant declaration it forwards to; the emission loop
+        // recognizes a key in this map and emits a pure-forwarding member instead of its own
+        // Configure()/Verify() surface, so exactly one place per resolved member ever owns
+        // call-recording state. Only a genuine collision (TryResolve returns null) keeps the original
+        // "no Configure()/Verify() surface at all" disposition (Amendment 3 Finding 8).
+        var diamondCollisionIdentities = new HashSet<(string Name, string Canonical)>();
+        var resolvedAwayForwardsTo = new Dictionary<ISymbol, ISymbol>(SymbolEqualityComparer.Default);
+        // A concrete DIM's real body must be honored whether or not it's also involved in a
+        // multi-declaration identity group - a plain, non-colliding `bool Flag() => true` (group of
+        // one, no base/derived redeclaration anywhere in the closure) is the common case Amendment
+        // 20 was meant to cover in the first place, not just the diamond-adjacent one (code review:
+        // the original loop below only ever considered groups with more than one member, so this
+        // ordinary shape silently kept ADR-0045's computed default instead of its own real body).
+        var standaloneDimTargets = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var group in identityGroups)
+        {
+            var groupMembers = group.ToArray();
+
+            if (groupMembers.Length == 1)
+            {
+                if (!groupMembers[0].IsAbstract)
+                    standaloneDimTargets.Add(groupMembers[0]);
+
+                continue;
+            }
+
+            var dominant = TestDoubleMemberIdentityResolver.TryResolve(groupMembers);
+
+            if (dominant is null)
+            {
+                diamondCollisionIdentities.Add(group.Key);
+                continue;
+            }
+
+            foreach (var member in groupMembers)
+            {
+                if (!SymbolEqualityComparer.Default.Equals(member, dominant))
+                    resolvedAwayForwardsTo[member] = dominant;
+            }
+        }
+
+
+        // ADR-0044 Amendment 20: a resolved group's dominant declaration only needs the
+        // owner-forwarding dispatch-helper machinery when it's genuinely concrete (a real default
+        // interface member body to prefer over ADR-0045's computed default) - a resolved group whose
+        // dominant declaration is itself still abstract has no real body to honor, so it keeps the
+        // ordinary computed-default fallback unchanged. Standalone concrete DIMs (above) are always
+        // fallback targets - a group of one is never abstract-with-no-body by construction (an
+        // abstract member with no other declaration reaching the closure just stays an ordinary,
+        // unconfigured-throws-or-computed-default candidate, never entering standaloneDimTargets at
+        // all per the `!IsAbstract` check above).
+        var dimFallbackTargets = new HashSet<ISymbol>(
+            resolvedAwayForwardsTo.Values.Where(d => !d.IsAbstract).Concat(standaloneDimTargets),
+            SymbolEqualityComparer.Default);
+
+        var eligibleCandidates = allEligibleCandidates
+            .Where(m => !resolvedAwayForwardsTo.ContainsKey(m))
+            .ToArray();
 
         // A name shared by more than one member that would *otherwise* get a Configure()/Verify()
         // surface - a zero-argument configuration extension can only fail to disambiguate when more
@@ -549,10 +642,68 @@ internal static class TestDoubleAnalyzer
             }
         } while (addedFallbackReservation);
 
+        // ADR-0044 Amendment 20: a DIM fallback target's cached dispatch-helper field
+        // (`{FieldName}_dimHelper`) and helper class (`{FieldName}_DimFallback`) are derived names
+        // just like the ADR-0048/0049 auxiliary names above, but were never reserved against
+        // `usedFieldNames` at all - a real, differently-shaped sibling member literally named e.g.
+        // "Foo_dimHelper" independently derives that exact same field name via the ordinary
+        // `__{Name}` formula, producing CS0102 (duplicate field) in the consumer's generated double.
+        // Checked (not reserved into the shared pool) against `usedFieldNames` as it stands once
+        // fully settled above - a DIM fallback target's own derived names are never themselves a
+        // *source* of collision for anything else (each is unique per member, scoped by that
+        // member's own already-unique FieldName), only ever a potential *victim* of an unrelated
+        // real member's ordinary name. Genuinely obscure (a consumer would have to name a member
+        // after Compono's own generated-suffix convention) but real - reported, not silently
+        // swallowed, and gracefully degraded to the ordinary computed-default fallback (same
+        // disposition CMP0022/23/24 already use for a name collision) rather than emitting broken
+        // code. Codex review, PR #111 (round 6).
+        var dimHelperNameCollisionMembers = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var dimHelperNameCollisionDiagnostics = new List<DiagnosticInfo>();
+
+        // Two DIM fallback targets sharing a name can independently derive the IDENTICAL
+        // "__{Name}_dimHelper"/"__{Name}_DimFallback" pair when neither (or only one) of them is
+        // present in `overloadedNames` - that set only ever counts members that WOULD get a
+        // Configure()/Verify() surface (see its own comment above), so a ref/out/in-shaped DIM
+        // fallback target (which never gets one, hasConfigurationSurface is unconditionally false
+        // for it) doesn't disambiguate a same-named sibling's FieldName even when BOTH are
+        // independently concrete DIMs each needing their own unique dispatch-helper identity - and
+        // neither is ever reserved in `usedFieldNames` either, since that reservation loop skips
+        // the exact same "wouldn't get configuration surface" candidates. Grouped across ALL DIM
+        // fallback targets first, so a same-name collision between two DIM targets is caught even
+        // though neither one's derived name was ever reserved anywhere else. Codex review, PR #111
+        // (round 12).
+        var candidateFieldNameByDimTarget = dimFallbackTargets.ToDictionary(
+            candidate => candidate,
+            candidate => overloadedNames.Contains(candidate.Name) && candidate is IMethodSymbol candidateAsMethod
+                ? $"__{candidate.Name}{discriminatorSuffixByIdentity[(candidate.Name, Canonical: IdentityFor(candidateAsMethod))]}"
+                : $"__{candidate.Name}",
+            SymbolEqualityComparer.Default);
+
+        var dimTargetsByCandidateFieldName = candidateFieldNameByDimTarget
+            .GroupBy(kvp => kvp.Value, kvp => kvp.Key, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+        foreach (var candidate in dimFallbackTargets)
+        {
+            var candidateFieldName = candidateFieldNameByDimTarget[candidate];
+            var dimHelperFieldName = $"{candidateFieldName}_dimHelper";
+            var dimHelperClassName = $"{candidateFieldName}_DimFallback";
+
+            if (usedFieldNames.Contains(dimHelperFieldName) || usedFieldNames.Contains(dimHelperClassName) ||
+                dimTargetsByCandidateFieldName[candidateFieldName] > 1)
+            {
+                dimHelperNameCollisionMembers.Add(candidate);
+                dimHelperNameCollisionDiagnostics.Add(new DiagnosticInfo(
+                    DiagnosticDescriptors.TestDoubleDimHelperNameCollision, null,
+                    interfaceType.ToDisplayString(), candidate.Name));
+            }
+        }
+
         var reportedDiamondIdentities = new HashSet<(string Name, string Canonical)>();
         var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
-        var infoDiagnostics = new List<DiagnosticInfo>();
+        var infoDiagnostics = new List<DiagnosticInfo>(dimHelperNameCollisionDiagnostics);
+        infoDiagnostics.AddRange(explicitInterfaceReimplementationDiagnostics);
         var configurationRequiredCount = 0;
 
         foreach (var declaringInterface in closure)
@@ -629,6 +780,39 @@ internal static class TestDoubleAnalyzer
                         // implementation), not part of the instance contract a double implements.
                         if (method.IsStatic)
                             continue;
+
+                        // ADR-0044 Amendment 20: this method is the losing (non-dominant) declaration
+                        // of a resolved diamond identity - still needs a real explicit interface
+                        // implementation against declaringInterface (CS0535 otherwise), but it purely
+                        // forwards to the dominant declaration's own explicit implementation instead of
+                        // getting its own field/Configure()/Verify() surface, so exactly one place ever
+                        // owns this member's call-recording state.
+                        if (resolvedAwayForwardsTo.TryGetValue(method, out var dominantMethod))
+                        {
+                            members.Add(new TestDoubleMemberInfo(
+                                method.Name,
+                                RequiredMemberCollector.EscapeIdentifier(method.Name),
+                                declaringInterfaceFullyQualifiedName,
+                                TestDoubleMemberKind.Method,
+                                TestDoublePropertyAccessorKind.None,
+                                method.ReturnsVoid ? "" : method.ReturnType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                method.ReturnsVoid,
+                                "",
+                                method.Parameters.Select(p => new TestDoubleParameterInfo(
+                                    RequiredMemberCollector.EscapeIdentifier(p.Name),
+                                    p.Name,
+                                    p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                    RefKindPrefixFor(p),
+                                    CallSiteRefKindPrefix: CallSiteRefKindPrefixFor(p))).ToEquatableArray(),
+                                HasConfigurationSurface: false,
+                                IsGenericMethod: method.IsGenericMethod,
+                                TypeParameterNames: method.IsGenericMethod
+                                    ? method.TypeParameters.Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name)).ToEquatableArray()
+                                    : EquatableArray<string>.Empty,
+                                IsForwarding: true,
+                                ForwardsToInterfaceFullyQualifiedName: dominantMethod.ContainingType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                            continue;
+                        }
 
                         // A non-abstract instance member with a default implementation (C# 8+ default
                         // interface members) that isn't public - most commonly `private` - is never
@@ -808,6 +992,15 @@ internal static class TestDoubleAnalyzer
 
                         var isZeroArgCollision = zeroArgCollisionMembers.Contains(method);
                         var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter && !isZeroArgCollision;
+                        var isDimFallbackTarget = dimFallbackTargets.Contains(method) && !dimHelperNameCollisionMembers.Contains(method);
+
+                        if (isDimFallbackTarget && DeclaringInterfaceHasUnresolvedStaticAbstractMember(declaringInterface))
+                        {
+                            isDimFallbackTarget = false;
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.TestDoubleDimHelperUnresolvedStaticAbstractMember, null,
+                                interfaceType.ToDisplayString(), method.Name));
+                        }
 
                         if (isZeroArgCollision && reportedZeroArgCollisionNames.Add(method.Name))
                         {
@@ -855,7 +1048,16 @@ internal static class TestDoubleAnalyzer
                                 // Amendment 6) keeps today's unchanged whole-interface CMP0025
                                 // rejection, so no member ever ends up throwing unconditionally
                                 // with no way to configure it.
-                                if (hasConfigurationSurface && !isObjectMemberCollisionShaped)
+                                if (isDimFallbackTarget)
+                                {
+                                    // ADR-0044 Amendment 20: this member's unconfigured fallback
+                                    // calls through the owner-forwarding dispatch helper (a real
+                                    // interface default-member body), not a computed default - it
+                                    // has a real value to fall back to even with no deterministic
+                                    // default for its return type, so it never needs the
+                                    // configuration-required disposition.
+                                }
+                                else if (hasConfigurationSurface && !isObjectMemberCollisionShaped)
                                 {
                                     isConfigurationRequired = true;
                                 }
@@ -990,52 +1192,15 @@ internal static class TestDoubleAnalyzer
                                 RequiredMemberCollector.EscapeIdentifier(p.Name),
                                 p.Name,
                                 p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
-                                // The explicit implementation's ref-safety contract has to match the
-                                // interface member's exactly, or the consumer gets CS8987, not a
-                                // supported double or a diagnostic. Three distinct cases, all verified
-                                // with real compile spikes (Codex review, PR #88):
-                                //  - ScopedKind.ScopedRef on a ref/in/ref-readonly parameter: restate
-                                //    "scoped ", *except* for "out" - every out parameter is
-                                //    unconditionally ScopedRef even with no "scoped" written in source,
-                                //    so restating it there is always redundant (confirmed: `out int x`
-                                //    and `scoped out int x` both report ScopedKind.ScopedRef).
-                                //  - ScopedKind.ScopedValue on an ordinary by-value ref-like parameter
-                                //    (e.g. `scoped Span<int> value`): always restate "scoped " -
-                                //    by-value ref-like parameters get *no* implicit scoping by default
-                                //    (confirmed: a plain `Span<int> value` reports ScopedKind.None, only
-                                //    `scoped Span<int> value` reports ScopedValue), so this one is never
-                                //    redundant.
-                                //  - The *inverse* of the "out" case above: `[UnscopedRef] out` reports
-                                //    ScopedKind.None (confirmed) - the attribute removes out's normal
-                                //    implicit scoping. A plain generated "out" parameter would still be
-                                //    implicitly scoped, disagreeing with the interface's explicitly
-                                //    unscoped contract - the UnscopedRefAttribute itself has to be
-                                //    restated on the explicit implementation.
-                                (p.RefKind == RefKind.Out && p.ScopedKind == ScopedKind.None
-                                    ? "[global::System.Diagnostics.CodeAnalysis.UnscopedRef] "
-                                    : "") +
-                                ((p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out) ||
-                                 p.ScopedKind == ScopedKind.ScopedValue ? "scoped " : "") +
-                                (p.RefKind switch
-                                {
-                                    RefKind.Ref => "ref ",
-                                    RefKind.Out => "out ",
-                                    RefKind.In => "in ",
-                                    // A C# 12 `ref readonly` parameter - distinct from RefKind.RefReadOnly,
-                                    // which describes a by-ref-readonly *return*, not a parameter. Omitting
-                                    // this case would silently emit the explicit interface implementation
-                                    // with no ref modifier at all, producing a signature that doesn't match
-                                    // the interface member it's implementing (CS0535).
-                                    RefKind.RefReadOnlyParameter => "ref readonly ",
-                                    _ => "",
-                                }),
+                                RefKindPrefixFor(p),
                                 p.IsParams,
                                 // Mirrored onto an overloaded member's own extension so a real
                                 // optional-parameter call shape (M() against M(int value = 0)) stays
                                 // reachable through Configure() too - same "keep every real call
                                 // shape reachable" reasoning already applied to params. Codex review,
                                 // PR #88.
-                                DefaultValueExpressionFor(p)))
+                                DefaultValueExpressionFor(p),
+                                CallSiteRefKindPrefix: CallSiteRefKindPrefixFor(p)))
                             .ToEquatableArray();
 
                         var discriminatorSuffix = hasConfigurationSurface && isOverloaded
@@ -1158,7 +1323,11 @@ internal static class TestDoubleAnalyzer
                             IsConfigurationRequired: isConfigurationRequired,
                             IsEligibleForMatching: isEligibleForMatching,
                             IsClosedInstantiationEligible: isClosedInstantiationEligible,
-                            IsClosedInstantiationEligibleShape: isClosedInstantiationEligibleShape));
+                            IsClosedInstantiationEligibleShape: isClosedInstantiationEligibleShape,
+                            IsDimFallbackTarget: isDimFallbackTarget,
+                            DimFallbackSiblings: isDimFallbackTarget
+                                ? BuildDimFallbackSiblings(method, interfaceType)
+                                : EquatableArray<TestDoubleDimFallbackSiblingInfo>.Empty));
 
                         break;
                     }
@@ -1191,6 +1360,36 @@ internal static class TestDoubleAnalyzer
                         // explicitly implemented. PR #83 review round 2.
                         if (!property.IsAbstract && property.DeclaredAccessibility != Accessibility.Public)
                             continue;
+
+                        // ADR-0044 Amendment 20: same forwarding-only disposition as the method branch
+                        // above - this property is the losing (non-dominant) declaration of a resolved
+                        // diamond identity.
+                        if (resolvedAwayForwardsTo.TryGetValue(property, out var dominantProperty))
+                        {
+                            // Same accessibility check as the main property path and
+                            // BuildDimFallbackSiblings (code review, 2026-08-25 follow-up round) - a
+                            // non-public setter here isn't part of the implementable contract either.
+                            var forwardingAccessorKind = property.SetMethod is not { DeclaredAccessibility: Accessibility.Public }
+                                ? TestDoublePropertyAccessorKind.GetOnly
+                                : property.SetMethod.IsInitOnly
+                                    ? TestDoublePropertyAccessorKind.GetInit
+                                    : TestDoublePropertyAccessorKind.GetSet;
+
+                            members.Add(new TestDoubleMemberInfo(
+                                property.Name,
+                                RequiredMemberCollector.EscapeIdentifier(property.Name),
+                                declaringInterfaceFullyQualifiedName,
+                                TestDoubleMemberKind.Property,
+                                forwardingAccessorKind,
+                                property.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                                IsVoid: false,
+                                DefaultExpression: "",
+                                Parameters: EquatableArray<TestDoubleParameterInfo>.Empty,
+                                HasConfigurationSurface: false,
+                                IsForwarding: true,
+                                ForwardsToInterfaceFullyQualifiedName: dominantProperty.ContainingType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                            continue;
+                        }
 
                         var identity = (property.Name, Canonical: IdentityFor(property));
                         var isDiamondCollision = diamondCollisionIdentities.Contains(identity);
@@ -1270,10 +1469,25 @@ internal static class TestDoubleAnalyzer
                         var hasPropertyConfigurationSurface = !isDiamondCollision && !isZeroArgCollision;
                         var isPropertyConfigurationRequired = false;
                         var propertyDefault = "";
+                        var isPropertyDimFallbackTarget = dimFallbackTargets.Contains(property) && !dimHelperNameCollisionMembers.Contains(property);
+
+                        if (isPropertyDimFallbackTarget && DeclaringInterfaceHasUnresolvedStaticAbstractMember(declaringInterface))
+                        {
+                            isPropertyDimFallbackTarget = false;
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.TestDoubleDimHelperUnresolvedStaticAbstractMember, null,
+                                interfaceType.ToDisplayString(), property.Name));
+                        }
 
                         if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, compilation, out propertyDefault))
                         {
-                            if (hasPropertyConfigurationSurface)
+                            if (isPropertyDimFallbackTarget)
+                            {
+                                // ADR-0044 Amendment 20: same reasoning as the method branch above -
+                                // the owner-forwarding dispatch helper gives this member a real
+                                // fallback value even with no deterministic default.
+                            }
+                            else if (hasPropertyConfigurationSurface)
                             {
                                 isPropertyConfigurationRequired = true;
                             }
@@ -1313,7 +1527,11 @@ internal static class TestDoubleAnalyzer
                             hasPropertyConfigurationSurface,
                             false,
                             "",
-                            IsConfigurationRequired: isPropertyConfigurationRequired));
+                            IsConfigurationRequired: isPropertyConfigurationRequired,
+                            IsDimFallbackTarget: isPropertyDimFallbackTarget,
+                            DimFallbackSiblings: isPropertyDimFallbackTarget
+                                ? BuildDimFallbackSiblings(property, interfaceType)
+                                : EquatableArray<TestDoubleDimFallbackSiblingInfo>.Empty));
 
                         break;
                     }
@@ -1561,6 +1779,90 @@ internal static class TestDoubleAnalyzer
             : $"where {RequiredMemberCollector.EscapeIdentifier(typeParameter.Name)} : {string.Join(", ", parts)}";
     }
 
+    // The explicit implementation's ref-safety contract has to match the interface member's
+    // exactly, or the consumer gets CS8987, not a supported double or a diagnostic. Three distinct
+    // cases, all verified with real compile spikes (Codex review, PR #88) - shared by the main
+    // member-emission path above and BuildDimFallbackSiblings' forwarding declarations below, since
+    // a sibling forwarding declaration has to satisfy the exact same interface contract (code
+    // review: a sibling with a `ref readonly`/`scoped` parameter was silently emitted with no
+    // modifier at all before this was extracted and reused):
+    //  - ScopedKind.ScopedRef on a ref/in/ref-readonly parameter: restate "scoped ", *except* for
+    //    "out" - every out parameter is unconditionally ScopedRef even with no "scoped" written in
+    //    source, so restating it there is always redundant (confirmed: `out int x` and
+    //    `scoped out int x` both report ScopedKind.ScopedRef).
+    //  - ScopedKind.ScopedValue on an ordinary by-value ref-like parameter (e.g. `scoped Span<int>
+    //    value`): always restate "scoped " - by-value ref-like parameters get *no* implicit scoping
+    //    by default (confirmed: a plain `Span<int> value` reports ScopedKind.None, only
+    //    `scoped Span<int> value` reports ScopedValue), so this one is never redundant.
+    //  - The *inverse* of the "out" case above: `[UnscopedRef] out` reports ScopedKind.None
+    //    (confirmed) - the attribute removes out's normal implicit scoping. A plain generated "out"
+    //    parameter would still be implicitly scoped, disagreeing with the interface's explicitly
+    //    unscoped contract - the UnscopedRefAttribute itself has to be restated on the explicit
+    //    implementation.
+    private static string RefKindPrefixFor(IParameterSymbol p) =>
+        (p.RefKind == RefKind.Out && p.ScopedKind == ScopedKind.None
+            ? "[global::System.Diagnostics.CodeAnalysis.UnscopedRef] "
+            : "") +
+        ((p.ScopedKind == ScopedKind.ScopedRef && p.RefKind != RefKind.Out) ||
+         p.ScopedKind == ScopedKind.ScopedValue ? "scoped " : "") +
+        (p.RefKind switch
+        {
+            RefKind.Ref => "ref ",
+            RefKind.Out => "out ",
+            RefKind.In => "in ",
+            // A C# 12 `ref readonly` parameter - distinct from RefKind.RefReadOnly, which describes
+            // a by-ref-readonly *return*, not a parameter. Omitting this case would silently emit
+            // the explicit interface implementation with no ref modifier at all, producing a
+            // signature that doesn't match the interface member it's implementing (CS0535).
+            RefKind.RefReadOnlyParameter => "ref readonly ",
+            _ => "",
+        });
+
+    // The by-ref modifier to restate at a CALL SITE forwarding to this parameter - genuinely
+    // different rules from RefKindPrefixFor's declaration-site text (code-review finding: reusing
+    // RefKindPrefixFor's text at a call site is a syntax error for `ref readonly`/`scoped`/
+    // `[UnscopedRef]`, none of which are legal at a call site at all - only ref/out must be
+    // restated there; `in`, `scoped`, and `[UnscopedRef]` all accept a plain by-value argument
+    // expression with no modifier). Every forwarding call site (an IsForwarding member's own body,
+    // a DIM fallback dispatch, a DIM sibling's forwarding declaration) must use this, never
+    // RefKindPrefixFor's result, for its argument list.
+    private static string CallSiteRefKindPrefixFor(IParameterSymbol p) =>
+        p.RefKind switch
+        {
+            RefKind.Ref => "ref ",
+            RefKind.Out => "out ",
+            // Unlike `in`/`scoped`/`[UnscopedRef]`, omitting a modifier here compiles but produces
+            // CS9192 ("ref readonly" argument passed without ref/in) - a real warning under a
+            // consumer's default settings, and a real build failure under warnings-as-errors.
+            // Round-9 code-review finding: the "no modifier needed at a call site" reasoning above
+            // was correct for `in` but wrongly generalized to `ref readonly` too - `in` is the
+            // legal, warning-free way to restate it.
+            RefKind.RefReadOnlyParameter => "in ",
+            _ => "",
+        };
+
+    // ADR-0044 Amendment 20's owner-forwarding dispatch helper implements only its DIM's own
+    // DECLARING interface (`: {{ member.declaring_interface_fully_qualified_name }}` in the
+    // template) - never the full leaf interface this double actually composes. ADR-0046's own
+    // resolution ("a static abstract member is satisfied when SOME interface in the closure
+    // resolves it, not necessarily the declaring interface itself") is exactly what makes the
+    // OUTER double compile even when the declaring interface, viewed in isolation, doesn't resolve
+    // a static abstract member it inherits - the outer double implements the LEAF interface, which
+    // does resolve it. The dispatch helper has no such luck: implementing only the declaring
+    // interface, C# requires it to supply every one of that interface's own unresolved static
+    // abstract members directly, which this generator never emits. Round-9 code-review finding.
+    //
+    // Checks the declaring interface's OWN members too, not just AllInterfaces (which excludes the
+    // type itself) - a static abstract member declared DIRECTLY on the declaring interface
+    // alongside the DIM (not merely inherited from a base interface) hits the exact same unresolved-
+    // in-isolation problem if only a more-derived leaf interface resolves it. Round-10 code-review
+    // finding: the AllInterfaces-only check missed this narrower, one-interface-closer case.
+    private static bool DeclaringInterfaceHasUnresolvedStaticAbstractMember(INamedTypeSymbol declaringInterface) =>
+        declaringInterface.AllInterfaces.Prepend(declaringInterface).Any(baseInterface =>
+            baseInterface.GetMembers().Any(m =>
+                m.IsStatic && m.IsAbstract &&
+                declaringInterface.FindImplementationForInterfaceMember(m) is null));
+
     // A C# literal expression for a parameter's optional default value, only ever rendered onto an
     // overloaded member's generated extension (never the explicit interface implementation, which
     // can't usefully redeclare one - callers always go through the interface's own default, not the
@@ -1616,6 +1918,95 @@ internal static class TestDoubleAnalyzer
         IPropertySymbol property => TestDoubleOverloadIdentity.CanonicalSignatureFor(property),
         _ => "",
     };
+
+    private static bool IsExplicitInterfaceReimplementation(ISymbol implementation) => implementation switch
+    {
+        IMethodSymbol method => method.ExplicitInterfaceImplementations.Length > 0,
+        IPropertySymbol property => property.ExplicitInterfaceImplementations.Length > 0,
+        _ => false,
+    };
+
+    // ADR-0044 Amendment 20: every member the owner-forwarding dispatch helper must itself implement
+    // to satisfy its own declaring interface's full contract (target.ContainingType) - everything in
+    // that interface's own transitive closure (AllInterfaces + itself) except target, mirroring the
+    // same eligibility filter allEligibleCandidates already applies (abstract, or a public non-static
+    // default implementation) so a private/non-abstract-static default member is correctly left out
+    // here too. Never re-validates shape support (events/indexers/etc.) - target.ContainingType's own
+    // closure is always a subset of the leaf interfaceType's own closure (interfaceType.AllInterfaces
+    // transitively includes it), which already passed every earlier shape check for this Analyze call.
+    private static EquatableArray<TestDoubleDimFallbackSiblingInfo> BuildDimFallbackSiblings(
+        ISymbol target, INamedTypeSymbol interfaceType)
+    {
+        var declaringType = target.ContainingType!;
+        var dimClosure = new List<INamedTypeSymbol> { declaringType };
+        dimClosure.AddRange(declaringType.AllInterfaces);
+
+        var siblings = new List<TestDoubleDimFallbackSiblingInfo>();
+
+        foreach (var iface in dimClosure)
+        {
+            var declaringInterfaceFullyQualifiedName = iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            foreach (var member in iface.GetMembers())
+            {
+                if (SymbolEqualityComparer.Default.Equals(member, target))
+                    continue;
+
+                if (member is not (IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol { IsIndexer: false }))
+                    continue;
+
+                if (member.IsStatic)
+                    continue;
+
+                if (!member.IsAbstract && member.DeclaredAccessibility != Accessibility.Public)
+                    continue;
+
+                if (member is IMethodSymbol siblingMethod)
+                {
+                    siblings.Add(new TestDoubleDimFallbackSiblingInfo(
+                        RequiredMemberCollector.EscapeIdentifier(siblingMethod.Name),
+                        declaringInterfaceFullyQualifiedName,
+                        TestDoubleMemberKind.Method,
+                        TestDoublePropertyAccessorKind.None,
+                        siblingMethod.ReturnsVoid ? "" : siblingMethod.ReturnType.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                        siblingMethod.ReturnsVoid,
+                        siblingMethod.Parameters.Select(p => new TestDoubleParameterInfo(
+                            RequiredMemberCollector.EscapeIdentifier(p.Name),
+                            p.Name,
+                            p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                            RefKindPrefixFor(p),
+                            CallSiteRefKindPrefix: CallSiteRefKindPrefixFor(p))).ToEquatableArray(),
+                        siblingMethod.IsGenericMethod,
+                        siblingMethod.IsGenericMethod
+                            ? siblingMethod.TypeParameters.Select(tp => RequiredMemberCollector.EscapeIdentifier(tp.Name)).ToEquatableArray()
+                            : EquatableArray<string>.Empty));
+                }
+                else if (member is IPropertySymbol siblingProperty)
+                {
+                    // Mirror the main property path's accessibility check (Amendment 9, Finding U /
+                    // PR #83 review round 5) - a setter that exists but isn't public (a default-
+                    // implemented `private set` alongside a default-implemented `get`) isn't part of
+                    // the implementable contract, so it's treated the same as no setter at all.
+                    var accessorKind = siblingProperty.SetMethod is not { DeclaredAccessibility: Accessibility.Public }
+                        ? TestDoublePropertyAccessorKind.GetOnly
+                        : siblingProperty.SetMethod.IsInitOnly
+                            ? TestDoublePropertyAccessorKind.GetInit
+                            : TestDoublePropertyAccessorKind.GetSet;
+
+                    siblings.Add(new TestDoubleDimFallbackSiblingInfo(
+                        RequiredMemberCollector.EscapeIdentifier(siblingProperty.Name),
+                        declaringInterfaceFullyQualifiedName,
+                        TestDoubleMemberKind.Property,
+                        accessorKind,
+                        siblingProperty.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat),
+                        false,
+                        EquatableArray<TestDoubleParameterInfo>.Empty));
+                }
+            }
+        }
+
+        return siblings.ToEquatableArray();
+    }
 
     private static DiscoveredTestDoubleInfo Failure(string fullyQualifiedName, string safeIdentifier, DiagnosticInfo diagnostic) =>
         new(fullyQualifiedName, safeIdentifier, EquatableArray<TestDoubleMemberInfo>.Empty, new[] { diagnostic }.ToEquatableArray());

@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (30,43)-(30,84),
+      Message: 'SpikeThreeWayConflict.Foo' has more than one explicit UseConstructor(...) selection in this compilation (SpikeThreeWayConflict.Foo.Foo(SpikeThreeWayConflict.IBar) and SpikeThreeWayConflict.Foo.Foo(SpikeThreeWayConflict.IBar, SpikeThreeWayConflict.IBaz)) - only one construction path is allowed per type per compilation (ADR-0052),
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0033,
+        Title: Conflicting explicit constructor selection,
+        MessageFormat: '{0}' has more than one explicit UseConstructor(...) selection in this compilation ({1} and {2}) - only one construction path is allowed per type per compilation (ADR-0052),
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

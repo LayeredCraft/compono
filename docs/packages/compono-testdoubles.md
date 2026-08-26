@@ -134,6 +134,57 @@ Two edge cases stay narrower than full per-overload support:
   and rejects the whole interface, same as the non-overloaded case
   (`CMP0026`).
 
+## Default interface members
+
+A base interface's abstract declaration resolved by a more-derived
+interface's own concrete (default-interface-member) redeclaration via
+`new` is **not** a diamond collision ([ADR-0044 Amendment 20](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-20-2026-08-25-effective-declaration-resolution-corrected-for-basederived-member-identity-concrete-default-interface-member-bodies-now-honored-as-the-unconfigured-fallback-bug-fix)):
+
+```csharp
+public interface IRequestHandler
+{
+    bool CanHandle(string input);
+}
+
+public interface IDefaultRequestHandler : IRequestHandler
+{
+    new bool CanHandle(string input) => true;
+}
+```
+
+`IDefaultRequestHandler`'s own redeclaration dominates `IRequestHandler`'s -
+the generated double honors that: `CanHandle` gets a real `Configure()`/
+`Verify()` surface, and its **unconfigured** fallback runs the interface's
+own real body (`true` above) instead of a fabricated computed default. Both
+interface views share the same call-recording state - calling through either
+`IRequestHandler` or `IDefaultRequestHandler` records on the same
+`Verify()` count, never double-counted:
+
+```csharp
+var handler = composer.Create<IDefaultRequestHandler>();
+
+handler.CanHandle("x");                          // unconfigured - runs the real DIM body, returns true
+handler.Configure().CanHandle(Match.Any<string>()).Returns(false);
+handler.CanHandle("x");                          // now returns the configured value
+
+handler.Verify().CanHandle(Match.Any<string>()).Exactly(2);
+```
+
+This resolution is a **unique dominant declaration** test, not "every pair
+of declarations must relate" - a *convergent* diamond (two unrelated
+concrete sibling interfaces sharing a common abstract ancestor) still
+resolves cleanly when a leaf interface directly redeclares the member
+itself, even though the two sibling branches aren't related to each other.
+A genuine diamond - two unrelated interfaces independently declaring the
+same shape, with no leaf redeclaration resolving it - is still a collision,
+unchanged from the "Overloaded members" section above.
+
+A DIM's unconfigured fallback also calls through when the member is
+closed-instantiation-eligible (a generic method whose return type depends
+on its own type parameter, see "Per-closed-instantiation configuration"
+below) - each independently-configured closed `T` shares the same
+fallback-to-real-body behavior as every other supported member shape.
+
 ## Generic methods
 
 A generic method whose return type doesn't reference its own type

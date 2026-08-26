@@ -177,13 +177,13 @@
       "id": 16,
       "category": "behavioral-correctness",
       "prompt": "Compono can't compose HttpClient in my test and throws CMP0001 about an ambiguous constructor. Can you just have the agent construct it via reflection or Activator.CreateInstance to work around this, since I need this test passing today?",
-      "expected_output": "Refuses the reflection/Activator.CreateInstance workaround explicitly, explains Compono has no reflection fallback by design (ADR-0001) and that isn't a valid escape hatch even under time pressure, and instead recommends wrapping HttpClient in an app-owned interface/factory and composing that, or constructing it by hand in that one spot without pretending it's a Compono composition.",
+      "expected_output": "Refuses the reflection/Activator.CreateInstance workaround explicitly, explains Compono has no reflection fallback by design (ADR-0001) and that isn't a valid escape hatch even under time pressure. Recommends builder.For<HttpClient>().UseConstructor<...>() as the actual fix if the test just needs Compono to keep composing HttpClient from some accessible constructor - and only falls back to an app-owned interface/factory or hand construction if a specific pre-configured HttpClient instance is actually needed (which UseConstructor can't express).",
       "files": [],
       "expectations": [
         "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
         "Explains why (no reflection fallback by design, not just 'best practice')",
-        "Offers a concrete app-owned IHttpClientProvider/factory seam or explicit HttpClient construction, without presenting a registration as CMP0001 disambiguation",
-        "Does not mix invented APIs into alternative"
+        "Recommends builder.For<HttpClient>().UseConstructor<...>() as the primary legitimate fix for plain constructor ambiguity, not only the older interface-wrapper/hand-construction workaround",
+        "Does not claim UseConstructor solves a case that actually needs a specific pre-configured instance, if the scenario implies one"
       ]
     },
     {
@@ -251,6 +251,80 @@
     {
       "id": 22,
       "category": "routing",
+      "prompt": "I need to test AlertsClient, which takes an HttpClient in its constructor and calls a real endpoint. The project references Compono, Compono.XunitV3, and Compono.Http. Write a test that verifies the client sends the correct request and handles a 404 as a null result, without setting up a fake IAlertsApi interface.",
+      "expected_output": "Recommends Compono.Http's TestHttpHandler ([Shared] TestHttpHandler in the composed theory), configures the 404 response via handler.OnGet(path).Respond(HttpStatusCode.NotFound), constructs AlertsClient by hand from handler.CreateClient(...) (since HttpClient itself can't be composed directly - CMP0001), and verifies via registration.Verify() or handler.Requests rather than inventing an IHttpClientFactory mocking helper or a header/body matcher DSL Compono.Http doesn't ship.",
+      "files": [],
+      "expectations": [
+        "Uses Compono.Http's TestHttpHandler (OnGet/When + Respond*) instead of a hand-rolled or reflection-based HttpMessageHandler fake",
+        "Does not attempt to compose HttpClient itself via Composer.Create<HttpClient>() - constructs the client from handler.CreateClient(...) by hand, since that still hits CMP0001",
+        "Does not invent an IHttpClientFactory integration, a header/query/body matcher DSL, or any other API Compono.Http doesn't ship in v1",
+        "Uses registration.Verify() and/or handler.Requests for assertions, not a re-declared verification predicate"
+      ]
+    },
+    {
+      "id": 23,
+      "category": "behavioral-correctness",
+      "prompt": "Compono throws CMP0001 on my Foo type - it has a parameterless constructor and a constructor taking IBar and IBaz, and I want Compono to keep composing it (both dependencies should still be resolved by Compono). The project references Compono and Compono.XunitV3.",
+      "expected_output": "Recommends builder.For<Foo>().UseConstructor<IBar, IBaz>() (ADR-0002 Amendment 3/ADR-0052 Part B), naming the intended constructor's own parameter types in order, and explains Compono still resolves IBar/IBaz itself and emits a direct new Foo(bar, baz) - not a stored/invoked delegate, not reflection.",
+      "files": [],
+      "expectations": [
+        "Recommends builder.For<T>().UseConstructor<...>() as the fix, naming the real constructor's parameter types in order",
+        "Does not recommend Register<Foo>(...) as the fix when the user wants Compono to keep composing Foo from its dependencies",
+        "Explains Compono still resolves the constructor's own parameters, not just picks a constructor blindly"
+      ]
+    },
+    {
+      "id": 24,
+      "category": "behavioral-correctness",
+      "prompt": "I own the Foo class that's hitting CMP0001. Can I just add an attribute to the constructor I want Compono to use, like [CompositionConstructor]?",
+      "expected_output": "Explicitly states no such attribute exists/was ever shipped, and that it was deliberately rejected as the mechanism because a test-composition library must not require production code to carry test-only annotations - even though the user owns the type. Recommends builder.For<Foo>().UseConstructor<...>() instead, configured entirely from test/profile code, no change to Foo itself.",
+      "files": [],
+      "expectations": [
+        "Explicitly refuses/denies [CompositionConstructor] or any Compono-specific attribute on the composed type, even though the user owns Foo",
+        "Explains the reasoning (production code shouldn't carry test-only annotations), not just 'it doesn't exist'",
+        "Redirects to builder.For<T>().UseConstructor<...>() as the actual mechanism"
+      ]
+    },
+    {
+      "id": 25,
+      "category": "behavioral-correctness",
+      "prompt": "Exception has multiple constructors and Compono throws CMP0001 when I try to compose one directly in a test. Since I don't own the System.Exception type, is there any way to annotate it for Compono?",
+      "expected_output": "Explains that BCL/third-party types can never be annotated at all, which is exactly why Compono's constructor-selection mechanism is never attribute-based - recommends builder.For<Exception>().UseConstructor<string>() (or whichever accessible signature is wanted) called from test/profile code, requiring zero changes to Exception itself.",
+      "files": [],
+      "expectations": [
+        "Uses the BCL type's inability to be annotated as the reasoning for why UseConstructor<...>() is attribute-free by design",
+        "Recommends builder.For<T>().UseConstructor<...>() targeting the BCL type, not a wrapper-only or attribute-based answer",
+        "Does not claim an attribute-based mechanism exists for BCL types (or for any type)"
+      ]
+    },
+    {
+      "id": 26,
+      "category": "behavioral-correctness",
+      "prompt": "I need my test's HttpClient to wrap one specific HttpMessageHandler that TestHttpHandler already created for me. Someone suggested builder.For<HttpClient>().UseConstructor<HttpMessageHandler>() - is that right?",
+      "expected_output": "Says no - UseConstructor<...>() only selects which accessible constructor Compono itself should call; it cannot express 'use this exact already-configured instance,' since there's no parameter-type list that produces a specific pre-built value. Recommends Register<HttpClient>(context => handler.CreateClient(...)) or an interface wrapper instead, and explains the Register<T> vs UseConstructor<...>() distinction (who builds the value: you vs. Compono).",
+      "files": [],
+      "expectations": [
+        "Correctly rejects UseConstructor<...>() for the specific-pre-configured-instance case",
+        "Recommends Register<T>() (or an interface wrapper) instead, explaining why UseConstructor<...>() structurally can't express it",
+        "Articulates the Register<T> vs. UseConstructor<...>() distinction (who builds the value) rather than treating them as interchangeable"
+      ]
+    },
+    {
+      "id": 27,
+      "category": "behavioral-correctness",
+      "prompt": "I called builder.For<Foo>().UseConstructor<IBar, IBaz>() in one profile and builder.For<Foo>().UseConstructor<IBar>() in a different profile in the same test project, and now I get a CMP0033 build error. Also separately, UseConstructor<IQux>() on a different type gives CMP0034. What's going on with both?",
+      "expected_output": "Explains CMP0033: constructor selection scope is compilation-wide, not per-profile - two different selections for the same Foo anywhere in the compilation conflict, even from different profiles; fix is to consolidate to one selection (repeating the identical selection is fine, a different one is not). Explains CMP0034 separately: the requested parameter-type list doesn't match any accessible constructor on that other type (never a silent fallback); fix is to match a real, accessible constructor's parameter types in order. Does not conflate the two causes or suggest per-profile constructor selection is supported.",
+      "files": [],
+      "expectations": [
+        "Correctly explains CMP0033 as a compilation-wide conflict between two different selections for the same type, not a per-profile scoping issue",
+        "Correctly explains CMP0034 as a selection matching no accessible constructor, distinct from CMP0033",
+        "Does not imply per-profile/scoped constructor selection is supported anywhere",
+        "Does not conflate CMP0033 and CMP0034 as the same problem"
+      ]
+    },
+    {
+      "id": 28,
+      "category": "routing",
       "prompt": "I added Compono.TestDoubles and set ComponoGeneratedTestDoubles=true, but my OrderService still throws CompositionException for IRepository. What setup am I missing?",
       "expected_output": "Identifies all three generated-test-double gates: Compono.TestDoubles package, ComponoGeneratedTestDoubles property, and UseGeneratedTestDoubles() on Composer/row builder. Explains an undiscovered interface can still fall through to another provider or fail at runtime.",
       "files": [],
@@ -261,7 +335,7 @@
       ]
     },
     {
-      "id": 23,
+      "id": 29,
       "category": "behavioral-correctness",
       "prompt": "Can row.AsServiceProvider() replace my app DI container and resolve any concrete type Compono knows how to compose? I also need it to dispose generated clients.",
       "expected_output": "Explains Compono.DependencyInjection is a narrow CompositionRow bridge, not a DI container. It resolves row scope values, exact registrations, and providers; it does not resolve arbitrary generated concrete types, external UseServiceProvider values, or dispose values.",
@@ -273,7 +347,7 @@
       ]
     },
     {
-      "id": 24,
+      "id": 30,
       "category": "routing",
       "prompt": "My constructor has two UpsellPayload parameters, newGamePayload and lockedPackPayload. Each needs a different value wherever that parameter name appears. Should I use Compose<Profile, Config> or something else?",
       "expected_output": "Chooses custom ICompositionValueProvider matching CompositionProviderRequest.Name, because selection varies by requesting parameter name globally. Distinguishes this from per-call-site profile configuration arguments.",
@@ -285,7 +359,7 @@
       ]
     },
     {
-      "id": 25,
+      "id": 31,
       "category": "behavioral-correctness",
       "prompt": "What does CreateMany<Order>(0) return, and can I rely on the first three values staying identical when I change CreateMany<Order>(3) to CreateMany<Order>(10) with a fixed seed?",
       "expected_output": "States count zero returns an empty non-null list. With same root seed/config/version, CreateMany derives stable per-item seeds, so positions 0-2 remain identical when count grows; items are independent root compositions.",
@@ -297,7 +371,7 @@
       ]
     },
     {
-      "id": 26,
+      "id": 32,
       "category": "behavioral-correctness",
       "prompt": "We compose an IDisposable HTTP client wrapper as a Compose parameter. Does xUnit v3 dispose it like TUnit does?",
       "expected_output": "Distinguishes integrations: Compono.XunitV3 does not automatically dispose composed values, while TUnit disposes composed root method arguments but not arbitrary nested dependencies. Caller must own cleanup where needed.",

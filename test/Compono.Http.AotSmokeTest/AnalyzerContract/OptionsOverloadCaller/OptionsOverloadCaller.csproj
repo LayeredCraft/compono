@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR-0051/PLAN-0051 Task 5, Proof A (half 1 of 2): calls
+       RespondJson(value, JsonSerializerOptions?) with IsAotCompatible=true - this project's own
+       build must produce IL2026 (RequiresUnreferencedCode) and IL3050 (RequiresDynamicCode)
+       warnings AT THIS CALL SITE, proving Compono.Http's attribute propagates outward to an
+       AOT/trim-checked consumer rather than being swallowed inside Compono.Http itself (verified
+       empirically in docs/research/0009-...md §12 before this project existed). Driven by
+       verify-analyzer-contract.sh, not run as part of the ordinary `dotnet test`/solution build -
+       this project is EXPECTED to warn, so it must not participate in the repo's normal
+       0-warnings-0-errors gate. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Plural TargetFrameworks (a single-item list), not singular TargetFramework - test/
+         Directory.Build.props sets TargetFrameworks (plural) to its 4-TFM sweep; overriding the
+         same property name here cleanly replaces it. Setting singular TargetFramework instead
+         (as an earlier draft of this project did) leaves TargetFrameworks=net8.0;net9.0;net10.0;net11.0
+         from the props still in effect alongside it - verified empirically that this dual state
+         breaks the AOT/trim analyzer silently (zero IL2026/IL3050 diagnostics ever fired, with no
+         build error to signal why) even though EnableAotAnalyzer/IsAotCompatible all report true.
+         Mirrors ../../Compono.Http.AotSmokeTest.csproj's own (already-correct) TargetFrameworks
+         override. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <IsAotCompatible>true</IsAotCompatible>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="Xunit" />
+    <Using Remove="NSubstitute" />
+    <Using Remove="AwesomeAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A PackageReference, NOT a ProjectReference - verified empirically (not assumed) that this
+         matters here: the .NET trim/AOT Roslyn analyzer only enforces a Requires* attribute at a
+         consumer's call site for members reached through a package/reference-assembly, not through
+         a same-solution ProjectReference to the defining project's own compiled output (confirmed
+         by direct A/B test - a ProjectReference to Compono.Http produced zero IL2026/IL3050
+         warnings here even with Compono.Http.csproj's own IsAotCompatible=true set, while an
+         otherwise-identical PackageReference against a locally packed nupkg produced both, exactly
+         as real consumers would see). Packed into ../../../../.local-nuget-feed-http-aot-smoke by
+         ../../pack-compono.sh (the same local feed Proof B's publish-and-run proof already uses) -
+         run that script before this project builds. -->
+    <PackageReference Include="Compono.Http" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

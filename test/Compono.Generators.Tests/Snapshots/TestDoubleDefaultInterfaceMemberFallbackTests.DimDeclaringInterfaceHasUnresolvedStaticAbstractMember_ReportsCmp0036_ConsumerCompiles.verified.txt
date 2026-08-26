@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.ILeaf7' declares default-interface member 'CanHandle', whose declaring interface inherits a static abstract member that only a more-derived interface in this double's own closure resolves - the generated dispatch helper implements only 'CanHandle''s declaring interface and can't supply that static member itself. 'CanHandle' falls back to the ordinary computed-default behavior instead of its real default-interface-member body.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0036,
+        Title: Test-double DIM fallback helper cannot satisfy an unresolved static abstract member,
+        MessageFormat: '{0}' declares default-interface member '{1}', whose declaring interface inherits a static abstract member that only a more-derived interface in this double's own closure resolves - the generated dispatch helper implements only '{1}''s declaring interface and can't supply that static member itself. '{1}' falls back to the ordinary computed-default behavior instead of its real default-interface-member body.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

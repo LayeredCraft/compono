@@ -20,7 +20,9 @@ namespace Compono.Generators.Models;
 /// </param>
 /// <param name="FullyQualifiedTypeName">This parameter's type, fully qualified.</param>
 /// <param name="RefKindPrefix">
-/// <c>""</c>, <c>"ref "</c>, <c>"out "</c>, or <c>"in "</c> - only a member with no
+/// <c>""</c>, <c>"ref "</c>, <c>"out "</c>, <c>"in "</c>, or <c>"ref readonly "</c>, optionally
+/// preceded by <c>"scoped "</c> and/or <c>"[global::System.Diagnostics.CodeAnalysis.UnscopedRef] "</c>
+/// (see <c>TestDoubleAnalyzer.RefKindPrefixFor</c>) - only a member with no
 /// <c>Configure()</c>/<c>Verify()</c> surface (<see cref="TestDoubleMemberInfo.HasConfigurationSurface"/>
 /// <see langword="false"/>) can have a non-empty value here (ADR-0044 Amendment 5: a
 /// <see langword="ref"/>/<see langword="out"/>/<see langword="in"/> parameter is an
@@ -39,6 +41,19 @@ namespace Compono.Generators.Models;
 /// <c>M(int value = 0)</c> is callable as <c>M()</c> on the real interface, and the generated
 /// extension needs to stay reachable the same way (Codex review, PR #88).
 /// </param>
+/// <param name="CallSiteRefKindPrefix">
+/// The by-ref modifier to restate in an ARGUMENT list forwarding to this parameter -
+/// <c>""</c>, <c>"ref "</c>, or <c>"out "</c> only, never <see cref="RefKindPrefix"/>'s full
+/// declaration-site text. C# call-site rules genuinely differ from declaration-site rules here:
+/// <see langword="ref"/>/<see langword="out"/> must be restated at the call site, but
+/// <see langword="in"/>, <see langword="ref readonly"/>, <see langword="scoped"/>, and
+/// <c>[UnscopedRef]</c> are all declaration-only concepts that accept a plain by-value argument
+/// expression with no modifier at all - reusing <see cref="RefKindPrefix"/> at a call site for
+/// one of those (e.g. emitting the literal text <c>"ref readonly "</c> before an argument) is a
+/// syntax error (code-review finding). Every forwarding call site (an <c>IsForwarding</c>
+/// member's own body, a DIM fallback dispatch, a DIM sibling's forwarding declaration) must use
+/// this field, never <see cref="RefKindPrefix"/>, for its argument list.
+/// </param>
 internal sealed record TestDoubleParameterInfo(
     string EscapedName, string OriginalName, string FullyQualifiedTypeName, string RefKindPrefix = "", bool IsParams = false,
-    string DefaultValueExpression = "");
+    string DefaultValueExpression = "", string CallSiteRefKindPrefix = "");
