@@ -313,4 +313,16 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleDimHelperUnresolvedStaticAbstractMember = new(
+        "CMP0036",
+        "Test-double DIM fallback helper cannot satisfy an unresolved static abstract member",
+        "'{0}' declares default-interface member '{1}', whose declaring interface inherits a static " +
+        "abstract member that only a more-derived interface in this double's own closure resolves - " +
+        "the generated dispatch helper implements only '{1}''s declaring interface and can't supply " +
+        "that static member itself. '{1}' falls back to the ordinary computed-default behavior " +
+        "instead of its real default-interface-member body.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

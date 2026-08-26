@@ -937,6 +937,14 @@ internal static class TestDoubleAnalyzer
                         var hasConfigurationSurface = !isDiamondCollision && !hasRefOutInParameter && !isZeroArgCollision;
                         var isDimFallbackTarget = dimFallbackTargets.Contains(method) && !dimHelperNameCollisionMembers.Contains(method);
 
+                        if (isDimFallbackTarget && DeclaringInterfaceHasUnresolvedStaticAbstractMember(declaringInterface))
+                        {
+                            isDimFallbackTarget = false;
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.TestDoubleDimHelperUnresolvedStaticAbstractMember, null,
+                                interfaceType.ToDisplayString(), method.Name));
+                        }
+
                         if (isZeroArgCollision && reportedZeroArgCollisionNames.Add(method.Name))
                         {
                             infoDiagnostics.Add(new DiagnosticInfo(
@@ -1406,6 +1414,14 @@ internal static class TestDoubleAnalyzer
                         var propertyDefault = "";
                         var isPropertyDimFallbackTarget = dimFallbackTargets.Contains(property) && !dimHelperNameCollisionMembers.Contains(property);
 
+                        if (isPropertyDimFallbackTarget && DeclaringInterfaceHasUnresolvedStaticAbstractMember(declaringInterface))
+                        {
+                            isPropertyDimFallbackTarget = false;
+                            infoDiagnostics.Add(new DiagnosticInfo(
+                                DiagnosticDescriptors.TestDoubleDimHelperUnresolvedStaticAbstractMember, null,
+                                interfaceType.ToDisplayString(), property.Name));
+                        }
+
                         if (!TestDoubleDefaults.TryGetDefaultExpression(property.Type, compilation, out propertyDefault))
                         {
                             if (isPropertyDimFallbackTarget)
@@ -1749,17 +1765,40 @@ internal static class TestDoubleAnalyzer
     // different rules from RefKindPrefixFor's declaration-site text (code-review finding: reusing
     // RefKindPrefixFor's text at a call site is a syntax error for `ref readonly`/`scoped`/
     // `[UnscopedRef]`, none of which are legal at a call site at all - only ref/out must be
-    // restated there; in, ref readonly, scoped, and [UnscopedRef] all accept a plain by-value
-    // argument expression with no modifier). Every forwarding call site (an IsForwarding member's
-    // own body, a DIM fallback dispatch, a DIM sibling's forwarding declaration) must use this,
-    // never RefKindPrefixFor's result, for its argument list.
+    // restated there; `in`, `scoped`, and `[UnscopedRef]` all accept a plain by-value argument
+    // expression with no modifier). Every forwarding call site (an IsForwarding member's own body,
+    // a DIM fallback dispatch, a DIM sibling's forwarding declaration) must use this, never
+    // RefKindPrefixFor's result, for its argument list.
     private static string CallSiteRefKindPrefixFor(IParameterSymbol p) =>
         p.RefKind switch
         {
             RefKind.Ref => "ref ",
             RefKind.Out => "out ",
+            // Unlike `in`/`scoped`/`[UnscopedRef]`, omitting a modifier here compiles but produces
+            // CS9192 ("ref readonly" argument passed without ref/in) - a real warning under a
+            // consumer's default settings, and a real build failure under warnings-as-errors.
+            // Round-9 code-review finding: the "no modifier needed at a call site" reasoning above
+            // was correct for `in` but wrongly generalized to `ref readonly` too - `in` is the
+            // legal, warning-free way to restate it.
+            RefKind.RefReadOnlyParameter => "in ",
             _ => "",
         };
+
+    // ADR-0044 Amendment 20's owner-forwarding dispatch helper implements only its DIM's own
+    // DECLARING interface (`: {{ member.declaring_interface_fully_qualified_name }}` in the
+    // template) - never the full leaf interface this double actually composes. ADR-0046's own
+    // resolution ("a static abstract member is satisfied when SOME interface in the closure
+    // resolves it, not necessarily the declaring interface itself") is exactly what makes the
+    // OUTER double compile even when the declaring interface, viewed in isolation, doesn't resolve
+    // a static abstract member it inherits - the outer double implements the LEAF interface, which
+    // does resolve it. The dispatch helper has no such luck: implementing only the declaring
+    // interface, C# requires it to supply every one of that interface's own unresolved static
+    // abstract members directly, which this generator never emits. Round-9 code-review finding.
+    private static bool DeclaringInterfaceHasUnresolvedStaticAbstractMember(INamedTypeSymbol declaringInterface) =>
+        declaringInterface.AllInterfaces.Any(baseInterface =>
+            baseInterface.GetMembers().Any(m =>
+                m.IsStatic && m.IsAbstract &&
+                declaringInterface.FindImplementationForInterfaceMember(m) is null));
 
     // A C# literal expression for a parameter's optional default value, only ever rendered onto an
     // overloaded member's generated extension (never the explicit interface implementation, which

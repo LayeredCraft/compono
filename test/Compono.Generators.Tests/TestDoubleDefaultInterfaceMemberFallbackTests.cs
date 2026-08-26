@@ -999,4 +999,112 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
             "CMP0030",
             TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task RefReadOnlyDimTarget_CallSiteRestatesIn_NoCs9192Warning()
+    {
+        // Unlike `in`/`scoped`/`[UnscopedRef]`, a `ref readonly` parameter's call site DOES need a
+        // modifier restated - omitting it compiles but emits CS9192, a real warning under a
+        // consumer's default settings and a real build failure under warnings-as-errors. Round-9
+        // code-review finding, fresh evidence surfacing after the earlier call-site-prefix fix: the
+        // approved RefReadOnlySiblingParameter snapshot itself now emitted the bare, warning-
+        // producing form. GeneratorTestHelpers.VerifyWithNoWarnings (unlike CompileAndExecute/
+        // VerifyWithInfoDiagnostic, which only ever check Error severity) is the only existing
+        // helper that would have caught this - it recompiles the generated output and asserts zero
+        // diagnostics of the given ids at ANY severity.
+        // Reuses RefReadOnlySiblingParameter_PreservesModifier_ConsumerCompiles's own shape (a
+        // standalone concrete DIM, Flag(), with an abstract ref-readonly sibling the dispatch
+        // helper must forward to) - that test only asserted CMP0030 plus zero-Error compilation;
+        // this one specifically asserts zero CS9192 at ANY severity via VerifyWithNoWarnings, the
+        // only existing helper that checks warnings, not just errors.
+        const string refReadOnlyDimSource = """
+            namespace TestNamespace;
+
+            public interface IBase8
+            {
+                bool Flag() => true;
+
+                void Visit(ref readonly int value);
+                void Visit(string label);
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(IBase8 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                    Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IBase8), out var value);
+                    ((IBase8)value!).Configure().Visit(Compono.Match.Any<string>());
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithNoWarnings(
+            new CodeGenerationOptions
+            {
+                SourceCode = refReadOnlyDimSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            ["CS9192"],
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public Task DimDeclaringInterfaceHasUnresolvedStaticAbstractMember_ReportsCmp0036_ConsumerCompiles()
+    {
+        // A DIM's declaring interface (IBase7) inherits a static abstract member (IHasStatic.Flag)
+        // that only the more-derived leaf interface (ILeaf7) resolves - the outer double compiles
+        // fine (it implements ILeaf7, which DOES resolve Flag per ADR-0046), but the DIM fallback
+        // dispatch helper implements only IBase7, which - viewed in isolation - never resolves
+        // Flag, and the generator never emits a static implementation for it. Round-9 code-review
+        // finding. Fixed by excluding this DIM from being a fallback target when its declaring
+        // interface itself leaves a static abstract member unresolved, reporting CMP0036 and
+        // gracefully degrading to the ordinary computed-default fallback instead of emitting code
+        // that fails to compile.
+        const string unresolvedStaticAbstractSource = """
+            namespace TestNamespace;
+
+            public interface IHasStatic7
+            {
+                static abstract bool Flag();
+            }
+
+            public interface IBase7 : IHasStatic7
+            {
+                bool CanHandle(string input) => true;
+            }
+
+            public interface ILeaf7 : IBase7
+            {
+                static bool IHasStatic7.Flag() => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf7 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = unresolvedStaticAbstractSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0036",
+            TestContext.Current.CancellationToken);
+    }
 }
