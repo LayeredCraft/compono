@@ -1302,6 +1302,15 @@ repo's `Compono.Http` PR. Record here, as work proceeds:
   ADR (a genuine new capability gap from 10c), that's a separate future
   ADR, not an amendment to ADR-0051, which is scoped to `Compono.Http`
   only.
+- Findings A and B (10c/RESEARCH-0010 §10-11) were classified core-Compono
+  capability gaps but, per a post-merge process check, had not yet been
+  run through ADR-0029's rubric or entered in `docs/roadmap/post-mvp.md` —
+  corrected 2026-08-24: both apply the rubric to "Roadmap candidate,"
+  recorded as one roadmap entry (two evidence cases, deliberately not yet
+  merged or split) via [ADR-0052](../adr/0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md)
+  (`Proposed`) and [ADR-0002 Amendment 2](../adr/0002-constructor-selection-algorithm.md#amendment-2-2026-08-24-the-real-pre-existing-call-site-amendment-1-anticipated-has-now-surfaced).
+  A future design dive (per `design-decisions.md`), not yet started, will
+  determine the actual mechanism before any implementation plan exists.
 
 The standing "no push before the consumer dogfood gate passes" rule
 (task 11) is not new policy invented by this plan — it's already recorded

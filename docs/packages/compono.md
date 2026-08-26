@@ -29,7 +29,10 @@ dotnet add package Compono --prerelease
   `Compono.NSubstitute` when installed), built-in value providers, and
   generated construction plans, tried in that order. See
   [Providers](../concepts/providers.md) and
-  [Registrations and Rules](../concepts/registrations-and-rules.md).
+  [Registrations and Rules](../concepts/registrations-and-rules.md)
+  (including explicit constructor selection for a type with more than one
+  accessible constructor — `For<T>().UseConstructor<...>()`, ADR-0002
+  Amendment 3/ADR-0052).
 - **The source generator**, embedded as a Roslyn analyzer inside
   `Compono.nupkg` (`analyzers/dotnet/cs`, containing
   `Compono.Generators.dll`) — not a separate package or opt-in step.

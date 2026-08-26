@@ -5,7 +5,27 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    // ADR-0044 Amendment 20: the owner-forwarding dispatch helper is a pure, stateless forward to
+    // `this` (never independently mutated), so one instance is reused for every unconfigured call
+    // to this member instead of allocating a fresh one per call (code-review finding). A benign
+    // race under concurrent first-use (two threads each constructing one before either publishes)
+    // is harmless - both forward identically, and only one is kept.
+    private __Value_DimFallback? __Value_dimHelper;
     internal global::Compono.ReturnConfig<int> __Value;
+    // ADR-0044 Amendment 20: owner-forwarding dispatch helper - holds the real generated double,
+    // implements global::TestNamespace.IRepository but deliberately does NOT
+    // override Value, so calling Value through this helper's
+    // own global::TestNamespace.IRepository view lets C#'s own default-interface-
+    // member dispatch resolve to the interface's real body. Every OTHER member this helper must
+    // implement to satisfy that interface's full contract is a pure forward back to the owner's own
+    // explicit implementation - never independently recorded, so exactly one place (the owner's own
+    // Value implementation, below) ever records a call to this member.
+    internal sealed class __Value_DimFallback : global::TestNamespace.IRepository
+    {
+        private readonly TestNamespace_IRepository_e3198068_Double _owner;
+
+        internal __Value_DimFallback(TestNamespace_IRepository_e3198068_Double owner) => _owner = owner;
+    }
 
     int global::TestNamespace.IRepository.Value
     {
@@ -14,7 +34,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
             __Value.RecordCall();
             return __Value.HasConfiguredException ? throw __Value.ConfiguredException
                 : __Value.HasConfiguredValue ? __Value.ConfiguredValue
-                : default;
+                : ((global::TestNamespace.IRepository)(this.__Value_dimHelper ??= new __Value_DimFallback(this))).Value;
         }
     }
 }

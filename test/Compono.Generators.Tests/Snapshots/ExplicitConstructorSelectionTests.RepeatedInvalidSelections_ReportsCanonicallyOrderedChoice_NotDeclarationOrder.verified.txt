@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (23,43)-(23,84),
+      Message: 'SpikeRepeatedInvalid.Foo' has no accessible constructor matching the requested parameter types (SpikeRepeatedInvalid.IBaz),
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0034,
+        Title: Invalid explicit constructor selection,
+        MessageFormat: '{0}' has no accessible constructor matching the requested parameter types ({1}),
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: 'TestNamespace.ILeaf13' inherits member 'Flag', which is resolved elsewhere in the closure via an explicit interface reimplementation - a shape Compono does not yet recognize during effective-declaration resolution. 'Flag''s unconfigured fallback may not match the interface's own resolved behavior.,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CMP0037,
+        Title: Test-double member resolved only by an unrecognized explicit interface reimplementation,
+        MessageFormat: '{0}' inherits member '{1}', which is resolved elsewhere in the closure via an explicit interface reimplementation - a shape Compono does not yet recognize during effective-declaration resolution. '{1}''s unconfigured fallback may not match the interface's own resolved behavior.,
+        Category: Compono.TestDoubles,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

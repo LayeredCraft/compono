@@ -284,4 +284,56 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    // ADR-0052 (Part B, explicit constructor selection).
+    public static readonly DiagnosticDescriptor ConflictingConstructorSelection = new(
+        "CMP0033",
+        "Conflicting explicit constructor selection",
+        "'{0}' has more than one explicit UseConstructor(...) selection in this compilation " +
+        "({1} and {2}) - only one construction path is allowed per type per compilation " +
+        "(ADR-0052)",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidConstructorSelection = new(
+        "CMP0034",
+        "Invalid explicit constructor selection",
+        "'{0}' has no accessible constructor matching the requested parameter types ({1})",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleDimHelperNameCollision = new(
+        "CMP0035",
+        "Test-double DIM fallback helper name collides with another member",
+        "'{0}' declares default-interface member '{1}', whose generated fallback dispatch-helper " +
+        "field/class name collides with another member of the same interface. '{1}' falls back to " +
+        "the ordinary computed-default behavior instead of its real default-interface-member body.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleDimHelperUnresolvedStaticAbstractMember = new(
+        "CMP0036",
+        "Test-double DIM fallback helper cannot satisfy an unresolved static abstract member",
+        "'{0}' declares default-interface member '{1}', whose declaring interface inherits a static " +
+        "abstract member that only a more-derived interface in this double's own closure resolves - " +
+        "the generated dispatch helper implements only '{1}''s declaring interface and can't supply " +
+        "that static member itself. '{1}' falls back to the ordinary computed-default behavior " +
+        "instead of its real default-interface-member body.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TestDoubleUnrecognizedExplicitInterfaceReimplementation = new(
+        "CMP0037",
+        "Test-double member resolved only by an unrecognized explicit interface reimplementation",
+        "'{0}' inherits member '{1}', which is resolved elsewhere in the closure via an explicit " +
+        "interface reimplementation - a shape Compono does not yet recognize during effective-" +
+        "declaration resolution. '{1}''s unconfigured fallback may not match the interface's own " +
+        "resolved behavior.",
+        "Compono.TestDoubles",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

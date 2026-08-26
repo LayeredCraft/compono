@@ -157,6 +157,37 @@ namespace Compono.Generators.Models;
 /// default body, no <c>Configure()</c>/<c>Verify()</c>), and that implementation hits the exact same
 /// <c>CS9334</c>/<c>CS0453</c> compiler cascade if its return type isn't spelled the same way.
 /// </param>
+/// <param name="IsForwarding">
+/// ADR-0044 Amendment 20: whether this member is the losing (non-dominant) declaration of a resolved
+/// <c>TestDoubleMemberIdentityResolver</c> identity group - a base interface's own abstract
+/// declaration, resolved by a more-derived interface's concrete redeclaration
+/// (<paramref name="ForwardsToInterfaceFullyQualifiedName"/>). Still needs a real explicit interface
+/// implementation (a bare <see langword="new"/>-hiding redeclaration doesn't satisfy the base
+/// interface's own abstract-member requirement, <c>CS0535</c>), but that implementation purely
+/// forwards to the dominant declaration's own explicit implementation instead of getting its own
+/// <see cref="FieldName"/>/<c>Configure()</c>/<c>Verify()</c> surface - exactly one place per resolved
+/// member owns call-recording state.
+/// </param>
+/// <param name="ForwardsToInterfaceFullyQualifiedName">
+/// The dominant declaration's containing interface, fully qualified - only meaningful when
+/// <paramref name="IsForwarding"/> is <see langword="true"/>.
+/// </param>
+/// <param name="IsDimFallbackTarget">
+/// ADR-0044 Amendment 20: whether this member is the dominant declaration of a resolved
+/// <c>TestDoubleMemberIdentityResolver</c> identity group AND has a real (non-abstract) body - a
+/// concrete default interface member. Its dispatch body's unconfigured-fallback path calls through
+/// <see cref="DimFallbackHelperClassName"/> instead of ADR-0045's computed default, so C#'s own
+/// default-interface-member dispatch resolves to the real body instead of a fabricated value.
+/// <see langword="false"/> for every other member, including a resolved dominant declaration that's
+/// still abstract (nothing to prefer over the computed default there).
+/// </param>
+/// <param name="DimFallbackSiblings">
+/// Every other member <see cref="DimFallbackHelperClassName"/>'s helper class must also implement to
+/// satisfy its own declaring interface's full contract (<see langword="new"/>-hiding alone doesn't
+/// exempt a class from implementing the rest of that interface) - each one a pure forward back to the
+/// owning double's own explicit implementation, never independently recorded. Only meaningful when
+/// <paramref name="IsDimFallbackTarget"/> is <see langword="true"/>.
+/// </param>
 internal sealed record TestDoubleMemberInfo(
     string OriginalName,
     string EscapedName,
@@ -178,10 +209,23 @@ internal sealed record TestDoubleMemberInfo(
     bool IsConfigurationRequired = false,
     bool IsEligibleForMatching = false,
     bool IsClosedInstantiationEligible = false,
-    bool IsClosedInstantiationEligibleShape = false)
+    bool IsClosedInstantiationEligibleShape = false,
+    bool IsForwarding = false,
+    string ForwardsToInterfaceFullyQualifiedName = "",
+    bool IsDimFallbackTarget = false,
+    EquatableArray<TestDoubleDimFallbackSiblingInfo> DimFallbackSiblings = default)
 {
     /// <summary>The backing <c>ReturnConfig&lt;T&gt;</c> field name - never a reserved keyword once <c>__</c>-prefixed.</summary>
     public string FieldName => IsOverloaded ? $"__{OriginalName}{DiscriminatorSuffix}" : $"__{OriginalName}";
+
+    /// <summary>
+    /// The generated per-member owner-forwarding dispatch-helper class name for an
+    /// <see cref="IsDimFallbackTarget"/> member - implements this member's own
+    /// <see cref="DeclaringInterfaceFullyQualifiedName"/>, deliberately does not override this member
+    /// (letting C#'s own default-interface-member dispatch resolve it), and forwards every other
+    /// required interface member back to the owning double.
+    /// </summary>
+    public string DimFallbackHelperClassName => $"{FieldName}_DimFallback";
 
     /// <summary>The type argument for this member's backing <c>ReturnConfig&lt;T&gt;</c> field.</summary>
     public string SlotTypeFullyQualifiedName => IsVoid ? "global::Compono.Unit" : ReturnTypeFullyQualifiedName;

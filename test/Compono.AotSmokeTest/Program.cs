@@ -11,6 +11,32 @@ internal sealed class Widget
     public string Name { get; }
 }
 
+// ADR-0002 Amendment 3 / ADR-0052 (Part B): a type with more than one accessible constructor,
+// composed through an explicit For<T>().UseConstructor<...>() selection - exercised under Native
+// AOT specifically, not just the ordinary JIT this package's own dotnet test already runs under.
+internal interface IBar { }
+
+internal interface IBaz { }
+
+internal sealed class BarImpl : IBar { }
+
+internal sealed class BazImpl : IBaz { }
+
+internal sealed class AmbiguousFoo
+{
+    public AmbiguousFoo() { }
+
+    public AmbiguousFoo(IBar bar, IBaz baz)
+    {
+        Bar = bar;
+        Baz = baz;
+    }
+
+    public IBar? Bar { get; }
+
+    public IBaz? Baz { get; }
+}
+
 internal static class SmokeTestMethods
 {
     // The real target of this whole harness: a [Compose]-attributed method parameter list containing
@@ -42,7 +68,23 @@ internal static class Program
             if (leafValue is not string { Length: > 0 } leaf)
                 throw new InvalidOperationException($"string dispatch produced an unexpected value: {leafValue}");
 
-            Console.WriteLine($"PASS: RowInvokerRegistry dispatch survived Native AOT - Widget.Name='{widget.Name}', leaf='{leaf}'.");
+            // ADR-0002 Amendment 3 / ADR-0052 (Part B): explicit constructor selection for an
+            // ambiguous type, through the real generated composition plan, under Native AOT.
+            var composer = Composer.Create(builder =>
+            {
+                builder.For<AmbiguousFoo>().UseConstructor<IBar, IBaz>();
+                builder.Register<IBar>(() => new BarImpl());
+                builder.Register<IBaz>(() => new BazImpl());
+            });
+
+            var foo = composer.Create<AmbiguousFoo>();
+
+            if (foo.Bar is not BarImpl || foo.Baz is not BazImpl)
+                throw new InvalidOperationException("UseConstructor<IBar, IBaz>() did not compose AmbiguousFoo through the selected constructor.");
+
+            Console.WriteLine(
+                $"PASS: RowInvokerRegistry dispatch survived Native AOT - Widget.Name='{widget.Name}', " +
+                $"leaf='{leaf}', explicit constructor selection composed AmbiguousFoo correctly.");
             return 0;
         }
         catch (Exception ex)

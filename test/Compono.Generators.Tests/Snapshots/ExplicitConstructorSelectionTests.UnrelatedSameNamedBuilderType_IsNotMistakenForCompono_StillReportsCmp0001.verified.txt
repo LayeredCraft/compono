@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (20,70)-(20,73),
+      Message: 'SpikeDecoy.Foo' has 2 accessible constructors and no way to disambiguate them,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0001,
+        Title: Ambiguous construction path,
+        MessageFormat: {0} has {1} accessible constructors and no way to disambiguate them,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
