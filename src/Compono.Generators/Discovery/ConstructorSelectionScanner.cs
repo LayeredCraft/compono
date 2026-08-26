@@ -128,11 +128,20 @@ internal static class ConstructorSelectionScanner
                 // pick whichever overload happened to come first in source declaration order -
                 // matching by type alone can't tell them apart. `in` is deliberately still matched
                 // (ValidateParameterKinds allows it too) - but see the ambiguity check just below.
+                //
+                // Also excludes a `params` constructor from matching entirely - ADR-0052 places
+                // `params` constructors explicitly out of scope for explicit selection (the same
+                // "no variadic-argument-shape special-casing" restraint the rest of Compono's
+                // construction pipeline already applies), so `UseConstructor<IBar[]>()` against
+                // `Foo(params IBar[] bars)` must be treated as no match (CMP0034), not an exact-type
+                // accidental match. Round-9 code-review finding: the earlier test only covered a
+                // deliberately mismatched selection, never the supported-signature case this
+                // predicate was silently accepting.
                 var matches = targetType.Constructors.Where(c =>
                     !c.IsStatic &&
                     compilation.IsSymbolAccessibleWithin(c, compilation.Assembly) &&
                     c.Parameters.Length == requestedParamTypes.Length &&
-                    c.Parameters.All(p => p.RefKind is RefKind.None or RefKind.In) &&
+                    c.Parameters.All(p => p.RefKind is RefKind.None or RefKind.In && !p.IsParams) &&
                     c.Parameters.Select(p => p.Type).SequenceEqual(requestedParamTypes, SymbolEqualityComparer.Default))
                     .ToArray();
 

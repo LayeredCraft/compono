@@ -693,4 +693,39 @@ public sealed class ExplicitConstructorSelectionTests
         return GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions { SourceCode = soleInaccessibleSource }, "CMP0034", TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task ParamsConstructor_ExcludedFromMatching_ReportsCmp0034()
+    {
+        // ADR-0052 places `params` constructors explicitly out of scope for explicit selection -
+        // UseConstructor<IBar[]>() against Foo(params IBar[] bars) must be treated as no match
+        // (CMP0034), not an accidental exact-type match. Round-9 code-review finding: the earlier
+        // regression test (InvalidSelection_NoMatchingConstructor_ReportsCmp0034) only covered a
+        // deliberately mismatched selection, never this supported-signature-shaped-but-still-
+        // unsupported case, which the matching predicate was silently accepting before this fix.
+        const string paramsConstructorSource = """
+            namespace SpikeParamsConstructor;
+
+            public interface IBar { }
+
+            public sealed class Foo
+            {
+                public Foo() { }
+                public Foo(params IBar[] bars) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void Run()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBar[]>());
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions { SourceCode = paramsConstructorSource }, "CMP0034", TestContext.Current.CancellationToken);
+    }
 }
