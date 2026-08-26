@@ -58,10 +58,9 @@ some packages and not others.
 | No `Compono*` package reference anywhere | `.csproj` | — | Not a Compono project. Don't suggest Compono unless the user explicitly asks to adopt it. |
 
 Don't hardcode an assumed version scheme or `--prerelease` requirement —
-it changes independently of this skill. Check
-`docs/getting-started/installation.md` (or the actual NuGet listing) for
-the current install command instead of guessing from a remembered
-version pattern.
+it changes independently of this skill. Check the [installation guide](https://layeredcraft.github.io/compono/getting-started/installation/)
+or actual NuGet listing for the current install command instead of guessing
+from a remembered version pattern.
 
 **Adopting Compono in a project that doesn't have it yet**: only do this
 when the user explicitly asks. Add the `Compono` package (plus
@@ -79,6 +78,9 @@ user to make test-by-test, not something to do as a drive-by.
    with one accessible constructor? Interface/abstract/delegate? Does it
    already have `[Composable]`? Is there an existing `ICompositionProfile`
    this codebase already uses?
+   Read `references/core-providers.md` when ordinary generated values,
+   collection behavior, nullability, or built-in support boundaries affect
+   the decision.
 3. **Decide** whether Compono is appropriate at all — see **When not to
    use Compono** below — then which mechanism fits:
    - An ordinary value, composed from scratch each time → let Compono
@@ -275,6 +277,7 @@ Load only what the Detection table says is relevant to the current task.
 
 | File | Read when... |
 |---|---|
+| `references/core-providers.md` | Deciding whether core Compono can generate an ordinary value, collection, or required member without a registration/provider |
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
 | `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0032` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
