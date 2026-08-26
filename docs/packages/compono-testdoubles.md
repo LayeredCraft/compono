@@ -179,11 +179,11 @@ A genuine diamond - two unrelated interfaces independently declaring the
 same shape, with no leaf redeclaration resolving it - is still a collision,
 unchanged from the "Overloaded members" section above.
 
-Not yet supported: a DIM's unconfigured fallback calling through when the
-member is also closed-instantiation-eligible (a generic method whose return
-type depends on its own type parameter, see "Per-closed-instantiation
-configuration" below) - that combination has no known real interface shape
-and rejects with the same disposition as before this fix.
+A DIM's unconfigured fallback also calls through when the member is
+closed-instantiation-eligible (a generic method whose return type depends
+on its own type parameter, see "Per-closed-instantiation configuration"
+below) - each independently-configured closed `T` shares the same
+fallback-to-real-body behavior as every other supported member shape.
 
 ## Generic methods
 
