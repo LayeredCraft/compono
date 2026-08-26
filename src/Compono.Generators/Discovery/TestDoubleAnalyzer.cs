@@ -107,6 +107,40 @@ internal static class TestDoubleAnalyzer
             .GroupBy(m => (m.Name, Canonical: IdentityFor(m)))
             .ToArray();
 
+        // ADR-0044 Amendment 20's own effective-declaration resolution (allEligibleCandidates'
+        // admission filter, TestDoubleMemberIdentityResolver) only ever recognizes a `new`-hiding
+        // concrete redeclaration as resolving a base interface's abstract member - not an EXPLICIT
+        // interface reimplementation (`bool IBase.Flag() => true;` declared on a more-derived
+        // interface). An explicit implementation reports MethodKind.ExplicitInterfaceImplementation
+        // (not Ordinary) and DeclaredAccessibility.Private (not Public), both of which
+        // allEligibleCandidates' filter excludes outright - the resolver never sees it, concludes
+        // the member is still genuinely unimplemented, and the generated double silently falls back
+        // to ADR-0045's computed default instead of the interface's own real, resolved value. Not
+        // fixed (see ADR-0044's own "Known, real, still-open gap" section, round 13 - a real fix
+        // needs three coordinated admission-point changes, not attempted under review-loop time
+        // pressure) - but detected and reported here rather than left completely silent, using the
+        // SAME Roslyn API (ITypeSymbol.FindImplementationForInterfaceMember) ADR-0046 already
+        // trusts for the equivalent static-abstract-member resolution question. Codex review,
+        // PR #111 (round 13).
+        var explicitInterfaceReimplementationDiagnostics = new List<DiagnosticInfo>();
+
+        foreach (var candidate in allEligibleCandidates)
+        {
+            if (!candidate.IsAbstract || candidate.IsStatic)
+                continue;
+
+            var resolution = interfaceType.FindImplementationForInterfaceMember(candidate);
+
+            if (resolution is not null && IsExplicitInterfaceReimplementation(resolution))
+            {
+                explicitInterfaceReimplementationDiagnostics.Add(new DiagnosticInfo(
+                    DiagnosticDescriptors.TestDoubleUnrecognizedExplicitInterfaceReimplementation,
+                    null,
+                    interfaceType.ToDisplayString(),
+                    candidate.Name));
+            }
+        }
+
         // ADR-0044 Amendment 20: the *same* full-signature identity reached more than once isn't
         // automatically a diamond collision - it might be a base interface's own abstract declaration
         // resolved by a more-derived interface's own concrete (default-interface-member) redeclaration
@@ -668,6 +702,7 @@ internal static class TestDoubleAnalyzer
         var reportedZeroArgCollisionNames = new HashSet<string>();
         var members = new List<TestDoubleMemberInfo>();
         var infoDiagnostics = new List<DiagnosticInfo>(dimHelperNameCollisionDiagnostics);
+        infoDiagnostics.AddRange(explicitInterfaceReimplementationDiagnostics);
         var configurationRequiredCount = 0;
 
         foreach (var declaringInterface in closure)
@@ -1881,6 +1916,13 @@ internal static class TestDoubleAnalyzer
         IMethodSymbol method => TestDoubleOverloadIdentity.CanonicalSignatureFor(method),
         IPropertySymbol property => TestDoubleOverloadIdentity.CanonicalSignatureFor(property),
         _ => "",
+    };
+
+    private static bool IsExplicitInterfaceReimplementation(ISymbol implementation) => implementation switch
+    {
+        IMethodSymbol method => method.ExplicitInterfaceImplementations.Length > 0,
+        IPropertySymbol property => property.ExplicitInterfaceImplementations.Length > 0,
+        _ => false,
     };
 
     // ADR-0044 Amendment 20: every member the owner-forwarding dispatch helper must itself implement

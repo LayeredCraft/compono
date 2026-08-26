@@ -1055,6 +1055,95 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
     }
 
     [Fact]
+    public Task ExplicitInterfaceMethodReimplementation_ReportsCmp0037_ConsumerCompiles()
+    {
+        // C# allows a derived interface to satisfy a base interface's abstract member with an
+        // explicit default implementation. Roslyn reports that implementation as non-public and
+        // MethodKind.ExplicitInterfaceImplementation, so ADR-0044 Amendment 20's current effective-
+        // declaration resolver does not yet treat it as the base member's DIM fallback target. Until
+        // that coordinated support exists, report CMP0037 instead of silently producing a wrong
+        // computed-default fallback with no signal. Codex review, PR #111 round 13.
+        const string explicitMethodReimplementationSource = """
+            namespace TestNamespace;
+
+            public interface IBase10
+            {
+                bool Flag();
+            }
+
+            public interface ILeaf10 : IBase10
+            {
+                bool IBase10.Flag() => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf10 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = explicitMethodReimplementationSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0037",
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public Task ExplicitInterfacePropertyReimplementation_ReportsCmp0037_ConsumerCompiles()
+    {
+        // Same gap as ExplicitInterfaceMethodReimplementation_ReportsCmp0037_ConsumerCompiles, but
+        // through Roslyn's property-level ExplicitInterfaceImplementations path instead of
+        // MethodKind.ExplicitInterfaceImplementation.
+        const string explicitPropertyReimplementationSource = """
+            namespace TestNamespace;
+
+            public interface IBase11
+            {
+                bool Flag { get; }
+            }
+
+            public interface ILeaf11 : IBase11
+            {
+                bool IBase11.Flag => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf11 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = explicitPropertyReimplementationSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0037",
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public Task DimDeclaringInterfaceHasUnresolvedStaticAbstractMember_ReportsCmp0036_ConsumerCompiles()
     {
         // A DIM's declaring interface (IBase7) inherits a static abstract member (IHasStatic.Flag)

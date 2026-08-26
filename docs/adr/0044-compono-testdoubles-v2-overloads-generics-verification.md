@@ -2257,6 +2257,71 @@ between "the real DIM body runs" (true) and "the real DIM body runs
 against the real double" (not true), narrow in practice (identity-
 sensitive DIM bodies are unusual) but not cosmetic.
 
+### Known, real, still-open gap (code review, 2026-08-26 round 13, not fixed here) - explicit interface reimplementation not recognized as a DIM
+
+C# lets a derived interface resolve a base interface's abstract member via
+an **explicit** reimplementation, not just a `new`-hiding concrete
+redeclaration:
+
+```csharp
+public interface IBase { bool Flag(); }
+public interface ILeaf : IBase { bool IBase.Flag() => true; }
+```
+
+`ILeaf.IBase.Flag()` is a genuine, concrete resolution of `IBase.Flag` -
+Roslyn correctly reports the *outer double* as fully implementing it. But
+this generator's own effective-declaration resolution
+(`allEligibleCandidates`, `TestDoubleMemberIdentityResolver`) never sees
+it at all: an explicit interface implementation reports
+`MethodKind.ExplicitInterfaceImplementation` (not `Ordinary`) and
+`DeclaredAccessibility.Private` (not `Public`), both of which
+`allEligibleCandidates`'s existing filter (`m.IsAbstract ||
+(!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public)`)
+excludes outright. The identity resolver only ever sees `IBase`'s own
+abstract declaration, concludes `Flag` is still unimplemented, and the
+generated double falls back to ADR-0045's computed default (`false`) -
+**silently wrong**, not a compile failure, since the double still
+compiles and runs, just returns the opposite of what the interface
+actually declares.
+
+Investigated, not fixed - a real fix touches three separate, coordinated
+points, not one:
+
+1. `allEligibleCandidates`'s admission filter would need to also accept
+   an explicit interface implementation that resolves an abstract member
+   also reachable in the same closure - grouping it correctly into the
+   right `(Name, CanonicalSignature)` identity so
+   `TestDoubleMemberIdentityResolver.TryResolve` (which only reasons
+   about `ContainingType` relationships, not accessibility or
+   `MethodKind`) picks it as dominant without further changes there.
+2. The emission loop's own `case IMethodSymbol { MethodKind: not
+   MethodKind.Ordinary }: continue;` fast-exclude (a *separate*,
+   independent gate from `allEligibleCandidates`, walked directly against
+   each interface's own `GetMembers()`) would skip right past the exact
+   same explicit-impl method before ever reaching the method-emission
+   branch that follows it - a second place needing the identical
+   "unless this is the group's own dominant declaration" carve-out,
+   easy to fix inconsistently with (1) if done separately.
+3. The property-accessor equivalent of (2) needs the same treatment for
+   an explicitly-reimplemented property, a structurally different check
+   (properties don't carry `MethodKind` at the property level).
+
+Beyond the mechanical admission, the method-emission branch a newly-
+admitted explicit-impl candidate would flow into carries a large amount
+of *existing* logic written and verified against ordinary (`MethodKind
+.Ordinary`) methods only (generic-return-shape checks, `IsVararg`,
+nullable-type-parameter-in-parameter checks, escaped-name generation) -
+none of it has been verified correct for an explicit-interface-
+implementation-shaped symbol, and getting even one of those checks wrong
+would produce the same class of silent-wrong-value or broken-compile
+bug this finding itself reports, just relocated. A rushed, three-point,
+coordinated change under review-loop time pressure risks exactly that -
+not attempted here. Tracked as an explicit, honest open item; a proper
+fix needs its own design pass (most likely: a real compile spike
+confirming each of the existing method-emission checks' behavior against
+an explicit-impl symbol, one at a time, before wiring the three
+admission points together).
+
 ## Links
 
 - [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md) —
