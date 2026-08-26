@@ -2259,36 +2259,43 @@ sensitive DIM bodies are unusual) but not cosmetic.
 
 ### Known, real, still-open gap (code review, 2026-08-26 round 13, not fixed here) - explicit interface reimplementation not recognized as a DIM
 
-C# lets a derived interface resolve a base interface's abstract member via
-an **explicit** reimplementation, not just a `new`-hiding concrete
-redeclaration:
+C# lets a derived interface resolve a base interface member via an
+**explicit** reimplementation, not just a `new`-hiding concrete
+redeclaration - both when the base member is abstract and when the base
+member is already a concrete DIM:
 
 ```csharp
 public interface IBase { bool Flag(); }
 public interface ILeaf : IBase { bool IBase.Flag() => true; }
+
+public interface IConcreteBase { bool Flag() => false; }
+public interface IConcreteLeaf : IConcreteBase { bool IConcreteBase.Flag() => true; }
 ```
 
-`ILeaf.IBase.Flag()` is a genuine, concrete resolution of `IBase.Flag` -
-Roslyn correctly reports the *outer double* as fully implementing it. But
-this generator's own effective-declaration resolution
-(`allEligibleCandidates`, `TestDoubleMemberIdentityResolver`) never sees
-it at all: an explicit interface implementation reports
-`MethodKind.ExplicitInterfaceImplementation` (not `Ordinary`) and
-`DeclaredAccessibility.Private` (not `Public`), both of which
-`allEligibleCandidates`'s existing filter (`m.IsAbstract ||
+`ILeaf.IBase.Flag()`/`IConcreteLeaf.IConcreteBase.Flag()` are genuine,
+concrete resolutions of the inherited `Flag` member - Roslyn correctly
+reports the *outer double* as fully implementing them. But this
+generator's own effective-declaration resolution (`allEligibleCandidates`,
+`TestDoubleMemberIdentityResolver`) never sees them at all: an explicit
+interface implementation reports `MethodKind.ExplicitInterfaceImplementation`
+(not `Ordinary`) and `DeclaredAccessibility.Private` (not `Public`), both
+of which `allEligibleCandidates`'s existing filter (`m.IsAbstract ||
 (!m.IsStatic && m.DeclaredAccessibility == Accessibility.Public)`)
-excludes outright. The identity resolver only ever sees `IBase`'s own
-abstract declaration, concludes `Flag` is still unimplemented, and the
-generated double falls back to ADR-0045's computed default (`false`) -
-**silently wrong**, not a compile failure, since the double still
+excludes outright. For an abstract base member, the identity resolver only
+ever sees `IBase`'s own abstract declaration, concludes `Flag` is still
+unimplemented, and the generated double falls back to ADR-0045's computed
+default (`false`). For a concrete base DIM, the base DIM becomes a
+standalone fallback target and the generated double dispatches to the base
+body (`false`) rather than the leaf's explicit reimplementation (`true`).
+Both are **silently wrong**, not compile failures, since the double still
 compiles and runs, just returns the opposite of what the interface
-actually declares.
+actually resolves.
 
 Investigated, not fixed - a real fix touches three separate, coordinated
 points, not one:
 
 1. `allEligibleCandidates`'s admission filter would need to also accept
-   an explicit interface implementation that resolves an abstract member
+   an explicit interface implementation that resolves an inherited member
    also reachable in the same closure - grouping it correctly into the
    right `(Name, CanonicalSignature)` identity so
    `TestDoubleMemberIdentityResolver.TryResolve` (which only reasons

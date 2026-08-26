@@ -329,11 +329,10 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor TestDoubleUnrecognizedExplicitInterfaceReimplementation = new(
         "CMP0037",
         "Test-double member resolved only by an unrecognized explicit interface reimplementation",
-        "'{0}' declares member '{1}', which appears unimplemented from this interface's own " +
-        "declaration but is actually resolved elsewhere in the closure via an explicit interface " +
-        "reimplementation - a shape Compono does not yet recognize during effective-declaration " +
-        "resolution. '{1}''s unconfigured fallback uses the ordinary computed-default value, which " +
-        "may not match the interface's own resolved behavior.",
+        "'{0}' inherits member '{1}', which is resolved elsewhere in the closure via an explicit " +
+        "interface reimplementation - a shape Compono does not yet recognize during effective-" +
+        "declaration resolution. '{1}''s unconfigured fallback may not match the interface's own " +
+        "resolved behavior.",
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);

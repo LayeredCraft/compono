@@ -1144,6 +1144,93 @@ public sealed class TestDoubleDefaultInterfaceMemberFallbackTests
     }
 
     [Fact]
+    public Task ExplicitInterfaceMethodReimplementationOfConcreteDim_ReportsCmp0037_ConsumerCompiles()
+    {
+        // The diagnostic must also cover a concrete inherited DIM reimplemented explicitly by a leaf:
+        // the current resolver otherwise treats the base DIM as a standalone fallback target and
+        // silently runs the base body, even though the leaf's explicit reimplementation is the
+        // interface's actual resolved behavior. Codex review, PR #111 round 14.
+        const string explicitConcreteMethodReimplementationSource = """
+            namespace TestNamespace;
+
+            public interface IBase12
+            {
+                bool Flag() => false;
+            }
+
+            public interface ILeaf12 : IBase12
+            {
+                bool IBase12.Flag() => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf12 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = explicitConcreteMethodReimplementationSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0037",
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public Task ExplicitInterfacePropertyReimplementationOfConcreteDim_ReportsCmp0037_ConsumerCompiles()
+    {
+        // Same concrete-base-DIM gap as
+        // ExplicitInterfaceMethodReimplementationOfConcreteDim_ReportsCmp0037_ConsumerCompiles, but
+        // through a property reimplementation.
+        const string explicitConcretePropertyReimplementationSource = """
+            namespace TestNamespace;
+
+            public interface IBase13
+            {
+                bool Flag => false;
+            }
+
+            public interface ILeaf13 : IBase13
+            {
+                bool IBase13.Flag => true;
+            }
+
+            public sealed class Consumer
+            {
+                public Consumer(ILeaf13 handler) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Run()
+                {
+                    Compono.Composer.Create().Create<Consumer>();
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyWithInfoDiagnostic(
+            new CodeGenerationOptions
+            {
+                SourceCode = explicitConcretePropertyReimplementationSource,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0037",
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public Task DimDeclaringInterfaceHasUnresolvedStaticAbstractMember_ReportsCmp0036_ConsumerCompiles()
     {
         // A DIM's declaring interface (IBase7) inherits a static abstract member (IHasStatic.Flag)

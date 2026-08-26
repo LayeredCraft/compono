@@ -113,10 +113,11 @@ internal static class TestDoubleAnalyzer
         // interface reimplementation (`bool IBase.Flag() => true;` declared on a more-derived
         // interface). An explicit implementation reports MethodKind.ExplicitInterfaceImplementation
         // (not Ordinary) and DeclaredAccessibility.Private (not Public), both of which
-        // allEligibleCandidates' filter excludes outright - the resolver never sees it, concludes
-        // the member is still genuinely unimplemented, and the generated double silently falls back
-        // to ADR-0045's computed default instead of the interface's own real, resolved value. Not
-        // fixed (see ADR-0044's own "Known, real, still-open gap" section, round 13 - a real fix
+        // allEligibleCandidates' filter excludes outright - the resolver never sees it, so the
+        // generated double silently falls back to either ADR-0045's computed default (when the base
+        // member is abstract) or the base DIM body (when the base member is itself concrete) instead
+        // of the leaf interface's own real, resolved value. Not fixed (see ADR-0044's own "Known,
+        // real, still-open gap" section, rounds 13/14 - a real fix
         // needs three coordinated admission-point changes, not attempted under review-loop time
         // pressure) - but detected and reported here rather than left completely silent, using the
         // SAME Roslyn API (ITypeSymbol.FindImplementationForInterfaceMember) ADR-0046 already
@@ -126,7 +127,7 @@ internal static class TestDoubleAnalyzer
 
         foreach (var candidate in allEligibleCandidates)
         {
-            if (!candidate.IsAbstract || candidate.IsStatic)
+            if (candidate.IsStatic)
                 continue;
 
             var resolution = interfaceType.FindImplementationForInterfaceMember(candidate);

@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Message: 'TestNamespace.ILeaf11' inherits member 'Flag', which is resolved elsewhere in the closure via an explicit interface reimplementation - a shape Compono does not yet recognize during effective-declaration resolution. 'Flag''s unconfigured fallback may not match the interface's own resolved behavior.,
+      Message: 'TestNamespace.ILeaf12' inherits member 'Flag', which is resolved elsewhere in the closure via an explicit interface reimplementation - a shape Compono does not yet recognize during effective-declaration resolution. 'Flag''s unconfigured fallback may not match the interface's own resolved behavior.,
       Severity: Info,
       WarningLevel: 1,
       Descriptor: {
