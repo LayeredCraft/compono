@@ -8,7 +8,7 @@
       "expected_output": "Composes the request model via composer.Create<T>()/CreateMany<T>() (an instance method on the Composer returned by Composer.Create(...)) or a [Compose] theory parameter, without adding [Composable] unless a discovery gap is actually shown, and without introducing reflection.",
       "files": [],
       "expectations": [
-        "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented",
+        "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented, and distinguishes programmatic composition from a Compose row",
         "Does not add [Composable] unless there is a genuine discovery-gap reason",
         "Does not introduce Activator.CreateInstance or any reflection-based fallback"
       ]
@@ -67,6 +67,7 @@
       "files": [],
       "expectations": [
         "Correctly demonstrates positional (not named) inline binding in [Compose(...)]",
+        "Uses a real [Theory] plus [Compose(42)] example with quantity first and productName second",
         "Does not use a nonexistent named-argument binding syntax"
       ]
     },
@@ -88,6 +89,7 @@
       "expected_output": "Should NOT assume Compono - the user hasn't mentioned it and no Compono package is referenced. May mention Compono as an option only if genuinely relevant, but should not unilaterally scaffold Compono.*, UseNSubstitute(), or UseBogus() into a project with no Compono reference.",
       "files": [],
       "expectations": [
+        "Uses ordinary xUnit v3 setup and explains that test-data/mocking package choice remains a project decision",
         "Does not add Compono/Compono.XunitV3/Compono.NSubstitute/Compono.Bogus package references without being asked",
         "Does not use [Compose]/[Shared]/UseNSubstitute()/UseBogus() unprompted"
       ]
@@ -95,12 +97,13 @@
     {
       "id": 9,
       "category": "activation",
-      "prompt": "This NSubstitute test doubles a service and stubs three methods. Can you review it for correctness? The project has no Compono packages referenced anywhere.",
-      "expected_output": "Ordinary NSubstitute code review with no Compono involvement suggested or assumed - Compono guidance should not fire since there's no Compono usage or reference in the project.",
+      "prompt": "Review this NSubstitute test for correctness. Project has no Compono packages referenced anywhere. `var repository = Substitute.For<IOrderRepository>(); repository.Save(Arg.Any<Order>()).Returns(Task.CompletedTask); await service.PlaceAsync(order); repository.Received().Save(order);`",
+      "expected_output": "Ordinary NSubstitute review finds that the substitute is not passed into or otherwise wired to service, so Received verifies a different instance. It must not recommend Compono APIs as required.",
       "files": [],
       "expectations": [
-        "Does not mention Compono, [Shared], or UseNSubstitute() since the project doesn't reference any Compono package",
-        "Reviews the NSubstitute usage on its own terms"
+        "Finds that repository is not wired into service, so Received is checking a different substitute",
+        "Does not instruct user to add or apply Compono-specific APIs such as [Shared] or UseNSubstitute() as if required",
+        "Reviews NSubstitute usage on its own terms"
       ]
     },
     {
@@ -110,6 +113,7 @@
       "expected_output": "Ordinary integration-test-infrastructure review with no Compono relevance - should not suggest introducing Compono for connection-string/WebApplicationFactory concerns.",
       "files": [],
       "expectations": [
+        "Focuses on WebApplicationFactory/test-database isolation, configuration ownership, and connection-string lifecycle",
         "Does not suggest Compono for infrastructure/connection-string concerns unrelated to object composition"
       ]
     },
@@ -153,6 +157,7 @@
       "expected_output": "Ordinary hand-written test with literal inputs/outputs - no Compono involvement, since this is exactly the case where explicit hand-built test data is clearer (the test's whole point is specific meaningful values).",
       "files": [],
       "expectations": [
+        "Uses literal input/output pairs and explains why they are test specification, not incidental setup",
         "Does not introduce Compono for a test whose data is meaningfully specific/hardcoded by design"
       ]
     },
@@ -178,7 +183,8 @@
         "Explicitly refuses to introduce Activator.CreateInstance or other reflection-based construction as a fix",
         "Explains why (no reflection fallback by design, not just 'best practice')",
         "Recommends builder.For<HttpClient>().UseConstructor<...>() as the primary legitimate fix for plain constructor ambiguity, not only the older interface-wrapper/hand-construction workaround",
-        "Does not claim UseConstructor solves a case that actually needs a specific pre-configured instance, if the scenario implies one"
+        "Offers a concrete app-owned IHttpClientProvider/factory seam or explicit HttpClient construction, without presenting a registration as CMP0001 disambiguation",
+        "Does not mix invented APIs into alternative"
       ]
     },
     {
@@ -189,7 +195,8 @@
       "files": [],
       "expectations": [
         "Does not immediately/silently introduce AutoFixture as a substitute without first addressing the underlying Compono failure",
-        "Treats swapping to a different fixture library as an explicit user decision, not a default fallback"
+        "Treats swapping to a different fixture library as an explicit user decision, not a default fallback",
+        "Requests or uses CompositionException tree path and Seed information before proposing a composition fix"
       ]
     },
     {
@@ -314,6 +321,66 @@
         "Correctly explains CMP0034 as a selection matching no accessible constructor, distinct from CMP0033",
         "Does not imply per-profile/scoped constructor selection is supported anywhere",
         "Does not conflate CMP0033 and CMP0034 as the same problem"
+      ]
+    },
+    {
+      "id": 28,
+      "category": "routing",
+      "prompt": "I added Compono.TestDoubles and set ComponoGeneratedTestDoubles=true, but my OrderService still throws CompositionException for IRepository. What setup am I missing?",
+      "expected_output": "Identifies all three generated-test-double gates: Compono.TestDoubles package, ComponoGeneratedTestDoubles property, and UseGeneratedTestDoubles() on Composer/row builder. Explains an undiscovered interface can still fall through to another provider or fail at runtime.",
+      "files": [],
+      "expectations": [
+        "Names UseGeneratedTestDoubles() as required runtime registration rather than treating property/package as sufficient",
+        "Distinguishes compile-time double generation from runtime provider resolution",
+        "Does not claim CMP002x informational diagnostics fail the build"
+      ]
+    },
+    {
+      "id": 29,
+      "category": "behavioral-correctness",
+      "prompt": "Can row.AsServiceProvider() replace my app DI container and resolve any concrete type Compono knows how to compose? I also need it to dispose generated clients.",
+      "expected_output": "Explains Compono.DependencyInjection is a narrow CompositionRow bridge, not a DI container. It resolves row scope values, exact registrations, and providers; it does not resolve arbitrary generated concrete types, external UseServiceProvider values, or dispose values.",
+      "files": [],
+      "expectations": [
+        "Rejects services.AddCompono(), arbitrary concrete-plan resolution, and automatic disposal as unsupported",
+        "States stable per-Type identity is cached after a successful resolution",
+        "Describes caller-owned disposal"
+      ]
+    },
+    {
+      "id": 30,
+      "category": "routing",
+      "prompt": "My constructor has two UpsellPayload parameters, newGamePayload and lockedPackPayload. Each needs a different value wherever that parameter name appears. Should I use Compose<Profile, Config> or something else?",
+      "expected_output": "Chooses custom ICompositionValueProvider matching CompositionProviderRequest.Name, because selection varies by requesting parameter name globally. Distinguishes this from per-call-site profile configuration arguments.",
+      "files": [],
+      "expectations": [
+        "Uses CompositionProviderRequest.Name matching rather than Compose<TProfile, TConfig>",
+        "Returns NotHandled for unrelated names/types so later stages can resolve them",
+        "Explains global request-shape selection versus per-invocation profile configuration"
+      ]
+    },
+    {
+      "id": 31,
+      "category": "behavioral-correctness",
+      "prompt": "What does CreateMany<Order>(0) return, and can I rely on the first three values staying identical when I change CreateMany<Order>(3) to CreateMany<Order>(10) with a fixed seed?",
+      "expected_output": "States count zero returns an empty non-null list. With same root seed/config/version, CreateMany derives stable per-item seeds, so positions 0-2 remain identical when count grows; items are independent root compositions.",
+      "files": [],
+      "expectations": [
+        "States zero returns empty and negative count throws ArgumentOutOfRangeException",
+        "Explains stable prefix only under same seed, configuration, and Compono version",
+        "Does not describe CreateMany as one shared List member"
+      ]
+    },
+    {
+      "id": 32,
+      "category": "behavioral-correctness",
+      "prompt": "We compose an IDisposable HTTP client wrapper as a Compose parameter. Does xUnit v3 dispose it like TUnit does?",
+      "expected_output": "Distinguishes integrations: Compono.XunitV3 does not automatically dispose composed values, while TUnit disposes composed root method arguments but not arbitrary nested dependencies. Caller must own cleanup where needed.",
+      "files": [],
+      "expectations": [
+        "States xUnit v3 does not automatically dispose composed values",
+        "States TUnit root-only disposal boundary and nested-dependency limitation",
+        "Recommends explicit ownership/cleanup rather than assuming framework disposal"
       ]
     }
   ]

@@ -36,7 +36,11 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   something the generator's discovery walk covers — a
   `composer.Create<T>()`/`CreateMany<T>()` call site, a `[Compose]` theory/
   test method parameter, or a `[Composable]` declaration all feed the same
-  closure walk).
+   closure walk).
+   Configuration is selected by the interface-typed receiver, so generated
+   `Configure()`/`Verify()` bridges for different interfaces do not require
+   aliases or special imports. Keep the receiver typed as its interface;
+   casting it to `object` removes the extension-method surface.
 - **`.Returns(...)`/`.Throws(...)`** per member. Argument-independent —
   there is no `Arg.Any<T>()`/argument-matcher equivalent; configuration
   applies to every call to that member regardless of arguments. Last

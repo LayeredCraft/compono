@@ -152,6 +152,15 @@ builder.AddSemanticProvider(new UpsellPayloadProvider());
 // or AddTestDoubleProvider(...), depending on what it produces
 ```
 
+Providers run for each matching request. Return `NotHandled` when this
+provider does not own the request so later pipeline stages can try; return
+`Handled(value)` only for a value this provider deliberately supplies.
+Keep providers stateless unless shared state is part of documented test
+setup. Use `context.DeriveSeed()` for provider-owned random generation so a
+seeded composition remains reproducible. Prefer `Register<T>()` or a
+`.For<T>()` rule whenever exact type or member selection is sufficient:
+custom providers are for request-shape decisions, not general configuration.
+
 `CompositionProviderRequest.Name` carries the requesting constructor
 parameter/required member/test-method-parameter's own name — this is a
 **global rule** ("whenever anything asks for `UpsellPayload` named
