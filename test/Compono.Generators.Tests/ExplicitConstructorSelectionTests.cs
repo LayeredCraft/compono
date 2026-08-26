@@ -656,4 +656,41 @@ public sealed class ExplicitConstructorSelectionTests
         return GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions { SourceCode = inVsByValueSource }, "CMP0034", TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task SelectedConstructorIsTheOnlyOneAndInaccessible_ReportsCmp0034NotCmp0002()
+    {
+        // Foo has exactly ONE declared constructor, and it's private - zero ACCESSIBLE constructors
+        // exist at all. Round-8 code-review finding: ConstructorSelector previously returned the
+        // zero-accessible-constructor CMP0002 diagnostic before ever consulting the selection
+        // scanner, masking a real, documented CMP0034 (the stale/inaccessible selection) behind a
+        // generic "no accessible constructor" message - and made the outcome depend on whether some
+        // OTHER, unrelated accessible constructor happened to exist on the type (this test's own
+        // sibling, InaccessibleMatchingConstructor_TreatedAsNoMatch_ReportsCmp0034, already covers
+        // that case; this one is the zero-accessible-constructors-at-all case that previously
+        // reported the wrong diagnostic).
+        const string soleInaccessibleSource = """
+            namespace SpikeSoleInaccessible;
+
+            public interface IBar { }
+
+            public sealed class Foo
+            {
+                private Foo(IBar bar) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void Run()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>().UseConstructor<IBar>());
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions { SourceCode = soleInaccessibleSource }, "CMP0034", TestContext.Current.CancellationToken);
+    }
 }

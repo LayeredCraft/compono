@@ -54,21 +54,19 @@ internal static class ConstructorSelector
             .Where(c => !c.IsStatic && compilation.IsSymbolAccessibleWithin(c, compilation.Assembly))
             .ToArray();
 
-        if (constructors.Length == 0)
-            return Result.Failure(new DiagnosticInfo(
-                DiagnosticDescriptors.NoAccessibleConstructor,
-                location,
-                DisplayName(type, path)));
-
         // ADR-0052 (Part B, explicit constructor selection).
-        // Consulted unconditionally, even when `type` has exactly one accessible constructor - a
-        // stale UseConstructor<...>() left behind after an overload was removed must still be
-        // diagnosed (CMP0033/CMP0034), not silently ignored just because the type happens to be
-        // unambiguous today (code-review finding: the single-constructor fast path previously
-        // returned before this scan ever ran). Compilation-wide scoping (ADR-0052's corrected
-        // model): a conflicting or invalid selection is diagnosed regardless of which composition
-        // path triggered this Analyze call, since there is exactly one generated plan for `type`
-        // shared by every path that reaches it.
+        // Consulted unconditionally, even when `type` has zero or exactly one accessible
+        // constructor - a stale UseConstructor<...>() left behind after an overload was removed
+        // (or made private) must still be diagnosed (CMP0033/CMP0034), not silently masked by the
+        // zero-constructor CMP0002 short circuit just because no *other* accessible constructor
+        // happens to exist today (code-review finding: the zero-constructor and single-constructor
+        // fast paths previously both returned before this scan ever ran - a selection whose target
+        // constructor lost accessibility reported CMP0002 instead of the documented CMP0034, and
+        // depended on whether an unrelated accessible constructor happened to exist elsewhere on
+        // the type). Compilation-wide scoping (ADR-0052's corrected model): a conflicting or
+        // invalid selection is diagnosed regardless of which composition path triggered this
+        // Analyze call, since there is exactly one generated plan for `type` shared by every path
+        // that reaches it.
         var scan = ConstructorSelectionScanner.GetOrCreate(compilation);
 
         if (scan.TryGetConflict(type, out var conflictDiagnostic))
@@ -79,6 +77,12 @@ internal static class ConstructorSelector
 
         if (scan.TryGetSelection(type, out var selectedConstructor))
             return ValidateParameterKinds(type, selectedConstructor, location, path);
+
+        if (constructors.Length == 0)
+            return Result.Failure(new DiagnosticInfo(
+                DiagnosticDescriptors.NoAccessibleConstructor,
+                location,
+                DisplayName(type, path)));
 
         if (constructors.Length == 1)
             return ValidateParameterKinds(type, constructors[0], location, path);
