@@ -94,11 +94,24 @@ internal static class ConstructorSelectionScanner
                 // non-generic, arity-0 overload (UseConstructor(), selecting a parameterless
                 // constructor - code-review finding: only the generic syntax was ever matched, so
                 // a consumer had no way to select a parameterless constructor at all).
-                if (invocation.Expression is not MemberAccessExpressionSyntax
+                //
+                // Also recognizes a null-conditional call site (builder.For<Foo>()?.UseConstructor<...>())
+                // - Roslyn represents that invocation's target as MemberBindingExpressionSyntax, not
+                // MemberAccessExpressionSyntax, so a MemberAccessExpressionSyntax-only filter silently
+                // skipped it entirely, leaving a genuinely bound, real selection unrecognized (the
+                // consumer would see the ordinary CMP0001 ambiguous-constructor diagnostic for an
+                // ambiguous type instead of their selection being honored). Both syntax shapes carry
+                // the same `Name` property with the identical recognized shape. Codex review, PR #111
+                // (round 12).
+                if (invocation.Expression is not (MemberAccessExpressionSyntax
                     {
                         Name: GenericNameSyntax { Identifier.Text: "UseConstructor" }
                             or IdentifierNameSyntax { Identifier.Text: "UseConstructor" },
-                    })
+                    } or MemberBindingExpressionSyntax
+                    {
+                        Name: GenericNameSyntax { Identifier.Text: "UseConstructor" }
+                            or IdentifierNameSyntax { Identifier.Text: "UseConstructor" },
+                    }))
                 {
                     continue;
                 }

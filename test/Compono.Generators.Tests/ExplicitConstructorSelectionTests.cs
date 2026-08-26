@@ -728,4 +728,42 @@ public sealed class ExplicitConstructorSelectionTests
         return GeneratorTestHelpers.VerifyFailure(
             new CodeGenerationOptions { SourceCode = paramsConstructorSource }, "CMP0034", TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public Task NullConditionalCallSite_SelectionIsHonored_NotIgnored()
+    {
+        // A null-conditional call to UseConstructor<...>() (builder.For<Foo>()?.UseConstructor<IBar>())
+        // - legal C# since CompositionTypeRuleBuilder<T> is a reference type - binds the same real
+        // method, but Roslyn represents the invocation's target as MemberBindingExpressionSyntax,
+        // not MemberAccessExpressionSyntax. Round-12 code-review finding: the scanner's syntax
+        // filter only ever matched MemberAccessExpressionSyntax, so this genuinely bound, real
+        // selection was silently skipped - for ambiguous Foo (two accessible constructors), the
+        // consumer would see CMP0001 (ambiguous constructor) instead of their selection being
+        // honored. Verify (zero-error generation) would fail exactly that way if the regression
+        // reappeared - Foo genuinely has two accessible constructors, so CMP0001 fires unless the
+        // selection is recognized.
+        const string nullConditionalSource = """
+            namespace SpikeNullConditional;
+
+            public interface IBar { }
+
+            public sealed class Foo
+            {
+                public Foo() { }
+                public Foo(IBar bar) { }
+            }
+
+            public static class EntryPoint
+            {
+                public static void Discover() => Compono.Composer.Create().Create<Foo>();
+
+                public static void Run()
+                {
+                    Compono.Composer.Create(builder => builder.For<Foo>()?.UseConstructor<IBar>());
+                }
+            }
+            """;
+
+        return GeneratorTestHelpers.Verify(new CodeGenerationOptions { SourceCode = nullConditionalSource }, TestContext.Current.CancellationToken);
+    }
 }
