@@ -3,10 +3,11 @@
 Two completely different failure classes — don't confuse them:
 
 - **Compile-time**: `CMP0001`-`CMP0013` (errors — fail `dotnet build`),
-  `CMP0020`-`CMP0032` (informational — never fail the build, only relevant
-  if `ComponoGeneratedTestDoubles=true` is set, whether or not
-  `Compono.TestDoubles` is referenced), and `CMP0033`-`CMP0034` (errors —
-  explicit constructor selection, ADR-0002 Amendment 3/ADR-0052 Part B),
+  `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037` (informational — never fail
+  the build, only relevant if `ComponoGeneratedTestDoubles=true` is set,
+  whether or not `Compono.TestDoubles` is referenced), and `CMP0033`-
+  `CMP0034` (errors — explicit constructor selection, ADR-0002 Amendment
+  3/ADR-0052 Part B),
   all emitted by `Compono.Generators` (a Roslyn analyzer). Look up the
   code below.
 - **Runtime**: `CompositionException`, thrown from `composer.Create<T>()`
@@ -38,12 +39,12 @@ and then threw is runtime (the tree-path section).
 | CMP0013 | A `[Compose]`-attributed parameter type isn't accessible (private/protected) from the generated row-binding dispatch type | Use an accessible parameter type, or widen the type's accessibility |
 
 This is the complete core, always-on diagnostic set — CMP0001 through
-CMP0013, no more, no fewer. `CMP0020`-`CMP0032` (below) belong to
-generated test doubles, not core composition. `CMP0033`-`CMP0034` (below)
-are also always-on core diagnostics — explicit constructor selection —
-listed separately only because they shipped later than CMP0001-CMP0013.
-If something references a `CMP00xx` code outside these three ranges, it
-isn't real; don't invent one.
+CMP0013, no more, no fewer. `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
+(below) belong to generated test doubles, not core composition. `CMP0033`-
+`CMP0034` (below) are also always-on core diagnostics — explicit
+constructor selection — listed separately only because they shipped later
+than CMP0001-CMP0013. If something references a `CMP00xx` code outside
+these ranges, it isn't real; don't invent one.
 
 ## Compile-time, explicit constructor selection: CMP0033-CMP0034
 
@@ -57,7 +58,7 @@ selection" section.
 | CMP0033 | Conflicting explicit selection — two *different* `UseConstructor<...>()` selections for the same type appear anywhere in the compilation (scope is compilation-wide, not per-profile) | Consolidate to one selection for that type. Calling the identical selection more than once is fine — only a genuinely different selection conflicts |
 | CMP0034 | Invalid explicit selection — the requested parameter-type list matches no accessible constructor on the type (including a constructor that exists but isn't accessible from the calling compilation) | Match the type list to a real, accessible constructor's parameters, in order — never falls back to a different constructor silently |
 
-## Compile-time, generated-test-double opt-in only: CMP0020-CMP0032
+## Compile-time, generated-test-double opt-in only: CMP0020-CMP0032, CMP0035-CMP0037
 
 Only relevant if the project sets
 `ComponoGeneratedTestDoubles=true` — see `references/testdoubles.md`. The
@@ -77,13 +78,15 @@ that an entire interface leaf couldn't get a generated double at all — it
 falls back to the ordinary runtime-provider path (`UseNSubstitute()`,
 `Register<T>()`, `.For<T>()`, or a runtime `CompositionException` if
 nothing else handles it). A narrower, v2 subset (`CMP0022`, `CMP0029`,
-`CMP0030`) is scoped to **one overload or identity instead** — the double
-still generates, every other member keeps its own `Configure()`/`Verify()`
-surface, and only the colliding/unsupported one falls back to a
-deterministic default. `CMP0032` is a third shape: interface-scoped like
-the first group, but purely informational about a member that *does* get
-a real `Configure()`/`Verify()` surface — see its own row. Each row below
-says which applies.
+`CMP0030`, `CMP0035`, `CMP0036`, `CMP0037`) is scoped to **one overload,
+identity, or fallback target instead** — the double still generates, every
+other member keeps its own `Configure()`/`Verify()` surface, and only the
+colliding/unsupported one falls back to either a deterministic default or,
+for `CMP0036`/`CMP0037`, possibly the wrong inherited DIM/default behavior
+called out by the diagnostic. `CMP0032` is a third shape: interface-scoped
+like the first group, but purely informational about a member that *does*
+get a real `Configure()`/`Verify()` surface — see its own row. Each row
+below says which applies.
 
 | Code | Scope | Meaning |
 |---|---|---|
@@ -100,6 +103,9 @@ says which applies.
 | CMP0030 | One overload | A `ref`/`out`/`in` parameter on a member that *does* have a same-named sibling — this overload dispatches via a deterministic default with no `Configure()` surface; its sibling overloads are unaffected. Doesn't apply to an `out` parameter with no deterministic default of its own — that's `CMP0026` (whole interface) even with a sibling present |
 | CMP0031 | Whole interface | A generic method whose return type references its own type parameter anywhere in its symbol graph (`T Get<T>()`, `Task<T> GetAsync<T>()`) — no constructible fallback body. A generic method whose return type *doesn't* depend on its own type parameter (`ILogger<T>`'s `Log<TState>`) is supported, not this code |
 | CMP0032 | Interface-scoped count, not blocking | One or more members have no deterministic default but generate as **configuration-required** instead of rejecting the interface — each throws `Compono.TestDoubleNotConfiguredException` if invoked before `Configure().Member(...).Returns(...)`/`.Throws(...)`. One diagnostic per interface (a count of how many members), not one per member — the exact member is already named by the exception at the point it's actually invoked unconfigured |
+| CMP0035 | One DIM fallback target | The helper field/class name the generator would derive for a default-interface-member fallback target collides with another real member or another DIM target's derived name. That one member still gets a working generated body, but its unconfigured fallback degrades to the ordinary computed-default/configuration-required behavior instead of the real DIM body |
+| CMP0036 | One DIM fallback target | The DIM's declaring interface leaves a static abstract member unresolved when viewed in isolation, even though the outer double's leaf interface resolves it. The helper cannot implement that declaring interface, so this member degrades to the ordinary computed-default/configuration-required fallback instead of the real DIM body |
+| CMP0037 | One inherited member | The inherited member is actually resolved in the interface closure by an explicit interface reimplementation, a shape Compono's effective-declaration resolution does not yet support. The double still compiles, but the unconfigured fallback may not match the interface's real resolved behavior — for example, it may use ADR-0045's computed default for an abstract base member or dispatch to an older concrete base DIM body |
 
 Fix: for a whole-interface code, address the interface's shape if you want
 a generated double, or otherwise ignore it — the interface still works
@@ -107,8 +113,12 @@ exactly as it did before `ComponoGeneratedTestDoubles` existed, just
 without a generated double for that one leaf. For a scoped code
 (`CMP0022`/`CMP0029`/`CMP0030`), nothing needs fixing unless you want a
 `Configure()`/`Verify()` surface for that specific identity — the rest of
-the double already has one. For `CMP0032`, nothing needs fixing either —
-it's informational, telling you which members need
+the double already has one. For `CMP0035`/`CMP0036`/`CMP0037`, configure
+that member explicitly when the fallback value matters; otherwise refactor
+away from the collision/static-abstract/explicit-reimplementation shape or
+use a hand registration/runtime substitute for that interface until the
+unsupported DIM intersection is implemented. For `CMP0032`, nothing needs
+fixing either — it's informational, telling you which members need
 `Configure().Member(...).Returns(...)`/`.Throws(...)` before their first
 call, same as any other member's `Configure()` surface, just without a
 usable deterministic default to fall back on if you forget.

@@ -6,8 +6,8 @@ dispatch-helper pieces all landed and verified: full Compono test suite green
 repo), both AOT proofs pass against a DIM-bearing interface, and the
 freshly-packed-package AlexaVoxCraft dogfood gate is green end-to-end (see
 Notes). Remaining unchecked Tasks below are narrower edge-case coverage
-(mutual-DIM-through-`this`, a three-level DIM chain, a generic DIM) not hit by
-any real consumer shape found so far — tracked here, not blocking.
+(mutual-DIM-through-`this`, a three-level DIM chain) not hit by any real
+consumer shape found so far — tracked here, not blocking.
 
 **Implements:** [ADR-0044 Amendment 20](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-20-2026-08-25-effective-declaration-resolution-corrected-for-basederived-member-identity-concrete-default-interface-member-bodies-now-honored-as-the-unconfigured-fallback-bug-fix)
 
@@ -134,10 +134,8 @@ the leaf always wins over its ambiguous ancestors).
       leaf-interface view instead of ADR-0045's computed default. (Every
       dispatch-body shape that could reach a fallback now branches on
       `member.is_dim_fallback_target` first: plain method, matching-eligible
-      method (void and non-void), and property get - closed-instantiation-
-      eligible (generic self-referencing return) DIM fallback is the one
-      shape deliberately left unimplemented, see "eligible generic DIM
-      coverage" below.)
+      method (void and non-void), property get, and ADR-0049 closed-
+      instantiation-eligible generic method fallbacks.)
 - [x] Generate the base interface's explicit implementation (where
       required) as a forward to the resolved member's own implementation.
       (`TestDouble.scriban`'s new `member.is_forwarding` branch, both
@@ -224,9 +222,12 @@ the leaf always wins over its ambiguous ancestors).
 - [x] Base-interface-view and derived-interface-view calls against the
       *same* double instance both observe the same configured/fallback
       state and the same call count.
-- [ ] Generic DIM: one behavior test if already eligible under existing
+- [x] Generic DIM: one behavior test if already eligible under existing
       Requirement 2/ADR-0049 rules; otherwise a short note confirming the
       existing generic-method boundary is unaffected (no scope expansion).
+      (`StandaloneClosedInstantiationDim_UnconfiguredView_ExecutesRealDimBody_NotComputedDefault`
+      verifies the ADR-0049 closed-instantiation-eligible branch executes
+      the real DIM body instead of ADR-0045's computed default.)
 - [ ] Snapshot review: regenerate/inspect existing `TestDoubleVerifyTests`
       snapshots for any incidental diff from the identity-resolution
       change (expect none outside the new DIM-specific fixtures).
@@ -303,23 +304,21 @@ default-interface-member dispatch resolves it), and forwarding every other
 required member of that interface back to the owning double (cast through
 the interface, never independently recorded). Every dispatch-body shape that
 could reach an unconfigured fallback (plain method, matching-eligible method
-void/non-void, property get) now calls through
+void/non-void, property get, and ADR-0049 closed-instantiation-eligible
+generic method fallbacks) now calls through
 `(({DeclaringInterface})new {Helper}(this)).{Member}(...)` instead of
 ADR-0045's computed default when `is_dim_fallback_target` is set - the
 `(({DeclaringInterface})...)` cast was required: an early version called the
 helper's member directly on its concrete type and silently resolved to the
 wrong (extension-method) overload instead of failing to compile, since the
 helper deliberately has no direct member declaration for the DIM target.
-Verified via `TestDoubleDefaultInterfaceMemberFallbackTests` (7 tests, all
-passing, none skipped): unconfigured DIM fallback runs the real body,
-configured value still wins, base/derived views share one call-recording
-state (no double-recording), a convergent diamond resolves the same way, and
-a DIM body's cross-member call to an abstract sibling (`this.Other()` inside
-the DIM) forwards to the owner and is recorded exactly once. Deliberately
-out of scope: DIM-fallback for a closed-instantiation-eligible (generic
-self-referencing return) member - no known real interface needs this
-intersection, and it would require threading the helper call through the
-per-closed-T bucket mechanism (ADR-0049) as a separate increment.
+Verified via `TestDoubleDefaultInterfaceMemberFallbackTests`: unconfigured
+DIM fallback runs the real body, configured value still wins, base/derived
+views share one call-recording state (no double-recording), a convergent
+diamond resolves the same way, a DIM body's cross-member call to an abstract
+sibling (`this.Other()` inside the DIM) forwards to the owner and is
+recorded exactly once, and a closed-instantiation-eligible generic DIM
+fallback executes the real DIM body instead of ADR-0045's computed default.
 
 **Scriban projection bug found during implementation.** `TestDoubleEmitter`
 builds the Scriban template model from a hand-picked anonymous-object
