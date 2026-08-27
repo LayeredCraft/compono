@@ -10,7 +10,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     global::System.Collections.Generic.List<int>? global::TestNamespace.IRepository.GetValues()
     {
         __GetValues.RecordCall();
-        return __GetValues.HasConfiguredException ? throw __GetValues.ConfiguredException
+        return __GetValues.HasConfiguredSequence ? __GetValues.NextSequenceOutcome()
+            : __GetValues.HasConfiguredException ? throw __GetValues.ConfiguredException
             : __GetValues.HasConfiguredValue ? __GetValues.ConfiguredValue
             : [];
     }

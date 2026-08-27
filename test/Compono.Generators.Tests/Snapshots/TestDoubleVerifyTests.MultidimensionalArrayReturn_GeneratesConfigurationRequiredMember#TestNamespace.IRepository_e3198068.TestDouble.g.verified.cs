@@ -10,7 +10,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     int[,] global::TestNamespace.IRepository.GetGrid()
     {
         __GetGrid.RecordCall();
-        return __GetGrid.HasConfiguredException ? throw __GetGrid.ConfiguredException
+        return __GetGrid.HasConfiguredSequence ? __GetGrid.NextSequenceOutcome()
+            : __GetGrid.HasConfiguredException ? throw __GetGrid.ConfiguredException
             : __GetGrid.HasConfiguredValue ? __GetGrid.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'global::TestNamespace.IRepository.GetGrid' was invoked without being configured - call Configure().GetGrid().Returns(...) or .Throws(...) before invoking it.");

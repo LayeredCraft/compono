@@ -4144,4 +4144,216 @@ public sealed class TestDoubleVerifyTests
                 """,
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: an overloaded member with real parameters gets both
+    // its unchanged discriminator-only Configure()/Verify() surface AND a new matching-specific
+    // "<Member>Matching" member name taking real Match<T> parameters directly, sharing the same
+    // entries/call-log/lock state per real overload.
+    [Fact]
+    public Task OverloadedMemberWithRealParameters_GeneratesMatchingSpecificMemberNameSharingSameOverloadState() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Delete(int id);
+
+                    bool Delete(string id);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Delete(1).Returns(true);
+                        repository.Configure().DeleteMatching(Compono.Match.Is<int>(id => id > 0)).Returns(true);
+                        repository.Verify().DeleteMatching(Compono.Match.Any<int>()).Never();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // ADR-0044 Amendment 21 "Naming/collision policy": a real member literally named
+    // "<Overload>Matching" whose own generated Configure() extension signature is genuinely
+    // identical to one of the alias's own generated overloads (a real CS0111 risk, confirmed by
+    // compiler spike) - the fallback hash-suffixed name is used instead, and both the real member's
+    // own surface and the overloaded member's matching surface remain independently reachable.
+    [Fact]
+    public Task OverloadMatchingAliasCollidesWithRealMemberOfThatName_FallsBackToHashSuffixedName() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Get(int id);
+
+                    bool Get(string id);
+
+                    // Non-overloaded, matching-eligible (ADR-0048) - its own generated Configure()
+                    // extension is "GetMatching(Compono.Match<string> value)", genuinely identical to
+                    // the alias Get(string) would otherwise generate for itself.
+                    bool GetMatching(string value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Get(1).Returns(true);
+                        repository.Configure().Get("x").Returns(true);
+                        repository.Configure().GetMatching("value").Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // Sibling to the collision test above - a real member literally named "<Overload>Matching" whose
+    // own signature does NOT collide with either of the alias's own generated overloads keeps the
+    // natural, non-hash-suffixed name (the fallback only fires on a genuine signature collision, not
+    // merely a name collision).
+    [Fact]
+    public Task OverloadMatchingAliasNameMatchesButSignatureDoesNotCollide_KeepsNaturalName() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Get(int id);
+
+                    bool Get(string id);
+
+                    // Non-overloaded, matching-eligible - its own generated Configure() extension is
+                    // "GetMatching(Compono.Match<bool> flag)", which matches neither alias overload's
+                    // own generated signature ("GetMatching(Compono.Match<int>)"/"GetMatching(Compono.Match<string>)").
+                    bool GetMatching(bool flag);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Get(1).Returns(true);
+                        repository.Configure().Get("x").Returns(true);
+                        repository.Configure().GetMatching(true).Returns(true);
+                        repository.Configure().GetMatching(Compono.Match.Any<int>()).Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // PLAN-0054 Phase 2 throwaway spike (kept as real regression coverage, not deleted after
+    // answering the question): a member that is both generic AND overloaded, with real parameters
+    // that do NOT reference its own type parameter (so it's matching-eligible-shaped, unlike the
+    // Requirement-2/ILogger-shaped or the closed-instantiation-eligible cases) - Amendment 1's
+    // "extension becomes generic" rule (isOverloaded && isGenericMethod) applies to the matching-
+    // specific member name exactly like it already applies to the discriminator-only surface, or a
+    // same-parameter-types generic/non-generic overload pair collides (CS0111) with a fixed arity.
+    [Fact]
+    public Task GenericAndOverloadedMatchingEligibleMember_GeneratesGenericConfigureAndMatchingExtensions() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    void Process<T>(int index, string label);
+
+                    void Process(int index, string label);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Process<int>(1, "a").Returns(default);
+                        repository.Configure().Process(1, "a").Returns(default);
+                        repository.Configure().ProcessMatching<int>(Compono.Match.Any<int>(), Compono.Match.Any<string>()).Returns(default);
+                        repository.Configure().ProcessMatching(Compono.Match.Any<int>(), Compono.Match.Any<string>()).Returns(default);
+                        repository.Verify().ProcessMatching<int>(Compono.Match.Any<int>(), Compono.Match.Any<string>()).Never();
+                        repository.Verify().ProcessMatching(Compono.Match.Any<int>(), Compono.Match.Any<string>()).Never();
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
+    // PLAN-0054 Phase 2 throwaway spike: a ref/out-shaped overload never gets a configuration
+    // surface at all (ADR-0044 Amendment 5's existing overload-set-internal partial support), so it
+    // can never become matching-eligible either - no new rule was needed, since
+    // IsOverloadMatchingEligible already requires WouldGetConfigurationSurface, which already
+    // excludes it. Three-way overload set so "Seek" still has >= 2 surface-worthy siblings even with
+    // the ref/out one excluded (a two-way ref/out + one real sibling set wouldn't exercise
+    // IsOverloadMatchingEligible at all - it falls to the pre-existing solo-member ADR-0048 path
+    // instead, a different, already-covered case). The ref/out sibling keeps its existing
+    // fallback-only dispatch body unaffected; its two matching-eligible-shaped siblings each get the
+    // new Matching-named surface, independently.
+    [Fact]
+    public Task RefOutOverloadSibling_StaysFallbackOnly_MatchingEligibleSiblingsUnaffected() =>
+        GeneratorTestHelpers.VerifyWithInfoDiagnostic(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Seek(out int value);
+
+                    bool Seek(int value);
+
+                    bool Seek(string value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Seek(1).Returns(true);
+                        repository.Configure().Seek("k").Returns(true);
+                        repository.Configure().SeekMatching(Compono.Match.Any<int>()).Returns(true);
+                        repository.Configure().SeekMatching(Compono.Match.Any<string>()).Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, "CMP0030", TestContext.Current.CancellationToken);
 }

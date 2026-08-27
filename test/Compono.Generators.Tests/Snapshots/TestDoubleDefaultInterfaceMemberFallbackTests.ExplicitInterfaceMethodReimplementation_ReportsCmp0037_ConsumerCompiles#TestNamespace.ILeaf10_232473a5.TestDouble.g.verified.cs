@@ -10,7 +10,8 @@ internal sealed class TestNamespace_ILeaf10_232473a5_Double : global::TestNamesp
     bool global::TestNamespace.IBase10.Flag()
     {
         __Flag.RecordCall();
-        return __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
+        return __Flag.HasConfiguredSequence ? __Flag.NextSequenceOutcome()
+            : __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
             : __Flag.HasConfiguredValue ? __Flag.ConfiguredValue
             : default;
     }

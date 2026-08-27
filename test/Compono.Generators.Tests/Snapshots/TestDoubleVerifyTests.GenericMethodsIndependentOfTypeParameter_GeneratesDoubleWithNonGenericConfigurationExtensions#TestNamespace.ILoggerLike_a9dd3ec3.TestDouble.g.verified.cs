@@ -11,14 +11,17 @@ internal sealed class TestNamespace_ILoggerLike_a9dd3ec3_Double : global::TestNa
     void global::TestNamespace.ILoggerLike.Log<TState>(int logLevel, TState state, global::System.Exception? exception)
     {
         __Log.RecordCall();
-        if (__Log.HasConfiguredException)
+        if (__Log.HasConfiguredSequence)
+            __Log.NextSequenceOutcome();
+        else if (__Log.HasConfiguredException)
             throw __Log.ConfiguredException;
     }
 
     global::System.IDisposable? global::TestNamespace.ILoggerLike.BeginScope<TState>(TState state)
     {
         __BeginScope.RecordCall();
-        return __BeginScope.HasConfiguredException ? throw __BeginScope.ConfiguredException
+        return __BeginScope.HasConfiguredSequence ? __BeginScope.NextSequenceOutcome()
+            : __BeginScope.HasConfiguredException ? throw __BeginScope.ConfiguredException
             : __BeginScope.HasConfiguredValue ? __BeginScope.ConfiguredValue
             : default;
     }

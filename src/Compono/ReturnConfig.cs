@@ -14,11 +14,25 @@ public struct ReturnConfig<T>
     internal Exception? Exception;
     internal int CallCount;
 
+    // ADR-0054: sequential/call-count-based responses. Null except after
+    // ReturnConfigBuilder<T>.ReturnsSequence - the same slot Returns/Throws already use, extended
+    // with a third, mutually-exclusive state rather than a separate parallel type (see that ADR's
+    // "one remaining open design question" section, resolved by this shape composing cleanly with
+    // the existing Value/Exception fields and this struct's own already-Interlocked-based
+    // RecordCall() precedent). Immutable once set (ReturnsSequence always replaces the whole array,
+    // never mutates an element) - safe to read from multiple threads with no lock, only the ordinal
+    // claim below needs synchronization.
+    internal SequenceOutcome<T>[]? Sequence;
+    internal int SequenceOrdinal;
+
     /// <summary>Whether <see cref="ConfiguredValue"/> was set via <see cref="ReturnConfigBuilder{T}.Returns"/>.</summary>
     public readonly bool HasConfiguredValue => HasValue;
 
     /// <summary>Whether <see cref="ConfiguredException"/> was set via <see cref="ReturnConfigBuilder{T}.Throws"/>.</summary>
     public readonly bool HasConfiguredException => Exception is not null;
+
+    /// <summary>Whether a response sequence was set via <see cref="ReturnConfigBuilder{T}.ReturnsSequence"/>.</summary>
+    public readonly bool HasConfiguredSequence => Sequence is not null;
 
     /// <summary>
     /// The value configured via <see cref="ReturnConfigBuilder{T}.Returns"/>. Only meaningful when
@@ -45,4 +59,28 @@ public struct ReturnConfig<T>
     /// Amendment 2, Finding 1.
     /// </summary>
     public void RecordCall() => System.Threading.Interlocked.Increment(ref CallCount);
+
+    /// <summary>
+    /// Consumes and returns (or throws) the next outcome in the configured sequence, by invocation
+    /// ordinal - the first call gets index 0, the second index 1, and so on. Only meaningful when
+    /// <see cref="HasConfiguredSequence"/> is <see langword="true"/>. Once the sequence is exhausted,
+    /// every further call repeats the final configured outcome (ADR-0054's chosen exhaustion
+    /// semantics, matching NSubstitute's own established <c>Returns(a, b, c)</c> behavior).
+    /// </summary>
+    /// <remarks>
+    /// Thread-safe with no lock: <see cref="Sequence"/> is never mutated after
+    /// <see cref="ReturnConfigBuilder{T}.ReturnsSequence"/> sets it (a reconfiguration replaces the
+    /// whole array reference, never edits an element in place), so the only shared mutable state is
+    /// the ordinal itself - claimed via <see cref="System.Threading.Interlocked.Increment(ref int)"/>,
+    /// the same primitive <see cref="RecordCall"/> already uses, so two concurrent callers always
+    /// claim two distinct, strictly-increasing ordinals and never observe or corrupt each other's
+    /// index.
+    /// </remarks>
+    public T NextSequenceOutcome()
+    {
+        var outcomes = Sequence!;
+        var ordinal = System.Threading.Interlocked.Increment(ref SequenceOrdinal) - 1;
+        var index = ordinal >= outcomes.Length ? outcomes.Length - 1 : ordinal;
+        return outcomes[index].Resolve();
+    }
 }

@@ -53,12 +53,12 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             return ({{ member.closed_instantiation_state_class_name }}<{{ member.closed_instantiation_type_parameter_name }}>){{ member.boxed_local_name }};
         }
     }
-{{~ else if member.has_configuration_surface && !member.is_eligible_for_matching ~}}
+{{~ else if member.has_configuration_surface && !member.is_eligible_for_matching && !member.is_overload_matching_eligible ~}}
     internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> {{ member.field_name }};
 {{~ end ~}}
 {{~ end ~}}
 {{~ for member in members ~}}
-{{~ if member.is_eligible_for_matching ~}}
+{{~ if member.is_eligible_for_matching || member.is_overload_matching_eligible ~}}
     // ADR-0050: multi-entry response configuration - replaces the single
     // {{ member.field_name }}/{{ member.field_name }}_m_{param} shape with an ordered, append-only
     // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
@@ -164,6 +164,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                     // its builder is still being set up when this call arrives), it must NOT shadow
                     // an older, fully-configured matching entry; the scan continues to the next
                     // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredSequence) return {{ member.entry_local_name }}.Config.NextSequenceOutcome();
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
                     if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
                 }
@@ -179,7 +183,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
 {{~ else ~}}
         {{ member.bucket_local_name }}.Config.RecordCall();
-        return {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
+        return {{ member.bucket_local_name }}.Config.HasConfiguredSequence ? {{ member.bucket_local_name }}.Config.NextSequenceOutcome()
+            : {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
             : {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -194,15 +199,16 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ if member.closed_instantiation_needs_nullable_suppression ~}}
 #pragma warning restore CS8603, CS8616, CS8619
 {{~ end ~}}
-{{~ else if member.is_eligible_for_matching ~}}
+{{~ else if member.is_eligible_for_matching || member.is_overload_matching_eligible ~}}
 {{~ if member.is_void ~}}
     void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
-        // the call-log append and the full scan stay under the SAME lock acquisition as
-        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
-        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
-        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
         lock ({{ member.field_name }}_lock)
         {
             {{ member.field_name }}_calls.Add({{ member.call_log_construct_expression }});
@@ -221,6 +227,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                     // stop the scan (`return;`) exactly like the value-returning branch below, not
                     // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
                     // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredSequence) { {{ member.entry_local_name }}.Config.NextSequenceOutcome(); return; }
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
                     if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return;
                 }
@@ -252,6 +262,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                     // its builder is still being set up when this call arrives), it must NOT shadow
                     // an older, fully-configured matching entry; the scan continues to the next
                     // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if ({{ member.entry_local_name }}.Config.HasConfiguredSequence) return {{ member.entry_local_name }}.Config.NextSequenceOutcome();
                     if ({{ member.entry_local_name }}.Config.HasConfiguredException) throw {{ member.entry_local_name }}.Config.ConfiguredException;
                     if ({{ member.entry_local_name }}.Config.HasConfiguredValue) return {{ member.entry_local_name }}.Config.ConfiguredValue;
                 }
@@ -271,7 +285,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     void {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         {{ member.field_name }}.RecordCall();
-        if ({{ member.field_name }}.HasConfiguredException)
+        if ({{ member.field_name }}.HasConfiguredSequence)
+            {{ member.field_name }}.NextSequenceOutcome();
+        else if ({{ member.field_name }}.HasConfiguredException)
             throw {{ member.field_name }}.ConfiguredException;
 {{~ if member.is_dim_fallback_target ~}}
         else if (!{{ member.field_name }}.HasConfiguredValue)
@@ -282,7 +298,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         {{ member.field_name }}.RecordCall();
-        return {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
+        return {{ member.field_name }}.HasConfiguredSequence ? {{ member.field_name }}.NextSequenceOutcome()
+            : {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
             : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -320,7 +337,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         get
         {
             {{ member.field_name }}.RecordCall();
-            return {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
+            return {{ member.field_name }}.HasConfiguredSequence ? {{ member.field_name }}.NextSequenceOutcome()
+                : {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
                 : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
                 : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -424,6 +442,32 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
         lock (self.{{ member.field_name }}_lock) { self.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
         return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
     }
+{{~ else if member.is_overload_matching_eligible ~}}
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
+        lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.matching_member_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
+{{~ for p in member.parameters ~}}
+        {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
+{{~ end ~}}
+        lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
+        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+    }
 {{~ else if member.is_overloaded ~}}
     public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
         new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.extension_receiver_name }}.{{ member.field_name }});
@@ -506,6 +550,34 @@ internal static class {{ safe_identifier }}_DoubleVerification
     {
         int {{ member.count_local_name }};
         lock (self.Instance.{{ member.field_name }}_lock) { {{ member.count_local_name }} = self.Instance.{{ member.field_name }}_calls.Count; }
+        return new({{ member.count_local_name }}, "{{ member.member_description }}");
+    }
+{{~ else if member.is_overload_matching_eligible ~}}
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        int {{ member.count_local_name }};
+        lock ({{ member.extension_receiver_name }}.Instance.{{ member.field_name }}_lock) { {{ member.count_local_name }} = {{ member.extension_receiver_name }}.Instance.{{ member.field_name }}_calls.Count; }
+        return new({{ member.count_local_name }}, "{{ member.member_description }}");
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier {{ member.matching_member_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_DoubleVerifier {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
+    {
+        int {{ member.count_local_name }};
+        lock ({{ member.extension_receiver_name }}.Instance.{{ member.field_name }}_lock)
+        {
+            {{ member.count_local_name }} = 0;
+            foreach (var {{ member.call_loop_variable_name }} in {{ member.extension_receiver_name }}.Instance.{{ member.field_name }}_calls)
+            {
+                if ({{ for p in member.parameters }}{{ p.escaped_name }}.Matches({{ p.call_log_access_expression }}){{ if !for.last }} && {{ end }}{{ end }})
+                    {{ member.count_local_name }}++;
+            }
+        }
         return new({{ member.count_local_name }}, "{{ member.member_description }}");
     }
 {{~ else if member.is_overloaded ~}}

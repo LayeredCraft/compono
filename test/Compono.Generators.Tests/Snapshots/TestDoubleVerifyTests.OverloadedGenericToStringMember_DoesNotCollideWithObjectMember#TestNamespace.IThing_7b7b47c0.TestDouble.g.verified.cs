@@ -11,7 +11,8 @@ internal sealed class TestNamespace_IThing_7b7b47c0_Double : global::TestNamespa
     string? global::TestNamespace.IThing.ToString<T>()
     {
         __ToString_467634cd.RecordCall();
-        return __ToString_467634cd.HasConfiguredException ? throw __ToString_467634cd.ConfiguredException
+        return __ToString_467634cd.HasConfiguredSequence ? __ToString_467634cd.NextSequenceOutcome()
+            : __ToString_467634cd.HasConfiguredException ? throw __ToString_467634cd.ConfiguredException
             : __ToString_467634cd.HasConfiguredValue ? __ToString_467634cd.ConfiguredValue
             : default;
     }
@@ -19,7 +20,8 @@ internal sealed class TestNamespace_IThing_7b7b47c0_Double : global::TestNamespa
     string? global::TestNamespace.IThing.ToString<T>(T value)
     {
         __ToString_9f03e88f.RecordCall();
-        return __ToString_9f03e88f.HasConfiguredException ? throw __ToString_9f03e88f.ConfiguredException
+        return __ToString_9f03e88f.HasConfiguredSequence ? __ToString_9f03e88f.NextSequenceOutcome()
+            : __ToString_9f03e88f.HasConfiguredException ? throw __ToString_9f03e88f.ConfiguredException
             : __ToString_9f03e88f.HasConfiguredValue ? __ToString_9f03e88f.ConfiguredValue
             : default;
     }

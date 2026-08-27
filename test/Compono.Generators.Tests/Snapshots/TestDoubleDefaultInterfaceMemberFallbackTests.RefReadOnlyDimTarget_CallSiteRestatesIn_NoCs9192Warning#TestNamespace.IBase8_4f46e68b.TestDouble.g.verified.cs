@@ -46,7 +46,8 @@ internal sealed class TestNamespace_IBase8_4f46e68b_Double : global::TestNamespa
     bool global::TestNamespace.IBase8.Flag()
     {
         __Flag.RecordCall();
-        return __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
+        return __Flag.HasConfiguredSequence ? __Flag.NextSequenceOutcome()
+            : __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
             : __Flag.HasConfiguredValue ? __Flag.ConfiguredValue
             : ((global::TestNamespace.IBase8)(this.__Flag_dimHelper ??= new __Flag_DimFallback(this))).Flag();
     }
@@ -57,11 +58,12 @@ internal sealed class TestNamespace_IBase8_4f46e68b_Double : global::TestNamespa
 
     void global::TestNamespace.IBase8.Visit(string label)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
-        // the call-log append and the full scan stay under the SAME lock acquisition as
-        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
-        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
-        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
         lock (__Visit_lock)
         {
             __Visit_calls.Add(label);
@@ -80,6 +82,10 @@ internal sealed class TestNamespace_IBase8_4f46e68b_Double : global::TestNamespa
                     // stop the scan (`return;`) exactly like the value-returning branch below, not
                     // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
                     // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return;
                 }

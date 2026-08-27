@@ -11,14 +11,18 @@ internal sealed class TestNamespace_IThing_7b7b47c0_Double : global::TestNamespa
     void global::TestNamespace.IThing.M<T>()
     {
         __M_467634cd.RecordCall();
-        if (__M_467634cd.HasConfiguredException)
+        if (__M_467634cd.HasConfiguredSequence)
+            __M_467634cd.NextSequenceOutcome();
+        else if (__M_467634cd.HasConfiguredException)
             throw __M_467634cd.ConfiguredException;
     }
 
     void global::TestNamespace.IThing.M<T, U>()
     {
         __M_4478703e.RecordCall();
-        if (__M_4478703e.HasConfiguredException)
+        if (__M_4478703e.HasConfiguredSequence)
+            __M_4478703e.NextSequenceOutcome();
+        else if (__M_4478703e.HasConfiguredException)
             throw __M_4478703e.ConfiguredException;
     }
 }

@@ -8,9 +8,10 @@ namespace Compono;
 /// stored, only used inline at the call site.
 /// </summary>
 /// <remarks>
-/// <see cref="Returns"/>/<see cref="Throws"/> are last-configuration-wins: each clears the other's
-/// state, so configuring a return after an earlier <see cref="Throws"/> (or vice versa) doesn't
-/// leave stale state behind. See ADR-0043 Amendment 7, Finding R.
+/// <see cref="Returns"/>/<see cref="Throws"/>/<see cref="ReturnsSequence"/> are all
+/// last-configuration-wins: each of the three clears the other two's state, so configuring any one
+/// of them after an earlier call to a different one of them doesn't leave stale state behind. See
+/// ADR-0043 Amendment 7, Finding R (the original two-way rule) and ADR-0054 (the sequence extension).
 /// </remarks>
 public readonly ref struct ReturnConfigBuilder<T>
 {
@@ -19,19 +20,48 @@ public readonly ref struct ReturnConfigBuilder<T>
     /// <summary>Wraps <paramref name="slot"/>, the generated double's own backing field for this member.</summary>
     public ReturnConfigBuilder(ref ReturnConfig<T> slot) => _slot = ref slot;
 
-    /// <summary>Configures the member to return <paramref name="value"/>, clearing any prior <see cref="Throws"/>.</summary>
+    /// <summary>Configures the member to return <paramref name="value"/>, clearing any prior <see cref="Throws"/>/<see cref="ReturnsSequence"/>.</summary>
     public void Returns(T value)
     {
         _slot.Value = value;
         _slot.HasValue = true;
         _slot.Exception = null;
+        _slot.Sequence = null;
+        _slot.SequenceOrdinal = 0;
     }
 
-    /// <summary>Configures the member to throw <paramref name="exception"/>, clearing any prior <see cref="Returns"/>.</summary>
+    /// <summary>Configures the member to throw <paramref name="exception"/>, clearing any prior <see cref="Returns"/>/<see cref="ReturnsSequence"/>.</summary>
     public void Throws(Exception exception)
     {
         _slot.Exception = exception;
         _slot.HasValue = false;
         _slot.Value = default;
+        _slot.Sequence = null;
+        _slot.SequenceOrdinal = 0;
+    }
+
+    /// <summary>
+    /// Configures the member to return (or throw) each <paramref name="outcomes"/> entry in order, one
+    /// per invocation, by ordinal - the first call gets <c>outcomes[0]</c>, the second
+    /// <c>outcomes[1]</c>, and so on; once exhausted, every further call repeats the final entry
+    /// (ADR-0054). Clears any prior <see cref="Returns"/>/<see cref="Throws"/>/<see cref="ReturnsSequence"/>
+    /// state and resets the ordinal to 0, the same last-configuration-wins contract <see cref="Returns"/>/
+    /// <see cref="Throws"/> already document. A literal value or a thrown <see cref="Exception"/> both
+    /// implicitly convert to <see cref="SequenceOutcome{T}"/>, so a pure-value sequence reads as plain
+    /// values (<c>.ReturnsSequence(false, false, true)</c>) and a mixed sequence mixes values and
+    /// exceptions directly (<c>.ReturnsSequence(ex1, ex2, value)</c>) - no separate spelling for either
+    /// case.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="outcomes"/> is empty.</exception>
+    public void ReturnsSequence(params SequenceOutcome<T>[] outcomes)
+    {
+        if (outcomes.Length == 0)
+            throw new ArgumentException("A response sequence needs at least one outcome.", nameof(outcomes));
+
+        _slot.Sequence = outcomes;
+        _slot.SequenceOrdinal = 0;
+        _slot.HasValue = false;
+        _slot.Value = default;
+        _slot.Exception = null;
     }
 }
