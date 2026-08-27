@@ -1,7 +1,7 @@
 Use a generated `IConfigurationBuilder` double as a shared parameter, configure `Add(...)` to return the builder, then verify with `Match.Is<T>(...)`:
 
 ```csharp
-using Compono.TestDoubles;
+using Compono;
 using Compono.XunitV3;
 using Microsoft.Extensions.Configuration;
 using Xunit;
