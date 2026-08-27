@@ -23,7 +23,7 @@
          explicit PackageReference (added to both projects) makes restore resolve it deterministically
          instead of depending on the SDK's own auto-injection timing. -->
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.3" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!-- samples/Compono.Samples.AspNetApi.Tests' own dependency: WebApplicationFactory<T> for the
@@ -42,11 +42,11 @@
          this is the extensibility-authoring layer, matching xunit.v3.extensibility.core's
          own minimal-reference precedent immediately above. A tested-range constraint,
          not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="TUnit.Core" Version="[1.64.13, 2.0.0)" />
+    <PackageVersion Include="TUnit.Core" Version="[1.65.38, 2.0.0)" />
     <!-- test/Compono.TUnit.Tests' own dependency - the full TUnit meta-package
          (engine + core + assertions), since that project actually executes as a
          TUnit test run, not just authors against TUnit.Core's extension surface. -->
-    <PackageVersion Include="TUnit" Version="[1.64.13, 2.0.0)" />
+    <PackageVersion Include="TUnit" Version="[1.65.38, 2.0.0)" />
     <!-- Compono.XunitV3.SampleTests' own dependency, same reasoning as Compono.XunitV3/
          Compono.NSubstitute/Compono.Bogus above - never a ProjectReference, and this
          version must match the -p:Version passed to PackToLocalFeed's pack of
@@ -89,14 +89,14 @@
          pin, per ADR-0031 Amendment 1. -->
     <PackageVersion Include="NSubstitute" Version="[6.2.0, 7.0.0)" />
     <!-- Assertions -->
-    <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     <!-- Roslyn / Source Generators: Compono.Generators only, referenced with
          PrivateAssets="all" so they never leak to consumers - see
          docs/adr/0003-generator-package-distribution.md. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.6.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <!-- Templating, per docs/adr/0005-generator-implementation-conventions.md - shipped as source
          (PackageScribanIncludeSource, set on Compono.Generators.csproj) rather than a compiled lib,
          matching dynamo-mapper's pattern exactly: Scriban's code compiles directly into
@@ -109,15 +109,15 @@
     <PackageVersion Include="Scriban" Version="7.2.6" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.159" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.161" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
     <!-- Generator testing: snapshot-test the generator itself, per ADR-0005. -->
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
     <PackageVersion Include="Verify.XunitV3" Version="31.28.0" />
-    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.10" />
-    <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.10" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.11" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.11" />
     <!-- Phase 4: benchmark harness comparing generated construction against a reflection
          baseline (docs/mvp.md's explicit Milestone 1 ask). -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
