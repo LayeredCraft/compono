@@ -3,7 +3,7 @@
 
 ## ReturnConfigBuilder\<T\>\.Returns\(T\) Method
 
-Configures the member to return [value](Compono.ReturnConfigBuilder_T_.Returns(T).md#Compono.ReturnConfigBuilder_T_.Returns(T).value 'Compono\.ReturnConfigBuilder\<T\>\.Returns\(T\)\.value'), clearing any prior [Throws\(Exception\)](Compono.ReturnConfigBuilder_T_.Throws(System.Exception).md 'Compono\.ReturnConfigBuilder\<T\>\.Throws\(System\.Exception\)')\.
+Configures the member to return [value](Compono.ReturnConfigBuilder_T_.Returns(T).md#Compono.ReturnConfigBuilder_T_.Returns(T).value 'Compono\.ReturnConfigBuilder\<T\>\.Returns\(T\)\.value'), clearing any prior [Throws\(Exception\)](Compono.ReturnConfigBuilder_T_.Throws(System.Exception).md 'Compono\.ReturnConfigBuilder\<T\>\.Throws\(System\.Exception\)')/[ReturnsSequence\(SequenceOutcome&lt;T&gt;\[\]\)](Compono.ReturnConfigBuilder_T_.ReturnsSequence(Compono.SequenceOutcome_T_[]).md 'Compono\.ReturnConfigBuilder\<T\>\.ReturnsSequence\(Compono\.SequenceOutcome\<T\>\[\]\)')\.
 
 ```csharp
 public void Returns(T value);
