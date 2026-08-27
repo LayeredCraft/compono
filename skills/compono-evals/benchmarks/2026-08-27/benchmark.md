@@ -33,12 +33,14 @@ different times: the full `skills/compono` directory (`SKILL.md` +
 current skill and the `644a5ad` snapshot respectively, using the same
 runner and prompts. Outputs are in `outputs/old_skill/`.
 
-An earlier version of this baseline snapshotted only `testdoubles.md` and
-ran `old_skill` in a separate pass after `with_skill` had already been
-recorded — flagged in review as not a true paired run and, separately,
-under-scoped versus the fix (`5139507` also changed `SKILL.md`, adding a
-guardrail section). The snapshot did in fact capture the full directory
-including the pre-fix `SKILL.md`, so the under-scoping concern didn't hold,
+An earlier version of this benchmark *described* the baseline as covering
+only `testdoubles.md` and ran `old_skill` in a separate pass after
+`with_skill` had already been recorded — flagged in review as not a true
+paired run and, separately, as under-scoped versus the fix (`5139507` also
+changed `SKILL.md`, adding a guardrail section). The underlying snapshot
+had in fact already captured the full directory including the pre-fix
+`SKILL.md`, so only the description was wrong; the under-scoping concern
+itself didn't hold,
 but the not-launched-together concern was valid — this rerun replaces that
 version.
 
