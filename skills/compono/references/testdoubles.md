@@ -369,7 +369,7 @@ public async Task Saves_order([Shared] IRepository repository, OrderService serv
 {
     repository.Configure().CountAsync().Returns(Task.FromResult(4));
     var order = await service.PlaceAsync(6);
-    repository.Verify().Save(Match.Is<Order>(order => order.Id == expectedId)).Once();
+    repository.Verify().Save(Match.Is<Order>(saved => saved.Id == order.Id)).Once();
 }
 ```
 
@@ -382,7 +382,7 @@ public async Task Saves_order([Shared] IRepository repository, OrderService serv
 {
     repository.Configure().CountAsync().Returns(Task.FromResult(4));
     var order = await service.PlaceAsync(6);
-    repository.Verify().Save(Match.Is<Order>(order => order.Id == expectedId)).Once();
+    repository.Verify().Save(Match.Is<Order>(saved => saved.Id == order.Id)).Once();
 }
 ```
 
