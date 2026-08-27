@@ -17,10 +17,15 @@ dotnet add package Compono.TestDoubles --prerelease
 
 `Compono.TestDoubles` is not a general-purpose mocking framework — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals. If you need call verification, argument matchers, or a familiar
-runtime-proxy substitute, use
-[`Compono.NSubstitute`](compono-nsubstitute.md) instead; the two packages
-are not mutually exclusive.
+Non-Goals — but current generated doubles do support `Configure()`,
+`Verify()`, literal equality matching, `Match.Any<T>()`,
+`Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
+and multi-entry argument-distinguished response configuration for eligible
+member shapes. Use [`Compono.NSubstitute`](compono-nsubstitute.md) when you
+intentionally want a familiar runtime-proxy substitute or a capability still
+outside generated-double support, such as invocation-aware callbacks, true
+argument capture, call-order verification, or partial/strict substitutes;
+the two packages are not mutually exclusive.
 
 ## Compile-time opt-in
 
@@ -71,10 +76,12 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   `using` or a generation failure — see
   [ADR-0043 Amendment 3 Finding C](../adr/0043-compono-generated-test-doubles-design.md#amendment-3-2026-08-13-public-cross-assembly-state-contract-overloadname-collision-diagnostics-documented-multi-assembly-registry-limitation).
 - **Per-member `.Returns(...)`/`.Throws(...)`** — configure a method or
-  property's behavior; last configuration wins (calling `.Returns(...)`
-  after an earlier `.Throws(...)` on the same member clears the exception,
-  and vice versa). Configuration is member-level and **argument-
-  independent** — there are no argument matchers in v1.
+  property's behavior. A zero-argument `Configure().Member()` applies to
+  every call to that member. For eligible parameterized members,
+  `Configure().Member(...)` accepts literal equality arguments,
+  `Match.Any<T>()`, and `Match.Is<T>(predicate)`; multiple argument-
+  distinguished configurations can coexist, with the most recently
+  registered matching entry winning.
 - **Deterministic defaults for unconfigured members** — primitives,
   nullable references, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`, and
   known collection shapes (arrays, `List<T>`, `Dictionary<TKey,TValue>`,
@@ -664,4 +671,6 @@ An unsupported member shape is a compile-time diagnostic
 - [Providers](../concepts/providers.md) — where the generated-double
   provider sits in the resolution pipeline.
 - [`Compono.NSubstitute`](compono-nsubstitute.md) — the runtime-proxy
-  alternative, for call verification/argument matchers.
+  alternative, for capabilities still outside generated-double support
+  (for example invocation-aware callbacks, true argument capture,
+  call-order verification, or partial/strict substitutes).

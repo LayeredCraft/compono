@@ -3,10 +3,9 @@
 
 ## CallVerifier\(int, string\) Constructor
 
-Asserts how many times a generated test double's member was called, backed by
-[ConfiguredCallCount](Compono.ReturnConfig_T_.ConfiguredCallCount.md 'Compono\.ReturnConfig\<T\>\.ConfiguredCallCount')\. Deliberately minimal \- [Never\(\)](Compono.CallVerifier.Never().md 'Compono\.CallVerifier\.Never\(\)')/
-[Once\(\)](Compono.CallVerifier.Once().md 'Compono\.CallVerifier\.Once\(\)')/[Exactly\(int\)](Compono.CallVerifier.Exactly(int).md 'Compono\.CallVerifier\.Exactly\(int\)') only, no argument matchers, no call\-order verification,
-per ADR\-0044 Requirement 3\.
+Performs terminal call\-count assertions after any generated member and argument filtering has
+already been applied\. Deliberately minimal \- [Never\(\)](Compono.CallVerifier.Never().md 'Compono\.CallVerifier\.Never\(\)')/[Once\(\)](Compono.CallVerifier.Once().md 'Compono\.CallVerifier\.Once\(\)')/
+[Exactly\(int\)](Compono.CallVerifier.Exactly(int).md 'Compono\.CallVerifier\.Exactly\(int\)') only, with no call\-order verification, per ADR\-0044 Requirement 3\.
 
 ```csharp
 public CallVerifier(int observedCount, string memberDescription);
@@ -17,7 +16,7 @@ public CallVerifier(int observedCount, string memberDescription);
 
 `observedCount` [System\.Int32](https://learn.microsoft.com/en-us/dotnet/api/system.int32 'System\.Int32')
 
-How many times the member's dispatch body actually ran\.
+How many matching calls the generated verification surface observed\.
 
 <a name='Compono.CallVerifier.CallVerifier(int,string).memberDescription'></a>
 

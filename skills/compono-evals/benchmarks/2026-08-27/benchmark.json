@@ -1,0 +1,42 @@
+{
+  "skill_name": "compono",
+  "date": "2026-08-27",
+  "runner": "pi --print --no-context-files --no-skills --skill skills/compono --thinking minimal",
+  "scope": "Focused AWS Secrets Manager Provider TestDoubles matching/capture regression evals only",
+  "results": [
+    {
+      "eval_id": 28,
+      "name": "aws-iconfigurationbuilder-argument-filtered-verification",
+      "configuration": "with_skill",
+      "passed": true,
+      "evidence": "Output uses Configure().Add(Match.Any<IConfigurationSource>()).Returns(configurationBuilder) and Verify().Add(Match.Is<IConfigurationSource>(...)).Once(), maps Arg.Is to Match.Is, and does not recommend a recording fake."
+    },
+    {
+      "eval_id": 29,
+      "name": "aws-iamazonsecretsmanager-argument-matched-configuration",
+      "configuration": "with_skill",
+      "passed": true,
+      "evidence": "Output uses Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(...), Match.Any<CancellationToken>()).Returns(...) and says no fake/NSubstitute is needed for the eligible member."
+    },
+    {
+      "eval_id": 30,
+      "name": "adversarial-nsubstitute-vocabulary-trap",
+      "configuration": "with_skill",
+      "passed": true,
+      "evidence": "Output maps Arg.Is/Arg.Any/Received/DidNotReceive to Match.Is/Match.Any/Verify().Once/Exactly/Never and rejects recording fakes solely for NSubstitute vocabulary."
+    },
+    {
+      "eval_id": 31,
+      "name": "true-callback-capture-boundary",
+      "configuration": "with_skill",
+      "passed": true,
+      "evidence": "Output says ordinary matching/filtering is supported but invocation-aware callbacks/capture/delegate invocation are outside Match<T>; recommends local fake or NSubstitute seam."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "total": 4,
+    "pass_rate": 1.0,
+    "old_eval_regression_status": "not_rerun_full_benchmark_claude_weekly_limit; existing eval definitions 1-27 unchanged"
+  }
+}
