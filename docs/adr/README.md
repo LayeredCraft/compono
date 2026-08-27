@@ -115,4 +115,4 @@ the mechanics: numbering, status, and the index.
 | [0051](0051-compono-http-handler-based-testing-package.md) | Compono.Http: Handler-Based HTTP Client Testing Package | Accepted |
 | [0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md) | Compile-Time Composition-Discovery Boundary for Registered and Nested-Resolved Types | Partially Accepted (Part B shipped; Part A Proposed) |
 | [0053](0053-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | Proposed |
-| [0054](0054-testdoubles-sequential-call-count-based-responses.md) | Compono.TestDoubles: Sequential/Call-Count-Based Responses | Accepted (capability) / Proposed (API) |
+| [0054](0054-testdoubles-sequential-call-count-based-responses.md) | Compono.TestDoubles: Sequential/Call-Count-Based Responses | Accepted |

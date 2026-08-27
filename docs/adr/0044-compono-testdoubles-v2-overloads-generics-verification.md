@@ -2489,7 +2489,10 @@ product direction recorded here, that classification is resolved further,
 past "roadmap candidate," to **Accepted requirement, `Proposed` API** —
 the same split status [ADR-0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md)
 itself carries between "is this needed" and "what exactly is the
-mechanism."
+mechanism." **Update (2026-08-27): implemented and validated per
+[PLAN-0054](../plans/0054-testdoubles-overload-safe-matching-and-sequential-responses-impl-plan.md)
+— the `<Member>Matching` shape below is now `Accepted` API, not merely
+`Proposed`.**
 
 **Scope, held deliberately narrow per the re-audit above:** this Amendment
 does not reopen `Match<T>` participating directly in the *existing*

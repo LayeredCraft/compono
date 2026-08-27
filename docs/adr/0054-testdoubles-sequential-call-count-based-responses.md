@@ -1,6 +1,6 @@
 # [ADR-0054] Compono.TestDoubles: Sequential/Call-Count-Based Responses
 
-**Status:** Accepted (capability) / Proposed (API and implementation)
+**Status:** Accepted (capability, API, and implementation) — implemented and validated per [PLAN-0054](../plans/0054-testdoubles-overload-safe-matching-and-sequential-responses-impl-plan.md) (2026-08-27).
 
 **Date:** 2026-08-27
 
