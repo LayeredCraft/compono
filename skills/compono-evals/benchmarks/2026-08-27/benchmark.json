@@ -6,7 +6,7 @@
   "baseline": {
     "type": "old_skill",
     "snapshot_commit": "644a5ad",
-    "note": "Snapshot of skills/compono/references/testdoubles.md before this PR's fix (commits 5139507, caae88c)."
+    "note": "Full skills/compono directory (SKILL.md + references/) snapshotted at 644a5ad, the commit before this PR's fix (5139507, caae88c). All 8 runs (4 evals x with_skill/old_skill) launched together in one batch so with_skill and old_skill are genuinely paired, per skill-creator's workflow."
   },
   "results": [
     {
@@ -21,21 +21,21 @@
       "name": "aws-iconfigurationbuilder-argument-filtered-verification",
       "configuration": "old_skill",
       "passed": false,
-      "evidence": "Output claims Compono.TestDoubles cannot assert the argument predicate, uses zero-arg Configure().Add()/Verify().Add().Once(), and says the exact-argument assertion still requires Compono.NSubstitute/NSubstitute."
+      "evidence": "Output claims Compono.TestDoubles cannot express the argument predicate, uses zero-arg Configure().Add()/Verify().Add().Once(), and says asserting the argument type still requires keeping the test on NSubstitute."
     },
     {
       "eval_id": 29,
       "name": "aws-iamazonsecretsmanager-argument-matched-configuration",
       "configuration": "with_skill",
       "passed": true,
-      "evidence": "Output uses Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(...), Match.Any<CancellationToken>()).Returns(...) and says no fake/NSubstitute is needed for the eligible member."
+      "evidence": "Output uses Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(...), Match.Any<CancellationToken>()).Returns(...) and maps Arg.Is/Arg.Any directly to Match.Is/Match.Any."
     },
     {
       "eval_id": 29,
       "name": "aws-iamazonsecretsmanager-argument-matched-configuration",
       "configuration": "old_skill",
-      "passed": true,
-      "evidence": "Output also produces Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(...), Match.Any<CancellationToken>()).Returns(...) correctly; the old skill text did not mislead this particular prompt."
+      "passed": false,
+      "evidence": "Output drops the argument matcher entirely, uses parameterless Configure().GetSecretValueAsync().Returns(...), and states 'Compono.TestDoubles is argument-independent' explicitly."
     },
     {
       "eval_id": 30,
@@ -49,7 +49,7 @@
       "name": "adversarial-nsubstitute-vocabulary-trap",
       "configuration": "old_skill",
       "passed": false,
-      "evidence": "Output says Arg.Any<T>()/Arg.Is<T>(...) should 'usually be removed' and lists argument-specific matching as behavior Compono.TestDoubles intentionally does not support, contradicting the expected Arg.Is->Match.Is / Arg.Any->Match.Any mapping."
+      "evidence": "Output says 'Arg.Any/Arg.Is usually disappears because generated doubles are argument-independent' and lists argument-specific returns/verification as behavior Compono.TestDoubles does not provide, contradicting the expected Arg.Is->Match.Is / Arg.Any->Match.Any mapping."
     },
     {
       "eval_id": 31,
@@ -63,12 +63,12 @@
       "name": "true-callback-capture-boundary",
       "configuration": "old_skill",
       "passed": false,
-      "evidence": "Output correctly recommends a local fake for the callback boundary, but states there is 'no Match.Any<T>()/Match.Is<T>() for generated doubles' at all, contradicting the expectation that ordinary matching/argument-filtered verification is supported."
+      "evidence": "Output correctly recommends a local fake for the callback boundary, but does so by claiming 'no argument matchers' / 'no argument-aware behavior' exist at all in Compono.TestDoubles, contradicting the expectation that ordinary matching/argument-filtered verification is supported."
     }
   ],
   "summary": {
     "with_skill": { "passed": 4, "total": 4, "pass_rate": 1.0 },
-    "old_skill": { "passed": 1, "total": 4, "pass_rate": 0.25 },
+    "old_skill": { "passed": 0, "total": 4, "pass_rate": 0.0 },
     "old_eval_regression_status": "not_rerun_full_benchmark_claude_weekly_limit; existing eval definitions 1-27 unchanged"
   }
 }

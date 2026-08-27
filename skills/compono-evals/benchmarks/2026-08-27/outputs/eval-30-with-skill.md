@@ -1,16 +1,16 @@
 No — not solely because the old tests used NSubstitute APIs.
 
-For eligible non-overloaded interface members, migrate the vocabulary directly to `Compono.TestDoubles` generated doubles:
+For eligible non-overloaded interface members, migrate the NSubstitute vocabulary directly to `Compono.TestDoubles` generated-double APIs:
 
 ```csharp
-Arg.Is<T>(p)        -> Match.Is<T>(p)
-Arg.Any<T>()       -> Match.Any<T>()
-Received(1)        -> Verify().Member(...).Once()
-Received(2)        -> Verify().Member(...).Exactly(2)
-DidNotReceive()    -> Verify().Member(...).Never()
+Arg.Is<T>(predicate)      -> Match.Is<T>(predicate)
+Arg.Any<T>()              -> Match.Any<T>()
+Received(1).Member(...)   -> Verify().Member(...).Once()
+Received(2).Member(...)   -> Verify().Member(...).Exactly(2)
+DidNotReceive().Member(...) -> Verify().Member(...).Never()
 ```
 
-Examples relevant to AWS Secrets Manager Provider:
+Examples for the AWS Secrets Manager Provider shapes:
 
 ```csharp
 secretsManager.Configure()
@@ -22,16 +22,17 @@ secretsManager.Configure()
 
 ```csharp
 configurationBuilder.Verify()
-    .Add(Match.Is<IConfigurationSource>(s => s is SecretsManagerConfigurationSource))
+    .Add(Match.Is<IConfigurationSource>(
+        source => source is SecretsManagerConfigurationSource))
     .Once();
 ```
 
-Use `[Shared]` when the test parameter double must be the same instance injected into the SUT:
+Use hand-written recording fakes only if the test genuinely needs something outside current generated doubles, such as:
 
-```csharp
-public async Task Test(
-    [Shared] IAmazonSecretsManager secretsManager,
-    SecretsManagerProvider sut)
-```
+- true argument capture for later arbitrary inspection,
+- invocation-aware callbacks/side effects,
+- call-order verification,
+- sequential/call-count-based responses,
+- unsupported member shapes.
 
-Only write a hand recording fake if the migrated test genuinely needs something generated doubles do not provide, such as argument capture for later arbitrary inspection, invocation-aware callbacks/side effects, ordered-call assertions, sequential responses, unsupported members, etc. But `Arg.Is`, `Arg.Any`, `Received`, and `DidNotReceive` by themselves are not evidence that recording fakes are needed.
+If the members are eligible non-overloaded interface members and the project has `Compono.TestDoubles`, `UseGeneratedTestDoubles()`, and `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`, generated doubles are the intended migration path. Also remember to use `[Shared]` when the test needs to configure/verify the same double instance that is injected into the composed SUT.

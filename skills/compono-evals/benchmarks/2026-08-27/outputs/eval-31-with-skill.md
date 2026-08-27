@@ -1,8 +1,15 @@
 Use a local fake (or keep NSubstitute for that seam if the project allows it).
 
-`Match.Any<T>()` / `Match.Is<T>()` in `Compono.TestDoubles` are argument **matching** APIs for configured responses and filtered verification. They do not provide invocation-aware callbacks or argument capture.
+`Match.Any<T>()` / `Match.Is<T>()` only express **argument matching** for configuration/verification, e.g. “when called with any delegate and any token, return this fixed value” or “verify it was called once with a delegate matching this predicate.”
 
-So this kind of NSubstitute setup:
+They do **not** support invocation-aware callbacks such as:
+
+- inspect the actual invocation as a call object
+- invoke the actual `RequestHandlerDelegate` argument
+- run side effects before/after that invocation
+- return the delegate’s actual result
+
+So this NSubstitute shape:
 
 ```csharp
 pipeline.InvokeAsync(
@@ -10,20 +17,10 @@ pipeline.InvokeAsync(
     Arg.Any<CancellationToken>())
 .Returns(call =>
 {
-    // get actual delegate argument
-    // run side effects before/after
-    // invoke delegate
-    // return its result
+    // use actual delegate argument
 });
 ```
 
-is outside current generated TestDoubles capability, because it needs:
+doesn’t translate to `Compono.TestDoubles` matchers.
 
-- access to the actual invocation arguments,
-- callback side effects,
-- invoking a delegate argument,
-- returning that delegate’s result.
-
-`Match.Any<RequestHandlerDelegate>()` can match “any delegate” for a fixed `.Returns(...)`, but it cannot say “call the delegate argument and return what it returns.”
-
-For migration, keep a small project-local fake for this pipeline behavior. Use generated TestDoubles for collaborators where the setup is ordinary matching/verification, but don’t force this callback-style middleware/pipeline seam into `Match<T>`.
+A small local fake is the right migration boundary here, e.g. a fake pipeline that records before/after, calls the supplied `RequestHandlerDelegate`, and returns its `Task`/result. Use TestDoubles for plain matched returns and filtered verification; use a fake when the behavior depends on executing the invocation itself.

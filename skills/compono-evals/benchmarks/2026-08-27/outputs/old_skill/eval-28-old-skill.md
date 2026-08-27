@@ -1,34 +1,38 @@
-With `Compono.TestDoubles`, don’t translate `Arg.Is<T>(...)`; generated doubles are argument-independent. Since `IConfigurationBuilder.Add` is non-overloaded, verify the member call itself:
+With generated Compono test doubles, don’t use `Received`/`Arg.Is`. Verification is argument-independent, and because `IConfigurationBuilder.Add` is non-overloaded, the generated verification member is parameterless:
 
 ```csharp
 [Theory]
-[Compose<YourCompositionProfile>]
+[Compose<AwsSecretsManagerProviderCompositionProfile>]
 public void Adds_secrets_manager_configuration_source(
     [Shared] IConfigurationBuilder configurationBuilder)
 {
-    // IConfigurationBuilder.Add returns non-nullable IConfigurationBuilder,
-    // so configure the fluent return before exercising the extension.
-    configurationBuilder.Configure().Add().Returns(configurationBuilder);
-
-    configurationBuilder.AddSecretsManagerProvider(); // or the actual extension under test
+    configurationBuilder.AddSecretsManager();
 
     configurationBuilder.Verify().Add().Once();
 }
 ```
 
-If the extension composes another SUT that receives `IConfigurationBuilder`, keep the builder parameter `[Shared]` so the test body and SUT use the same generated double.
-
-The important migration is:
+If the extension/method under test uses the return value of `IConfigurationBuilder.Add(...)`, configure the fluent return first:
 
 ```csharp
-configurationBuilder.Received(1).Add(
-    Arg.Is<IConfigurationSource>(source => source is SecretsManagerConfigurationSource));
+[Theory]
+[Compose<AwsSecretsManagerProviderCompositionProfile>]
+public void Adds_secrets_manager_configuration_source(
+    [Shared] IConfigurationBuilder configurationBuilder)
+{
+    configurationBuilder.Configure().Add().Returns(configurationBuilder);
+
+    configurationBuilder.AddSecretsManager();
+
+    configurationBuilder.Verify().Add().Once();
+}
 ```
 
-becomes:
+Key migration point: `Compono.TestDoubles` cannot express the old argument predicate:
 
 ```csharp
-configurationBuilder.Verify().Add().Once();
+Arg.Is<IConfigurationSource>(source =>
+    source is SecretsManagerConfigurationSource)
 ```
 
-`Compono.TestDoubles` cannot assert the argument predicate. If verifying that the exact argument was a `SecretsManagerConfigurationSource` is essential, that specific assertion still requires `Compono.NSubstitute`/NSubstitute or a different observable seam.
+So `Verify().Add().Once()` verifies that `Add` was called once, but not which `IConfigurationSource` instance/type was passed. If asserting the argument type is essential, keep that particular test on NSubstitute or test through a real/recording `IConfigurationBuilder` instead.

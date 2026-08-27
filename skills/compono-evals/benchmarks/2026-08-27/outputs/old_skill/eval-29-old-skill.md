@@ -1,19 +1,45 @@
-Current Compono.TestDoubles setup:
+Use the generated-double `Configure()` surface, not NSubstitute argument matchers:
 
 ```csharp
-secretsManager.Configure()
-    .GetSecretValueAsync(
-        Match.Is<GetSecretValueRequest>(request => request.SecretId == secretName),
-        Match.Any<CancellationToken>())
+secretsManager
+    .Configure()
+    .GetSecretValueAsync()
     .Returns(Task.FromResult(response));
 ```
 
-Mapping from the old NSubstitute setup:
+Current Compono setup should look like this:
 
 ```csharp
-Arg.Is<GetSecretValueRequest>(...)  -> Match.Is<GetSecretValueRequest>(...)
-Arg.Any<CancellationToken>()        -> Match.Any<CancellationToken>()
-.Returns(...)                       -> .Returns(...)
+public sealed class GeneratedTestDoubleProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder.UseGeneratedTestDoubles();
+}
 ```
 
-Since `GetSecretValueAsync` is eligible/non-overloaded here and `IAmazonSecretsManager` resolves as a generated double, you don’t need NSubstitute or a hand-written fake.
+And the test needs the shared generated double so the configured instance is the same one injected into the SUT:
+
+```csharp
+[Theory]
+[Compose<GeneratedTestDoubleProfile>]
+public async Task Reads_secret(
+    [Shared] IAmazonSecretsManager secretsManager,
+    MySecretsProvider sut)
+{
+    var secretName = "my-secret";
+
+    var response = new GetSecretValueResponse
+    {
+        SecretString = """{"key":"value"}"""
+    };
+
+    secretsManager
+        .Configure()
+        .GetSecretValueAsync()
+        .Returns(Task.FromResult(response));
+
+    // act/assert...
+}
+```
+
+Important difference from NSubstitute: `Compono.TestDoubles` is argument-independent. This setup returns `response` for every `GetSecretValueAsync(...)` call. Since `GetSecretValueAsync` is non-overloaded here, the generated configuration member takes no arguments.

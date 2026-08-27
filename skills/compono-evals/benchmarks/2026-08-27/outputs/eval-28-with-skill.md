@@ -1,54 +1,36 @@
-Use a generated `IConfigurationBuilder` double as a shared parameter, configure `Add(...)` to return the builder, then verify with `Match.Is<T>(...)`:
+Use the generated double’s `Configure()`/`Verify()` surface, not `Received`/`Arg`.
 
 ```csharp
-using Compono;
-using Compono.XunitV3;
-using Microsoft.Extensions.Configuration;
-using Xunit;
-
-public sealed class SecretsManagerConfigurationBuilderExtensionsTests
+[Theory]
+[Compose<GeneratedTestDoubleProfile>]
+public void Adds_secrets_manager_configuration_source(IConfigurationBuilder configurationBuilder)
 {
-    [Theory]
-    [Compose<GeneratedTestDoubleProfile>]
-    public void AddSecretsManager_adds_secrets_manager_configuration_source(
-        [Shared] IConfigurationBuilder configurationBuilder)
-    {
-        configurationBuilder.Configure()
-            .Add(Match.Any<IConfigurationSource>())
-            .Returns(configurationBuilder);
+    // IConfigurationBuilder.Add returns IConfigurationBuilder, so configure the
+    // generated double to return itself when the extension method calls Add.
+    configurationBuilder.Configure()
+        .Add(Match.Any<IConfigurationSource>())
+        .Returns(configurationBuilder);
 
-        configurationBuilder.AddSecretsManager();
+    configurationBuilder.AddSecretsManager(/* test args */);
 
-        configurationBuilder.Verify()
-            .Add(Match.Is<IConfigurationSource>(
-                source => source is SecretsManagerConfigurationSource))
-            .Once();
-    }
+    configurationBuilder.Verify()
+        .Add(Match.Is<IConfigurationSource>(
+            source => source is SecretsManagerConfigurationSource))
+        .Once();
 }
 ```
 
-Key migration points:
+If the `IConfigurationBuilder` is also injected into a composed SUT/collaborator, mark it shared:
 
 ```csharp
-Arg.Is<IConfigurationSource>(...)
+public void Test([Shared] IConfigurationBuilder configurationBuilder, SomeService sut)
 ```
 
-becomes:
+But for a direct extension-method test, the key migration is:
 
 ```csharp
-Match.Is<IConfigurationSource>(...)
+configurationBuilder.Verify()
+    .Add(Match.Is<IConfigurationSource>(
+        source => source is SecretsManagerConfigurationSource))
+    .Once();
 ```
-
-and:
-
-```csharp
-configurationBuilder.Received(1).Add(...)
-```
-
-becomes:
-
-```csharp
-configurationBuilder.Verify().Add(...).Once();
-```
-
-Because `IConfigurationBuilder.Add` returns non-nullable `IConfigurationBuilder`, configuring it to return `configurationBuilder` avoids an unconfigured generated-double return failure and preserves the fluent builder behavior.
