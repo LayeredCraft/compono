@@ -74,6 +74,29 @@ user to make test-by-test, not something to do as a drive-by.
 
 ## Default workflow
 
+### High-priority `Compono.TestDoubles` matching guardrail
+
+If the project references `Compono.TestDoubles`, calls
+`UseGeneratedTestDoubles()`, mentions generated doubles, or asks to migrate
+NSubstitute `Arg.Is`/`Arg.Any`/`Received`/`DidNotReceive` usage to current
+TestDoubles, **read `references/testdoubles.md` before answering**. Do not
+answer from memory: older Compono guidance said generated doubles had no
+argument matching, but that is stale. Current TestDoubles supports
+`Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
+`Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
+and multi-entry argument-distinguished response configuration for eligible
+member shapes. Translate NSubstitute vocabulary directly where eligible:
+`Arg.Is<T>` → `Match.Is<T>`, `Arg.Any<T>()` → `Match.Any<T>()`,
+`Received(1)` → `Verify().Member(...).Once()`, `Received(n)` →
+`Verify().Member(...).Exactly(n)`, and `DidNotReceive()` →
+`Verify().Member(...).Never()`. Never invent non-existent TestDoubles APIs
+such as `CallsTo(...)`, `ReceivedCalls()`, or `[ComponoTest]`, and never
+recommend a hand-written recording fake solely because the old test used
+NSubstitute argument matchers. True argument capture, invocation-aware
+callback responses/side effects, and call-order verification are different
+capabilities; use project-local fake/roadmap guidance for those boundaries
+instead of claiming `Match<T>` solves them.
+
 1. **Detect** — run the table above. Know which packages are actually
    installed before recommending any API from them.
 2. **Inspect** the type under test and its collaborators — concrete class
@@ -96,11 +119,21 @@ user to make test-by-test, not something to do as a drive-by.
      performance win; ordinary composition is already cheap.
    - Interface/abstract-class/delegate needs a real test double →
      `Compono.NSubstitute`'s `UseNSubstitute()`, not a hand-rolled stub,
-     if that package is referenced. An **interface** leaf that only needs
-     configured returns/exceptions (no call verification, no argument
-     matchers) and must survive `PublishAot` → `Compono.TestDoubles`'s
-     `UseGeneratedTestDoubles()` instead, if that package is referenced and
-     the compile-time opt-in is set — see `references/testdoubles.md`.
+     if that package is referenced. An **interface** leaf that should be
+     source-generated/AOT-safe → `Compono.TestDoubles`'s
+     `UseGeneratedTestDoubles()`, if that package is referenced and the
+     compile-time opt-in is set. Current generated doubles support
+     `Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
+     `Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/
+     `Exactly(n)`, and multi-entry argument-distinguished response
+     configuration for eligible member shapes. Do not mistake NSubstitute
+     vocabulary (`Arg.Is`, `Arg.Any`, `Received`, `DidNotReceive`) for a
+     reason to invent a hand-written recording fake; translate it to the
+     generated-double surface where the member shape is eligible. True
+     argument capture, invocation-aware callback responses/side effects,
+     call-order verification, classes, delegates, and other explicitly
+     unsupported shapes remain outside current `Compono.TestDoubles`
+     support — see `references/testdoubles.md`.
    - A test deliberately needs to exercise the real HTTP client pipeline
      (real `HttpClient` → `TestHttpHandler` → configured response) rather
      than substitute an application-level interface away →

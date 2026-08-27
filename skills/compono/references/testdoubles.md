@@ -37,11 +37,21 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   `composer.Create<T>()`/`CreateMany<T>()` call site, a `[Compose]` theory/
   test method parameter, or a `[Composable]` declaration all feed the same
   closure walk).
-- **`.Returns(...)`/`.Throws(...)`** per member. Argument-independent —
-  there is no `Arg.Any<T>()`/argument-matcher equivalent; configuration
-  applies to every call to that member regardless of arguments. Last
-  configuration wins: calling `.Returns(...)` after an earlier
-  `.Throws(...)` on the same member clears the exception (and vice versa).
+- **`.Returns(...)`/`.Throws(...)`** per member configuration.
+  Zero-argument `Configure().Member()` configures the member regardless of
+  arguments. For eligible parameterized members, `Configure().Member(...)`
+  accepts `Match<T>` arguments: literal values match by equality,
+  `Match.Any<T>()` matches anything, and `Match.Is<T>(predicate)` matches
+  by predicate.
+- **`Verify()`** — parallel to and independent from `Configure()`, returning
+  a verifier surface for `Never()`/`Once()`/`Exactly(n)`. Zero-argument
+  `Verify().Member()` counts every call to that member. For eligible
+  parameterized members, `Verify().Member(...)` uses the same `Match<T>`
+  argument shape to perform argument-filtered verification.
+- **Multi-entry argument-distinguished configuration** — for matching-
+  eligible members, multiple `Configure().Member(...)` calls can coexist.
+  Dispatch uses the most recently registered matching entry; precedence is
+  registration order, not matcher-specificity ranking.
 - **Full base-interface closure.** If `IRepository : IClock`, the generated
   double implements `IClock.UtcNow` too, configurable via
   `repository.Configure().UtcNow().Returns(...)` — not just `IRepository`'s
@@ -51,25 +61,96 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   known collection shapes return their deterministic default (empty
   collections, never `null`). `Task<T>`/`ValueTask<T>` recurse into `T` —
   `Task<int>` is fine, but `Task<Customer>` (a non-nullable reference `T`)
-  has no deterministic default for its result and hits the same diagnostic
-  as a bare non-nullable reference return. A member with **no**
-  deterministic default — a non-nullable reference return (`string`, a
-  non-nullable class), or a `Task<T>`/`ValueTask<T>` wrapping one — is a
-  compile-time diagnostic instead; the generator never emits `null` for a
-  non-nullable-annotated return.
+  may require explicit configuration rather than a default. See
+  "Configuration-required members" below.
+
+## Argument matching and filtered verification
+
+Do not conflate argument matching with argument capture. Current
+`Compono.TestDoubles` supports ordinary matcher-based configuration and
+verification for eligible members; it does not expose an arbitrary call log
+or invocation callback API.
+
+### NSubstitute migration mapping
+
+When migrating from NSubstitute, do not introduce a hand-written recording
+fake merely because the old test uses `Arg.Is`, `Arg.Any`, `Received`, or
+`DidNotReceive`. For an eligible generated-double member, translate the
+concepts directly:
+
+| NSubstitute | Compono.TestDoubles |
+|---|---|
+| `Arg.Is<T>(predicate)` | `Match.Is<T>(predicate)` |
+| `Arg.Any<T>()` | `Match.Any<T>()` |
+| literal argument | literal argument (equality match) |
+| `Received(1).Member(...)` | `Verify().Member(...).Once()` |
+| `Received(n).Member(...)` | `Verify().Member(...).Exactly(n)` |
+| `DidNotReceive().Member(...)` | `Verify().Member(...).Never()` |
+
+Real AWS Secrets Manager Provider migration shapes:
+
+```csharp
+configurationBuilder.Verify()
+    .Add(Match.Is<IConfigurationSource>(source => source is SecretsManagerConfigurationSource))
+    .Once();
+```
+
+```csharp
+secretsManager.Configure()
+    .GetSecretValueAsync(
+        Match.Is<GetSecretValueRequest>(request => request.SecretId == secretName),
+        Match.Any<CancellationToken>())
+    .Returns(Task.FromResult(response));
+```
+
+### Eligibility boundary
+
+Argument-aware `Configure().Member(...)`/`Verify().Member(...)` is generated
+for a member only when the member is eligible: it is not overloaded, its
+real parameters do not reference the member's own open generic type
+parameter, its real parameters are usable as generic type arguments, the
+derived generated field names do not collide, and its generated extension
+would not be hidden by an inherited `object` member. If a member is scoped
+out of argument-awareness, keep using the existing argument-independent
+surface (`Configure().Member()` / `Verify().Member()`) or choose another
+test seam/provider when the test genuinely needs argument distinction.
+
+Overloaded members keep the discriminator-only shape described below: their
+arguments select the overload at compile time; they are not matchers.
+
+## Multiple response configurations per member
+
+For matching-eligible members, each `Configure().Member(...)` call appends a
+new response configuration. Dispatch walks matching entries from newest to
+oldest and uses the first match:
+
+```csharp
+repository.Configure()
+    .Withdraw(Match.Any<string>(), Match.Any<decimal>(), Match.Any<bool>())
+    .Returns(false);
+repository.Configure()
+    .Withdraw("acct-1", Match.Any<decimal>(), Match.Any<bool>())
+    .Returns(true);
+```
+
+`Withdraw("acct-1", ...)` returns `true`; other accounts return `false`.
+There is no matcher-specificity ranking — if two entries both match, the
+one configured later wins.
+
+This is still not sequential/call-count-based responses. There is no
+"return X on the first call, Y on the second" API.
 
 ## Overloaded members (v2)
 
-An overloaded interface member now gets its own per-overload `Configure()`
+An overloaded interface member gets its own per-overload `Configure()`
 surface instead of an all-or-nothing rejection (see
 `docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`) —
 the generated configuration extension for an overloaded member takes the
 same real parameter types the interface overload declares, purely so
-ordinary C# overload resolution picks the right one (the values themselves
-are still discarded, same as the non-overloaded, zero-argument case).
-`Verify()` reuses this same per-overload surface - `Verify().Speak("hi")`
-selects the same overload-specific counter `Configure().Speak("hi")`
-would:
+ordinary C# overload resolution picks the right one. The values themselves
+are still discarded and are **not** argument matchers. `Verify()` reuses
+this same per-overload surface - `Verify().Speak("hi")` selects the same
+overload-specific counter `Configure().Speak("hi")` would:
 
 ```csharp
 public interface IResponseBuilder
@@ -133,29 +214,37 @@ argument is needed at the call site whenever ordinary overload-resolution
 betterness rules wouldn't otherwise pick that overload (same as a real
 call to the interface member itself).
 
-**Still unsupported:** a generic method whose return type depends on its
-own type parameter (`T Get<T>()`) - no constructible fallback body, whole
-interface falls back (`CMP0031`). **Any** type parameter used as `T?` in a
-parameter is diagnosed and excluded too (`CMP0026`) - constrained or
-unconstrained, regardless of which constraint; correctly modeling exactly
-when (and with which keyword) a constraint restatement is required isn't
-attempted.
+A generic method whose return type depends directly on its own type
+parameter (`T Get<T>()`, `Task<T> GetAsync<T>()`, and supported nullable
+variants) can have per-closed-`T` configuration. Argument matching is
+available for that shape only when the member's parameters are otherwise
+matching-eligible and do not use the method's own open type parameter.
 
-## Call verification (v2)
+Still unsupported: unsupported generic-return shapes beyond the documented
+per-closed-`T` cases, value-type-constrained `T?` (`System.Nullable<T>`),
+and parameter shapes the generator cannot represent without reflection or
+boxing. See `diagnostics.md` before guessing a workaround.
+
+## Call verification (v2+)
 
 `Verify()` — parallel to and independent from `Configure()`, returning a
-distinct wrapper so the two never collide — asserts how many times a
-member was actually called
-(`docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`
-Requirement 3). `Never()`/`Once()`/`Exactly(n)` only, argument-independent
-(same as `Configure()`), reusing the same per-overload discriminator
-`Configure()` does:
+distinct wrapper so the two never collide — asserts how many times a member
+was actually called. `Never()`/`Once()`/`Exactly(n)` are the terminal
+count assertions. For argument-aware members, filtering happens in the
+generated `Verify().Member(...)` extension before the terminal
+`CallVerifier` is returned:
 
 ```csharp
 repository.Configure().CountAsync().Returns(Task.FromResult(5));
 var order = await service.PlaceAsync(3);
 repository.Verify().CountAsync().Once();
 repository.Verify().Save().Once();
+```
+
+```csharp
+repository.Verify()
+    .Save(Match.Is<Order>(order => order.Id == expectedId))
+    .Once();
 ```
 
 A failing assertion throws `Compono.TestDoubleVerificationException` (a
@@ -190,18 +279,33 @@ This applies identically to sync/async/property members and to a fluent
 self-returning member (`IResponseBuilder`-shaped) — none of those get
 special-cased, all follow the same rule.
 
-## The #1 AutoFixture/NSubstitute-habit trap: not a general mocking framework
+## The #1 AutoFixture/NSubstitute-habit trap: matching is not capture
 
-There are **no** argument matchers, **no** argument-aware call recording
-(every count is per-member, not per-argument-combination), and **no**
-call-order verification. If a test needs different return values for
-different arguments, or needs to assert *when* relative to other calls a
-member ran, `Compono.TestDoubles` cannot do it — use
-`Compono.NSubstitute`'s `UseNSubstitute()` for that interface instead (the
-two providers can coexist; registration order decides which one resolves
-first, see below). Don't try to work around the gap by polling state or
-inventing a callback-shaped member on the interface just to observe a
-call — that's fighting the framework, not using it.
+`Compono.TestDoubles` is not a general-purpose mocking framework, but it
+does support argument matching and argument-filtered verification for the
+eligible member shapes above. The remaining boundary is stronger behavior
+that needs access to the actual invocation as a first-class value:
+
+- true argument capture for later arbitrary inspection outside a generated
+  `Verify().Member(Match...)` count assertion;
+- invocation-aware callback responses (`Returns(call => ...)`,
+  `Returns(Func<CallInfo, T>)`, or "invoke this delegate argument and use
+  its result");
+- callback side effects based on the actual invocation;
+- call-order verification;
+- sequential/call-count-based responses;
+- strict mode, partial substitutes, recursive auto-configuration;
+- classes, delegates, indexers, events, and other unsupported shapes listed
+  below.
+
+If a test only needs "this member was called once with an argument matching
+this predicate," use `Verify().Member(Match.Is<T>(...)).Once()`. If it
+needs to store every argument for arbitrary later inspection, run code from
+a callback, or invoke a delegate argument, that is a different capability;
+use an existing project-local fake or `Compono.NSubstitute` where the
+project intentionally keeps that dependency, and treat any real
+`Compono.NSubstitute`-can/`Compono.TestDoubles`-cannot case as roadmap
+evidence under ADR-0042 Amendment 2.
 
 ## Unsupported shapes are compile-time diagnostics, not silent gaps
 
@@ -214,29 +318,28 @@ runtime `CompositionException` if no provider handles it, not a `CMP002x`
 diagnostic).
 
 For an eligible **interface**, indexers, events, a genuinely unimplemented
-static abstract member, a generic method whose return type depends on its
-own type parameter, a generic type parameter used as `T?` (constrained or
-not), and a handful of narrower shapes (set-only properties,
+static abstract member, unsupported generic-method return/parameter shapes,
+and a handful of narrower shapes (set-only properties,
 pointer/function-pointer parameters or returns, ref-like returns) still
 reject the **whole interface** at compile time (`CMP0020`-`CMP0031`,
 informational severity — they don't fail the build): it falls back to the
-ordinary runtime-provider path, same as any
-interface the compile-time opt-in never reached. Overloaded members, a
-`ref`/`out`/`in` parameter, and a generic method independent of its own
-type parameter are narrower now (see above) — only the specific
-colliding/unsupported overload loses its surface, not the whole interface.
-A non-nullable-reference return with no deterministic default no longer
-rejects the whole interface either (v2, see "Configuration-required
-members" above) — unless it also lacks a `Configure()` surface for one of
-those other reasons, in which case it still does. See `diagnostics.md` for
-the full code table before guessing a fix.
+ordinary runtime-provider path, same as any interface the compile-time
+opt-in never reached. Overloaded members, a `ref`/`out`/`in` parameter,
+and a generic method independent of its own type parameter are narrower now
+(see above) — only the specific colliding/unsupported overload loses its
+surface, not the whole interface. A non-nullable-reference return with no
+deterministic default no longer rejects the whole interface either (v2,
+see "Configuration-required members" above) — unless it also lacks a
+`Configure()` surface for one of those other reasons, in which case it
+still does. See `diagnostics.md` for the full code table before guessing a
+fix.
 
-A static abstract member declared on a base interface but already
-resolved by a more-derived interface's own concrete implementation (C#'s
-"most specific implementation" rule — the `IAmazonS3`/`IAmazonService`
-shape) is **not** a genuinely unimplemented member at all and doesn't
-reject anything; only a static abstract member with no override anywhere
-in the interface's hierarchy still whole-interface-rejects (ADR-0046).
+A static abstract member declared on a base interface but already resolved
+by a more-derived interface's own concrete implementation (C#'s "most
+specific implementation" rule — the `IAmazonS3`/`IAmazonService` shape) is
+**not** a genuinely unimplemented member at all and doesn't reject anything;
+only a static abstract member with no override anywhere in the interface's
+hierarchy still whole-interface-rejects (ADR-0046).
 
 ## Precedence with `Compono.NSubstitute`
 
@@ -246,15 +349,14 @@ var composer = Composer.Create(builder => builder
     .UseNSubstitute());
 ```
 
-Both providers can be registered together. Registration order decides
-which one resolves an interface request first — `UseGeneratedTestDoubles()`
+Both providers can be registered together. Registration order decides which
+one resolves an interface request first — `UseGeneratedTestDoubles()`
 registered before `UseNSubstitute()` means any interface the generator
 emitted a double for resolves to the generated double; an interface that
-never got a generated double falls through to `NSubstituteProvider`
-(or to composition failure if neither provider claims it). This is the
-same "tried in registration order" contract every provider already
-follows — no special-cased precedence logic exists between these two
-specifically.
+never got a generated double falls through to `NSubstituteProvider` (or to
+composition failure if neither provider claims it). This is the same "tried
+in registration order" contract every provider already follows — no
+special-cased precedence logic exists between these two specifically.
 
 ## Combining with `[Shared]`
 
@@ -267,7 +369,7 @@ public async Task Saves_order([Shared] IRepository repository, OrderService serv
 {
     repository.Configure().CountAsync().Returns(Task.FromResult(4));
     var order = await service.PlaceAsync(6);
-    // repository is the exact double `service` was composed with
+    repository.Verify().Save(Match.Is<Order>(saved => saved.Id == order.Id)).Once();
 }
 ```
 
@@ -280,12 +382,12 @@ public async Task Saves_order([Shared] IRepository repository, OrderService serv
 {
     repository.Configure().CountAsync().Returns(Task.FromResult(4));
     var order = await service.PlaceAsync(6);
-    // repository is the exact double `service` was composed with
+    repository.Verify().Save(Match.Is<Order>(saved => saved.Id == order.Id)).Once();
 }
 ```
 
 `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`) is what lets you both
-configure a double *and* have it wired into the composed system under
+configure/verify a double *and* have it wired into the composed system under
 test — see `registrations-profiles-and-scopes.md`. Without `[Shared]`, a
 double-typed parameter and a double nested inside another composed type
 would be two different generated-double instances.

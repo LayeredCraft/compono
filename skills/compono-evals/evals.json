@@ -315,6 +315,56 @@
         "Does not imply per-profile/scoped constructor selection is supported anywhere",
         "Does not conflate CMP0033 and CMP0034 as the same problem"
       ]
+    },
+    {
+      "id": 28,
+      "category": "migration",
+      "prompt": "Migrate this AWS Secrets Manager Provider xUnit v3 test from AutoFixture/NSubstitute to Compono.XunitV3 + Compono.TestDoubles. The project references Compono, Compono.XunitV3, and Compono.TestDoubles, has <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>, and the profile calls UseGeneratedTestDoubles(). The old assertion is: configurationBuilder.Received(1).Add(Arg.Is<IConfigurationSource>(source => source is SecretsManagerConfigurationSource)); IConfigurationBuilder.Add is a non-overloaded interface member in this project. What should the Compono version look like?",
+      "expected_output": "Uses the generated TestDoubles verification surface: configurationBuilder.Verify().Add(Match.Is<IConfigurationSource>(source => source is SecretsManagerConfigurationSource)).Once(); Explains Arg.Is maps to Match.Is and Received(1) maps to Verify().Once() for an eligible member. Does not introduce a hand-written recording fake merely because Arg.Is appears.",
+      "files": [],
+      "expectations": [
+        "Uses configurationBuilder.Verify().Add(Match.Is<IConfigurationSource>(...)).Once() for the migrated assertion",
+        "Correctly maps Arg.Is<T>(predicate) to Match.Is<T>(predicate) and Received(1) to Verify().Once()",
+        "Does not recommend or introduce a hand-written recording fake solely because the original NSubstitute assertion used Arg.Is"
+      ]
+    },
+    {
+      "id": 29,
+      "category": "migration",
+      "prompt": "Migrate this AWS Secrets Manager Provider setup from NSubstitute to Compono.TestDoubles. The project has Compono.TestDoubles configured and IAmazonSecretsManager is resolved as a generated double. Old code: secretsManager.GetSecretValueAsync(Arg.Is<GetSecretValueRequest>(request => request.SecretId == secretName), Arg.Any<CancellationToken>()).Returns(Task.FromResult(response)); GetSecretValueAsync is a non-overloaded interface member for this usage. Show the current Compono setup.",
+      "expected_output": "Uses secretsManager.Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(request => request.SecretId == secretName), Match.Any<CancellationToken>()).Returns(Task.FromResult(response)); Does not claim TestDoubles lacks argument matching, and does not fall back to NSubstitute or a fake for this ordinary argument-matched configuration.",
+      "files": [],
+      "expectations": [
+        "Uses secretsManager.Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(...), Match.Any<CancellationToken>()).Returns(...) for the migrated setup",
+        "Correctly maps Arg.Any<T>() to Match.Any<T>() and Arg.Is<T>(predicate) to Match.Is<T>(predicate)",
+        "Does not claim Compono.TestDoubles lacks argument matching or require a hand-written fake/NSubstitute for this eligible member"
+      ]
+    },
+    {
+      "id": 30,
+      "category": "behavioral-correctness",
+      "prompt": "I'm reviewing a Compono.TestDoubles migration in AWS Secrets Manager Provider. The old tests are full of NSubstitute vocabulary: Arg.Is, Arg.Any, Received(1), Received(2), and DidNotReceive. The project intentionally removed NSubstitute and Compono.NSubstitute; it now references Compono.XunitV3 and Compono.TestDoubles with generated doubles enabled. Should I write recording fakes for IAmazonSecretsManager, IConfigurationBuilder, and ILoggerFactory because the old tests used those NSubstitute APIs? Assume the members being migrated are eligible non-overloaded interface members.",
+      "expected_output": "Says no: NSubstitute vocabulary alone is not evidence a fake is required. Translates Arg.Is<T> -> Match.Is<T>, Arg.Any<T> -> Match.Any<T>, Received(1) -> Verify().Member(...).Once(), Received(n) -> Verify().Member(...).Exactly(n), and DidNotReceive() -> Verify().Member(...).Never() for eligible TestDoubles members. Recommends local fakes only for actual unsupported boundaries such as capture/callback/call order, not for ordinary matching/filtering.",
+      "files": [],
+      "expectations": [
+        "Explicitly rejects writing recording fakes solely because the original tests use Arg.Is/Arg.Any/Received/DidNotReceive",
+        "Maps Arg.Is<T> to Match.Is<T> and Arg.Any<T> to Match.Any<T>",
+        "Maps Received(1) to Verify().Once(), Received(n) to Verify().Exactly(n), and DidNotReceive() to Verify().Never() where the member shape is eligible",
+        "Distinguishes ordinary matching/filtering from actual unsupported boundaries such as capture, callbacks, and call-order verification"
+      ]
+    },
+    {
+      "id": 31,
+      "category": "behavioral-correctness",
+      "prompt": "In a Compono.TestDoubles migration, one old NSubstitute setup uses a callback-style response: when pipeline.InvokeAsync(Arg.Any<RequestHandlerDelegate>(), Arg.Any<CancellationToken>()) is called, the substitute must invoke the actual RequestHandlerDelegate argument, record side effects around that invocation, and return the delegate's result. Can I express this with Match.Any<T>()/Match.Is<T>() in TestDoubles, or should I keep a local fake?",
+      "expected_output": "Explains the boundary: ordinary argument matching/filtering is supported by Match.Any/Match.Is and Verify(...).Once/Never/Exactly, but this scenario is stronger invocation-aware callback/capture behavior. Match<T> only decides whether an argument matches; it does not expose the actual invocation to Returns, invoke delegate arguments, or run callback side effects. Recommends following existing roadmap/project-local-fake guidance for that unsupported boundary rather than claiming Match<T> solves it.",
+      "files": [],
+      "expectations": [
+        "States that ordinary matching and argument-filtered verification are supported by Compono.TestDoubles",
+        "Clearly says the described callback/capture scenario is a different, stronger capability than matching",
+        "Does not claim Match<T> can inspect the actual invocation inside Returns, invoke delegate arguments, or implement callback side effects",
+        "Recommends a project-local fake or existing roadmap guidance for the unsupported invocation-aware callback boundary"
+      ]
     }
   ]
 }
