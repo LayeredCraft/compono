@@ -6,7 +6,7 @@
 The exception passed to the logging call, if any\.
 
 ```csharp
-public System.Exception? Exception { get; init; }
+public System.Exception? Exception { get; }
 ```
 
 #### Property Value

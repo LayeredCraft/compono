@@ -8,7 +8,7 @@ delegate \- never re\-derived by [CapturingLogger](Compono.Logging.CapturingLogg
 real logging provider would have produced\.
 
 ```csharp
-public string Message { get; init; }
+public string Message { get; }
 ```
 
 #### Property Value

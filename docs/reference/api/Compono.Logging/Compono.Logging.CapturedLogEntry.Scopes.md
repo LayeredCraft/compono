@@ -10,7 +10,7 @@ fixed at capture time \- a scope pushed or disposed afterward never retroactivel
 already\-captured entry\.
 
 ```csharp
-public System.Collections.Generic.IReadOnlyList<object> Scopes { get; init; }
+public System.Collections.Generic.IReadOnlyList<object> Scopes { get; }
 ```
 
 #### Property Value

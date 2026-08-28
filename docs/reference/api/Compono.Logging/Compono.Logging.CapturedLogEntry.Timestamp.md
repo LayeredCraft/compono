@@ -6,7 +6,7 @@
 When this entry was captured\.
 
 ```csharp
-public System.DateTimeOffset Timestamp { get; init; }
+public System.DateTimeOffset Timestamp { get; }
 ```
 
 #### Property Value

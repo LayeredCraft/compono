@@ -51,18 +51,16 @@ internal sealed class LogEntryCollector
         var (properties, messageTemplate) = ExtractStructuredState(state);
         var scopes = SnapshotScopes();
 
-        var entry = new CapturedLogEntry
-        {
-            LogLevel = logLevel,
-            EventId = eventId,
-            Exception = exception,
-            Message = message,
-            State = state,
-            Properties = properties,
-            MessageTemplate = messageTemplate,
-            Scopes = scopes,
-            Timestamp = DateTimeOffset.UtcNow,
-        };
+        var entry = new CapturedLogEntry(
+            logLevel,
+            eventId,
+            exception,
+            message,
+            state,
+            properties,
+            messageTemplate,
+            scopes,
+            DateTimeOffset.UtcNow);
 
         lock (_lock)
         {

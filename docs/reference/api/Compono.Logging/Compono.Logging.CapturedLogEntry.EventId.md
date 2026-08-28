@@ -6,7 +6,7 @@
 The [EventId](Compono.Logging.CapturedLogEntry.EventId.md 'Compono\.Logging\.CapturedLogEntry\.EventId') passed to the logging call\.
 
 ```csharp
-public Microsoft.Extensions.Logging.EventId EventId { get; init; }
+public Microsoft.Extensions.Logging.EventId EventId { get; }
 ```
 
 #### Property Value

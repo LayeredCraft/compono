@@ -15,7 +15,7 @@ signature is the more truthful contract for that case \(ADR\-0055's "Properties 
 decision\)\.
 
 ```csharp
-public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string,object?>>? Properties { get; init; }
+public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string,object?>>? Properties { get; }
 ```
 
 #### Property Value

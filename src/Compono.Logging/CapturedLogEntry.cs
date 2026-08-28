@@ -11,26 +11,54 @@ namespace Compono.Logging;
 /// </summary>
 public readonly record struct CapturedLogEntry
 {
+    /// <summary>
+    /// Populates every field of a captured entry in one call - <see cref="CapturedLogEntry"/> is an
+    /// inspection model Compono.Logging itself produces (per ADR-0055 §7/§9/§12's documented
+    /// getter-only shape); an external consumer reads it but never fabricates one, so this
+    /// constructor is <see langword="internal"/> rather than a public object-initializer surface.
+    /// </summary>
+    internal CapturedLogEntry(
+        LogLevel logLevel,
+        EventId eventId,
+        Exception? exception,
+        string message,
+        object? state,
+        IReadOnlyList<KeyValuePair<string, object?>>? properties,
+        string? messageTemplate,
+        IReadOnlyList<object> scopes,
+        DateTimeOffset timestamp)
+    {
+        LogLevel = logLevel;
+        EventId = eventId;
+        Exception = exception;
+        Message = message;
+        State = state;
+        Properties = properties;
+        MessageTemplate = messageTemplate;
+        Scopes = scopes;
+        Timestamp = timestamp;
+    }
+
     /// <summary>The level this entry was logged at. Never <see cref="LogLevel.None"/> - a
     /// <see cref="LogLevel.None"/> call is never captured in the first place.</summary>
-    public required LogLevel LogLevel { get; init; }
+    public LogLevel LogLevel { get; }
 
     /// <summary>The <see cref="EventId"/> passed to the logging call.</summary>
-    public required EventId EventId { get; init; }
+    public EventId EventId { get; }
 
     /// <summary>The exception passed to the logging call, if any.</summary>
-    public Exception? Exception { get; init; }
+    public Exception? Exception { get; }
 
     /// <summary>
     /// The pre-formatted message, produced via the caller's own <c>formatter(state, exception)</c>
     /// delegate - never re-derived by <see cref="CapturingLogger"/>, so it can't diverge from what a
     /// real logging provider would have produced.
     /// </summary>
-    public required string Message { get; init; }
+    public string Message { get; }
 
     /// <summary>The raw, boxed <c>TState</c> - always present, the escape hatch for a shape
     /// <see cref="Properties"/>/<see cref="MessageTemplate"/> doesn't cover.</summary>
-    public object? State { get; init; }
+    public object? State { get; }
 
     /// <summary>
     /// Non-null only when <see cref="State"/> implements
@@ -44,14 +72,14 @@ public readonly record struct CapturedLogEntry
     /// signature is the more truthful contract for that case (ADR-0055's "Properties nullability"
     /// decision).
     /// </summary>
-    public IReadOnlyList<KeyValuePair<string, object?>>? Properties { get; init; }
+    public IReadOnlyList<KeyValuePair<string, object?>>? Properties { get; }
 
     /// <summary>
     /// <see cref="Properties"/>'s <c>"{OriginalFormat}"</c> entry, surfaced by name.
     /// <see langword="null"/> if <see cref="Properties"/> is <see langword="null"/> or that key is
     /// absent.
     /// </summary>
-    public string? MessageTemplate { get; init; }
+    public string? MessageTemplate { get; }
 
     /// <summary>
     /// Every scope active at the moment this entry was captured, outermost-to-innermost - matches
@@ -60,8 +88,8 @@ public readonly record struct CapturedLogEntry
     /// fixed at capture time - a scope pushed or disposed afterward never retroactively changes an
     /// already-captured entry.
     /// </summary>
-    public required IReadOnlyList<object> Scopes { get; init; }
+    public IReadOnlyList<object> Scopes { get; }
 
     /// <summary>When this entry was captured.</summary>
-    public required DateTimeOffset Timestamp { get; init; }
+    public DateTimeOffset Timestamp { get; }
 }

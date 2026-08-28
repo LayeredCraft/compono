@@ -8,7 +8,7 @@
             absent\.
 
 ```csharp
-public string? MessageTemplate { get; init; }
+public string? MessageTemplate { get; }
 ```
 
 #### Property Value

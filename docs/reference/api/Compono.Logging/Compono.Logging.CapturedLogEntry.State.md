@@ -7,7 +7,7 @@ The raw, boxed `TState` \- always present, the escape hatch for a shape
             [Properties](Compono.Logging.CapturedLogEntry.Properties.md 'Compono\.Logging\.CapturedLogEntry\.Properties')/[MessageTemplate](Compono.Logging.CapturedLogEntry.MessageTemplate.md 'Compono\.Logging\.CapturedLogEntry\.MessageTemplate') doesn't cover\.
 
 ```csharp
-public object? State { get; init; }
+public object? State { get; }
 ```
 
 #### Property Value
