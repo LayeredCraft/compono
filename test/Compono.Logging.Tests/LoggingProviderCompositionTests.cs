@@ -32,6 +32,28 @@ public sealed class LoggingProviderCompositionTests
     }
 
     [Fact]
+    public void UseLogging_SnapshotsOptions_MutationAfterComposerCreateDoesNotAffectAlreadyRegisteredProvider()
+    {
+        // LoggingProvider must snapshot LoggingOptions at construction, not retain the caller-owned
+        // instance the configure callback received - matching NSubstituteProvider's own snapshot
+        // pattern (ADR-0024's immutable-provider-registration guarantee). If it retained the live
+        // reference instead, mutating capturedOptions below would silently change this
+        // already-built composer's filtering behavior.
+        LoggingOptions? capturedOptions = null;
+        var composer = Composer.Create(builder => builder.UseLogging(o => capturedOptions = o));
+
+        // Mutating the captured (caller-owned) instance to the most restrictive level, after the
+        // composer already exists, must have no effect on the already-registered provider.
+        capturedOptions.Should().NotBeNull();
+        capturedOptions!.MinimumLevel = LogLevel.None;
+
+        var service = composer.Create<PlainLoggerService>();
+        service.LogSomething();
+
+        service.Logger.GetCapturedEntries().Should().HaveCount(1);
+    }
+
+    [Fact]
     public void UseLogging_DoesNotBreakComposition_ForTypesWithNoLoggerDependency()
     {
         var composer = Composer.Create(builder => builder.UseLogging());

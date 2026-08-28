@@ -9,9 +9,25 @@ namespace Compono.Logging;
 /// <see cref="CompositionBuilderExtensions.UseLogging"/>. See
 /// docs/adr/0055-compono-logging-testing-support-package.md.
 /// </summary>
-internal sealed class LoggingProvider(LoggingOptions options) : ICompositionValueProvider
+internal sealed class LoggingProvider : ICompositionValueProvider
 {
     private static readonly Type OpenLoggerOfT = typeof(ILogger<>);
+
+    private readonly LoggingOptions _options;
+
+    /// <summary>
+    /// Creates a <see cref="LoggingProvider"/>, snapshotting <paramref name="options"/>'s current
+    /// values into a new, provider-owned instance - the provider never retains the caller-owned
+    /// <see cref="LoggingOptions"/> the <c>UseLogging(configure)</c> callback received, so a caller
+    /// that captures and mutates it after <c>Composer.Create</c> returns can't change this
+    /// already-registered provider's behavior, matching <c>NSubstituteProvider</c>'s own snapshot
+    /// pattern and ADR-0024's immutable-provider-registration guarantee.
+    /// </summary>
+    public LoggingProvider(LoggingOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _options = new LoggingOptions { MinimumLevel = options.MinimumLevel };
+    }
 
     /// <inheritdoc />
     public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context)
@@ -19,12 +35,12 @@ internal sealed class LoggingProvider(LoggingOptions options) : ICompositionValu
         var requestedType = request.RequestedType;
 
         if (requestedType == typeof(ILogger))
-            return CompositionProviderResult.Handled(new CapturingLogger(options));
+            return CompositionProviderResult.Handled(new CapturingLogger(_options));
 
         if (!requestedType.IsGenericType || requestedType.GetGenericTypeDefinition() != OpenLoggerOfT)
             return CompositionProviderResult.NotHandled;
 
-        if (LoggingFactoryRegistry.TryCreate(requestedType, options, out var value))
+        if (LoggingFactoryRegistry.TryCreate(requestedType, _options, out var value))
             return CompositionProviderResult.Handled(value);
 
         // Recognized as a closed ILogger<T> request but no generated activator exists for it -
