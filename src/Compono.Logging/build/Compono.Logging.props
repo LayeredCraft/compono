@@ -1,0 +1,25 @@
+<Project>
+
+  <!--
+    Defaults ComponoGeneratedLogging to true whenever it hasn't already been set - by a consumer's
+    own project body, their own Directory.Build.props, or anywhere else - per
+    docs/adr/0055-compono-logging-testing-support-package.md Amendment 3: installing Compono.Logging
+    enables its generation behavior by default, matching the product decision to lower the barrier
+    to entry (contrasted deliberately with Compono.TestDoubles' own ComponoGeneratedTestDoubles,
+    which stays pure opt-in - see ADR-0055 Amendment 3's own "Not part of this amendment" section).
+
+    The Condition guard is what makes an explicit consumer choice win reliably regardless of where
+    it's set: this file imports before the consumer's own project body evaluates (ordinary NuGet
+    build/buildTransitive props import order), so a later, unconditional assignment in the
+    consumer's own .csproj always overwrites this; an earlier, unconditional assignment (e.g. the
+    consumer's own Directory.Build.props) is still safe, because this Condition sees it's already
+    non-empty and never overwrites it either way.
+
+    Packaged into both build/ and buildTransitive/ so the default applies whether Compono.Logging is
+    referenced directly or transitively.
+  -->
+  <PropertyGroup>
+    <ComponoGeneratedLogging Condition="'$(ComponoGeneratedLogging)' == ''">true</ComponoGeneratedLogging>
+  </PropertyGroup>
+
+</Project>

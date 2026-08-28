@@ -336,4 +336,27 @@ internal static class DiagnosticDescriptors
         "Compono.TestDoubles",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor LoggingRuntimeSymbolsUnavailable = new(
+        "CMP0038",
+        "ComponoGeneratedLogging is enabled but Compono.Logging's runtime types are unavailable",
+        "ComponoGeneratedLogging is enabled (explicitly, or by Compono.Logging's own package default), " +
+        "but Compono.Logging.LoggingFactoryRegistry, Compono.Logging.CapturingLogger<T>, and/or " +
+        "Compono.Logging.LoggingOptions could not be resolved in this compilation. Is Compono.Logging " +
+        "referenced? No logging activation is generated while this condition holds.",
+        "Compono.Logging",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InaccessibleLoggingCategoryType = new(
+        "CMP0039",
+        "ILogger<T> category type is not accessible",
+        "'{0}' cannot have a generated Compono.Logging activation - the activation is emitted as a " +
+        "top-level type outside any containing type, so a private or protected category type can " +
+        "never be referenced from it, even from a call site that could otherwise see it. Composing " +
+        "ILogger<{0}> still compiles; requesting it at runtime falls back to LoggingProvider's own " +
+        "missing-activation diagnostic instead of a generated capturing logger.",
+        "Compono.Logging",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

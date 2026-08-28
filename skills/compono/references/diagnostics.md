@@ -5,16 +5,23 @@ Two completely different failure classes — don't confuse them:
 - **Compile-time**: `CMP0001`-`CMP0013` (errors — fail `dotnet build`),
   `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037` (informational — never fail
   the build, only relevant if `ComponoGeneratedTestDoubles=true` is set,
-  whether or not `Compono.TestDoubles` is referenced), and `CMP0033`-
+  whether or not `Compono.TestDoubles` is referenced), `CMP0033`-
   `CMP0034` (errors — explicit constructor selection, ADR-0002 Amendment
-  3/ADR-0052 Part B),
+  3/ADR-0052 Part B), and `CMP0038`-`CMP0039` (informational — only
+  relevant if `Compono.Logging`'s `ComponoGeneratedLogging` is enabled,
+  true by default once that package is referenced),
   all emitted by `Compono.Generators` (a Roslyn analyzer). Look up the
   code below.
 - **Runtime**: `CompositionException`, thrown from `composer.Create<T>()`
   or a `[Compose]` theory row when the code compiled fine but the
   pipeline couldn't satisfy a request — most commonly a missing provider
   for an interface/abstract/delegate type. Read the tree path and seed
-  (below), don't guess from the root type alone.
+  (below), don't guess from the root type alone. **Not the same as**
+  `Compono.Logging`'s own two runtime `InvalidOperationException`
+  conditions (calling `Verify()`/etc. on a non-`Compono.Logging`
+  `ILogger`, or a recognized `ILogger<T>` request with no generated
+  activation) — those are ordinary exceptions, not `CompositionException`,
+  and are covered in `references/logging.md`, not this page.
 
 Always check *which* class you're looking at first: a red squiggle /
 build failure is compile-time (this doc's table); a test that compiled
@@ -122,6 +129,25 @@ fixing either — it's informational, telling you which members need
 `Configure().Member(...).Returns(...)`/`.Throws(...)` before their first
 call, same as any other member's `Configure()` surface, just without a
 usable deterministic default to fall back on if you forget.
+
+## Compile-time, Compono.Logging activation generation only: CMP0038-CMP0039
+
+Only relevant if `ComponoGeneratedLogging` is enabled — true by default
+the moment `Compono.Logging` is referenced (its own packed
+`build`/`buildTransitive` props asset sets this; see
+`references/logging.md`), so these can surface for any ordinary
+`Compono.Logging` consumer, not just one who set an opt-in by hand. Both
+are `DiagnosticSeverity.Info` — neither fails `dotnet build`.
+
+| Code | Meaning | Fix |
+|---|---|---|
+| CMP0038 | `ComponoGeneratedLogging` is enabled but `Compono.Logging`'s own runtime types (`LoggingFactoryRegistry`/`CapturingLogger<T>`/`LoggingOptions`) couldn't be resolved in this compilation | Reference `Compono.Logging` (this almost always means the property was forced `true` by hand in a project that doesn't actually have the package) |
+| CMP0039 | A closed `ILogger<T>` category type is private/protected and not accessible from the generated top-level activation — mirrors `CMP0012`'s identical collection-element-type accessibility check | Use a publicly/internally accessible category type; composing `ILogger<T>` for the inaccessible one still compiles, it just gets no generated activation — a runtime request for it falls back to `LoggingProvider`'s own missing-activation `InvalidOperationException` (see `references/logging.md`) |
+
+Neither code means anything is broken by design — `CMP0038` names a real
+misconfiguration (the property forced on without the package), and
+`CMP0039` is a narrow, honestly-diagnosed edge case, not a regression in
+what's supported.
 
 ## Runtime: `CompositionException` tree path and seed
 

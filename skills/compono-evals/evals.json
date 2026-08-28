@@ -365,6 +365,32 @@
         "Does not claim Match<T> can inspect the actual invocation inside Returns, invoke delegate arguments, or implement callback side effects",
         "Recommends a project-local fake or existing roadmap guidance for the unsupported invocation-aware callback boundary"
       ]
+    },
+    {
+      "id": 32,
+      "category": "routing",
+      "prompt": "This class takes an ILogger<OrderService> constructor dependency and I want to assert it logs a warning when an order retries. The project references Compono, Compono.XunitV3, and Compono.Logging. Write the test.",
+      "expected_output": "Composes OrderService directly via [Compose] (or Composer.Create<OrderService>()), lets ILogger<OrderService> compose automatically through UseLogging() with no extra MSBuild configuration, and asserts via [Shared] ILogger<OrderService> logger plus logger.Verify().AtLevel(LogLevel.Warning).WithMessageContaining(...).Once() - never a hand-rolled fake ILogger, never NullLogger, and never an added <ComponoGeneratedLogging>true</ComponoGeneratedLogging> MSBuild property (generation is on by default once Compono.Logging is referenced).",
+      "files": [],
+      "expectations": [
+        "Composes through UseLogging() (or relies on it already being registered) rather than a hand-rolled fake ILogger or NullLogger",
+        "Does not add or suggest a ComponoGeneratedLogging MSBuild property - generation is on by default and no opt-in step exists to add",
+        "Uses [Shared] ILogger<OrderService> to obtain the composed instance for assertion",
+        "Verifies via logger.Verify().AtLevel(...).WithMessageContaining(...).Once() (or an equivalent single-verb Verify() chain), not a two-verb VerifyLog()...Verify() shape and not manual List<T> inspection"
+      ]
+    },
+    {
+      "id": 33,
+      "category": "behavioral-correctness",
+      "prompt": "I registered both UseLogging() and UseNSubstitute() in my composition builder, in that order: builder.UseNSubstitute().UseLogging(). My test calls logger.Verify() on the composed ILogger<OrderService> and it throws InvalidOperationException saying it's not a Compono.Logging capturing logger. Also, should I set some MSBuildproperty to make UseLogging() generate logging support?",
+      "expected_output": "Explains the real cause: Compono's stage-6 test-double providers resolve first-registered-wins, and UseNSubstitute() was registered before UseLogging(), so ILogger<OrderService> resolved to an NSubstitute substitute instead of a CapturingLogger<T> - the fix is reordering to builder.UseLogging().UseNSubstitute(). Also explicitly answers the second question: no MSBuild property is needed or exists to add - ComponoGeneratedLogging already defaults to true once Compono.Logging is referenced; the failure is a registration-order issue, not a missing generation opt-in.",
+      "files": [],
+      "expectations": [
+        "Correctly identifies first-registered-wins stage-6 provider precedence as the cause, not a Compono.Logging bug",
+        "Recommends reordering to builder.UseLogging().UseNSubstitute() (UseLogging first)",
+        "Does not suggest a priority/specificity mechanism that doesn't exist",
+        "Explicitly states no ComponoGeneratedLogging opt-in is needed - it already defaults to true - rather than inventing or endorsing a manual opt-in step"
+      ]
     }
   ]
 }

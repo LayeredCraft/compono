@@ -273,12 +273,19 @@ consumer_packages_props_backup="$work_tmp_dir/Directory.Packages.props.before"
 cp "$consumer_repo/Directory.Packages.props" "$consumer_packages_props_backup"
 
 # ---------------------------------------------------------------------------------------------
-# Step 1: generate a unique local prerelease version. 0.0.0 sorts below every real 0.x release
-# regardless of prerelease label; the timestamp plus PID plus $RANDOM suffix guarantees uniqueness
-# even across quick successive runs (a bare seconds-granularity timestamp alone would not).
+# Step 1: generate a unique local prerelease version. 99.0.0 sorts above any real Compono release
+# this project is realistically going to reach (a consumer that has already migrated onto a real
+# published version, e.g. alexa-vox-craft's Compono 0.8.0, would otherwise hit NU1605 "package
+# downgrade" as an error: NuGet's CPM restore compares the requested override against the
+# transitive floor other referenced Compono packages (e.g. Compono.XunitV3) pull in at their own
+# matching real version, and a 0.0.0-local prerelease always sorts BELOW every real 0.x release
+# regardless of prerelease label - found empirically dogfooding Compono.Logging against
+# alexa-vox-craft, PLAN-0055 task 18). The timestamp plus PID plus $RANDOM suffix guarantees
+# uniqueness even across quick successive runs (a bare seconds-granularity timestamp alone would
+# not).
 # ---------------------------------------------------------------------------------------------
 
-version="0.0.0-local.$(date +%Y%m%d%H%M%S)-$$-$RANDOM"
+version="99.0.0-local.$(date +%Y%m%d%H%M%S)-$$-$RANDOM"
 echo "dogfood-validate.sh: local package version: $version"
 
 # ---------------------------------------------------------------------------------------------

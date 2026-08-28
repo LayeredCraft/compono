@@ -37,6 +37,27 @@ terminates it before generated-plan dispatch is reached a second time for
 the same type while the first invocation is still on the stack — see
 [The Provider Pipeline](provider-pipeline.md#recursion-detection).
 
+## Other compile-time-gated generation in this same assembly
+
+`Compono.Generators` also emits two other opt-in outputs from this same
+discovery walk, neither described further here (each has its own home):
+`Compono.TestDoubles`' generated interface doubles
+(`ComponoGeneratedTestDoubles`, [ADR-0043](../../adr/0043-compono-generated-test-doubles-design.md)),
+and `Compono.Logging`'s closed `ILogger<T>` activation
+(`ComponoGeneratedLogging`, defaulted to `true` by that package's own
+props asset — [ADR-0055](../../adr/0055-compono-logging-testing-support-package.md)
+Amendment 3, [`docs/packages/compono-logging.md`](../../packages/compono-logging.md)).
+Both are narrowly isolated additions to the same walk this page describes
+— no second walker, no change to ordinary composition-plan discovery or
+dispatch. The two discovery buckets are mutually exclusive for
+`Microsoft.Extensions.Logging.ILogger`/`ILogger<T>`: when
+`ComponoGeneratedLogging` is enabled, those two types are excluded from
+`Compono.TestDoubles`-eligibility entirely, recorded only in the Logging
+bucket — [ADR-0055](../../adr/0055-compono-logging-testing-support-package.md)
+Amendment 4, added after real dogfooding found both buckets independently
+claiming the same closed `ILogger<T>` and emitting two incompatible
+`Verify()` extensions for it.
+
 ## Open questions
 
 **Cross-assembly plan-cache collision.** `PlanCache<T>` and

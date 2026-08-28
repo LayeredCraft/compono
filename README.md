@@ -44,6 +44,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.TestDoubles` | Source-generated, AOT-safe interface doubles | [![NuGet](https://img.shields.io/nuget/v/Compono.TestDoubles.svg)](https://www.nuget.org/packages/Compono.TestDoubles) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.TestDoubles.svg)](https://www.nuget.org/packages/Compono.TestDoubles) |
 | `Compono.DependencyInjection` | Configured-resolution IServiceProvider bridge | [![NuGet](https://img.shields.io/nuget/v/Compono.DependencyInjection.svg)](https://www.nuget.org/packages/Compono.DependencyInjection) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.DependencyInjection.svg)](https://www.nuget.org/packages/Compono.DependencyInjection) |
 | `Compono.Http` | Handler-based `HttpClient` testing (`TestHttpHandler`) | [![NuGet](https://img.shields.io/nuget/v/Compono.Http.svg)](https://www.nuget.org/packages/Compono.Http) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Http.svg)](https://www.nuget.org/packages/Compono.Http) |
+| `Compono.Logging` | `Microsoft.Extensions.Logging` testing support (`UseLogging()`, `CapturingLogger<T>`) | [![NuGet](https://img.shields.io/nuget/v/Compono.Logging.svg)](https://www.nuget.org/packages/Compono.Logging) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Logging.svg)](https://www.nuget.org/packages/Compono.Logging) |
 
 ## Example
 

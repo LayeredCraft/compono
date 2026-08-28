@@ -116,3 +116,4 @@ the mechanics: numbering, status, and the index.
 | [0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md) | Compile-Time Composition-Discovery Boundary for Registered and Nested-Resolved Types | Partially Accepted (Part B shipped; Part A Proposed) |
 | [0053](0053-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | Proposed |
 | [0054](0054-testdoubles-sequential-call-count-based-responses.md) | Compono.TestDoubles: Sequential/Call-Count-Based Responses | Accepted |
+| [0055](0055-compono-logging-testing-support-package.md) | Compono.Logging: First-Class Microsoft.Extensions.Logging Testing Support | Accepted |

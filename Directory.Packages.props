@@ -88,6 +88,34 @@
          tested-range constraint, not a bare unbounded floor or a blanket exact
          pin, per ADR-0031 Amendment 1. -->
     <PackageVersion Include="NSubstitute" Version="[6.2.0, 7.0.0)" />
+    <!-- Compono.Logging's own dependency, per docs/adr/0055-compono-logging-testing-support-package.md:
+         the minimal Microsoft.Extensions.Logging surface (ILogger/ILogger<T>/LogLevel/EventId/
+         LoggerExternalScopeProvider) - never the concrete Microsoft.Extensions.Logging
+         implementation package, and never Microsoft.Extensions.Diagnostics.Testing (ADR-0055's own
+         independence decision). A bare floor version is an unbounded minimum in the shipped
+         .nuspec, letting a consumer resolve an untested future major - per ADR-0031 Amendment 1,
+         and matching this same per-TargetFramework conditional-range shape LayeredCraft's own
+         alexa-vox-craft consumer repo already uses for its own Microsoft.Extensions.* references
+         (each TFM gets the release line that actually ships for it, not a single range spanning
+         every major). Codex review, PR #116. -->
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Logging.Abstractions (net8.0)" Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[8.0.2, 9.0.0)" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Logging.Abstractions (net9.0)" Condition="'$(TargetFramework)' == 'net9.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[9.0.18, 10.0.0)" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Logging.Abstractions (net10.0)" Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[10.0.10, 11.0.0)" />
+  </ItemGroup>
+  <!-- Lower bound is a prerelease, which causes NuGet to consider prerelease candidates for this
+       package id. Use a letter-led prerelease marker on the exclusive upper bound so the range
+       stays below all 12.0.0 previews as well as 12.0.0 stable - matches alexa-vox-craft's own
+       net11.0 Microsoft.Extensions.* ranges exactly. -->
+  <ItemGroup Label="Microsoft.Extensions.Logging.Abstractions (net11.0)" Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[11.0.0-preview.6.26359.118, 12.0.0-a)" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->
