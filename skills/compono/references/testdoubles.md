@@ -41,11 +41,14 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
    `Configure()`/`Verify()` bridges for different interfaces do not require
    aliases or special imports. Keep the receiver typed as its interface;
    casting it to `object` removes the extension-method surface.
-- **`.Returns(...)`/`.Throws(...)`** per member. Argument-independent —
-  there is no `Arg.Any<T>()`/argument-matcher equivalent; configuration
-  applies to every call to that member regardless of arguments. Last
-  configuration wins: calling `.Returns(...)` after an earlier
-  `.Throws(...)` on the same member clears the exception (and vice versa).
+- **`.Returns(...)`/`.Throws(...)`** per member. Each `Configure()` call
+  **appends** an independent response configuration instead of overwriting
+  the prior one, and dispatch picks the most recently registered entry
+  whose matchers all match — see "Multiple response configurations per
+  member" below. Within one entry, calling `.Returns(...)` after
+  `.Throws(...)` clears its exception (and vice versa). Across entries,
+  last matching registration wins, but an earlier entry remains reachable
+  when a later entry's matchers don't cover a call.
 - **Full base-interface closure.** If `IRepository : IClock`, the generated
   double implements `IClock.UtcNow` too, configurable via
   `repository.Configure().UtcNow().Returns(...)` — not just `IRepository`'s
@@ -151,8 +154,12 @@ attempted.
 distinct wrapper so the two never collide — asserts how many times a
 member was actually called
 (`docs/adr/0044-compono-testdoubles-v2-overloads-generics-verification.md`
-Requirement 3). `Never()`/`Once()`/`Exactly(n)` only, argument-independent
-(same as `Configure()`), reusing the same per-overload discriminator
+Requirement 3). `Never()`/`Once()`/`Exactly(n)` only, reusing the same
+per-overload discriminator `Configure()` does. For an eligible member
+(see "Argument matching and argument-filtered verification" below),
+`Verify()` takes `Match<T>` per parameter and counts only calls whose
+arguments satisfy every matcher; for an ineligible member (or when you
+omit the matchers), `Verify()` stays argument-independent, exactly as
 `Configure()` does:
 
 ```csharp
@@ -160,11 +167,140 @@ repository.Configure().CountAsync().Returns(Task.FromResult(5));
 var order = await service.PlaceAsync(3);
 repository.Verify().CountAsync().Once();
 repository.Verify().Save().Once();
+repository.Verify().UtcNow().Never(); // never read in this call path
 ```
 
 A failing assertion throws `Compono.TestDoubleVerificationException` (a
 plain exception, not a framework assertion type). A call counts whether it
 hits configured, default, or thrown behavior.
+
+**Still deliberately minimal** — `Never`/`Once`/`Exactly(n)` only, no
+`AtLeast`/`AtMost`, no `ReceivedCalls()`-style enumeration, no call-order
+verification. If a test needs anything this page doesn't cover (call-order
+verification, an overloaded member's own argument matching,
+`ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that interface
+instead — the two providers can coexist (see "Precedence with
+`Compono.NSubstitute`" below).
+
+## Argument matching and argument-filtered verification (v3)
+
+For a member that is the only overload of its name in the interface, has
+no real parameter referencing the member's own open generic type
+parameter, has no real parameter of a ref-like type (`Span<T>` and
+similar can't be a generic type argument), has no derived internal field
+name colliding with another member's, and isn't a one-parameter `Equals`
+(its extension would share arity with the inherited `object.Equals(object)`
+and never actually be reachable) — five conditions, all required
+(`docs/adr/0048-testdoubles-argument-matching-and-call-verification.md`
+and its Amendment 1) — `Configure()`/`Verify()` accept `Compono.Match<T>`
+per parameter instead of just the return value: a literal (equality
+match), `Match.Any<T>()` (matches anything, same as omitting a matcher),
+or `Match.Is<T>(predicate)`:
+
+```csharp
+repository.Configure()
+    .Withdraw("acct-1", Match.Any<decimal>(), Match.Is<bool>(allowed => allowed))
+    .Returns(true);
+
+repository.Withdraw("acct-1", 50m, overdraftAllowed: true);  // true — every matcher satisfied
+repository.Withdraw("acct-2", 50m, overdraftAllowed: true);  // falls through — accountId doesn't match
+
+repository.Verify()
+    .Withdraw(Match.Is<string>(id => id == "acct-1"), Match.Any<decimal>(), Match.Any<bool>())
+    .Once();
+```
+
+An eligible member also keeps its original zero-argument `Configure()`/
+`Verify()` spelling (`repository.Configure().Withdraw().Returns(...)`,
+argument-independent, exactly v1/v2's shape) — the two aren't mutually
+exclusive, and a member with no real parameters only ever had the
+zero-argument form to begin with. A call whose arguments don't satisfy a
+configured matcher is treated identically to an unconfigured member
+(falls through to a computed default, or to "Configuration-required
+members"'s throwing behavior below) — not a distinct failure mode.
+
+**Why this doesn't apply to an overloaded member.** A real compiler spike
+(ADR-0048's Decision Outcome) proved that wrapping every overload's
+parameters in a matcher type breaks C#'s own overload resolution
+unpredictably for several realistic parameter-type families (base/derived
+class hierarchies, `string[]` vs. `IEnumerable<string>`, even plain `int`
+vs. `long` widening) — there's no reliable per-family fix, so argument
+matching is scoped out entirely for any member with more than one
+overload. An overloaded member's `Configure()`/`Verify()` stay exactly
+the per-overload discriminator shape above, unchanged. The same reasoning
+excludes a generic method whose real parameters reference its own type
+parameter (an `ILogger<TState>.Log<TState>`-shaped member) — a per-member
+call log can't hold an open type parameter's value, so that shape keeps
+its existing argument-independent `Configure()`/`Verify()` too, exactly
+as it already worked.
+
+**Why `Match<T>`, not `Arg<T>`.** `Compono.Arg` would collide with
+`NSubstitute.Arg` for any consumer whose own namespace nests under
+`Compono` (this repo's own samples convention) or who combines `Compono`
+with `Compono.NSubstitute` directly — confirmed with a real failing build
+during this feature's implementation, not a theoretical concern. `Match`
+avoids the collision entirely and names the actual Compono concept
+(matching an argument), rather than borrowing NSubstitute's own
+vocabulary.
+
+## Multiple response configurations per member (v3)
+
+An eligible member (see above) — or a closed-instantiation-eligible
+member (a generic method whose return type *is* its own sole type
+parameter, or the sole type argument of `Task<T>`/`ValueTask<T>` including
+the `T?` forms when `T : class`; see
+`docs/packages/compono-testdoubles.md`'s "Per-closed-instantiation
+configuration" section) — isn't limited to one `Configure()` call. Each
+call **appends** a new, independent response configuration instead of
+overwriting the previous one — a broad default and one or more narrower,
+argument-distinguished overrides can coexist on the same member in the
+same test:
+
+```csharp
+repository.Configure()
+    .Withdraw(Match.Any<string>(), Match.Any<decimal>(), Match.Any<bool>())
+    .Returns(false);
+repository.Configure()
+    .Withdraw("acct-1", Match.Any<decimal>(), Match.Any<bool>())
+    .Returns(true);
+
+repository.Withdraw("acct-1", 50m, overdraftAllowed: true);  // true — the more specific entry
+repository.Withdraw("acct-9", 50m, overdraftAllowed: true);  // false — falls through to the default entry
+```
+
+**Precedence: last matching registration wins.** A call dispatches to the
+*most recently registered* `Configure()` entry whose matchers all match —
+registration order, not matcher "specificity", decides which entry wins
+when more than one entry could match the same call. There's no comparison
+between matchers (a `Match.Is<T>(predicate)` entry is never treated as
+"more specific" than a `Match.Any<T>()` entry, for example) — if two
+entries could both match a call, whichever was configured later wins,
+full stop. This keeps dispatch simple and its outcome fully determined by
+the order `Configure()` calls appear, with no ranking heuristic to reason
+about.
+
+**Compatibility note (pre-1.0).** Before this capability existed, a
+second `Configure()` call on the same member *overwrote* the first —
+observable as the second call always winning, since only one
+configuration could exist at a time. That's now a special case of
+"last matching registration wins": a second call still wins whenever it
+could have won before (it's always the most recently registered, and an
+argument-independent `Configure()` call always matches), so ordinary,
+single- or sequential-override usage is unaffected. What changes is that
+the *first* configuration is no longer discarded — it's still reachable
+by any call the second configuration's matchers don't cover, rather than
+falling through to the member's deterministic default. This is an
+intentional pre-1.0 semantic correction, not a breaking change to guard
+against: the previous overwrite behavior was never separately documented
+as guaranteed, and every existing single-`Configure()`-call usage keeps
+its exact same observable behavior.
+
+**What this deliberately doesn't do.** No matcher-specificity ranking
+(see above). No sequential/call-count-based responses (`Configure()`
+doesn't support "return X on the first call, Y on the second"). No
+`Returns(Func<...>)` callback responses. Verification (`Verify()`) is
+completely unaffected — it stays a count over the member's shared call
+log, independent of how many response configurations exist.
 
 ## Configuration-required members (v2)
 
@@ -194,18 +330,27 @@ This applies identically to sync/async/property members and to a fluent
 self-returning member (`IResponseBuilder`-shaped) — none of those get
 special-cased, all follow the same rule.
 
-## The #1 AutoFixture/NSubstitute-habit trap: not a general mocking framework
+## What it deliberately doesn't do
 
-There are **no** argument matchers, **no** argument-aware call recording
-(every count is per-member, not per-argument-combination), and **no**
-call-order verification. If a test needs different return values for
-different arguments, or needs to assert *when* relative to other calls a
-member ran, `Compono.TestDoubles` cannot do it — use
-`Compono.NSubstitute`'s `UseNSubstitute()` for that interface instead (the
-two providers can coexist; registration order decides which one resolves
-first, see below). Don't try to work around the gap by polling state or
-inventing a callback-shaped member on the interface just to observe a
-call — that's fighting the framework, not using it.
+Argument matching and argument-filtered verification exist now, but only
+for a member satisfying all five eligibility conditions — see "Argument
+matching and argument-filtered verification" above. Multiple response
+configurations per member are supported for those same eligible members
+(and their closed-instantiation-eligible counterparts) — see "Multiple
+response configurations per member" above — but strictly
+last-matching-registration-wins, with no matcher-specificity ranking.
+
+Still unsupported: argument matching on an overloaded member (a real
+compiler spike proved it — see ADR-0048's Decision Outcome), call-order
+verification, `ReturnsForAnyArgs`/`When().Do(...)`/strict or partial
+substitutes/recursive auto-configuration, and no support for classes,
+delegates, indexers, or events. If a test needs any of those, use
+`Compono.NSubstitute`'s `UseNSubstitute()` for that interface instead —
+the two providers can coexist; registration order decides which one
+resolves first, see "Precedence with `Compono.NSubstitute`" below. Don't
+try to work around a gap by polling state or inventing a callback-shaped
+member on the interface just to observe a call — that's fighting the
+framework, not using it.
 
 ## Unsupported shapes are compile-time diagnostics, not silent gaps
 
@@ -221,19 +366,22 @@ For an eligible **interface**, indexers, events, a genuinely unimplemented
 static abstract member, a generic method whose return type depends on its
 own type parameter, a generic type parameter used as `T?` (constrained or
 not), and a handful of narrower shapes (set-only properties,
-pointer/function-pointer parameters or returns, ref-like returns) still
-reject the **whole interface** at compile time (`CMP0020`-`CMP0031`,
-informational severity — they don't fail the build): it falls back to the
-ordinary runtime-provider path, same as any
-interface the compile-time opt-in never reached. Overloaded members, a
-`ref`/`out`/`in` parameter, and a generic method independent of its own
-type parameter are narrower now (see above) — only the specific
+pointer/function-pointer parameters or returns, ref-like returns) can
+withhold generated-double support at compile time. Whole-interface codes
+fall back to the ordinary runtime-provider path, same as an interface the
+compile-time opt-in never reached. Scoped codes only withhold the affected
+member's `Configure()`/`Verify()` surface or DIM fallback; `CMP0032` is an
+informational count of configuration-required members. All
+generated-test-double diagnostics (`CMP0020`-`CMP0032` and
+`CMP0035`-`CMP0037`) are informational — see `diagnostics.md` for each
+code's exact scope and disposition before guessing a fix. Overloaded
+members, a `ref`/`out`/`in` parameter, and a generic method independent of
+its own type parameter are narrower now (see above) — only the specific
 colliding/unsupported overload loses its surface, not the whole interface.
 A non-nullable-reference return with no deterministic default no longer
 rejects the whole interface either (v2, see "Configuration-required
 members" above) — unless it also lacks a `Configure()` surface for one of
-those other reasons, in which case it still does. See `diagnostics.md` for
-the full code table before guessing a fix.
+those other reasons, in which case it still does.
 
 A static abstract member declared on a base interface but already
 resolved by a more-derived interface's own concrete implementation (C#'s

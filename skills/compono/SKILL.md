@@ -8,9 +8,10 @@ description: >-
   `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
-  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` (generated-test-double
-  opt-in informational diagnostics), or `CompositionException` failures,
-  deciding on
+  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
+  (generated-test-double opt-in informational diagnostics), `CMP0033`-
+  `CMP0034` (explicit constructor selection errors), or
+  `CompositionException` failures, deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
   when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
   Compono/`Composer`/`[Compose]` question.
@@ -98,11 +99,20 @@ user to make test-by-test, not something to do as a drive-by.
      performance win; ordinary composition is already cheap.
    - Interface/abstract-class/delegate needs a real test double →
      `Compono.NSubstitute`'s `UseNSubstitute()`, not a hand-rolled stub,
-     if that package is referenced. An **interface** leaf that only needs
-     configured returns/exceptions (no call verification, no argument
-     matchers) and must survive `PublishAot` → `Compono.TestDoubles`'s
+     if that package is referenced. An **interface** leaf that needs
+     configured returns/exceptions, argument-distinguished responses
+     (`Match<T>`/`Match.Any<T>()`/`Match.Is<T>(predicate)`), or call-count
+     verification (`Verify()`/`Never()`/`Once()`/`Exactly(n)`) and must
+     survive `PublishAot` → `Compono.TestDoubles`'s
      `UseGeneratedTestDoubles()` instead, if that package is referenced and
      the compile-time opt-in is set — see `references/testdoubles.md`.
+     Argument matching and argument-filtered verification are scoped to a
+     member satisfying all five eligibility conditions (non-overloaded, no
+     parameter referencing its own open generic type parameter, no ref-like
+     parameter, no derived-name collision, not a one-parameter `Equals`);
+     an overloaded member, call-order verification, `Returns(Func<...>)`
+     callbacks, or a class/delegate leaf still needs
+     `Compono.NSubstitute` rather than `Compono.TestDoubles`.
    - A test deliberately needs to exercise the real HTTP client pipeline
      (real `HttpClient` → `TestHttpHandler` → configured response) rather
      than substitute an application-level interface away →
@@ -142,18 +152,21 @@ user to make test-by-test, not something to do as a drive-by.
    `references/diagnostics.md` before guessing a fix. If
    `ComponoGeneratedTestDoubles=true` is set — the generator is embedded in
    core `Compono.Generators`, so this can surface even without
-   `Compono.TestDoubles` referenced — a `CMP0020`-`CMP0032` diagnostic is
-   informational, not a failure. Most of them mean that one interface leaf
-   fell back to the ordinary runtime-provider path, not that the build
-   broke — but `CMP0022`, `CMP0029`, and `CMP0030` are narrower: they
-   withhold a `Configure()`/`Verify()` surface for just one overload or
-   colliding identity while the rest of the double still generates
-   normally, so don't assume the whole interface fell back without
-   checking which code fired (see `references/diagnostics.md`). A
-   test-time failure is a `CompositionException` — read its tree-shaped
-   path and `Seed:` line (also see `references/diagnostics.md`) to find
-   exactly which nested dependency failed, rather than guessing from the
-   root type.
+   `Compono.TestDoubles` referenced — a `CMP0020`-`CMP0032` or
+   `CMP0035`-`CMP0037` diagnostic is informational, not a failure. Most of
+   them mean that one interface leaf fell back to the ordinary
+   runtime-provider path, not that the build broke — but `CMP0022`,
+   `CMP0029`, and `CMP0030` are narrower: they withhold a `Configure()`/
+   `Verify()` surface for just one overload or colliding identity while the
+   rest of the double still generates normally, so don't assume the whole
+   interface fell back without checking which code fired (see
+   `references/diagnostics.md`). `CMP0033`-`CMP0034` (explicit constructor
+   selection, ADR-0002 Amendment 3 / ADR-0052 Part B) are always-on
+   **errors**, not informational — they surface whenever
+   `builder.For<T>().UseConstructor<...>()` is used. A test-time failure is
+   a `CompositionException` — read its tree-shaped path and `Seed:` line
+   (also see `references/diagnostics.md`) to find exactly which nested
+   dependency failed, rather than guessing from the root type.
 
 ## Guardrails
 
@@ -332,12 +345,12 @@ Load only what the Detection table says is relevant to the current task.
 | `references/core-providers.md` | Deciding whether core Compono can generate an ordinary value, collection, or required member without a registration/provider |
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
-| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0032` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
+| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0033`-`CMP0034` constructor-selection build error, a `CMP0020`-`CMP0032` or `CMP0035`-`CMP0037` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
-| `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()` work, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
+| `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()`/`Verify()` work, `Match<T>` argument matching and multiple-response-per-member for eligible members, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
 | `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |
