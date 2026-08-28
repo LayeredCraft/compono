@@ -4,8 +4,9 @@ namespace Compono.Logging;
 
 /// <summary>
 /// A <see cref="Type"/>-keyed registry of statically-closed <see cref="CapturingLogger{T}"/>
-/// activators, populated by a <c>Compono.Logging.Generators</c>-emitted <c>[ModuleInitializer]</c>
-/// per discovered closed <c>ILogger&lt;T&gt;</c> category - never by this type itself.
+/// activators, populated by a <c>[ModuleInitializer]</c> the shared <c>Compono.Generators</c>
+/// analyzer emits per discovered closed <c>ILogger&lt;T&gt;</c> category - never by this type
+/// itself. <c>Compono.Logging</c> ships no analyzer/generator DLL of its own (ADR-0055 Amendment 3).
 /// </summary>
 /// <remarks>
 /// <para>

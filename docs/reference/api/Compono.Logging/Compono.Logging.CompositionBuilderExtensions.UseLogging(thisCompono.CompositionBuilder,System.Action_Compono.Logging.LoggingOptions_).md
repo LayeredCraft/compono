@@ -29,10 +29,15 @@ Optional configuration for the resulting captors' behavior\.
 [CompositionBuilder](../Compono/Compono.CompositionBuilder.md 'Compono\.CompositionBuilder')
 
 ### Remarks
-Register this \<b\>before\</b\>`UseNSubstitute()`/`UseGeneratedTestDoubles()` if
+Register this \<b\>before\</b\>`UseNSubstitute()` if
 [Microsoft\.Extensions\.Logging\.ILogger&lt;&gt;](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.logging.ilogger-1 'Microsoft\.Extensions\.Logging\.ILogger\`1') should resolve through
-Compono\.Logging rather than a generic substitute/generated double \- Compono's stage\-6
-providers resolve in registration order \(first\-registered\-wins\), an existing, documented,
-`Accepted` pattern \(ADR\-0024/ADR\-0043\) this package follows rather than replacing\. See
+Compono\.Logging rather than an NSubstitute substitute \- Compono's stage\-6 providers resolve
+in registration order \(first\-registered\-wins\), an existing, documented, `Accepted`
+pattern \(ADR\-0024\) this package follows rather than replacing\. Registration order against
+`UseGeneratedTestDoubles()` is \<b\>not\</b\> relevant here: when `ComponoGeneratedLogging`
+is enabled \(the package default\), `ILogger`/`ILogger{TCategoryName}` are
+Logging\-owned abstractions excluded from `Compono.TestDoubles` generation entirely, so
+`UseGeneratedTestDoubles()` has no generated double to offer for these types regardless
+of order \(ADR\-0055 Amendment 4\)\. See
 docs/adr/0055\-compono\-logging\-testing\-support\-package\.md's "Runtime activation and
 precedence" section\.

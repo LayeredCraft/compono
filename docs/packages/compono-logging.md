@@ -158,9 +158,11 @@ time:
    `ILogger`** (`InvalidOperationException`, at the call site, at runtime)
    — the `ILogger` you're calling this on isn't a `CapturingLogger`/
    `CapturingLogger<T>` at all (e.g. `NullLogger<T>.Instance`, an
-   NSubstitute substitute, a `Compono.TestDoubles`-generated double). Most
-   common cause: `UseNSubstitute()`/`UseGeneratedTestDoubles()` was
-   registered *before* `UseLogging()` — see "Registration order," below.
+   NSubstitute substitute, a `Compono.TestDoubles`-generated double — the
+   latter only possible when `ComponoGeneratedLogging` is explicitly
+   disabled, since it's otherwise excluded from generation, Amendment 4).
+   Most common cause: `UseNSubstitute()` was registered *before*
+   `UseLogging()` — see "Registration order," below.
 2. **`LoggingProvider` recognized a closed `ILogger<T>` request but found
    no generated activation for it** (`InvalidOperationException`, at
    composition time, at runtime) — the category type isn't reachable from

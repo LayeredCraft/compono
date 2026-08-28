@@ -56,8 +56,11 @@ public static class LoggerTestingExtensions
             $"'{logger.GetType()}' is not a Compono.Logging capturing logger. This member is only " +
             "usable against an ILogger produced by Compono.Logging (UseLogging(), or a directly " +
             "constructed CapturingLogger/CapturingLogger<T>). If this ILogger was composed, confirm " +
-            "UseLogging() is registered before UseNSubstitute()/UseGeneratedTestDoubles() - Compono's " +
-            "stage-6 test-double providers resolve in registration order, and whichever provider is " +
-            "registered first wins for a given request.");
+            "UseLogging() is registered before UseNSubstitute() - Compono's stage-6 test-double " +
+            "providers resolve in registration order, and whichever provider is registered first " +
+            "wins for a given request. (UseGeneratedTestDoubles() ordering is not the cause: when " +
+            "ComponoGeneratedLogging is enabled, ILogger/ILogger<T> are excluded from " +
+            "Compono.TestDoubles generation entirely, so it has no generated double to offer for " +
+            "these types regardless of order.)");
     }
 }

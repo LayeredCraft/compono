@@ -62,8 +62,10 @@ a missing opt-in (there is none to add); check instead:
   factory's own internal `context.Resolve<ILogger<T>>()` call is a known,
   documented gap (ADR-0052 Finding B), not something to work around with
   a manual registration or reflection.
-- Was `UseNSubstitute()`/`UseGeneratedTestDoubles()` registered *before*
-  `UseLogging()`? See "Registration order," below.
+- Was `UseNSubstitute()` registered *before* `UseLogging()`? See
+  "Registration order," below — `UseGeneratedTestDoubles()` ordering is
+  never the cause, since it has no generated double to offer for
+  `ILogger`/`ILogger<T>` while `ComponoGeneratedLogging` is enabled.
 
 The **only** legitimate reason to write `ComponoGeneratedLogging` at all
 is an explicit, deliberate opt-out:

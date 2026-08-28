@@ -4,8 +4,9 @@
 ## LoggingFactoryRegistry Class
 
 A [System\.Type](https://learn.microsoft.com/en-us/dotnet/api/system.type 'System\.Type')\-keyed registry of statically\-closed [CapturingLogger&lt;T&gt;](Compono.Logging.CapturingLogger_T_.md 'Compono\.Logging\.CapturingLogger\<T\>')
-activators, populated by a `Compono.Logging.Generators`\-emitted `[ModuleInitializer]`
-per discovered closed `ILogger<T>` category \- never by this type itself\.
+activators, populated by a `[ModuleInitializer]` the shared `Compono.Generators`
+analyzer emits per discovered closed `ILogger<T>` category \- never by this type
+itself\. `Compono.Logging` ships no analyzer/generator DLL of its own \(ADR\-0055 Amendment 3\)\.
 
 ```csharp
 public static class LoggingFactoryRegistry
