@@ -665,13 +665,20 @@ internal static class TestDoubleAnalyzer
         // overloaded member (or a ref-like/self-referencing-generic/Equals(object)-arity one) still
         // emits its own real-parameter-typed Configure() extension, which can collide with our
         // alias's Match<T>-wrapped one exactly as easily as a matching-eligible member's Match<T>
-        // extension can. Build the ACTUAL generated parameter-type list for every real candidate
-        // sharing a literal name with some alias - Match<T>-constructed when that candidate is
-        // itself genuinely matching-eligible (its own extension is Match<T>-wrapped), the real
-        // declared type otherwise (its own extension - ordinary overloaded, ref-like, self-
-        // referencing-generic, Equals(object)-arity, or derived-name-collision-fallback - always
-        // uses the real type as declared, never wrapped).
-        var realGeneratedSignaturesByName = new Dictionary<string, List<ISymbol[]>>(StringComparer.Ordinal);
+        // extension can. Build the ACTUAL generated (arity, parameter-type list) for every real
+        // candidate sharing a literal name with some alias - Match<T>-constructed when that
+        // candidate is itself genuinely matching-eligible (its own extension is Match<T>-wrapped,
+        // including a non-overloaded ADR-0049 closed-instantiation-eligible member with real
+        // matched parameters - Codex review, PR #115 round 3: excluding closed-instantiation-
+        // eligible candidates here entirely missed exactly this real collision shape), the real
+        // declared type otherwise (its own extension - ordinary overloaded, an overloaded closed-
+        // instantiation-eligible member, ref-like, self-referencing-generic, Equals(object)-arity,
+        // or derived-name-collision-fallback - always uses the real type as declared, never
+        // wrapped). Generic arity is tracked alongside the parameter types (Codex review, PR #115
+        // round 3) - part of real C# signature identity same as the parameter types themselves, per
+        // PLAN-0054's own "Naming/collision policy" Finding 4 (a generic member sharing a candidate
+        // name never collides via CS0111 purely on arity grounds, only ever soft-shadows).
+        var realGeneratedSignaturesByName = new Dictionary<string, List<(int Arity, ISymbol[] ParameterTypes)>>(StringComparer.Ordinal);
 
         if (matchTypeDefinition is not null)
         {
@@ -679,7 +686,6 @@ internal static class TestDoubleAnalyzer
             {
                 if (candidate is not IMethodSymbol candidateMethod ||
                     candidateMethod.Parameters.Length == 0 ||
-                    IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
                     !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
                     continue;
 
@@ -690,14 +696,14 @@ internal static class TestDoubleAnalyzer
                     !(candidateMethod.Name == "Equals" && candidateMethod.Parameters.Length == 1) &&
                     !derivedNameCollisionMembers.Contains(candidateMethod);
 
-                var signature = isMatchingEligible
+                var parameterTypes = isMatchingEligible
                     ? candidateMethod.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray()
                     : candidateMethod.Parameters.Select(p => (ISymbol)p.Type).ToArray();
 
                 if (!realGeneratedSignaturesByName.TryGetValue(candidateMethod.Name, out var signatures))
-                    realGeneratedSignaturesByName[candidateMethod.Name] = signatures = new List<ISymbol[]>();
+                    realGeneratedSignaturesByName[candidateMethod.Name] = signatures = new List<(int, ISymbol[])>();
 
-                signatures.Add(signature);
+                signatures.Add((candidateMethod.TypeParameters.Length, parameterTypes));
             }
         }
 
@@ -711,8 +717,11 @@ internal static class TestDoubleAnalyzer
                 realGeneratedSignaturesByName.TryGetValue(aliasBase, out var signatures) &&
                 group.Any(overload =>
                 {
+                    var aliasArity = overload.TypeParameters.Length;
                     var aliasSignature = overload.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray();
-                    return signatures!.Any(signature => signature.SequenceEqual(aliasSignature, SymbolEqualityComparer.Default));
+                    return signatures!.Any(signature =>
+                        signature.Arity == aliasArity &&
+                        signature.ParameterTypes.SequenceEqual(aliasSignature, SymbolEqualityComparer.Default));
                 });
 
             if (!hasSignatureCollision)
