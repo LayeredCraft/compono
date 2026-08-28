@@ -20,4 +20,4 @@ Implements [IsEnabled\(LogLevel\)](https://learn.microsoft.com/en-us/dotnet/api/
 
 #### Returns
 [System\.Boolean](https://learn.microsoft.com/en-us/dotnet/api/system.boolean 'System\.Boolean')  
-`true` if enabled\.
+[true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') if enabled\.
