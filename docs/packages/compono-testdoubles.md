@@ -487,15 +487,23 @@ through to a computed default, or to
 [Configuration-required members](#configuration-required-members)'
 throwing behavior below) - not a distinct failure mode.
 
-**Why this doesn't apply to an overloaded member.** A real compiler spike
-(ADR-0048's Decision Outcome) proved that wrapping every overload's
-parameters in a matcher type breaks C#'s own overload resolution
-unpredictably for several realistic parameter-type families (base/derived
-class hierarchies, `string[]` vs. `IEnumerable<string>`, even plain `int`
-vs. `long` widening) - there's no reliable per-family fix, so argument
-matching is scoped out entirely for any member with more than one overload.
-An overloaded member's `Configure()`/`Verify()` stay exactly the
-[per-overload discriminator shape](#overloaded-members) above, unchanged.
+**Why this exact surface doesn't apply to an overloaded member.** A real
+compiler spike (ADR-0048's Decision Outcome) proved that wrapping *every
+overload's own real parameters* in a matcher type, on the *same* call
+site/member name, breaks C#'s own overload resolution unpredictably for
+several realistic parameter-type families (base/derived class hierarchies,
+`string[]` vs. `IEnumerable<string>`, even plain `int` vs. `long`
+widening) - there's no reliable per-family fix, so *this specific
+same-name shape* stays scoped out entirely. That finding still holds and
+still shapes the design below. It does **not** mean overloaded members
+have no argument-matching story at all, though — see "Overload-safe
+argument matching" above ([ADR-0044 Amendment 21](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-21-2026-08-27-argument-matching-for-overloaded-members-is-now-a-pre-10-product-requirement-amendment-18s-boundary-is-superseded-not-merely-evidenced-around)):
+a separate `<Member>Matching` member name, taking real `Match<T>`
+parameters directly, sidesteps the exact ambiguity this spike found (a
+different call site than the discriminator-only one, so there's no
+overload set for the matcher-wrapped parameters to collide with) while the
+unchanged, real-parameter-typed discriminator surface described here still
+selects the overload the same way it always has.
 The same reasoning excludes a generic method whose real parameters
 reference its own type parameter (an `ILogger<TState>.Log<TState>`-shaped
 member) - a per-member call log can't hold an open type parameter's value,

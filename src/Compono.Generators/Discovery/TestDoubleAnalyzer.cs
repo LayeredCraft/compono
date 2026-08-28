@@ -652,28 +652,53 @@ internal static class TestDoubleAnalyzer
             matchingEligibleShapedOverloadedCandidates.Where(m => !derivedNameCollisionMembers.Contains(m)),
             SymbolEqualityComparer.Default);
 
-        var matchingEligibleSignaturesByName = new Dictionary<string, List<string[]>>(StringComparer.Ordinal);
+        // Codex review, PR #115 (round 1): the alias-collision check below must compare REAL C#
+        // signature identity - which, per TestDoubleOverloadIdentity's own established precedent,
+        // never considers nullable-reference annotations - not nullable-aware display-string text.
+        // Comparing ITypeSymbol via SymbolEqualityComparer.Default (nullability-insensitive by
+        // default) instead of formatted strings fixes this directly: `string` and `string?` compare
+        // equal, exactly matching what the real compiler does when it decides CS0111.
+        var matchTypeDefinition = compilation.GetTypeByMetadataName("Compono.Match`1");
 
-        foreach (var candidate in eligibleCandidates)
+        // Codex review, PR #115 (round 2): every real member sharing the alias's literal name is a
+        // potential collision, not just a non-overloaded matching-eligible one - an ordinary
+        // overloaded member (or a ref-like/self-referencing-generic/Equals(object)-arity one) still
+        // emits its own real-parameter-typed Configure() extension, which can collide with our
+        // alias's Match<T>-wrapped one exactly as easily as a matching-eligible member's Match<T>
+        // extension can. Build the ACTUAL generated parameter-type list for every real candidate
+        // sharing a literal name with some alias - Match<T>-constructed when that candidate is
+        // itself genuinely matching-eligible (its own extension is Match<T>-wrapped), the real
+        // declared type otherwise (its own extension - ordinary overloaded, ref-like, self-
+        // referencing-generic, Equals(object)-arity, or derived-name-collision-fallback - always
+        // uses the real type as declared, never wrapped).
+        var realGeneratedSignaturesByName = new Dictionary<string, List<ISymbol[]>>(StringComparer.Ordinal);
+
+        if (matchTypeDefinition is not null)
         {
-            if (candidate is not IMethodSymbol candidateMethod || overloadedNames.Contains(candidateMethod.Name) ||
-                candidateMethod.Parameters.Length == 0 ||
-                IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
-                (candidateMethod.IsGenericMethod && candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod))) ||
-                candidateMethod.Parameters.Any(p => p.Type.IsRefLikeType) ||
-                (candidateMethod.Name == "Equals" && candidateMethod.Parameters.Length == 1) ||
-                derivedNameCollisionMembers.Contains(candidateMethod) ||
-                !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
-                continue;
+            foreach (var candidate in eligibleCandidates)
+            {
+                if (candidate is not IMethodSymbol candidateMethod ||
+                    candidateMethod.Parameters.Length == 0 ||
+                    IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
+                    !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
+                    continue;
 
-            var signature = candidateMethod.Parameters
-                .Select(p => p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat))
-                .ToArray();
+                var isMatchingEligible = !overloadedNames.Contains(candidateMethod.Name) &&
+                    !(candidateMethod.IsGenericMethod &&
+                      candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod))) &&
+                    !candidateMethod.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                    !(candidateMethod.Name == "Equals" && candidateMethod.Parameters.Length == 1) &&
+                    !derivedNameCollisionMembers.Contains(candidateMethod);
 
-            if (!matchingEligibleSignaturesByName.TryGetValue(candidateMethod.Name, out var signatures))
-                matchingEligibleSignaturesByName[candidateMethod.Name] = signatures = new List<string[]>();
+                var signature = isMatchingEligible
+                    ? candidateMethod.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray()
+                    : candidateMethod.Parameters.Select(p => (ISymbol)p.Type).ToArray();
 
-            signatures.Add(signature);
+                if (!realGeneratedSignaturesByName.TryGetValue(candidateMethod.Name, out var signatures))
+                    realGeneratedSignaturesByName[candidateMethod.Name] = signatures = new List<ISymbol[]>();
+
+                signatures.Add(signature);
+            }
         }
 
         var allCandidateNames = new HashSet<string>(eligibleCandidates.Select(m => m.Name), StringComparer.Ordinal);
@@ -682,9 +707,13 @@ internal static class TestDoubleAnalyzer
         foreach (var group in overloadMatchingEligibleCandidates.GroupBy(m => m.Name))
         {
             var aliasBase = $"{group.Key}Matching";
-            var hasSignatureCollision = matchingEligibleSignaturesByName.TryGetValue(aliasBase, out var signatures) &&
-                group.Any(overload => signatures!.Any(signature => signature.SequenceEqual(
-                    overload.Parameters.Select(p => p.Type.ToDisplayString(TestDoubleDefaults.NullableAwareFullyQualifiedFormat)))));
+            var hasSignatureCollision = matchTypeDefinition is not null &&
+                realGeneratedSignaturesByName.TryGetValue(aliasBase, out var signatures) &&
+                group.Any(overload =>
+                {
+                    var aliasSignature = overload.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray();
+                    return signatures!.Any(signature => signature.SequenceEqual(aliasSignature, SymbolEqualityComparer.Default));
+                });
 
             if (!hasSignatureCollision)
             {

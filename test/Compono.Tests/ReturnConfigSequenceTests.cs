@@ -248,4 +248,22 @@ public sealed class ReturnConfigSequenceTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    // Codex review, PR #115: ReturnsSequence(params SequenceOutcome<T>[]) must snapshot the array
+    // rather than store the caller's own reference - a caller can pass an existing named array
+    // through the params parameter (not just an inline literal), and mutating an element afterward
+    // must not change a response that was already configured.
+    [Fact]
+    public void ReturnsSequence_CallerMutatesArrayAfterConfiguring_ConfiguredSequenceUnaffected()
+    {
+        var slot = new ReturnConfig<int>();
+        var outcomes = new SequenceOutcome<int>[] { 1, 2, 3 };
+        new ReturnConfigBuilder<int>(ref slot).ReturnsSequence(outcomes);
+
+        outcomes[0] = 999;
+
+        slot.NextSequenceOutcome().Should().Be(1);
+        slot.NextSequenceOutcome().Should().Be(2);
+        slot.NextSequenceOutcome().Should().Be(3);
+    }
 }

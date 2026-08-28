@@ -46,11 +46,13 @@ public readonly ref struct ReturnConfigBuilder<T>
     /// <c>outcomes[1]</c>, and so on; once exhausted, every further call repeats the final entry
     /// (ADR-0054). Clears any prior <see cref="Returns"/>/<see cref="Throws"/>/<see cref="ReturnsSequence"/>
     /// state and resets the ordinal to 0, the same last-configuration-wins contract <see cref="Returns"/>/
-    /// <see cref="Throws"/> already document. A literal value or a thrown <see cref="Exception"/> both
-    /// implicitly convert to <see cref="SequenceOutcome{T}"/>, so a pure-value sequence reads as plain
-    /// values (<c>.ReturnsSequence(false, false, true)</c>) and a mixed sequence mixes values and
-    /// exceptions directly (<c>.ReturnsSequence(ex1, ex2, value)</c>) - no separate spelling for either
-    /// case.
+    /// <see cref="Throws"/> already document. An ordinary <typeparamref name="T"/> value implicitly
+    /// converts to <see cref="SequenceOutcome{T}"/>, so a pure-value sequence reads as plain values
+    /// (<c>.ReturnsSequence(false, false, true)</c>); an exception outcome is spelled explicitly with
+    /// <see cref="SequenceOutcome.Throw(Exception)"/> - there is no implicit conversion from
+    /// <see cref="Exception"/>, since that would be silently wrong for a <typeparamref name="T"/> that
+    /// is itself <see cref="Exception"/> or a base/derived type of it - so a mixed sequence reads
+    /// <c>.ReturnsSequence(SequenceOutcome.Throw(ex1), SequenceOutcome.Throw(ex2), value)</c>.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="outcomes"/> is empty.</exception>
     public void ReturnsSequence(params SequenceOutcome<T>[] outcomes)
@@ -58,7 +60,12 @@ public readonly ref struct ReturnConfigBuilder<T>
         if (outcomes.Length == 0)
             throw new ArgumentException("A response sequence needs at least one outcome.", nameof(outcomes));
 
-        _slot.Sequence = outcomes;
+        // Codex review, PR #115: `outcomes` is not guaranteed to be a fresh array - a caller can pass
+        // an existing named array through the `params` parameter and mutate an element afterward,
+        // which would silently change an already-configured response and violate
+        // ReturnConfig<T>.NextSequenceOutcome()'s lock-free-safety premise that the sequence is
+        // immutable once configured. Snapshot it.
+        _slot.Sequence = (SequenceOutcome<T>[])outcomes.Clone();
         _slot.SequenceOrdinal = 0;
         _slot.HasValue = false;
         _slot.Value = default;

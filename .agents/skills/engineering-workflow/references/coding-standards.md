@@ -527,6 +527,27 @@ every other section of this file like any hand-written code):
   "prove it, don't assume it" standard (see e.g. ADR-0042/0044/0045's own
   use of it for AOT verification) applies here just as much as it does to
   composition-engine or generator behavior.
+- **When a generator must predict whether two emitted signatures would
+  collide (`CS0111`), compare real `ITypeSymbol`s via
+  `SymbolEqualityComparer.Default`, never nullable-aware display-string
+  text.** C#'s own signature/overload identity never considers
+  nullable-reference annotations (`TestDoubleOverloadIdentity`'s own
+  canonical-signature helper already documents this), but
+  `SymbolDisplayFormat`-based text comparison does when the
+  nullable-aware format is used — `string` and `string?` compare unequal
+  as text even though the real compiler treats them as the same
+  signature, silently missing a real collision. `SymbolEqualityComparer.Default`
+  is nullability-insensitive by construction, so it matches what the
+  compiler actually decides. Caught by real-world review on ADR-0044
+  Amendment 21's `<Member>Matching` collision check (PR #115): the first
+  draft also only considered *non-overloaded* real members as possible
+  collision sources, missing that an ordinary overloaded member's own
+  discriminator extension can just as easily collide (a real declared
+  parameter type, unwrapped, coincidentally matching a Match<T>-wrapped
+  alias signature) — when predicting a collision against "every real
+  member sharing this name," that must genuinely mean every real member,
+  not just the ones reachable through the code path you happened to be
+  writing.
 - **Hint names (`AddSource`) are readable + stable-hash-suffixed**: the
   sanitized fully-qualified name for a human scanning generated-file
   lists, plus a short stable hash of the raw pre-sanitization identity —
