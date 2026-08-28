@@ -10,7 +10,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     global::System.Collections.Generic.Dictionary<string, int> global::TestNamespace.IRepository.GetCounts()
     {
         __GetCounts.RecordCall();
-        return __GetCounts.HasConfiguredException ? throw __GetCounts.ConfiguredException
+        return __GetCounts.HasConfiguredSequence ? __GetCounts.NextSequenceOutcome()
+            : __GetCounts.HasConfiguredException ? throw __GetCounts.ConfiguredException
             : __GetCounts.HasConfiguredValue ? __GetCounts.ConfiguredValue
             : [];
     }

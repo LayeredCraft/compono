@@ -51,7 +51,8 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
     {
         var __bucket = __GetDataAsync_97bed815_Bucket<T>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
+        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+            : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
@@ -62,7 +63,8 @@ internal sealed class TestNamespace_IContextManager_d05603ce_Double : global::Te
     {
         var __bucket = __GetDataAsync_1aae9cd0_Bucket<T>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
+        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+            : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }

@@ -5,31 +5,155 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IResponseBuilder_ed393682_Double : global::TestNamespace.IResponseBuilder
 {
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Speak_1a56931a;
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Speak_22f1fe0a;
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Speak_1a56931a/__Speak_1a56931a_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Speak_1a56931a_Entry
+    {
+        internal global::Compono.Match<string?>? Matcher_text;
+        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__Speak_1a56931a_Entry> __Speak_1a56931a_entries = [];
+    internal readonly global::System.Collections.Generic.List<string?> __Speak_1a56931a_calls = [];
+    internal readonly object __Speak_1a56931a_lock = new();
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Speak_22f1fe0a/__Speak_22f1fe0a_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Speak_22f1fe0a_Entry
+    {
+        internal global::Compono.Match<global::TestNamespace.ISsml[]>? Matcher_parts;
+        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__Speak_22f1fe0a_Entry> __Speak_22f1fe0a_entries = [];
+    internal readonly global::System.Collections.Generic.List<global::TestNamespace.ISsml[]> __Speak_22f1fe0a_calls = [];
+    internal readonly object __Speak_22f1fe0a_lock = new();
 
     void global::TestNamespace.IResponseBuilder.Speak(string? text)
     {
-        __Speak_1a56931a.RecordCall();
-        if (__Speak_1a56931a.HasConfiguredException)
-            throw __Speak_1a56931a.ConfiguredException;
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
+        lock (__Speak_1a56931a_lock)
+        {
+            __Speak_1a56931a_calls.Add(text);
+            for (var __i = __Speak_1a56931a_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __Speak_1a56931a_entries[__i];
+                if ((__entry.Matcher_text is not { } __m_text || __m_text.Matches(text)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 
     void global::TestNamespace.IResponseBuilder.Speak(global::TestNamespace.ISsml[] parts)
     {
-        __Speak_22f1fe0a.RecordCall();
-        if (__Speak_22f1fe0a.HasConfiguredException)
-            throw __Speak_22f1fe0a.ConfiguredException;
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
+        lock (__Speak_22f1fe0a_lock)
+        {
+            __Speak_22f1fe0a_calls.Add(parts);
+            for (var __i = __Speak_22f1fe0a_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __Speak_22f1fe0a_entries[__i];
+                if ((__entry.Matcher_parts is not { } __m_parts || __m_parts.Matches(parts)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 }
 
 internal static class TestNamespace_IResponseBuilder_ed393682_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, string? text) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_1a56931a);
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, string? text)
+    {
+        var __entry = new global::TestNamespace_IResponseBuilder_ed393682_Double.__Speak_1a56931a_Entry();
+        lock (__self.__Speak_1a56931a_lock) { __self.__Speak_1a56931a_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
 
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, params global::TestNamespace.ISsml[] parts) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Speak_22f1fe0a);
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> SpeakMatching(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, global::Compono.Match<string?> text)
+    {
+        var __entry = new global::TestNamespace_IResponseBuilder_ed393682_Double.__Speak_1a56931a_Entry();
+        __entry.Matcher_text = text;
+        lock (__self.__Speak_1a56931a_lock) { __self.__Speak_1a56931a_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Speak(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, params global::TestNamespace.ISsml[] parts)
+    {
+        var __entry = new global::TestNamespace_IResponseBuilder_ed393682_Double.__Speak_22f1fe0a_Entry();
+        lock (__self.__Speak_22f1fe0a_lock) { __self.__Speak_22f1fe0a_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> SpeakMatching(this global::TestNamespace_IResponseBuilder_ed393682_Double __self, global::Compono.Match<global::TestNamespace.ISsml[]> parts)
+    {
+        var __entry = new global::TestNamespace_IResponseBuilder_ed393682_Double.__Speak_22f1fe0a_Entry();
+        __entry.Matcher_parts = parts;
+        lock (__self.__Speak_22f1fe0a_lock) { __self.__Speak_22f1fe0a_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
 
 }
 
@@ -53,11 +177,61 @@ internal static class TestNamespace_IResponseBuilder_ed393682_VerifyExtension
 
 internal static class TestNamespace_IResponseBuilder_ed393682_DoubleVerification
 {
-    public static global::Compono.CallVerifier Speak(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, string? text) =>
-        new(__self.Instance.__Speak_1a56931a.ConfiguredCallCount, "global::TestNamespace.IResponseBuilder.Speak");
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier Speak(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, string? text)
+    {
+        int __count;
+        lock (__self.Instance.__Speak_1a56931a_lock) { __count = __self.Instance.__Speak_1a56931a_calls.Count; }
+        return new(__count, "global::TestNamespace.IResponseBuilder.Speak");
+    }
 
-    public static global::Compono.CallVerifier Speak(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, params global::TestNamespace.ISsml[] parts) =>
-        new(__self.Instance.__Speak_22f1fe0a.ConfiguredCallCount, "global::TestNamespace.IResponseBuilder.Speak");
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier SpeakMatching(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, global::Compono.Match<string?> text)
+    {
+        int __count;
+        lock (__self.Instance.__Speak_1a56931a_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__Speak_1a56931a_calls)
+            {
+                if (text.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IResponseBuilder.Speak");
+    }
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier Speak(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, params global::TestNamespace.ISsml[] parts)
+    {
+        int __count;
+        lock (__self.Instance.__Speak_22f1fe0a_lock) { __count = __self.Instance.__Speak_22f1fe0a_calls.Count; }
+        return new(__count, "global::TestNamespace.IResponseBuilder.Speak");
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier SpeakMatching(this global::TestNamespace_IResponseBuilder_ed393682_DoubleVerifier __self, global::Compono.Match<global::TestNamespace.ISsml[]> parts)
+    {
+        int __count;
+        lock (__self.Instance.__Speak_22f1fe0a_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__Speak_22f1fe0a_calls)
+            {
+                if (parts.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IResponseBuilder.Speak");
+    }
 
 }
 

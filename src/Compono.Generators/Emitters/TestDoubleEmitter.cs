@@ -105,6 +105,8 @@ internal static class TestDoubleEmitter
                     m.IsConfigurationRequired,
                     m.IsOverloaded,
                     m.IsEligibleForMatching,
+                    m.IsOverloadMatchingEligible,
+                    m.MatchingMemberName,
                     m.IsClosedInstantiationEligible,
                     m.ExtensionReceiverName,
                     m.GenericSuffix,

@@ -10,7 +10,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     string? global::TestNamespace.IRepository.GetName()
     {
         __GetName.RecordCall();
-        return __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
+        return __GetName.HasConfiguredSequence ? __GetName.NextSequenceOutcome()
+            : __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
             : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
             : default;
     }

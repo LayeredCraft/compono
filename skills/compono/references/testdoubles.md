@@ -137,8 +137,38 @@ repository.Configure()
 There is no matcher-specificity ranking — if two entries both match, the
 one configured later wins.
 
-This is still not sequential/call-count-based responses. There is no
-"return X on the first call, Y on the second" API.
+## Sequential/call-count-based responses
+
+`ReturnConfigBuilder<T>.ReturnsSequence(...)` (ADR-0054) configures a
+different outcome per call, consumed in order; the final outcome repeats
+once the sequence is exhausted. It coexists with the argument-matching
+surface above — sequence state belongs to whichever entry the call
+matched, so two argument-distinguished entries on the same member each own
+an independent ordinal:
+
+```csharp
+repository.Configure().CountAsync()
+    .ReturnsSequence(
+        SequenceOutcome.Throw(new TimeoutException("attempt 1 fails")),
+        SequenceOutcome.Throw(new TimeoutException("attempt 2 fails")),
+        Task.FromResult(42));
+
+await repository.CountAsync(); // throws TimeoutException("attempt 1 fails")
+await repository.CountAsync(); // throws TimeoutException("attempt 2 fails")
+await repository.CountAsync(); // 42
+await repository.CountAsync(); // 42 (exhausted - repeats the final outcome)
+```
+
+Each element is a `SequenceOutcome<T>`: an ordinary `T` value converts to
+it implicitly (`1`, `Task.FromResult(42)`, `false`), and an exception
+outcome is spelled explicitly with `SequenceOutcome.Throw(exception)` —
+there is no implicit conversion from `Exception`, since that is silently
+wrong for a `T` that is itself `Exception` or a base/derived type of it.
+Call recording (`Verify().Member(...).Exactly(n)`) is independent of
+response consumption — a throwing call still counts. Reconfiguring the
+same entry (`Configure()` again) replaces the sequence and resets its
+ordinal; `Returns(...)`/`Throws(...)` on the same builder clear any
+configured sequence, and vice versa.
 
 ## Overloaded members (v2)
 
@@ -183,6 +213,62 @@ computed default; the losing (base) declaration purely forwards to it, so
 both interface views share one call-recording state. See
 `docs/packages/compono-testdoubles.md`'s "Default interface members" section
 for the full example.
+
+### Overload-safe argument matching (ADR-0044 Amendment 21)
+
+The discriminator-only surface above still selects an overload by real
+argument *type*, not by argument *content*. When a test needs to distinguish
+calls to the **same overload** by their actual argument values, an eligible
+overload (real parameters, no `ref`/`out`/`in`, not a self-referencing
+generic parameter - the same eligibility conditions as the non-overloaded
+matching surface above) also gets a second, matching-specific member name -
+`<Member>Matching` - taking real `Match<T>` parameters directly:
+
+```csharp
+public interface IAmazonDynamoDB
+{
+    Task<DeleteItemResponse> DeleteItemAsync(DeleteItemRequest request, CancellationToken cancellationToken);
+    Task<DeleteItemResponse> DeleteItemAsync(string tableName, CancellationToken cancellationToken);
+}
+
+client.Configure()
+    .DeleteItemAsync(fallbackRequest, CancellationToken.None)
+    .Returns(Task.FromResult(fallbackResponse));
+client.Configure()
+    .DeleteItemAsyncMatching(Match.Is<DeleteItemRequest>(x => x.TableName == "special"), Match.Any<CancellationToken>())
+    .Returns(Task.FromResult(specialResponse));
+
+client.Verify()
+    .DeleteItemAsyncMatching(Match.Is<DeleteItemRequest>(x => x.TableName == "special"), Match.Any<CancellationToken>())
+    .Once();
+```
+
+`DeleteItemAsyncMatching(...)` is a **configuration/verification-side alias
+only** - it is never itself an independently-dispatched method the SUT can
+call. Both it and the unchanged `DeleteItemAsync(realArgs, ...)`
+discriminator surface attach to the **same real overload**'s entries/call
+log: registration order gives precedence (last-matching-registration-wins,
+same reverse-scan rule as "Multiple response configurations per member"
+above), so a broad discriminator-only response registered first and a
+narrower `.Matching(...)` override registered after it compose exactly like
+two entries on a non-overloaded member would. `Verify().DeleteItemAsync(realArgs, ...)`
+still reports the overload's total real call count, now backed by the same
+call log. A literal argument on the `Matching`-named surface converts to
+`Match<T>` exactly like it does everywhere else (Amendment 18) - it's
+rejected only when two sibling overloads share the same `<Member>Matching`
+name AND the literal is ambiguously convertible to both of their `Match<T>`
+types (e.g. `Get(int)`/`Get(long)` called as `GetMatching(5)`, a real
+`CS0121`), not as a blanket rule.
+
+In the rare case a real interface member is literally named
+`<Overload>Matching` and its own generated `Configure()` extension
+signature would otherwise collide with the alias's, Compono disambiguates
+automatically with a deterministic fallback name, the same way it already
+does for other generated names that collide - no diagnostic, no dropped
+capability, both surfaces stay independently reachable. A real *generic*
+member sharing a closed-instantiation signature with the alias is a softer,
+non-blocking case: that specific closed instantiation is reachable only via
+an explicit type argument on the real member's own name, never implicitly.
 
 ## Generic methods (v2)
 
@@ -293,7 +379,6 @@ that needs access to the actual invocation as a first-class value:
   its result");
 - callback side effects based on the actual invocation;
 - call-order verification;
-- sequential/call-count-based responses;
 - strict mode, partial substitutes, recursive auto-configuration;
 - classes, delegates, indexers, events, and other unsupported shapes listed
   below.

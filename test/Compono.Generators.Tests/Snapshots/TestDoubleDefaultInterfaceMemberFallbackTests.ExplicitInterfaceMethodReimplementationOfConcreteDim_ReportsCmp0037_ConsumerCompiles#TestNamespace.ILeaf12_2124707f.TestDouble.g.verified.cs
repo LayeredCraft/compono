@@ -30,7 +30,8 @@ internal sealed class TestNamespace_ILeaf12_2124707f_Double : global::TestNamesp
     bool global::TestNamespace.IBase12.Flag()
     {
         __Flag.RecordCall();
-        return __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
+        return __Flag.HasConfiguredSequence ? __Flag.NextSequenceOutcome()
+            : __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
             : __Flag.HasConfiguredValue ? __Flag.ConfiguredValue
             : ((global::TestNamespace.IBase12)(this.__Flag_dimHelper ??= new __Flag_DimFallback(this))).Flag();
     }

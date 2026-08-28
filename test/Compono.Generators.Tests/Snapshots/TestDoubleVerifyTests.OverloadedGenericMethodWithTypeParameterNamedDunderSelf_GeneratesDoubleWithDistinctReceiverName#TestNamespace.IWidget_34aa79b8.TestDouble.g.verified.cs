@@ -11,14 +11,18 @@ internal sealed class TestNamespace_IWidget_34aa79b8_Double : global::TestNamesp
     void global::TestNamespace.IWidget.Process<__self>(__self value)
     {
         __Process_9f03e88f.RecordCall();
-        if (__Process_9f03e88f.HasConfiguredException)
+        if (__Process_9f03e88f.HasConfiguredSequence)
+            __Process_9f03e88f.NextSequenceOutcome();
+        else if (__Process_9f03e88f.HasConfiguredException)
             throw __Process_9f03e88f.ConfiguredException;
     }
 
     void global::TestNamespace.IWidget.Process<__self>(global::System.Collections.Generic.IEnumerable<__self> values)
     {
         __Process_22a72316.RecordCall();
-        if (__Process_22a72316.HasConfiguredException)
+        if (__Process_22a72316.HasConfiguredSequence)
+            __Process_22a72316.NextSequenceOutcome();
+        else if (__Process_22a72316.HasConfiguredException)
             throw __Process_22a72316.ConfiguredException;
     }
 }

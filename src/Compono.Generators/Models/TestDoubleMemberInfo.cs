@@ -125,6 +125,20 @@ namespace Compono.Generators.Models;
 /// <c>ILogger&lt;TState&gt;.Log</c> shape). An ineligible member generates its existing v1/v2/ADR-0044
 /// shape, byte-for-byte unchanged.
 /// </param>
+/// <param name="IsOverloadMatchingEligible">
+/// ADR-0044 Amendment 21 / PLAN-0054 Phase 2: whether this overloaded member gets a second,
+/// matching-specific <c>Configure()</c>/<c>Verify()</c> member name (<see cref="MatchingMemberName"/>)
+/// taking real <c>Compono.Match&lt;T&gt;</c> parameters directly, in addition to its unchanged
+/// discriminator-only surface - both attach to the SAME real overload's entries/call-log/lock state
+/// (the same condition list <see cref="IsEligibleForMatching"/> uses, minus the <c>!IsOverloaded</c>
+/// guard - see that parameter's own doc for the individual exclusions).
+/// </param>
+/// <param name="MatchingMemberName">
+/// The matching-specific member name - <c>"&lt;Name&gt;Matching"</c> by default, or a deterministic
+/// hash-suffixed fallback on a genuine signature collision with an already-matching-eligible sibling
+/// of that exact literal name (a real <c>CS0111</c> risk, confirmed by compiler spike). Empty when
+/// <see cref="IsOverloadMatchingEligible"/> is <see langword="false"/>.
+/// </param>
 /// <param name="IsClosedInstantiationEligible">
 /// Whether this member gets ADR-0049's per-closed-<c>T</c> <c>Configure&lt;T&gt;()</c>/<c>Verify&lt;T&gt;()</c>
 /// surface - a generic method whose return type is exactly its own sole type parameter <c>T</c>, or the
@@ -208,6 +222,8 @@ internal sealed record TestDoubleMemberInfo(
     EquatableArray<string> ConstraintClauses = default,
     bool IsConfigurationRequired = false,
     bool IsEligibleForMatching = false,
+    bool IsOverloadMatchingEligible = false,
+    string MatchingMemberName = "",
     bool IsClosedInstantiationEligible = false,
     bool IsClosedInstantiationEligibleShape = false,
     bool IsForwarding = false,

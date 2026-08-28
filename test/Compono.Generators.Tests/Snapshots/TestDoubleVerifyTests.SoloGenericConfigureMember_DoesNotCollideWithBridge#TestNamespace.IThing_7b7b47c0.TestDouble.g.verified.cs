@@ -10,7 +10,9 @@ internal sealed class TestNamespace_IThing_7b7b47c0_Double : global::TestNamespa
     void global::TestNamespace.IThing.Configure<T>()
     {
         __Configure.RecordCall();
-        if (__Configure.HasConfiguredException)
+        if (__Configure.HasConfiguredSequence)
+            __Configure.NextSequenceOutcome();
+        else if (__Configure.HasConfiguredException)
             throw __Configure.ConfiguredException;
     }
 }

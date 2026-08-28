@@ -188,7 +188,7 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
         Compono.TUnit)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — TUnit Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
-            assert_dependency_range "$nuspec" "$pkg" "TUnit.Core" "[1.64.13, 2.0.0)"
+            assert_dependency_range "$nuspec" "$pkg" "TUnit.Core" "[1.65.38, 2.0.0)"
             ;;
         Compono.TestDoubles)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Generated Test Doubles"

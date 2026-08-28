@@ -10,7 +10,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     global::System.Threading.Tasks.ValueTask<string> global::TestNamespace.IRepository.GetNameAsync()
     {
         __GetNameAsync.RecordCall();
-        return __GetNameAsync.HasConfiguredException ? throw __GetNameAsync.ConfiguredException
+        return __GetNameAsync.HasConfiguredSequence ? __GetNameAsync.NextSequenceOutcome()
+            : __GetNameAsync.HasConfiguredException ? throw __GetNameAsync.ConfiguredException
             : __GetNameAsync.HasConfiguredValue ? __GetNameAsync.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'global::TestNamespace.IRepository.GetNameAsync' was invoked without being configured - call Configure().GetNameAsync().Returns(...) or .Throws(...) before invoking it.");

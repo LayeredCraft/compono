@@ -25,11 +25,12 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IRepository.Seek(int value)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
-        // the call-log append and the full scan stay under the SAME lock acquisition as
-        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
-        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
-        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
         lock (__Seek_lock)
         {
             __Seek_calls.Add(value);
@@ -48,6 +49,10 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                     // stop the scan (`return;`) exactly like the value-returning branch below, not
                     // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
                     // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return;
                 }

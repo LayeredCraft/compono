@@ -11,7 +11,8 @@ internal sealed class TestNamespace_ICollision_e0157ffc_Double : global::TestNam
     bool global::TestNamespace.ICollision.Foo()
     {
         __Foo.RecordCall();
-        return __Foo.HasConfiguredException ? throw __Foo.ConfiguredException
+        return __Foo.HasConfiguredSequence ? __Foo.NextSequenceOutcome()
+            : __Foo.HasConfiguredException ? throw __Foo.ConfiguredException
             : __Foo.HasConfiguredValue ? __Foo.ConfiguredValue
             : default;
     }
@@ -19,7 +20,9 @@ internal sealed class TestNamespace_ICollision_e0157ffc_Double : global::TestNam
     void global::TestNamespace.ICollision.Foo_dimHelper()
     {
         __Foo_dimHelper.RecordCall();
-        if (__Foo_dimHelper.HasConfiguredException)
+        if (__Foo_dimHelper.HasConfiguredSequence)
+            __Foo_dimHelper.NextSequenceOutcome();
+        else if (__Foo_dimHelper.HasConfiguredException)
             throw __Foo_dimHelper.ConfiguredException;
     }
 }

@@ -5,31 +5,155 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Handle_3b7828aa;
-    internal global::Compono.ReturnConfig<global::Compono.Unit> __Handle_b5b0a4ae;
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Handle_3b7828aa/__Handle_3b7828aa_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Handle_3b7828aa_Entry
+    {
+        internal global::Compono.Match<global::TestNamespace.Collision.hgQWPcvxVjdw>? Matcher_value;
+        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__Handle_3b7828aa_Entry> __Handle_3b7828aa_entries = [];
+    internal readonly global::System.Collections.Generic.List<global::TestNamespace.Collision.hgQWPcvxVjdw> __Handle_3b7828aa_calls = [];
+    internal readonly object __Handle_3b7828aa_lock = new();
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Handle_b5b0a4ae/__Handle_b5b0a4ae_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Handle_b5b0a4ae_Entry
+    {
+        internal global::Compono.Match<global::TestNamespace.Collision.cTtIHWbVrHlp>? Matcher_value;
+        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__Handle_b5b0a4ae_Entry> __Handle_b5b0a4ae_entries = [];
+    internal readonly global::System.Collections.Generic.List<global::TestNamespace.Collision.cTtIHWbVrHlp> __Handle_b5b0a4ae_calls = [];
+    internal readonly object __Handle_b5b0a4ae_lock = new();
 
     void global::TestNamespace.IBaseA.Handle(global::TestNamespace.Collision.hgQWPcvxVjdw value)
     {
-        __Handle_3b7828aa.RecordCall();
-        if (__Handle_3b7828aa.HasConfiguredException)
-            throw __Handle_3b7828aa.ConfiguredException;
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
+        lock (__Handle_3b7828aa_lock)
+        {
+            __Handle_3b7828aa_calls.Add(value);
+            for (var __i = __Handle_3b7828aa_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __Handle_3b7828aa_entries[__i];
+                if ((__entry.Matcher_value is not { } __m_value || __m_value.Matches(value)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 
     void global::TestNamespace.IBaseB.Handle(global::TestNamespace.Collision.cTtIHWbVrHlp value)
     {
-        __Handle_b5b0a4ae.RecordCall();
-        if (__Handle_b5b0a4ae.HasConfiguredException)
-            throw __Handle_b5b0a4ae.ConfiguredException;
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
+        lock (__Handle_b5b0a4ae_lock)
+        {
+            __Handle_b5b0a4ae_calls.Add(value);
+            for (var __i = __Handle_b5b0a4ae_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __Handle_b5b0a4ae_entries[__i];
+                if ((__entry.Matcher_value is not { } __m_value || __m_value.Matches(value)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
+                    // value-returning branch below for the full reasoning; a matched entry with
+                    // neither a configured exception nor a configured value must not shadow an
+                    // older, configured matching entry. Void members still have a genuine
+                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
+                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
+                    // to return - so it must
+                    // stop the scan (`return;`) exactly like the value-returning branch below, not
+                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
+                    // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return;
+                }
+            }
+        }
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Collision.hgQWPcvxVjdw value) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Handle_3b7828aa);
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Collision.hgQWPcvxVjdw value)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Handle_3b7828aa_Entry();
+        lock (__self.__Handle_3b7828aa_lock) { __self.__Handle_3b7828aa_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
 
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Collision.cTtIHWbVrHlp value) =>
-        new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __self.__Handle_b5b0a4ae);
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> HandleMatching(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<global::TestNamespace.Collision.hgQWPcvxVjdw> value)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Handle_3b7828aa_Entry();
+        __entry.Matcher_value = value;
+        lock (__self.__Handle_3b7828aa_lock) { __self.__Handle_3b7828aa_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Handle(this global::TestNamespace_IRepository_e3198068_Double __self, global::TestNamespace.Collision.cTtIHWbVrHlp value)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Handle_b5b0a4ae_Entry();
+        lock (__self.__Handle_b5b0a4ae_lock) { __self.__Handle_b5b0a4ae_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> HandleMatching(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<global::TestNamespace.Collision.cTtIHWbVrHlp> value)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Handle_b5b0a4ae_Entry();
+        __entry.Matcher_value = value;
+        lock (__self.__Handle_b5b0a4ae_lock) { __self.__Handle_b5b0a4ae_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+    }
 
 }
 
@@ -53,11 +177,61 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier Handle(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::TestNamespace.Collision.hgQWPcvxVjdw value) =>
-        new(__self.Instance.__Handle_3b7828aa.ConfiguredCallCount, "global::TestNamespace.IBaseA.Handle");
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier Handle(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::TestNamespace.Collision.hgQWPcvxVjdw value)
+    {
+        int __count;
+        lock (__self.Instance.__Handle_3b7828aa_lock) { __count = __self.Instance.__Handle_3b7828aa_calls.Count; }
+        return new(__count, "global::TestNamespace.IBaseA.Handle");
+    }
 
-    public static global::Compono.CallVerifier Handle(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::TestNamespace.Collision.cTtIHWbVrHlp value) =>
-        new(__self.Instance.__Handle_b5b0a4ae.ConfiguredCallCount, "global::TestNamespace.IBaseB.Handle");
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier HandleMatching(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<global::TestNamespace.Collision.hgQWPcvxVjdw> value)
+    {
+        int __count;
+        lock (__self.Instance.__Handle_3b7828aa_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__Handle_3b7828aa_calls)
+            {
+                if (value.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IBaseA.Handle");
+    }
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier Handle(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::TestNamespace.Collision.cTtIHWbVrHlp value)
+    {
+        int __count;
+        lock (__self.Instance.__Handle_b5b0a4ae_lock) { __count = __self.Instance.__Handle_b5b0a4ae_calls.Count; }
+        return new(__count, "global::TestNamespace.IBaseB.Handle");
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier HandleMatching(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<global::TestNamespace.Collision.cTtIHWbVrHlp> value)
+    {
+        int __count;
+        lock (__self.Instance.__Handle_b5b0a4ae_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__Handle_b5b0a4ae_calls)
+            {
+                if (value.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IBaseB.Handle");
+    }
 
 }
 

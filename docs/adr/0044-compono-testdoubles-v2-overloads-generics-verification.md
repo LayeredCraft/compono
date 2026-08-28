@@ -2353,6 +2353,228 @@ admission points together).
   the rubric applied above; "Bug handling"'s "no new capability ADR" rule
   is why this is an Amendment plus a plan, not a new roadmap ADR.
 
+## Amendment 21 (2026-08-27): argument matching for overloaded members is now a pre-1.0 product requirement; Amendment 18's boundary is superseded, not merely evidenced-around
+
+`dynamodb-distributed-lock` dogfooding (real migration, not a synthetic
+case) surfaced the same boundary Amendment 18 already documented — an
+overloaded member's `Configure()`/`Verify()` stays discriminator-only, real
+parameter types only, never `Match<T>` — against `Amazon.DynamoDBv2
+.IAmazonDynamoDB`'s real `PutItemAsync`/`DeleteItemAsync` overload
+families. A careful re-audit of the migrating consumer's own test suite
+(prompted by this ADR's own evidence-over-prediction discipline, not
+assumed from the presence of NSubstitute vocabulary alone) found that
+**most** of the apparent need disappeared under scrutiny: of the call
+sites originally routed to a real NSubstitute substitute for this reason,
+all but one turned out to need only a single blanket response regardless
+of arguments — already fully expressible through today's existing
+discriminator-only surface, requiring no new capability at all. Exactly
+**one** real call site
+(`AcquireLockHandleAsync_DisposeHandle_ShouldCallReleaseLock`, asserting
+`DeleteItemRequest.ConditionExpression`/`ExpressionAttributeValues`
+*content*) genuinely needs argument-content matching on an overloaded
+member. This distinction is recorded deliberately: it is evidence against
+`Compono.TestDoubles` growing into a general-purpose NSubstitute clone
+merely because NSubstitute vocabulary (`Arg.Is`, `Arg.Any`) appears in a
+migrating consumer's old test — see ADR-0042's own Non-Goals, unaffected
+by this Amendment.
+
+**Product decision (explicit, 2026-08-27): the *capability* — overload-safe
+argument matching and argument-filtered verification for an overloaded
+member — is `Accepted` as a pre-1.0 requirement, superseding Amendment
+18's framing of the discriminator-only boundary as the permanent answer.**
+Amendment 18's own finding is **not** overturned as engineering fact: the
+real compiler spike it recorded (wrapping overloaded parameters directly
+in `Match<T>` and relying on implicit-conversion overload resolution
+produces genuine `CS0121` ambiguity in realistic families — numeric
+widening, base/derived hierarchies, array-vs-`IEnumerable<T>`) remains the
+reason that *specific* API shape (`Match<T>` participating directly in the
+*existing, real-arity-overloaded* call itself) is rejected, permanently,
+not merely deferred. What changes is the conclusion drawn from that
+finding: Amendment 18 treated it as proof the *capability* isn't
+achievable; it only proved that *one* shape isn't.
+
+**Two structurally different shapes were spiked and rejected in turn
+(2026-08-27) before landing on the recommended one below — recorded so the
+same dead ends aren't re-derived later:**
+
+1. **A nested `.For<T1, ...>()` call under a nullary member-name property**
+   (`Configure().PutItemAsync.For<PutItemRequest, CancellationToken>()`).
+   **Rejected: does not compile.** `{{safe_identifier}}_DoubleConfiguration`
+   already declares `PutItemAsync` as a **method** (the existing
+   discriminator-only overload, which must stay for source compatibility)
+   — a property and a method cannot share one name on the same type
+   (`CS0102`), confirmed by inspecting the real generated
+   `{{...}}_DoubleConfiguration` shape directly.
+2. **A flattened, purely-generic overload of the member name itself**
+   (`Configure().PutItemAsync<T1, T2>()`, zero real parameters, reusing
+   Amendment 1's "overloaded member's extension becomes generic" shape
+   with a new trigger). Compiles cleanly and avoids (1)'s collision — but
+   **rejected on type-safety grounds, confirmed by a real `dotnet build`,
+   not assumed:** the type parameters are pure arity witnesses, completely
+   unenforced against the real overload's parameter types. Given a real
+   two-parameter overload `M(PutItemRequest, CancellationToken)`,
+   `self.M<int, System.DateTime>()` **compiles and silently selects that
+   same overload** — nothing in the language ties `T1`/`T2` to
+   `PutItemRequest`/`CancellationToken` at all. An API that visually reads
+   as "select this parameter-type signature" while actually only meaning
+   "select the overload with this many parameters" is misleading enough on
+   its own terms to reject, independent of whether it happens to work for
+   a careful caller.
+
+**Recommended shape: a separate, matching-specific member name, taking
+real `Match<T>` parameters directly** — spiked fresh (real `dotnet build`,
+not predicted) against every family that made Amendment 18's original
+"`Match<T>` wrapped directly in the call" shape ambiguous, plus the real
+`IAmazonDynamoDB`-shaped arity family, using `Match.Any<T>()`/`Match.Is<T>(predicate)`-style
+call sites (not bare literals — see the literal-shorthand finding below):
+
+```csharp
+public static Configurator DeleteItemAsyncMatching(
+    this Double self, Match<DeleteItemRequest> request, Match<CancellationToken> cancellationToken) => ...;
+```
+
+| Family (the same ones Amendment 18's own spike used) | Result with `Match.Any<T>()`/`Match.Is<T>(...)` args |
+|---|---|
+| Numeric widening (`Match<int>` vs `Match<long>`) | Resolves correctly, no ambiguity |
+| Base/derived (`Match<Base>` vs `Match<Derived>`) | Resolves correctly, no ambiguity |
+| Array vs `IEnumerable<T>` (`Match<int[]>` vs `Match<IEnumerable<int>>`) | Resolves correctly, no ambiguity |
+| Real `IAmazonDynamoDB`-shaped arities (2-arg/3-arg/4-arg, all different real types per arity) | Resolves correctly, no ambiguity |
+
+**Why this works where Amendment 18's shape didn't:** the ambiguity there
+came specifically from `Match<T>`'s own `implicit operator Match<T>(T
+literal)` — a *literal* argument has multiple valid conversion paths
+across sibling overloads (widen then convert, or convert directly). Once
+the caller already supplies an already-`Match<T>`-typed value
+(`Match.Any<T>()`/`Match.Is<T>(predicate)`), the argument's static type
+*is* `Match<T>` exactly — an identity match against exactly one overload,
+no conversion competition at all. This is a materially different
+mechanism from wrapping `Match<T>` into the *existing real-arity-overloaded*
+member name (rejected shape, still rejected) — it is a *new, separate*
+member name whose own overload set is written directly in terms of
+`Match<T>`, so the ambiguity-causing implicit-conversion competition never
+has a second candidate to compete against.
+
+**Literal shorthand does not carry over to this surface — confirmed by
+compile check, not assumed.** Passing a bare literal (relying on
+`Match<T>`'s own implicit `T → Match<T>` conversion, e.g.
+`self.M2(new Derived())` against `M2(Match<Base>)`/`M2(Match<Derived>)`
+siblings) reproduces the exact `CS0121` ambiguity Amendment 18 found,
+because now *two* implicit conversions (the literal's own widening/
+reference conversions, composed with `Match<T>`'s conversion) compete
+again. **Decision: the matching-specific surface requires
+`Match.Is<T>(predicate)`/`Match.Any<T>()`/an already-`Match<T>`-typed
+value — literal shorthand is not offered on this surface.** A consumer
+writing a same-value equality check spells it as
+`Match.Is<T>(x => x == literal)`. This is a real, deliberate ergonomics
+loss relative to a non-overloaded member's existing literal-shorthand
+`Configure().Member(literal)` — recorded here, not silently absorbed —
+justified because the alternative is reintroducing genuine compiler
+ambiguity for the exact overload families this capability exists to
+support.
+
+**Naming convention for the new member name — left to the implementation
+dive, not decided here:** a `Matching` suffix (`DeleteItemAsyncMatching`)
+is used illustratively above and reads clearly, but the exact convention
+(suffix vs. some other disambiguator) is Phase 2 implementation detail,
+not a product decision — record whatever is chosen in
+`references/testdoubles.md` once picked.
+
+**Classification (ADR-0029 applied explicitly):** this is the
+[ADR-0042 Amendment 2](0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration)
+override again — a real, evidenced case where `Compono.NSubstitute`
+satisfies a shape `Compono.TestDoubles` cannot, which Amendment 2 makes a
+roadmap candidate by policy regardless of frequency (one real site, one
+real project, is sufficient evidence under that policy). Per explicit
+product direction recorded here, that classification is resolved further,
+past "roadmap candidate," to **Accepted requirement, `Proposed` API** —
+the same split status [ADR-0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md)
+itself carries between "is this needed" and "what exactly is the
+mechanism." **Update (2026-08-27): implemented and validated per
+[PLAN-0054](../plans/0054-testdoubles-overload-safe-matching-and-sequential-responses-impl-plan.md)
+— the `<Member>Matching` shape below is now `Accepted` API, not merely
+`Proposed`.**
+
+**Scope, held deliberately narrow per the re-audit above:** this Amendment
+does not reopen `Match<T>` participating directly in the *existing*
+discriminator-only overloaded call (Amendment 18's own rejected shape
+stays rejected — the new matching-specific member name is a genuinely
+different call site, not a reopening of that one), does not change
+anything about non-overloaded members (already fully matching-eligible,
+untouched), and does not imply every NSubstitute vocabulary sighting in a
+migrating consumer justifies a new capability — the opposite: the re-audit
+that found nearly every apparent site needed nothing new is exactly the
+evidence discipline this Amendment expects future dogfooding to keep
+applying.
+
+**Same-arity, different-type overloads are fully supported by the
+recommended shape — confirmed by compile check, this is better news than
+the rejected `.For<T1, ...>()` shape's own boundary would have allowed.**
+The now-rejected `.For<T1, ...>()` design's limitation (generic-arity-only
+disambiguation, `CS0111` on same-arity constraint overloading — see the
+prior revision of this Amendment, preserved in git history) does not apply
+to the matching-specific-member-name shape at all: since it uses **real,
+ordinary C# method overloading** on real `Match<T>` parameter types (not
+generic type-parameter constraints), same-arity siblings distinguish
+exactly the way any two ordinarily-overloaded real methods already do.
+Verified directly: a 3-member same-arity overload set with a base/derived
+type appearing in different parameter positions across siblings
+(`M(Match<A>, Match<B>)` / `M(Match<A>, Match<C>)` / `M(Match<D>, Match<B>)`
+where `D : A`) resolves every call correctly via `Match.Any<T>()`-style
+arguments, no ambiguity. **No same-arity exclusion or new diagnostic is
+needed for this design** — the implementation dive should not build the
+`CMP0038`-style carve-out a `.For<T1, ...>()`-shaped design would have
+required; that need evaporates with the shape change. (Whether some
+*other*, narrower boundary exists — e.g. a member that is both generic and
+overloaded, or a `ref`/`out`/`in` parameter interacting with this new
+surface — remains for the implementation dive to spike against, per the
+paragraph below; only the same-arity case is now confirmed clear.)
+
+**Also not decided here, left to the implementation dive:** the exact
+generated shape of the matching-specific member name and its own
+naming convention (a `Matching`-suffixed name is illustrative, not
+decided — see above), how its own `Configure()`/`Verify()` composes with
+[ADR-0050](0050-testdoubles-multi-entry-argument-distinguished-configuration.md)'s
+existing entry model (the new member name's own matching entries, most
+likely — not the existing discriminator-only member's single slot), and
+how it behaves against a member that is both generic *and* overloaded
+(Amendment 18's own already-established "overloaded and generic together"
+shape — the discriminator extension itself becomes generic, purely for
+compile-time overload selection; whether the same treatment is needed for
+the new matching-specific name too is not re-derived by this Amendment)
+and `ref`/`in`/`out` parameters (`in` is already supported today per
+`CMP0004`'s existing rule and needs no new behavior here; a `ref`/`out`
+overload already falls back to a deterministic default today and whether
+that boundary extends to the new matching-specific name is a real open
+question, not assumed either way) — a real generator spike against those
+specific shapes, not assumed to generalize cleanly from the two-arg/
+three-arg case sketched above.
+
+### Links (Amendment 21)
+
+- `dynamodb-distributed-lock` dogfood evidence report (this session,
+  2026-08-27) — the re-audit finding.
+- This Amendment's own revision history (same file, git blame) — the
+  original `.For<T1, ...>()` sketch, its `CS0111` same-arity boundary
+  finding, and why both were superseded, kept here rather than deleted so
+  a future reader doesn't re-derive the same rejected shape.
+- Real compiler spikes (this session, 2026-08-27, against the corrected
+  matching-specific-member-name shape): (1) the property/method `CS0102`
+  collision that killed the nested `.For<T1, ...>()` shape; (2) the
+  flattened `Member<T1, T2>()` shape compiling but leaving `T1`/`T2`
+  completely unenforced against the real overload's parameter types
+  (`self.M<int, System.DateTime>()` silently selecting a real
+  `(PutItemRequest, CancellationToken)` overload) — rejected on
+  type-safety grounds; (3) the matching-specific-name shape resolving
+  correctly for every family Amendment 18's own spike found ambiguous,
+  including same-arity/different-type, using `Match.Any<T>()`/`Match.Is<T>(...)`
+  call sites; (4) literal shorthand reproducing the original `CS0121`
+  ambiguity on this new surface, hence its exclusion.
+- [ADR-0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md) —
+  the "Accepted requirement, `Proposed` API" split status precedent this
+  Amendment's own status still follows.
+- [ADR-0042 Amendment 2](0042-compono-owned-source-generated-test-doubles.md#amendment-2-2026-08-18-full-compononsubstitute-substitutability-is-a-goal-not-an-aspiration) —
+  the classification policy this finding falls under.
+
 ## Links (original, 2026-08-14)
 
 - [RESEARCH-0004](../research/0004-lightsaber-skill-testdoubles-v2-dogfood.md) —

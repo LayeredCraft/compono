@@ -10,7 +10,8 @@ internal sealed class TestNamespace_ICollisionM_72d803a3_Double : global::TestNa
     bool global::TestNamespace.ICollisionM.M()
     {
         __M.RecordCall();
-        return __M.HasConfiguredException ? throw __M.ConfiguredException
+        return __M.HasConfiguredSequence ? __M.NextSequenceOutcome()
+            : __M.HasConfiguredException ? throw __M.ConfiguredException
             : __M.HasConfiguredValue ? __M.ConfiguredValue
             : default;
     }
