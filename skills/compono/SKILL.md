@@ -5,11 +5,12 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` (generated-test-double
-  opt-in informational diagnostics), or `CompositionException` failures,
+  opt-in informational diagnostics), `CMP0038`-`CMP0039` (Compono.Logging
+  activation-generation diagnostics), or `CompositionException` failures,
   deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
   when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
@@ -18,7 +19,7 @@ description: >-
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
   SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`
+  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -52,6 +53,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.TestDoubles"` or `UseGeneratedTestDoubles()` in `*.cs` | `.csproj`/`*.cs` | Definitive | Test-double intent present — load `references/testdoubles.md`, which explains that `UseGeneratedTestDoubles()` also needs `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` set (check separately; its absence is the most common setup mistake, not a reason to skip loading the reference) |
 | `<PackageReference Include="Compono.DependencyInjection"` or `.AsServiceProvider()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `row.AsServiceProvider()` available — load `references/dependencyinjection.md` |
 | `<PackageReference Include="Compono.Http"` | `.csproj` | Definitive | `TestHttpHandler`/`OnGet`/`OnPost`/etc. available — load `references/http.md` |
+| `<PackageReference Include="Compono.Logging"` or `UseLogging()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `ILogger`/`ILogger<T>` compose via `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`, `Verify()` available — load `references/logging.md`. Generation is on by default once the package is referenced — never suggest a manual MSBuild opt-in step |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -141,6 +143,18 @@ instead of claiming `Match<T>` solves them.
      see `references/http.md`. Don't reach for this when the seam is
      already an ordinary interface the test doesn't specifically care is
      HTTP-backed — that stays the NSubstitute/TestDoubles bullet above.
+   - A composed type takes an `ILogger`/`ILogger<T>` dependency and the
+     test wants to assert what was logged (level, message, structured
+     properties, exception, scope) → `UseLogging()` composing a
+     `CapturingLogger`/`CapturingLogger<T>`, if `Compono.Logging` is
+     referenced — see `references/logging.md`. Generation is on by
+     default once the package is referenced; never suggest a manual
+     `ComponoGeneratedLogging=true` opt-in step, and never suggest a
+     hand-rolled fake `ILogger` when this package is already referenced.
+     If the composed type also depends on another interface via
+     `UseNSubstitute()`/`UseGeneratedTestDoubles()`, register
+     `UseLogging()` first — see `references/logging.md`'s registration-
+     order note.
    - A `string` member needs a realistic value (email, name, address) →
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
@@ -270,7 +284,8 @@ undermines the reason Compono exists in this project.
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
   `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`,
-  `Compono.DependencyInjection`, and `Compono.Http` ship as packages today
+  `Compono.DependencyInjection`, `Compono.Http`, and `Compono.Logging` ship
+  as packages today
   (`Compono.TUnit`
   ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
@@ -282,7 +297,11 @@ undermines the reason Compono exists in this project.
   `Compono.Http` ships `TestHttpHandler`, a reflection-free
   `HttpMessageHandler`-based test double for `HttpClient`-consuming code —
   does not ship `IHttpClientFactory`/named-client integration, see
-  `references/http.md`)
+  `references/http.md`; `Compono.Logging` ships `UseLogging()` and
+  `CapturingLogger`/`CapturingLogger<T>` — generation is on by default
+  once the package is referenced, no `ComponoGeneratedLogging` opt-in
+  needed (unlike `Compono.TestDoubles`' opt-in `ComponoGeneratedTestDoubles`),
+  see `references/logging.md`)
   — there is no `Compono.NUnit`, `Compono.MSTest`, `Compono.FakeItEasy`, or
   `Compono.Moq`, and never invent a plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
@@ -370,4 +389,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()` work, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
 | `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
+| `references/logging.md` | `Compono.Logging` is referenced or `UseLogging()` is called — `ILogger`/`ILogger<T>` composition, `CapturingLogger`/`CapturingLogger<T>`, structured properties, scope semantics, `Verify()`, and the `ComponoGeneratedLogging` default-on/opt-out behavior |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

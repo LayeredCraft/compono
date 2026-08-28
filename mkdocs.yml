@@ -148,6 +148,7 @@ nav:
     - Compono.TestDoubles: packages/compono-testdoubles.md
     - Compono.DependencyInjection: packages/compono-dependencyinjection.md
     - Compono.Http: packages/compono-http.md
+    - Compono.Logging: packages/compono-logging.md
   - Best Practices:
     - Overview: best-practices/index.md
     - Organizing Profiles: best-practices/organizing-profiles.md
@@ -183,6 +184,7 @@ nav:
       - Compono.TestDoubles: reference/api/Compono.TestDoubles/index.md
       - Compono.DependencyInjection: reference/api/Compono.DependencyInjection/index.md
       - Compono.Http: reference/api/Compono.Http/index.md
+      - Compono.Logging: reference/api/Compono.Logging/index.md
     - Diagnostics: reference/diagnostics.md
     - Glossary: reference/glossary.md
   - Roadmap:

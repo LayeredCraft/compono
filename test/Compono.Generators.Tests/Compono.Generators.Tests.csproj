@@ -27,6 +27,11 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Verify.SourceGenerators" />
     <PackageReference Include="Verify.XunitV3" />
+    <!-- Compono.Logging's own generator tests (PLAN-0055 task 14) need
+         Microsoft.Extensions.Logging.Abstractions'/Compono.Logging's assembly locations to build
+         ExtraReferences for compilations that should/shouldn't resolve ILogger<T>/the required
+         Compono.Logging runtime symbols. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
@@ -43,6 +48,9 @@
     <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj" />
     <!-- The test's inline source compiles against Compono.Composer/ICompositionPlan<T>/PlanCache<T>. -->
     <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
+    <!-- Referenced normally, for its assembly's location only (ExtraReferences in logging-specific
+         tests) - never for this test project's own inline source to call directly. -->
+    <ProjectReference Include="..\..\src\Compono.Logging\Compono.Logging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

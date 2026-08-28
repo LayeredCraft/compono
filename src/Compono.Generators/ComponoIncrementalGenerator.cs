@@ -25,16 +25,27 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
         // through any of them gets the same test-double-eligibility decision. False (the default)
         // means every discovery path behaves exactly as it did before this feature existed - zero
         // generated-output change.
-        var testDoublesEnabled = context.AnalyzerConfigOptionsProvider
-            .Select(static (provider, _) =>
-                provider.GlobalOptions.TryGetValue("build_property.ComponoGeneratedTestDoubles", out var value)
-                && bool.TryParse(value, out var enabled)
-                && enabled)
+        //
+        // ComponoGeneratedLogging (docs/adr/0055-compono-logging-testing-support-package.md
+        // Amendment 3) is read alongside it, into the same GeneratorFeatureFlags value, rather than
+        // as a second independent provider - both flags need to reach the exact same set of
+        // discovery call sites, so combining them once here avoids a second .Combine(...) at every
+        // one of those sites below. Also false by default when unset; Compono.Logging's own packed
+        // MSBuild props asset is what makes it default to true for a consumer who actually
+        // references that package (never this generator's own concern).
+        var generatorFlags = context.AnalyzerConfigOptionsProvider
+            .Select(static (provider, _) => new GeneratorFeatureFlags(
+                provider.GlobalOptions.TryGetValue("build_property.ComponoGeneratedTestDoubles", out var testDoublesValue)
+                && bool.TryParse(testDoublesValue, out var testDoublesEnabled)
+                && testDoublesEnabled,
+                provider.GlobalOptions.TryGetValue("build_property.ComponoGeneratedLogging", out var loggingValue)
+                && bool.TryParse(loggingValue, out var loggingEnabled)
+                && loggingEnabled))
             .WithTrackingName(TrackingNames.TestDoublesEnabled);
 
         var callSiteResults = context.SyntaxProvider
             .CreateSyntaxProvider(CreateInvocationDiscovery.IsCandidate, static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => CreateInvocationDiscovery.Transform(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.CreateInvocations)
             .Where(static result => result is not null)
@@ -49,7 +60,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposableAttributeDiscovery.AttributeMetadataName,
                 static (node, _) => node is TypeDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposableAttributeDiscovery.TransformTypeLevel(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposableTypes);
 
@@ -58,7 +69,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
         // declarations), so this form gets its own syntax provider over `[assembly: ...]` lists.
         var assemblyComposableResults = context.SyntaxProvider
             .CreateSyntaxProvider(ComposableAttributeDiscovery.IsAssemblyCandidate, static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposableAttributeDiscovery.TransformAssemblyLevel(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.AssemblyComposables)
             .Where(static result => result is not null)
@@ -77,7 +88,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.AttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeMethods);
 
@@ -92,7 +103,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.GenericAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeGenericMethods);
 
@@ -106,7 +117,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethods);
 
@@ -122,7 +133,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TUnitAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeMethodsTUnit);
 
@@ -131,7 +142,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TUnitGenericAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeGenericMethodsTUnit);
 
@@ -140,7 +151,7 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 ComposeMethodDiscovery.TUnitTwoTypeParameterAttributeMetadataName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => ctx)
-            .Combine(testDoublesEnabled)
+            .Combine(generatorFlags)
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethodsTUnit);
 
@@ -326,6 +337,79 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             TestDoubleEmitter.Generate(productionContext, testDouble);
         });
 
+        // docs/adr/0055-compono-logging-testing-support-package.md Amendments 1/3 - logging
+        // activation generation, narrowly isolated inside this existing generator. When
+        // ComponoGeneratedLogging is disabled (the default for any consumer who never references
+        // Compono.Logging), this whole feature costs nothing beyond the one cheap flag check every
+        // discovery path already makes (TransitiveClosureWalker.TryRecordLoggingCategory) - no
+        // runtime-symbol resolution, no diagnostic, no emission.
+        //
+        // Package/type presence is deliberately NOT the enablement signal - the flag alone decides
+        // whether this generator even tries; Compono.Logging's own runtime symbols are resolved only
+        // afterward, purely to validate the environment and produce an honest diagnostic if
+        // something's wrong (Amendment 3's explicit correction of an earlier, rejected design that
+        // gated on symbol presence instead).
+        var loggingRuntimeSymbolsStatus = context.CompilationProvider.Combine(generatorFlags)
+            .Select(static (pair, _) =>
+            {
+                var (compilation, flags) = pair;
+
+                if (!flags.LoggingEnabled)
+                    return LoggingRuntimeSymbolsStatus.Disabled;
+
+                var hasRegistry = compilation.GetTypeByMetadataName("Compono.Logging.LoggingFactoryRegistry") is not null;
+                var hasCapturingLoggerOfT = compilation.GetTypeByMetadataName("Compono.Logging.CapturingLogger`1") is not null;
+                var hasOptions = compilation.GetTypeByMetadataName("Compono.Logging.LoggingOptions") is not null;
+
+                return hasRegistry && hasCapturingLoggerOfT && hasOptions
+                    ? LoggingRuntimeSymbolsStatus.EnabledAndAvailable
+                    : LoggingRuntimeSymbolsStatus.EnabledButUnavailable;
+            })
+            .WithTrackingName(TrackingNames.LoggingRuntimeSymbolsStatus);
+
+        context.RegisterSourceOutput(loggingRuntimeSymbolsStatus, static (productionContext, status) =>
+        {
+            if (status == LoggingRuntimeSymbolsStatus.EnabledButUnavailable)
+                productionContext.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.LoggingRuntimeSymbolsUnavailable, Location.None));
+        });
+
+        // Dedup by category identity across every discovery path, same shape as TestDoubles above -
+        // the same closed ILogger<T> category reached via two different roots (or both a call site
+        // and [Composable]) still gets exactly one registration.
+        var discoveredLoggingCategories = callSiteResults.SelectMany(static (result, _) => result.LoggingCategories)
+            .Collect()
+            .Combine(composableResults.SelectMany(static (result, _) => result.LoggingCategories).Collect())
+            .Combine(assemblyComposableResults.SelectMany(static (result, _) => result.LoggingCategories).Collect())
+            .Combine(composeMethodResultsAll.SelectMany(static (result, _) => result.LoggingCategories).Collect())
+            .WithTrackingName(TrackingNames.DiscoveredLoggingCategoriesCollected)
+            .SelectMany(static (categories, _) =>
+            {
+                var (((callSites, composables), assemblyComposables), composeMethods) = categories;
+
+                return callSites.Concat(composables).Concat(assemblyComposables).Concat(composeMethods)
+                    .GroupBy(static category => category.CategoryFullyQualifiedName)
+                    .Select(static group => group.Distinct().First());
+            })
+            .WithTrackingName(TrackingNames.DiscoveredLoggingCategoriesDistinct);
+
+        context.RegisterSourceOutput(discoveredLoggingCategories.Combine(loggingRuntimeSymbolsStatus), static (productionContext, pair) =>
+        {
+            var (category, status) = pair;
+
+            foreach (var diagnostic in category.Diagnostics)
+                diagnostic.Report(productionContext);
+
+            if (category.Diagnostics.Count > 0)
+                return;
+
+            // Required runtime symbols missing - the compilation-wide CMP0038 diagnostic above
+            // already covers this; never emit a registration referencing types that don't exist.
+            if (status != LoggingRuntimeSymbolsStatus.EnabledAndAvailable)
+                return;
+
+            LoggingActivationEmitter.Generate(productionContext, category);
+        });
+
         // All discovery paths produce equivalent plan-generation requests - merge before deduping
         // so a type discovered via both a call site and [Composable] still gets exactly one plan.
         var discoveredTypes = callSiteTypes.Collect()
@@ -479,4 +563,7 @@ internal static class TrackingNames
     public const string DiscoveredCollectionsDistinct = "DiscoveredCollections.Distinct";
     public const string RowInvokerTypesCollected = "RowInvokerTypes.Collected";
     public const string RowInvokerTypesDistinct = "RowInvokerTypes.Distinct";
+    public const string LoggingRuntimeSymbolsStatus = "LoggingRuntimeSymbolsStatus";
+    public const string DiscoveredLoggingCategoriesCollected = "DiscoveredLoggingCategories.Collected";
+    public const string DiscoveredLoggingCategoriesDistinct = "DiscoveredLoggingCategories.Distinct";
 }

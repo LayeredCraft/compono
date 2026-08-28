@@ -19,4 +19,6 @@ internal sealed record ComposeMethodDiscoveryResult(
     public EquatableArray<DiscoveredCollectionInfo> Collections => ClosureResult.Collections;
 
     public EquatableArray<DiscoveredTestDoubleInfo> TestDoubles => ClosureResult.TestDoubles;
+
+    public EquatableArray<DiscoveredLoggingCategoryInfo> LoggingCategories => ClosureResult.LoggingCategories;
 }

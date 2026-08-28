@@ -9,6 +9,7 @@
     <Project Path="src/Compono.TestDoubles/Compono.TestDoubles.csproj" />
     <Project Path="src/Compono.DependencyInjection/Compono.DependencyInjection.csproj" />
     <Project Path="src/Compono.Http/Compono.Http.csproj" />
+    <Project Path="src/Compono.Logging/Compono.Logging.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
@@ -20,13 +21,15 @@
     <Project Path="test/Compono.TestDoubles.Tests/Compono.TestDoubles.Tests.csproj" />
     <Project Path="test/Compono.DependencyInjection.Tests/Compono.DependencyInjection.Tests.csproj" />
     <Project Path="test/Compono.Http.Tests/Compono.Http.Tests.csproj" />
+    <Project Path="test/Compono.Logging.Tests/Compono.Logging.Tests.csproj" />
     <!-- Compono.Http.AotSmokeTest (and its AnalyzerContract/ sub-projects) is deliberately NOT
          listed here - matching the existing, unlisted Compono.AotSmokeTest/Compono.TUnit.AotSmokeTest/
          Compono.TestDoubles.AotSmokeTest convention: a manual, one-shot PublishAot proof driven by
          its own pack-compono.sh + dotnet publish, not part of `dotnet build Compono.slnx`. The two
          AnalyzerContract/ projects are additionally EXPECTED to produce IL2026/IL3050 warnings by
          design (one of them), which would violate this repo's 0-warnings-0-errors build discipline
-         if included in the normal solution-wide build. -->
+         if included in the normal solution-wide build. Compono.Logging.AotSmokeTest (PLAN-0055 task
+         15) follows this exact same convention and is likewise deliberately unlisted. -->
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Compono.Benchmarks/Compono.Benchmarks.csproj" />

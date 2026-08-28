@@ -88,6 +88,13 @@
          tested-range constraint, not a bare unbounded floor or a blanket exact
          pin, per ADR-0031 Amendment 1. -->
     <PackageVersion Include="NSubstitute" Version="[6.2.0, 7.0.0)" />
+    <!-- Compono.Logging's own dependency, per docs/adr/0055-compono-logging-testing-support-package.md:
+         the minimal Microsoft.Extensions.Logging surface (ILogger/ILogger<T>/LogLevel/EventId/
+         LoggerExternalScopeProvider) - never the concrete Microsoft.Extensions.Logging
+         implementation package, and never Microsoft.Extensions.Diagnostics.Testing (ADR-0055's own
+         independence decision). Floor pinned to the repo's net8.0 minimum TFM's own BCL-aligned
+         release line. -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->

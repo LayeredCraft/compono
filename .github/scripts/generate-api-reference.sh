@@ -24,7 +24,7 @@ cd "$repo_root"
 # it doesn't recognize as a BCL type and links to a learn.microsoft.com URL
 # that 404s for a Compono type - caught during the Phase 1 tool bake-off.
 core_pkg=Compono
-integration_pkgs=(Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http)
+integration_pkgs=(Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging)
 
 links_dir=$(mktemp -d)
 trap 'rm -rf "$links_dir"' EXIT

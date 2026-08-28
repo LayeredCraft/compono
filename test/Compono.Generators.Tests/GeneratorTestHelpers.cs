@@ -254,7 +254,12 @@ internal static partial class GeneratorTestHelpers
                     ? GeneratedCodeAttributeRegex().Replace(line, "REPLACED")
                     : line);
 
-    private static (GeneratorDriver driver, Compilation compilation) GenerateFromSource(
+    // Made internal (was private) so tests that need to inspect a run's raw
+    // GeneratorDriverRunResult directly (diagnostics, generated-tree count/content) can do so
+    // without going through Verify/VerifyFailure's snapshot-approval workflow - used by
+    // Compono.Logging's own discovery/gating-matrix tests (PLAN-0055 task 14), which assert
+    // presence/absence of specific generated members rather than snapshotting whole files.
+    internal static (GeneratorDriver driver, Compilation compilation) GenerateFromSource(
         CodeGenerationOptions options, CancellationToken cancellationToken)
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);

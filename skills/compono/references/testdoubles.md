@@ -402,6 +402,20 @@ constructor selection, and a delegate leaf stays provider-resolved (a
 runtime `CompositionException` if no provider handles it, not a `CMP002x`
 diagnostic).
 
+**`Microsoft.Extensions.Logging.ILogger`/`ILogger<T>` are also never
+test-double candidates when `Compono.Logging`'s generation
+(`ComponoGeneratedLogging`) is enabled** — ADR-0055 Amendment 4: those two
+types become Logging-owned abstractions, excluded from
+`Compono.TestDoubles`-eligibility entirely (no double, no `Verify()`
+extension for them), regardless of `ComponoGeneratedTestDoubles`. This
+fixes a real compile-time collision — without it, this package's generated,
+exact-typed `Verify(this ILogger<T>)` extension silently wins C# overload
+resolution over `Compono.Logging`'s own `Verify(this ILogger)`, breaking
+`Compono.Logging`'s verification API. If `Compono.Logging` isn't
+referenced, or its generation is explicitly disabled
+(`ComponoGeneratedLogging=false`), `ILogger`/`ILogger<T>` behave exactly as
+any other interface for this package — unchanged.
+
 For an eligible **interface**, indexers, events, a genuinely unimplemented
 static abstract member, unsupported generic-method return/parameter shapes,
 and a handful of narrower shapes (set-only properties,

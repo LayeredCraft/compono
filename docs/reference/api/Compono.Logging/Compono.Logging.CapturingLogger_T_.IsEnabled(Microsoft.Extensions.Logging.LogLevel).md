@@ -1,0 +1,23 @@
+#### [Compono\.Logging](index.md 'index')
+### [Compono\.Logging](Compono.Logging.md 'Compono\.Logging').[CapturingLogger&lt;T&gt;](Compono.Logging.CapturingLogger_T_.md 'Compono\.Logging\.CapturingLogger\<T\>')
+
+## CapturingLogger\<T\>\.IsEnabled\(LogLevel\) Method
+
+Checks if the given [logLevel](Compono.Logging.CapturingLogger_T_.IsEnabled(Microsoft.Extensions.Logging.LogLevel).md#Compono.Logging.CapturingLogger_T_.IsEnabled(Microsoft.Extensions.Logging.LogLevel).logLevel 'Compono\.Logging\.CapturingLogger\<T\>\.IsEnabled\(Microsoft\.Extensions\.Logging\.LogLevel\)\.logLevel') is enabled\.
+
+```csharp
+public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel);
+```
+#### Parameters
+
+<a name='Compono.Logging.CapturingLogger_T_.IsEnabled(Microsoft.Extensions.Logging.LogLevel).logLevel'></a>
+
+`logLevel` [Microsoft\.Extensions\.Logging\.LogLevel](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.logging.loglevel 'Microsoft\.Extensions\.Logging\.LogLevel')
+
+Level to be checked\.
+
+Implements [IsEnabled\(LogLevel\)](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.logging.ilogger.isenabled#microsoft-extensions-logging-ilogger-isenabled(microsoft-extensions-logging-loglevel) 'Microsoft\.Extensions\.Logging\.ILogger\.IsEnabled\(Microsoft\.Extensions\.Logging\.LogLevel\)')
+
+#### Returns
+[System\.Boolean](https://learn.microsoft.com/en-us/dotnet/api/system.boolean 'System\.Boolean')  
+`true` if enabled\.

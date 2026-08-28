@@ -22,7 +22,7 @@ internal static class ComposableAttributeDiscovery
     public const string AttributeMetadataName = "Compono.ComposableAttribute";
 
     public static TransitiveClosureResult TransformTypeLevel(
-        GeneratorAttributeSyntaxContext context, bool testDoublesEnabled, CancellationToken cancellationToken)
+        GeneratorAttributeSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not INamedTypeSymbol annotatedType)
         {
@@ -33,6 +33,7 @@ internal static class ComposableAttributeDiscovery
         var types = new List<DiscoveredTypeInfo>();
         var collections = new List<DiscoveredCollectionInfo>();
         var testDoubles = new List<DiscoveredTestDoubleInfo>();
+        var loggingCategories = new List<DiscoveredLoggingCategoryInfo>();
 
         foreach (var attribute in context.Attributes)
         {
@@ -44,13 +45,15 @@ internal static class ComposableAttributeDiscovery
             var requestedType = ExtractTypeArgument(attribute) ?? annotatedType;
             var location = LocationOf(attribute, annotatedType, cancellationToken);
 
-            var result = ComposedTypeAnalyzer.Analyze(requestedType, context.SemanticModel.Compilation, location, testDoublesEnabled);
+            var result = ComposedTypeAnalyzer.Analyze(requestedType, context.SemanticModel.Compilation, location, flags);
             types.AddRange(result.Types);
             collections.AddRange(result.Collections);
             testDoubles.AddRange(result.TestDoubles);
+            loggingCategories.AddRange(result.LoggingCategories);
         }
 
-        return new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray(), testDoubles.ToEquatableArray());
+        return new TransitiveClosureResult(
+            types.ToEquatableArray(), collections.ToEquatableArray(), testDoubles.ToEquatableArray(), loggingCategories.ToEquatableArray());
     }
 
     // Deliberately no name filter here - a syntax-only check can't see through an alias
@@ -66,7 +69,7 @@ internal static class ComposableAttributeDiscovery
         };
 
     public static TransitiveClosureResult? TransformAssemblyLevel(
-        GeneratorSyntaxContext context, bool testDoublesEnabled, CancellationToken cancellationToken)
+        GeneratorSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         var attribute = (AttributeSyntax)context.Node;
 
@@ -87,7 +90,7 @@ internal static class ComposableAttributeDiscovery
         if (requestedType is null)
             return AssemblyComposableMissingTypeFailure(location);
 
-        return ComposedTypeAnalyzer.Analyze(requestedType, context.SemanticModel.Compilation, location, testDoublesEnabled);
+        return ComposedTypeAnalyzer.Analyze(requestedType, context.SemanticModel.Compilation, location, flags);
     }
 
     private static ITypeSymbol? ExtractTypeArgument(AttributeData attribute) =>
