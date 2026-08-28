@@ -4411,6 +4411,57 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
+    // Codex review, PR #115 (round 4): a candidate's own TypeParameters.Length is not always its
+    // generated extension's actual arity - a SOLO (non-overloaded, non-closed-instantiation)
+    // generic real member's own extension is emitted non-generic (ADR-0044 Requirement 2's "one
+    // backing slot covers every closed instantiation" rule, mirrored onto a matching-eligible
+    // member's own extension too), regardless of the method's own real generic arity. Foo(int)
+    // (arity 0) plus Foo<T>(string) (arity 1) generates the alias FooMatching (arity 0,
+    // Match<int>) for Foo(int); the solo real generic FooMatching<T>(int) - despite its own
+    // TypeParameters.Length being 1 - actually emits the SAME non-generic
+    // "FooMatching(Compono.Match<int> value)" signature, a genuine collision the arity-naive
+    // comparison would miss.
+    [Fact]
+    public Task OverloadMatchingAliasCollidesWithSoloGenericRealMemberEmittingNonGenericExtension_FallsBackToHashSuffixedName() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    bool Foo(int id);
+
+                    bool Foo<T>(string id);
+
+                    // Solo (non-overloaded), generic, but T is unused - not closed-instantiation-
+                    // eligible (the return type doesn't depend on T) - so ADR-0044 Requirement 2's
+                    // rule applies: its own generated Configure()/Verify() extension is emitted
+                    // NON-generic ("FooMatching(Compono.Match<int> value)"), matching the alias
+                    // Foo(int) generates for itself despite this method's own TypeParameters.Length
+                    // being 1.
+                    bool FooMatching<T>(int value);
+                }
+
+                public sealed class OrderService
+                {
+                    public OrderService(IRepository repository) { }
+                }
+
+                public static class EntryPoint
+                {
+                    public static void Run(IRepository repository)
+                    {
+                        Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                        repository.Configure().Foo(1).Returns(true);
+                        repository.Configure().Foo<string>("x").Returns(true);
+                        repository.Configure().FooMatching(1).Returns(true);
+                    }
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
     // Sibling to the collision test above - a real member literally named "<Overload>Matching" whose
     // own signature does NOT collide with either of the alias's own generated overloads keeps the
     // natural, non-hash-suffixed name (the fallback only fires on a genuine signature collision, not

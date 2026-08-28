@@ -700,10 +700,24 @@ internal static class TestDoubleAnalyzer
                     ? candidateMethod.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray()
                     : candidateMethod.Parameters.Select(p => (ISymbol)p.Type).ToArray();
 
+                // Codex review, PR #115 (round 4): a candidate's own TypeParameters.Length is NOT
+                // always its generated extension's actual arity - TestDoubleMemberInfo.ExtensionIsGeneric
+                // (the template's own governing rule) says a SOLO generic member's extension only
+                // stays generic when it's also overloaded or closed-instantiation-eligible; a solo
+                // (non-overloaded, non-closed-instantiation) generic member's Configure()/Verify()
+                // extension is emitted non-generic regardless of TypeParameters.Length (Requirement
+                // 2's "one backing slot covers every closed instantiation" rule, extended identically
+                // to a matching-eligible member's own extension). Mirror that exact rule here instead
+                // of assuming generic arity always survives into the emitted signature.
+                var effectiveArity = candidateMethod.IsGenericMethod &&
+                    (overloadedNames.Contains(candidateMethod.Name) || IsClosedInstantiationEligibleCandidate(candidateMethod, compilation))
+                    ? candidateMethod.TypeParameters.Length
+                    : 0;
+
                 if (!realGeneratedSignaturesByName.TryGetValue(candidateMethod.Name, out var signatures))
                     realGeneratedSignaturesByName[candidateMethod.Name] = signatures = new List<(int, ISymbol[])>();
 
-                signatures.Add((candidateMethod.TypeParameters.Length, parameterTypes));
+                signatures.Add((effectiveArity, parameterTypes));
             }
         }
 
