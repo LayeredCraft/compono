@@ -28,6 +28,7 @@ public sealed class CompositionBuilder
     private readonly Dictionary<(Type DeclaringType, string MemberName), (Type MemberType, int Size)> _memberCollectionSizes = new();
     private readonly List<ICompositionValueProvider> _semanticProviders = [];
     private readonly List<ICompositionValueProvider> _testDoubleProviders = [];
+    private readonly HashSet<Type> _sharedTypes = [];
     private readonly Stack<Type> _applyingProfiles = new();
 
     internal CompositionBuilder()
@@ -89,6 +90,33 @@ public sealed class CompositionBuilder
     {
         ArgumentNullException.ThrowIfNull(factory);
         AddRegistration(typeof(T), _ => factory());
+        return this;
+    }
+
+    /// <summary>
+    /// Declares <typeparamref name="T"/> graph-wide shared: within a single composition graph (one
+    /// <see cref="Composer.Create{T}"/> root, one <c>CreateMany&lt;T&gt;()</c> item, or one
+    /// <see cref="CompositionRow"/>), the first request for <typeparamref name="T"/> resolves through
+    /// the normal pipeline and every subsequent request - regardless of source: an ordinary
+    /// constructor parameter, a nested/transitive dependency, a provider, an exact registration, or an
+    /// undecorated <c>[Compose]</c> theory parameter - receives that exact same instance. No
+    /// <c>[Shared]</c> attribute is ever required to participate in a type declared shared this way.
+    /// See <c>docs/adr/0056-composition-builder-share-graph-wide-sharing.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// Configuration only - calling this does not construct <typeparamref name="T"/>; the first real
+    /// request within the graph does. Calling this more than once for the same
+    /// <typeparamref name="T"/> (directly, or from more than one profile) is idempotent, unlike
+    /// <see cref="Register{T}(Func{ICompositionContext, T})"/>'s strict duplicate-registration
+    /// contract - there is no "which call wins" question to answer, since every call asserts the
+    /// identical fact about the same type. Orthogonal to <see cref="Register{T}(Func{ICompositionContext, T})"/>:
+    /// which stage produces <typeparamref name="T"/> is unaffected by this call, and the two may be
+    /// combined in either order with no precedence rule between them.
+    /// </remarks>
+    /// <typeparam name="T">The type to declare graph-wide shared.</typeparam>
+    public CompositionBuilder Share<T>()
+    {
+        _sharedTypes.Add(typeof(T));
         return this;
     }
 
@@ -292,6 +320,12 @@ public sealed class CompositionBuilder
             CollectionSizePolicy = _memberCollectionSizes.Count == 0 && !_globalCollectionSize.HasValue
                 ? CollectionSizePolicy.Empty
                 : new CollectionSizePolicy(_globalCollectionSize.HasValue ? _globalCollectionSize.Value : null, _memberCollectionSizes),
+            // Defensively copied into a genuinely immutable snapshot - same reasoning as
+            // Registrations above (docs/adr/0017-immutable-composer-configuration-and-builder-model.md):
+            // a consumer that captures this builder out of the Composer.Create callback could
+            // otherwise keep calling Share<T>() against this live HashSet after Composer.Create(...)
+            // has already returned, silently mutating an already-built composer's configuration.
+            SharedTypes = _sharedTypes.ToHashSet(),
         };
     }
 

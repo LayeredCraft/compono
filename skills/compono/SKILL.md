@@ -114,11 +114,21 @@ instead of claiming `Match<T>` solves them.
      (`.For<T>().Member(x => x.Y).Use(...)`), not a post-hoc mutation
      after `Create<T>()`.
    - The *same instance* needs to be shared across the composed graph and
-     the test body → `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`,
-     whichever the project references) — see
+     the test body → `Share<T>()` (`CompositionBuilder.Share<T>()`,
+     declared once, typically in a profile) for a reusable, profile-level
+     sharing intent — every request for that type anywhere in the graph
+     participates automatically, with **no `[Shared]` attribute needed**;
+     `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`, whichever the
+     project references) for a one-off, single-test case that doesn't
+     warrant a profile change. See
      `references/registrations-profiles-and-scopes.md`. Don't reach for
-     `[Shared]` just to "make things consistent" or as a perceived
-     performance win; ordinary composition is already cheap.
+     either just to "make things consistent" or as a perceived performance
+     win; ordinary composition is already cheap. Adding `Share<T>()` to a
+     profile several tests already reuse changes sharing semantics for
+     *every* graph composed with that profile, silently, for any test
+     structurally reaching the type more than once — a materially larger
+     blast radius than adding `[Shared]` to one test method; don't add it
+     to a shared profile without considering that.
    - Interface/abstract-class/delegate needs a real test double →
      `Compono.NSubstitute`'s `UseNSubstitute()`, not a hand-rolled stub,
      if that package is referenced. An **interface** leaf that should be
@@ -380,7 +390,7 @@ Load only what the Detection table says is relevant to the current task.
 | File | Read when... |
 |---|---|
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
-| `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
+| `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `Share<T>()`, `[Shared]`, or debugging a recursion/registration-conflict error |
 | `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0020`-`CMP0032` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |

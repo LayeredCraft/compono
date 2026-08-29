@@ -15,8 +15,14 @@ var service = composer.Create<OrderService>();   // OrderService(ILogger<OrderSe
 ```
 
 ```csharp
-[Theory, Compose]
-public void RetriesLogAWarning([Shared] ILogger<OrderService> logger, OrderService service)
+public sealed class OrderServiceProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder.UseLogging().Share<ILogger<OrderService>>();
+}
+
+[Theory, Compose<OrderServiceProfile>]
+public void RetriesLogAWarning(ILogger<OrderService> logger, OrderService service)
 {
     service.PlaceOrder(...);
     logger.Verify().AtLevel(LogLevel.Warning).WithMessageContaining("retry").Once();
@@ -185,14 +191,18 @@ ADR-0055 Amendment 4:
   as a bug, and never suggest a priority/specificity mechanism that
   doesn't exist.
 
-## `[Shared]`
+## `Share<T>()` and `[Shared]`
 
-Works exactly as it already does elsewhere — no new mechanism.
-`[Shared] ILogger<OrderService> logger, OrderService service` gets back
-the exact composed instance for assertion. Never suggest a `Share<T>()`
-helper or a new sharing attribute — that ergonomics gap is real but is a
-separately-tracked, broader pre-1.0 question, not something
-`Compono.Logging` solves.
+A composed `ILogger<T>` participates in
+[`Share<T>()`](../../../docs/adr/0056-composition-builder-share-graph-wide-sharing.md)
+like any other composed type — no logging-specific mechanism. Prefer
+`Share<T>()`, declared once in a profile (as above), over `[Shared]` on
+every theory that needs to observe a captured logger — an ordinary,
+undecorated `ILogger<OrderService> logger` parameter then gets back the
+exact composed instance for assertion, with **no `[Shared]` attribute**.
+`[Shared]` still works unchanged for a one-off case that doesn't warrant a
+profile. Never suggest `Share<T>()` shares across separate `Create<T>()`
+calls or is composer-wide — it's graph-scoped, per ADR-0056.
 
 ## `LoggingFactoryRegistry` — generator infrastructure, not usage API
 

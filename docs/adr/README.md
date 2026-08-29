@@ -117,3 +117,4 @@ the mechanics: numbering, status, and the index.
 | [0053](0053-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | Proposed |
 | [0054](0054-testdoubles-sequential-call-count-based-responses.md) | Compono.TestDoubles: Sequential/Call-Count-Based Responses | Accepted |
 | [0055](0055-compono-logging-testing-support-package.md) | Compono.Logging: First-Class Microsoft.Extensions.Logging Testing Support | Accepted |
+| [0056](0056-composition-builder-share-graph-wide-sharing.md) | `CompositionBuilder.Share<T>()`: Graph-Wide Sharing as a Core Composition Concept | Accepted |

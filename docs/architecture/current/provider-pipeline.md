@@ -13,7 +13,7 @@ providers reordering themselves:
 | # | Stage | Kind |
 |---|---|---|
 | 1 | Explicit values | Context-owned deterministic check |
-| 2 | Shared or scoped values | Context-owned deterministic check against the scope. Any request (`[Shared]` or not) sees an already-shared value for its type on read; only an `IsShared` request ever populates scope on write. |
+| 2 | Shared or scoped values | Context-owned deterministic check against the scope. Any request (`[Shared]` or not) sees an already-shared value for its type on read; a request only populates scope on write when its `IsShared` flag is set — either directly (`[Shared]`, `ResolveShared`) or because its type was declared via [`CompositionBuilder.Share<T>()`](../../adr/0056-composition-builder-share-graph-wide-sharing.md), which broadens `IsShared` to every request for that type, from any resolution stage, for the whole graph. |
 | 3 | Exact registrations | **Hybrid**: a context-owned deterministic lookup against the exact-registration table, then — only on a miss, if `UseServiceProvider(...)` was configured — a fallback `IServiceProvider.GetService(typeof(T))` call. |
 | 4 | Configuration rules | Ordered `ICompositionProvider` collection populated by type/member value rules compiled from `builder.For<T>()...`, whether reached directly or via a profile. |
 | 5 | Semantic value providers | Ordered `ICompositionProvider` collection. Public registration surface: `builder.AddSemanticProvider(ICompositionValueProvider)`. `Compono.Bogus`'s `BogusMemberNameProvider` is this stage's first real registrant. |
