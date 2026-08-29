@@ -60,4 +60,11 @@ internal sealed class CompositionConfiguration
     /// if neither <c>WithCollectionSize</c> nor a member-scoped override was ever called.
     /// </summary>
     internal required CollectionSizePolicy CollectionSizePolicy { get; init; }
+
+    /// <summary>
+    /// This composer's set of graph-wide shared types, declared via
+    /// <see cref="CompositionBuilder.Share{T}"/> - empty if never called. See
+    /// <c>docs/adr/0056-composition-builder-share-graph-wide-sharing.md</c>.
+    /// </summary>
+    internal required IReadOnlySet<Type> SharedTypes { get; init; }
 }

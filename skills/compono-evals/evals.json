@@ -391,6 +391,20 @@
         "Does not suggest a priority/specificity mechanism that doesn't exist",
         "Explicitly states no ComponoGeneratedLogging opt-in is needed - it already defaults to true - rather than inventing or endorsing a manual opt-in step"
       ]
+    },
+    {
+      "id": 34,
+      "category": "behavioral-correctness",
+      "prompt": "I want every test in this class to reuse the exact same ILogger<OrderService> instance the composed OrderService receives, without adding [Shared] to every theory - and this project references Compono, Compono.XunitV3, and Compono.Logging. Separately: if I call composer.Create<OrderService>() twice in the same test, will that shared logger be the same instance both times?",
+      "expected_output": "Recommends CompositionBuilder.Share<ILogger<OrderService>>() declared once in an ICompositionProfile (paired with UseLogging()), so an ordinary, undecorated ILogger<OrderService> theory parameter participates automatically with no [Shared] attribute anywhere. Explicitly corrects the second question: Share<T>() is graph-scoped, not composer-wide - two separate composer.Create<T>() calls (and separate CreateMany<T>() items) never share a Share<T>()-configured value, each gets its own independently-shared instance.",
+      "files": [],
+      "expectations": [
+        "Recommends Share<T>() declared once (e.g. in a profile), not [Shared] repeated on every theory parameter",
+        "Shows the retrieving parameter as an ordinary, undecorated parameter with no [Shared] attribute",
+        "Explicitly states Share<T>() does NOT share a value across two separate Create<T>() calls or across CreateMany<T>() items - it does not describe it as composer-wide or a persistent/ambient cache",
+        "Does not describe Share<T>() as a service locator or a way to retrieve a value without an ordinary composed parameter",
+        "Does not conflate Share<T>() and [Shared] as the same mechanism"
+      ]
     }
   ]
 }

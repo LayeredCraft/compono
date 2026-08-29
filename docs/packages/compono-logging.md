@@ -48,9 +48,15 @@ var service = composer.Create<OrderService>();   // OrderService(ILogger<OrderSe
 ```
 
 ```csharp
+public sealed class OrderServiceProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder.UseLogging().Share<ILogger<OrderService>>();
+}
+
 [Theory]
-[Compose]
-public void RetriesLogAWarning([Shared] ILogger<OrderService> logger, OrderService service)
+[Compose<OrderServiceProfile>]
+public void RetriesLogAWarning(ILogger<OrderService> logger, OrderService service)
 {
     service.PlaceOrder(...);
 
@@ -260,15 +266,20 @@ parameter. A category reached only through a hand-written
 call falls outside this — a documented, intentional gap
 (ADR-0052's still-open "Finding B"), not a bug.
 
-## `[Shared]`
+## `Share<T>()` and `[Shared]`
 
-`Compono.Logging` uses `[Shared]` exactly as it already exists — no new
-mechanism, no `Share<T>()`. The ergonomics friction of needing a
-parameter purely to observe a composed instance
-(`[Shared] ILogger<OrderService> logger, OrderService service`) is a
-real, already-recognized, broader pre-1.0 product question, tracked as
-its own upcoming design investigation — `Compono.Logging` doesn't attempt
-to solve it locally.
+`Compono.Logging`'s own composed `ILogger<T>` participates in
+[`Share<T>()`](../adr/0056-composition-builder-share-graph-wide-sharing.md)
+like any other composed type — no logging-specific mechanism. Prefer
+`Share<T>()`, declared once in a profile, over `[Shared]` on every theory
+that needs to observe a captured logger: an ordinary, undecorated
+`ILogger<OrderService> logger` parameter (as in the example above) then
+receives the exact same instance `OrderService` itself resolves — no
+`[Shared]` attribute anywhere. `[Shared]` still works unchanged for a
+one-off case that doesn't warrant a profile; the two mechanisms aren't
+mutually exclusive, but `Share<T>()` is the graph-wide, reusable answer to
+the "needing a parameter purely to observe a composed instance" friction
+this section used to describe as unsolved.
 
 ## v1 non-goals
 

@@ -18,6 +18,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Compono.XunitV3\Compono.XunitV3.csproj" />
+    <!-- A plain ProjectReference to Compono.csproj (transitively, via Compono.XunitV3) does not
+         propagate Compono.Generators.dll as an active analyzer - CompositionBuilderShareTests.cs
+         needs a real generated plan for its own fixture types (see
+         docs/adr/0056-composition-builder-share-graph-wide-sharing.md). Confirmed to introduce zero
+         regressions to this project's other existing tests; a real, permanent project dependency. -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

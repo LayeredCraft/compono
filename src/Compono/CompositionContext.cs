@@ -36,6 +36,7 @@ internal sealed class CompositionContext : ICompositionContext
     private readonly IReadOnlyList<ICompositionProvider> _testDoubleProviders;
     private readonly IReadOnlyList<ICompositionProvider> _builtInProviders;
     private readonly CollectionSizePolicy _collectionSizePolicy;
+    private readonly IReadOnlySet<Type> _sharedTypes;
 
     // One shared counter per CompositionContext (one per row) - every TryResolveConfigured call gets
     // the next ordinal, same shape as ManualResolveFrame.NextOrdinal, so sequential sibling calls fork
@@ -97,9 +98,10 @@ internal sealed class CompositionContext : ICompositionContext
     /// <summary>
     /// Creates a <see cref="CompositionContext"/> with the real stage-7 built-in providers, the given
     /// explicit stage-3 registrations and configured <c>IServiceProvider</c>, the given compiled
-    /// stage-4/5/6 provider lists and collection-size policy, and the given explicit root
-    /// seed - the shape <see cref="Composer.Create{T}"/>/<see cref="Composer.CreateMany{T}"/> use once
-    /// a <see cref="CompositionBuilder"/> has been configured.
+    /// stage-4/5/6 provider lists and collection-size policy, the given explicit root seed, and the
+    /// given <see cref="CompositionBuilder.Share{T}"/>-declared shared types - the shape
+    /// <see cref="Composer.Create{T}"/>/<see cref="Composer.CreateMany{T}"/> use once a
+    /// <see cref="CompositionBuilder"/> has been configured.
     /// </summary>
     internal CompositionContext(
         CompositionSeed seed,
@@ -108,8 +110,9 @@ internal sealed class CompositionContext : ICompositionContext
         IReadOnlyList<ICompositionProvider> configurationRuleProviders,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
-        CollectionSizePolicy collectionSizePolicy)
-        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders, testDoubleProviders, builtInProviders: BuiltInProviders.Default, collectionSizePolicy)
+        CollectionSizePolicy collectionSizePolicy,
+        IReadOnlySet<Type>? sharedTypes = null)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders, testDoubleProviders, builtInProviders: BuiltInProviders.Default, collectionSizePolicy, sharedTypes)
     {
     }
 
@@ -130,8 +133,9 @@ internal sealed class CompositionContext : ICompositionContext
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         CollectionSizePolicy collectionSizePolicy,
-        Type rootType)
-        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders, testDoubleProviders, collectionSizePolicy)
+        Type rootType,
+        IReadOnlySet<Type>? sharedTypes = null)
+        : this(seed, registrations, serviceProvider, configurationRuleProviders, semanticProviders, testDoubleProviders, collectionSizePolicy, sharedTypes)
     {
         _path = CompositionPath.Root(rootType);
         _random = RandomSource.FromSeed(seed);
@@ -160,7 +164,8 @@ internal sealed class CompositionContext : ICompositionContext
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
         IReadOnlyList<ICompositionProvider> builtInProviders,
-        CollectionSizePolicy collectionSizePolicy)
+        CollectionSizePolicy collectionSizePolicy,
+        IReadOnlySet<Type>? sharedTypes = null)
     {
         _seed = seed;
         _registrations = registrations;
@@ -170,6 +175,7 @@ internal sealed class CompositionContext : ICompositionContext
         _testDoubleProviders = testDoubleProviders;
         _builtInProviders = builtInProviders;
         _collectionSizePolicy = collectionSizePolicy;
+        _sharedTypes = sharedTypes ?? (IReadOnlySet<Type>)new HashSet<Type>();
     }
 
     /// <summary>
@@ -468,6 +474,13 @@ internal sealed class CompositionContext : ICompositionContext
     private TValue ResolveCore<TValue>(Nullability nullability, Type? declaringType, PathSegment? segment, bool isShared)
     {
         var requestedType = typeof(TValue);
+        // A builder-configured Share<T>() type makes EVERY request for that type behave as shared for
+        // the write side (CompositionRequest.IsShared below), regardless of source - deliberately NOT
+        // used for the raw `isShared` duplicate-establishment guard further down (still keyed on the
+        // explicit, caller-asserted isShared only), since an ordinary ambient participant hitting an
+        // already-populated scope must read-and-return, never throw "already established." See
+        // docs/adr/0056-composition-builder-share-graph-wide-sharing.md.
+        var effectiveIsShared = isShared || _sharedTypes.Contains(requestedType);
         var previousRandom = _random;
         var previousDeclaringType = _currentDeclaringType;
         var isRoot = _path is null;
@@ -489,7 +502,7 @@ internal sealed class CompositionContext : ICompositionContext
                 Nullability = nullability,
                 DeclaringType = declaringType,
                 Path = _path,
-                IsShared = isShared,
+                IsShared = effectiveIsShared,
             };
 
             // Stage 1 (explicit values) has no pipeline mechanism - Milestone 4's inline theory values
@@ -544,7 +557,7 @@ internal sealed class CompositionContext : ICompositionContext
                 var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration, provider: null);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
-                StoreSharedValue(requestedType, isShared, result);
+                StoreSharedValue(requestedType, effectiveIsShared, result);
                 var value = Authoritative<TValue>(result);
                 _trace.Rewind(checkpoint);
                 return value;
@@ -576,7 +589,7 @@ internal sealed class CompositionContext : ICompositionContext
                 {
                     var result = ValidateAuthoritativeValue(serviceValue, request, "configured IServiceProvider");
                     _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
-                    StoreSharedValue(requestedType, isShared, result);
+                    StoreSharedValue(requestedType, effectiveIsShared, result);
                     var value = Authoritative<TValue>(result);
                     _trace.Rewind(checkpoint);
                     return value;

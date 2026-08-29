@@ -95,7 +95,7 @@ each row is expanded into its own section below.
 | Exact-type `ISpecimenBuilder` | `Register<T>()` |
 | Type/member customization | `.For<T>()` / `.Member(...)` |
 | Pattern-based specimen builder | `ICompositionValueProvider` |
-| `[Frozen]` | `[Shared]`, when identity is genuinely required |
+| `[Frozen]` | `[Shared]` for a one-off test, `Share<T>()` (declared once in a profile) for a reusable customization — either way, only when identity is genuinely required |
 | `AutoNSubstituteCustomization` | `UseNSubstitute()` |
 | Semantic/realistic data | `UseBogus()` / `UseBogus<T>()` |
 | `OmitOnRecursionBehavior` | No equivalent — Compono fails clearly instead |
@@ -307,9 +307,14 @@ is worth it versus configuring everything in one place.
 
 By default, Compono composes each parameter independently — two
 parameters of the same type get two separate instances, same as
-unfrozen AutoFixture. `[Shared]` is the direct equivalent of `[Frozen]`,
-but audit each real `[Frozen]` usage rather than translating it
-mechanically: many turn out not to need it at all.
+unfrozen AutoFixture. `[Shared]` is the direct, per-test equivalent of
+`[Frozen]` on a single `[AutoData]` call; `Share<T>()`
+([ADR-0056](adr/0056-composition-builder-share-graph-wide-sharing.md)),
+declared once in a profile, is the closer equivalent when the original
+`[Frozen]` customization lived in a reusable `ICustomization`/
+`AutoDataAttribute` subclass applied across many tests — either way,
+audit each real `[Frozen]` usage rather than translating it mechanically:
+many turn out not to need identity at all.
 
 **Equivalent — real sharing.** Where a dependency composed as a test
 parameter is also depended on by another composed parameter, and the test

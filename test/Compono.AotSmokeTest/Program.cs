@@ -37,6 +37,32 @@ internal sealed class AmbiguousFoo
     public IBaz? Baz { get; }
 }
 
+// docs/adr/0056-composition-builder-share-graph-wide-sharing.md: a builder-configured Share<T>()
+// type reached by two sibling composed dependents, neither annotated, must resolve to the exact same
+// instance - exercised here as a plain Composer.Create<T>() graph (not row/[Compose]-based) under
+// Native AOT specifically, since Share<T>()'s own write-gate touches CompositionContext.ResolveCore
+// directly, independent of the RowInvokerRegistry/[Compose] dispatch path already covered above.
+internal sealed class SharedLeaf
+{
+    public string Origin { get; } = "generated";
+}
+
+internal sealed class ShareSiblingA(SharedLeaf leaf)
+{
+    public SharedLeaf Leaf { get; } = leaf;
+}
+
+internal sealed class ShareSiblingB(SharedLeaf leaf)
+{
+    public SharedLeaf Leaf { get; } = leaf;
+}
+
+internal sealed class ShareSiblingsRoot(ShareSiblingA a, ShareSiblingB b)
+{
+    public ShareSiblingA A { get; } = a;
+    public ShareSiblingB B { get; } = b;
+}
+
 internal static class SmokeTestMethods
 {
     // The real target of this whole harness: a [Compose]-attributed method parameter list containing
@@ -82,9 +108,16 @@ internal static class Program
             if (foo.Bar is not BarImpl || foo.Baz is not BazImpl)
                 throw new InvalidOperationException("UseConstructor<IBar, IBaz>() did not compose AmbiguousFoo through the selected constructor.");
 
+            var shareComposer = Composer.Create(builder => builder.Share<SharedLeaf>());
+            var shareRoot = shareComposer.Create<ShareSiblingsRoot>();
+
+            if (!ReferenceEquals(shareRoot.A.Leaf, shareRoot.B.Leaf))
+                throw new InvalidOperationException("Share<T>() did not establish an identical shared instance for two sibling composed dependents under Native AOT.");
+
             Console.WriteLine(
                 $"PASS: RowInvokerRegistry dispatch survived Native AOT - Widget.Name='{widget.Name}', " +
-                $"leaf='{leaf}', explicit constructor selection composed AmbiguousFoo correctly.");
+                $"leaf='{leaf}', explicit constructor selection composed AmbiguousFoo correctly, " +
+                "Share<T>() established identical shared instances for two sibling composed dependents.");
             return 0;
         }
         catch (Exception ex)
