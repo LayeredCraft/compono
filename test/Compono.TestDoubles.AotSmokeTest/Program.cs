@@ -310,6 +310,97 @@ internal static class Program
                     $"Expected configured IDefaultHandler.CanHandle(...) to return the configured " +
                     $"value (false), got {configuredDimResult}.");
 
+            // ADR-0054: sequential/call-count-based responses under Native AOT - a mixed
+            // exception/value sequence on a Task<T>-returning member (the real evidenced shape),
+            // exhaustion repeating the final outcome, call recording staying independent of
+            // response consumption (RecordCall() fires even on the two throwing calls), and two
+            // independently-configured ADR-0050 entries maintaining independent ordinals.
+            //
+            // A void member's sequence carries no value dimension (Compono.Unit is a marker, not a
+            // real payload), but exception-only sequencing still applies and is meaningful - "throw
+            // on the first call, succeed silently after" - proven here on the overloaded Send(string)
+            // discriminator. A fresh double, not the `gateway` instance above (which already recorded
+            // an unrelated Send("hello") call) - Send(string)'s Verify() is discriminator-only, an
+            // unfiltered per-overload count regardless of the argument's actual value, so reusing
+            // `gateway` here would inflate the count this test asserts on, unrelated to ADR-0054.
+            var sequencedGateway = composer.Create<IGateway>();
+            sequencedGateway.Configure().Send("sequenced").ReturnsSequence(SequenceOutcome.Throw(new InvalidOperationException("first call fails")), default(Unit));
+
+            var firstSendThrew = false;
+            try { sequencedGateway.Send("sequenced"); }
+            catch (InvalidOperationException) { firstSendThrew = true; }
+
+            sequencedGateway.Send("sequenced"); // second call: exhausted-but-one-element-left, succeeds silently
+            sequencedGateway.Send("sequenced"); // third call: exhaustion repeats the final (non-throwing) outcome
+
+            if (!firstSendThrew)
+                throw new InvalidOperationException("Expected the first sequenced Send(\"sequenced\") call to throw.");
+
+            sequencedGateway.Verify().Send("sequenced").Exactly(3);
+
+            var retryGateway = composer.Create<IRepository>();
+            var attempt1 = new InvalidOperationException("attempt 1 fails");
+            var attempt2 = new InvalidOperationException("attempt 2 fails");
+            retryGateway.Configure().CountAsync().ReturnsSequence(SequenceOutcome.Throw(attempt1), SequenceOutcome.Throw(attempt2), Task.FromResult(42));
+
+            var sequenceResults = new List<object>();
+            for (var i = 0; i < 4; i++)
+            {
+                try { sequenceResults.Add(await retryGateway.CountAsync()); }
+                catch (InvalidOperationException ex) { sequenceResults.Add(ex.Message); }
+            }
+
+            var expectedSequence = new object[] { "attempt 1 fails", "attempt 2 fails", 42, 42 };
+            if (!sequenceResults.SequenceEqual(expectedSequence))
+                throw new InvalidOperationException(
+                    $"Expected sequential CountAsync() results [{string.Join(", ", expectedSequence)}], " +
+                    $"got [{string.Join(", ", sequenceResults)}].");
+
+            retryGateway.Verify().CountAsync().Exactly(4);
+
+            // Independent ADR-0050 entries own independent sequence ordinals.
+            accountRepository.Configure().Withdraw("acct-seq-1", Match.Any<decimal>(), Match.Any<bool>()).ReturnsSequence(false, true);
+            accountRepository.Configure().Withdraw("acct-seq-2", Match.Any<decimal>(), Match.Any<bool>()).ReturnsSequence(true, false);
+
+            var seq1First = accountRepository.Withdraw("acct-seq-1", 1m, true);
+            var seq2First = accountRepository.Withdraw("acct-seq-2", 1m, true);
+            var seq1Second = accountRepository.Withdraw("acct-seq-1", 1m, true);
+            var seq2Second = accountRepository.Withdraw("acct-seq-2", 1m, true);
+
+            if (seq1First || !seq2First || !seq1Second || seq2Second)
+                throw new InvalidOperationException(
+                    $"Expected independent per-entry sequence ordinals (false,true / true,false), got " +
+                    $"({seq1First},{seq2First},{seq1Second},{seq2Second}).");
+
+            // ADR-0044 Amendment 21: overload-safe argument matching under Native AOT - coexistence/
+            // precedence (a broad discriminator-only Configure() registered first, a narrower
+            // .Matching(...) override registered after it - the SUT-visible dispatch always goes
+            // through the real IGateway.Send(string) overload, and both surfaces observe the same
+            // calls) and sibling-overload independence (configuring Send(string)'s matching surface
+            // never affects Send(int, string)'s own, independent entries/call-log/Verify() count).
+            var matchingGateway = composer.Create<IGateway>();
+            matchingGateway.Configure().Send("ignored").Throws(new InvalidOperationException("fallback"));
+            matchingGateway.Configure().SendMatching(Match.Is<string>(m => m == "special")).Returns(default(Unit));
+
+            var specialThrew = false;
+            try { matchingGateway.Send("special"); } catch (InvalidOperationException) { specialThrew = true; }
+
+            var otherThrew = false;
+            try { matchingGateway.Send("other"); } catch (InvalidOperationException) { otherThrew = true; }
+
+            if (specialThrew)
+                throw new InvalidOperationException("Expected Send(\"special\") to match the narrower .Matching(...) entry and NOT throw.");
+
+            if (!otherThrew)
+                throw new InvalidOperationException("Expected Send(\"other\") to fall through to the broad discriminator entry and throw.");
+
+            matchingGateway.Configure().SendMatching(Match.Any<int>(), Match.Any<string>()).Returns(default(Unit));
+            matchingGateway.Send(1, "retry");
+
+            matchingGateway.Verify().SendMatching(Match.Is<string>(m => m == "special")).Once();
+            matchingGateway.Verify().Send("ignored").Exactly(2);
+            matchingGateway.Verify().SendMatching(Match.Any<int>(), Match.Any<string>()).Once();
+
             Console.WriteLine(
                 $"PASS: generated doubles (composer.Create<T>() + UseGeneratedTestDoubles(), full " +
                 $"base-interface closure, overloaded member, generic method, call verification, " +

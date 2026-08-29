@@ -51,9 +51,9 @@ namespace Compono.Generators.Discovery;
 /// </summary>
 internal static class TransitiveClosureWalker
 {
-    public static TransitiveClosureResult Walk(ITypeSymbol rootType, Compilation compilation, LocationInfo? location, bool testDoublesEnabled)
+    public static TransitiveClosureResult Walk(ITypeSymbol rootType, Compilation compilation, LocationInfo? location, GeneratorFeatureFlags flags)
     {
-        var ctx = new WalkContext(compilation, location, testDoublesEnabled);
+        var ctx = new WalkContext(compilation, location, flags);
 
         EnqueueRoot(rootType, ctx);
 
@@ -73,7 +73,8 @@ internal static class TransitiveClosureWalker
                 EnqueueMember(memberType, memberName, type, path, ctx);
         }
 
-        return new TransitiveClosureResult(ctx.Results.ToEquatableArray(), ctx.Collections.ToEquatableArray(), ctx.TestDoubles.ToEquatableArray());
+        return new TransitiveClosureResult(
+            ctx.Results.ToEquatableArray(), ctx.Collections.ToEquatableArray(), ctx.TestDoubles.ToEquatableArray(), ctx.LoggingCategories.ToEquatableArray());
     }
 
     // Mirrors EnqueueMember's classification (collection shape -> provider-resolved leaf ->
@@ -102,6 +103,7 @@ internal static class TransitiveClosureWalker
         }
 
         TryRecordTestDouble(rootType, ctx);
+        TryRecordLoggingCategory(rootType, ctx);
 
         if (LeafTypeClassifier.IsRuntimeProviderResolved(rootType, ctx.WellKnown))
             return;
@@ -174,6 +176,7 @@ internal static class TransitiveClosureWalker
         }
 
         TryRecordTestDouble(namedType, ctx);
+        TryRecordLoggingCategory(namedType, ctx);
 
         if (LeafTypeClassifier.IsProviderResolved(namedType, ctx.WellKnown))
             return;
@@ -184,9 +187,26 @@ internal static class TransitiveClosureWalker
         ctx.Queue.Enqueue((namedType, childPath));
     }
 
+    // ADR-0055 Amendment 4: when Compono.Logging's generation is enabled, ILogger/ILogger<T> are
+    // Logging-owned abstractions - Compono.TestDoubles never generates a double or Verify()
+    // extension for them, regardless of ComponoGeneratedTestDoubles. Without this, both generators
+    // independently claim the same closed ILogger<T> type and emit two same-named Verify()
+    // extensions; ordinary C# overload resolution prefers TestDoubles' exact-typed
+    // Verify(this ILogger<T>) over Compono.Logging's Verify(this ILogger), silently shadowing
+    // Compono.Logging's verification API. Applies uniformly to bare ILogger too, even though bare
+    // ILogger needs no generated activation and was never actually at risk of this collision
+    // (LoggingProvider constructs it directly) - one ownership rule, not two.
+    private static bool IsLoggingOwned(ITypeSymbol type, WalkContext ctx) =>
+        ctx.LoggingWellKnown is { } loggingWellKnown &&
+        (SymbolEqualityComparer.Default.Equals(type, loggingWellKnown.ILogger) ||
+         loggingWellKnown.TryGetCategory(type) is not null);
+
     private static void TryRecordTestDouble(ITypeSymbol type, WalkContext ctx)
     {
         if (!LeafTypeClassifier.IsGeneratedTestDoubleEligible(type, ctx.TestDoublesEnabled))
+            return;
+
+        if (IsLoggingOwned(type, ctx))
             return;
 
         var interfaceType = (INamedTypeSymbol)type;
@@ -195,6 +215,54 @@ internal static class TransitiveClosureWalker
             return;
 
         ctx.TestDoubles.Add(TestDoubleAnalyzer.Analyze(interfaceType, ctx.Compilation, ctx.Location));
+    }
+
+    // Mirrors TryRecordTestDouble's exact placement/dedup shape, for the identical reason: ILogger<T>
+    // is a provider-resolved interface leaf (IsRuntimeProviderResolved/IsProviderResolved return true
+    // for it below), so it's never itself walked structurally - this is the only place its category
+    // type T is ever recorded. Called from both EnqueueRoot and EnqueueMember so a closed ILogger<T>
+    // reached as a bare Composer.Create<ILogger<T>>()/[Compose] parameter root, or as any nested
+    // constructor parameter, is covered by the same single check. See
+    // docs/adr/0055-compono-logging-testing-support-package.md Amendment 3's discovery model - this
+    // reuses TransitiveClosureWalker's existing roots/recursion/leaf-classification entirely; it adds
+    // no second walker.
+    private static void TryRecordLoggingCategory(ITypeSymbol type, WalkContext ctx)
+    {
+        if (!ctx.LoggingEnabled)
+            return;
+
+        var loggingWellKnown = ctx.LoggingWellKnown;
+        if (loggingWellKnown is null)
+            return;
+
+        var category = loggingWellKnown.TryGetCategory(type);
+        if (category is null)
+            return;
+
+        if (!ctx.VisitedLoggingCategories.Add(category))
+            return;
+
+        var categoryName = category.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        // Mirrors DiscoveredCollectionInfo's identical accessibility check for element/key types
+        // (CMP0012): the generated activation is a top-level type, so a private/protected category
+        // type can never legally be referenced from it, even from a call site that could otherwise
+        // see it - confirmed empirically (a real compile spike) during this feature's design. Report
+        // CMP0039 and skip emission for this category entirely, rather than emitting source that
+        // would fail to compile.
+        if (!ctx.Compilation.IsSymbolAccessibleWithin(category, ctx.Compilation.Assembly))
+        {
+            ctx.LoggingCategories.Add(new DiscoveredLoggingCategoryInfo(
+                categoryName,
+                new[]
+                {
+                    new DiagnosticInfo(
+                        DiagnosticDescriptors.InaccessibleLoggingCategoryType, ctx.Location, categoryName),
+                }.ToEquatableArray()));
+            return;
+        }
+
+        ctx.LoggingCategories.Add(new DiscoveredLoggingCategoryInfo(categoryName, EquatableArray<DiagnosticInfo>.Empty));
     }
 
     // Every generated collection plan is emitted as a `file`-scoped top-level type
@@ -313,13 +381,20 @@ internal static class TransitiveClosureWalker
     // kind this walker learns to recognize.
     private sealed class WalkContext
     {
-        public WalkContext(Compilation compilation, LocationInfo? location, bool testDoublesEnabled)
+        public WalkContext(Compilation compilation, LocationInfo? location, GeneratorFeatureFlags flags)
         {
             Compilation = compilation;
             Location = location;
-            TestDoublesEnabled = testDoublesEnabled;
+            TestDoublesEnabled = flags.TestDoublesEnabled;
+            LoggingEnabled = flags.LoggingEnabled;
             WellKnown = Compono.Generators.WellKnownTypes.WellKnownTypes.GetOrCreate(compilation);
             CollectionTypes = CollectionWellKnownTypes.GetOrCreate(compilation);
+            // Cheap and inert when logging generation is disabled - never resolved at all, matching
+            // ADR-0055 Amendment 3's "disabled path does no logging-specific symbol validation or
+            // discovery bookkeeping" requirement exactly.
+            LoggingWellKnown = flags.LoggingEnabled
+                ? Compono.Generators.WellKnownTypes.LoggingWellKnownTypes.TryCreate(compilation)
+                : null;
         }
 
         public Compilation Compilation { get; }
@@ -328,7 +403,11 @@ internal static class TransitiveClosureWalker
 
         public bool TestDoublesEnabled { get; }
 
+        public bool LoggingEnabled { get; }
+
         public WellKnownTypes.WellKnownTypes WellKnown { get; }
+
+        public WellKnownTypes.LoggingWellKnownTypes? LoggingWellKnown { get; }
 
         public CollectionWellKnownTypes CollectionTypes { get; }
 
@@ -352,11 +431,19 @@ internal static class TransitiveClosureWalker
         // the same "diagnose, don't guess" pattern DiscoveredTypeInfo's CMP0010 already follows.
         public HashSet<INamedTypeSymbol> VisitedTestDoubleInterfaces { get; } = new(SymbolEqualityComparer.IncludeNullability);
 
+        // Keyed by the category type T itself (not ILogger<T>) - IncludeNullability for the same
+        // reason VisitedTestDoubleInterfaces uses it: ILogger<Customer> and ILogger<Customer?> (an
+        // unusual but legal shape) are walked and recorded as distinct entries rather than one
+        // silently winning traversal order.
+        public HashSet<ITypeSymbol> VisitedLoggingCategories { get; } = new(SymbolEqualityComparer.IncludeNullability);
+
         public List<DiscoveredTypeInfo> Results { get; } = [];
 
         public List<DiscoveredCollectionInfo> Collections { get; } = [];
 
         public List<DiscoveredTestDoubleInfo> TestDoubles { get; } = [];
+
+        public List<DiscoveredLoggingCategoryInfo> LoggingCategories { get; } = [];
 
         public Queue<(INamedTypeSymbol Type, string? Path)> Queue { get; } = new();
     }

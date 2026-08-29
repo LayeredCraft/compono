@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — Microsoft.Extensions.Logging Testing Support</Title>
+        <Description>First-class Microsoft.Extensions.Logging testing support for Compono - ILogger/ILogger&lt;T&gt; compose naturally through UseLogging(), backed by a hand-written CapturingLogger/CapturingLogger&lt;T&gt; pair (real scope tracking, thread-safe capture, structured-property extraction) and Compono-native Verify() verification reusing core CallVerifier unmodified. See docs/adr/0055-compono-logging-testing-support-package.md.</Description>
+        <!-- ADR-0055's own AOT/trimming requirement, following Compono.Http's precedent (ADR-0051)
+             of being the second package in the repo to set this explicitly - see ADR-0055 Amendment
+             1 for why this claim is now backed by generated closed-generic activation rather than
+             the originally-assumed "member surface is fixed and small" reasoning alone. -->
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Core Compono only, for CallVerifier/CompositionBuilder/ICompositionValueProvider reuse -
+             no dependency on Compono.TestDoubles or Compono.NSubstitute (ADR-0055 "Package identity
+             and dependency graph"). -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    </ItemGroup>
+
+    <!-- No generator/analyzer project of Compono.Logging's own - per ADR-0055 Amendment 3, logging
+         activation generation lives inside the existing Compono.Generators (already packed into
+         Compono.nupkg), reached transitively through this project's Compono dependency above. -->
+
+    <ItemGroup>
+        <!-- Defaults ComponoGeneratedLogging to true for any consumer who doesn't set it explicitly
+             (ADR-0055 Amendment 3). Packaged into both build/ and buildTransitive/ so the default
+             applies whether Compono.Logging is referenced directly or transitively - the
+             declaration that makes AnalyzerConfigOptionsProvider actually see this property at all
+             lives in core Compono's own build/Compono.props instead, since Compono.Generators.dll
+             (the only thing that ever reads it) is packed there. -->
+        <None Include="build\Compono.Logging.props" Pack="true" PackagePath="build\Compono.Logging.props" />
+        <None Include="build\Compono.Logging.props" Pack="true" PackagePath="buildTransitive\Compono.Logging.props" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.Logging.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.DependencyInjection.csproj/Compono.XunitV3.csproj/Compono.Http.csproj's
+         identical target for the full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

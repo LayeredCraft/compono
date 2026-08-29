@@ -17,10 +17,15 @@ dotnet add package Compono.TestDoubles --prerelease
 
 `Compono.TestDoubles` is not a general-purpose mocking framework — see
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
-Non-Goals. If you need call verification, argument matchers, or a familiar
-runtime-proxy substitute, use
-[`Compono.NSubstitute`](compono-nsubstitute.md) instead; the two packages
-are not mutually exclusive.
+Non-Goals — but current generated doubles do support `Configure()`,
+`Verify()`, literal equality matching, `Match.Any<T>()`,
+`Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
+and multi-entry argument-distinguished response configuration for eligible
+member shapes. Use [`Compono.NSubstitute`](compono-nsubstitute.md) when you
+intentionally want a familiar runtime-proxy substitute or a capability still
+outside generated-double support, such as invocation-aware callbacks, true
+argument capture, call-order verification, or partial/strict substitutes;
+the two packages are not mutually exclusive.
 
 ## Compile-time opt-in
 
@@ -71,10 +76,12 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
   `using` or a generation failure — see
   [ADR-0043 Amendment 3 Finding C](../adr/0043-compono-generated-test-doubles-design.md#amendment-3-2026-08-13-public-cross-assembly-state-contract-overloadname-collision-diagnostics-documented-multi-assembly-registry-limitation).
 - **Per-member `.Returns(...)`/`.Throws(...)`** — configure a method or
-  property's behavior; last configuration wins (calling `.Returns(...)`
-  after an earlier `.Throws(...)` on the same member clears the exception,
-  and vice versa). Configuration is member-level and **argument-
-  independent** — there are no argument matchers in v1.
+  property's behavior. A zero-argument `Configure().Member()` applies to
+  every call to that member. For eligible parameterized members,
+  `Configure().Member(...)` accepts literal equality arguments,
+  `Match.Any<T>()`, and `Match.Is<T>(predicate)`; multiple argument-
+  distinguished configurations can coexist, with the most recently
+  registered matching entry winning.
 - **Deterministic defaults for unconfigured members** — primitives,
   nullable references, `Task`/`Task<T>`, `ValueTask`/`ValueTask<T>`, and
   known collection shapes (arrays, `List<T>`, `Dictionary<TKey,TValue>`,
@@ -133,6 +140,63 @@ Two edge cases stay narrower than full per-overload support:
   deterministic default still has no constructible body at any granularity
   and rejects the whole interface, same as the non-overloaded case
   (`CMP0026`).
+
+### Overload-safe argument matching
+
+The discriminator-only surface above still selects an overload by real
+argument *type*, not by argument *content*. When a test needs to
+distinguish calls to the **same overload** by their actual argument values
+(v2, [ADR-0044 Amendment 21](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-21-2026-08-27-argument-matching-for-overloaded-members-is-now-a-pre-10-product-requirement-amendment-18s-boundary-is-superseded-not-merely-evidenced-around)),
+an eligible overload (real parameters, no `ref`/`out`/`in`, not a
+self-referencing generic parameter — the same eligibility conditions as
+the non-overloaded matching surface below) also gets a second,
+matching-specific member name, `<Member>Matching`, taking real `Match<T>`
+parameters directly:
+
+```csharp
+public interface IAmazonDynamoDB
+{
+    Task<DeleteItemResponse> DeleteItemAsync(DeleteItemRequest request, CancellationToken cancellationToken);
+    Task<DeleteItemResponse> DeleteItemAsync(string tableName, CancellationToken cancellationToken);
+}
+
+client.Configure()
+    .DeleteItemAsync(fallbackRequest, CancellationToken.None)
+    .Returns(Task.FromResult(fallbackResponse));
+client.Configure()
+    .DeleteItemAsyncMatching(Match.Is<DeleteItemRequest>(x => x.TableName == "special"), Match.Any<CancellationToken>())
+    .Returns(Task.FromResult(specialResponse));
+
+client.Verify()
+    .DeleteItemAsyncMatching(Match.Is<DeleteItemRequest>(x => x.TableName == "special"), Match.Any<CancellationToken>())
+    .Once();
+```
+
+`DeleteItemAsyncMatching(...)` is a **configuration/verification-side
+alias only** — the SUT never calls it; it's never itself an
+independently-dispatched method. Both it and the unchanged
+`DeleteItemAsync(realArgs, ...)` discriminator surface attach to the
+**same real overload**'s entries/call log, so a call the SUT actually
+makes through the real overload is visible to both surfaces consistently.
+Registration order gives precedence exactly like "Multiple response
+configurations per member" below — a broad discriminator-only response
+registered first and a narrower `.Matching(...)` override registered after
+it compose the same way two entries on a non-overloaded member would.
+`Verify().DeleteItemAsync(realArgs, ...)` still reports the overload's
+total real call count, now backed by the same call log.
+
+A literal argument on the `Matching`-named surface converts to `Match<T>`
+exactly like it does everywhere else (Amendment 18's implicit conversion)
+— it's rejected only when two sibling overloads share the same
+`<Member>Matching` name **and** the literal is ambiguously convertible to
+both of their `Match<T>` types (e.g. `Get(int)`/`Get(long)` called as
+`GetMatching(5)`, a real `CS0121`), not as a blanket rule. In the rare
+case a real interface member is literally named `<Overload>Matching` and
+its own generated `Configure()` extension signature would otherwise
+collide with the alias's, Compono disambiguates automatically with a
+deterministic fallback name, the same way it already does for other
+generated names that collide — no diagnostic, no dropped capability, both
+surfaces stay independently reachable.
 
 ## Default interface members
 
@@ -378,10 +442,11 @@ would.
 
 **Still deliberately minimal** - `Never`/`Once`/`Exactly(n)` only, no
 `AtLeast`/`AtMost`, no `ReceivedCalls()`-style enumeration, and (see below)
-no call-order verification. Argument-aware recording *is* available for
-one specific class of member - see "Argument matching and argument-filtered
-verification" below. If a test needs anything else this page doesn't cover
-(call-order verification, an overloaded member's own argument matching,
+no call-order verification. Argument-aware recording is available both for
+a non-overloaded eligible member (see "Argument matching and
+argument-filtered verification" below) and, per-overload, via the
+`<Member>Matching` surface ("Overload-safe argument matching" above). If a
+test needs anything else this page doesn't cover (call-order verification,
 `ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that interface
 instead - the two providers can coexist (see below).
 
@@ -422,15 +487,23 @@ through to a computed default, or to
 [Configuration-required members](#configuration-required-members)'
 throwing behavior below) - not a distinct failure mode.
 
-**Why this doesn't apply to an overloaded member.** A real compiler spike
-(ADR-0048's Decision Outcome) proved that wrapping every overload's
-parameters in a matcher type breaks C#'s own overload resolution
-unpredictably for several realistic parameter-type families (base/derived
-class hierarchies, `string[]` vs. `IEnumerable<string>`, even plain `int`
-vs. `long` widening) - there's no reliable per-family fix, so argument
-matching is scoped out entirely for any member with more than one overload.
-An overloaded member's `Configure()`/`Verify()` stay exactly the
-[per-overload discriminator shape](#overloaded-members) above, unchanged.
+**Why this exact surface doesn't apply to an overloaded member.** A real
+compiler spike (ADR-0048's Decision Outcome) proved that wrapping *every
+overload's own real parameters* in a matcher type, on the *same* call
+site/member name, breaks C#'s own overload resolution unpredictably for
+several realistic parameter-type families (base/derived class hierarchies,
+`string[]` vs. `IEnumerable<string>`, even plain `int` vs. `long`
+widening) - there's no reliable per-family fix, so *this specific
+same-name shape* stays scoped out entirely. That finding still holds and
+still shapes the design below. It does **not** mean overloaded members
+have no argument-matching story at all, though — see "Overload-safe
+argument matching" above ([ADR-0044 Amendment 21](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-21-2026-08-27-argument-matching-for-overloaded-members-is-now-a-pre-10-product-requirement-amendment-18s-boundary-is-superseded-not-merely-evidenced-around)):
+a separate `<Member>Matching` member name, taking real `Match<T>`
+parameters directly, sidesteps the exact ambiguity this spike found (a
+different call site than the discriminator-only one, so there's no
+overload set for the matcher-wrapped parameters to collide with) while the
+unchanged, real-parameter-typed discriminator surface described here still
+selects the overload the same way it always has.
 The same reasoning excludes a generic method whose real parameters
 reference its own type parameter (an `ILogger<TState>.Log<TState>`-shaped
 member) - a per-member call log can't hold an open type parameter's value,
@@ -504,11 +577,47 @@ as guaranteed, and every existing single-`Configure()`-call usage keeps
 its exact same observable behavior.
 
 **What this deliberately doesn't do.** No matcher-specificity ranking (see
-above). No sequential/call-count-based responses (`Configure()` doesn't
-support "return X on the first call, Y on the second"). No
-`Returns(Func<...>)` callback responses. Verification (`Verify()`) is
-completely unaffected - it stays a count over the member's shared call
-log, independent of how many response configurations exist.
+above). No `Returns(Func<...>)` callback responses. Verification
+(`Verify()`) is completely unaffected - it stays a count over the member's
+shared call log, independent of how many response configurations exist.
+"Return X on the first call, Y on the second" *is* supported - see
+"Sequential/call-count-based responses" below, a distinct capability from
+multi-entry argument matching.
+
+## Sequential/call-count-based responses
+
+`ReturnConfigBuilder<T>.ReturnsSequence(...)`
+([ADR-0054](../adr/0054-testdoubles-sequential-call-count-based-responses.md))
+configures a different outcome per call, consumed in order; the final
+outcome repeats once the sequence is exhausted. It coexists with the
+argument-matching surface above - sequence state belongs to whichever
+entry the call matched, so two argument-distinguished entries on the same
+member each own an independent ordinal:
+
+```csharp
+repository.Configure().CountAsync()
+    .ReturnsSequence(
+        SequenceOutcome.Throw(new TimeoutException("attempt 1 fails")),
+        SequenceOutcome.Throw(new TimeoutException("attempt 2 fails")),
+        Task.FromResult(42));
+
+await repository.CountAsync(); // throws TimeoutException("attempt 1 fails")
+await repository.CountAsync(); // throws TimeoutException("attempt 2 fails")
+await repository.CountAsync(); // 42
+await repository.CountAsync(); // 42 (exhausted - repeats the final outcome)
+```
+
+Each element is a `SequenceOutcome<T>`: an ordinary `T` value converts to
+it implicitly (`1`, `Task.FromResult(42)`, `false`), and an exception
+outcome is spelled explicitly with `SequenceOutcome.Throw(exception)` -
+there is no implicit conversion from `Exception`, since that's silently
+wrong for a `T` that's itself `Exception` or a base/derived type of it (a
+real compiler spike proved the dual-conversion design ambiguous - see
+ADR-0054). Call recording (`Verify().Member(...).Exactly(n)`) is
+independent of response consumption - a throwing call still counts.
+Reconfiguring the same entry (`Configure()` again) replaces the sequence
+and resets its ordinal; `Returns(...)`/`Throws(...)` on the same builder
+clear any configured sequence, and vice versa.
 
 ## Configuration-required members
 
@@ -627,10 +736,13 @@ configurations per member are supported for those same eligible members
 response configurations per member" above and
 [ADR-0050](../adr/0050-testdoubles-multi-entry-argument-distinguished-configuration.md)
 — but strictly last-matching-registration-wins, with no matcher-specificity
-ranking, no sequential/call-count-based responses, and no
-`Returns(Func<...>)` callbacks. Still no argument
-matching on an overloaded member (a real compiler
-spike proved it, see above), no call-order verification, no
+ranking, and no `Returns(Func<...>)` callbacks.
+Sequential/call-count-based responses (`ReturnsSequence(...)`,
+[ADR-0054](../adr/0054-testdoubles-sequential-call-count-based-responses.md))
+and overload-safe argument matching (`<Member>Matching`, ADR-0044
+Amendment 21) are both now supported — see "Sequential/call-count-based
+responses" and "Overload-safe argument matching" above. Still no
+call-order verification, no
 `ReturnsForAnyArgs`/`When().Do(...)`/strict or partial substitutes/
 recursive auto-configuration, and no support for classes, delegates,
 indexers, events, or a generic method whose return type references its own
@@ -664,4 +776,6 @@ An unsupported member shape is a compile-time diagnostic
 - [Providers](../concepts/providers.md) — where the generated-double
   provider sits in the resolution pipeline.
 - [`Compono.NSubstitute`](compono-nsubstitute.md) — the runtime-proxy
-  alternative, for call verification/argument matchers.
+  alternative, for capabilities still outside generated-double support
+  (for example invocation-aware callbacks, true argument capture,
+  call-order verification, or partial/strict substitutes).

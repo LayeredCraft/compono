@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.Logging.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- This project references Compono.Logging via ProjectReference, not a packaged
+         PackageReference - Compono.Logging's own build/Compono.Logging.props default-value asset
+         (ADR-0055 Amendment 3) is a NuGet package-consumption mechanism that a plain ProjectReference
+         never triggers. Set explicitly here so this project's own composed fixture types actually get
+         real generator-discovered logging activation, matching what a real PackageReference consumer
+         gets by default. -->
+    <ComponoGeneratedLogging>true</ComponoGeneratedLogging>
+    <!-- ADR-0055 Amendment 4's own compile-level regression needs a real project with BOTH
+         generation features enabled and a real interface + ILogger<T> reachable from the same
+         composition root - mirrors the exact shape that broke in alexa-vox-craft dogfooding. -->
+    <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Confirmed empirically (PLAN-0055 task 13): the CompilerVisibleProperty declaration that makes
+       ComponoGeneratedLogging visible to AnalyzerConfigOptionsProvider at all normally ships via
+       Compono's packed build/Compono.props (analyzers/dotnet/cs-style NuGet build asset import) -
+       a plain ProjectReference to Compono.csproj never triggers that NuGet-only import mechanism.
+       Declared directly here for the same reason the explicit Analyzer ProjectReference above is
+       needed - this project needs the real compile-time behavior a packed PackageReference consumer
+       gets automatically. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoGeneratedLogging" />
+    <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
+    <ProjectReference Include="..\..\src\Compono.Logging\Compono.Logging.csproj" />
+    <!-- Test-only: PLAN-0055 task 13's stage-6 registration-order precedence tests need a second
+         real stage-6 provider to register alongside UseLogging() - Compono.Logging itself has no
+         dependency on this package (ADR-0055's dependency graph is unaffected). -->
+    <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
+    <!-- ADR-0055 Amendment 4's compile-level regression needs a real Compono.TestDoubles-generated
+         double alongside real Logging activation in the same compilation. -->
+    <ProjectReference Include="..\..\src\Compono.TestDoubles\Compono.TestDoubles.csproj" />
+    <!-- Confirmed empirically (PLAN-0055 task 13): a plain ProjectReference to Compono.csproj does
+         NOT transitively propagate Compono.Generators.dll as an active analyzer for THIS project's
+         own compilation - Compono.csproj's own Analyzer-only ProjectReference to
+         Compono.Generators.csproj doesn't flow a second hop through an ordinary ProjectReference.
+         (Confirmed this is not specific to this project either: test/Compono.Tests produces zero
+         generated files under the identical EmitCompilerGeneratedFiles=true probe - every existing
+         "prove the generator produced correct output" test in this repo instead either compiles
+         in-memory via Compono.Generators.Tests' own harness, or restores a real packed
+         PackageReference via a SampleTests-style local feed. Task 13 needs real, generator-
+         discovered ILogger<T> activation against this project's own fixture types, so this is the
+         explicit reference that actually makes that possible - not a workaround.) -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

@@ -76,7 +76,7 @@ internal static class ComposeMethodDiscovery
     /// <remarks><c>Compono.TUnit.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
     public const string TUnitTwoTypeParameterAttributeMetadataName = "Compono.TUnit.ComposeAttribute`2";
 
-    public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, bool testDoublesEnabled, CancellationToken cancellationToken)
+    public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)
         {
@@ -90,6 +90,7 @@ internal static class ComposeMethodDiscovery
         var types = new List<DiscoveredTypeInfo>();
         var collections = new List<DiscoveredCollectionInfo>();
         var testDoubles = new List<DiscoveredTestDoubleInfo>();
+        var loggingCategories = new List<DiscoveredLoggingCategoryInfo>();
         var rowInvokerTypes = new List<RowInvokerTypeInfo>();
 
         foreach (var parameter in method.Parameters)
@@ -98,17 +99,19 @@ internal static class ComposeMethodDiscovery
                 continue;
 
             var location = LocationOf(parameter, cancellationToken);
-            var result = ComposedTypeAnalyzer.Analyze(parameter.Type, compilation, location, testDoublesEnabled);
+            var result = ComposedTypeAnalyzer.Analyze(parameter.Type, compilation, location, flags);
             types.AddRange(result.Types);
             collections.AddRange(result.Collections);
             testDoubles.AddRange(result.TestDoubles);
+            loggingCategories.AddRange(result.LoggingCategories);
 
             if (RowInvokerTypeOf(parameter.Type, compilation, location) is { } rowInvokerType)
                 rowInvokerTypes.Add(rowInvokerType);
         }
 
         return new ComposeMethodDiscoveryResult(
-            new TransitiveClosureResult(types.ToEquatableArray(), collections.ToEquatableArray(), testDoubles.ToEquatableArray()),
+            new TransitiveClosureResult(
+                types.ToEquatableArray(), collections.ToEquatableArray(), testDoubles.ToEquatableArray(), loggingCategories.ToEquatableArray()),
             rowInvokerTypes.ToEquatableArray());
     }
 

@@ -12,7 +12,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
         get
         {
             __Name.RecordCall();
-            return __Name.HasConfiguredException ? throw __Name.ConfiguredException
+            return __Name.HasConfiguredSequence ? __Name.NextSequenceOutcome()
+                : __Name.HasConfiguredException ? throw __Name.ConfiguredException
                 : __Name.HasConfiguredValue ? __Name.ConfiguredValue
                 : throw new global::Compono.TestDoubleNotConfiguredException(
                     "'global::TestNamespace.IRepository.Name' was invoked without being configured - call Configure().Name().Returns(...) or .Throws(...) before invoking it.");

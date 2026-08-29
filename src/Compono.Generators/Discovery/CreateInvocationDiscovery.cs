@@ -56,7 +56,7 @@ internal static class CreateInvocationDiscovery
                      or MemberBindingExpressionSyntax { Name: GenericNameSyntax { Identifier.ValueText: "Create" or "CreateMany" or "Resolve" or "ResolveShared", TypeArgumentList.Arguments.Count: 1 } },
         };
 
-    public static TransitiveClosureResult? Transform(GeneratorSyntaxContext context, bool testDoublesEnabled, CancellationToken cancellationToken)
+    public static TransitiveClosureResult? Transform(GeneratorSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 
@@ -87,7 +87,7 @@ internal static class CreateInvocationDiscovery
         // triggered discovery).
         var location = LocationInfo.From(GetTypeArgumentSyntax(invocation) ?? (SyntaxNode)invocation);
 
-        return ComposedTypeAnalyzer.Analyze(typeArgument, context.SemanticModel.Compilation, location, testDoublesEnabled);
+        return ComposedTypeAnalyzer.Analyze(typeArgument, context.SemanticModel.Compilation, location, flags);
     }
 
     private static TypeSyntax? GetTypeArgumentSyntax(InvocationExpressionSyntax invocation) =>

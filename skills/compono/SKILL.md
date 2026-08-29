@@ -5,12 +5,13 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
   (generated-test-double opt-in informational diagnostics), `CMP0033`-
-  `CMP0034` (explicit constructor selection errors), or
+  `CMP0034` (explicit constructor selection errors), `CMP0038`-`CMP0039`
+  (Compono.Logging activation-generation diagnostics), or
   `CompositionException` failures, deciding on
   `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
   when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
@@ -19,7 +20,7 @@ description: >-
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
   SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`
+  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -53,6 +54,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.TestDoubles"` or `UseGeneratedTestDoubles()` in `*.cs` | `.csproj`/`*.cs` | Definitive | Test-double intent present — load `references/testdoubles.md`, which explains that `UseGeneratedTestDoubles()` also needs `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` set (check separately; its absence is the most common setup mistake, not a reason to skip loading the reference) |
 | `<PackageReference Include="Compono.DependencyInjection"` or `.AsServiceProvider()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `row.AsServiceProvider()` available — load `references/dependencyinjection.md` |
 | `<PackageReference Include="Compono.Http"` | `.csproj` | Definitive | `TestHttpHandler`/`OnGet`/`OnPost`/etc. available — load `references/http.md` |
+| `<PackageReference Include="Compono.Logging"` or `UseLogging()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `ILogger`/`ILogger<T>` compose via `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`, `Verify()` available — load `references/logging.md`. Generation is on by default once the package is referenced — never suggest a manual MSBuild opt-in step |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -74,6 +76,29 @@ user to make test-by-test, not something to do as a drive-by.
 
 ## Default workflow
 
+### High-priority `Compono.TestDoubles` matching guardrail
+
+If the project references `Compono.TestDoubles`, calls
+`UseGeneratedTestDoubles()`, mentions generated doubles, or asks to migrate
+NSubstitute `Arg.Is`/`Arg.Any`/`Received`/`DidNotReceive` usage to current
+TestDoubles, **read `references/testdoubles.md` before answering**. Do not
+answer from memory: older Compono guidance said generated doubles had no
+argument matching, but that is stale. Current TestDoubles supports
+`Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
+`Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
+and multi-entry argument-distinguished response configuration for eligible
+member shapes. Translate NSubstitute vocabulary directly where eligible:
+`Arg.Is<T>` → `Match.Is<T>`, `Arg.Any<T>()` → `Match.Any<T>()`,
+`Received(1)` → `Verify().Member(...).Once()`, `Received(n)` →
+`Verify().Member(...).Exactly(n)`, and `DidNotReceive()` →
+`Verify().Member(...).Never()`. Never invent non-existent TestDoubles APIs
+such as `CallsTo(...)`, `ReceivedCalls()`, or `[ComponoTest]`, and never
+recommend a hand-written recording fake solely because the old test used
+NSubstitute argument matchers. True argument capture, invocation-aware
+callback responses/side effects, and call-order verification are different
+capabilities; use project-local fake/roadmap guidance for those boundaries
+instead of claiming `Match<T>` solves them.
+
 1. **Detect** — run the table above. Know which packages are actually
    installed before recommending any API from them.
 2. **Inspect** the type under test and its collaborators — concrete class
@@ -92,27 +117,38 @@ user to make test-by-test, not something to do as a drive-by.
      (`.For<T>().Member(x => x.Y).Use(...)`), not a post-hoc mutation
      after `Create<T>()`.
    - The *same instance* needs to be shared across the composed graph and
-     the test body → `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`,
-     whichever the project references) — see
+     the test body → `Share<T>()` (`CompositionBuilder.Share<T>()`,
+     declared once, typically in a profile) for a reusable, profile-level
+     sharing intent — every request for that type anywhere in the graph
+     participates automatically, with **no `[Shared]` attribute needed**;
+     `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`, whichever the
+     project references) for a one-off, single-test case that doesn't
+     warrant a profile change. See
      `references/registrations-profiles-and-scopes.md`. Don't reach for
-     `[Shared]` just to "make things consistent" or as a perceived
-     performance win; ordinary composition is already cheap.
+     either just to "make things consistent" or as a perceived performance
+     win; ordinary composition is already cheap. Adding `Share<T>()` to a
+     profile several tests already reuse changes sharing semantics for
+     *every* graph composed with that profile, silently, for any test
+     structurally reaching the type more than once — a materially larger
+     blast radius than adding `[Shared]` to one test method; don't add it
+     to a shared profile without considering that.
    - Interface/abstract-class/delegate needs a real test double →
      `Compono.NSubstitute`'s `UseNSubstitute()`, not a hand-rolled stub,
-     if that package is referenced. An **interface** leaf that needs
-     configured returns/exceptions, argument-distinguished responses
-     (`Match<T>`/`Match.Any<T>()`/`Match.Is<T>(predicate)`), or call-count
-     verification (`Verify()`/`Never()`/`Once()`/`Exactly(n)`) and must
-     survive `PublishAot` → `Compono.TestDoubles`'s
-     `UseGeneratedTestDoubles()` instead, if that package is referenced and
-     the compile-time opt-in is set — see `references/testdoubles.md`.
-     Argument matching and argument-filtered verification are scoped to a
-     member satisfying all five eligibility conditions (non-overloaded, no
-     parameter referencing its own open generic type parameter, no ref-like
-     parameter, no derived-name collision, not a one-parameter `Equals`);
-     an overloaded member, call-order verification, `Returns(Func<...>)`
-     callbacks, or a class/delegate leaf still needs
-     `Compono.NSubstitute` rather than `Compono.TestDoubles`.
+      if that package is referenced. An **interface** leaf that should be
+     source-generated/AOT-safe → `Compono.TestDoubles`'s
+     `UseGeneratedTestDoubles()`, if that package is referenced and the
+     compile-time opt-in is set. Current generated doubles support
+     `Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
+     `Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/
+     `Exactly(n)`, and multi-entry argument-distinguished response
+     configuration for eligible member shapes. Do not mistake NSubstitute
+     vocabulary (`Arg.Is`, `Arg.Any`, `Received`, `DidNotReceive`) for a
+     reason to invent a hand-written recording fake; translate it to the
+     generated-double surface where the member shape is eligible. True
+     argument capture, invocation-aware callback responses/side effects,
+     call-order verification, classes, delegates, and other explicitly
+     unsupported shapes remain outside current `Compono.TestDoubles`
+      support — see `references/testdoubles.md`.
    - A test deliberately needs to exercise the real HTTP client pipeline
      (real `HttpClient` → `TestHttpHandler` → configured response) rather
      than substitute an application-level interface away →
@@ -120,6 +156,18 @@ user to make test-by-test, not something to do as a drive-by.
      see `references/http.md`. Don't reach for this when the seam is
      already an ordinary interface the test doesn't specifically care is
      HTTP-backed — that stays the NSubstitute/TestDoubles bullet above.
+   - A composed type takes an `ILogger`/`ILogger<T>` dependency and the
+     test wants to assert what was logged (level, message, structured
+     properties, exception, scope) → `UseLogging()` composing a
+     `CapturingLogger`/`CapturingLogger<T>`, if `Compono.Logging` is
+     referenced — see `references/logging.md`. Generation is on by
+     default once the package is referenced; never suggest a manual
+     `ComponoGeneratedLogging=true` opt-in step, and never suggest a
+     hand-rolled fake `ILogger` when this package is already referenced.
+     If the composed type also depends on another interface via
+     `UseNSubstitute()`/`UseGeneratedTestDoubles()`, register
+     `UseLogging()` first — see `references/logging.md`'s registration-
+     order note.
    - A `string` member needs a realistic value (email, name, address) →
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
@@ -252,7 +300,8 @@ undermines the reason Compono exists in this project.
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
   `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`,
-  `Compono.DependencyInjection`, and `Compono.Http` ship as packages today
+  `Compono.DependencyInjection`, `Compono.Http`, and `Compono.Logging` ship
+  as packages today
   (`Compono.TUnit`
   ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
@@ -264,7 +313,11 @@ undermines the reason Compono exists in this project.
   `Compono.Http` ships `TestHttpHandler`, a reflection-free
   `HttpMessageHandler`-based test double for `HttpClient`-consuming code —
   does not ship `IHttpClientFactory`/named-client integration, see
-  `references/http.md`)
+  `references/http.md`; `Compono.Logging` ships `UseLogging()` and
+  `CapturingLogger`/`CapturingLogger<T>` — generation is on by default
+  once the package is referenced, no `ComponoGeneratedLogging` opt-in
+  needed (unlike `Compono.TestDoubles`' opt-in `ComponoGeneratedTestDoubles`),
+  see `references/logging.md`)
   — there is no `Compono.NUnit`, `Compono.MSTest`, `Compono.FakeItEasy`, or
   `Compono.Moq`, and never invent a plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
@@ -344,8 +397,8 @@ Load only what the Detection table says is relevant to the current task.
 |---|---|
 | `references/core-providers.md` | Deciding whether core Compono can generate an ordinary value, collection, or required member without a registration/provider |
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
-| `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `[Shared]`, or debugging a recursion/registration-conflict error |
-| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0033`-`CMP0034` constructor-selection build error, a `CMP0020`-`CMP0032` or `CMP0035`-`CMP0037` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), or a runtime `CompositionException` needs diagnosing |
+| `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `Share<T>()`, `[Shared]`, or debugging a recursion/registration-conflict error |
+| `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0033`-`CMP0034` constructor-selection build error, a `CMP0020`-`CMP0032` or `CMP0035`-`CMP0037` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), a `CMP0038`-`CMP0039` Compono.Logging activation-generation diagnostic, or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
@@ -353,4 +406,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()`/`Verify()` work, `Match<T>` argument matching and multiple-response-per-member for eligible members, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
 | `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
+| `references/logging.md` | `Compono.Logging` is referenced or `UseLogging()` is called — `ILogger`/`ILogger<T>` composition, `CapturingLogger`/`CapturingLogger<T>`, structured properties, scope semantics, `Verify()`, and the `ComponoGeneratedLogging` default-on/opt-out behavior |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

@@ -593,6 +593,45 @@ internal static class TestDoubleAnalyzer
             }
         }
 
+        // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: an overloaded, matching-eligible-SHAPED
+        // candidate (real parameters, no ref-like parameter, no self-referencing generic parameter,
+        // not Equals(object)) gets the SAME Entry/Entries/_calls/_lock layout ADR-0050 already gives
+        // a non-overloaded matching-eligible member - keyed off its own FieldName (which already
+        // carries a discriminator suffix from discriminatorSuffixByIdentity above, so it's unique per
+        // overload without any new naming scheme), reserved into the SAME derivedAuxiliaryNameOwners
+        // pool so a genuine collision with any other member's own derived names is caught by the same
+        // collision-resolution pass just below, not a separate mechanism.
+        var matchingEligibleShapedOverloadedCandidates = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var candidate in eligibleCandidates)
+        {
+            if (candidate is not IMethodSymbol candidateMethod || !overloadedNames.Contains(candidateMethod.Name) ||
+                candidateMethod.Parameters.Length == 0 ||
+                IsClosedInstantiationEligibleCandidate(candidateMethod, compilation) ||
+                (candidateMethod.IsGenericMethod && candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod))) ||
+                candidateMethod.Parameters.Any(p => p.Type.IsRefLikeType) ||
+                (candidateMethod.Name == "Equals" && candidateMethod.Parameters.Length == 1) ||
+                !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
+                continue;
+
+            matchingEligibleShapedOverloadedCandidates.Add(candidateMethod);
+
+            var overloadFieldName = $"__{candidateMethod.Name}{discriminatorSuffixByIdentity[(candidateMethod.Name, Canonical: IdentityFor(candidateMethod))]}";
+            var derivedOverloadNames = new[]
+            {
+                $"{overloadFieldName}_calls", $"{overloadFieldName}_lock",
+                $"{overloadFieldName}_Entry", $"{overloadFieldName}_entries",
+            };
+
+            foreach (var name in derivedOverloadNames)
+            {
+                if (!derivedAuxiliaryNameOwners.TryGetValue(name, out var owners))
+                    derivedAuxiliaryNameOwners[name] = owners = new List<ISymbol>();
+
+                owners.Add(candidateMethod);
+            }
+        }
+
         foreach (var (name, owners) in derivedAuxiliaryNameOwners)
         {
             if (owners.Count <= 1 && !usedFieldNames.Contains(name))
@@ -600,6 +639,119 @@ internal static class TestDoubleAnalyzer
 
             foreach (var owner in owners)
                 derivedNameCollisionMembers.Add(owner);
+        }
+
+        // ADR-0044 Amendment 21: an overloaded, matching-eligible-shaped candidate whose own derived
+        // names survived the collision pass above is eligible for the new matching-specific
+        // Configure()/Verify() member name. Its alias name defaults to "<Name>Matching"; on a real
+        // signature collision with an already-matching-eligible sibling of that exact literal name
+        // (a genuine CS0111 risk, confirmed by compiler spike - see PLAN-0054's "Naming/collision
+        // policy"), it falls back to a deterministic hash-suffixed name, reusing
+        // TestDoubleOverloadIdentity.StableHash exactly like discriminatorSuffixByIdentity above.
+        var overloadMatchingEligibleCandidates = new HashSet<IMethodSymbol>(
+            matchingEligibleShapedOverloadedCandidates.Where(m => !derivedNameCollisionMembers.Contains(m)),
+            SymbolEqualityComparer.Default);
+
+        // Codex review, PR #115 (round 1): the alias-collision check below must compare REAL C#
+        // signature identity - which, per TestDoubleOverloadIdentity's own established precedent,
+        // never considers nullable-reference annotations - not nullable-aware display-string text.
+        // Comparing ITypeSymbol via SymbolEqualityComparer.Default (nullability-insensitive by
+        // default) instead of formatted strings fixes this directly: `string` and `string?` compare
+        // equal, exactly matching what the real compiler does when it decides CS0111.
+        var matchTypeDefinition = compilation.GetTypeByMetadataName("Compono.Match`1");
+
+        // Codex review, PR #115 (round 2): every real member sharing the alias's literal name is a
+        // potential collision, not just a non-overloaded matching-eligible one - an ordinary
+        // overloaded member (or a ref-like/self-referencing-generic/Equals(object)-arity one) still
+        // emits its own real-parameter-typed Configure() extension, which can collide with our
+        // alias's Match<T>-wrapped one exactly as easily as a matching-eligible member's Match<T>
+        // extension can. Build the ACTUAL generated (arity, parameter-type list) for every real
+        // candidate sharing a literal name with some alias - Match<T>-constructed when that
+        // candidate is itself genuinely matching-eligible (its own extension is Match<T>-wrapped,
+        // including a non-overloaded ADR-0049 closed-instantiation-eligible member with real
+        // matched parameters - Codex review, PR #115 round 3: excluding closed-instantiation-
+        // eligible candidates here entirely missed exactly this real collision shape), the real
+        // declared type otherwise (its own extension - ordinary overloaded, an overloaded closed-
+        // instantiation-eligible member, ref-like, self-referencing-generic, Equals(object)-arity,
+        // or derived-name-collision-fallback - always uses the real type as declared, never
+        // wrapped). Generic arity is tracked alongside the parameter types (Codex review, PR #115
+        // round 3) - part of real C# signature identity same as the parameter types themselves, per
+        // PLAN-0054's own "Naming/collision policy" Finding 4 (a generic member sharing a candidate
+        // name never collides via CS0111 purely on arity grounds, only ever soft-shadows).
+        var realGeneratedSignaturesByName = new Dictionary<string, List<(int Arity, ISymbol[] ParameterTypes)>>(StringComparer.Ordinal);
+
+        if (matchTypeDefinition is not null)
+        {
+            foreach (var candidate in eligibleCandidates)
+            {
+                if (candidate is not IMethodSymbol candidateMethod ||
+                    candidateMethod.Parameters.Length == 0 ||
+                    !WouldGetConfigurationSurface(candidateMethod, diamondCollisionIdentities))
+                    continue;
+
+                var isMatchingEligible = !overloadedNames.Contains(candidateMethod.Name) &&
+                    !(candidateMethod.IsGenericMethod &&
+                      candidateMethod.Parameters.Any(p => TypeReferencesOwnTypeParameter(p.Type, candidateMethod))) &&
+                    !candidateMethod.Parameters.Any(p => p.Type.IsRefLikeType) &&
+                    !(candidateMethod.Name == "Equals" && candidateMethod.Parameters.Length == 1) &&
+                    !derivedNameCollisionMembers.Contains(candidateMethod);
+
+                var parameterTypes = isMatchingEligible
+                    ? candidateMethod.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray()
+                    : candidateMethod.Parameters.Select(p => (ISymbol)p.Type).ToArray();
+
+                // Codex review, PR #115 (round 4): a candidate's own TypeParameters.Length is NOT
+                // always its generated extension's actual arity - TestDoubleMemberInfo.ExtensionIsGeneric
+                // (the template's own governing rule) says a SOLO generic member's extension only
+                // stays generic when it's also overloaded or closed-instantiation-eligible; a solo
+                // (non-overloaded, non-closed-instantiation) generic member's Configure()/Verify()
+                // extension is emitted non-generic regardless of TypeParameters.Length (Requirement
+                // 2's "one backing slot covers every closed instantiation" rule, extended identically
+                // to a matching-eligible member's own extension). Mirror that exact rule here instead
+                // of assuming generic arity always survives into the emitted signature.
+                var effectiveArity = candidateMethod.IsGenericMethod &&
+                    (overloadedNames.Contains(candidateMethod.Name) || IsClosedInstantiationEligibleCandidate(candidateMethod, compilation))
+                    ? candidateMethod.TypeParameters.Length
+                    : 0;
+
+                if (!realGeneratedSignaturesByName.TryGetValue(candidateMethod.Name, out var signatures))
+                    realGeneratedSignaturesByName[candidateMethod.Name] = signatures = new List<(int, ISymbol[])>();
+
+                signatures.Add((effectiveArity, parameterTypes));
+            }
+        }
+
+        var allCandidateNames = new HashSet<string>(eligibleCandidates.Select(m => m.Name), StringComparer.Ordinal);
+        var matchingAliasNameByMemberName = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var group in overloadMatchingEligibleCandidates.GroupBy(m => m.Name))
+        {
+            var aliasBase = $"{group.Key}Matching";
+            var hasSignatureCollision = matchTypeDefinition is not null &&
+                realGeneratedSignaturesByName.TryGetValue(aliasBase, out var signatures) &&
+                group.Any(overload =>
+                {
+                    var aliasArity = overload.TypeParameters.Length;
+                    var aliasSignature = overload.Parameters.Select(p => (ISymbol)matchTypeDefinition.Construct(p.Type)).ToArray();
+                    return signatures!.Any(signature =>
+                        signature.Arity == aliasArity &&
+                        signature.ParameterTypes.SequenceEqual(aliasSignature, SymbolEqualityComparer.Default));
+                });
+
+            if (!hasSignatureCollision)
+            {
+                matchingAliasNameByMemberName[group.Key] = aliasBase;
+                continue;
+            }
+
+            var baseHash = TestDoubleOverloadIdentity.StableHash(aliasBase);
+            var aliasName = $"{aliasBase}_{baseHash}";
+            var disambiguator = 2;
+
+            while (allCandidateNames.Contains(aliasName) || matchingAliasNameByMemberName.ContainsValue(aliasName))
+                aliasName = $"{aliasBase}_{baseHash}_{disambiguator++}";
+
+            matchingAliasNameByMemberName[group.Key] = aliasName;
         }
 
         // Codex review, PR #108 (round 8): a matching-eligible-SHAPED candidate deferred above can
@@ -1288,6 +1440,16 @@ internal static class TestDoubleAnalyzer
                             !derivedNameCollisionMembers.Contains(method) &&
                             !(method.Name == "Equals" && parameters.Count == 1);
 
+                        // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: whether this overload gets the
+                        // new matching-specific Configure()/Verify() member name - computed by the
+                        // pre-pass above (matchingEligibleShapedOverloadedCandidates, minus any
+                        // derived-name collision), mutually exclusive with isEligibleForMatching (that
+                        // one explicitly excludes isOverloaded).
+                        var isOverloadMatchingEligible = overloadMatchingEligibleCandidates.Contains(method);
+                        var matchingMemberName = isOverloadMatchingEligible
+                            ? RequiredMemberCollector.EscapeIdentifier(matchingAliasNameByMemberName[method.Name])
+                            : "";
+
                         var extensionReceiverName = hasConfigurationSurface && (isOverloaded || isEligibleForMatching || isClosedInstantiationEligible)
                             ? SafeReceiverName(parameters.Select(p => p.EscapedName).Concat(typeParameterNames))
                             : "self";
@@ -1322,6 +1484,8 @@ internal static class TestDoubleAnalyzer
                             constraintClauses,
                             IsConfigurationRequired: isConfigurationRequired,
                             IsEligibleForMatching: isEligibleForMatching,
+                            IsOverloadMatchingEligible: isOverloadMatchingEligible,
+                            MatchingMemberName: matchingMemberName,
                             IsClosedInstantiationEligible: isClosedInstantiationEligible,
                             IsClosedInstantiationEligibleShape: isClosedInstantiationEligibleShape,
                             IsDimFallbackTarget: isDimFallbackTarget,

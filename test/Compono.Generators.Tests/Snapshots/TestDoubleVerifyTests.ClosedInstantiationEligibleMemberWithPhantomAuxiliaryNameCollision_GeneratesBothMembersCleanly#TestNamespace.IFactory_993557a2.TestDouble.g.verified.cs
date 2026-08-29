@@ -31,7 +31,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __M_m_x_Bucket<U>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
+        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+            : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'global::TestNamespace.IFactory.M_m_x' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().M_m_x<U>(...).Returns(...) or .Throws(...) before invoking it.");
@@ -40,7 +41,9 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     void global::TestNamespace.IFactory.M<T>(T x_State)
     {
         __M.RecordCall();
-        if (__M.HasConfiguredException)
+        if (__M.HasConfiguredSequence)
+            __M.NextSequenceOutcome();
+        else if (__M.HasConfiguredException)
             throw __M.ConfiguredException;
     }
 }

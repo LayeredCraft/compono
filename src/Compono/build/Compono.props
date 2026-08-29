@@ -14,4 +14,14 @@
     <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
   </ItemGroup>
 
+  <!--
+    Declares ComponoGeneratedLogging (docs/adr/0055-compono-logging-testing-support-package.md
+    Amendment 3) as a CompilerVisibleProperty, for the same reason as ComponoGeneratedTestDoubles
+    above. Inert for any consumer who never references Compono.Logging - that package's own
+    build/Compono.Logging.props asset is what defaults this to true, never this file.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoGeneratedLogging" />
+  </ItemGroup>
+
 </Project>

@@ -67,7 +67,8 @@ public sealed class Composer
             _configuration.Rules,
             _configuration.SemanticProviders,
             _configuration.TestDoubleProviders,
-            _configuration.CollectionSizePolicy);
+            _configuration.CollectionSizePolicy,
+            _configuration.SharedTypes);
         return context.ResolveRoot<T>();
     }
 
@@ -100,7 +101,8 @@ public sealed class Composer
         _configuration.Rules,
         _configuration.SemanticProviders,
         _configuration.TestDoubleProviders,
-        _configuration.CollectionSizePolicy);
+        _configuration.CollectionSizePolicy,
+        _configuration.SharedTypes);
 
     /// <summary>
     /// Creates a new <see cref="CompositionRow"/> - one composition scope for several sibling
@@ -126,7 +128,8 @@ public sealed class Composer
             _configuration.SemanticProviders,
             _configuration.TestDoubleProviders,
             _configuration.CollectionSizePolicy,
-            declaringType);
+            declaringType,
+            _configuration.SharedTypes);
         return new CompositionRow(context, unchecked((int)seed.Value));
     }
 
@@ -161,7 +164,8 @@ public sealed class Composer
         IReadOnlyList<ICompositionProvider> rules,
         IReadOnlyList<ICompositionProvider> semanticProviders,
         IReadOnlyList<ICompositionProvider> testDoubleProviders,
-        CollectionSizePolicy collectionSizePolicy)
+        CollectionSizePolicy collectionSizePolicy,
+        IReadOnlySet<Type>? sharedTypes = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         if (count == 0)
@@ -173,7 +177,10 @@ public sealed class Composer
         for (var i = 0; i < count; i++)
         {
             var itemSeed = batchSeed.Fork(i.ToString(CultureInfo.InvariantCulture));
-            var context = new CompositionContext(itemSeed, registrations, serviceProvider, rules, semanticProviders, testDoubleProviders, collectionSizePolicy);
+            // A fresh CompositionContext per item - a Share<T>() type is cached within one item's own
+            // graph only, never across items, matching this method's own existing "no value is shared
+            // across items" contract (ADR-0011/ADR-0056).
+            var context = new CompositionContext(itemSeed, registrations, serviceProvider, rules, semanticProviders, testDoubleProviders, collectionSizePolicy, sharedTypes);
             results.Add(context.ResolveRoot<T>());
         }
 

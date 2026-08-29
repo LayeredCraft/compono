@@ -12,7 +12,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     string global::TestNamespace.IRepository.GetName()
     {
         __GetName.RecordCall();
-        return __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
+        return __GetName.HasConfiguredSequence ? __GetName.NextSequenceOutcome()
+            : __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
             : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'global::TestNamespace.IRepository.GetName' was invoked without being configured - call Configure().GetName().Returns(...) or .Throws(...) before invoking it.");
@@ -23,7 +24,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
         get
         {
             __Description.RecordCall();
-            return __Description.HasConfiguredException ? throw __Description.ConfiguredException
+            return __Description.HasConfiguredSequence ? __Description.NextSequenceOutcome()
+                : __Description.HasConfiguredException ? throw __Description.ConfiguredException
                 : __Description.HasConfiguredValue ? __Description.ConfiguredValue
                 : throw new global::Compono.TestDoubleNotConfiguredException(
                     "'global::TestNamespace.IRepository.Description' was invoked without being configured - call Configure().Description().Returns(...) or .Throws(...) before invoking it.");
@@ -33,7 +35,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     int global::TestNamespace.IRepository.GetCount()
     {
         __GetCount.RecordCall();
-        return __GetCount.HasConfiguredException ? throw __GetCount.ConfiguredException
+        return __GetCount.HasConfiguredSequence ? __GetCount.NextSequenceOutcome()
+            : __GetCount.HasConfiguredException ? throw __GetCount.ConfiguredException
             : __GetCount.HasConfiguredValue ? __GetCount.ConfiguredValue
             : default;
     }

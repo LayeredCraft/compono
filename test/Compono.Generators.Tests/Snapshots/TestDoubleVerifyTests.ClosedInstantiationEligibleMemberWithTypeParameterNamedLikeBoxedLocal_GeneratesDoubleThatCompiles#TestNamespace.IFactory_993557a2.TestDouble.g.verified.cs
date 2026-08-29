@@ -30,7 +30,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __Create_Bucket<boxed>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
+        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+            : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
                 "'global::TestNamespace.IFactory.Create' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().Create<boxed>(...).Returns(...) or .Throws(...) before invoking it.");

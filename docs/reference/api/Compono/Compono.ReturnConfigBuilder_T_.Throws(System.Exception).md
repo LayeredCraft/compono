@@ -3,7 +3,7 @@
 
 ## ReturnConfigBuilder\<T\>\.Throws\(Exception\) Method
 
-Configures the member to throw [exception](Compono.ReturnConfigBuilder_T_.Throws(System.Exception).md#Compono.ReturnConfigBuilder_T_.Throws(System.Exception).exception 'Compono\.ReturnConfigBuilder\<T\>\.Throws\(System\.Exception\)\.exception'), clearing any prior [Returns\(T\)](Compono.ReturnConfigBuilder_T_.Returns(T).md 'Compono\.ReturnConfigBuilder\<T\>\.Returns\(T\)')\.
+Configures the member to throw [exception](Compono.ReturnConfigBuilder_T_.Throws(System.Exception).md#Compono.ReturnConfigBuilder_T_.Throws(System.Exception).exception 'Compono\.ReturnConfigBuilder\<T\>\.Throws\(System\.Exception\)\.exception'), clearing any prior [Returns\(T\)](Compono.ReturnConfigBuilder_T_.Returns(T).md 'Compono\.ReturnConfigBuilder\<T\>\.Returns\(T\)')/[ReturnsSequence\(SequenceOutcome&lt;T&gt;\[\]\)](Compono.ReturnConfigBuilder_T_.ReturnsSequence(Compono.SequenceOutcome_T_[]).md 'Compono\.ReturnConfigBuilder\<T\>\.ReturnsSequence\(Compono\.SequenceOutcome\<T\>\[\]\)')\.
 
 ```csharp
 public void Throws(System.Exception exception);

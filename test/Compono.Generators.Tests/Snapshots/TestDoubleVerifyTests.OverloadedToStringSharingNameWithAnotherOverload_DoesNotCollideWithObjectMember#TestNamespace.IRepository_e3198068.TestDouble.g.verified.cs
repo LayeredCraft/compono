@@ -5,33 +5,147 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    internal global::Compono.ReturnConfig<string?> __ToString_b9dfaa09;
-    internal global::Compono.ReturnConfig<string?> __ToString_1a56931a;
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __ToString_b9dfaa09/__ToString_b9dfaa09_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __ToString_b9dfaa09_Entry
+    {
+        internal global::Compono.Match<int>? Matcher_format;
+        internal global::Compono.ReturnConfig<string?> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__ToString_b9dfaa09_Entry> __ToString_b9dfaa09_entries = [];
+    internal readonly global::System.Collections.Generic.List<int> __ToString_b9dfaa09_calls = [];
+    internal readonly object __ToString_b9dfaa09_lock = new();
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __ToString_1a56931a/__ToString_1a56931a_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __ToString_1a56931a_Entry
+    {
+        internal global::Compono.Match<string>? Matcher_format;
+        internal global::Compono.ReturnConfig<string?> Config;
+    }
+
+    internal readonly global::System.Collections.Generic.List<__ToString_1a56931a_Entry> __ToString_1a56931a_entries = [];
+    internal readonly global::System.Collections.Generic.List<string> __ToString_1a56931a_calls = [];
+    internal readonly object __ToString_1a56931a_lock = new();
 
     string? global::TestNamespace.IRepository.ToString(int format)
     {
-        __ToString_b9dfaa09.RecordCall();
-        return __ToString_b9dfaa09.HasConfiguredException ? throw __ToString_b9dfaa09.ConfiguredException
-            : __ToString_b9dfaa09.HasConfiguredValue ? __ToString_b9dfaa09.ConfiguredValue
-            : default;
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock (__ToString_b9dfaa09_lock)
+        {
+            __ToString_b9dfaa09_calls.Add(format);
+            for (var __i = __ToString_b9dfaa09_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __ToString_b9dfaa09_entries[__i];
+                if ((__entry.Matcher_format is not { } __m_format || __m_format.Matches(format)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if (__entry.Config.HasConfiguredSequence) return __entry.Config.NextSequenceOutcome();
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                }
+            }
+        }
+        return default;
     }
 
     string? global::TestNamespace.IRepository.ToString(string format)
     {
-        __ToString_1a56931a.RecordCall();
-        return __ToString_1a56931a.HasConfiguredException ? throw __ToString_1a56931a.ConfiguredException
-            : __ToString_1a56931a.HasConfiguredValue ? __ToString_1a56931a.ConfiguredValue
-            : default;
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock (__ToString_1a56931a_lock)
+        {
+            __ToString_1a56931a_calls.Add(format);
+            for (var __i = __ToString_1a56931a_entries.Count - 1; __i >= 0; __i--)
+            {
+                var __entry = __ToString_1a56931a_entries[__i];
+                if ((__entry.Matcher_format is not { } __m_format || __m_format.Matches(format)))
+                {
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if (__entry.Config.HasConfiguredSequence) return __entry.Config.NextSequenceOutcome();
+                    if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
+                }
+            }
+        }
+        return default;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, int format) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_b9dfaa09);
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, int format)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__ToString_b9dfaa09_Entry();
+        lock (__self.__ToString_b9dfaa09_lock) { __self.__ToString_b9dfaa09_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<string?>(ref __entry.Config);
+    }
 
-    public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, string format) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref __self.__ToString_1a56931a);
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<string?> ToStringMatching(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> format)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__ToString_b9dfaa09_Entry();
+        __entry.Matcher_format = format;
+        lock (__self.__ToString_b9dfaa09_lock) { __self.__ToString_b9dfaa09_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<string?>(ref __entry.Config);
+    }
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
+    // types, unchanged signature/call sites - but now appends an always-matching entry to the
+    // shared per-overload entries list instead of returning a builder over a removed single field.
+    public static global::Compono.ReturnConfigBuilder<string?> ToString(this global::TestNamespace_IRepository_e3198068_Double __self, string format)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__ToString_1a56931a_Entry();
+        lock (__self.__ToString_1a56931a_lock) { __self.__ToString_1a56931a_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<string?>(ref __entry.Config);
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
+    // appends a real-matcher entry to the SAME entries list the discriminator-only method above
+    // appends to, so a call the SUT actually makes through the real overload is visible to both
+    // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
+    // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
+    // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
+    public static global::Compono.ReturnConfigBuilder<string?> ToStringMatching(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> format)
+    {
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__ToString_1a56931a_Entry();
+        __entry.Matcher_format = format;
+        lock (__self.__ToString_1a56931a_lock) { __self.__ToString_1a56931a_entries.Add(__entry); }
+        return new global::Compono.ReturnConfigBuilder<string?>(ref __entry.Config);
+    }
 
 }
 
@@ -55,11 +169,61 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier ToString(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, int format) =>
-        new(__self.Instance.__ToString_b9dfaa09.ConfiguredCallCount, "global::TestNamespace.IRepository.ToString");
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier ToString(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, int format)
+    {
+        int __count;
+        lock (__self.Instance.__ToString_b9dfaa09_lock) { __count = __self.Instance.__ToString_b9dfaa09_calls.Count; }
+        return new(__count, "global::TestNamespace.IRepository.ToString");
+    }
 
-    public static global::Compono.CallVerifier ToString(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, string format) =>
-        new(__self.Instance.__ToString_1a56931a.ConfiguredCallCount, "global::TestNamespace.IRepository.ToString");
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier ToStringMatching(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<int> format)
+    {
+        int __count;
+        lock (__self.Instance.__ToString_b9dfaa09_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__ToString_b9dfaa09_calls)
+            {
+                if (format.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.ToString");
+    }
+
+    // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Verify() - real parameter
+    // types, unchanged signature - reads the shared per-overload call log's unfiltered Count
+    // instead of a removed field's ConfiguredCallCount.
+    public static global::Compono.CallVerifier ToString(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, string format)
+    {
+        int __count;
+        lock (__self.Instance.__ToString_1a56931a_lock) { __count = __self.Instance.__ToString_1a56931a_calls.Count; }
+        return new(__count, "global::TestNamespace.IRepository.ToString");
+    }
+
+    // New matching-specific member name (ADR-0044 Amendment 21) - reads the SAME call log, filtered
+    // by the supplied matchers, counting only real calls whose real arguments satisfy every one.
+    // Generic exactly when the discriminator-only method above is - same reasoning as Configure().
+    public static global::Compono.CallVerifier ToStringMatching(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<string> format)
+    {
+        int __count;
+        lock (__self.Instance.__ToString_1a56931a_lock)
+        {
+            __count = 0;
+            foreach (var call in __self.Instance.__ToString_1a56931a_calls)
+            {
+                if (format.Matches(call))
+                    __count++;
+            }
+        }
+        return new(__count, "global::TestNamespace.IRepository.ToString");
+    }
 
 }
 

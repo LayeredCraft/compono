@@ -183,6 +183,13 @@ list). The load-bearing ones:
 - A compile-time diagnostic beats emitting code that might not compile —
   reject an unsupported shape with a clear `CMPxxxx` diagnostic rather
   than generating something and hoping.
+- When predicting whether two generated signatures would collide
+  (`CS0111`), compare `ITypeSymbol`s via `SymbolEqualityComparer.Default`
+  (nullability-insensitive, matching real C# signature identity) — never
+  nullable-aware display-string text, and never only the subset of real
+  members reachable through one particular code path. See
+  `references/coding-standards.md`'s "Generated code" section for the
+  real collision this missed (ADR-0044 Amendment 21, PR #115).
 - Generated code should be low-allocation by construction (pre-sized
   collections, no LINQ, expression-bodied where there's no branching) —
   this is on the hot path of every composed test.

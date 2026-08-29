@@ -10,7 +10,9 @@ internal sealed class TestNamespace_IMultiMapper_d3a016dc_Double : global::TestN
     void global::TestNamespace.IMultiMapper.Map<TKey, TValue>(TKey key, TValue value)
     {
         __Map.RecordCall();
-        if (__Map.HasConfiguredException)
+        if (__Map.HasConfiguredSequence)
+            __Map.NextSequenceOutcome();
+        else if (__Map.HasConfiguredException)
             throw __Map.ConfiguredException;
     }
 }

@@ -325,6 +325,96 @@
     },
     {
       "id": 28,
+      "category": "migration",
+      "prompt": "Migrate this AWS Secrets Manager Provider xUnit v3 test from AutoFixture/NSubstitute to Compono.XunitV3 + Compono.TestDoubles. The project references Compono, Compono.XunitV3, and Compono.TestDoubles, has <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>, and the profile calls UseGeneratedTestDoubles(). The old assertion is: configurationBuilder.Received(1).Add(Arg.Is<IConfigurationSource>(source => source is SecretsManagerConfigurationSource)); IConfigurationBuilder.Add is a non-overloaded interface member in this project. What should the Compono version look like?",
+      "expected_output": "Uses the generated TestDoubles verification surface: configurationBuilder.Verify().Add(Match.Is<IConfigurationSource>(source => source is SecretsManagerConfigurationSource)).Once(); Explains Arg.Is maps to Match.Is and Received(1) maps to Verify().Once() for an eligible member. Does not introduce a hand-written recording fake merely because Arg.Is appears.",
+      "files": [],
+      "expectations": [
+        "Uses configurationBuilder.Verify().Add(Match.Is<IConfigurationSource>(...)).Once() for the migrated assertion",
+        "Correctly maps Arg.Is<T>(predicate) to Match.Is<T>(predicate) and Received(1) to Verify().Once()",
+        "Does not recommend or introduce a hand-written recording fake solely because the original NSubstitute assertion used Arg.Is"
+      ]
+    },
+    {
+      "id": 29,
+      "category": "migration",
+      "prompt": "Migrate this AWS Secrets Manager Provider setup from NSubstitute to Compono.TestDoubles. The project has Compono.TestDoubles configured and IAmazonSecretsManager is resolved as a generated double. Old code: secretsManager.GetSecretValueAsync(Arg.Is<GetSecretValueRequest>(request => request.SecretId == secretName), Arg.Any<CancellationToken>()).Returns(Task.FromResult(response)); GetSecretValueAsync is a non-overloaded interface member for this usage. Show the current Compono setup.",
+      "expected_output": "Uses secretsManager.Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(request => request.SecretId == secretName), Match.Any<CancellationToken>()).Returns(Task.FromResult(response)); Does not claim TestDoubles lacks argument matching, and does not fall back to NSubstitute or a fake for this ordinary argument-matched configuration.",
+      "files": [],
+      "expectations": [
+        "Uses secretsManager.Configure().GetSecretValueAsync(Match.Is<GetSecretValueRequest>(...), Match.Any<CancellationToken>()).Returns(...) for the migrated setup",
+        "Correctly maps Arg.Any<T>() to Match.Any<T>() and Arg.Is<T>(predicate) to Match.Is<T>(predicate)",
+        "Does not claim Compono.TestDoubles lacks argument matching or require a hand-written fake/NSubstitute for this eligible member"
+      ]
+    },
+    {
+      "id": 30,
+      "category": "behavioral-correctness",
+      "prompt": "I'm reviewing a Compono.TestDoubles migration in AWS Secrets Manager Provider. The old tests are full of NSubstitute vocabulary: Arg.Is, Arg.Any, Received(1), Received(2), and DidNotReceive. The project intentionally removed NSubstitute and Compono.NSubstitute; it now references Compono.XunitV3 and Compono.TestDoubles with generated doubles enabled. Should I write recording fakes for IAmazonSecretsManager, IConfigurationBuilder, and ILoggerFactory because the old tests used those NSubstitute APIs? Assume the members being migrated are eligible non-overloaded interface members.",
+      "expected_output": "Says no: NSubstitute vocabulary alone is not evidence a fake is required. Translates Arg.Is<T> -> Match.Is<T>, Arg.Any<T> -> Match.Any<T>, Received(1) -> Verify().Member(...).Once(), Received(n) -> Verify().Member(...).Exactly(n), and DidNotReceive() -> Verify().Member(...).Never() for eligible TestDoubles members. Recommends local fakes only for actual unsupported boundaries such as capture/callback/call order, not for ordinary matching/filtering.",
+      "files": [],
+      "expectations": [
+        "Explicitly rejects writing recording fakes solely because the original tests use Arg.Is/Arg.Any/Received/DidNotReceive",
+        "Maps Arg.Is<T> to Match.Is<T> and Arg.Any<T> to Match.Any<T>",
+        "Maps Received(1) to Verify().Once(), Received(n) to Verify().Exactly(n), and DidNotReceive() to Verify().Never() where the member shape is eligible",
+        "Distinguishes ordinary matching/filtering from actual unsupported boundaries such as capture, callbacks, and call-order verification"
+      ]
+    },
+    {
+      "id": 31,
+      "category": "behavioral-correctness",
+      "prompt": "In a Compono.TestDoubles migration, one old NSubstitute setup uses a callback-style response: when pipeline.InvokeAsync(Arg.Any<RequestHandlerDelegate>(), Arg.Any<CancellationToken>()) is called, the substitute must invoke the actual RequestHandlerDelegate argument, record side effects around that invocation, and return the delegate's result. Can I express this with Match.Any<T>()/Match.Is<T>() in TestDoubles, or should I keep a local fake?",
+      "expected_output": "Explains the boundary: ordinary argument matching/filtering is supported by Match.Any/Match.Is and Verify(...).Once/Never/Exactly, but this scenario is stronger invocation-aware callback/capture behavior. Match<T> only decides whether an argument matches; it does not expose the actual invocation to Returns, invoke delegate arguments, or run callback side effects. Recommends following existing roadmap/project-local-fake guidance for that unsupported boundary rather than claiming Match<T> solves it.",
+      "files": [],
+      "expectations": [
+        "States that ordinary matching and argument-filtered verification are supported by Compono.TestDoubles",
+        "Clearly says the described callback/capture scenario is a different, stronger capability than matching",
+        "Does not claim Match<T> can inspect the actual invocation inside Returns, invoke delegate arguments, or implement callback side effects",
+        "Recommends a project-local fake or existing roadmap guidance for the unsupported invocation-aware callback boundary"
+      ]
+    },
+    {
+      "id": 32,
+      "category": "routing",
+      "prompt": "This class takes an ILogger<OrderService> constructor dependency and I want to assert it logs a warning when an order retries. The project references Compono, Compono.XunitV3, and Compono.Logging. Write the test.",
+      "expected_output": "Composes OrderService directly via [Compose] (or Composer.Create<OrderService>()), lets ILogger<OrderService> compose automatically through UseLogging() with no extra MSBuild configuration, and asserts via [Shared] ILogger<OrderService> logger plus logger.Verify().AtLevel(LogLevel.Warning).WithMessageContaining(...).Once() - never a hand-rolled fake ILogger, never NullLogger, and never an added <ComponoGeneratedLogging>true</ComponoGeneratedLogging> MSBuild property (generation is on by default once Compono.Logging is referenced).",
+      "files": [],
+      "expectations": [
+        "Composes through UseLogging() (or relies on it already being registered) rather than a hand-rolled fake ILogger or NullLogger",
+        "Does not add or suggest a ComponoGeneratedLogging MSBuild property - generation is on by default and no opt-in step exists to add",
+        "Uses [Shared] ILogger<OrderService> to obtain the composed instance for assertion",
+        "Verifies via logger.Verify().AtLevel(...).WithMessageContaining(...).Once() (or an equivalent single-verb Verify() chain), not a two-verb VerifyLog()...Verify() shape and not manual List<T> inspection"
+      ]
+    },
+    {
+      "id": 33,
+      "category": "behavioral-correctness",
+      "prompt": "I registered both UseLogging() and UseNSubstitute() in my composition builder, in that order: builder.UseNSubstitute().UseLogging(). My test calls logger.Verify() on the composed ILogger<OrderService> and it throws InvalidOperationException saying it's not a Compono.Logging capturing logger. Also, should I set some MSBuildproperty to make UseLogging() generate logging support?",
+      "expected_output": "Explains the real cause: Compono's stage-6 test-double providers resolve first-registered-wins, and UseNSubstitute() was registered before UseLogging(), so ILogger<OrderService> resolved to an NSubstitute substitute instead of a CapturingLogger<T> - the fix is reordering to builder.UseLogging().UseNSubstitute(). Also explicitly answers the second question: no MSBuild property is needed or exists to add - ComponoGeneratedLogging already defaults to true once Compono.Logging is referenced; the failure is a registration-order issue, not a missing generation opt-in.",
+      "files": [],
+      "expectations": [
+        "Correctly identifies first-registered-wins stage-6 provider precedence as the cause, not a Compono.Logging bug",
+        "Recommends reordering to builder.UseLogging().UseNSubstitute() (UseLogging first)",
+        "Does not suggest a priority/specificity mechanism that doesn't exist",
+        "Explicitly states no ComponoGeneratedLogging opt-in is needed - it already defaults to true - rather than inventing or endorsing a manual opt-in step"
+      ]
+    },
+    {
+      "id": 34,
+      "category": "behavioral-correctness",
+      "prompt": "I want every test in this class to reuse the exact same ILogger<OrderService> instance the composed OrderService receives, without adding [Shared] to every theory - and this project references Compono, Compono.XunitV3, and Compono.Logging. Separately: if I call composer.Create<OrderService>() twice in the same test, will that shared logger be the same instance both times?",
+      "expected_output": "Recommends CompositionBuilder.Share<ILogger<OrderService>>() declared once in an ICompositionProfile (paired with UseLogging()), so an ordinary, undecorated ILogger<OrderService> theory parameter participates automatically with no [Shared] attribute anywhere. Explicitly corrects the second question: Share<T>() is graph-scoped, not composer-wide - two separate composer.Create<T>() calls (and separate CreateMany<T>() items) never share a Share<T>()-configured value, each gets its own independently-shared instance.",
+      "files": [],
+      "expectations": [
+        "Recommends Share<T>() declared once (e.g. in a profile), not [Shared] repeated on every theory parameter",
+        "Shows the retrieving parameter as an ordinary, undecorated parameter with no [Shared] attribute",
+        "Explicitly states Share<T>() does NOT share a value across two separate Create<T>() calls or across CreateMany<T>() items - it does not describe it as composer-wide or a persistent/ambient cache",
+        "Does not describe Share<T>() as a service locator or a way to retrieve a value without an ordinary composed parameter",
+        "Does not conflate Share<T>() and [Shared] as the same mechanism"
+      ]
+    },
+    {
+      "id": 35,
       "category": "routing",
       "prompt": "I added Compono.TestDoubles and set ComponoGeneratedTestDoubles=true, but my OrderService still throws CompositionException for IRepository. What setup am I missing?",
       "expected_output": "Identifies all three generated-test-double gates: Compono.TestDoubles package, ComponoGeneratedTestDoubles property, and UseGeneratedTestDoubles() on Composer/row builder. Explains an undiscovered interface can still fall through to another provider or fail at runtime.",
@@ -336,7 +426,7 @@
       ]
     },
     {
-      "id": 29,
+      "id": 36,
       "category": "behavioral-correctness",
       "prompt": "Can row.AsServiceProvider() replace my app DI container and resolve any concrete type Compono knows how to compose? I also need it to dispose generated clients.",
       "expected_output": "Explains Compono.DependencyInjection is a narrow CompositionRow bridge, not a DI container. It resolves row scope values, exact registrations, and providers; it does not resolve arbitrary generated concrete types, external UseServiceProvider values, or dispose values.",
@@ -348,7 +438,7 @@
       ]
     },
     {
-      "id": 30,
+      "id": 37,
       "category": "routing",
       "prompt": "My constructor has two UpsellPayload parameters, newGamePayload and lockedPackPayload. Each needs a different value wherever that parameter name appears. Should I use Compose<Profile, Config> or something else?",
       "expected_output": "Chooses custom ICompositionValueProvider matching CompositionProviderRequest.Name, because selection varies by requesting parameter name globally. Distinguishes this from per-call-site profile configuration arguments.",
@@ -360,7 +450,7 @@
       ]
     },
     {
-      "id": 31,
+      "id": 38,
       "category": "behavioral-correctness",
       "prompt": "What does CreateMany<Order>(0) return, and can I rely on the first three values staying identical when I change CreateMany<Order>(3) to CreateMany<Order>(10) with a fixed seed?",
       "expected_output": "States count zero returns an empty non-null list. With same root seed/config/version, CreateMany derives stable per-item seeds, so positions 0-2 remain identical when count grows; items are independent root compositions.",
@@ -372,7 +462,7 @@
       ]
     },
     {
-      "id": 32,
+      "id": 39,
       "category": "behavioral-correctness",
       "prompt": "We compose an IDisposable HTTP client wrapper as a Compose parameter. Does xUnit v3 dispose it like TUnit does?",
       "expected_output": "Distinguishes integrations: Compono.XunitV3 does not automatically dispose composed values, while TUnit disposes composed root method arguments but not arbitrary nested dependencies. Caller must own cleanup where needed.",

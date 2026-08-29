@@ -39,6 +39,10 @@ internal sealed class TestNamespace_ILeaf9_8f55cc3f_Double : global::TestNamespa
                     // its builder is still being set up when this call arrives), it must NOT shadow
                     // an older, fully-configured matching entry; the scan continues to the next
                     // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if (__entry.Config.HasConfiguredSequence) return __entry.Config.NextSequenceOutcome();
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
                 }

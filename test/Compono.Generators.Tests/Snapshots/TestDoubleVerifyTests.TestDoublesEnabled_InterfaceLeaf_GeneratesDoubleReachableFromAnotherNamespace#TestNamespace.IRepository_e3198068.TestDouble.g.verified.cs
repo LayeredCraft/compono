@@ -52,6 +52,10 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                     // its builder is still being set up when this call arrives), it must NOT shadow
                     // an older, fully-configured matching entry; the scan continues to the next
                     // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if (__entry.Config.HasConfiguredSequence) return __entry.Config.NextSequenceOutcome();
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
                 }
@@ -62,11 +66,12 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     void global::TestNamespace.IRepository.Save(string name)
     {
-        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
-        // the call-log append and the full scan stay under the SAME lock acquisition as
-        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
-        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
-        // call mutate List<T>'s backing array while dispatch was still iterating it.
+        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
+        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
+        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
+        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
+        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
+        // List<T>'s backing array while dispatch was still iterating it.
         lock (__Save_lock)
         {
             __Save_calls.Add(name);
@@ -85,6 +90,10 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                     // stop the scan (`return;`) exactly like the value-returning branch below, not
                     // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
                     // PR #108 round 7).
+                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
+                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
+                    // exactly mirroring the exception check immediately below.
+                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
                     if (__entry.Config.HasConfiguredValue) return;
                 }
@@ -97,7 +106,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
         get
         {
             __Count.RecordCall();
-            return __Count.HasConfiguredException ? throw __Count.ConfiguredException
+            return __Count.HasConfiguredSequence ? __Count.NextSequenceOutcome()
+                : __Count.HasConfiguredException ? throw __Count.ConfiguredException
                 : __Count.HasConfiguredValue ? __Count.ConfiguredValue
                 : default;
         }

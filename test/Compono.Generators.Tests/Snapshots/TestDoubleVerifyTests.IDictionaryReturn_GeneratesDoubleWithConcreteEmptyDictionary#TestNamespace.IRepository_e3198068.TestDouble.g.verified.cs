@@ -11,7 +11,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     global::System.Collections.Generic.IDictionary<string, int> global::TestNamespace.IRepository.GetCounts()
     {
         __GetCounts.RecordCall();
-        return __GetCounts.HasConfiguredException ? throw __GetCounts.ConfiguredException
+        return __GetCounts.HasConfiguredSequence ? __GetCounts.NextSequenceOutcome()
+            : __GetCounts.HasConfiguredException ? throw __GetCounts.ConfiguredException
             : __GetCounts.HasConfiguredValue ? __GetCounts.ConfiguredValue
             : new global::System.Collections.Generic.Dictionary<string, int>();
     }
@@ -19,7 +20,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     global::System.Collections.Generic.IReadOnlyDictionary<string, int> global::TestNamespace.IRepository.GetReadOnlyCounts()
     {
         __GetReadOnlyCounts.RecordCall();
-        return __GetReadOnlyCounts.HasConfiguredException ? throw __GetReadOnlyCounts.ConfiguredException
+        return __GetReadOnlyCounts.HasConfiguredSequence ? __GetReadOnlyCounts.NextSequenceOutcome()
+            : __GetReadOnlyCounts.HasConfiguredException ? throw __GetReadOnlyCounts.ConfiguredException
             : __GetReadOnlyCounts.HasConfiguredValue ? __GetReadOnlyCounts.ConfiguredValue
             : new global::System.Collections.Generic.Dictionary<string, int>();
     }

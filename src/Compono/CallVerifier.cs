@@ -1,12 +1,11 @@
 namespace Compono;
 
 /// <summary>
-/// Asserts how many times a generated test double's member was called, backed by
-/// <see cref="ReturnConfig{T}.ConfiguredCallCount"/>. Deliberately minimal - <see cref="Never"/>/
-/// <see cref="Once"/>/<see cref="Exactly"/> only, no argument matchers, no call-order verification,
-/// per ADR-0044 Requirement 3.
+/// Performs terminal call-count assertions after any generated member and argument filtering has
+/// already been applied. Deliberately minimal - <see cref="Never"/>/<see cref="Once"/>/
+/// <see cref="Exactly"/> only, with no call-order verification, per ADR-0044 Requirement 3.
 /// </summary>
-/// <param name="observedCount">How many times the member's dispatch body actually ran.</param>
+/// <param name="observedCount">How many matching calls the generated verification surface observed.</param>
 /// <param name="memberDescription">
 /// The declaring interface's display name plus member name, used to describe a verification failure.
 /// </param>
