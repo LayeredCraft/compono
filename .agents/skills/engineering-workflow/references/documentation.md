@@ -99,17 +99,15 @@ These are principles to weigh, not rules to mechanically enforce:
 
 ## Existing guidance
 
-- Every topic doc in `docs/` follows the same shape: what it does (or is
-  intended to do, for the pre-implementation docs), the decisions that
-  shaped it, and *why* alternatives were rejected — not just a feature
-  description. Look at `docs/architecture.md` or `docs/public-api.md` as
-  the template.
+- Every topic doc in `docs/` follows the same shape: what it does, the
+  decisions that shaped it, and *why* alternatives were rejected — not
+  just a feature description. Look at `docs/architecture.md` or
+  `docs/public-api.md` (now a tombstone deferring to the API-reference
+  site) as the template.
 - Update docs in the same PR as the behavior change, not as follow-up
-  cleanup. For a doc describing target/intended shape rather than shipped
-  behavior (`docs/mvp.md`, parts of `docs/public-api.md`), the same rule
-  applies in reverse: once the shipped code diverges from the doc, update
-  the doc in that same PR rather than letting "intended" quietly go stale
-  against "actual."
+  cleanup — once the shipped code diverges from the doc, update the doc
+  in that same PR rather than letting "intended" quietly go stale against
+  "actual."
 - Longer external-reference or comparative-research notes, if they ever
   come up, get their own file rather than being folded into a topic doc —
   keep the writeup separate and have it point back at the ADR it fed into,

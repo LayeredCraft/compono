@@ -86,3 +86,19 @@ real signal for the next iteration of `evals.json`, not noise:
 None of these are acted on in this pass — recorded here as a scoped
 follow-up for whoever next revises `evals.json`, per this repo's
 "deferred work still gets tracked" convention.
+
+## Superseded eval manifest
+
+`../../evals.json` now contains 26 scenarios. This benchmark remains an
+accurate historical record for scenarios 1-18 only; it does **not** measure
+the later additions for parameterized profiles, NUnit, TUnit, generated
+test doubles, dependency injection, custom providers, `CreateMany`, or
+integration-specific disposal.
+
+Next benchmark pass must:
+
+- Run every current scenario three times with and without skill.
+- Use a consumer workspace isolated from this repository for baseline runs.
+- Retain prompt metadata and response artifacts for every run.
+- Capture `timing.json` for every run before aggregation.
+- Grade revised positive assertions, especially former omission-only cases.

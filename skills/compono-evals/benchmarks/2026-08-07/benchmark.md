@@ -18,3 +18,5 @@
 - time_seconds and tokens are 0 for every run — no timing.json/metrics.json was captured per run in this pass, so those columns are not meaningful; do not read the 0s as "instant"/"free".
 - Methodology gap flagged by multiple graders: without_skill (baseline) subagents retained full filesystem/tool access to this repo, even though instructed not to read the skill. At least one baseline (eval 9) still produced accurate Compono-specific terminology, most likely by exploring the repo directly rather than being told not to. This likely narrows the true with/without gap versus a baseline run in a genuinely repo-isolated environment.
 - Several individual graders flagged specific assertions as weakly discriminating (pass regardless of skill use) — see grading.json eval_feedback fields for evals 1, 6, 8, 9, 10, 14, 15, 16, 17, 18. These are real signal for the next iteration of evals.json, not noise.
+- `evals.json` has since expanded to 26 scenarios. This benchmark measures
+  only scenarios 1-18 and must not be used as evidence for later coverage.

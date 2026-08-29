@@ -36,20 +36,31 @@ process and standards. It is not a restatement of current architecture;
 code and this skill disagree, the code wins and this skill is stale — fix
 the skill in the same PR you notice the drift.
 
-Repo shape: `src/Compono` (core composition engine, no runtime provider
-pipeline yet — Milestone 2 territory) and `src/Compono.Generators` (the
-incremental source generator, Milestone 1 — see
-`docs/plans/0001-milestone-1-source-generation-foundation.md` for exactly
-how far along it is; it's a phased plan, not all-or-nothing). `docs/mvp.md`
-describes the intended full package set — `Compono.XunitV3V3` is real as of
-Milestone 4 (see `docs/plans/0004-milestone-4-xunit-integration.md` for
-its own phase status; ADR-0023 records the `Compono.XunitV3` → `Compono.XunitV3V3`
-rename); `Compono.NSubstitute`/`Compono.Bogus` don't exist as projects
-yet — treat any reference to those two below as forward-looking, not
-current fact. `test/Compono.Tests`, `test/Compono.Generators.Tests`, and
-`test/Compono.XunitV3V3.Tests` are real, established test projects —
-`references/testing.md` now describes a pattern actually in use, not just
-an intended one.
+Repo shape: `src/Compono` is the core composition engine — it's past the
+early "no runtime provider pipeline" stage, the provider pipeline is real
+(`src/Compono/Providers/`: `BuiltInProviders`, `EnumValueProvider`,
+`PrimitiveValueProvider`, `NullableValueProvider`, `MemberRuleProvider`,
+`TypeRuleProvider`, `PublicProviderAdapter`) — and `src/Compono.Generators`
+is the incremental source generator. Every roadmap milestone
+(`docs/mvp.md`, plans `0001`–`0008`) is `Done`; the repo is at the
+public-preview stage, not pre-Milestone. The current package set:
+
+- `Compono` (core), `Compono.Generators` (source generator),
+  `Compono.XunitV3` (xUnit v3 integration), `Compono.TUnit` (TUnit
+  integration), `Compono.TestDoubles` (source-generated test doubles),
+  `Compono.DependencyInjection` (configured-resolution bridge),
+  `Compono.NSubstitute` (NSubstitute integration), and `Compono.Bogus`
+  (Bogus integration) — all of these are real, established projects
+  (ADR-0023 renamed `Compono.Xunit` → `Compono.XunitV3`; there is no
+  `Compono.XunitV3V3`).
+
+Established test projects include `test/Compono.Tests`,
+`test/Compono.Generators.Tests`, `test/Compono.XunitV3.Tests`,
+`test/Compono.TestDoubles.Tests`, `test/Compono.TUnit.Tests`,
+`test/Compono.DependencyInjection.Tests`, `test/Compono.NSubstitute.Tests`,
+and `test/Compono.Bogus.Tests` — plus `*SampleTests`/`*AotSmokeTest`
+consumer-proof projects. `references/testing.md` describes a pattern
+actually in use, not just an intended one.
 
 ## How to use this skill
 
