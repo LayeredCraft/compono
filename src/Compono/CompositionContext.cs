@@ -322,7 +322,11 @@ internal sealed class CompositionContext : ICompositionContext
     /// known at compile time via <see cref="PlanCache{T}"/>/<see cref="CollectionPlanCache{T}"/> -
     /// reaching them from a runtime <see cref="Type"/> would need reflection, which
     /// <c>docs/adr/0001-source-generation-first.md</c> rules out by default). See
-    /// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>.
+    /// <c>docs/adr/0047-compono-dependencyinjection-configured-resolution-bridge.md</c>. A
+    /// builder-configured <see cref="CompositionBuilder.Share{T}"/> type participates here exactly
+    /// like any other entry point - both establishing and observing the shared scope value,
+    /// regardless of resolution order relative to other requests in the same row. See
+    /// <c>docs/adr/0056-composition-builder-share-graph-wide-sharing.md</c>.
     /// </summary>
     /// <remarks>
     /// A bare runtime <see cref="Type"/> carries no compile-time nullable-reference-type annotation to
@@ -359,19 +363,25 @@ internal sealed class CompositionContext : ICompositionContext
 
         try
         {
+            // A builder-configured Share<T>() type broadens this entry point's write side exactly
+            // like ResolveCore's own effectiveIsShared - this bridge (Compono.DependencyInjection's
+            // AsServiceProvider(), via CompositionRow.TryResolveConfigured) is still just another
+            // participant in the same row's graph, so a Share<T>()-configured type resolved through
+            // it must establish/observe the same scope value as any other request, regardless of
+            // resolution order. See docs/adr/0056-composition-builder-share-graph-wide-sharing.md.
+            var effectiveIsShared = _sharedTypes.Contains(requestedType);
             var request = new CompositionRequest
             {
                 RequestedType = requestedType,
                 Nullability = Nullability.Nullable,
                 DeclaringType = null,
                 Path = _path,
-                IsShared = false,
+                IsShared = effectiveIsShared,
             };
 
             // Stage 2: same unconditional scope read every other entry point uses - a value already
-            // shared elsewhere in this row (via ordinary [Shared]/ResolveShared usage) is surfaced here
-            // too, per ADR-0021. Never written here (this method never establishes a new shared value -
-            // see the remarks on why this introduces no new CompositionScope semantics).
+            // shared elsewhere in this row (via ordinary [Shared]/ResolveShared/Share<T>() usage) is
+            // surfaced here too, per ADR-0021/ADR-0056.
             if (_scope.TryGet(requestedType, out var sharedValue))
             {
                 var result = ValidateAuthoritativeValue(sharedValue, request, "shared value");
@@ -391,6 +401,7 @@ internal sealed class CompositionContext : ICompositionContext
                 var registeredValue = InvokeFactory(factory, requestedType, PipelineStage.ExactRegistration, provider: null);
                 var result = ValidateAuthoritativeValue(registeredValue, request, "registration");
                 _trace.Record(PipelineStage.ExactRegistration, provider: null, OutcomeOf(result));
+                StoreSharedValue(requestedType, effectiveIsShared, result);
                 value = AuthoritativeValue(result, requestedType);
                 _trace.Rewind(checkpoint);
                 return true;
@@ -451,13 +462,14 @@ internal sealed class CompositionContext : ICompositionContext
     }
 
     // Non-generic sibling of StoreSharedAndReturn<TValue> - validates a winning stage 4-6 candidate's
-    // value exactly as that method does, but never writes to scope (this method's only two callers -
-    // TryResolveConfigured - never establish a shared value, per this method's own remarks) and returns
-    // a plain object? instead of casting to a generic TValue.
+    // value exactly as that method does, including the same effectiveIsShared write gate (this
+    // method's only caller, TryResolveConfigured, carries that in request.IsShared - see ADR-0056),
+    // and returns a plain object? instead of casting to a generic TValue.
     private object? ValidateProviderResultAndReturn(object? value, in CompositionRequest request, PipelineStage stage, Type? provider, Type requestedType)
     {
         var result = ValidateAuthoritativeValue(value, request, "provider");
         _trace.Record(stage, provider, OutcomeOf(result));
+        StoreSharedValue(requestedType, request.IsShared, result);
         return AuthoritativeValue(result, requestedType);
     }
 

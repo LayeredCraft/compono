@@ -205,6 +205,93 @@ public sealed class CompositionShareTests
         ReferenceEquals(root.Deep.Grandchild.Leaf, root.Shallow.Leaf).Should().BeTrue();
     }
 
+    // ---- Round-1 Codex review (PR #117): TryResolveConfigured (the Compono.DependencyInjection
+    // AsServiceProvider() bridge) must honor Share<T>() too, in either resolution order - it was
+    // found hardcoding IsShared = false and never writing to scope, making identity order-dependent. ----
+
+    [Fact]
+    public void Share_ParticipatesForAnExactRegistrationFirstResolvedThroughTryResolveConfigured()
+    {
+        var composer = Composer.Create(builder =>
+        {
+            builder.Register<ShareLeaf>(() => new ShareLeaf("generated"));
+            builder.Share<ShareLeaf>();
+        });
+        var row = composer.CreateRow(typeof(CompositionShareTests));
+
+        row.TryResolveConfigured(typeof(ShareLeaf), out var configuredValue).Should().BeTrue();
+        var resolvedValue = row.Resolve<ShareLeaf>(TestParameterDescriptor(0, "leaf"));
+
+        ReferenceEquals(configuredValue, resolvedValue).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Share_ParticipatesForAnExactRegistrationFirstResolvedThroughTheOrdinaryPath()
+    {
+        // Control case: order-independence is the actual contract this fix restored - proving a
+        // value resolved first through the ordinary path is also observed by a later
+        // TryResolveConfigured call, not just the reverse.
+        var composer = Composer.Create(builder =>
+        {
+            builder.Register<ShareLeaf>(() => new ShareLeaf("generated"));
+            builder.Share<ShareLeaf>();
+        });
+        var row = composer.CreateRow(typeof(CompositionShareTests));
+
+        var resolvedValue = row.Resolve<ShareLeaf>(TestParameterDescriptor(0, "leaf"));
+        row.TryResolveConfigured(typeof(ShareLeaf), out var configuredValue).Should().BeTrue();
+
+        ReferenceEquals(configuredValue, resolvedValue).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Share_ParticipatesForATestDoubleProviderResultResolvedThroughTryResolveConfigured()
+    {
+        // Covers ValidateProviderResultAndReturn's own write gate (stages 4-6) - a distinct code
+        // path from the exact-registration branch above, fixed by the same review round.
+        var composer = Composer.Create(builder =>
+        {
+            builder.AddTestDoubleProvider(new FixedShareLeafProvider());
+            builder.Share<ShareLeaf>();
+        });
+        var row = composer.CreateRow(typeof(CompositionShareTests));
+
+        row.TryResolveConfigured(typeof(ShareLeaf), out var configuredValue).Should().BeTrue();
+        var resolvedValue = row.Resolve<ShareLeaf>(TestParameterDescriptor(0, "leaf"));
+
+        ReferenceEquals(configuredValue, resolvedValue).Should().BeTrue();
+    }
+
+    // ---- Round-1 Codex review (PR #117): CompositionBuilder.Build() must snapshot _sharedTypes,
+    // not capture the live HashSet - matching the existing Registrations precedent (ADR-0017). ----
+
+    [Fact]
+    public void Share_CalledAfterBuildReturns_DoesNotAffectTheAlreadyBuiltComposer()
+    {
+        CompositionBuilder? captured = null;
+        var composer = Composer.Create(builder =>
+        {
+            captured = builder;
+            RegisterGraph(builder);
+        });
+
+        // Mutates the builder after Composer.Create(...) already returned/froze its configuration -
+        // a real scenario if a caller captures the builder out of the configuration callback.
+        captured!.Share<ShareLeaf>();
+
+        var root = composer.Create<ShareRoot>();
+
+        ReferenceEquals(root.A.Leaf, root.B.Leaf).Should().BeFalse();
+    }
+
+    private sealed class FixedShareLeafProvider : ICompositionValueProvider
+    {
+        public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+            request.RequestedType == typeof(ShareLeaf)
+                ? CompositionProviderResult.Handled(new ShareLeaf("test-double"))
+                : CompositionProviderResult.NotHandled;
+    }
+
     // ---- Existing [Shared]-driven CompositionRow behavior is unchanged when Share<T>() is never
     // configured - the control evidence for [Shared] non-regression; no separate paired case needed. ----
 

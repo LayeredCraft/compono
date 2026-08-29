@@ -320,7 +320,12 @@ public sealed class CompositionBuilder
             CollectionSizePolicy = _memberCollectionSizes.Count == 0 && !_globalCollectionSize.HasValue
                 ? CollectionSizePolicy.Empty
                 : new CollectionSizePolicy(_globalCollectionSize.HasValue ? _globalCollectionSize.Value : null, _memberCollectionSizes),
-            SharedTypes = _sharedTypes,
+            // Defensively copied into a genuinely immutable snapshot - same reasoning as
+            // Registrations above (docs/adr/0017-immutable-composer-configuration-and-builder-model.md):
+            // a consumer that captures this builder out of the Composer.Create callback could
+            // otherwise keep calling Share<T>() against this live HashSet after Composer.Create(...)
+            // has already returned, silently mutating an already-built composer's configuration.
+            SharedTypes = _sharedTypes.ToHashSet(),
         };
     }
 

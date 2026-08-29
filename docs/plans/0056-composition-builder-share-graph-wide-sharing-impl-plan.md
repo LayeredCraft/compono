@@ -227,8 +227,14 @@ generator-emitted code."
   `Share<T>()` section describing the graph-wide contract as *current*
   state (only once the code above ships — per this repo's own
   "don't describe unimplemented behavior as current" rule).
-- [x] `docs/public-api.md` — new `Share<T>()` entry alongside the existing
-  `Register<T>()`/`.For<T>()` surface.
+- [x] `docs/concepts/shared-values.md` — new `Share<T>()` entry alongside
+  the existing `Register<T>()`/`.For<T>()` surface. (Correction, round-1
+  Codex review: `docs/public-api.md` is an intentional ADR-0030 Amendment
+  2 tombstone, not the live public-surface doc — its own text redirects
+  to `docs/concepts/` as the canonical home. Adding a duplicate entry to
+  the tombstone would violate `documentation.md`'s "avoid duplicating
+  content" principle; this plan's original bullet just cited a stale
+  pre-tombstone path.)
 - [x] `docs/packages/compono-logging.md` — revise the existing
   `PerformanceLoggingBehavior`-style example to show:
 
