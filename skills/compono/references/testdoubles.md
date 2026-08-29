@@ -340,10 +340,11 @@ hits configured, default, or thrown behavior.
 
 **Still deliberately minimal** — `Never`/`Once`/`Exactly(n)` only, no
 `AtLeast`/`AtMost`, no `ReceivedCalls()`-style enumeration, no call-order
-verification. If a test needs anything this page doesn't cover (call-order
-verification, an overloaded member's own argument matching,
-`ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that interface
-instead — the two providers can coexist (see "Precedence with
+verification. An eligible overload's `<Member>Matching(Match<T>...)` surface
+supports argument matching; same-name matcher-wrapped overload configuration
+does not. If a test needs anything this page doesn't cover (call-order
+verification, `ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that
+interface instead — the two providers can coexist (see "Precedence with
 `Compono.NSubstitute`" below).
 
 ## Argument matching and argument-filtered verification (v3)
@@ -460,11 +461,11 @@ as guaranteed, and every existing single-`Configure()`-call usage keeps
 its exact same observable behavior.
 
 **What this deliberately doesn't do.** No matcher-specificity ranking
-(see above). No sequential/call-count-based responses (`Configure()`
-doesn't support "return X on the first call, Y on the second"). No
-`Returns(Func<...>)` callback responses. Verification (`Verify()`) is
-completely unaffected — it stays a count over the member's shared call
-log, independent of how many response configurations exist.
+(see above). Sequential/call-count-based responses use `ReturnsSequence(...)`
+(see "Sequential/call-count-based responses"). No `Returns(Func<...>)`
+callback responses. Verification (`Verify()`) is completely unaffected — it
+stays a count over the member's shared call log, independent of how many
+response configurations exist.
 
 ## Configuration-required members (v2)
 
