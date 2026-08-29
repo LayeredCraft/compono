@@ -464,6 +464,19 @@ structurally unrelated composed types.
 
 ## Notes
 
+**Dogfood re-run against the round-1 review fix (round-2 Codex review,
+PR #117).** Commit `47d1507`'s `TryResolveConfigured` write-gate fix
+changes core resolution behavior, so the dogfood evidence below (recorded
+against the pre-fix tree) no longer validated what was actually being
+pushed. Re-ran both consumer gates with freshly packed local packages
+built from `47d1507`: `alexa-vox-craft` — **PASS**, `total: 2816, failed:
+0, succeeded: 2784, skipped: 32` (unchanged from the original run, as
+expected — the fix only broadens an edge case neither consumer's test
+suite happens to exercise via `TryResolveConfigured`/`AsServiceProvider()`
+directly). `dynamodb-distributed-lock` — **PASS**, `total: 180, failed: 0,
+succeeded: 180, skipped: 0` (unchanged). No commit made in either
+consumer repo.
+
 **Dogfood evidence — `alexa-vox-craft` (task 7a).** `MediatRTestProfile.Configure`
 gained `.Share<ILogger<PerformanceLoggingBehavior>>()` alongside the
 existing `.UseLogging(...)` call; all eight `[Shared]
