@@ -5,13 +5,92 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate global::System.Collections.Generic.IDictionary<string, int> __GetCounts_Callback();
+
+    internal readonly ref struct __GetCounts_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Collections.Generic.IDictionary<string, int>> _config;
+        private readonly ref __GetCounts_Callback? _callback;
+
+        internal __GetCounts_Builder(ref global::Compono.ReturnConfig<global::System.Collections.Generic.IDictionary<string, int>> config, ref __GetCounts_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Collections.Generic.IDictionary<string, int> value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IDictionary<string, int>>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IDictionary<string, int>>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Collections.Generic.IDictionary<string, int>>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IDictionary<string, int>>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetCounts_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+    internal delegate global::System.Collections.Generic.IReadOnlyDictionary<string, int> __GetReadOnlyCounts_Callback();
+
+    internal readonly ref struct __GetReadOnlyCounts_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Collections.Generic.IReadOnlyDictionary<string, int>> _config;
+        private readonly ref __GetReadOnlyCounts_Callback? _callback;
+
+        internal __GetReadOnlyCounts_Builder(ref global::Compono.ReturnConfig<global::System.Collections.Generic.IReadOnlyDictionary<string, int>> config, ref __GetReadOnlyCounts_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Collections.Generic.IReadOnlyDictionary<string, int> value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IReadOnlyDictionary<string, int>>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IReadOnlyDictionary<string, int>>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Collections.Generic.IReadOnlyDictionary<string, int>>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IReadOnlyDictionary<string, int>>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetReadOnlyCounts_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<global::System.Collections.Generic.IDictionary<string, int>> __GetCounts;
+    internal __GetCounts_Callback? __GetCounts_callback;
     internal global::Compono.ReturnConfig<global::System.Collections.Generic.IReadOnlyDictionary<string, int>> __GetReadOnlyCounts;
+    internal __GetReadOnlyCounts_Callback? __GetReadOnlyCounts_callback;
 
     global::System.Collections.Generic.IDictionary<string, int> global::TestNamespace.IRepository.GetCounts()
     {
         __GetCounts.RecordCall();
-        return __GetCounts.HasConfiguredSequence ? __GetCounts.NextSequenceOutcome()
+        return __GetCounts_callback is { } callback ? callback()
+            : __GetCounts.HasConfiguredSequence ? __GetCounts.NextSequenceOutcome()
             : __GetCounts.HasConfiguredException ? throw __GetCounts.ConfiguredException
             : __GetCounts.HasConfiguredValue ? __GetCounts.ConfiguredValue
             : new global::System.Collections.Generic.Dictionary<string, int>();
@@ -20,7 +99,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     global::System.Collections.Generic.IReadOnlyDictionary<string, int> global::TestNamespace.IRepository.GetReadOnlyCounts()
     {
         __GetReadOnlyCounts.RecordCall();
-        return __GetReadOnlyCounts.HasConfiguredSequence ? __GetReadOnlyCounts.NextSequenceOutcome()
+        return __GetReadOnlyCounts_callback is { } callback ? callback()
+            : __GetReadOnlyCounts.HasConfiguredSequence ? __GetReadOnlyCounts.NextSequenceOutcome()
             : __GetReadOnlyCounts.HasConfiguredException ? throw __GetReadOnlyCounts.ConfiguredException
             : __GetReadOnlyCounts.HasConfiguredValue ? __GetReadOnlyCounts.ConfiguredValue
             : new global::System.Collections.Generic.Dictionary<string, int>();
@@ -29,11 +109,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IDictionary<string, int>> GetCounts(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IDictionary<string, int>>(ref self.__GetCounts);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetCounts_Builder GetCounts(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetCounts_Builder(ref self.__GetCounts, ref self.__GetCounts_callback);
 
-    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IReadOnlyDictionary<string, int>> GetReadOnlyCounts(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.IReadOnlyDictionary<string, int>>(ref self.__GetReadOnlyCounts);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetReadOnlyCounts_Builder GetReadOnlyCounts(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetReadOnlyCounts_Builder(ref self.__GetReadOnlyCounts, ref self.__GetReadOnlyCounts_callback);
 
 }
 

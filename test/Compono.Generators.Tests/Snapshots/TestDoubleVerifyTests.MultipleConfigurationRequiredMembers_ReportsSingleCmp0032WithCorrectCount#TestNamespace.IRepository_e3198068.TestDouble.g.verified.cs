@@ -5,14 +5,93 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate string __GetName_Callback();
+
+    internal readonly ref struct __GetName_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<string> _config;
+        private readonly ref __GetName_Callback? _callback;
+
+        internal __GetName_Builder(ref global::Compono.ReturnConfig<string> config, ref __GetName_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(string value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<string>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetName_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+    internal delegate int __GetCount_Callback();
+
+    internal readonly ref struct __GetCount_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<int> _config;
+        private readonly ref __GetCount_Callback? _callback;
+
+        internal __GetCount_Builder(ref global::Compono.ReturnConfig<int> config, ref __GetCount_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(int value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<int>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetCount_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<string> __GetName;
+    internal __GetName_Callback? __GetName_callback;
     internal global::Compono.ReturnConfig<string> __Description;
     internal global::Compono.ReturnConfig<int> __GetCount;
+    internal __GetCount_Callback? __GetCount_callback;
 
     string global::TestNamespace.IRepository.GetName()
     {
         __GetName.RecordCall();
-        return __GetName.HasConfiguredSequence ? __GetName.NextSequenceOutcome()
+        return __GetName_callback is { } callback ? callback()
+            : __GetName.HasConfiguredSequence ? __GetName.NextSequenceOutcome()
             : __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
             : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -35,7 +114,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     int global::TestNamespace.IRepository.GetCount()
     {
         __GetCount.RecordCall();
-        return __GetCount.HasConfiguredSequence ? __GetCount.NextSequenceOutcome()
+        return __GetCount_callback is { } callback ? callback()
+            : __GetCount.HasConfiguredSequence ? __GetCount.NextSequenceOutcome()
             : __GetCount.HasConfiguredException ? throw __GetCount.ConfiguredException
             : __GetCount.HasConfiguredValue ? __GetCount.ConfiguredValue
             : default;
@@ -44,14 +124,14 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<string> GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<string>(ref self.__GetName);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetName_Builder GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetName_Builder(ref self.__GetName, ref self.__GetName_callback);
 
     public static global::Compono.ReturnConfigBuilder<string> Description(this global::TestNamespace_IRepository_e3198068_Double self) =>
         new global::Compono.ReturnConfigBuilder<string>(ref self.__Description);
 
-    public static global::Compono.ReturnConfigBuilder<int> GetCount(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<int>(ref self.__GetCount);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetCount_Builder GetCount(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetCount_Builder(ref self.__GetCount, ref self.__GetCount_callback);
 
 }
 

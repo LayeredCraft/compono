@@ -298,4 +298,13 @@ internal sealed record TestDoubleMemberInfo(
     /// registration-wins).
     /// </summary>
     public string EntriesFieldName => $"{FieldName}_entries";
+
+    /// <summary>The generated strongly typed invocation-callback delegate name (ADR-0053).</summary>
+    public string CallbackDelegateName => $"{FieldName}_Callback";
+
+    /// <summary>The generated member-specific configuration-builder name (ADR-0053).</summary>
+    public string CallbackBuilderName => $"{FieldName}_Builder";
+
+    /// <summary>The generated callback field name owned by this member or response entry.</summary>
+    public string CallbackFieldName => $"{FieldName}_callback";
 }

@@ -5,13 +5,53 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_ICollision_e0157ffc_Double : global::TestNamespace.ICollision
 {
+    internal delegate bool __Foo_Callback();
+
+    internal readonly ref struct __Foo_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __Foo_Callback? _callback;
+
+        internal __Foo_Builder(ref global::Compono.ReturnConfig<bool> config, ref __Foo_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Foo_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<bool> __Foo;
+    internal __Foo_Callback? __Foo_callback;
     internal global::Compono.ReturnConfig<global::Compono.Unit> __Foo_dimHelper;
 
     bool global::TestNamespace.ICollision.Foo()
     {
         __Foo.RecordCall();
-        return __Foo.HasConfiguredSequence ? __Foo.NextSequenceOutcome()
+        return __Foo_callback is { } callback ? callback()
+            : __Foo.HasConfiguredSequence ? __Foo.NextSequenceOutcome()
             : __Foo.HasConfiguredException ? throw __Foo.ConfiguredException
             : __Foo.HasConfiguredValue ? __Foo.ConfiguredValue
             : default;
@@ -29,8 +69,8 @@ internal sealed class TestNamespace_ICollision_e0157ffc_Double : global::TestNam
 
 internal static class TestNamespace_ICollision_e0157ffc_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> Foo(this global::TestNamespace_ICollision_e0157ffc_Double self) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref self.__Foo);
+    public static global::TestNamespace_ICollision_e0157ffc_Double.__Foo_Builder Foo(this global::TestNamespace_ICollision_e0157ffc_Double self) =>
+        new global::TestNamespace_ICollision_e0157ffc_Double.__Foo_Builder(ref self.__Foo, ref self.__Foo_callback);
 
     public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Foo_dimHelper(this global::TestNamespace_ICollision_e0157ffc_Double self) =>
         new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref self.__Foo_dimHelper);

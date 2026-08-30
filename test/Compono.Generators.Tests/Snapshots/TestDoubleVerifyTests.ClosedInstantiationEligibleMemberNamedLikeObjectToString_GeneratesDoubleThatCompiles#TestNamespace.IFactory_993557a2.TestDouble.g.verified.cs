@@ -5,9 +5,48 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
+    internal delegate T __ToString_Callback<T>() where T : class;
+
+    internal readonly ref struct __ToString_Builder<T> where T : class
+    {
+        private readonly ref global::Compono.ReturnConfig<T> _config;
+        private readonly ref __ToString_Callback<T>? _callback;
+
+        internal __ToString_Builder(ref global::Compono.ReturnConfig<T> config, ref __ToString_Callback<T>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(T value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<T>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__ToString_Callback<T> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal sealed class __ToString_State<T> where T : class
     {
         internal global::Compono.ReturnConfig<T> Config;
+        internal __ToString_Callback<T>? Callback;
     }
 
     internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __ToString_buckets = new();
@@ -30,7 +69,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __ToString_Bucket<T>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+        return __bucket.Callback is { } callback ? callback()
+            : __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
             : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -40,10 +80,10 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<T> ToString<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
+    public static global::TestNamespace_IFactory_993557a2_Double.__ToString_Builder<T> ToString<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
     {
         var __bucket = __self.__ToString_Bucket<T>();
-        return new global::Compono.ReturnConfigBuilder<T>(ref __bucket.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__ToString_Builder<T>(ref __bucket.Config, ref __bucket.Callback);
     }
 
 }

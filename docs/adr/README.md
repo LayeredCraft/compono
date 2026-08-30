@@ -114,7 +114,7 @@ the mechanics: numbering, status, and the index.
 | [0050](0050-testdoubles-multi-entry-argument-distinguished-configuration.md) | Compono.TestDoubles: Multi-Entry, Argument-Distinguished Response Configuration | Accepted |
 | [0051](0051-compono-http-handler-based-testing-package.md) | Compono.Http: Handler-Based HTTP Client Testing Package | Accepted |
 | [0052](0052-compile-time-composition-discovery-boundary-for-registered-and-nested-resolved-types.md) | Compile-Time Composition-Discovery Boundary for Registered and Nested-Resolved Types | Partially Accepted (Part B shipped; Part A Proposed) |
-| [0053](0053-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | Proposed |
+| [0053](0053-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | Accepted |
 | [0054](0054-testdoubles-sequential-call-count-based-responses.md) | Compono.TestDoubles: Sequential/Call-Count-Based Responses | Accepted |
 | [0055](0055-compono-logging-testing-support-package.md) | Compono.Logging: First-Class Microsoft.Extensions.Logging Testing Support | Accepted |
 | [0056](0056-composition-builder-share-graph-wide-sharing.md) | `CompositionBuilder.Share<T>()`: Graph-Wide Sharing as a Core Composition Concept | Accepted |

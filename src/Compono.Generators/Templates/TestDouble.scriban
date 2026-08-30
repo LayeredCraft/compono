@@ -5,6 +5,48 @@
 internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualified_name }}
 {
 {{~ for member in members ~}}
+{{~ if member.is_callback_eligible ~}}
+    internal delegate {{ member.return_type_fully_qualified_name }} {{ member.callback_delegate_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }}){{ member.constraint_clauses_text }};
+
+    internal readonly ref struct {{ member.callback_builder_name }}{{ member.generic_suffix }}{{ member.constraint_clauses_text }}
+    {
+        private readonly ref global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> _config;
+        private readonly ref {{ member.callback_delegate_name }}{{ member.generic_suffix }}? _callback;
+
+        internal {{ member.callback_builder_name }}(ref global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> config, ref {{ member.callback_delegate_name }}{{ member.generic_suffix }}? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns({{ member.slot_type_fully_qualified_name }} value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<{{ member.slot_type_fully_qualified_name }}>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback({{ member.callback_delegate_name }}{{ member.generic_suffix }} callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+{{~ end ~}}
+{{~ end ~}}
+{{~ for member in members ~}}
 {{~ if member.is_dim_fallback_target ~}}
     // ADR-0044 Amendment 20: the owner-forwarding dispatch helper is a pure, stateless forward to
     // `this` (never independently mutated), so one instance is reused for every unconfigured call
@@ -28,6 +70,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? Matcher_{{ p.original_name }};
 {{~ end ~}}
             internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
+{{~ if member.is_callback_eligible ~}}
+            internal {{ member.callback_delegate_name }}{{ member.generic_suffix }}? Callback;
+{{~ end ~}}
         }
 
         internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
@@ -35,6 +80,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         internal readonly object Lock = new();
 {{~ else ~}}
         internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
+{{~ if member.is_callback_eligible ~}}
+        internal {{ member.callback_delegate_name }}{{ member.generic_suffix }}? Callback;
+{{~ end ~}}
 {{~ end ~}}
     }
 
@@ -55,6 +103,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     }
 {{~ else if member.has_configuration_surface && !member.is_eligible_for_matching && !member.is_overload_matching_eligible ~}}
     internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> {{ member.field_name }};
+{{~ if member.is_callback_eligible ~}}
+    internal {{ member.callback_delegate_name }}{{ member.generic_suffix }}? {{ member.callback_field_name }};
+{{~ end ~}}
 {{~ end ~}}
 {{~ end ~}}
 {{~ for member in members ~}}
@@ -68,6 +119,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
         internal global::Compono.Match<{{ p.fully_qualified_type_name }}>? Matcher_{{ p.original_name }};
 {{~ end ~}}
         internal global::Compono.ReturnConfig<{{ member.slot_type_fully_qualified_name }}> Config;
+{{~ if member.is_callback_eligible ~}}
+        internal {{ member.callback_delegate_name }}{{ member.generic_suffix }}? Callback;
+{{~ end ~}}
     }
 
     internal readonly global::System.Collections.Generic.List<{{ member.entry_class_name }}> {{ member.entries_field_name }} = [];
@@ -144,6 +198,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {
         var {{ member.bucket_local_name }} = {{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
 {{~ if member.closed_instantiation_has_matched_parameters ~}}
+        {{ member.callback_delegate_name }}{{ member.generic_suffix }}? {{ member.callback_local_name }} = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
@@ -159,6 +214,11 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 var {{ member.entry_local_name }} = {{ member.bucket_local_name }}.Entries[{{ member.entry_index_local_name }}];
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
+                    if ({{ member.entry_local_name }}.Callback is { } configuredCallback)
+                    {
+                        {{ member.callback_local_name }} = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -173,6 +233,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 }
             }
         }
+        if ({{ member.callback_local_name }} is { } callback)
+            return callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ if member.is_configuration_required ~}}
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
@@ -183,7 +245,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
 {{~ else ~}}
         {{ member.bucket_local_name }}.Config.RecordCall();
-        return {{ member.bucket_local_name }}.Config.HasConfiguredSequence ? {{ member.bucket_local_name }}.Config.NextSequenceOutcome()
+        return {{ member.bucket_local_name }}.Callback is { } callback ? callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+            : {{ member.bucket_local_name }}.Config.HasConfiguredSequence ? {{ member.bucket_local_name }}.Config.NextSequenceOutcome()
             : {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
             : {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
@@ -243,6 +306,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ else ~}}
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
+{{~ if member.is_callback_eligible ~}}
+        {{ member.callback_delegate_name }}{{ member.generic_suffix }}? {{ member.callback_local_name }} = null;
+{{~ end ~}}
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
@@ -257,6 +323,13 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 var {{ member.entry_local_name }} = {{ member.entries_field_name }}[{{ member.entry_index_local_name }}];
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
+{{~ if member.is_callback_eligible ~}}
+                    if ({{ member.entry_local_name }}.Callback is { } configuredCallback)
+                    {
+                        {{ member.callback_local_name }} = configuredCallback;
+                        break;
+                    }
+{{~ end ~}}
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -271,6 +344,10 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 }
             }
         }
+{{~ if member.is_callback_eligible ~}}
+        if ({{ member.callback_local_name }} is { } callback)
+            return callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+{{~ end ~}}
 {{~ if member.is_configuration_required ~}}
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) - call Configure().{{ member.escaped_name }}(...).Returns(...) or .Throws(...) before invoking it.");
@@ -298,7 +375,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         {{ member.field_name }}.RecordCall();
-        return {{ member.field_name }}.HasConfiguredSequence ? {{ member.field_name }}.NextSequenceOutcome()
+        return {{ if member.is_callback_eligible }}{{ member.callback_field_name }} is { } callback ? callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+            : {{ end }}{{ member.field_name }}.HasConfiguredSequence ? {{ member.field_name }}.NextSequenceOutcome()
             : {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
             : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
 {{~ if member.is_configuration_required ~}}
@@ -385,19 +463,19 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
 {{~ if member.has_configuration_surface ~}}
 {{~ if member.is_closed_instantiation_eligible ~}}
 {{~ if !member.closed_instantiation_has_parameters ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}){{ member.constraint_clauses_text }}
+    public static global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ member.generic_suffix }} {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}){{ member.constraint_clauses_text }}
     {
         var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.bucket_local_name }}.Config);
+        return new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ member.generic_suffix }}(ref {{ member.bucket_local_name }}.Config, ref {{ member.bucket_local_name }}.Callback);
     }
 {{~ else if member.is_overloaded ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
+    public static global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ member.generic_suffix }} {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
     {
         var {{ member.bucket_local_name }} = {{ member.extension_receiver_name }}.{{ member.closed_instantiation_bucket_method_name }}<{{ member.closed_instantiation_type_parameter_name }}>();
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.bucket_local_name }}.Config);
+        return new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ member.generic_suffix }}(ref {{ member.bucket_local_name }}.Config, ref {{ member.bucket_local_name }}.Callback);
     }
 {{~ else ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
+    public static global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ member.generic_suffix }} {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
     {
         // ADR-0050: appends a new entry rather than overwriting the (removed) single
         // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
@@ -412,11 +490,11 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
         {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
         lock ({{ member.bucket_local_name }}.Lock) { {{ member.bucket_local_name }}.Entries.Add({{ member.entry_local_name }}); }
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+        return new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ member.generic_suffix }}(ref {{ member.entry_local_name }}.Config, ref {{ member.entry_local_name }}.Callback);
     }
 {{~ end ~}}
 {{~ else if member.is_eligible_for_matching ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
+    public static {{ if member.is_callback_eligible }}global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ else }}global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>{{ end }} {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }})
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
         // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
@@ -427,7 +505,7 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
         {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
         lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+        return {{ if member.is_callback_eligible }}new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}(ref {{ member.entry_local_name }}.Config, ref {{ member.entry_local_name }}.Callback){{ else }}new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config){{ end }};
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
@@ -436,21 +514,21 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
     // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
     // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
     // argument-independent override behavior without mutating any earlier entry's state at all.
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self)
+    public static {{ if member.is_callback_eligible }}global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ else }}global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>{{ end }} {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self)
     {
         var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
         lock (self.{{ member.field_name }}_lock) { self.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+        return {{ if member.is_callback_eligible }}new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}(ref {{ member.entry_local_name }}.Config, ref {{ member.entry_local_name }}.Callback){{ else }}new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config){{ end }};
     }
 {{~ else if member.is_overload_matching_eligible ~}}
     // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
     // types, unchanged signature/call sites - but now appends an always-matching entry to the
     // shared per-overload entries list instead of returning a builder over a removed single field.
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
+    public static {{ if member.is_callback_eligible }}global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ else }}global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>{{ end }} {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }}
     {
         var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
         lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+        return {{ if member.is_callback_eligible }}new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}(ref {{ member.entry_local_name }}.Config, ref {{ member.entry_local_name }}.Callback){{ else }}new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config){{ end }};
     }
 
     // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
@@ -459,21 +537,21 @@ internal static class {{ safe_identifier }}_DoubleConfiguration
     // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
     // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
     // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.matching_member_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
+    public static {{ if member.is_callback_eligible }}global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ else }}global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>{{ end }} {{ member.matching_member_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, global::Compono.Match<{{ p.fully_qualified_type_name }}> {{ p.escaped_name }}{{ end }}){{ member.constraint_clauses_text }}
     {
         var {{ member.entry_local_name }} = new global::{{ safe_identifier }}_Double.{{ member.entry_class_name }}();
 {{~ for p in member.parameters ~}}
         {{ member.entry_local_name }}.Matcher_{{ p.original_name }} = {{ p.escaped_name }};
 {{~ end ~}}
         lock ({{ member.extension_receiver_name }}.{{ member.field_name }}_lock) { {{ member.extension_receiver_name }}.{{ member.entries_field_name }}.Add({{ member.entry_local_name }}); }
-        return new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config);
+        return {{ if member.is_callback_eligible }}new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}(ref {{ member.entry_local_name }}.Config, ref {{ member.entry_local_name }}.Callback){{ else }}new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.entry_local_name }}.Config){{ end }};
     }
 {{~ else if member.is_overloaded ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
-        new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.extension_receiver_name }}.{{ member.field_name }});
+    public static {{ if member.is_callback_eligible }}global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ else }}global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>{{ end }} {{ member.escaped_name }}{{ member.generic_suffix }}(this global::{{ safe_identifier }}_Double {{ member.extension_receiver_name }}{{ for p in member.parameters }}, {{ if p.is_params }}params {{ end }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if p.default_value_expression != "" }} = {{ p.default_value_expression }}{{ end }}{{ end }}){{ member.constraint_clauses_text }} =>
+        {{ if member.is_callback_eligible }}new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}(ref {{ member.extension_receiver_name }}.{{ member.field_name }}, ref {{ member.extension_receiver_name }}.{{ member.callback_field_name }}){{ else }}new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref {{ member.extension_receiver_name }}.{{ member.field_name }}){{ end }};
 {{~ else ~}}
-    public static global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}> {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self) =>
-        new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }});
+    public static {{ if member.is_callback_eligible }}global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}{{ else }}global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>{{ end }} {{ member.escaped_name }}(this global::{{ safe_identifier }}_Double self) =>
+        {{ if member.is_callback_eligible }}new global::{{ safe_identifier }}_Double.{{ member.callback_builder_name }}(ref self.{{ member.field_name }}, ref self.{{ member.callback_field_name }}){{ else }}new global::Compono.ReturnConfigBuilder<{{ member.slot_type_fully_qualified_name }}>(ref self.{{ member.field_name }}){{ end }};
 {{~ end ~}}
 
 {{~ end ~}}

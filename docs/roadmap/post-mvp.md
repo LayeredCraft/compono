@@ -75,7 +75,7 @@ ADR, the research doc, the plan).
   `AlexaVoxCraft.MediatR.Tests`) also surfaced a second, independent
   finding while converting `Wrappers/RequestHandlerWrapperTests.cs`'s
   `Handle_WithPipelineBehaviors_ExecutesBehaviorsInReverseOrder`:
-  `Compono.TestDoubles` has no invocation-aware callback response
+  `Compono.TestDoubles` originally had no invocation-aware callback response
   (`Returns(Func<CallInfo, T>)`-style) for a generated double's member -
   the pre-migration NSubstitute test invoked a captured
   `RequestHandlerDelegate` argument and recorded side effects around it, a
@@ -90,11 +90,13 @@ ADR, the research doc, the plan).
   `Compono.NSubstitute` (a real NSubstitute substitute) satisfies this
   shape natively — so rarity does not downgrade it here. Tracked by
   [ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)
-  (`Proposed`; problem and design evidence recorded only, no API decided).
+  is now `Accepted` and implemented through generated member-specific builders
+  with `ReturnsCallback(...)`, tracked by
+  [PLAN-0057](../plans/0057-testdoubles-invocation-aware-callback-responses.md).
   The migrated test's interim workaround
   (`test/AlexaVoxCraft.MediatR.Tests/TestKit/FakeDelegates.cs`'s
   `FakePipelineBehavior`) is the accepted project-local alternative while
-  this candidate is unresolved, not a permanent verdict.
+  can now be retired after the consumer dogfood gate passes.
 
 Seven earlier dogfooding passes have also run:
 

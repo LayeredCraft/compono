@@ -91,6 +91,7 @@ internal static class TestDoubleEmitter
                 // own locals, same collision-safe allocation as every other synthetic local above.
                 var entryLocalName = SafeLocalName("__entry", parameterEscapedNames.Append(matchesLocalName));
                 var entryIndexLocalName = SafeLocalName("__i", parameterEscapedNames.Append(entryLocalName));
+                var callbackLocalName = SafeLocalName("__callback", parameterEscapedNames.Append(entryLocalName));
 
                 return new
                 {
@@ -107,6 +108,12 @@ internal static class TestDoubleEmitter
                     m.IsEligibleForMatching,
                     m.IsOverloadMatchingEligible,
                     m.MatchingMemberName,
+                    IsCallbackEligible = m.Kind == TestDoubleMemberKind.Method && !m.IsVoid &&
+                        m.HasConfigurationSurface && (!m.IsGenericMethod || m.IsClosedInstantiationEligible),
+                    CallbackDelegateName = m.CallbackDelegateName,
+                    CallbackBuilderName = m.CallbackBuilderName,
+                    CallbackFieldName = m.CallbackFieldName,
+                    CallbackLocalName = callbackLocalName,
                     m.IsClosedInstantiationEligible,
                     m.ExtensionReceiverName,
                     m.GenericSuffix,

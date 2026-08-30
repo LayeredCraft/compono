@@ -5,6 +5,44 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
+    internal delegate Config __Create_Callback<Config>(int id);
+
+    internal readonly ref struct __Create_Builder<Config>
+    {
+        private readonly ref global::Compono.ReturnConfig<Config> _config;
+        private readonly ref __Create_Callback<Config>? _callback;
+
+        internal __Create_Builder(ref global::Compono.ReturnConfig<Config> config, ref __Create_Callback<Config>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(Config value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<Config>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<Config>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<Config>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<Config>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Create_Callback<Config> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal sealed class __Create_State<Config>
     {
         // ADR-0050: multi-entry response configuration composed inside ADR-0049's
@@ -14,6 +52,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
         {
             internal global::Compono.Match<int>? Matcher_id;
             internal global::Compono.ReturnConfig<Config> Config;
+            internal __Create_Callback<Config>? Callback;
         }
 
         internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
@@ -40,6 +79,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     Config global::TestNamespace.IFactory.Create<Config>(int id)
     {
         var __bucket = __Create_Bucket<Config>();
+        __Create_Callback<Config>? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
@@ -55,6 +95,11 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
                 var __entry = __bucket.Entries[__i];
                 if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -69,6 +114,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(id);
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'global::TestNamespace.IFactory.Create' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().Create<Config>(...).Returns(...) or .Throws(...) before invoking it.");
     }
@@ -76,7 +123,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<Config> Create<Config>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<int> id)
+    public static global::TestNamespace_IFactory_993557a2_Double.__Create_Builder<Config> Create<Config>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<int> id)
     {
         // ADR-0050: appends a new entry rather than overwriting the (removed) single
         // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
@@ -89,7 +136,7 @@ internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
         var __entry = new global::TestNamespace_IFactory_993557a2_Double.__Create_State<Config>.Entry();
         __entry.Matcher_id = id;
         lock (__bucket.Lock) { __bucket.Entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<Config>(ref __entry.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__Create_Builder<Config>(ref __entry.Config, ref __entry.Callback);
     }
 
 }

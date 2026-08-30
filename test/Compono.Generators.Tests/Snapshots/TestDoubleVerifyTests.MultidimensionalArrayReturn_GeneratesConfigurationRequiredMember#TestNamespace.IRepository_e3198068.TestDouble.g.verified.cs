@@ -5,12 +5,52 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate int[,] __GetGrid_Callback();
+
+    internal readonly ref struct __GetGrid_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<int[,]> _config;
+        private readonly ref __GetGrid_Callback? _callback;
+
+        internal __GetGrid_Builder(ref global::Compono.ReturnConfig<int[,]> config, ref __GetGrid_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(int[,] value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int[,]>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int[,]>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<int[,]>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int[,]>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetGrid_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<int[,]> __GetGrid;
+    internal __GetGrid_Callback? __GetGrid_callback;
 
     int[,] global::TestNamespace.IRepository.GetGrid()
     {
         __GetGrid.RecordCall();
-        return __GetGrid.HasConfiguredSequence ? __GetGrid.NextSequenceOutcome()
+        return __GetGrid_callback is { } callback ? callback()
+            : __GetGrid.HasConfiguredSequence ? __GetGrid.NextSequenceOutcome()
             : __GetGrid.HasConfiguredException ? throw __GetGrid.ConfiguredException
             : __GetGrid.HasConfiguredValue ? __GetGrid.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -20,8 +60,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<int[,]> GetGrid(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<int[,]>(ref self.__GetGrid);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetGrid_Builder GetGrid(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetGrid_Builder(ref self.__GetGrid, ref self.__GetGrid_callback);
 
 }
 

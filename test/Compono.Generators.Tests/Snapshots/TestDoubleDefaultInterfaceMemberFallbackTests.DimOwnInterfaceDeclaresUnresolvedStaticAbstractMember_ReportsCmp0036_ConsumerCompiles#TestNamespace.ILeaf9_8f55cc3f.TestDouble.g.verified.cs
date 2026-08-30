@@ -5,6 +5,44 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_ILeaf9_8f55cc3f_Double : global::TestNamespace.ILeaf9
 {
+    internal delegate bool __CanHandle_Callback(string input);
+
+    internal readonly ref struct __CanHandle_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __CanHandle_Callback? _callback;
+
+        internal __CanHandle_Builder(ref global::Compono.ReturnConfig<bool> config, ref __CanHandle_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__CanHandle_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     // ADR-0050: multi-entry response configuration - replaces the single
     // __CanHandle/__CanHandle_m_{param} shape with an ordered, append-only
     // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
@@ -12,6 +50,7 @@ internal sealed class TestNamespace_ILeaf9_8f55cc3f_Double : global::TestNamespa
     {
         internal global::Compono.Match<string>? Matcher_input;
         internal global::Compono.ReturnConfig<bool> Config;
+        internal __CanHandle_Callback? Callback;
     }
 
     internal readonly global::System.Collections.Generic.List<__CanHandle_Entry> __CanHandle_entries = [];
@@ -20,6 +59,7 @@ internal sealed class TestNamespace_ILeaf9_8f55cc3f_Double : global::TestNamespa
 
     bool global::TestNamespace.IBase9.CanHandle(string input)
     {
+        __CanHandle_Callback? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
@@ -34,6 +74,11 @@ internal sealed class TestNamespace_ILeaf9_8f55cc3f_Double : global::TestNamespa
                 var __entry = __CanHandle_entries[__i];
                 if ((__entry.Matcher_input is not { } __m_input || __m_input.Matches(input)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -48,13 +93,15 @@ internal sealed class TestNamespace_ILeaf9_8f55cc3f_Double : global::TestNamespa
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(input);
         return default;
     }
 }
 
 internal static class TestNamespace_ILeaf9_8f55cc3f_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> CanHandle(this global::TestNamespace_ILeaf9_8f55cc3f_Double __self, global::Compono.Match<string> input)
+    public static global::TestNamespace_ILeaf9_8f55cc3f_Double.__CanHandle_Builder CanHandle(this global::TestNamespace_ILeaf9_8f55cc3f_Double __self, global::Compono.Match<string> input)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
         // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
@@ -63,7 +110,7 @@ internal static class TestNamespace_ILeaf9_8f55cc3f_DoubleConfiguration
         var __entry = new global::TestNamespace_ILeaf9_8f55cc3f_Double.__CanHandle_Entry();
         __entry.Matcher_input = input;
         lock (__self.__CanHandle_lock) { __self.__CanHandle_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_ILeaf9_8f55cc3f_Double.__CanHandle_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
@@ -72,11 +119,11 @@ internal static class TestNamespace_ILeaf9_8f55cc3f_DoubleConfiguration
     // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
     // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
     // argument-independent override behavior without mutating any earlier entry's state at all.
-    public static global::Compono.ReturnConfigBuilder<bool> CanHandle(this global::TestNamespace_ILeaf9_8f55cc3f_Double self)
+    public static global::TestNamespace_ILeaf9_8f55cc3f_Double.__CanHandle_Builder CanHandle(this global::TestNamespace_ILeaf9_8f55cc3f_Double self)
     {
         var __entry = new global::TestNamespace_ILeaf9_8f55cc3f_Double.__CanHandle_Entry();
         lock (self.__CanHandle_lock) { self.__CanHandle_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_ILeaf9_8f55cc3f_Double.__CanHandle_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
 }

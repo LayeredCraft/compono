@@ -5,6 +5,44 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_ILeaf12_2124707f_Double : global::TestNamespace.ILeaf12
 {
+    internal delegate bool __Flag_Callback();
+
+    internal readonly ref struct __Flag_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __Flag_Callback? _callback;
+
+        internal __Flag_Builder(ref global::Compono.ReturnConfig<bool> config, ref __Flag_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Flag_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     // ADR-0044 Amendment 20: the owner-forwarding dispatch helper is a pure, stateless forward to
     // `this` (never independently mutated), so one instance is reused for every unconfigured call
     // to this member instead of allocating a fresh one per call (code-review finding). A benign
@@ -12,6 +50,7 @@ internal sealed class TestNamespace_ILeaf12_2124707f_Double : global::TestNamesp
     // is harmless - both forward identically, and only one is kept.
     private __Flag_DimFallback? __Flag_dimHelper;
     internal global::Compono.ReturnConfig<bool> __Flag;
+    internal __Flag_Callback? __Flag_callback;
     // ADR-0044 Amendment 20: owner-forwarding dispatch helper - holds the real generated double,
     // implements global::TestNamespace.IBase12 but deliberately does NOT
     // override Flag, so calling Flag through this helper's
@@ -30,7 +69,8 @@ internal sealed class TestNamespace_ILeaf12_2124707f_Double : global::TestNamesp
     bool global::TestNamespace.IBase12.Flag()
     {
         __Flag.RecordCall();
-        return __Flag.HasConfiguredSequence ? __Flag.NextSequenceOutcome()
+        return __Flag_callback is { } callback ? callback()
+            : __Flag.HasConfiguredSequence ? __Flag.NextSequenceOutcome()
             : __Flag.HasConfiguredException ? throw __Flag.ConfiguredException
             : __Flag.HasConfiguredValue ? __Flag.ConfiguredValue
             : ((global::TestNamespace.IBase12)(this.__Flag_dimHelper ??= new __Flag_DimFallback(this))).Flag();
@@ -39,8 +79,8 @@ internal sealed class TestNamespace_ILeaf12_2124707f_Double : global::TestNamesp
 
 internal static class TestNamespace_ILeaf12_2124707f_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> Flag(this global::TestNamespace_ILeaf12_2124707f_Double self) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref self.__Flag);
+    public static global::TestNamespace_ILeaf12_2124707f_Double.__Flag_Builder Flag(this global::TestNamespace_ILeaf12_2124707f_Double self) =>
+        new global::TestNamespace_ILeaf12_2124707f_Double.__Flag_Builder(ref self.__Flag, ref self.__Flag_callback);
 
 }
 

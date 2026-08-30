@@ -577,12 +577,33 @@ as guaranteed, and every existing single-`Configure()`-call usage keeps
 its exact same observable behavior.
 
 **What this deliberately doesn't do.** No matcher-specificity ranking (see
-above). No `Returns(Func<...>)` callback responses. Verification
+above). Verification
 (`Verify()`) is completely unaffected - it stays a count over the member's
 shared call log, independent of how many response configurations exist.
 "Return X on the first call, Y on the second" *is* supported - see
 "Sequential/call-count-based responses" below, a distinct capability from
 multi-entry argument matching.
+
+## Invocation-aware callback responses
+
+For a supported non-void method, the generated member-specific configuration
+builder exposes `ReturnsCallback(...)` ([ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)).
+Its strongly typed parameters are the method's real invocation arguments, in
+declaration order, and its return type is the method's declared return type:
+
+```csharp
+calculator.Configure()
+    .Add(Match.Any<int>(), Match.Any<int>())
+    .ReturnsCallback((left, right) => left + right);
+```
+
+For `Task<T>`/`ValueTask<T>` members the callback returns that same declared
+task-like type, so an `async` lambda works naturally. `ReturnsCallback` is a
+separate name from `Returns`: a member returning a delegate can still return a
+delegate as plain data without overload ambiguity. Callback/value/exception/
+sequence responses follow the same last-configuration-wins rule, and callback
+selection composes with argument-matched entries. Verification remains an
+independent count of real invocations.
 
 ## Sequential/call-count-based responses
 
@@ -736,8 +757,10 @@ configurations per member are supported for those same eligible members
 response configurations per member" above and
 [ADR-0050](../adr/0050-testdoubles-multi-entry-argument-distinguished-configuration.md)
 — but strictly last-matching-registration-wins, with no matcher-specificity
-ranking, and no `Returns(Func<...>)` callbacks.
-Sequential/call-count-based responses (`ReturnsSequence(...)`,
+ranking. Invocation-aware callbacks are supported for non-void methods with an
+existing configuration surface through `ReturnsCallback(...)`; properties,
+void methods, and already-unsupported member shapes do not gain callback
+configuration. Sequential/call-count-based responses (`ReturnsSequence(...)`,
 [ADR-0054](../adr/0054-testdoubles-sequential-call-count-based-responses.md))
 and overload-safe argument matching (`<Member>Matching`, ADR-0044
 Amendment 21) are both now supported — see "Sequential/call-count-based

@@ -5,9 +5,86 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
+    internal delegate T __Get_Callback<T>();
+
+    internal readonly ref struct __Get_Builder<T>
+    {
+        private readonly ref global::Compono.ReturnConfig<T> _config;
+        private readonly ref __Get_Callback<T>? _callback;
+
+        internal __Get_Builder(ref global::Compono.ReturnConfig<T> config, ref __Get_Callback<T>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(T value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<T>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Get_Callback<T> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+    internal delegate __Get_State __Other_Callback<__Get_State>();
+
+    internal readonly ref struct __Other_Builder<__Get_State>
+    {
+        private readonly ref global::Compono.ReturnConfig<__Get_State> _config;
+        private readonly ref __Other_Callback<__Get_State>? _callback;
+
+        internal __Other_Builder(ref global::Compono.ReturnConfig<__Get_State> config, ref __Other_Callback<__Get_State>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(__Get_State value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<__Get_State>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<__Get_State>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<__Get_State>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<__Get_State>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Other_Callback<__Get_State> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal sealed class __Get_State<T>
     {
         internal global::Compono.ReturnConfig<T> Config;
+        internal __Get_Callback<T>? Callback;
     }
 
     internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_buckets = new();
@@ -28,6 +105,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     internal sealed class __Other_State<__Get_State>
     {
         internal global::Compono.ReturnConfig<__Get_State> Config;
+        internal __Other_Callback<__Get_State>? Callback;
     }
 
     internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Other_buckets = new();
@@ -50,7 +128,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __Get_Bucket<T>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+        return __bucket.Callback is { } callback ? callback()
+            : __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
             : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -61,7 +140,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __Other_Bucket<__Get_State>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+        return __bucket.Callback is { } callback ? callback()
+            : __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
             : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -71,16 +151,16 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<T> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self)
+    public static global::TestNamespace_IFactory_993557a2_Double.__Get_Builder<T> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self)
     {
         var __bucket = __self.__Get_Bucket<T>();
-        return new global::Compono.ReturnConfigBuilder<T>(ref __bucket.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__Get_Builder<T>(ref __bucket.Config, ref __bucket.Callback);
     }
 
-    public static global::Compono.ReturnConfigBuilder<__Get_State> Other<__Get_State>(this global::TestNamespace_IFactory_993557a2_Double __self)
+    public static global::TestNamespace_IFactory_993557a2_Double.__Other_Builder<__Get_State> Other<__Get_State>(this global::TestNamespace_IFactory_993557a2_Double __self)
     {
         var __bucket = __self.__Other_Bucket<__Get_State>();
-        return new global::Compono.ReturnConfigBuilder<__Get_State>(ref __bucket.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__Other_Builder<__Get_State>(ref __bucket.Config, ref __bucket.Callback);
     }
 
 }

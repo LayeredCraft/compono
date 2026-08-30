@@ -5,9 +5,48 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
+    internal delegate T __Get_467634cd_Callback<T>();
+
+    internal readonly ref struct __Get_467634cd_Builder<T>
+    {
+        private readonly ref global::Compono.ReturnConfig<T> _config;
+        private readonly ref __Get_467634cd_Callback<T>? _callback;
+
+        internal __Get_467634cd_Builder(ref global::Compono.ReturnConfig<T> config, ref __Get_467634cd_Callback<T>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(T value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<T>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<T>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Get_467634cd_Callback<T> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal sealed class __Get_467634cd_State<T>
     {
         internal global::Compono.ReturnConfig<T> Config;
+        internal __Get_467634cd_Callback<T>? Callback;
     }
 
     internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_467634cd_buckets = new();
@@ -31,7 +70,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __Get_467634cd_Bucket<T>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+        return __bucket.Callback is { } callback ? callback()
+            : __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
             : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -53,10 +93,10 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<T> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self)
+    public static global::TestNamespace_IFactory_993557a2_Double.__Get_467634cd_Builder<T> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self)
     {
         var __bucket = __self.__Get_467634cd_Bucket<T>();
-        return new global::Compono.ReturnConfigBuilder<T>(ref __bucket.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__Get_467634cd_Builder<T>(ref __bucket.Config, ref __bucket.Callback);
     }
 
     public static global::Compono.ReturnConfigBuilder<string?> Get(this global::TestNamespace_IFactory_993557a2_Double self) =>

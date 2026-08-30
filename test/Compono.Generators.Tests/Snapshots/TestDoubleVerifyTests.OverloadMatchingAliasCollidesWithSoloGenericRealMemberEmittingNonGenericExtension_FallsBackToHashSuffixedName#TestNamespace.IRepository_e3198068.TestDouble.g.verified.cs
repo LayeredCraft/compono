@@ -5,6 +5,44 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate bool __Foo_b9dfaa09_Callback(int id);
+
+    internal readonly ref struct __Foo_b9dfaa09_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __Foo_b9dfaa09_Callback? _callback;
+
+        internal __Foo_b9dfaa09_Builder(ref global::Compono.ReturnConfig<bool> config, ref __Foo_b9dfaa09_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Foo_b9dfaa09_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     // ADR-0050: multi-entry response configuration - replaces the single
     // __Foo_b9dfaa09/__Foo_b9dfaa09_m_{param} shape with an ordered, append-only
     // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
@@ -12,6 +50,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     {
         internal global::Compono.Match<int>? Matcher_id;
         internal global::Compono.ReturnConfig<bool> Config;
+        internal __Foo_b9dfaa09_Callback? Callback;
     }
 
     internal readonly global::System.Collections.Generic.List<__Foo_b9dfaa09_Entry> __Foo_b9dfaa09_entries = [];
@@ -44,6 +83,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     bool global::TestNamespace.IRepository.Foo(int id)
     {
+        __Foo_b9dfaa09_Callback? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
@@ -58,6 +98,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __Foo_b9dfaa09_entries[__i];
                 if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -72,6 +117,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(id);
         return default;
     }
 
@@ -147,11 +194,11 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
     // types, unchanged signature/call sites - but now appends an always-matching entry to the
     // shared per-overload entries list instead of returning a builder over a removed single field.
-    public static global::Compono.ReturnConfigBuilder<bool> Foo(this global::TestNamespace_IRepository_e3198068_Double __self, int id)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Foo_b9dfaa09_Builder Foo(this global::TestNamespace_IRepository_e3198068_Double __self, int id)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Foo_b9dfaa09_Entry();
         lock (__self.__Foo_b9dfaa09_lock) { __self.__Foo_b9dfaa09_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__Foo_b9dfaa09_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
@@ -160,12 +207,12 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
     // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
     // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
-    public static global::Compono.ReturnConfigBuilder<bool> FooMatching_b1dc5ab8(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> id)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Foo_b9dfaa09_Builder FooMatching_b1dc5ab8(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> id)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Foo_b9dfaa09_Entry();
         __entry.Matcher_id = id;
         lock (__self.__Foo_b9dfaa09_lock) { __self.__Foo_b9dfaa09_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__Foo_b9dfaa09_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter

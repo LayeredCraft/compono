@@ -1,0 +1,79 @@
+# [PLAN-0057] Compono.TestDoubles: Invocation-Aware Callback Responses
+
+**Status:** In Progress
+
+**Implements:** [ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)
+
+## Goal
+
+Generated doubles can compute a supported non-void method's response from its
+real invocation arguments through a strongly typed, AOT-safe
+`ReturnsCallback(...)` configuration.
+
+## Scope
+
+Implement ADR-0053's accepted member-specific builder design. Properties, void
+methods, unsupported parameter shapes, bare-result async convenience overloads,
+and general-purpose `CallInfo`/argument-bag APIs remain out of scope.
+
+## Tasks
+
+- [x] Accept and index ADR-0053; create and index this plan.
+- [x] Add response-state clearing that preserves call count.
+- [x] Extend the generator model/emitter/template with callback delegates,
+      fields, builders, and dispatch.
+- [x] Add snapshot and execution coverage across plain, matched, overloaded,
+      DIM, required, async, delegate-returning, and closed-generic members.
+- [x] Extend the sample and Native AOT smoke tests.
+- [x] Update package, roadmap, and API-reference documentation.
+- [ ] Run full build/test, packaged consumer, AOT, and alexa-vox-craft dogfood
+      validation.
+- [ ] Record verification and mark this plan Done.
+
+## Critical Files
+
+- `src/Compono/ReturnConfig.cs` — response reset without verification reset.
+- `src/Compono.Generators/Templates/TestDouble.scriban` — generated storage,
+  member-specific builders, and dispatch.
+- `src/Compono.Generators/Emitters/TestDoubleEmitter.cs` — collision-safe names
+  and template projection.
+
+## Test Plan
+
+Snapshot generated shapes, compile and execute each response/precedence path,
+exercise a real packaged sample and Native AOT binary, then run the full solution
+and the relevant dogfood consumer against freshly packed packages.
+
+## Notes
+
+Implementation notes and final command results will be recorded here as work
+proceeds.
+
+### 2026-08-30 — implementation and local verification
+
+- `ReturnConfig<T>.ClearConfiguredResponse()` clears a static response without
+  changing its verification count. Generated builders use it when installing a
+  callback; ordinary response methods clear the callback before delegating to
+  the existing runtime builder.
+- The generator emits callback state for plain slots, ADR-0050 entries, and
+  ADR-0049 closed-instantiation state. Matched dispatch copies the delegate
+  while locked and invokes it after releasing the lock.
+- Focused execution tests cover sync, `Task<T>`, `ValueTask<T>`, matched
+  entries, delegate-return values, all response transitions, null rejection,
+  propagated exceptions with recorded calls, cross-thread reentrancy, and
+  unchanged property/void configuration. Closed-generic callback storage has
+  generator snapshot/compile coverage; its runtime test remains blocked by
+  the harness rejecting the existing configuration-required informational
+  diagnostic for that shape.
+- `dotnet build --no-restore` completed with 0 warnings and 0 errors. Direct
+  test hosts passed for every project/TFM reached; generator tests passed
+  306/306 on net10.0 and net11.0; sample tests passed 64/64; the packaged
+  Native AOT smoke binary passed.
+- The full direct test-host matrix was interrupted only by the pre-existing
+  net8.0 `Compono.Logging.Tests.ConcurrencyTests.ReadsConcurrentWithWrites_NeverThrowOrCorrupt`
+  host after more than four minutes (57 tests had passed, none failed). It is
+  unrelated to this change.
+- Required alexa-vox-craft dogfood validation is blocked: the available checkout
+  at `/Users/jonasha/Repos/CSharp/alexa-vox-craft` lacks `Directory.Packages.props`,
+  which `scripts/dogfood-validate.sh` requires, and its pipeline test is still
+  NSubstitute-based rather than the documented FakePipelineBehavior variant.

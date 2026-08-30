@@ -5,12 +5,52 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate global::System.Collections.Generic.HashSet<int> __GetIds_Callback();
+
+    internal readonly ref struct __GetIds_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Collections.Generic.HashSet<int>> _config;
+        private readonly ref __GetIds_Callback? _callback;
+
+        internal __GetIds_Builder(ref global::Compono.ReturnConfig<global::System.Collections.Generic.HashSet<int>> config, ref __GetIds_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Collections.Generic.HashSet<int> value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.HashSet<int>>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.HashSet<int>>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Collections.Generic.HashSet<int>>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.HashSet<int>>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetIds_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<global::System.Collections.Generic.HashSet<int>> __GetIds;
+    internal __GetIds_Callback? __GetIds_callback;
 
     global::System.Collections.Generic.HashSet<int> global::TestNamespace.IRepository.GetIds()
     {
         __GetIds.RecordCall();
-        return __GetIds.HasConfiguredSequence ? __GetIds.NextSequenceOutcome()
+        return __GetIds_callback is { } callback ? callback()
+            : __GetIds.HasConfiguredSequence ? __GetIds.NextSequenceOutcome()
             : __GetIds.HasConfiguredException ? throw __GetIds.ConfiguredException
             : __GetIds.HasConfiguredValue ? __GetIds.ConfiguredValue
             : [];
@@ -19,8 +59,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.HashSet<int>> GetIds(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.HashSet<int>>(ref self.__GetIds);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetIds_Builder GetIds(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetIds_Builder(ref self.__GetIds, ref self.__GetIds_callback);
 
 }
 

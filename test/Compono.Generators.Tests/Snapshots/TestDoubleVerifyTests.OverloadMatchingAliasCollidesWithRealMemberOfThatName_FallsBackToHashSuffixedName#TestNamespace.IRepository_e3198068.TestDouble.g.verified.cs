@@ -5,6 +5,120 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate bool __Get_b9dfaa09_Callback(int id);
+
+    internal readonly ref struct __Get_b9dfaa09_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __Get_b9dfaa09_Callback? _callback;
+
+        internal __Get_b9dfaa09_Builder(ref global::Compono.ReturnConfig<bool> config, ref __Get_b9dfaa09_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Get_b9dfaa09_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+    internal delegate bool __Get_1a56931a_Callback(string id);
+
+    internal readonly ref struct __Get_1a56931a_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __Get_1a56931a_Callback? _callback;
+
+        internal __Get_1a56931a_Builder(ref global::Compono.ReturnConfig<bool> config, ref __Get_1a56931a_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Get_1a56931a_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+    internal delegate bool __GetMatching_Callback(string value);
+
+    internal readonly ref struct __GetMatching_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __GetMatching_Callback? _callback;
+
+        internal __GetMatching_Builder(ref global::Compono.ReturnConfig<bool> config, ref __GetMatching_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetMatching_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     // ADR-0050: multi-entry response configuration - replaces the single
     // __Get_b9dfaa09/__Get_b9dfaa09_m_{param} shape with an ordered, append-only
     // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
@@ -12,6 +126,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     {
         internal global::Compono.Match<int>? Matcher_id;
         internal global::Compono.ReturnConfig<bool> Config;
+        internal __Get_b9dfaa09_Callback? Callback;
     }
 
     internal readonly global::System.Collections.Generic.List<__Get_b9dfaa09_Entry> __Get_b9dfaa09_entries = [];
@@ -24,6 +139,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     {
         internal global::Compono.Match<string>? Matcher_id;
         internal global::Compono.ReturnConfig<bool> Config;
+        internal __Get_1a56931a_Callback? Callback;
     }
 
     internal readonly global::System.Collections.Generic.List<__Get_1a56931a_Entry> __Get_1a56931a_entries = [];
@@ -36,6 +152,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     {
         internal global::Compono.Match<string>? Matcher_value;
         internal global::Compono.ReturnConfig<bool> Config;
+        internal __GetMatching_Callback? Callback;
     }
 
     internal readonly global::System.Collections.Generic.List<__GetMatching_Entry> __GetMatching_entries = [];
@@ -44,6 +161,7 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
     bool global::TestNamespace.IRepository.Get(int id)
     {
+        __Get_b9dfaa09_Callback? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
@@ -58,6 +176,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __Get_b9dfaa09_entries[__i];
                 if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -72,11 +195,14 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(id);
         return default;
     }
 
     bool global::TestNamespace.IRepository.Get(string id)
     {
+        __Get_1a56931a_Callback? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
@@ -91,6 +217,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __Get_1a56931a_entries[__i];
                 if ((__entry.Matcher_id is not { } __m_id || __m_id.Matches(id)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -105,11 +236,14 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(id);
         return default;
     }
 
     bool global::TestNamespace.IRepository.GetMatching(string value)
     {
+        __GetMatching_Callback? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
@@ -124,6 +258,11 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 var __entry = __GetMatching_entries[__i];
                 if ((__entry.Matcher_value is not { } __m_value || __m_value.Matches(value)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -138,6 +277,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(value);
         return default;
     }
 }
@@ -147,11 +288,11 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
     // types, unchanged signature/call sites - but now appends an always-matching entry to the
     // shared per-overload entries list instead of returning a builder over a removed single field.
-    public static global::Compono.ReturnConfigBuilder<bool> Get(this global::TestNamespace_IRepository_e3198068_Double __self, int id)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Get_b9dfaa09_Builder Get(this global::TestNamespace_IRepository_e3198068_Double __self, int id)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Get_b9dfaa09_Entry();
         lock (__self.__Get_b9dfaa09_lock) { __self.__Get_b9dfaa09_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__Get_b9dfaa09_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
@@ -160,22 +301,22 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
     // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
     // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
-    public static global::Compono.ReturnConfigBuilder<bool> GetMatching_cda21338(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> id)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Get_b9dfaa09_Builder GetMatching_cda21338(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> id)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Get_b9dfaa09_Entry();
         __entry.Matcher_id = id;
         lock (__self.__Get_b9dfaa09_lock) { __self.__Get_b9dfaa09_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__Get_b9dfaa09_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // ADR-0044 Amendment 21 / PLAN-0054 Phase 2: discriminator-only Configure() - real parameter
     // types, unchanged signature/call sites - but now appends an always-matching entry to the
     // shared per-overload entries list instead of returning a builder over a removed single field.
-    public static global::Compono.ReturnConfigBuilder<bool> Get(this global::TestNamespace_IRepository_e3198068_Double __self, string id)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Get_1a56931a_Builder Get(this global::TestNamespace_IRepository_e3198068_Double __self, string id)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Get_1a56931a_Entry();
         lock (__self.__Get_1a56931a_lock) { __self.__Get_1a56931a_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__Get_1a56931a_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // New matching-specific member name (ADR-0044 Amendment 21) - real Match<T> parameters,
@@ -184,15 +325,15 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // surfaces consistently. Generic exactly when the discriminator-only method above is (Amendment
     // 1's "extension becomes generic" rule, unaffected by matching-eligibility) - a same-parameter-
     // types generic/non-generic overload pair would otherwise collide (CS0111) with a fixed arity.
-    public static global::Compono.ReturnConfigBuilder<bool> GetMatching_cda21338(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> id)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Get_1a56931a_Builder GetMatching_cda21338(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> id)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Get_1a56931a_Entry();
         __entry.Matcher_id = id;
         lock (__self.__Get_1a56931a_lock) { __self.__Get_1a56931a_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__Get_1a56931a_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
-    public static global::Compono.ReturnConfigBuilder<bool> GetMatching(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> value)
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetMatching_Builder GetMatching(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<string> value)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
         // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
@@ -201,7 +342,7 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__GetMatching_Entry();
         __entry.Matcher_value = value;
         lock (__self.__GetMatching_lock) { __self.__GetMatching_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__GetMatching_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
@@ -210,11 +351,11 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
     // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
     // argument-independent override behavior without mutating any earlier entry's state at all.
-    public static global::Compono.ReturnConfigBuilder<bool> GetMatching(this global::TestNamespace_IRepository_e3198068_Double self)
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetMatching_Builder GetMatching(this global::TestNamespace_IRepository_e3198068_Double self)
     {
         var __entry = new global::TestNamespace_IRepository_e3198068_Double.__GetMatching_Entry();
         lock (self.__GetMatching_lock) { self.__GetMatching_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<bool>(ref __entry.Config);
+        return new global::TestNamespace_IRepository_e3198068_Double.__GetMatching_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
 }

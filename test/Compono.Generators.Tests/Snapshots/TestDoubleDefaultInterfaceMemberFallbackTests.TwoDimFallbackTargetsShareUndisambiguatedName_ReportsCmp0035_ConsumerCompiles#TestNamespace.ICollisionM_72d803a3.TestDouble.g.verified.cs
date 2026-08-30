@@ -5,12 +5,52 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_ICollisionM_72d803a3_Double : global::TestNamespace.ICollisionM
 {
+    internal delegate bool __M_Callback();
+
+    internal readonly ref struct __M_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<bool> _config;
+        private readonly ref __M_Callback? _callback;
+
+        internal __M_Builder(ref global::Compono.ReturnConfig<bool> config, ref __M_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(bool value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<bool>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<bool>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__M_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<bool> __M;
+    internal __M_Callback? __M_callback;
 
     bool global::TestNamespace.ICollisionM.M()
     {
         __M.RecordCall();
-        return __M.HasConfiguredSequence ? __M.NextSequenceOutcome()
+        return __M_callback is { } callback ? callback()
+            : __M.HasConfiguredSequence ? __M.NextSequenceOutcome()
             : __M.HasConfiguredException ? throw __M.ConfiguredException
             : __M.HasConfiguredValue ? __M.ConfiguredValue
             : default;
@@ -24,8 +64,8 @@ internal sealed class TestNamespace_ICollisionM_72d803a3_Double : global::TestNa
 
 internal static class TestNamespace_ICollisionM_72d803a3_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<bool> M(this global::TestNamespace_ICollisionM_72d803a3_Double self) =>
-        new global::Compono.ReturnConfigBuilder<bool>(ref self.__M);
+    public static global::TestNamespace_ICollisionM_72d803a3_Double.__M_Builder M(this global::TestNamespace_ICollisionM_72d803a3_Double self) =>
+        new global::TestNamespace_ICollisionM_72d803a3_Double.__M_Builder(ref self.__M, ref self.__M_callback);
 
 }
 

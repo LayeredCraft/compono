@@ -1,6 +1,6 @@
 # [ADR-0053] Compono.TestDoubles: Invocation-Aware Callback Responses
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Date:** 2026-08-25
 
@@ -95,16 +95,66 @@ of ADR-0029's ordinary frequency discretion for this category - not per
 ADR-0029's own general weighting, which alone would not have crossed the
 bar on a single occurrence.
 
-Per ADR-0029's own classification rules, "Roadmap candidate... A new
-`Proposed` ADR records the problem only... for a future milestone's design
-pass" - that is exactly this ADR's scope, and no further. No API is decided
-here.
+Per ADR-0029's own classification rules, this began as a roadmap candidate.
+The design pass has now accepted the source-generated, member-specific
+callback surface below.
 
-## Design evidence for a future dive (not decided here)
+## Decision Outcome
 
-Captured during this migration's own investigation, as raw material for
-whichever future design pass takes this up - none of it is `Accepted`
-surface:
+For every supported non-void method that already has a configuration surface,
+the generator emits a collision-safe delegate matching the method's real
+parameter list and declared return type, plus a member-specific configuration
+builder. `Configure().Member(...)` returns that builder, which preserves
+`Returns`, `Throws`, and `ReturnsSequence` and adds the explicit
+`ReturnsCallback(...)` response kind.
+
+The callback receives the invocation's actual arguments in declaration order
+and returns the member's declared return type. A `Task<T>`/`ValueTask<T>` member
+therefore accepts a callback returning that same task-like type; no bare-result
+auto-wrapping overload is added. The explicit `ReturnsCallback` name avoids
+ambiguity when the member itself returns a delegate.
+
+Callback storage belongs to the same response owner as every other configured
+response: the plain member slot, the matched ADR-0050 entry, or the ADR-0049
+closed-instantiation state. It is mutually exclusive with value, exception,
+and sequence responses under the existing last-configuration-wins contract.
+Call recording happens before response dispatch. For matched entries, callback
+selection happens under the existing entry lock, but user callback code runs
+after that lock is released.
+
+Properties and void methods retain `ReturnConfigBuilder<T>` unchanged.
+Existing exclusions (`ref`/`out`/`in`, pointers, events, indexers, and generic
+method shapes that cannot retain a callback delegate per closed type without a
+new state model) remain unchanged. The existing ADR-0049 closed-instantiation
+generic shape is supported because it already owns state per closed type; other
+generic methods retain their existing static response surface. Explicitly typing the result of
+`Configure().Member(...)` as `ReturnConfigBuilder<T>` is not preserved; the
+pre-1.0 compatibility requirement covers the normal fluent chaining surface.
+
+## Considered Options
+
+- **Generated member-specific builder (chosen):** preserves a strongly typed,
+  discoverable fluent configuration surface without reflection or boxing.
+- **Separate callback configuration method:** less generated state, but splits
+  one member's response configuration across two unrelated paths.
+- **Overload `Returns`:** superficially matches NSubstitute, but becomes
+  ambiguous when the declared return value is itself a delegate. The explicit
+  `ReturnsCallback` name is predictable for every supported return type.
+
+## Consequences
+
+- Generated source grows by one delegate and one small builder per supported
+  non-void method.
+- The shared runtime response slot needs a public, generated-code-facing reset
+  operation that clears response state without clearing verification count.
+- Callback closures allocate according to ordinary C# delegate semantics; the
+  dispatch path adds no reflection, `DynamicInvoke`, argument bag, or boxing.
+- Callback exceptions and task faults preserve normal C# behavior.
+
+## Design evidence retained from the original roadmap-candidate pass
+
+Captured during the migration investigation; the accepted outcome above
+resolves these original questions:
 
 - A source-generated, strongly-typed callback appears technically
   feasible: since every real parameter type of a member is already known
@@ -118,13 +168,9 @@ surface:
   types) - the same per-member-generated-shape precedent
   [ADR-0050](0050-testdoubles-multi-entry-argument-distinguished-configuration.md)
   already established for multi-entry response configuration.
-- Sync (`Func<..., T>`, auto-wrapped) and real-async (`Func<..., Task<T>>`)
-  overloads would likely both be needed for a `Task<T>`-returning member,
-  so a consumer isn't forced into awkward nested `Task` construction merely
-  because the real member is asynchronous - not yet spiked.
-- Overload-ambiguity risk when the member's own return type is itself a
-  `Func<...>`/delegate shape is a real open question, not yet resolved by
-  a compiler spike.
+- Sync result auto-wrapping and untyped generic callback state were rejected:
+  callbacks return the declared member type exactly, and only generic shapes
+  with ADR-0049's existing per-closed-type storage participate.
 - `Match<T>`-based argument selection (ADR-0048) and multi-entry
   configuration (ADR-0050) both appear compatible in principle - a
   callback would simply be an additional response kind per registered
@@ -133,10 +179,8 @@ surface:
   `RecordCall()` already happens independently of how the return value is
   produced.
 
-None of the above is an accepted design. A future deep dive
-(`design-decisions.md`'s process) starts from this evidence, not from
-scratch, but still owns the actual API decision, including whether the
-sketch above survives contact with a real compiler spike.
+The implementation plan and verification record live in
+[PLAN-0057](../plans/0057-testdoubles-invocation-aware-callback-responses.md).
 
 ## Links
 
@@ -148,10 +192,8 @@ sketch above survives contact with a real compiler spike.
   Amendment 2 - the admission-level non-goal this finding sits against, and
   the override policy that classifies it a roadmap candidate despite low
   frequency.
-- `docs/packages/compono-testdoubles.md`'s "What it deliberately doesn't
-  do" - the existing, still-accurate non-goal statement (unchanged by this
-  ADR; this ADR records a roadmap candidate, not a decision to build
-  anything yet).
+- `docs/packages/compono-testdoubles.md` - the package guide describing the
+  accepted callback surface and its intentional limits.
 - `test/AlexaVoxCraft.MediatR.Tests/TestKit/FakeDelegates.cs`
-  (`alexa-vox-craft`) - `FakePipelineBehavior`, the accepted interim
-  workaround while this roadmap item is unresolved.
+  (`alexa-vox-craft`) - the motivating `FakePipelineBehavior` to replace
+  during dogfood validation.

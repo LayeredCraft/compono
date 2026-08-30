@@ -5,6 +5,44 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
+    internal delegate global::System.Threading.Tasks.Task<T?> __Get_Callback<T>(string key) where T : class;
+
+    internal readonly ref struct __Get_Builder<T> where T : class
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> _config;
+        private readonly ref __Get_Callback<T>? _callback;
+
+        internal __Get_Builder(ref global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> config, ref __Get_Callback<T>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Threading.Tasks.Task<T?> value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Threading.Tasks.Task<T?>>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Get_Callback<T> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal sealed class __Get_State<T> where T : class
     {
         // ADR-0050: multi-entry response configuration composed inside ADR-0049's
@@ -14,6 +52,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
         {
             internal global::Compono.Match<string>? Matcher_key;
             internal global::Compono.ReturnConfig<global::System.Threading.Tasks.Task<T?>> Config;
+            internal __Get_Callback<T>? Callback;
         }
 
         internal readonly global::System.Collections.Generic.List<Entry> Entries = [];
@@ -48,6 +87,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     global::System.Threading.Tasks.Task<T> global::TestNamespace.IFactory.Get<T>(string key)
     {
         var __bucket = __Get_Bucket<T>();
+        __Get_Callback<T>? __callback = null;
         // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
         // the call-log append and the full scan stay under the SAME lock acquisition as
         // Configure()'s Entries.Add() (Codex review, PR #108 round 5) - the prior split-lock shape
@@ -63,6 +103,11 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
                 var __entry = __bucket.Entries[__i];
                 if ((__entry.Matcher_key is not { } __m_key || __m_key.Matches(key)))
                 {
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
                     // matched but has neither a configured exception nor a configured value (e.g.
                     // its builder is still being set up when this call arrives), it must NOT shadow
@@ -77,6 +122,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(key);
         return global::System.Threading.Tasks.Task.FromResult<T?>(default);
     }
 #pragma warning restore CS8603, CS8616, CS8619
@@ -84,7 +131,7 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<string> key) where T : class
+    public static global::TestNamespace_IFactory_993557a2_Double.__Get_Builder<T> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self, global::Compono.Match<string> key) where T : class
     {
         // ADR-0050: appends a new entry rather than overwriting the (removed) single
         // slot - `ref entry.Config` stays valid regardless of later Entries.Add() reallocating the
@@ -97,7 +144,7 @@ internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
         var __entry = new global::TestNamespace_IFactory_993557a2_Double.__Get_State<T>.Entry();
         __entry.Matcher_key = key;
         lock (__bucket.Lock) { __bucket.Entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.Task<T?>>(ref __entry.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__Get_Builder<T>(ref __entry.Config, ref __entry.Callback);
     }
 
 }

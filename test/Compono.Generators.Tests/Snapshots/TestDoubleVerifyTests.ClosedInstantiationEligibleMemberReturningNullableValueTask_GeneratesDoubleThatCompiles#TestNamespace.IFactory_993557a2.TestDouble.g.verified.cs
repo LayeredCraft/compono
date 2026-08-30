@@ -5,9 +5,48 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNamespace.IFactory
 {
+    internal delegate global::System.Threading.Tasks.ValueTask<T?> __Get_Callback<T>() where T : class;
+
+    internal readonly ref struct __Get_Builder<T> where T : class
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<T?>> _config;
+        private readonly ref __Get_Callback<T>? _callback;
+
+        internal __Get_Builder(ref global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<T?>> config, ref __Get_Callback<T>? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Threading.Tasks.ValueTask<T?> value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Threading.Tasks.ValueTask<T?>>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Get_Callback<T> callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal sealed class __Get_State<T> where T : class
     {
         internal global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<T?>> Config;
+        internal __Get_Callback<T>? Callback;
     }
 
     internal readonly global::System.Collections.Generic.Dictionary<global::System.Type, object> __Get_buckets = new();
@@ -31,7 +70,8 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
     {
         var __bucket = __Get_Bucket<T>();
         __bucket.Config.RecordCall();
-        return __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
+        return __bucket.Callback is { } callback ? callback()
+            : __bucket.Config.HasConfiguredSequence ? __bucket.Config.NextSequenceOutcome()
             : __bucket.Config.HasConfiguredException ? throw __bucket.Config.ConfiguredException
             : __bucket.Config.HasConfiguredValue ? __bucket.Config.ConfiguredValue
             : global::System.Threading.Tasks.ValueTask.FromResult<T?>(default);
@@ -41,10 +81,10 @@ internal sealed class TestNamespace_IFactory_993557a2_Double : global::TestNames
 
 internal static class TestNamespace_IFactory_993557a2_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
+    public static global::TestNamespace_IFactory_993557a2_Double.__Get_Builder<T> Get<T>(this global::TestNamespace_IFactory_993557a2_Double __self) where T : class
     {
         var __bucket = __self.__Get_Bucket<T>();
-        return new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<T?>>(ref __bucket.Config);
+        return new global::TestNamespace_IFactory_993557a2_Double.__Get_Builder<T>(ref __bucket.Config, ref __bucket.Callback);
     }
 
 }
