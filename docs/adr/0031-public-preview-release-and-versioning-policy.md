@@ -567,6 +567,49 @@ which TFM gets added/dropped going forward at the *newest* end
 starts two releases further back than the original two-TFM window assumed,
 per ADR-0038's own reasoning for why that trade-off was accepted.
 
+## Amendment 4 (2026-09-02): dependency-range check derives its expected value from `Directory.Packages.props`, not a duplicated literal
+
+Amendment 1 above established the tested-range policy for each integration
+package's third-party dependency (`[6.2.0, 7.0.0)` for `NSubstitute`, etc.).
+Its enforcement, `.github/scripts/inspect-packed-nupkgs.sh`'s
+`assert_dependency_range`, originally took that expected range as a second
+hardcoded string literal in the script itself, duplicating the
+`Directory.Packages.props` `PackageVersion` that already states the same
+policy for MSBuild's own restore/pack purposes.
+
+This surfaced as [issue #122](https://github.com/LayeredCraft/compono/issues/122):
+Dependabot PR #121 bumped `TUnit.Core` from `[1.65.38, 2.0.0)` to
+`[1.65.63, 2.0.0)` in `Directory.Packages.props`; `Compono.TUnit` packed the
+new, correct range; the validator's stale duplicate literal still expected
+the old range and failed a correctly-packed package. Commit `5cfe446`
+corrected that one occurrence, but the structural bug — two independently-
+maintained copies of the same range, one of which Dependabot cannot see —
+remained for all five dependency-range checks (`xunit.v3.extensibility.core`,
+`NSubstitute`, `Bogus`, `TUnit.Core`, `MSTest.TestFramework`).
+
+**The fix:** `assert_dependency_range` now reads its expected range directly
+from `Directory.Packages.props`, evaluated via `dotnet msbuild
+Directory.Packages.props -getItem:PackageVersion` (SDK-native, already a CI
+dependency — no new tool) and looked up by the dependency's package ID
+(`jq`, already used elsewhere in `package-validation.yaml`). The explicit
+package → third-party-dependency-ID mapping in the script's `case`
+statement is unchanged — only the *range* is no longer duplicated. The
+validator still independently compares this authoritative value against the
+actually-packed `.nuspec` (extracted from the real `.nupkg`, not trusted
+as-is) — a Dependabot bump to `Directory.Packages.props` is now
+automatically the new expected value, but an incorrectly-packed `.nuspec`
+that doesn't reflect that value still fails, exactly as before. A missing
+`Directory.Packages.props` entry for a checked dependency now fails with a
+distinct diagnostic ("could not determine authoritative PackageVersion for
+...") rather than being silently mistaken for a packed-range mismatch.
+`.github/scripts/inspect-packed-nupkgs.tests.sh` (new) regression-tests both
+the passing and failing cases directly against the script's functions,
+including the exact bump-only-the-props-file scenario above.
+
+This is an implementation fix for how Amendment 1's policy is *enforced*,
+not a change to the policy itself — the tested-range semantics, exclusive
+upper bounds, and package/dependency mapping are all unchanged.
+
 ## Links
 
 - [ADR-0001](0001-source-generation-first.md) — source-generation-first

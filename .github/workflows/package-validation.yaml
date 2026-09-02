@@ -125,6 +125,12 @@ jobs:
             dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done
 
+      - name: Test inspect-packed-nupkgs.sh itself
+        # Regression coverage for issue #122 (dependency-range-literal drift) -
+        # runs before the real inspection below so a broken validator fails
+        # fast with its own diagnostic, not a confusing downstream mismatch.
+        run: .github/scripts/inspect-packed-nupkgs.tests.sh
+
       - name: Inspect packed .nupkg contents
         run: .github/scripts/inspect-packed-nupkgs.sh "$PACK_OUTPUT"
 
