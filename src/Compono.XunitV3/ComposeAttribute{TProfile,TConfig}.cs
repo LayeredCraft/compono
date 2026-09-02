@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Compono.XunitV3.Binding;
 
 namespace Compono.XunitV3;
@@ -42,9 +43,20 @@ namespace Compono.XunitV3;
 /// and cached to once per attribute instance by this attribute family's existing
 /// <see cref="Lazy{T}"/>-backed <see cref="Composer"/> caching (<see cref="ApplyProfile"/> is only ever
 /// invoked from inside that lazy initializer), never on the repeated per-row <c>GetData</c> path.
+/// <typeparamref name="TProfile"/> and <typeparamref name="TConfig"/> both carry
+/// <see cref="DynamicallyAccessedMembersAttribute"/>(<see cref="DynamicallyAccessedMemberTypes.PublicConstructors"/>)
+/// - required, not decorative: a real Native AOT publish-and-run proof (issue #119) showed the
+/// trimmer strips a closed generic argument's public constructors by default, since nothing in an
+/// unannotated <c>Type.GetConstructors()</c> call site tells it they're reachable -
+/// <see cref="ConfigProfileBinder"/> failed at runtime with "has 0" public constructors on a type that
+/// plainly has one, until these annotations were added at every generic parameter/<c>Type</c>-typed
+/// parameter along the call chain, mirroring the identical fix <c>Compono.TUnit</c>'s (ADR-0041
+/// Amendment 1) and <c>Compono.MSTest</c>'s (ADR-0057) own equivalent attributes already carry.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
+public sealed class ComposeAttribute<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProfile,
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConfig> : ComposeAttribute
     where TProfile : ICompositionProfile
 {
     private readonly object?[] _configArguments;
