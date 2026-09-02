@@ -42,11 +42,11 @@
          this is the extensibility-authoring layer, matching xunit.v3.extensibility.core's
          own minimal-reference precedent immediately above. A tested-range constraint,
          not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="TUnit.Core" Version="[1.65.38, 2.0.0)" />
+    <PackageVersion Include="TUnit.Core" Version="[1.65.63, 2.0.0)" />
     <!-- test/Compono.TUnit.Tests' own dependency - the full TUnit meta-package
          (engine + core + assertions), since that project actually executes as a
          TUnit test run, not just authors against TUnit.Core's extension surface. -->
-    <PackageVersion Include="TUnit" Version="[1.65.38, 2.0.0)" />
+    <PackageVersion Include="TUnit" Version="[1.65.63, 2.0.0)" />
     <!-- Compono.XunitV3.SampleTests' own dependency, same reasoning as Compono.XunitV3/
          Compono.NSubstitute/Compono.Bogus above - never a ProjectReference, and this
          version must match the -p:Version passed to PackToLocalFeed's pack of
@@ -137,7 +137,7 @@
     <PackageVersion Include="Scriban" Version="7.2.6" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.161" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.163" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
