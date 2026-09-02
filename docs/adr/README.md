@@ -118,3 +118,4 @@ the mechanics: numbering, status, and the index.
 | [0054](0054-testdoubles-sequential-call-count-based-responses.md) | Compono.TestDoubles: Sequential/Call-Count-Based Responses | Accepted |
 | [0055](0055-compono-logging-testing-support-package.md) | Compono.Logging: First-Class Microsoft.Extensions.Logging Testing Support | Accepted |
 | [0056](0056-composition-builder-share-graph-wide-sharing.md) | `CompositionBuilder.Share<T>()`: Graph-Wide Sharing as a Core Composition Concept | Accepted |
+| [0057](0057-compono-mstest-package-design.md) | Compono.MSTest Package Design | Accepted |

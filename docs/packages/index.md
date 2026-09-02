@@ -1,6 +1,6 @@
 # Package Guides
 
-Compono ships as nine independently-installable NuGet packages. Pick which
+Compono ships as ten independently-installable NuGet packages. Pick which
 ones you need before reading any single guide in depth — most projects only
 need the first two.
 
@@ -11,6 +11,7 @@ need the first two.
 | [`Compono.NSubstitute`](compono-nsubstitute.md) | Automatic substitute composition for interface, delegate, and (optionally) abstract-class parameters. | Your composed types depend on interfaces you'd otherwise stub by hand with NSubstitute. |
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
 | [`Compono.TUnit`](compono-tunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` data source attributes and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
+| [`Compono.MSTest`](compono-mstest.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` `ITestDataSource` attributes and `[Shared]` parameter sharing for MSTest. | You write MSTest tests and want composed method parameters instead of hand-built `[DataRow]`/`[DynamicData]` rows. |
 | [`Compono.TestDoubles`](compono-testdoubles.md) | A source-generated, AOT-safe double for an otherwise-unresolvable interface leaf, with per-member `Configure().Member().Returns(...)`/`.Throws(...)`. | You want a generated interface double without `Compono.NSubstitute`'s runtime-proxy dependency, or need the composed path to survive `PublishAot`. |
 | [`Compono.DependencyInjection`](compono-dependencyinjection.md) | `row.AsServiceProvider()` — a configured-resolution `IServiceProvider` bridge over a `CompositionRow`. | You need Compono's registered/provider-backed values reachable through a plain `IServiceProvider`, e.g. as a fallback provider for another ecosystem's own DI container. |
 | [`Compono.Http`](compono-http.md) | `TestHttpHandler` — a reflection-free `HttpMessageHandler` test double: `OnGet`/`OnPost`/etc. + `When(...)` matching, strict unmatched-request behavior, registration-handle verification. | Your test needs to exercise the real `HttpClient` pipeline against a configured HTTP response, instead of substituting an application-level interface. |

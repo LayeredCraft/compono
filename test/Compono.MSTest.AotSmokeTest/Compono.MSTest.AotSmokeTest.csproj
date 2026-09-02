@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- This plan's own real Native AOT publish-and-run proof, through the actual packaged
+       Compono.MSTest dependency chain (not just the shared RowInvokerRegistry mechanism in
+       isolation - test/Compono.AotSmokeTest already proved that generically for PLAN-0041). A
+       single throwaway console app that drives the real, packaged Compono.MSTest.ComposeAttribute
+       .GetData(MethodInfo) directly - a real MethodInfo is all it needs, unlike Compono.TUnit's own
+       AOT smoke test, which has to hand-build a DataGeneratorMetadata since TUnit's own
+       ITestDataSource-equivalent takes that instead of a plain MethodInfo.
+       `dotnet publish -c Release -p:PublishAot=true` + run is this project's whole purpose, not
+       incremental inner-loop iteration. Mirrors test/Compono.TUnit.AotSmokeTest's own .csproj almost
+       verbatim - see that project's comments for the full reasoning behind each choice below. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- test/Directory.Build.targets gates the xUnit-v3-only Using/PackageReference ItemGroups
+         (Xunit/NSubstitute/AwesomeAssertions/Microsoft.Testing.Platform/etc.) on this property -
+         this project needs none of them, real or stand-in. Matches Compono.MSTest.Tests'/
+         Compono.MSTest.SampleTests' own opt-out. -->
+    <ComponoTestFramework>MSTest</ComponoTestFramework>
+    <!-- Overrides test/Directory.Build.props' multi-TFM sweep (net8.0;net9.0;net10.0;net11.0) - this
+         is a one-shot AOT publish-and-run proof, not a matrix run; a single current TFM is enough. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The repo's central Directory.Packages.props doesn't (and shouldn't) know about the
+         throwaway "1.0.0" version pack-compono.sh stamps onto its local-feed-only nupkgs - opting
+         this one project out of CPM instead of adding a fake pin to the shared file. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Isolates this restore from NuGet's shared global packages folder entirely - see
+         pack-compono.sh's own comment for why. Mirrors Compono.TUnit.AotSmokeTest's own isolation. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <!-- PackageReference, not a ProjectReference to src/Compono*/*.csproj - the same consumption shape
+       any real consumer uses, and required here specifically: a ProjectReference's global properties
+       (PublishAot/RuntimeIdentifier/SelfContained) flow down into Compono.csproj's own analyzer-only
+       ProjectReference to Compono.Generators.csproj (netstandard2.0), failing
+       `dotnet publish -p:PublishAot=true` with NETSDK1207 for a project that's never actually part
+       of the published app. Packed into ../../.local-nuget-feed-mstest-aot-smoke by pack-compono.sh
+       (run before publish, not an MSBuild pre-restore target - this project's publish is a
+       deliberate, manual, one-shot proof, not part of the ordinary inner-loop restore). -->
+  <ItemGroup>
+    <PackageReference Include="Compono.MSTest" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

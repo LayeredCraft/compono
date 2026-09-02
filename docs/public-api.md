@@ -14,8 +14,8 @@ See:
   seeding, collections
 - [How-to Guides](how-to/index.md) — task-oriented usage of the same API
 - [Package Guides](packages/index.md) — `Compono.XunitV3`, `Compono.TUnit`,
-  `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`,
-  `Compono.DependencyInjection`, `Compono.Http`, and `Compono.Logging`'s own
-  integration surfaces
+  `Compono.MSTest`, `Compono.NSubstitute`, `Compono.Bogus`,
+  `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`, and
+  `Compono.Logging`'s own integration surfaces
 - [Reference](reference/index.md) — generated API reference, diagnostics,
   glossary

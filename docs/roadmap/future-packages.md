@@ -1,10 +1,11 @@
 # Future Packages
 
 Compono's shipped package set (see [Package Guides](../packages/index.md))
-is eight independently installable packages — `Compono`, `Compono.XunitV3`,
+is ten independently installable packages — `Compono`, `Compono.XunitV3`,
 `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TUnit`,
-`Compono.TestDoubles`, `Compono.DependencyInjection`, and `Compono.Http` —
-plus `Compono.Generators`, which is not a ninth installable package at all.
+`Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`,
+`Compono.Logging`, and `Compono.MSTest` — plus `Compono.Generators`, which
+is not an eleventh installable package at all.
 It's `IsPackable=false`
 ([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
 embedded inside `Compono`'s own `.nupkg` as an analyzer
@@ -37,7 +38,14 @@ equivalent), not this page's candidate pipeline — see
 [ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md) and
 [RESEARCH-0009](../research/0009-compono-http-admission-research.md) for
 the full account, and [`Compono.Http`](../packages/compono-http.md) for
-what it ships.
+what it ships. `Compono.MSTest` graduated from this page's roadmap once
+[PLAN-0057](../plans/0057-compono-mstest-package-design-impl-plan.md)'s
+implementation was underway against
+[ADR-0057](../adr/0057-compono-mstest-package-design.md) (`Accepted`,
+including Amendment 1, which raised the supported `MSTest.TestFramework`
+floor from `3.0.0` to `4.0.0` after implementation found the `3.x`/`4.x`
+lines are binary-incompatible) — see
+[`Compono.MSTest`](../packages/compono-mstest.md) for what it ships.
 
 ## Admission model
 
@@ -86,12 +94,6 @@ core itself unchanged:
   per-parameter composition granularity `Compono.XunitV3`'s row model
   doesn't have; `ITestBuilder`/`IFixtureBuilder` cover the row/fixture-
   constructor cases.
-- **`Compono.MSTest`** — MSTest's `ITestDataSource` is a stable,
-  long-standing extension point; thinner than TUnit's or NUnit's (no
-  per-row context, no combinatorial engine) but still real value over an
-  in-body `Composer.Create<T>()` call. Weakest of the three test-framework
-  candidates.
-
 ## Documentation-only ideas (do not clear Gate A as packages today)
 
 - **FakeItEasy integration** — `FakeItEasy.Sdk.Create.Fake(Type)` is a
@@ -145,10 +147,9 @@ ADR-0039 records no candidate order. `Compono.TUnit` and the
 source-generated-test-doubles capability both cleared Gate B through an
 explicit product-owner request, not dogfooding evidence — the two real
 dogfooding passes recorded in [Post-MVP](post-mvp.md) still haven't
-produced a roadmap candidate of their own in this space. Ranking the
-remaining admitted candidates (`Compono.NUnit`/`Compono.MSTest`) against
-each other, or against a hypothetical next explicit-request-driven item,
-still has no evidentiary basis. If more than one clears Gate B around the
+produced a roadmap candidate of their own in this space. Ranking the sole
+remaining admitted candidate (`Compono.NUnit`) against a hypothetical next
+explicit-request-driven item still has no evidentiary basis. If more than one clears Gate B around the
 same time, ADR-0039's non-binding heuristics (value relative to
 maintenance cost; architectural-validation diversity over repeating an
 already-proven pattern) apply — category completion (finishing all

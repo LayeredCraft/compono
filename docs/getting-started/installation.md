@@ -11,6 +11,8 @@ dotnet add package Compono --prerelease
 dotnet add package Compono.XunitV3 --prerelease
 # or, for TUnit:
 dotnet add package Compono.TUnit --prerelease
+# or, for MSTest (MSTest.TestFramework 4.0.0+ - see the Compono.MSTest Package Guide):
+dotnet add package Compono.MSTest --prerelease
 ```
 
 This tutorial's assertions (`.Should()`, throughout this site's own
@@ -53,9 +55,10 @@ to that.
 property set in your project in addition to the package reference — see
 [`Compono.TestDoubles`](../packages/compono-testdoubles.md#compile-time-opt-in).
 
-If your test project doesn't already reference an xUnit v3 (or TUnit) test
-host, `Compono.XunitV3` (or `Compono.TUnit`) doesn't add one for you — each
-integrates with an existing test project, it doesn't create one.
+If your test project doesn't already reference an xUnit v3 (or TUnit, or
+MSTest) test host, `Compono.XunitV3` (or `Compono.TUnit`, or
+`Compono.MSTest`) doesn't add one for you — each integrates with an
+existing test project, it doesn't create one.
 
 ## Verify the install
 

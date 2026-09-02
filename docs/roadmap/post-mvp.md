@@ -92,7 +92,7 @@ ADR, the research doc, the plan).
   [ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)
   is now `Accepted` and implemented through generated member-specific builders
   with `ReturnsCallback(...)`, tracked by
-  [PLAN-0057](../plans/0057-testdoubles-invocation-aware-callback-responses.md).
+  [PLAN-0058](../plans/0058-testdoubles-invocation-aware-callback-responses.md).
   The migrated test's interim workaround
   (`test/AlexaVoxCraft.MediatR.Tests/TestKit/FakeDelegates.cs`'s
   `FakePipelineBehavior`) is the accepted project-local alternative while

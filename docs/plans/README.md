@@ -71,4 +71,5 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0054](0054-testdoubles-overload-safe-matching-and-sequential-responses-impl-plan.md) | Compono.TestDoubles: Overload-Safe Argument Matching and Sequential Responses | Done |
 | [0055](0055-compono-logging-testing-support-package-impl-plan.md) | Compono.Logging: First-Class Microsoft.Extensions.Logging Testing Support | Done |
 | [0056](0056-composition-builder-share-graph-wide-sharing-impl-plan.md) | `CompositionBuilder.Share<T>()`: Graph-Wide Sharing | Done |
-| [0057](0057-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | In Progress |
+| [0057](0057-compono-mstest-package-design-impl-plan.md) | `Compono.MSTest` Package Design | Done |
+| [0058](0058-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | In Progress |

@@ -180,7 +180,7 @@ resolves these original questions:
   produced.
 
 The implementation plan and verification record live in
-[PLAN-0057](../plans/0057-testdoubles-invocation-aware-callback-responses.md).
+[PLAN-0058](../plans/0058-testdoubles-invocation-aware-callback-responses.md).
 
 ## Amendment 1 (2026-09-02): Compatibility scope and considered alternatives
 

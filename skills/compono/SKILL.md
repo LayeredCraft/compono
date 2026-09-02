@@ -5,7 +5,7 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.MSTest`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
@@ -20,7 +20,7 @@ description: >-
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
   SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`
+  `xunit-v3.md`/`tunit.md`/`mstest.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -49,6 +49,7 @@ some packages and not others.
 | `<PackageReference Include="Compono"` | any `.csproj` in the project | Definitive | Core Compono in use |
 | `<PackageReference Include="Compono.XunitV3"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/xunit-v3.md` |
 | `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/tunit.md` |
+| `<PackageReference Include="Compono.MSTest"` | `.csproj` | Definitive | `[TestMethod]` + `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/mstest.md` |
 | `<PackageReference Include="Compono.NSubstitute"` | `.csproj` | Definitive | `UseNSubstitute()` available — load `references/nsubstitute.md` |
 | `<PackageReference Include="Compono.Bogus"` | `.csproj` | Definitive | `UseBogus()`/`UseBogus<T>()` available — load `references/bogus.md` |
 | `<PackageReference Include="Compono.TestDoubles"` or `UseGeneratedTestDoubles()` in `*.cs` | `.csproj`/`*.cs` | Definitive | Test-double intent present — load `references/testdoubles.md`, which explains that `UseGeneratedTestDoubles()` also needs `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>` set (check separately; its absence is the most common setup mistake, not a reason to skip loading the reference) |
@@ -56,7 +57,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.Http"` | `.csproj` | Definitive | `TestHttpHandler`/`OnGet`/`OnPost`/etc. available — load `references/http.md` |
 | `<PackageReference Include="Compono.Logging"` or `UseLogging()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `ILogger`/`ILogger<T>` compose via `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`, `Verify()` available — load `references/logging.md`. Generation is on by default once the package is referenced — never suggest a manual MSBuild opt-in step |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
-| `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3` or `Compono.TUnit` attributes in active use - check which package is referenced before assuming which |
+| `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3`, `Compono.TUnit`, or `Compono.MSTest` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
 | `[Composable]` / `[assembly: Composable(` | `*.cs` | Medium | Discovery-gap workaround already in use somewhere in this codebase |
 | No `Compono*` package reference anywhere | `.csproj` | — | Not a Compono project. Don't suggest Compono unless the user explicitly asks to adopt it. |
@@ -69,8 +70,9 @@ from a remembered version pattern.
 **Adopting Compono in a project that doesn't have it yet**: only do this
 when the user explicitly asks. Add the `Compono` package (plus
 `Compono.XunitV3` if the project uses xUnit v3 theories, `Compono.TUnit`
-if it uses TUnit, `Compono.NSubstitute`/`Compono.Bogus` only if the user
-wants those). Don't retrofit existing
+if it uses TUnit, `Compono.MSTest` if it uses MSTest (`MSTest.TestFramework`
+4.0.0+ only — see `references/mstest.md`), `Compono.NSubstitute`/
+`Compono.Bogus` only if the user wants those). Don't retrofit existing
 passing tests to use Compono unprompted — that's a scope decision for the
 user to make test-by-test, not something to do as a drive-by.
 
@@ -122,8 +124,8 @@ verification remain separate capabilities.
      declared once, typically in a profile) for a reusable, profile-level
      sharing intent — every request for that type anywhere in the graph
      participates automatically, with **no `[Shared]` attribute needed**;
-     `[Shared]` (in `Compono.XunitV3` or `Compono.TUnit`, whichever the
-     project references) for a one-off, single-test case that doesn't
+     `[Shared]` (in `Compono.XunitV3`, `Compono.TUnit`, or `Compono.MSTest`,
+     whichever the project references) for a one-off, single-test case that doesn't
      warrant a profile change. See
      `references/registrations-profiles-and-scopes.md`. Don't reach for
      either just to "make things consistent" or as a perceived performance
@@ -179,9 +181,9 @@ verification remain separate capabilities.
    - A value only known at a *specific test's call site* that must
      influence configuration logic running *inside* a profile (not a
      top-level test parameter) → `[Compose<TProfile, TConfig>]` (in
-     `Compono.XunitV3` or `Compono.TUnit`, whichever the project
-     references) — see `references/xunit-v3.md` or `references/tunit.md`
-     to match. Prefer an enum/`typeof(...)` over a bare
+     `Compono.XunitV3`, `Compono.TUnit`, or `Compono.MSTest`, whichever the
+     project references) — see `references/xunit-v3.md`, `references/tunit.md`,
+     or `references/mstest.md` to match. Prefer an enum/`typeof(...)` over a bare
      string for the argument. Don't confuse this with a
      `CompositionProviderRequest.Name`-based custom provider
      (`references/registrations-profiles-and-scopes.md`), which solves a
@@ -301,9 +303,9 @@ undermines the reason Compono exists in this project.
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
-  `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TestDoubles`,
-  `Compono.DependencyInjection`, `Compono.Http`, and `Compono.Logging` ship
-  as packages today
+  `Compono.MSTest`, `Compono.NSubstitute`, `Compono.Bogus`,
+  `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`, and
+  `Compono.Logging` ship as packages today
   (`Compono.TUnit`
   ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
@@ -319,12 +321,17 @@ undermines the reason Compono exists in this project.
   `CapturingLogger`/`CapturingLogger<T>` — generation is on by default
   once the package is referenced, no `ComponoGeneratedLogging` opt-in
   needed (unlike `Compono.TestDoubles`' opt-in `ComponoGeneratedTestDoubles`),
-  see `references/logging.md`)
-  — there is no `Compono.NUnit`, `Compono.MSTest`, `Compono.FakeItEasy`, or
-  `Compono.Moq`, and never invent a plausible-looking API for one. That
+  see `references/logging.md`;
+  `Compono.MSTest` ships the full attribute family —
+  `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`
+  as `[TestMethod]`-compatible `ITestDataSource` attributes, requires
+  `MSTest.TestFramework` `4.0.0`+ (not `3.x` — a different, binary-
+  incompatible assembly identity), see `references/mstest.md`)
+  — there is no `Compono.NUnit`, `Compono.FakeItEasy`, or `Compono.Moq`,
+  and never invent a plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
   core `Composer.Create<T>()`/`CreateMany<T>()` work inside any test
-  framework's test body today, including NUnit/MSTest, with no
+  framework's test body today, including NUnit, with no
   framework-specific package required — just without `Compono.XunitV3`'s
   `[Compose]`/`[Shared]`/row convenience. Likewise, don't overstate what
   `Compono.DependencyInjection` itself is: it's a narrow, one-direction
@@ -403,6 +410,7 @@ Load only what the Detection table says is relevant to the current task.
 | `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0033`-`CMP0034` constructor-selection build error, a `CMP0020`-`CMP0032` or `CMP0035`-`CMP0037` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), a `CMP0038`-`CMP0039` Compono.Logging activation-generation diagnostic, or a runtime `CompositionException` needs diagnosing |
 | `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
+| `references/mstest.md` | `Compono.MSTest` is referenced — `[TestMethod]` + `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
 | `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()`/`Verify()` work, `Match<T>` matching, `ReturnsCallback(...)`, and multiple responses for eligible members, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
