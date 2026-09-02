@@ -89,3 +89,6 @@ proceeds.
 - The generator test project passed 308/308 on both net10.0 and net11.0. A freshly packed
   `Compono`/`Compono.TestDoubles` consumer compiled and executed `ReturnsCallback` for that
   collision shape.
+- `scripts/dogfood-validate.sh --consumer-repo /Users/jonasha/Repos/CSharp/alexa-vox-craft
+  --packages 'Compono Compono.TestDoubles'` passed on the refreshed `main` checkout: 2,784 tests
+  passed and 32 were skipped, with both packages resolved to the same freshly packed local version.
