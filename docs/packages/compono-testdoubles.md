@@ -359,9 +359,10 @@ parameter — each closed `T` a real call site (or a `Configure<T>()`/
 `Verify<T>()` call) closes to gets its own independent state, reached
 through an internal `Dictionary<System.Type, object>` bucket keyed by
 `typeof(T)`; nothing about that bucket is ever observable through the
-public `Configure()`/`Verify()` surface, which returns the exact same
-`ReturnConfigBuilder<T>`/`CallVerifier` types every other member already
-does. `Returns`/`Throws` ergonomics are identical to the equivalent
+public `Configure()`/`Verify()` surface. `Configure<T>()` returns the
+member-specific callback builder, while `Verify<T>()` continues to return
+`CallVerifier`; the configuration builder retains `Returns` and `Throws`
+alongside `ReturnsCallback`. `Returns`/`Throws` ergonomics are identical to the equivalent
 non-generic member with that same closed return type — a
 `Task<UpsellPayload?>`-returning member still needs
 `.Returns(Task.FromResult<UpsellPayload?>(payload))`, the same convention
@@ -604,6 +605,14 @@ delegate as plain data without overload ambiguity. Callback/value/exception/
 sequence responses follow the same last-configuration-wins rule, and callback
 selection composes with argument-matched entries. Verification remains an
 independent count of real invocations.
+
+**Compatibility note (pre-1.0).** The generated builder replaces
+`ReturnConfigBuilder<T>` for every supported non-void configuration method,
+not only call sites that use `ReturnsCallback`. Existing fluent calls remain
+unchanged, but project-local helpers or extension methods explicitly typed as
+`ReturnConfigBuilder<T>` no longer bind for those members. This trade-off keeps
+all response kinds on one strongly typed member configuration path; see
+[ADR-0053 Amendment 1](../adr/0053-testdoubles-invocation-aware-callback-responses.md#amendment-1-2026-09-02-compatibility-scope-and-considered-alternatives).
 
 ## Sequential/call-count-based responses
 

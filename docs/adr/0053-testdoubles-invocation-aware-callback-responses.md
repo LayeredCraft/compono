@@ -182,6 +182,42 @@ resolves these original questions:
 The implementation plan and verification record live in
 [PLAN-0057](../plans/0057-testdoubles-invocation-aware-callback-responses.md).
 
+## Amendment 1 (2026-09-02): Compatibility scope and considered alternatives
+
+Review clarified that the source-compatibility impact is broader than an
+explicit `ReturnsCallback(...)` call. Every supported non-void method with a
+configuration surface now returns its generated member-specific builder from
+`Configure().Member(...)`, whether or not the caller uses callbacks. Ordinary
+fluent calls (`Returns`, `Throws`, and `ReturnsSequence`) remain available, but
+project-local helpers or extension methods explicitly typed as
+`ReturnConfigBuilder<T>` no longer bind for those members. This is accepted for
+the pre-1.0 release; it must be stated precisely in release and migration
+material rather than described as callback-only breakage.
+
+The fuller alternatives considered are:
+
+- **Generated member-specific builder (chosen):** keeps all response kinds on
+  one strongly typed member configuration path. It carries the member's real
+  parameter types, so callbacks remain AOT-safe and avoid reflection, boxing,
+  and an untyped invocation bag. Its cost is the source-compatibility break
+  above and generated code per supported member.
+- **Separate callback configuration path:** retain
+  `Configure().Member(...) -> ReturnConfigBuilder<T>` and add a distinct
+  generated callback entry point. That preserves helpers typed to the existing
+  builder, but splits the same member's mutually-exclusive response state
+  across two APIs and makes configuration discovery less direct.
+- **Add `ReturnsCallback` to `ReturnConfigBuilder<T>`:** rejected because that
+  shared builder knows only `T`, not a member's argument types. Supporting
+  callbacks there would require an untyped argument bag, reflection, or boxing,
+  contrary to the decision's source-generated and strongly-typed constraints.
+- **Overload `Returns`:** rejected because a member returning a delegate makes
+  the value and callback cases ambiguous. A separately named
+  `ReturnsCallback` remains explicit for all supported return types.
+
+The ADR-0049 closed-instantiation path remains part of the chosen design:
+its generated builder carries the closed type argument and stores callback
+state in that type's existing bucket.
+
 ## Links
 
 - [RESEARCH-0011](../research/0011-alexa-vox-craft-mediatr-tests-testkit-migration-slice-1.md) -

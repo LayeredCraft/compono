@@ -69,6 +69,19 @@ public sealed class TestDoubleCallbackExecutionTests
     }
 
     [Fact]
+    public void ReturnsCallback_ComputesIndependentResultsForClosedGenericInstantiations()
+    {
+        var result = GeneratorTestHelpers.CompileAndExecuteWithInfoDiagnostic(
+            ClosedGenericOptions,
+            "TestNamespace.EntryPoint",
+            "Run",
+            "CMP0032",
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(true);
+    }
+
+    [Fact]
     public void ReturnsCallback_ComposesWithMultipleMatchedEntriesAndVerification()
     {
         var result = GeneratorTestHelpers.CompileAndExecute(
@@ -252,6 +265,38 @@ public sealed class TestDoubleCallbackExecutionTests
                 }
 
                 {{runMethod}}
+            }
+            """,
+        MSBuildProperties = TestDoubleProperties,
+    };
+
+    private static CodeGenerationOptions ClosedGenericOptions => new()
+    {
+        SourceCode = """
+            namespace TestNamespace;
+
+            public interface IFactory
+            {
+                T Create<T>();
+            }
+
+            public sealed class Service
+            {
+                public Service(IFactory factory) { }
+            }
+
+            public static class EntryPoint
+            {
+                private static void Discover() => Compono.Composer.Create().Create<Service>();
+
+                public static object Run()
+                {
+                    Compono.GeneratedTestDoubleRegistry.TryCreate(typeof(IFactory), out var value);
+                    var factory = (IFactory)value!;
+                    factory.Configure().Create<int>().ReturnsCallback(() => 42);
+                    factory.Configure().Create<string>().ReturnsCallback(() => "Ada");
+                    return factory.Create<int>() == 42 && factory.Create<string>() == "Ada";
+                }
             }
             """,
         MSBuildProperties = TestDoubleProperties,

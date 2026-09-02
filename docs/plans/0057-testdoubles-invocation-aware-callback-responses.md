@@ -92,3 +92,21 @@ proceeds.
 - `scripts/dogfood-validate.sh --consumer-repo /Users/jonasha/Repos/CSharp/alexa-vox-craft
   --packages 'Compono Compono.TestDoubles'` passed on the refreshed `main` checkout: 2,784 tests
   passed and 32 were skipped, with both packages resolved to the same freshly packed local version.
+
+### 2026-09-02 — review validation and compatibility record
+
+- Added execution coverage for ADR-0049 closed instantiations. The test allows the expected
+  non-blocking `CMP0032` configuration-required diagnostic, configures separate `int` and
+  `string` callbacks, and proves each closed type uses its own callback state at runtime.
+- Ran the motivating `alexa-vox-craft` pipeline scenario in an isolated `main`-based worktree
+  against freshly packed local `Compono` and `Compono.TestDoubles` packages. Replacing both
+  hand-written `FakePipelineBehavior` instances with generated doubles configured through
+  `ReturnsCallback` compiled; the targeted net11.0 test passed (1/1). The complete consumer
+  suite also passed: 2,784 tests passed and 32 were skipped, with both packages resolved to the
+  shared freshly packed local version.
+- Generated output grows by about 40 lines per simple supported non-void member: a delegate,
+  member-specific builder, callback field, dispatch branch, and changed configuration-extension
+  return type. Parameter and generic complexity can increase line length, but the added code is
+  fixed per member and the dispatch path remains strongly typed with no reflection or boxing.
+- ADR-0053 Amendment 1 records the broader pre-1.0 source-compatibility impact and the rejected
+  alternatives that would have preserved `ReturnConfigBuilder<T>` return types.
