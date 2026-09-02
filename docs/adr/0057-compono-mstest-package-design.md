@@ -957,6 +957,78 @@ all." Downstream documentation (`docs/packages/compono-mstest.md`,
 `skills/compono/references/mstest.md`) states the corrected version
 directly.
 
+## Amendment 3 (2026-09-02): §9's repeat-composition contract corrected — the VSTest-only attribution was false, and the "reproducible values" claim overstated the unpinned case
+
+**What changed**: two precision corrections to §9's original text, both
+raised by an automated PR review (Codex) against PLAN-0057's own
+implementation PR and confirmed correct against this repo's own recorded
+evidence. §9's core contract statement (the blockquote — "MSTest may
+invoke `GetData` more than once across separately-invoked discovery and
+execution sessions") is unaffected and stands unchanged; only two of its
+supporting claims are corrected.
+
+**Correction 1 — the doubling behavior is not VSTest-specific.** §9's
+original text says the separate-discovery-then-execution doubling "is
+specific to the classic VSTest adapter's lack of cross-invocation
+discovery-result caching, not a property of every VSTest-mode test run."
+PLAN-0057's own real, PID-tagged implementation evidence (recorded in its
+Notes, and already reflected correctly in `docs/packages/compono-mstest.md`
+and `skills/compono/references/mstest.md` — only this ADR's own text
+lagged) found the opposite: running a separate discovery process
+(`--list-tests`) followed by a separate execution process produces **two**
+`GetData` calls per method under **both** MTP and the classic VSTest
+adapter, confirmed via distinct OS process IDs in each case. The doubling
+is a consequence of *separate discovery and execution being separate
+process invocations at all* — nothing MTP-or-VSTest-specific about it, and
+specifically not a classic-VSTest-only caching gap as originally stated.
+**Corrected statement**: Compono.MSTest does not guarantee exactly-once
+`ITestDataSource.GetData` invocation across separately-invoked discovery
+and execution sessions. Either supported runner (MTP or the classic VSTest
+adapter) may evaluate the data source independently in those sessions;
+each invocation creates a fresh composition graph. Every other consequence
+§9 already lists stands unchanged: no cross-session caching is introduced;
+no static graph state is introduced; `Register<T>()` factories may run
+more than once; providers may run more than once; `[Shared]`/`Share<T>()`
+identity applies within one graph only; both runners remain fully
+supported, and neither receives special-cased Compono execution
+architecture.
+
+**Correction 2 — "logically equivalent values" overstated the unpinned
+case.** §9's "What stays correct regardless" paragraph states "Deterministic
+seeding means two independently-composed rows for the same test case are
+logically equivalent (same seed → same generated values) ... the *values*
+a consumer sees stay consistent across repeat evaluations." This is true
+**only when `Seed` is explicitly pinned** (`[Compose(Seed = N)]`) — every
+independent call then genuinely uses the identical configured seed and
+produces the same deterministic values. It is **not** true for an
+unpinned, plain `[Compose]`: `ComposeAttribute` generates a fresh,
+independent, non-negative random seed on every `GetData` call (no
+`CompositionBuilder.WithSeed` call), so a discovery-time row and a later,
+separately-invoked execution-time row generally hold **different**
+composed values, not "logically equivalent" ones — and a seed displayed
+for a discovery-time row (per Amendment 2, discovery/listing is the only
+context `GetDisplayName` is even called in) must not be presented as
+sufficient to reproduce a later, independently-composed execution row.
+**Corrected statement**: reproducibility of composed *values* across
+separate `GetData` invocations requires an explicitly pinned `Seed`; it is
+not a property of Compono's seeding mechanism in general. What *does* hold
+unconditionally, pinned or not: each call's own `CompositionRow` keeps
+`[Shared]`/`Share<T>()` internally correct within itself, and a
+composition *failure*'s own `CompositionException` always carries the
+seed that specific execution actually used
+(`CompositionException.WithSeedInMessage`), independent of any
+discovery-time display name — that execution-time exception message,
+not a discovery-time seed, is the correct reproduction value to act on
+when `Seed` isn't pinned.
+
+**Downstream documentation already correct, now made explicit here**:
+`docs/packages/compono-mstest.md`'s "Discovery/execution repeat-composition
+behavior" and "Seed and display name" sections, and
+`skills/compono/references/mstest.md`'s equivalent passage, were updated
+in the same pass as this amendment to state both corrected claims
+directly, distinguishing the unpinned and pinned cases and pointing at
+`CompositionException`'s own seed for execution-time reproduction.
+
 ## Links
 
 - [RESEARCH-0017](../research/0017-mstest-integration-viability-research.md)

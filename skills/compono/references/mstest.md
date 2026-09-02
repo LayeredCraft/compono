@@ -171,10 +171,23 @@ populates, execute separately and possibly repeatedly afterward.
 are guaranteed to run exactly once under `Compono.MSTest`.** No such
 contract exists — the safety contract `ICompositionValueProvider` does
 carry ("must be safe to invoke repeatedly, including concurrently") is
-about not crashing/corrupting state, not about purity. Deterministic
-seeding keeps the *values* two independently-composed rows produce
-logically equivalent, even though they're distinct object instances —
-only an *observable side effect* a factory performs genuinely repeats.
+about not crashing/corrupting state, not about purity.
+
+**Never tell a user an unpinned `[Compose]`'s discovery-time seed
+reproduces its later execution-time row, or that two separate `GetData`
+calls produce the same composed values by default.** They don't:
+`ComposeAttribute` generates a fresh, independent random seed on every
+call unless `Seed` is explicitly set, so a discovery row and a
+separately-invoked execution row generally hold **different** composed
+values, not "logically equivalent" ones. Reproducibility across separate
+calls requires `[Compose(Seed = N)]` — only then does every independent
+call use the identical configured seed and therefore produce the same
+deterministic values (each call still builds its own distinct
+`CompositionRow` instance). For a composition *failure*, the seed that
+specific execution actually used is always in the thrown
+`CompositionException`'s own message, independent of anything a
+discovery-time display name showed — point a user there for real
+execution-time reproduction, not at a discovery-time seed.
 
 `[Shared]`/`Share<T>()` are never split across calls — each `GetData`
 invocation gets its own fresh `CompositionRow`, so sharing stays correct

@@ -105,10 +105,31 @@ that produces two calls, one per process. Compono establishes no
 exactly-once contract for `Register<T>()` factories that would excuse
 this — if your factory has an observable side effect (I/O, a counter,
 external state mutation), it may genuinely run more than once under this
-workflow. Deterministic seeding means the composed *values* stay logically
-reproducible across repeat evaluations (same seed → same generated values)
-even though they're distinct object instances — only an observable side
-effect actually repeats.
+workflow.
+
+**Reproducibility across those separate calls depends on whether `Seed` is
+pinned — an unqualified claim of "logically reproducible values" here would
+overstate it:**
+
+- **Unpinned `[Compose]`** — each independent `GetData` call generates its
+  own fresh, non-negative random seed (`CompositionBuilder.WithSeed` is
+  never called). Two separate calls therefore generally produce **different**
+  composed values, not the same ones — a discovery-time row and a later,
+  separately-invoked execution-time row are not guaranteed to describe the
+  same generated graph, and a seed shown for a discovery row should not be
+  presented as sufficient to reproduce a later, independently-generated
+  execution row.
+- **`[Compose(Seed = N)]`** — every independent `GetData` call uses the
+  identical, explicitly configured seed, so every call *does* produce the
+  same deterministic composed values (same seed → same generated values),
+  even though each call still builds its own distinct `CompositionRow`
+  instance. This is the mechanism to reach for when exact reproduction
+  across separate discovery/execution sessions actually matters.
+- **A composition *failure*** carries the seed that specific failing
+  execution actually used, via `CompositionException`'s seed-enriched
+  message (`CompositionException.WithSeedInMessage`) — that's the
+  execution-time reproduction value to paste back into `Seed`, independent
+  of whatever a discovery-time row's own display name showed.
 
 `[Shared]`/`Share<T>()` are never split across calls: each `GetData`
 invocation gets its own fresh `CompositionRow`, so sharing stays correct
@@ -139,6 +160,12 @@ summary line of a plain `dotnet test` run. A composition *failure*'s own
 exception message always carries the seed too (via
 `CompositionException.WithSeedInMessage`), independent of `GetDisplayName`
 — that's the path visible in an ordinary failing execution run.
+
+A seed shown in a discovery-time display name only reproduces a later
+execution row if `Seed` was explicitly pinned (`[Compose(Seed = N)]`) —
+see "Discovery/execution repeat-composition behavior" above for why an
+unpinned `[Compose]`'s discovery-time seed and its execution-time seed are
+generally different values.
 
 ## Synchronous-only composition
 

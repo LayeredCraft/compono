@@ -525,8 +525,10 @@ build/release/validation pipeline enumerates packages by name:
       MTP modern/preferred but not required; `GetData`/registration
       factories may run more than once across MSTest discovery/execution
       sessions and consumers must not rely on exactly-once invocation;
-      deterministic seeds make repeated rows logically reproducible, not
-      the same object graph.
+      reproducibility across separate calls requires an explicitly pinned
+      `Seed` — an unpinned `[Compose]` generates a fresh random seed per
+      call, so a discovery-time row and a later execution-time row
+      generally hold different composed values, not the same ones.
 
 ### 14. Eval coverage
 
@@ -886,7 +888,7 @@ behavior change.
   it). `skills/compono/SKILL.md` (package enumeration, Detection table,
   named-absent guardrail list, references index) and new
   `skills/compono/references/mstest.md` (matching `tunit.md`'s depth).
-  Two new evals (ids 35-36 in `skills/compono-evals/evals.json`) — a
+  Two new evals (ids 40-41 in `skills/compono-evals/evals.json`) — a
   routing scenario and a three-part behavioral-correctness scenario
   (`[DataTestMethod]` unnecessary, `[DataRow]`/`[Compose]` never merge, no
   exactly-once `GetData` guarantee). Benchmark recorded in

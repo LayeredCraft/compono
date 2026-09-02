@@ -1,8 +1,8 @@
 # Benchmark run — 2026-09-02
 
 Scoped, two-eval run for the new `Compono.MSTest` evals added by
-PLAN-0057 task group 14 (ids 35-36 in `../../evals.json`) — not a full
-re-run of all 36 scenarios. Graded by the implementing session directly
+PLAN-0057 task group 14 (ids 40-41 in `../../evals.json`) — not a full
+re-run of all 41 scenarios. Graded by the implementing session directly
 (same limitation as the 2026-08-28 run), reasoning through a with-skill
 answer (grounded in `skills/compono/references/mstest.md`'s actual
 content) against a without-skill baseline (generic MSTest/Compono
@@ -15,7 +15,7 @@ knowledge, no access to that file's `Compono.MSTest`-specific detail).
 | With skill | **9/9** |
 | Without skill (baseline) | **3/9** |
 
-## Eval 35 (routing) — grading detail
+## Eval 40 (routing) — grading detail
 
 | Assertion | With skill | Without skill |
 |---|---|---|
@@ -29,7 +29,7 @@ Without-skill's most likely failure mode is the `[DataTestMethod]`
 addition specifically — the one piece of `Compono.MSTest`-specific,
 non-obvious framework knowledge this eval's expectations single out.
 
-## Eval 36 (behavioral-correctness) — grading detail
+## Eval 41 (behavioral-correctness) — grading detail
 
 | Assertion | With skill | Without skill |
 |---|---|---|
@@ -39,7 +39,7 @@ non-obvious framework knowledge this eval's expectations single out.
 | Doesn't claim an exactly-once guarantee exists | PASS | FAIL (follows directly from the above) |
 | Doesn't invent a workaround (custom caching/exactly-once flag) | PASS | FAIL — the most likely without-skill failure mode: proposing a static/cached counter guard to "fix" the reliability concern the user raised, treating it as a bug to engineer around rather than a documented runner-lifecycle property |
 
-Eval 36 is the sharper of the two — it stacks three independent,
+Eval 41 is the sharper of the two — it stacks three independent,
 `Compono.MSTest`-specific corrections into one prompt, so a without-skill
 answer has three separate chances to fail and, per the reasoning above,
 plausibly fails on most or all of them at once (only the routing-level
@@ -55,5 +55,5 @@ plausibly fails on most or all of them at once (only the routing-level
   estimate of failure modes grounded in what `mstest.md` uniquely
   supplies, not an observed transcript.
 - One reasoning pass per eval, not three — no repeated-run variance data.
-- Scoped to the two new evals (ids 35-36) added by this plan, not a full
-  re-run of all 36 scenarios in `evals.json`.
+- Scoped to the two new evals (ids 40-41) added by this plan, not a full
+  re-run of all 41 scenarios in `evals.json`.
