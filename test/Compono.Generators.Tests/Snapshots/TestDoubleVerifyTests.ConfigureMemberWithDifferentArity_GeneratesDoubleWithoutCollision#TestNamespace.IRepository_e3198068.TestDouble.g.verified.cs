@@ -5,7 +5,46 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate string? __GetName_Callback();
+
+    internal readonly ref struct __GetName_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<string?> _config;
+        private readonly ref __GetName_Callback? _callback;
+
+        internal __GetName_Builder(ref global::Compono.ReturnConfig<string?> config, ref __GetName_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(string? value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string?>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string?>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<string?>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string?>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetName_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<string?> __GetName;
+    internal __GetName_Callback? __GetName_callback;
     // ADR-0050: multi-entry response configuration - replaces the single
     // __Configure/__Configure_m_{param} shape with an ordered, append-only
     // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
@@ -59,7 +98,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     string? global::TestNamespace.IRepository.GetName()
     {
         __GetName.RecordCall();
-        return __GetName.HasConfiguredSequence ? __GetName.NextSequenceOutcome()
+        return __GetName_callback is { } callback ? callback()
+            : __GetName.HasConfiguredSequence ? __GetName.NextSequenceOutcome()
             : __GetName.HasConfiguredException ? throw __GetName.ConfiguredException
             : __GetName.HasConfiguredValue ? __GetName.ConfiguredValue
             : default;
@@ -93,8 +133,8 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
         return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
     }
 
-    public static global::Compono.ReturnConfigBuilder<string?> GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<string?>(ref self.__GetName);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetName_Builder GetName(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetName_Builder(ref self.__GetName, ref self.__GetName_callback);
 
 }
 

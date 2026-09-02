@@ -5,12 +5,52 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate global::System.Threading.Tasks.ValueTask<string?> __GetNameAsync_Callback();
+
+    internal readonly ref struct __GetNameAsync_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<string?>> _config;
+        private readonly ref __GetNameAsync_Callback? _callback;
+
+        internal __GetNameAsync_Builder(ref global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<string?>> config, ref __GetNameAsync_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Threading.Tasks.ValueTask<string?> value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<string?>>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<string?>>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Threading.Tasks.ValueTask<string?>>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<string?>>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetNameAsync_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<global::System.Threading.Tasks.ValueTask<string?>> __GetNameAsync;
+    internal __GetNameAsync_Callback? __GetNameAsync_callback;
 
     global::System.Threading.Tasks.ValueTask<string?> global::TestNamespace.IRepository.GetNameAsync()
     {
         __GetNameAsync.RecordCall();
-        return __GetNameAsync.HasConfiguredSequence ? __GetNameAsync.NextSequenceOutcome()
+        return __GetNameAsync_callback is { } callback ? callback()
+            : __GetNameAsync.HasConfiguredSequence ? __GetNameAsync.NextSequenceOutcome()
             : __GetNameAsync.HasConfiguredException ? throw __GetNameAsync.ConfiguredException
             : __GetNameAsync.HasConfiguredValue ? __GetNameAsync.ConfiguredValue
             : default;
@@ -19,8 +59,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<string?>> GetNameAsync(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Threading.Tasks.ValueTask<string?>>(ref self.__GetNameAsync);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetNameAsync_Builder GetNameAsync(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetNameAsync_Builder(ref self.__GetNameAsync, ref self.__GetNameAsync_callback);
 
 }
 

@@ -11,6 +11,8 @@ public interface IAccountRepository
 {
     bool Withdraw(string accountId, decimal amount, bool overdraftAllowed);
 
+    int Calculate(int left, int right);
+
     void Rename(string accountId);
 }
 
@@ -100,6 +102,23 @@ public interface ITypeParameterCollisionRepository
 
 public sealed class MatchingTests
 {
+    [Theory]
+    [Compose<GeneratedTestDoubleProfile>]
+    public void ReturnsCallback_ComputesAResponseFromTheInvocationArguments(
+        [Shared] IAccountRepository repository)
+    {
+        repository.Configure()
+            .Calculate(Compono.Match.Any<int>(), Compono.Match.Any<int>())
+            .ReturnsCallback((left, right) => left + right);
+
+        var result = repository.Calculate(20, 22);
+
+        result.Should().Be(42);
+        repository.Verify()
+            .Calculate(Compono.Match.Any<int>(), Compono.Match.Any<int>())
+            .Once();
+    }
+
     [Theory]
     [Compose<GeneratedTestDoubleProfile>]
     public void Configure_WithMixedLiteralAnyAndIsMatchers_OnlyRespondsWhenAllMatch(

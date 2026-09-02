@@ -208,12 +208,45 @@ internal static partial class GeneratorTestHelpers
     internal static object? CompileAndExecute(
         CodeGenerationOptions options, string typeName, string methodName, CancellationToken cancellationToken = default)
     {
-        var (driver, originalCompilation) = GenerateFromSource(options, cancellationToken);
+        return CompileAndExecuteRequest(
+            new ExecutionRequest(options, typeName, methodName),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Compiles and executes generated consumer code while allowing one expected informational
+    /// generator diagnostic. This keeps execution coverage available for configuration-required
+    /// generated members, whose diagnostic does not prevent a usable double from being emitted.
+    /// </summary>
+    internal static object? CompileAndExecuteWithInfoDiagnostic(
+        CodeGenerationOptions options,
+        string typeName,
+        string methodName,
+        string expectedDiagnosticId,
+        CancellationToken cancellationToken = default)
+    {
+        return CompileAndExecuteRequest(
+            new ExecutionRequest(options, typeName, methodName, expectedDiagnosticId),
+            cancellationToken);
+    }
+
+    private static object? CompileAndExecuteRequest(ExecutionRequest request, CancellationToken cancellationToken)
+    {
+        var (driver, originalCompilation) = GenerateFromSource(request.Options, cancellationToken);
         var result = driver.GetRunResult();
 
-        result.Diagnostics.Should().BeEmpty(
-            "code should be generated without errors, but found:\n" +
-            string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+        if (request.ExpectedDiagnosticId is { } expectedDiagnosticId)
+        {
+            result.Diagnostics.Should().Contain(
+                diagnostic => diagnostic.Id == expectedDiagnosticId,
+                "the configuration-required generated member should report its expected informational diagnostic");
+        }
+        else
+        {
+            result.Diagnostics.Should().BeEmpty(
+                "code should be generated without errors, but found:\n" +
+                string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+        }
 
         var parseOptions = originalCompilation.SyntaxTrees.First().Options;
         var reparsedTrees = result.GeneratedTrees
@@ -233,13 +266,19 @@ internal static partial class GeneratorTestHelpers
         peStream.Position = 0;
         var assembly = Assembly.Load(peStream.ToArray());
 
-        var type = assembly.GetType(typeName)
-            ?? throw new InvalidOperationException($"Type '{typeName}' not found in the compiled assembly.");
-        var method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"Public static method '{methodName}' not found on '{typeName}'.");
+        var type = assembly.GetType(request.TypeName)
+            ?? throw new InvalidOperationException($"Type '{request.TypeName}' not found in the compiled assembly.");
+        var method = type.GetMethod(request.MethodName, BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException($"Public static method '{request.MethodName}' not found on '{type.FullName}'.");
 
         return method.Invoke(null, null);
     }
+
+    private sealed record ExecutionRequest(
+        CodeGenerationOptions Options,
+        string TypeName,
+        string MethodName,
+        string? ExpectedDiagnosticId = null);
 
     // GeneratedCodeAttribute's version argument embeds the generator assembly's own build commit
     // SHA (CompositionPlanEmitter.GeneratorVersion) - it changes every time the generator is

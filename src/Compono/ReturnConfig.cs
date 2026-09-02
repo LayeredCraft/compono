@@ -61,6 +61,21 @@ public struct ReturnConfig<T>
     public void RecordCall() => System.Threading.Interlocked.Increment(ref CallCount);
 
     /// <summary>
+    /// Clears the configured value, exception, or sequence without changing the recorded call
+    /// count. This is infrastructure for generator-emitted member-specific configuration builders
+    /// when they replace an ordinary response with an invocation callback (ADR-0053).
+    /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public void ClearConfiguredResponse()
+    {
+        HasValue = false;
+        Value = default;
+        Exception = null;
+        Sequence = null;
+        SequenceOrdinal = 0;
+    }
+
+    /// <summary>
     /// Consumes and returns (or throws) the next outcome in the configured sequence, by invocation
     /// ordinal - the first call gets index 0, the second index 1, and so on. Only meaningful when
     /// <see cref="HasConfiguredSequence"/> is <see langword="true"/>. Once the sequence is exhausted,

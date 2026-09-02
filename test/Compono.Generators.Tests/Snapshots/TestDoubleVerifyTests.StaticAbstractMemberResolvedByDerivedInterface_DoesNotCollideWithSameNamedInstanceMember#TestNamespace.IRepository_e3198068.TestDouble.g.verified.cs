@@ -5,12 +5,52 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate string __Name_Callback();
+
+    internal readonly ref struct __Name_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<string> _config;
+        private readonly ref __Name_Callback? _callback;
+
+        internal __Name_Builder(ref global::Compono.ReturnConfig<string> config, ref __Name_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(string value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<string>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<string>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Name_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<string> __Name;
+    internal __Name_Callback? __Name_callback;
 
     string global::TestNamespace.IRepository.Name()
     {
         __Name.RecordCall();
-        return __Name.HasConfiguredSequence ? __Name.NextSequenceOutcome()
+        return __Name_callback is { } callback ? callback()
+            : __Name.HasConfiguredSequence ? __Name.NextSequenceOutcome()
             : __Name.HasConfiguredException ? throw __Name.ConfiguredException
             : __Name.HasConfiguredValue ? __Name.ConfiguredValue
             : throw new global::Compono.TestDoubleNotConfiguredException(
@@ -20,8 +60,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<string> Name(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<string>(ref self.__Name);
+    public static global::TestNamespace_IRepository_e3198068_Double.__Name_Builder Name(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__Name_Builder(ref self.__Name, ref self.__Name_callback);
 
 }
 

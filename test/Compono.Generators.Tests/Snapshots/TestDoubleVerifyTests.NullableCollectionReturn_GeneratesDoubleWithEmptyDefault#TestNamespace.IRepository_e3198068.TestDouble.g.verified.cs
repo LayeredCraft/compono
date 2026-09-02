@@ -5,12 +5,52 @@
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
+    internal delegate global::System.Collections.Generic.List<int>? __GetValues_Callback();
+
+    internal readonly ref struct __GetValues_Builder
+    {
+        private readonly ref global::Compono.ReturnConfig<global::System.Collections.Generic.List<int>?> _config;
+        private readonly ref __GetValues_Callback? _callback;
+
+        internal __GetValues_Builder(ref global::Compono.ReturnConfig<global::System.Collections.Generic.List<int>?> config, ref __GetValues_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(global::System.Collections.Generic.List<int>? value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<global::System.Collections.Generic.List<int>?>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__GetValues_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
     internal global::Compono.ReturnConfig<global::System.Collections.Generic.List<int>?> __GetValues;
+    internal __GetValues_Callback? __GetValues_callback;
 
     global::System.Collections.Generic.List<int>? global::TestNamespace.IRepository.GetValues()
     {
         __GetValues.RecordCall();
-        return __GetValues.HasConfiguredSequence ? __GetValues.NextSequenceOutcome()
+        return __GetValues_callback is { } callback ? callback()
+            : __GetValues.HasConfiguredSequence ? __GetValues.NextSequenceOutcome()
             : __GetValues.HasConfiguredException ? throw __GetValues.ConfiguredException
             : __GetValues.HasConfiguredValue ? __GetValues.ConfiguredValue
             : [];
@@ -19,8 +59,8 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?> GetValues(this global::TestNamespace_IRepository_e3198068_Double self) =>
-        new global::Compono.ReturnConfigBuilder<global::System.Collections.Generic.List<int>?>(ref self.__GetValues);
+    public static global::TestNamespace_IRepository_e3198068_Double.__GetValues_Builder GetValues(this global::TestNamespace_IRepository_e3198068_Double self) =>
+        new global::TestNamespace_IRepository_e3198068_Double.__GetValues_Builder(ref self.__GetValues, ref self.__GetValues_callback);
 
 }
 

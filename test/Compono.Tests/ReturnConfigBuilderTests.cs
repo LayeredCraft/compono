@@ -9,6 +9,22 @@ namespace Compono.Tests;
 public sealed class ReturnConfigBuilderTests
 {
     [Fact]
+    public void ClearConfiguredResponse_ClearsResponseStateButPreservesCallCount()
+    {
+        ReturnConfig<string> slot = default;
+        var builder = new ReturnConfigBuilder<string>(ref slot);
+        builder.Returns("configured");
+        slot.RecordCall();
+
+        slot.ClearConfiguredResponse();
+
+        slot.HasConfiguredValue.Should().BeFalse();
+        slot.HasConfiguredException.Should().BeFalse();
+        slot.HasConfiguredSequence.Should().BeFalse();
+        slot.ConfiguredCallCount.Should().Be(1);
+    }
+
+    [Fact]
     public void Returns_SetsConfiguredValue()
     {
         var slot = new ReturnConfig<string>();

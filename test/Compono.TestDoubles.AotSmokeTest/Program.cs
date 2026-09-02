@@ -73,6 +73,8 @@ internal interface IProfileRepositoryWithStaticAbstractBase : IProfileFactory
 internal interface IAccountRepository
 {
     bool Withdraw(string accountId, decimal amount, bool overdraftAllowed);
+
+    int Calculate(int left, int right);
 }
 
 // PLAN-0049: a generic method whose return type depends on its own type parameter - the exact
@@ -243,6 +245,18 @@ internal static class Program
                 .Withdraw(Match.Is<string>(id => id == "acct-2"), Match.Any<decimal>(), Match.Any<bool>())
                 .Once();
             accountRepository.Verify().Withdraw().Exactly(4);
+
+            // ADR-0053: the generated strongly typed callback delegate and member-specific builder
+            // survive trimming/AOT and receive the invocation's real arguments.
+            accountRepository.Configure()
+                .Calculate(Match.Any<int>(), Match.Any<int>())
+                .ReturnsCallback((left, right) => left + right);
+            var callbackResult = accountRepository.Calculate(20, 22);
+
+            if (callbackResult != 42)
+                throw new InvalidOperationException($"Expected invocation callback result 42, got {callbackResult}.");
+
+            accountRepository.Verify().Calculate(Match.Any<int>(), Match.Any<int>()).Once();
 
             // PLAN-0049: real generated (not hand-written) closed-instantiation-eligible members
             // under Native AOT - two closed T's on GetContextDataAsync<T> independently configured

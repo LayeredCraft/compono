@@ -1716,9 +1716,110 @@ internal static class TestDoubleAnalyzer
         }
 
         return new DiscoveredTestDoubleInfo(
-            fullyQualifiedName, safeIdentifier, members.ToEquatableArray(), EquatableArray<DiagnosticInfo>.Empty,
+            fullyQualifiedName, safeIdentifier, AssignCallbackNameSuffixes(members).ToEquatableArray(), EquatableArray<DiagnosticInfo>.Empty,
             infoDiagnostics.ToEquatableArray());
     }
+
+    // ADR-0053: callback delegates/builders live in the generated double's declaration space alongside
+    // every backing field, nested state/entry/helper class, and bucket method. A sibling member can
+    // therefore legitimately claim a callback's natural name (for example Foo_Builder emits
+    // __Foo_Builder), so reserve all non-callback declarations first and hash-suffix only the callback
+    // set that would otherwise collide. The suffix is shared by the delegate, builder, and plain-slot
+    // callback field because those names reference one another in generated code.
+    private static List<TestDoubleMemberInfo> AssignCallbackNameSuffixes(List<TestDoubleMemberInfo> members)
+    {
+        var reservedNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var member in members)
+        {
+            if (member.IsDimFallbackTarget)
+            {
+                reservedNames.Add($"{member.FieldName}_dimHelper");
+                reservedNames.Add(member.DimFallbackHelperClassName);
+            }
+
+            if (member.IsClosedInstantiationEligible)
+            {
+                reservedNames.Add(member.ClosedInstantiationStateClassName);
+                reservedNames.Add(member.ClosedInstantiationBucketFieldName);
+                reservedNames.Add(member.ClosedInstantiationBucketMethodName);
+                continue;
+            }
+
+            if (member.IsEligibleForMatching || member.IsOverloadMatchingEligible)
+            {
+                reservedNames.Add(member.EntryClassName);
+                reservedNames.Add(member.EntriesFieldName);
+                reservedNames.Add($"{member.FieldName}_calls");
+                reservedNames.Add($"{member.FieldName}_lock");
+                continue;
+            }
+
+            if (member.HasConfigurationSurface)
+                reservedNames.Add(member.FieldName);
+        }
+
+        var collisionSafeMembers = new List<TestDoubleMemberInfo>(members.Count);
+
+        foreach (var originalMember in members)
+        {
+            var member = originalMember;
+
+            if (!IsCallbackEligible(member))
+            {
+                collisionSafeMembers.Add(member);
+                continue;
+            }
+
+            var callbackNames = new List<string>
+            {
+                member.CallbackDelegateName,
+                member.CallbackBuilderName,
+            };
+
+            if (!member.IsClosedInstantiationEligible && !member.IsEligibleForMatching && !member.IsOverloadMatchingEligible)
+                callbackNames.Add(member.CallbackFieldName);
+
+            if (callbackNames.Any(reservedNames.Contains))
+            {
+                var baseHash = TestDoubleOverloadIdentity.StableHash(member.FieldName);
+                var disambiguator = 2;
+                var suffix = $"_{baseHash}";
+
+                do
+                {
+                    var candidate = member with { CallbackNameSuffix = suffix };
+                    callbackNames =
+                    [
+                        candidate.CallbackDelegateName,
+                        candidate.CallbackBuilderName,
+                    ];
+
+                    if (!candidate.IsClosedInstantiationEligible && !candidate.IsEligibleForMatching && !candidate.IsOverloadMatchingEligible)
+                        callbackNames.Add(candidate.CallbackFieldName);
+
+                    if (!callbackNames.Any(reservedNames.Contains))
+                    {
+                        member = candidate;
+                        break;
+                    }
+
+                    suffix = $"_{baseHash}_{disambiguator++}";
+                } while (true);
+            }
+
+            foreach (var callbackName in callbackNames)
+                reservedNames.Add(callbackName);
+
+            collisionSafeMembers.Add(member);
+        }
+
+        return collisionSafeMembers;
+    }
+
+    private static bool IsCallbackEligible(TestDoubleMemberInfo member) =>
+        member.Kind == TestDoubleMemberKind.Method && !member.IsVoid && member.HasConfigurationSurface &&
+        (!member.IsGenericMethod || member.IsClosedInstantiationEligible);
 
     private static bool WouldGetConfigurationSurface(
         ISymbol member, HashSet<(string Name, string Canonical)> diamondCollisionIdentities)

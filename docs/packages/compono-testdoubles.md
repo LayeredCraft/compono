@@ -359,9 +359,10 @@ parameter — each closed `T` a real call site (or a `Configure<T>()`/
 `Verify<T>()` call) closes to gets its own independent state, reached
 through an internal `Dictionary<System.Type, object>` bucket keyed by
 `typeof(T)`; nothing about that bucket is ever observable through the
-public `Configure()`/`Verify()` surface, which returns the exact same
-`ReturnConfigBuilder<T>`/`CallVerifier` types every other member already
-does. `Returns`/`Throws` ergonomics are identical to the equivalent
+public `Configure()`/`Verify()` surface. `Configure<T>()` returns the
+member-specific callback builder, while `Verify<T>()` continues to return
+`CallVerifier`; the configuration builder retains `Returns` and `Throws`
+alongside `ReturnsCallback`. `Returns`/`Throws` ergonomics are identical to the equivalent
 non-generic member with that same closed return type — a
 `Task<UpsellPayload?>`-returning member still needs
 `.Returns(Task.FromResult<UpsellPayload?>(payload))`, the same convention
@@ -577,12 +578,41 @@ as guaranteed, and every existing single-`Configure()`-call usage keeps
 its exact same observable behavior.
 
 **What this deliberately doesn't do.** No matcher-specificity ranking (see
-above). No `Returns(Func<...>)` callback responses. Verification
+above). Verification
 (`Verify()`) is completely unaffected - it stays a count over the member's
 shared call log, independent of how many response configurations exist.
 "Return X on the first call, Y on the second" *is* supported - see
 "Sequential/call-count-based responses" below, a distinct capability from
 multi-entry argument matching.
+
+## Invocation-aware callback responses
+
+For a supported non-void method, the generated member-specific configuration
+builder exposes `ReturnsCallback(...)` ([ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)).
+Its strongly typed parameters are the method's real invocation arguments, in
+declaration order, and its return type is the method's declared return type:
+
+```csharp
+calculator.Configure()
+    .Add(Match.Any<int>(), Match.Any<int>())
+    .ReturnsCallback((left, right) => left + right);
+```
+
+For `Task<T>`/`ValueTask<T>` members the callback returns that same declared
+task-like type, so an `async` lambda works naturally. `ReturnsCallback` is a
+separate name from `Returns`: a member returning a delegate can still return a
+delegate as plain data without overload ambiguity. Callback/value/exception/
+sequence responses follow the same last-configuration-wins rule, and callback
+selection composes with argument-matched entries. Verification remains an
+independent count of real invocations.
+
+**Compatibility note (pre-1.0).** The generated builder replaces
+`ReturnConfigBuilder<T>` for every supported non-void configuration method,
+not only call sites that use `ReturnsCallback`. Existing fluent calls remain
+unchanged, but project-local helpers or extension methods explicitly typed as
+`ReturnConfigBuilder<T>` no longer bind for those members. This trade-off keeps
+all response kinds on one strongly typed member configuration path; see
+[ADR-0053 Amendment 1](../adr/0053-testdoubles-invocation-aware-callback-responses.md#amendment-1-2026-09-02-compatibility-scope-and-considered-alternatives).
 
 ## Sequential/call-count-based responses
 
@@ -736,8 +766,10 @@ configurations per member are supported for those same eligible members
 response configurations per member" above and
 [ADR-0050](../adr/0050-testdoubles-multi-entry-argument-distinguished-configuration.md)
 — but strictly last-matching-registration-wins, with no matcher-specificity
-ranking, and no `Returns(Func<...>)` callbacks.
-Sequential/call-count-based responses (`ReturnsSequence(...)`,
+ranking. Invocation-aware callbacks are supported for non-void methods with an
+existing configuration surface through `ReturnsCallback(...)`; properties,
+void methods, and already-unsupported member shapes do not gain callback
+configuration. Sequential/call-count-based responses (`ReturnsSequence(...)`,
 [ADR-0054](../adr/0054-testdoubles-sequential-call-count-based-responses.md))
 and overload-safe argument matching (`<Member>Matching`, ADR-0044
 Amendment 21) are both now supported — see "Sequential/call-count-based

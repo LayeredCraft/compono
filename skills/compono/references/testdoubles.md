@@ -67,9 +67,30 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 ## Argument matching and filtered verification
 
 Do not conflate argument matching with argument capture. Current
-`Compono.TestDoubles` supports ordinary matcher-based configuration and
-verification for eligible members; it does not expose an arbitrary call log
-or invocation callback API.
+`Compono.TestDoubles` supports matcher-based configuration and verification
+for eligible members. Supported non-void methods also support a strongly typed
+`ReturnsCallback(...)`; it does not expose an arbitrary call log or an
+untyped `CallInfo` callback API.
+
+### Invocation-aware responses
+
+Use `ReturnsCallback(...)` when a supported non-void method must compute its
+declared result from its real invocation arguments:
+
+```csharp
+repository.Configure()
+    .Add(Match.Any<int>(), Match.Any<int>())
+    .ReturnsCallback((left, right) => left + right);
+```
+
+The callback parameters follow declaration order and must return the method's
+declared type. A `Task<T>` or `ValueTask<T>` method needs a callback returning
+that task-like type; Compono does not wrap a bare `T`. `ReturnsCallback` is
+separate from `Returns` so a member returning a delegate remains unambiguous.
+
+`Returns`, `Throws`, `ReturnsSequence`, and `ReturnsCallback` are
+last-configuration-wins responses for one member or matched entry. Properties
+and void methods keep their existing `ReturnConfigBuilder<T>` configuration.
 
 ### NSubstitute migration mapping
 
@@ -462,10 +483,11 @@ its exact same observable behavior.
 
 **What this deliberately doesn't do.** No matcher-specificity ranking
 (see above). Sequential/call-count-based responses use `ReturnsSequence(...)`
-(see "Sequential/call-count-based responses"). No `Returns(Func<...>)`
-callback responses. Verification (`Verify()`) is completely unaffected — it
-stays a count over the member's shared call log, independent of how many
-response configurations exist.
+(see "Sequential/call-count-based responses"). `ReturnsCallback(...)` is the
+typed callback response; there is no `Returns(Func<CallInfo, T>)` overload.
+Verification (`Verify()`) is completely unaffected — it stays a count over
+the member's shared call log, independent of how many response configurations
+exist.
 
 ## Configuration-required members (v2)
 
@@ -504,23 +526,18 @@ that needs access to the actual invocation as a first-class value:
 
 - true argument capture for later arbitrary inspection outside a generated
   `Verify().Member(Match...)` count assertion;
-- invocation-aware callback responses (`Returns(call => ...)`,
-  `Returns(Func<CallInfo, T>)`, or "invoke this delegate argument and use
-  its result");
-- callback side effects based on the actual invocation;
 - call-order verification;
 - strict mode, partial substitutes, recursive auto-configuration;
 - classes, delegates, indexers, events, and other unsupported shapes listed
   below.
 
 If a test only needs "this member was called once with an argument matching
-this predicate," use `Verify().Member(Match.Is<T>(...)).Once()`. If it
-needs to store every argument for arbitrary later inspection, run code from
-a callback, or invoke a delegate argument, that is a different capability;
-use an existing project-local fake or `Compono.NSubstitute` where the
-project intentionally keeps that dependency, and treat any real
-`Compono.NSubstitute`-can/`Compono.TestDoubles`-cannot case as roadmap
- evidence under ADR-0042 Amendment 2.
+this predicate," use `Verify().Member(Match.Is<T>(...)).Once()`. If it needs
+to store every argument for arbitrary later inspection, invoke a delegate
+argument, or verify call order, use an existing project-local fake or
+`Compono.NSubstitute` where the project intentionally keeps that dependency.
+Treat any real `Compono.NSubstitute`-can/`Compono.TestDoubles`-cannot case as
+roadmap evidence under ADR-0042 Amendment 2.
 
 ## Unsupported shapes are compile-time diagnostics, not silent gaps
 

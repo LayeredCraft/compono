@@ -25,7 +25,7 @@ description: >-
 license: MIT
 metadata:
   author: LayeredCraft
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # Compono
@@ -88,18 +88,19 @@ answer from memory: older Compono guidance said generated doubles had no
 argument matching, but that is stale. Current TestDoubles supports
 `Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
 `Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
-and multi-entry argument-distinguished response configuration for eligible
-member shapes. Translate NSubstitute vocabulary directly where eligible:
+multi-entry argument-distinguished response configuration, and
+`ReturnsCallback(...)` for supported non-void methods. Translate NSubstitute
+vocabulary directly where eligible:
 `Arg.Is<T>` → `Match.Is<T>`, `Arg.Any<T>()` → `Match.Any<T>()`,
 `Received(1)` → `Verify().Member(...).Once()`, `Received(n)` →
 `Verify().Member(...).Exactly(n)`, and `DidNotReceive()` →
 `Verify().Member(...).Never()`. Never invent non-existent TestDoubles APIs
 such as `CallsTo(...)`, `ReceivedCalls()`, or `[ComponoTest]`, and never
 recommend a hand-written recording fake solely because the old test used
-NSubstitute argument matchers. True argument capture, invocation-aware
-callback responses/side effects, and call-order verification are different
-capabilities; use project-local fake/roadmap guidance for those boundaries
-instead of claiming `Match<T>` solves them.
+NSubstitute argument matchers. Use `ReturnsCallback((arg1, ...) => result)`
+when a supported method's result depends on its actual arguments. It is not
+an untyped `CallInfo` callback. True argument capture and call-order
+verification remain separate capabilities.
 
 1. **Detect** — run the table above. Know which packages are actually
    installed before recommending any API from them.
@@ -142,15 +143,16 @@ instead of claiming `Match<T>` solves them.
      compile-time opt-in is set. Current generated doubles support
      `Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
      `Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/
-     `Exactly(n)`, and multi-entry argument-distinguished response
-     configuration for eligible member shapes. Do not mistake NSubstitute
+     `Exactly(n)`, multi-entry argument-distinguished response configuration,
+     and `ReturnsCallback(...)` for eligible non-void methods. Do not mistake NSubstitute
      vocabulary (`Arg.Is`, `Arg.Any`, `Received`, `DidNotReceive`) for a
      reason to invent a hand-written recording fake; translate it to the
-     generated-double surface where the member shape is eligible. True
-     argument capture, invocation-aware callback responses/side effects,
+     generated-double surface where the member shape is eligible. A callback
+     must return the member's declared type exactly, including `Task<T>` or
+     `ValueTask<T>`; Compono does not wrap a bare result. Argument capture,
      call-order verification, classes, delegates, and other explicitly
-     unsupported shapes remain outside current `Compono.TestDoubles`
-      support — see `references/testdoubles.md`.
+     unsupported shapes remain outside current `Compono.TestDoubles` support
+     — see `references/testdoubles.md`.
    - A test deliberately needs to exercise the real HTTP client pipeline
      (real `HttpClient` → `TestHttpHandler` → configured response) rather
      than substitute an application-level interface away →
@@ -411,7 +413,7 @@ Load only what the Detection table says is relevant to the current task.
 | `references/mstest.md` | `Compono.MSTest` is referenced — `[TestMethod]` + `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` work |
 | `references/nsubstitute.md` | `Compono.NSubstitute` is referenced — `UseNSubstitute()` work |
 | `references/bogus.md` | `Compono.Bogus` is referenced — `UseBogus()`/`UseBogus<T>()` work |
-| `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()`/`Verify()` work, `Match<T>` argument matching and multiple-response-per-member for eligible members, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
+| `references/testdoubles.md` | `Compono.TestDoubles` is referenced or `UseGeneratedTestDoubles()` is called — `UseGeneratedTestDoubles()`/generated `Configure()`/`Verify()` work, `Match<T>` matching, `ReturnsCallback(...)`, and multiple responses for eligible members, including diagnosing a missing `ComponoGeneratedTestDoubles` opt-in |
 | `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
 | `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
 | `references/logging.md` | `Compono.Logging` is referenced or `UseLogging()` is called — `ILogger`/`ILogger<T>` composition, `CapturingLogger`/`CapturingLogger<T>`, structured properties, scope semantics, `Verify()`, and the `ComponoGeneratedLogging` default-on/opt-out behavior |
