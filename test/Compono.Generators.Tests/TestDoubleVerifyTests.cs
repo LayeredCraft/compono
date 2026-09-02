@@ -7,6 +7,31 @@ namespace Compono.Generators.Tests;
 /// </summary>
 public sealed class TestDoubleVerifyTests
 {
+    [Fact]
+    public Task CallbackGeneratedNames_CollidingWithSiblingBackingFields_FallBackToHashSuffixedNames() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    int Foo();
+                    void Foo_Callback();
+                    void Foo_Builder();
+                    void Foo_callback();
+                }
+
+                public sealed class OrderService(IRepository repository);
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
     private const string InterfaceAndService = """
         namespace TestNamespace
         {

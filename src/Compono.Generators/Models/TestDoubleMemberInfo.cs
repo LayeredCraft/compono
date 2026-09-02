@@ -139,6 +139,11 @@ namespace Compono.Generators.Models;
 /// of that exact literal name (a real <c>CS0111</c> risk, confirmed by compiler spike). Empty when
 /// <see cref="IsOverloadMatchingEligible"/> is <see langword="false"/>.
 /// </param>
+/// <param name="CallbackNameSuffix">
+/// Empty for a callback member whose generated delegate, builder, and callback field names do not
+/// collide with another declaration; otherwise a deterministic hash suffix shared by that callback
+/// name set.
+/// </param>
 /// <param name="IsClosedInstantiationEligible">
 /// Whether this member gets ADR-0049's per-closed-<c>T</c> <c>Configure&lt;T&gt;()</c>/<c>Verify&lt;T&gt;()</c>
 /// surface - a generic method whose return type is exactly its own sole type parameter <c>T</c>, or the
@@ -224,6 +229,7 @@ internal sealed record TestDoubleMemberInfo(
     bool IsEligibleForMatching = false,
     bool IsOverloadMatchingEligible = false,
     string MatchingMemberName = "",
+    string CallbackNameSuffix = "",
     bool IsClosedInstantiationEligible = false,
     bool IsClosedInstantiationEligibleShape = false,
     bool IsForwarding = false,
@@ -300,11 +306,11 @@ internal sealed record TestDoubleMemberInfo(
     public string EntriesFieldName => $"{FieldName}_entries";
 
     /// <summary>The generated strongly typed invocation-callback delegate name (ADR-0053).</summary>
-    public string CallbackDelegateName => $"{FieldName}_Callback";
+    public string CallbackDelegateName => $"{FieldName}{CallbackNameSuffix}_Callback";
 
     /// <summary>The generated member-specific configuration-builder name (ADR-0053).</summary>
-    public string CallbackBuilderName => $"{FieldName}_Builder";
+    public string CallbackBuilderName => $"{FieldName}{CallbackNameSuffix}_Builder";
 
     /// <summary>The generated callback field name owned by this member or response entry.</summary>
-    public string CallbackFieldName => $"{FieldName}_callback";
+    public string CallbackFieldName => $"{FieldName}{CallbackNameSuffix}_callback";
 }

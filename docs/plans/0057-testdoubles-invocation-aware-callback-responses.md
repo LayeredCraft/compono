@@ -33,6 +33,8 @@ and general-purpose `CallInfo`/argument-bag APIs remain out of scope.
 ## Critical Files
 
 - `src/Compono/ReturnConfig.cs` — response reset without verification reset.
+- `src/Compono.Generators/Discovery/TestDoubleAnalyzer.cs` — collision-safe callback identifier allocation.
+- `src/Compono.Generators/Models/TestDoubleMemberInfo.cs` — resolved callback identifier projection.
 - `src/Compono.Generators/Templates/TestDouble.scriban` — generated storage,
   member-specific builders, and dispatch.
 - `src/Compono.Generators/Emitters/TestDoubleEmitter.cs` — collision-safe names
@@ -77,3 +79,13 @@ proceeds.
   at `/Users/jonasha/Repos/CSharp/alexa-vox-craft` lacks `Directory.Packages.props`,
   which `scripts/dogfood-validate.sh` requires, and its pipeline test is still
   NSubstitute-based rather than the documented FakePipelineBehavior variant.
+
+### 2026-09-02 — callback generated-name collision fix
+
+- Callback delegate, builder, and plain-slot callback-field names now reserve the generated
+  double's existing declaration names. A collision falls back to a deterministic hash suffix shared
+  by the callback name set; a snapshot covers `Foo` alongside `Foo_Callback`, `Foo_Builder`, and
+  `Foo_callback` siblings.
+- The generator test project passed 308/308 on both net10.0 and net11.0. A freshly packed
+  `Compono`/`Compono.TestDoubles` consumer compiled and executed `ReturnsCallback` for that
+  collision shape.
