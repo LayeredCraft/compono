@@ -2015,6 +2015,52 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task MSTestComposeAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.MSTest
+                {
+                    // Stands in for the real Compono.MSTest.ComposeAttribute (a separate package/
+                    // assembly, not referenced from this generator test project) - ComposeMethodDiscovery
+                    // matches on the fully qualified metadata name alone, so a same-named type here
+                    // triggers it identically to the real one. See
+                    // docs/adr/0057-compono-mstest-package-design.md's "Generator discovery" section -
+                    // this is the third attribute family ComposeMethodDiscovery.TransformMethod feeds,
+                    // registered against Compono.MSTest's own metadata names, not
+                    // Compono.XunitV3's/Compono.TUnit's.
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class ShippingLabel
+                    {
+                        public ShippingLabel(string trackingNumber) { TrackingNumber = trackingNumber; }
+                        public string TrackingNumber { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<ShippingLabel>()/CreateMany<ShippingLabel>() call site, no
+                        // [Composable] attribute, and no CompositionRow.Resolve<T>(descriptor) call
+                        // site anywhere in this source - ShippingLabel is reachable only as this
+                        // [Compose]-attributed method's own parameter, under Compono.MSTest's own
+                        // attribute metadata name rather than Compono.XunitV3's/Compono.TUnit's,
+                        // proving the MSTest-specific discovery registration on its own.
+                        [Compono.MSTest.Compose]
+                        public static void Creates_shippingLabel(ShippingLabel shippingLabel)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ComposeAttributedGenericMethodParameter_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

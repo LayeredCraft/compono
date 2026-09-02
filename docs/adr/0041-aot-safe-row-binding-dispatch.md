@@ -429,3 +429,46 @@ project); this ADR's Amendment 1 text should be read the same way —
 Phase 1's Native AOT verification belongs to PLAN-0040 Phase 0's own
 harness, never to PLAN-0041's, which is scoped away from `Compono.TUnit`
 entirely and merges before that harness exists.
+
+## Amendment 4 (2026-09-02): `Compono.XunitV3.Binding.ConfigProfileBinder`'s own Native AOT status is unverified — recorded, not fixed here
+
+**Found incidentally, not by design**: while implementing ADR-0057
+(`Compono.MSTest`)'s own Native AOT smoke test, `Compono.MSTest.Binding
+.ConfigProfileBinder`'s `ConstructorInfo.Invoke`-based `TConfig`/`TProfile`
+construction failed a real `dotnet publish -p:PublishAot=true` run with
+`'ProfileConfig' must have exactly one public constructor ... but has 0` —
+the trimmer strips a closed generic argument's public constructors by
+default unless `[DynamicallyAccessedMembers(...PublicConstructors)]`
+annotations mark them reachable. Fixed for `Compono.MSTest` (matching the
+identical fix Amendment 1 already required, and PLAN-0040 already applied,
+for `Compono.TUnit`'s own `ConfigProfileBinder`).
+
+**The gap this amendment records**: `Compono.XunitV3.Binding
+.ConfigProfileBinder` — the original, predates-this-ADR implementation
+`Compono.TUnit`'s and `Compono.MSTest`'s own binders were each ported
+from — was checked directly during this same pass and does **not** carry
+the equivalent `[DynamicallyAccessedMembers]` annotations. Whether it
+actually fails under Native AOT the same way is **not verified** — no real
+`dotnet publish -p:PublishAot=true` run against
+`Compono.XunitV3.ComposeAttribute<TProfile, TConfig>` exercising this path
+has been performed as part of this amendment; the absence of annotations
+is circumstantial evidence of the same class of gap, not a confirmed
+repro. This ADR's own Positive Consequences and `Compono.XunitV3`'s public
+documentation currently carry no explicit Native AOT claim for
+`[Compose<TProfile, TConfig>]` specifically, so there is no existing
+public claim this amendment contradicts — but if `Compono.XunitV3` is
+ever documented as fully Native AOT-compatible without qualification, this
+gap would need to be closed (or the claim scoped to exclude
+`[Compose<TProfile, TConfig>]`) first.
+
+**Deliberately not fixed here.** Per explicit product direction: this is
+tracked as a separate, future `Compono.XunitV3`-scoped follow-up (its own
+small implementation pass against this ADR, mirroring Amendment 1's
+already-established fix shape exactly — annotate
+`Compono.XunitV3.Binding.ConfigProfileBinder`'s `Type`-typed parameters and
+`ComposeAttribute<TProfile, TConfig>`'s own `TProfile`/`TConfig` type
+parameters, then prove it with a real publish-and-run), not folded into
+ADR-0057/PLAN-0057's own scope. No `Compono.XunitV3` source file is
+modified by this amendment.
+
+**Tracked as** [LayeredCraft/compono#119](https://github.com/LayeredCraft/compono/issues/119).

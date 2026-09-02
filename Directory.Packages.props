@@ -57,6 +57,25 @@
          ProjectReference, and this version must match the -p:Version passed to PackToLocalFeed's
          pack of Compono.TestDoubles. -->
     <PackageVersion Include="Compono.TestDoubles" Version="1.0.0" />
+    <!-- Compono.MSTest's own dependency - the ITestDataSource/TestMethodAttribute extension surface,
+         per ADR-0057 §7. MSTest.TestFramework only (not the MSTest umbrella package, which pulls in
+         MSTest.TestAdapter, a consumer-project/runner concern) - matching xunit.v3.extensibility.core/
+         TUnit.Core's own minimal-reference precedent above. Floor 4.0.0 per ADR-0057 §7 Amendment 1
+         (2026-09-02) - MSTest.TestFramework's 3.x line ships its framework types under a different,
+         binary-incompatible assembly identity (Microsoft.VisualStudio.TestPlatform.TestFramework.dll)
+         than 4.x's (MSTest.TestFramework.dll), with no facade/type-forwarder bridging them; a
+         Compono.MSTest.dll compiled against 3.x cannot implement the ITestDataSource a 4.x test host
+         checks for, confirmed by a real FileNotFoundException reproduction during implementation. A
+         tested range, not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
+    <PackageVersion Include="MSTest.TestFramework" Version="[4.0.0, 5.0.0)" />
+    <!-- test/Compono.MSTest.Tests' own dependency - the full MSTest meta-package (framework +
+         adapter + analyzers), since that project actually executes as a real MSTest test run, not
+         just authors against MSTest.TestFramework's extension surface. -->
+    <PackageVersion Include="MSTest" Version="4.3.3" />
+    <!-- test/Compono.MSTest.SampleTests' own dependency, same reasoning as Compono.TUnit/
+         Compono.TestDoubles above - never a ProjectReference, and this version must match the
+         -p:Version passed to PackToLocalFeed's pack of Compono.MSTest. -->
+    <PackageVersion Include="Compono.MSTest" Version="1.0.0" />
     <!-- Compono.XunitV3.SampleTests' own dependency - consumed as a real NuGet package from a local
          feed populated by dotnet pack (PLAN-0004 Phase 3), never a ProjectReference. The version here
          must match the -p:Version passed to that project's PackToLocalFeed pre-restore target. -->

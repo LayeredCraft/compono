@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.MSTest.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-only ItemGroups
+         (Using Xunit/NSubstitute/AwesomeAssertions, the shared MTP/xunit.v3 PackageReferences) -
+         a property this project declares about itself, matching Compono.TUnit.Tests' identical
+         precedent (test/Directory.Build.targets' conditions were extended to also check for
+         'MSTest', not just 'TUnit', as part of this package's own implementation). -->
+    <ComponoTestFramework>MSTest</ComponoTestFramework>
+    <!-- Microsoft Testing Platform (MTP) runner - MSTest's own modern/preferred execution path
+         (ADR-0057 §8), matching Compono.XunitV3.Tests'/Compono.TUnit.Tests' own explicit opt-in.
+         VSTest-adapter execution (the other ADR-0057 §8-required runner path) is exercised
+         separately - see task group 8's compatibility-matrix validation. -->
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Full MSTest meta-package (framework + adapter + analyzers), not MSTest.TestFramework
+         alone - this project actually executes as a real MSTest test run, unlike
+         src/Compono.MSTest itself, which only authors against MSTest.TestFramework's
+         extensibility surface. -->
+    <PackageReference Include="MSTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.MSTest\Compono.MSTest.csproj" />
+    <!-- A plain ProjectReference to Compono.csproj (transitively, via Compono.MSTest) does not
+         propagate Compono.Generators.dll as an active analyzer - this project's own [Compose]-
+         attributed fixture methods need real RowInvokerRegistry registrations for their parameter
+         types, matching Compono.XunitV3.Tests'/Compono.TUnit.Tests' identical precedent. -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

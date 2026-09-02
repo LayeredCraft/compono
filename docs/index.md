@@ -43,6 +43,9 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.Bogus`         | Semantic fake data integration                   |
 | `Compono.TestDoubles`   | Source-generated, AOT-safe interface doubles     |
 | `Compono.DependencyInjection` | Configured-resolution IServiceProvider bridge |
+| `Compono.Http`          | Handler-based `HttpClient` testing (`TestHttpHandler`) |
+| `Compono.Logging`       | `Microsoft.Extensions.Logging` testing support (`UseLogging()`, `CapturingLogger<T>`) |
+| `Compono.MSTest`        | MSTest integration                               |
 
 ## Example
 
