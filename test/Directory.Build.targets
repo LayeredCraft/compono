@@ -24,7 +24,7 @@
        regardless of its own Remove (CS0246 for Xunit/NSubstitute/AwesomeAssertions, none of which
        these projects reference). Matches the IsTestProject scoping the PackageReference ItemGroup
        below already has. -->
-  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND '$(ComponoTestFramework)' != 'TUnit'">
+  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND '$(ComponoTestFramework)' != 'TUnit' AND '$(ComponoTestFramework)' != 'MSTest'">
     <Using Include="Xunit" />
     <Using Include="NSubstitute" />
     <Using Include="AwesomeAssertions" />
@@ -35,7 +35,7 @@
        IsTestProject rather than unconditional, matching AlexaVoxCraft's test/Directory.Build.props
        paradigm - a future non-test helper project under test/ (a shared TestKit, if this repo grows
        enough test projects to warrant one) wouldn't want these forced on it. -->
-  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND '$(ComponoTestFramework)' != 'TUnit'">
+  <ItemGroup Condition="'$(IsTestProject)' == 'true' AND '$(ComponoTestFramework)' != 'TUnit' AND '$(ComponoTestFramework)' != 'MSTest'">
     <PackageReference Include="Microsoft.Testing.Platform" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3.mtp-v2" />

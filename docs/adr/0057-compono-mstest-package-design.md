@@ -26,7 +26,9 @@ their precedent directly: reuse
 (the AOT-safe, generator-populated dispatch mechanism `Compono.TUnit`'s own
 Amendments 1-2 moved both existing packages onto — `Compono.MSTest` adopts it
 from the start, never the earlier `MakeGenericMethod`-per-package pattern
-ADR-0022's original text described before being superseded), and produce
+ADR-0022's original text described before being superseded), adapt the
+established `BindingPlan`/`RowInvokers` binding pattern for MSTest (its own
+package-local implementation, not a shared core type), and produce
 idiomatic MSTest wearing idiomatic Compono — `[TestMethod]` + `[Compose]`, not
 xUnit syntax forced onto a different framework.
 
@@ -63,8 +65,8 @@ correctly, but MSTest's discovery/execution lifecycle can invoke `GetData`
 more than once for one eventual test case under some runner workflows,
 unlike `Compono.XunitV3`/`Compono.TUnit`'s structural exactly-once guarantee
 (§5/§20a, spike-confirmed, corrected in a follow-up pass from an
-initially-overstated purity claim); `RowInvokerRegistry`/`BindingPlan`/
-`RowInvokers` are directly reusable (§6); `MethodInfo` is framework-required
+initially-overstated purity claim); `RowInvokerRegistry` is directly reusable, and the `BindingPlan`/`RowInvokers`
+binding pattern is directly adaptable (§6); `MethodInfo` is framework-required
 metadata, not a reflection fallback (§7); composition is synchronous, full
 stop (§8, MSTest-signature-confirmed, stricter than xUnit v3's own
 `ValueTask`-typed `GetData`); `[DataRow]`/`[DynamicData]` and `[Compose]`
@@ -229,13 +231,19 @@ now three. `Compono.TUnit`'s own precedent (a `DataGeneratorMetadata`-shaped
 input, genuinely different from `MethodInfo`/`ParameterInfo`) already shows
 the binding *inputs* diverge more than they converge across frameworks.
 Duplicating the well-understood, self-contained `BindingPlan`/`RowInvokers`
-pattern (~150-200 LOC) is the lower-risk choice; revisit extraction only if
-a **fourth** framework package (NUnit, per RESEARCH-0017's own forward
-note) shows the same pattern a third time with enough shape in common to
-generalize safely — this is `Compono.TUnit`'s own "rule of three" reasoning,
-now still not yet triggered by a third data point since MSTest's binding
-input (`MethodInfo`) is actually the *same* shape xUnit v3 already uses, not
-a third distinct one.
+pattern (~150-200 LOC) is the lower-risk choice. `Compono.MSTest` is,
+literally, the third framework-binding implementation, so an unqualified
+"rule of three, not yet triggered" framing would be confusing here — the
+actual reason to hold off is narrower: xUnit v3 and MSTest both receive
+`MethodInfo`-shaped binding input, but `Compono.TUnit`'s own
+`DataGeneratorMetadata`-shaped input is materially different, so three
+packages still don't yet expose a sufficiently stable common abstraction
+boundary. Extracting now would risk generalizing around superficial code
+similarity between the two `MethodInfo`-shaped packages, not a proven shared
+framework model. Revisit extraction if a **fourth** framework package (NUnit,
+per RESEARCH-0017's own forward note) is researched — NUnit would be another
+independent data point that may reveal whether a useful abstraction actually
+exists, rather than a mechanical "third implementation" trigger.
 
 **Generator discovery**: `Compono.Generators`' `ComposeMethodDiscovery`
 (`src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`) is the
@@ -298,12 +306,44 @@ public sealed class ComposeAttribute<TProfile> : ComposeAttribute
     public ComposeAttribute(params object?[] inlineValues) : base(inlineValues) { }
 }
 
+/// <summary>
+/// Composes an MSTest data-driven test method's parameters through Compono, applying a profile built
+/// from <em>profile configuration arguments</em> known at this attribute's call site - a distinct
+/// concept from this attribute family's ordinary inline values, which bind to the test method's own
+/// parameters instead. This constructor never binds to the test method's parameters at all; every one
+/// of them is composed in full. <typeparamref name="TConfig"/> is constructed positionally from this
+/// attribute's own constructor arguments, then <typeparamref name="TProfile"/> is constructed from that
+/// <typeparamref name="TConfig"/> instance and applied via
+/// <see cref="CompositionBuilder.AddProfile(ICompositionProfile)"/> - the same Compono-facing
+/// attribute family and semantics as <c>Compono.XunitV3.ComposeAttribute{TProfile,TConfig}</c>/
+/// `Compono.TUnit`'s own equivalent overload (ADR-0036); no MSTest-specific profile/configuration
+/// shape is introduced.
+/// </summary>
+/// <typeparam name="TProfile">
+/// The profile to construct and apply. Must have exactly one public constructor accepting exactly one
+/// <typeparamref name="TConfig"/>-typed parameter - no <c>new()</c> constraint, unlike
+/// <see cref="ComposeAttribute{TProfile}"/>, since this form is never default-constructed.
+/// </typeparam>
+/// <typeparam name="TConfig">
+/// The type this attribute's constructor arguments bind to, positionally, against its own single
+/// public constructor.
+/// </typeparam>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
+    where TProfile : ICompositionProfile
 {
-    // Mirrors Compono.XunitV3/Compono.TUnit's own instance-based profile
-    // overload (ADR-0036) - profile configuration arguments supplied at the
-    // attribute's own constructor.
+    /// <summary>
+    /// Creates a <see cref="ComposeAttribute{TProfile, TConfig}"/>.
+    /// </summary>
+    /// <param name="configArguments">
+    /// Profile configuration arguments, bound positionally to <typeparamref name="TConfig"/>'s single
+    /// public constructor - an entirely separate binding target from this attribute family's ordinary
+    /// inline values; every test method parameter is composed in full regardless of what's supplied
+    /// here.
+    /// </param>
+    public ComposeAttribute(params object?[] configArguments) : base() { }
+
+    internal override void ApplyProfile(CompositionBuilder builder);
 }
 
 [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
@@ -712,9 +752,13 @@ completion-gate checklist, recorded here so it isn't rediscovered piecemeal.
   (§7) means the accepted floor is, at the time of writing, a de facto
   unmaintained line — accepted as a floor expression, not a
   recommendation, per §7's own reasoning.
-- Row-binding logic is duplicated a third time rather than extracted,
-  matching `Compono.TUnit`'s own accepted "rule of three, not yet triggered"
-  tradeoff — a small, deliberate maintenance cost.
+- Row-binding logic is duplicated a third time rather than extracted. xUnit
+  v3 and MSTest share a `MethodInfo`-shaped binding input, but `Compono.TUnit`'s
+  input shape is materially different, so three packages still don't expose
+  a sufficiently stable common abstraction boundary — extracting now would
+  risk generalizing around superficial similarity rather than a proven
+  shared model. A small, deliberate maintenance cost, revisited if a fourth
+  data point (NUnit) shows the pattern actually generalizes.
 
 ## Pros and Cons of the Options
 
@@ -775,12 +819,143 @@ completion-gate checklist, recorded here so it isn't rediscovered piecemeal.
 - **Async composition** — out of scope, per RESEARCH-0016's already-settled
   principle; `ITestDataSource.GetData` has no async door regardless.
 - **Extracting a shared `BindingPlan`/`RowInvokers` base across all three
-  framework packages** — deferred until a fourth data point (a genuinely
-  new framework's binding-input shape) shows the pattern generalizes safely,
-  per `Compono.TUnit`'s own "rule of three" precedent.
+  framework packages** — deferred; xUnit v3 and MSTest share a
+  `MethodInfo`-shaped binding input but `Compono.TUnit`'s input shape is
+  materially different, so three packages don't yet expose a sufficiently
+  stable common abstraction boundary. Revisit if NUnit (a fourth,
+  independent data point) is researched and shows the pattern actually
+  generalizes.
 - **A `Compono.MSTest`-owned disposal mechanism** — not built; the existing
   non-ownership stance (RESEARCH-0015) is unchanged and unaffected by
   MSTest's discovery-time-composition possibility.
+
+## Amendment 1 (2026-09-02): `MSTest.TestFramework` minimum raised to `4.0.0` — the `3.0.0` floor is binary-incompatible, not just an untested range
+
+**What changed**: §7's accepted minimum supported version is raised from
+`MSTest.TestFramework` `3.0.0` to `MSTest.TestFramework` `4.0.0`. Every
+other decision in this ADR (§1-§6, §8-§16) is unaffected and stands as
+originally written.
+
+**The evidence, found during implementation, not anticipated by §7's
+original text**: `MSTest.TestFramework`'s 3.x line and 4.x line ship under
+**two different assembly identities**, not just two different version
+numbers of the same assembly:
+
+- Every `3.x` release, including the latest (`3.11.1`), compiles its
+  framework types into `Microsoft.VisualStudio.TestPlatform.TestFramework.dll`
+  (assembly name `Microsoft.VisualStudio.TestPlatform.TestFramework`) —
+  confirmed by direct inspection of the packed `.nupkg` for both `3.0.0`
+  and `3.11.1`.
+- Every `4.x` release (`4.0.0` through the current `4.3.3`) compiles the
+  same framework types into a renamed `MSTest.TestFramework.dll` (assembly
+  name `MSTest.TestFramework`) — confirmed by direct inspection of the
+  packed `4.3.3` `.nupkg`.
+- **No type-forwarder/facade assembly bridges the two.** Neither package
+  ships a compatibility shim; `4.3.3`'s `.nupkg` contains exactly one
+  physical assembly per target framework, under the new name only.
+
+**Why this invalidates §7's original reasoning, not just its evidence
+base**: §7 stated "No breaking change to `ITestDataSource` itself was
+found between 3.x and 4.x" and treated that as sufficient to support both
+lines from one compiled `Compono.MSTest.dll`. That claim is true at the
+C#-signature level and false at the level that actually determines whether
+one compiled binary works against both: `Compono.MSTest.ComposeAttribute`
+compiled against `3.x`'s `ITestDataSource` implements a **different,
+assembly-identity-scoped interface** than the one a `4.x` test host checks
+for at runtime — not a version-skew warning or a reflection fallback
+opportunity, a hard `FileNotFoundException`/type-identity mismatch.
+Reproduced directly during implementation: building `Compono.MSTest`
+against the CPM-resolved `3.0.0` floor and running a real MSTest test
+project pulling in the `MSTest` `4.3.3` meta-package failed immediately
+with `FileNotFoundException: Microsoft.VisualStudio.TestPlatform.TestFramework,
+Version=14.0.0.0`; forcing both projects onto `4.3.3` made the identical
+test suite pass with zero other changes. One compiled `Compono.MSTest.dll`
+genuinely cannot serve a `3.x` consumer and a `4.x` consumer at once —
+§7's original "a tested range, not a bare unbounded floor" framing assumed
+ordinary NuGet/API backward compatibility across the range, which does not
+hold here.
+
+**Why the fix is raising the floor, not shipping dual binaries**: the
+two lines being binary-incompatible means true "both-floors" support would
+require either multiple compiled variants (a `3.x`-targeting build and a
+`4.x`-targeting build, published and selected somehow) or equivalent
+TFM/asset-conditional packaging complexity — real, ongoing packaging cost
+for `Compono.MSTest`'s *first* release. Weighed against that: `MSTest`
+`3.x` has meaningful existing real-world usage (not being dismissed here)
+and §7's own already-accepted caveat that its latest release, `3.11.1`,
+has had no patch since 2025-11-11 (roughly nine months) while `4.x`
+continues active development — `4.x` is the currently-maintained line and
+the one `dotnet new mstest`/MTP default to today. For a new, pre-1.0
+integration package with no existing `Compono.MSTest` consumers to
+preserve compatibility for, the dual-binary/conditional-packaging cost is
+not justified by preserving a floor whose own package line is already
+accepted as de facto unmaintained. `Compono.MSTest` therefore establishes
+`MSTest.TestFramework` `4.0.0` as its support boundary; a consumer on
+`MSTest` `3.x` must upgrade to `4.x` to use `Compono.MSTest` — this is a
+deliberate product decision, not a claim that `3.x` is irrelevant or
+unused.
+
+**What is unaffected**: §8's MTP/VSTest support policy is untouched — this
+finding is about the `MSTest.TestFramework` *major version* a consumer
+references, not which execution platform they use; `Compono.MSTest`
+continues to support both MTP and the classic VSTest adapter, under
+`4.0.0`+, exactly as §8 already decided. §7's own "no breaking change to
+`TestMethodAttribute`/`ITestDataSource`'s two members since `v1.2.1`"
+capability-matrix claim stands unchanged for the `4.x` line itself — it
+was never about the `3.x`→`4.x` boundary this amendment addresses. The
+"Accepted caveat" paragraph in §7 (3.x de facto unmaintained) is now the
+amendment's own rationale rather than a caveat carried alongside a lower
+floor.
+
+**Revised minimum supported version statement (supersedes §7's own
+"`3.0.0` — not an even-older 1.x/2.x floor, and not `4.x`" framing for
+this one point only)**: `MSTest.TestFramework` `4.0.0` is the accepted
+floor. The `1.x`/`2.x`/`3.x` ranges are all rejected — `1.x`/`2.x` for the
+reason §7 already gave (legacy, pre-.NET-Core-consolidation generations
+with no realistic current adoption signal), `3.x` for this amendment's own
+binary-incompatibility finding.
+
+## Amendment 2 (2026-09-02): `GetDisplayName` is a discovery-time surface, not visible in ordinary execution output
+
+**What changed**: a precision correction to §15's "This surfaces the row's
+seed directly in Test Explorer/`dotnet test` output" sentence. That
+sentence is true for Test Explorer/discovery-mode listing but overstates
+`dotnet test`'s own ordinary *execution* output — every other decision in
+§15 (display-name format, no `TestContext.Properties` usage, parity under
+MTP/VSTest) stands unchanged.
+
+**The evidence, found during implementation**: `GetDisplayName` is called
+by MSTest during *discovery*/listing — `--list-tests` (MTP), `dotnet
+vstest -lt` (classic VSTest adapter), and Visual Studio Test Explorer's own
+tree population — confirmed directly under both runners, e.g.
+`ComposesTwoStrings_RealRun (Compono, seed: 1913922119)` appearing in
+`--list-tests` output. It is **not** called during an ordinary `dotnet
+test`/`dotnet vstest` *execution* run, under either MTP or the classic
+VSTest adapter — confirmed by direct instrumentation (a hit/miss counter
+on the `GetDisplayName`→`SeedByRow` lookup, reset per test class, read
+back after a real run): zero hits during ordinary execution, only during
+an explicit discovery/listing invocation.
+
+**Why this doesn't change §15's actual decision**: `GetDisplayName`
+remains the correct, and only, seed-reporting hook — MSTest's own
+`ITestDataSource` contract simply doesn't call it at execution time, the
+same way it doesn't hand `Compono.MSTest` any other execution-time
+metadata-reporting surface. This is a fact about *when MSTest itself
+invokes the hook*, not a design gap in `Compono.MSTest`'s own
+implementation of it. A composition *failure*'s seed is unaffected by this
+finding — `CompositionException.WithSeedInMessage` still puts the seed
+directly in the thrown exception's message on every pre-composition and
+composition-pipeline failure, independent of `GetDisplayName`, and that
+path *is* visible in ordinary execution output.
+
+**Correction to §15's own text**: read "This surfaces the row's seed
+directly in Test Explorer/`dotnet test` output" as "This surfaces the
+row's seed in Test Explorer/discovery-mode listing output (`--list-tests`,
+`dotnet vstest -lt`) — not in an ordinary `dotnet test`/`dotnet vstest`
+execution run's own console output, which never calls `GetDisplayName` at
+all." Downstream documentation (`docs/packages/compono-mstest.md`,
+`skills/compono/references/mstest.md`) states the corrected version
+directly.
 
 ## Links
 

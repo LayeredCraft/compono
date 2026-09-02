@@ -135,7 +135,7 @@ assert_dependency_range() {
     fi
 }
 
-for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http; do
+for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.MSTest; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -207,6 +207,11 @@ for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUn
             # No third-party dependency: TestHttpHandler is a plain HttpMessageHandler subclass
             # over System.Net.Http (BCL) - nothing else to range-assert here (ADR-0051 "Minimal
             # dependency graph").
+            ;;
+        Compono.MSTest)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — MSTest Integration"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            assert_dependency_range "$nuspec" "$pkg" "MSTest.TestFramework" "[4.0.0, 5.0.0)"
             ;;
     esac
 done

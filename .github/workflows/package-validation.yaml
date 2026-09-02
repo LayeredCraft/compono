@@ -47,7 +47,7 @@ jobs:
       - name: Resolve nuget.org baseline versions
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging; do
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest; do
             id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
             # No -f here: a non-2xx response must still reach the status-code branch
             # below (curl -f suppresses the body/short-circuits on HTTP errors), and
@@ -105,6 +105,7 @@ jobs:
           pack_one src/Compono.DependencyInjection/Compono.DependencyInjection.csproj BASELINE_Compono_DependencyInjection
           pack_one src/Compono.Http/Compono.Http.csproj BASELINE_Compono_Http
           pack_one src/Compono.Logging/Compono.Logging.csproj BASELINE_Compono_Logging
+          pack_one src/Compono.MSTest/Compono.MSTest.csproj BASELINE_Compono_MSTest
 
       - name: Enforce XML doc comments (CS1591) on publishable packages
         run: |
@@ -118,7 +119,8 @@ jobs:
             src/Compono.TestDoubles/Compono.TestDoubles.csproj \
             src/Compono.DependencyInjection/Compono.DependencyInjection.csproj \
             src/Compono.Http/Compono.Http.csproj \
-            src/Compono.Logging/Compono.Logging.csproj; do
+            src/Compono.Logging/Compono.Logging.csproj \
+            src/Compono.MSTest/Compono.MSTest.csproj; do
             echo "Building $csproj with CS1591 as an error"
             dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done
@@ -157,6 +159,14 @@ jobs:
         # proof tests exist in this project yet, so no --filter-not-class is needed.
         run: |
           dotnet test test/Compono.TUnit.SampleTests/Compono.TUnit.SampleTests.csproj \
+            -c Release
+
+      - name: Local-feed packed-consumer smoke test (Compono.MSTest)
+        # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
+        # source into .local-nuget-feed, restores as a real consumer would) - no deliberately-failing
+        # proof tests exist in this project yet, so no --filter-not-class is needed.
+        run: |
+          dotnet test test/Compono.MSTest.SampleTests/Compono.MSTest.SampleTests.csproj \
             -c Release
 
       - name: Local-feed packed-consumer smoke test (Compono.TestDoubles)

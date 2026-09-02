@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — MSTest Integration</Title>
+        <Description>MSTest integration for Compono - [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] ITestDataSource attributes and [Shared] parameter sharing.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.MSTest - matching Compono.XunitV3/Compono.TUnit's own precedent
+             (PLAN-0004 Phase 3's real packaging-bug lesson). -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <!-- MSTest.TestFramework only, per ADR-0057 §7 - not the MSTest umbrella package, which
+             transitively pulls MSTest.TestAdapter (a consumer-project/runner concern) into every
+             Compono.MSTest consumer's dependency graph unnecessarily. Floor 4.0.0, per ADR-0057
+             §7 Amendment 1 - MSTest.TestFramework's 3.x line ships under a different, binary-
+             incompatible assembly identity than 4.x's; one compiled Compono.MSTest.dll cannot
+             support both. -->
+        <PackageReference Include="MSTest.TestFramework" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.MSTest.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a
+         bare, minimum-inclusive version by default - rewrites the SDK's own
+         _ProjectReferencesWithVersions item (what GenerateNuspec actually reads) to bracket/exact
+         syntax instead. Matches every other integration package's own copy of this target. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

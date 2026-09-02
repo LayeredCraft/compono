@@ -405,6 +405,34 @@
         "Does not describe Share<T>() as a service locator or a way to retrieve a value without an ordinary composed parameter",
         "Does not conflate Share<T>() and [Shared] as the same mechanism"
       ]
+    },
+    {
+      "id": 35,
+      "category": "routing",
+      "prompt": "Write an MSTest test that composes an OrderService and reuses a mocked IOrderRepository across the composed graph, applying an NSubstitute profile. The project references Compono, Compono.MSTest, and Compono.NSubstitute - not Compono.XunitV3 or Compono.TUnit.",
+      "expected_output": "Uses [TestClass]/[TestMethod] + [Compose<TProfile>] (MSTest's own shape, with plain [TestMethod], never [DataTestMethod]) with a profile calling UseNSubstitute() and [Shared] on the substitute parameter - because Compono.MSTest and Compono.NSubstitute are referenced, not Compono.XunitV3 or Compono.TUnit.",
+      "files": [],
+      "expectations": [
+        "Uses [TestClass] and [TestMethod] + [Compose<TProfile>] (MSTest's own attributes), not [Theory]/xUnit v3 syntax or [Test]/TUnit syntax",
+        "Does not add [DataTestMethod] anywhere - [TestMethod] alone is correct with a custom ITestDataSource attribute",
+        "Applies UseNSubstitute() from a profile since Compono.NSubstitute is referenced",
+        "Uses [Shared] only on the substitute parameter that needs to be asserted against",
+        "Does not mix Compono.XunitV3-only or Compono.TUnit-only constructs into an MSTest test"
+      ]
+    },
+    {
+      "id": 36,
+      "category": "behavioral-correctness",
+      "prompt": "I have an MSTest test with [DataTestMethod] and both [DataRow(1, \"a\")] and [Compose] on the same method - I want [Compose] to fill in a second parameter that [DataRow] didn't supply, and I need this to work reliably every single time the test runs, since my [Compose]-composed parameter is built by a Register<T>() factory that increments a shared counter I assert against. The project references Compono and Compono.MSTest.",
+      "expected_output": "Corrects three separate misconceptions: (1) [DataTestMethod] is unnecessary and actively discouraged (MSTEST0044) - plain [TestMethod] is correct even with [Compose] present; (2) [DataRow] and [Compose] are independent, complete-row data sources that never merge - [Compose] cannot fill in a parameter [DataRow] left unspecified, each produces its own fully-independent test case; (3) MSTest may invoke [Compose]'s GetData more than once across separately-invoked discovery and execution sessions, so a side-effecting Register<T>() factory (like a shared counter) is not guaranteed to run exactly once per eventual test case - the counter-based assertion is not reliable as described.",
+      "files": [],
+      "expectations": [
+        "States that [DataTestMethod] is unnecessary/discouraged and [TestMethod] alone is correct",
+        "States that [DataRow] and [Compose] produce independent, complete rows and never merge - does not describe or endorse a partial-row-filling behavior",
+        "States that GetData/registration factories may run more than once across MSTest discovery and execution sessions, and that Compono makes no exactly-once guarantee for Register<T>()/ICompositionValueProvider factories",
+        "Does not claim or imply Compono.MSTest ships an exactly-once composition guarantee",
+        "Does not invent a workaround (custom caching, a static exactly-once flag) to force single invocation - correctly identifies this as an MSTest-runner-lifecycle property, not something to engineer around"
+      ]
     }
   ]
 }

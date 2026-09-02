@@ -173,9 +173,46 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsTUnitAll);
 
+        // Compono.MSTest's own [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed
+        // methods hit the identical discovery gap the xUnit v3/TUnit registrations above solve. See
+        // docs/adr/0057-compono-mstest-package-design.md's "Generator discovery" section.
+        var composeMethodResultsMSTest = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.MSTestAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeMethodsMSTest);
+
+        var composeGenericMethodResultsMSTest = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.MSTestGenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeGenericMethodsMSTest);
+
+        var composeTwoTypeParameterMethodResultsMSTest = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.MSTestTwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethodsMSTest);
+
+        var composeMethodResultsMSTestAll = composeMethodResultsMSTest.Collect()
+            .Combine(composeGenericMethodResultsMSTest.Collect())
+            .Combine(composeTwoTypeParameterMethodResultsMSTest.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeMethodsMSTestAll);
+
         var composeMethodResultsAll = composeMethodResultsXunitV3.Collect()
             .Combine(composeMethodResultsTUnitAll.Collect())
-            .SelectMany(static (results, _) => results.Left.Concat(results.Right))
+            .Combine(composeMethodResultsMSTestAll.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
@@ -555,6 +592,10 @@ internal static class TrackingNames
     public const string ComposeGenericMethodsTUnit = "ComposeMethods.TUnit.Generic";
     public const string ComposeTwoTypeParameterMethodsTUnit = "ComposeMethods.TUnit.TwoTypeParameter";
     public const string ComposeMethodsTUnitAll = "ComposeMethods.TUnit.All";
+    public const string ComposeMethodsMSTest = "ComposeMethods.MSTest";
+    public const string ComposeGenericMethodsMSTest = "ComposeMethods.MSTest.Generic";
+    public const string ComposeTwoTypeParameterMethodsMSTest = "ComposeMethods.MSTest.TwoTypeParameter";
+    public const string ComposeMethodsMSTestAll = "ComposeMethods.MSTest.All";
     public const string ComposeMethodsAll = "ComposeMethods.All";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";
