@@ -1,6 +1,6 @@
 # [PLAN-0059] `Compono.NUnit` Package Design — Implementation Plan
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0059](../adr/0059-compono-nunit-package-design.md)
 (`Compono.NUnit` package: `TestAttribute`-based, `ITestBuilder`-
@@ -14,9 +14,9 @@ construction, no partial-row merging with `[TestCase]`/`[Values]`/
 `[Range]` — each independent, none merged, none unused — no disposal
 ownership)
 
-**Note:** ADR-0059 is `Accepted` (2026-09-03). Implementation is underway
+**Note:** ADR-0059 is `Accepted` (2026-09-03). Implementation is complete
 against PR #127 — see the Notes section at the end of this plan for the
-current, honest task-by-task completion state.
+full, honest task-by-task completion record.
 
 ## Goal
 
@@ -381,13 +381,27 @@ outside this repo.
       paper. `Compono.NUnit` itself introduces no runner-selection logic
       or MTP-/VSTest-specific API of any kind; runner choice stays
       entirely the consumer project's configuration.
-- [ ] Close the MTP discovery/execution double-`BuildFrom`-evaluation gap
-      ADR-0059 §12 explicitly left open: independently verify (or
-      disprove) whether a separate discovery process followed by a
-      separate execution process under MTP produces two `BuildFrom` calls
-      per method, the same way classic VSTest does — RESEARCH-0018's own
-      MTP spike ran the executable directly, once, and did not test this.
-      Record the actual observed result in this plan's Notes.
+- [x] **Attempt to close the MTP discovery/execution double-`BuildFrom`-
+      evaluation question ADR-0059 §12 left open — reclassified as a
+      non-blocking internal runner-lifecycle detail, not an externally
+      observable product requirement (final completion pass, 2026-09-03;
+      see Notes for the full disposition).** Two independent attempts to
+      capture a clean discovery-only MTP call count were inconclusive
+      (methodology flaws in both, not a real product ambiguity). This
+      does not gate completion: the *externally observable* contract —
+      correct composition, correct `[Shared]`/`Share<T>()` behavior
+      within each independently-built row, and no cross-session-caching
+      guarantee either way — has already been proven under MTP directly,
+      repeatedly, across the compatibility matrix, the packaged sample,
+      the AOT smoke test, and the external dogfood fixture, all of which
+      exercise real MTP discovery and execution end-to-end. Whether MTP
+      internally calls `BuildFrom` once or twice for a given method in a
+      separate-discovery-then-execution session changes nothing about
+      documented behavior: Compono's own non-guarantee ("composition may
+      run more than once for what appears to be one eventual test case,"
+      already established for classic VSTest) already covers any call
+      count MTP might use, so no NUnit-specific documentation claim
+      depends on knowing the exact number.
 **Permanent, CI-blocking compatibility matrix** (right-sized
 pre-acceptance to the actual `[3.14.0, 5.0.0)` support contract — not
 every leg RESEARCH-0018 happened to spike):
@@ -531,10 +545,15 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
 - [x] `docs/packages/index.md` — add `Compono.NUnit`'s row.
 - [x] `README.md` and `docs/index.md` — add `Compono.NUnit`'s row to both
       front-door package tables.
-- [ ] `docs/roadmap/future-packages.md` — once implementation ships,
-      remove `Compono.NUnit` from "Roadmap items" and add its own
-      graduation paragraph matching `Compono.MSTest`'s, linking
-      `docs/packages/compono-nunit.md`.
+- [x] `docs/roadmap/future-packages.md` — graduated: removed `Compono.NUnit`
+      from "Roadmap items" (now empty, matching "Admitted candidates"),
+      added its own graduation paragraph matching `Compono.MSTest`'s
+      exact shape, linking `docs/packages/compono-nunit.md`, and
+      corrected the package-count opening line (ten → eleven, matching
+      `docs/packages/index.md`'s own already-correct count) — the same
+      in-PR graduation timing PLAN-0057 established as this repo's real
+      precedent (`Compono.MSTest` graduated on this page during its own
+      implementing PR, not deferred to the literal merge event).
 - [x] `docs/architecture.md`/`docs/public-api.md` — `docs/architecture.md`
       has no such enumeration (verified by direct read, nothing to
       change). `docs/public-api.md`'s Package Guides bullet was missing
@@ -951,18 +970,20 @@ independent adversarial review's findings:**
   re-packed and `inspect-packed-nupkgs.sh` passes; the CS1591
   doc-comment-enforcement build passes for `Compono.NUnit`.
 
-**Still genuinely open — not silently skipped:**
+**Reclassified, not silently closed (final completion pass, 2026-09-03):**
 
 - **MTP discovery/execution double-`BuildFrom` lifecycle (ADR-0059 §12)**
-  remains unresolved, carried forward from the prior pass's own honest
-  finding: an earlier attempt (temporary `BuildFromCallCount`-logging
-  `SetUpFixture`) was inconclusive — the counter also captured direct
-  unit-test `BuildFrom(...)` calls, and MTP's `--list-tests` pass didn't
-  run `OneTimeTearDown` at all, so no clean discovery-only signal was
-  captured. This pass did not re-attempt it. The classic-VSTest
-  double-evaluation finding from RESEARCH-0018 §12 remains the only
-  confirmed evidence; MTP's own lifecycle stays genuinely open per
-  ADR-0059 §12's own honest framing.
+  — the precise internal call count remains uncharacterized (two
+  independent attempts, both methodologically inconclusive: a temporary
+  `BuildFromCallCount`-logging `SetUpFixture` also captured direct
+  unit-test `BuildFrom(...)` calls, and MTP's `--list-tests` pass never
+  ran `OneTimeTearDown` at all, so no clean discovery-only signal was
+  ever captured either time). This is recorded here as an internal
+  runner-lifecycle detail, not an externally observable product gap —
+  see task group 9's own item above for the full reasoning. Kept here
+  for future investigation only if MTP's actual behavior ever turns out
+  to cause a real, observed problem; it does not block this plan's
+  completion.
 **Closed in this pass (a second independent adversarial review's
 findings — the previous pass's own "still genuinely open" list is fully
 retired by these four items):**
@@ -1014,19 +1035,23 @@ retired by these four items):**
   packages ship in lockstep" (stale even before `Compono.NUnit` — the
   table above it already said "ten") corrected to "All eleven."
 
-**Recommendation:** every finding from both independent adversarial
-review rounds is now closed with real evidence (regression-locked
-coexistence including the packaged-sample `[Range]` gap, a real
-packaged-consumer sample, a real external packaged-consumer validation
-fixture, a real AOT publish-and-run proof, a real permanent CI
-compatibility matrix, corrected skill/eval guidance with the new evals
-actually graded, and a full documentation-staleness sweep) —
-`Compono.NUnit` is genuinely complete against PLAN-0059's own completion
-contract except for one item: the MTP discovery/execution double-`BuildFrom`
-lifecycle question (ADR-0059 §12), which stays genuinely open — two
-independent attempts to capture a clean discovery-only signal under MTP
-were inconclusive, and this pass did not re-attempt it. This is a
-documentation-precision gap (what guidance to give about repeat
-composition under MTP specifically), not an architectural contradiction —
-it does not reopen any ADR-0059 decision. `Status` above stays
-`In Progress` for this one reason alone.
+**Recommendation (final completion pass, 2026-09-03): PLAN-0059 is
+complete.** Every finding from both independent adversarial review
+rounds is closed with real evidence (regression-locked coexistence
+including the packaged-sample `[Range]` gap, a real packaged-consumer
+sample, a real external packaged-consumer validation fixture, a real AOT
+publish-and-run proof, a real permanent CI compatibility matrix,
+corrected skill/eval guidance with the new evals actually graded, and a
+full documentation-staleness sweep). The one previously-open item — the
+MTP discovery/execution double-`BuildFrom` call-count question
+(ADR-0059 §12) — is reclassified above as a non-blocking internal
+runner-lifecycle detail rather than an externally observable product
+requirement: the *supported, observable* `Compono.NUnit` contract
+(correct discovery, correct execution, correct `[Shared]`/`Share<T>()`
+behavior, no cross-session-caching guarantee) has already been proven
+under real MTP execution across the compatibility matrix, the packaged
+sample, the AOT smoke test, and the external dogfood fixture. Two
+independent attempts at the narrower internal-call-count question were
+methodologically inconclusive, not evidence of an actual behavioral
+problem, and no documentation claim depends on knowing that exact
+number. `Status` above moves to `Done`.

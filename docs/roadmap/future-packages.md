@@ -1,11 +1,11 @@
 # Future Packages
 
 Compono's shipped package set (see [Package Guides](../packages/index.md))
-is ten independently installable packages — `Compono`, `Compono.XunitV3`,
+is eleven independently installable packages — `Compono`, `Compono.XunitV3`,
 `Compono.NSubstitute`, `Compono.Bogus`, `Compono.TUnit`,
 `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`,
-`Compono.Logging`, and `Compono.MSTest` — plus `Compono.Generators`, which
-is not an eleventh installable package at all.
+`Compono.Logging`, `Compono.MSTest`, and `Compono.NUnit` — plus
+`Compono.Generators`, which is not a twelfth installable package at all.
 It's `IsPackable=false`
 ([ADR-0003](../adr/0003-generator-package-distribution.md)) and ships
 embedded inside `Compono`'s own `.nupkg` as an analyzer
@@ -46,18 +46,16 @@ including Amendment 1, which raised the supported `MSTest.TestFramework`
 floor from `3.0.0` to `4.0.0` after implementation found the `3.x`/`4.x`
 lines are binary-incompatible) — see
 [`Compono.MSTest`](../packages/compono-mstest.md) for what it ships.
-`Compono.NUnit` moved from this page's "Admitted candidates" list to a
-roadmap item on 2026-09-02: Gate A is satisfied and Gate B was satisfied
-by an explicit product-owner request (not dogfooding evidence — none
-exists, per
-[RESEARCH-0018](../research/0018-nunit-integration-viability-research.md)
-§2), the same mechanism that already gated `Compono.TUnit` and
-Compono-owned source-generated test doubles. See
+`Compono.NUnit` graduated from this page's roadmap once
+[PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md)'s
+implementation completed (`Done`) against
 [ADR-0059](../adr/0059-compono-nunit-package-design.md) (`Accepted`
-2026-09-03) for the package design, and
-[PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md)
-(`In Progress`) for the implementation, underway on PR #127 — see the
-"Roadmap items" entry below for current status.
+2026-09-03) — Gate A satisfied with stronger, spike-verified evidence
+([RESEARCH-0018](../research/0018-nunit-integration-viability-research.md)
+§2), Gate B satisfied by an explicit product-owner request (not
+dogfooding evidence), the same mechanism that already gated
+`Compono.TUnit` and Compono-owned source-generated test doubles — see
+[`Compono.NUnit`](../packages/compono-nunit.md) for what it ships.
 
 ## Admission model
 
@@ -86,44 +84,20 @@ roadmap content. Compono-owned source-generated test doubles made the same
 full progression, shipping as `Compono.TestDoubles` once
 [PLAN-0043](../plans/0043-compono-generated-test-doubles.md) completed —
 see [`Compono.TestDoubles`](../packages/compono-testdoubles.md), also not
-roadmap content anymore. `Compono.NUnit` is the one candidate currently at
-roadmap-item status — see below.
+roadmap content anymore. No candidate currently sits at roadmap-item
+status — `Compono.NUnit` made the same full progression and graduated
+too, see above.
 
 ## Roadmap items (cleared Gate A and Gate B)
 
-- **`Compono.NUnit`** — Gate A reconfirmed with stronger, spike-verified
-  evidence ([RESEARCH-0018](../research/0018-nunit-integration-viability-research.md)
-  §2); Gate B satisfied by explicit product-owner request (2026-09-02),
-  not dogfooding evidence. Package design **accepted** as
-  [ADR-0059](../adr/0059-compono-nunit-package-design.md) (`Accepted`
-  2026-09-03, after two rounds of pre-acceptance adversarial review) —
-  the extension seam is `ComposeAttribute : TestAttribute, ITestBuilder`
-  with `BuildFrom` declared `new` (spike-verified: no `[TestFixture]`
-  attribute needed at all, and the `new` declaration eliminates `CS0108`
-  with no behavioral difference), and the initial supported range is
-  `NUnit >= 3.14.0, < 5.0.0` (NUnit 5 tracked as forward-compatibility
-  surveillance until it ships stable). Implementation is **in progress** —
-  [PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md)
-  (`In Progress`) tracks what's done (core package, binding, generator
-  wiring, regression-locked discovery/coexistence contracts, the packaged-
-  consumer sample, the AOT smoke test, the permanent CI compatibility
-  matrix, package/API-reference validation, and skill/eval synchronization)
-  and what genuinely remains (the separate-repo external packaged-consumer
-  validation fixture, the MTP double-evaluation lifecycle question, and
-  automated eval grading — see PLAN-0059's own Notes section for detail).
-  Will move to
-  [Package Guides](../packages/index.md) once shipped, matching
-  `Compono.TUnit`/`Compono.TestDoubles`/`Compono.MSTest`'s own graduation
-  pattern.
-
-`Compono.TUnit` and Compono-owned source-generated test doubles made the
-same full progression earlier — see the Admission model note above; both
-shipped as packages and moved to [Package Guides](../packages/index.md).
+None currently. `Compono.TUnit`, Compono-owned source-generated test
+doubles, and `Compono.NUnit` were the three candidates to reach this
+status — see the Admission model note above; all three shipped as
+packages and moved to [Package Guides](../packages/index.md).
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
-None currently. `Compono.NUnit` was the sole remaining admitted candidate
-and has graduated to a roadmap item above.
+None currently.
 
 ## Documentation-only ideas (do not clear Gate A as packages today)
 

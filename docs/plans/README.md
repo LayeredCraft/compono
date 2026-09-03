@@ -73,4 +73,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0056](0056-composition-builder-share-graph-wide-sharing-impl-plan.md) | `CompositionBuilder.Share<T>()`: Graph-Wide Sharing | Done |
 | [0057](0057-compono-mstest-package-design-impl-plan.md) | `Compono.MSTest` Package Design | Done |
 | [0058](0058-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | In Progress |
-| [0059](0059-compono-nunit-package-design-impl-plan.md) | Compono.NUnit Package Design | In Progress |
+| [0059](0059-compono-nunit-package-design-impl-plan.md) | Compono.NUnit Package Design | Done |
