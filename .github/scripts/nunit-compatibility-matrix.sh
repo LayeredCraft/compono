@@ -69,11 +69,24 @@ for lib in data['libraries']:
     local exe="$project_dir/bin/$configuration/$tfm/Compono.NUnit.CompatibilityMatrix"
 
     echo "::group::NUnit ${nunit_version} - classic VSTest"
-    dotnet vstest "$dll"
+    # Explicit exit-code capture, not bare `set -e` propagation: `run_leg` is called as the
+    # condition of an `if` for the surveillance leg below, and Bash disables `errexit` inside a
+    # function for the duration of a call made in that context - a failing `dotnet vstest`/`$exe`
+    # here would otherwise be silently swallowed (execution falls through to the next line instead
+    # of aborting), and the function would return the *last* command's exit status (a trailing
+    # `echo`, which always succeeds) rather than the real failure - hiding exactly the compatibility
+    # signal this script exists to collect.
+    if ! dotnet vstest "$dll"; then
+        echo "::error::NUnit ${nunit_version} failed under classic VSTest." >&2
+        return 1
+    fi
     echo "::endgroup::"
 
     echo "::group::NUnit ${nunit_version} - MTP"
-    "$exe"
+    if ! "$exe"; then
+        echo "::error::NUnit ${nunit_version} failed under MTP." >&2
+        return 1
+    fi
     echo "::endgroup::"
 }
 

@@ -535,14 +535,15 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
       remove `Compono.NUnit` from "Roadmap items" and add its own
       graduation paragraph matching `Compono.MSTest`'s, linking
       `docs/packages/compono-nunit.md`.
-- [ ] `docs/architecture.md`/`docs/public-api.md` — wherever these
-      enumerate supported test frameworks or package guides, add NUnit;
-      verify by direct read whether either currently states an
-      exhaustive/closed framework list that would become stale by
-      omission.
-- [ ] `docs/concepts/shared-values.md`/`docs/getting-started/installation.md`
-      or equivalent how-to pages — extend to name `Compono.NUnit`
-      alongside the existing framework packages.
+- [x] `docs/architecture.md`/`docs/public-api.md` — `docs/architecture.md`
+      has no such enumeration (verified by direct read, nothing to
+      change). `docs/public-api.md`'s Package Guides bullet was missing
+      `Compono.NUnit`; added.
+- [x] `docs/concepts/shared-values.md`/`docs/getting-started/installation.md`
+      — both now name `Compono.NUnit` alongside the existing framework
+      packages (install command, "doesn't add a test host" caveat,
+      `[Shared]` scope description, and the package-guide cross-link
+      list).
 - [x] Public-API/reference regeneration (`docs/reference/api`) — per
       ADR-0032, regenerate `docs/reference/api/Compono.NUnit/` as part of
       this PR.

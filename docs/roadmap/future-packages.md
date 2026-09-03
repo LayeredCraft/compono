@@ -55,10 +55,9 @@ exists, per
 Compono-owned source-generated test doubles. See
 [ADR-0059](../adr/0059-compono-nunit-package-design.md) (`Accepted`
 2026-09-03) for the package design, and
-[PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md) for
-the implementation plan prepared against it. Implementation has not
-begun — `PLAN-0059` stays `Not Started` until work actually starts, not
-merely because the ADR is accepted.
+[PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md)
+(`In Progress`) for the implementation, underway on PR #127 — see the
+"Roadmap items" entry below for current status.
 
 ## Admission model
 
@@ -106,10 +105,13 @@ roadmap-item status — see below.
   surveillance until it ships stable). Implementation is **in progress** —
   [PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md)
   (`In Progress`) tracks what's done (core package, binding, generator
-  wiring, discovery/coexistence behavioral contracts, package/API-reference
-  validation) and what remains (packaged-consumer sample/external
-  validation, AOT smoke test, CI wiring — see its own Notes section). Will
-  move to
+  wiring, regression-locked discovery/coexistence contracts, the packaged-
+  consumer sample, the AOT smoke test, the permanent CI compatibility
+  matrix, package/API-reference validation, and skill/eval synchronization)
+  and what genuinely remains (the separate-repo external packaged-consumer
+  validation fixture, the MTP double-evaluation lifecycle question, and
+  automated eval grading — see PLAN-0059's own Notes section for detail).
+  Will move to
   [Package Guides](../packages/index.md) once shipped, matching
   `Compono.TUnit`/`Compono.TestDoubles`/`Compono.MSTest`'s own graduation
   pattern.

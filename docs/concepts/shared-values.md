@@ -48,8 +48,9 @@ Disposal is out of scope for `Share<T>()`, same as everywhere else in
 
 ## `[Shared]`
 
-`Compono.XunitV3`'s, `Compono.TUnit`'s, and `Compono.MSTest`'s own
-`[Shared]` attribute marks a single `[Compose]`-attributed parameter whose
+`Compono.XunitV3`'s, `Compono.TUnit`'s, `Compono.MSTest`'s, and
+`Compono.NUnit`'s own `[Shared]` attribute marks a single
+`[Compose]`-attributed parameter whose
 value is reused by
 type for every other composed parameter (or nested dependency) in that
 same test row that structurally requests the same type — a row-scoped,
@@ -112,8 +113,9 @@ should be two different customers).
 involved at all, as well as under `CompositionRow` (`Composer.CreateRow`/
 any `Compose`-family package's own row binding).
 
-`[Shared]` remains scoped to a `Compono.XunitV3`-, `Compono.TUnit`-, or
-`Compono.MSTest`-owned `[Compose]` row specifically — sharing is
+`[Shared]` remains scoped to a `Compono.XunitV3`-, `Compono.TUnit`-,
+`Compono.MSTest`-, or `Compono.NUnit`-owned `[Compose]` row specifically —
+sharing is
 type-keyed, not name-keyed, every parameter/nested dependency requesting
 exactly that type in the row shares the value regardless of what it's
 called, and a method can't declare two `[Shared]` parameters of the same
@@ -134,6 +136,8 @@ duplicated rather than shared across packages — see ADR-0040's
   [`Compono.TUnit` Package Guide](../packages/compono-tunit.md).
 - Where sharing fits among `Compono.MSTest`'s own attributes →
   [`Compono.MSTest` Package Guide](../packages/compono-mstest.md).
+- Where sharing fits among `Compono.NUnit`'s own attributes →
+  [`Compono.NUnit` Package Guide](../packages/compono-nunit.md).
 - Apply it to a real test → [Share a Value Across a Test](../how-to/share-a-value-across-a-test.md).
 - The independent-by-default composition each shared value overrides →
   [The Composition Model](composition-model.md).
