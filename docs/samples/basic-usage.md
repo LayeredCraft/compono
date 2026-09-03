@@ -23,10 +23,14 @@ deliberately not broad. Real, buildable code:
   paths — `builder.WithSeed(...)` for programmatic composition, and
   `[Compose(Seed = ...)]` for a composed theory row — kept distinct rather
   than cross-compared, since each derives its own seed independently.
+- A `Compono.Logging` scenario (`LoggingTests`): a `[Shared]`
+  `ILogger<NotificationService>`, composed via `UseLogging()`, captures what
+  `NotificationService` actually logged, asserted with `Verify()` — see the
+  [`Compono.Logging` Package Guide](../packages/compono-logging.md).
 
 ## Packages
 
-`Compono`, `Compono.XunitV3`.
+`Compono`, `Compono.XunitV3`, `Compono.Logging`.
 
 ## Running it
 

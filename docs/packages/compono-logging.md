@@ -300,6 +300,9 @@ the rationale behind each:
 
 ## Next
 
+- [Basic Usage sample](../samples/basic-usage.md) (`LoggingTests`) — a
+  concise `UseLogging()`/`Verify()` scenario in this repo's single clearest
+  reference project.
 - [`Compono.XunitV3`](compono-xunitv3.md)/[`Compono.TUnit`](compono-tunit.md)
   — `[Compose]`/`[Shared]` used throughout the examples above.
 - [`Compono.NSubstitute`](compono-nsubstitute.md)/[`Compono.TestDoubles`](compono-testdoubles.md)

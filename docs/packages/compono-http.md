@@ -189,6 +189,9 @@ rationale behind each:
 
 ## Next
 
+- [ASP.NET API sample](../samples/aspnet-api.md) (`ShippingClientTests`) —
+  a real outbound-HTTP-calling service tested against a composed
+  `TestHttpHandler`, in a realistic multi-layer application.
 - [`Compono.TestDoubles`](compono-testdoubles.md)/[`Compono.NSubstitute`](compono-nsubstitute.md)
   — for `IHttpClientFactory` or any other ordinary interface dependency.
 - [`Compono.XunitV3`](compono-xunitv3.md) — `[Compose]`/`[Shared]` used

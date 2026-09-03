@@ -31,10 +31,20 @@ usage stays the dominant content. Real, buildable code:
   a direct method call.
 - Deterministic [seed reproduction](../concepts/determinism-and-seeding.md)
   for the composed `Customer` data.
+- A `Compono.Http` scenario (`ShippingClientTests`): a `[Shared]`
+  `TestHttpHandler` stands in for a real external carrier API `ShippingClient`
+  calls through a real `HttpClient` pipeline — see the
+  [`Compono.Http` Package Guide](../packages/compono-http.md).
+- A `Compono.DependencyInjection` scenario (`DependencyInjectionTests`):
+  `row.AsServiceProvider()` bridges a Compono-configured `IOrderRepository`
+  into the host's own `IServiceCollection`, resolved through a real ASP.NET
+  Core host — see the
+  [`Compono.DependencyInjection` Package Guide](../packages/compono-dependencyinjection.md).
 
 ## Packages
 
-`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`.
+`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`,
+`Compono.Http`, `Compono.DependencyInjection`.
 
 ## Running it
 

@@ -12,6 +12,13 @@
          in this repo (see test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj). -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- ComponoGeneratedLogging (ADR-0055 Amendment 3) is only automatically defaulted true for a
+         PackageReference consumer, via Compono.Logging's own packed build/Compono.Logging.props -
+         this project's ProjectReference above bypasses packaged build assets entirely, so it must
+         set the property itself. Matches
+         samples/Compono.Samples.AspNetApi.Tests/Compono.Samples.AspNetApi.Tests.csproj's identical
+         fix for ComponoGeneratedTestDoubles under the identical ProjectReference situation. -->
+    <ComponoGeneratedLogging>true</ComponoGeneratedLogging>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,9 +43,14 @@
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Logging/Compono.Logging.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Generators/Compono.Generators.csproj"
                        OutputItemType="Analyzer"
                        ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoGeneratedLogging" />
   </ItemGroup>
 
 </Project>

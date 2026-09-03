@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+
 namespace Compono.Samples.AspNetApi;
 
 /// <summary>
@@ -52,4 +54,41 @@ public sealed class OrderService
     /// </summary>
     public Task<Order> PlaceAsync(PlaceOrder command, CancellationToken cancellationToken) =>
         _repository.SaveAsync(new Order(Guid.NewGuid(), command.CustomerName, command.Quantity), cancellationToken);
+}
+
+/// <summary>
+/// A shipping label issued by the external carrier <see cref="ShippingClient"/> calls out to.
+/// </summary>
+public sealed record ShippingLabel(string TrackingNumber, string Carrier);
+
+/// <summary>
+/// Calls a real external HTTP carrier API to request a <see cref="ShippingLabel"/> for a placed
+/// <see cref="Order"/> - the outbound HTTP dependency <c>Compono.Http</c>'s sample scenario
+/// exercises. A typed client (see <c>Program.cs</c>'s <c>AddHttpClient&lt;ShippingClient&gt;</c>
+/// registration), not a hand-rolled <see cref="HttpClient"/> wrapper - Compono usage stays the
+/// point, not a bespoke HTTP abstraction.
+/// </summary>
+public sealed class ShippingClient
+{
+    private readonly HttpClient _httpClient;
+
+    /// <summary>
+    /// Creates a new <see cref="ShippingClient"/> over <paramref name="httpClient"/>.
+    /// </summary>
+    public ShippingClient(HttpClient httpClient)
+    {
+        _httpClient = httpClient;
+    }
+
+    /// <summary>
+    /// Requests a <see cref="ShippingLabel"/> for <paramref name="order"/> from the carrier's
+    /// <c>POST /v1/labels</c> endpoint.
+    /// </summary>
+    public async Task<ShippingLabel> RequestLabelAsync(Order order, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsJsonAsync(
+            "/v1/labels", new { orderId = order.Id, quantity = order.Quantity }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ShippingLabel>(cancellationToken))!;
+    }
 }
