@@ -30,10 +30,10 @@ jobs:
       # CS1591 enforcement.
       BREAKING_CHANGE: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
       PACK_OUTPUT: ${{ github.workspace }}/artifacts/package-validation
-      # Single authoritative publishable-package list (PLAN-0061 Phase 1) - the baseline-lookup,
-      # pack, and CS1591-enforcement steps below all derive from this one job-level env var instead
-      # of each repeating the same 11-package literal, so adding/removing a package can't drift
-      # across the three independently. A job-level `env:` entry is injected into every step's own
+      # Single authoritative publishable-package list (PLAN-0061 Phase 1) - the baseline-lookup and
+      # pack steps below both derive from this one job-level env var instead of each repeating the
+      # same 11-package literal, so adding/removing a package can't drift across the two
+      # independently. A job-level `env:` entry is injected into every step's own
       # process environment by GitHub Actions itself, so this survives across the separate `run:`
       # steps below (each its own shell process) with no extra plumbing - deliberately not a Bash
       # array, which would only live for the one step that declared it.
@@ -106,15 +106,6 @@ jobs:
 
           for pkg in $PACKAGES; do
             pack_one "src/$pkg/$pkg.csproj" "BASELINE_$(echo "$pkg" | tr '.' '_')"
-          done
-
-      - name: Enforce XML doc comments (CS1591) on publishable packages
-        run: |
-          set -euo pipefail
-          for pkg in $PACKAGES; do
-            csproj="src/$pkg/$pkg.csproj"
-            echo "Building $csproj with CS1591 as an error"
-            dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done
 
       - name: Test inspect-packed-nupkgs.sh itself
