@@ -165,7 +165,7 @@ promised invariant, rather than correcting the comment.
 
 ### Phase 1 — Product correctness and repository quality gate
 
-**Status:** In Progress
+**Status:** Done
 
 Ships as its own PR.
 
@@ -293,7 +293,7 @@ Ships as its own PR.
         public-API coverage beyond what each smoke consumer actually
         exercises, and explicitly not claiming the test framework's own
         runner/host is Native-AOT compatible.
-- [ ] Full `dotnet build`/`dotnet test Compono.slnx`, `package-validation.yaml`,
+- [x] Full `dotnet build`/`dotnet test Compono.slnx`, `package-validation.yaml`,
       and the new `aot-validation.yaml` all green.
 
 ### Phase 2 — Canonical samples
@@ -382,3 +382,38 @@ Ships as its own PR, after Phase 1 merges.
 The framework-binder duplication research (RESEARCH-0019) is intentionally
 absent from both phases' task lists — it runs independently and does not
 gate either PR.
+
+**Phase 1 validation (2026-09-03), PR #128:**
+
+- `dotnet build Compono.slnx -c Release` — 0 errors.
+- `dotnet test Compono.slnx -c Release` — 3478/3478 passed locally; CI's own
+  `build`/`build / build` checks green (one transient exit-143 flake on the
+  `PR Build` job, unrelated to this PR's diff — `test/Compono.MSTest.AotSmokeTest`
+  isn't part of `Compono.slnx` at all, and the identical flake pattern
+  independently appears on unrelated branches in this repo's own recent CI
+  history; resolved by re-running the job, no code change).
+- `package-validation.yaml` green — all 11 packages pack, CS1591-clean,
+  nupkg contents inspected, all 5 `*SampleTests` projects pass, NUnit
+  compatibility matrix passes.
+- `aot-validation.yaml` (new): `changes` job correctly detected this PR's
+  core/generator-touching diff and ran all eight legs; all eight passed,
+  including the two outlier legs' extra steps
+  (`Compono.Logging.AotSmokeTest/verify-packaging.sh`,
+  `Compono.Http.AotSmokeTest/AnalyzerContract/verify-analyzer-contract.sh`);
+  `aot-gate` resolved to `pass`.
+- **Deliberate-failure proof performed and reverted**: a temporary commit
+  made `Compono.MSTest`'s AOT leg throw unconditionally. Result: that one
+  leg failed, the other seven passed independently (`fail-fast: false`
+  confirmed working), and `aot-gate` correctly resolved to `fail` — proving
+  the required check actually blocks on a real failure, not just reports
+  green reflexively. The breaking commit was reverted in the next commit
+  before this phase was considered done; the final push is all-green again.
+- Fixed one real bug found during this validation, not scoped by the
+  original plan: `aot-validation.yaml`'s `setup-dotnet` step only installed
+  the `10.0.x` SDK, but this repo's `global.json` pins a preview `11.0.x`
+  SDK for the *whole checkout* — `dotnet` CLI resolution failed entirely
+  (not just for `net11.0`-specific work) until the workflow installed all
+  four SDK majors, matching `pr-build.yaml`/`package-validation.yaml`'s own
+  established convention.
+- PR title required a lowercase-subject fix (`amannn/action-semantic-pull-request`'s
+  enforced convention) — mechanical, no scope impact.
