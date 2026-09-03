@@ -10,17 +10,6 @@ namespace Compono.Generators.Emitters;
 /// </summary>
 internal static class TestDoubleEmitter
 {
-    // Same rationale as CompositionPlanEmitter.GeneratorVersion - read once from this assembly's own
-    // metadata so the emitted GeneratedCodeAttribute stays accurate as the generator's version changes.
-    private static readonly string GeneratorVersion =
-        typeof(TestDoubleEmitter).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
-            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>()
-            .Select(a => a.InformationalVersion)
-            .FirstOrDefault()
-        ?? typeof(TestDoubleEmitter).Assembly.GetName().Version?.ToString()
-        ?? "0.0.0";
-
     public static void Generate(SourceProductionContext context, DiscoveredTestDoubleInfo testDouble)
     {
         var model = new
@@ -235,7 +224,7 @@ internal static class TestDoubleEmitter
                         : $"({string.Join(", ", m.Parameters.Select(p => p.EscapedName))})",
                 };
             }).ToArray(),
-            GeneratorVersion,
+            GeneratorVersion = GeneratorVersion.Current,
         };
 
         var source = TemplateHelper.Render("TestDouble.scriban", model);

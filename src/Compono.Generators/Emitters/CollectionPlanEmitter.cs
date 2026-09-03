@@ -11,15 +11,6 @@ namespace Compono.Generators.Emitters;
 /// </summary>
 internal static class CollectionPlanEmitter
 {
-    private static readonly string GeneratorVersion =
-        typeof(CollectionPlanEmitter).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
-            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>()
-            .Select(a => a.InformationalVersion)
-            .FirstOrDefault()
-        ?? typeof(CollectionPlanEmitter).Assembly.GetName().Version?.ToString()
-        ?? "0.0.0";
-
     public static void Generate(SourceProductionContext context, DiscoveredCollectionInfo collection)
     {
         var model = new
@@ -30,7 +21,7 @@ internal static class CollectionPlanEmitter
             ElementNullability = collection.ElementIsNullable ? "global::Compono.Nullability.Nullable" : "global::Compono.Nullability.NotNullable",
             KeyType = collection.KeyFullyQualifiedTypeName,
             KeyNullability = collection.KeyIsNullable ? "global::Compono.Nullability.Nullable" : "global::Compono.Nullability.NotNullable",
-            GeneratorVersion,
+            GeneratorVersion = GeneratorVersion.Current,
         };
 
         var source = TemplateHelper.Render("CollectionPlan.scriban", model);

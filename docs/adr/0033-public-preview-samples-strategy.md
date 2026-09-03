@@ -263,3 +263,74 @@ amendment narrows the *current* decision, it doesn't rule that out.
   same mechanism applied here
 - [PLAN-0008](../plans/0008-milestone-8-public-preview.md) — Phase 4
   builds both samples
+
+## Amendment 2 (2026-09-03): Canonical sample coverage extended to `Compono.Http`, `Compono.DependencyInjection`, and `Compono.Logging`
+
+This ADR's original launch set (Basic Usage + ASP.NET API) was deliberately
+scoped to the MVP's own four-package success criteria — `Compono`,
+`Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus` — and never claimed
+"every Compono package gets a sample." `Compono.Http`, `Compono.DependencyInjection`,
+and `Compono.Logging` didn't exist when this ADR was written. The pre-1.0
+cleanup gate (PLAN-0061) found these three are the only publishable Compono
+packages with zero example-level coverage anywhere in the repository — no
+`samples/` project and no `test/*SampleTests` packaged-consumer proof, unlike
+every other extension package. This amendment extends this ADR's scope to
+close that gap, before the 1.0 public API contract freezes, while preserving
+this ADR's original "real, CI-maintained code — every sample multiplies
+ongoing maintenance burden" driver and its explicit rejection (Considered
+Options, launch-set-size Option 3) of a one-project-per-package approach.
+
+**Decision: extend the two existing launch samples, add no new top-level
+sample projects.**
+
+- **`Compono.Samples.AspNetApi`** gains two scenarios: a `Compono.Http`
+  scenario (handler-based testing of an outbound HTTP-calling endpoint/service
+  — the natural fit for a web-hosted sample already exercising realistic
+  request/response flows) and a `Compono.DependencyInjection` scenario (a
+  DI-composed row provider registered into the host's own
+  `IServiceCollection`, exercising the configured-resolution bridge in the
+  same realistic multi-layer context ADR-0033's original ASP.NET API sample
+  already provides for NSubstitute/Bogus).
+- **`Compono.Samples.BasicUsage`** gains a `Compono.Logging` scenario:
+  compose an `ILogger<T>`-dependent type via `UseLogging()`, assert on a
+  captured log entry via `Verify()`. `Compono.Logging` is a cross-cutting
+  concern independent of any web-hosting context, so it fits the minimal,
+  single-clearest-reference-implementation sample rather than the web host.
+
+Each new scenario must teach that package's own standalone value on its own
+terms — a reader should come away understanding *why* they'd reach for
+`Compono.Http`/`Compono.DependencyInjection`/`Compono.Logging`, not merely see
+that the package can be referenced without a compile error. A scenario that
+only proves referenceability, without a realistic assertion a consumer would
+actually write, does not satisfy this amendment.
+
+This preserves the two-project structure and the "project references for
+development" build story (Amendment 1) exactly as they exist today — no new
+CI job, no new packed-verification mode, no new `docs/samples/*.md` page (the
+two existing overview pages gain a mention of their new scenarios rather than
+each scenario getting its own page). The remaining five documented future
+candidates (CQRS, Clean Architecture, Minimal APIs, MediatR, EF Core) are
+unaffected by this amendment and remain deferred exactly as this ADR
+originally decided.
+
+### Positive Consequences
+
+- Every publishable Compono package has a working, runnable, CI-maintained
+  example a new consumer can point to, closing the one concrete gap the
+  pre-1.0 cleanup audit found in this ADR's otherwise-still-valid scope.
+- No new project, no new CI job, no new build/verification story — the
+  maintenance-cost driver this ADR was originally written to protect is
+  unaffected.
+
+### Negative Consequences
+
+- `Compono.Samples.AspNetApi` grows in scope (now demonstrating six packages
+  instead of four) — accepted, since the alternative (a new project per
+  package) was already rejected by this ADR's own Considered Options for a
+  worse reason (five-fold CI/maintenance cost for architecture-pattern
+  samples); two additional, tightly-scoped scenarios in an existing realistic
+  host is a materially smaller cost than a new project each.
+
+## Links (Amendment 2)
+
+- PLAN-0061 — implements this amendment as its Phase 2.

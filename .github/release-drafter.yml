@@ -72,16 +72,24 @@ categories:
         - 'type: chore'
         - 'type: ci'
         - 'type: revert'
-  # ADR-0031's 0.X+1.0 compatibility policy for the 0.x preview line - a labeled
-  # breaking-change PR bumps minor, not major, so it never silently exits 0.x
-  # (PLAN-0008 Phase 0). Deliberately no 'major' version-resolver entry below -
-  # nothing in this repo auto-bumps major.
+  # ADR-0031 Amendment 5: Compono is ready to leave the 0.x preview line, so a
+  # labeled breaking-change PR resolves an ordinary SemVer major bump again,
+  # graduating to 1.0.0 (or beyond, for any later breaking change) whenever
+  # one next merges - not a statement that 1.0 has already shipped. The
+  # deliberate minor-bump override ADR-0031's original "0.x compatibility
+  # policy" put in place (PLAN-0008 Phase 0) applied only while intentionally
+  # staying on 0.x, and no longer applies now that that decision has been
+  # made.
+  - type: 'version-resolver'
+    semver-increment: 'major'
+    when:
+      labels:
+        - 'breaking-change'
   - type: 'version-resolver'
     semver-increment: 'minor'
     when:
       labels:
         - 'type: feat'
-        - 'breaking-change'
   - type: 'version-resolver'
     semver-increment: 'patch'
     when:

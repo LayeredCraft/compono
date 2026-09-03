@@ -1,5 +1,7 @@
 // ReSharper disable InconsistentNaming
 
+using Compono.Generators.Discovery;
+
 namespace Compono.Generators.WellKnownTypes;
 
 internal static class WellKnownTypeData
@@ -19,7 +21,11 @@ internal static class WellKnownTypeData
 
     public static readonly string[] WellKnownTypeNames =
     [
-        "Compono.ComposableAttribute",
+        // Same identity ComposableAttributeDiscovery's own ForAttributeWithMetadataName registration
+        // matches on - two independent discovery paths for the [Composable] attribute's metadata
+        // name, kept in sync via this one constant instead of two copies of the literal
+        // (PLAN-0061 Phase 1).
+        ComposableAttributeDiscovery.AttributeMetadataName,
         "Compono.Composer",
         "Compono.CompositionRow",
         "System.DateTime",

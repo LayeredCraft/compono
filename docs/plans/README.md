@@ -74,4 +74,5 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0057](0057-compono-mstest-package-design-impl-plan.md) | `Compono.MSTest` Package Design | Done |
 | [0058](0058-testdoubles-invocation-aware-callback-responses.md) | Compono.TestDoubles: Invocation-Aware Callback Responses | In Progress |
 | [0059](0059-compono-nunit-package-design-impl-plan.md) | Compono.NUnit Package Design | Done |
-| [0060](0060-public-generator-facing-runtime-infrastructure.md) | Public Generator-Facing Runtime Infrastructure | In Progress |
+| [0060](0060-public-generator-facing-runtime-infrastructure.md) | Public Generator-Facing Runtime Infrastructure | Done |
+| [0061](0061-pre-1-0-cleanup-and-consolidation.md) | Pre-1.0 Cleanup and Consolidation Gate | In Progress |

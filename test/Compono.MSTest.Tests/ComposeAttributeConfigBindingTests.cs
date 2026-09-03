@@ -43,6 +43,39 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [TestMethod]
+    public void GetData_AppendsTheConfiguredSeed_WhenAFixedProfileFailsBeforeARowExists_ForComposeAttributeTProfile()
+    {
+        // ComposeAttribute{TProfile}.ApplyProfile had no negative-seed guard or exception wrapping
+        // at all until PLAN-0061 Phase 1 - a copy-paste gap from before this convention was
+        // introduced for ComposeAttribute{TProfile, TConfig}. Mirrors that class's own precedence
+        // test above, and Compono.TUnit.Tests' identical, already-correct coverage for this
+        // one-generic-argument form.
+        var attribute = new ComposeAttribute<SampleTestMethods.ThrowingConfigureTestProfile> { Seed = 492173 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.ComposesWithParameterizedProfile))!;
+
+        var exception = Assert.ThrowsExactly<CompositionException>(() => attribute.GetData(method).ToArray());
+
+        StringAssert.Contains(exception.Message, "custom profile configuration failed");
+        StringAssert.Contains(exception.Message, "Seed: 492173");
+    }
+
+    [TestMethod]
+    public void GetData_ReportsTheNegativeSeedDiagnostic_NotTheProfileFailure_ForComposeAttributeTProfile_WhenBothApply()
+    {
+        // Seed = -1 combined with a throwing TProfile.Configure must report the documented
+        // negative-seed diagnostic, not the profile failure with "Seed: -1" embedded - before
+        // PLAN-0061 Phase 1, this attribute had no guard at all, so CompositionBuilder.WithSeed's own
+        // unchecked(int->ulong) cast would have silently accepted the negative seed with no exception
+        // at all, rather than merely reporting the wrong one.
+        var attribute = new ComposeAttribute<SampleTestMethods.ThrowingConfigureTestProfile> { Seed = -1 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.ComposesWithParameterizedProfile))!;
+
+        var exception = Assert.ThrowsExactly<CompositionException>(() => attribute.GetData(method).ToArray());
+
+        StringAssert.Contains(exception.Message, "non-negative");
+    }
+
+    [TestMethod]
     public void GetData_ComposesEveryTestMethodParameter_RegardlessOfConfigArguments()
     {
         // Every test-method parameter is composed in full under [Compose<TProfile, TConfig>] -

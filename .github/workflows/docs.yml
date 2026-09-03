@@ -103,7 +103,7 @@ jobs:
       - name: Fail on API reference drift
         run: |
           if ! git diff --exit-code -- docs/reference/api; then
-            echo "::error::docs/reference/api is out of date. Run '.github/scripts/generate-api-reference.sh' (after building the eight publishable packages for net10.0 Release) and commit the result." >&2
+            echo "::error::docs/reference/api is out of date. Run '.github/scripts/generate-api-reference.sh' (after building the publishable packages for net10.0 Release) and commit the result." >&2
             exit 1
           fi
 

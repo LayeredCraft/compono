@@ -11,19 +11,6 @@ namespace Compono.Generators.Emitters;
 /// </summary>
 internal static class CompositionPlanEmitter
 {
-    // Read once from this assembly's own metadata rather than hard-coded, so the emitted
-    // GeneratedCodeAttribute stays accurate as the generator's version changes instead of quietly
-    // going stale. Falls back to the assembly version if no informational version is set (e.g. no
-    // real release versioning wired up yet).
-    private static readonly string GeneratorVersion =
-        typeof(CompositionPlanEmitter).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
-            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>()
-            .Select(a => a.InformationalVersion)
-            .FirstOrDefault()
-        ?? typeof(CompositionPlanEmitter).Assembly.GetName().Version?.ToString()
-        ?? "0.0.0";
-
     public static void Generate(SourceProductionContext context, DiscoveredTypeInfo type)
     {
         var model = new
@@ -55,7 +42,7 @@ internal static class CompositionPlanEmitter
                 DisplayNameLiteral = SymbolDisplay.FormatLiteral(m.DisplayName, quote: true),
                 DeclaringType = m.DeclaringTypeFullyQualifiedName,
             }).ToArray(),
-            GeneratorVersion,
+            GeneratorVersion = GeneratorVersion.Current,
         };
 
         var source = TemplateHelper.Render("CompositionPlan.scriban", model);

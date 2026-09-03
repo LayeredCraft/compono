@@ -65,6 +65,18 @@ case where this surfaced a genuine hidden dependency during migration, and
 [ADR-0025](../adr/0025-compono-nsubstitute-package-design.md) for the full
 rationale.
 
+## Native AOT / trimming
+
+`Compono.NSubstitute` is **not** Native AOT/trimming-compatible. NSubstitute's
+own `Substitute.For<T>()` uses Castle DynamicProxy, which relies on
+runtime IL emission — this is confined entirely to this integration package
+(core `Compono`'s provider contract itself requires and performs zero
+reflection), but it means any composed type reachable through
+`UseNSubstitute()` cannot be published with `PublishAot=true`. If you need
+Native AOT support, use [Compono.TestDoubles](compono-testdoubles.md)'s
+source-generated doubles instead — see [ADR-0024](../adr/0024-public-provider-extensibility-model.md)
+for the full rationale.
+
 ## Next
 
 - [Shared Values](../concepts/shared-values.md) — asserting against a

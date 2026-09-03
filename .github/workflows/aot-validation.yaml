@@ -1,0 +1,188 @@
+name: AOT Validation
+
+# ADR-0041 Amendment 7: permanent, CI-blocking Native AOT smoke gate for the eight existing
+# test/*.AotSmokeTest projects, replacing the previous manual-only "run it by hand before release"
+# verification.
+#
+# Deliberately NO `paths:` filter on this workflow's own `pull_request` trigger. A workflow entirely
+# skipped by trigger-level path filtering leaves its required status check `Pending` rather than
+# reporting success, under GitHub's required-check semantics - that would block a PR indefinitely
+# instead of passing it on an AOT-irrelevant change. Selectivity happens *inside* the workflow
+# instead: the `changes` job below computes which of the eight legs are actually applicable from the
+# PR's changed files (a small repository-owned `git diff` script, not a third-party changed-files
+# action), each leg's own publish-and-run job runs behind an `if:` reading that output (an
+# inapplicable leg reports an ordinary skipped conclusion, never a missing status), and `aot-gate` -
+# the one job branch protection should name as the required check - always runs
+# (`if: always()`) and always resolves to success or failure, so the required check never sits
+# Pending.
+#
+# The exact guarantee this gate proves: the packaged Compono package's exercised public API surface
+# is callable from a Native-AOT-published, trimmed consumer application without runtime AOT/trimming
+# failures. This is deliberately narrower than "the package's public API surface": it covers core
+# `Compono` itself, not only integration packages, and it makes no claim of exhaustive coverage of
+# every public member - each leg is a throwaway console app calling a specific, real entry point of
+# the packaged API directly. This gate makes NO claim that xUnit v3, TUnit, MSTest, or NUnit's own
+# test runners are Native-AOT compatible - no leg ever publishes a test framework's runner/host as
+# Native AOT.
+#
+# This repository does not use GitHub merge queues today - no `merge_group` trigger is added
+# speculatively; add one later only if that changes.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      legs: ${{ steps.compute.outputs.legs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determine applicable AOT smoke legs
+        id: compute
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "Changed files:"
+          echo "$changed"
+
+          all_legs='["Compono","Compono.Http","Compono.Logging","Compono.MSTest","Compono.NUnit","Compono.TestDoubles","Compono.TUnit","Compono.XunitV3"]'
+
+          # A change to shared/core/generator infrastructure (or to this workflow itself) can affect
+          # every packaged leg at once - run all eight rather than reflexively narrowing to only the
+          # paths that happened to change (ADR-0041 Amendment 7's own "do not run it reflexively, but
+          # do not under-run it either" balance).
+          if echo "$changed" | grep -qE '^(src/Compono/|src/Compono\.Generators/|Directory\.Packages\.props|Directory\.Build\.(props|targets)|test/Directory\.Build\.(props|targets)|\.github/workflows/aot-validation\.yaml)'; then
+            echo "Core/generator/shared-config change detected - running all eight legs."
+            echo "legs=$all_legs" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          legs="[]"
+          add_leg() {
+            legs=$(echo "$legs" | jq -c --arg leg "$1" '. + [$leg] | unique')
+          }
+
+          echo "$changed" | grep -q '^src/Compono\.Http/'        && add_leg "Compono.Http"
+          echo "$changed" | grep -q '^src/Compono\.Logging/'     && add_leg "Compono.Logging"
+          echo "$changed" | grep -q '^src/Compono\.MSTest/'      && add_leg "Compono.MSTest"
+          echo "$changed" | grep -q '^src/Compono\.NUnit/'       && add_leg "Compono.NUnit"
+          echo "$changed" | grep -q '^src/Compono\.TestDoubles/' && add_leg "Compono.TestDoubles"
+          echo "$changed" | grep -q '^src/Compono\.TUnit/'       && add_leg "Compono.TUnit"
+          echo "$changed" | grep -q '^src/Compono\.XunitV3/'     && add_leg "Compono.XunitV3"
+
+          # A change scoped to one leg's own AotSmokeTest project only needs that leg re-run, not all
+          # eight - extract which leg(s) directly from the changed paths.
+          for proj in $(echo "$changed" | grep -oE '^test/[^/]+\.AotSmokeTest/' | sed -E 's#^test/(.+)\.AotSmokeTest/#\1#' | sort -u); do
+            add_leg "$proj"
+          done
+
+          echo "Applicable legs: $legs"
+          echo "legs=$legs" >> "$GITHUB_OUTPUT"
+
+  aot-smoke:
+    needs: changes
+    if: needs.changes.outputs.legs != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: ${{ fromJSON(needs.changes.outputs.legs) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          # global.json pins a preview 11.0.x SDK for this repo; setup-dotnet must install every SDK
+          # major version pr-build.yaml/package-validation.yaml already do, even though every
+          # AotSmokeTest project itself only targets net10.0 - otherwise `dotnet` CLI resolution
+          # fails for the *whole checkout* the moment global.json's pinned SDK isn't present, not
+          # just for a net11.0-specific build.
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+            11.0.x
+
+      - name: Pack ${{ matrix.leg }} into its local AOT smoke feed
+        run: bash "test/${{ matrix.leg }}.AotSmokeTest/pack-compono.sh"
+
+      - name: Publish ${{ matrix.leg }} smoke consumer as Native AOT
+        run: |
+          dotnet publish "test/${{ matrix.leg }}.AotSmokeTest" \
+            -c Release -f net10.0 -r linux-x64 --self-contained true \
+            -p:PublishAot=true \
+            -o "test/${{ matrix.leg }}.AotSmokeTest/bin/aot-publish"
+
+      - name: Run the published Native AOT binary
+        run: "./test/${{ matrix.leg }}.AotSmokeTest/bin/aot-publish/${{ matrix.leg }}.AotSmokeTest"
+
+      # Outlier per-leg additional proofs (PLAN-0061 Phase 1) - beyond the ordinary publish-and-run
+      # pattern above, these two packages carry their own extra packaging-content verification.
+      - name: Additional packaging verification (Compono.Logging)
+        if: matrix.leg == 'Compono.Logging'
+        run: bash test/Compono.Logging.AotSmokeTest/verify-packaging.sh
+
+      - name: Additional analyzer-contract verification (Compono.Http)
+        if: matrix.leg == 'Compono.Http'
+        run: bash test/Compono.Http.AotSmokeTest/AnalyzerContract/verify-analyzer-contract.sh
+
+  aot-gate:
+    needs: [changes, aot-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # Fail closed, not just on an applicable leg's own failure: this job runs via `if: always()`
+      # specifically so it never sits Pending, but that same `always()` means it also runs when
+      # `changes` itself failed/was cancelled (checkout, `git diff`, or the applicability script
+      # erroring) - `aot-smoke` reports `skipped` in that case too (its own `if:` implicitly
+      # requires `needs.changes` to have succeeded), which the original version of this check could
+      # not tell apart from the legitimate "changes succeeded, zero legs applicable" skip. Both
+      # produce `aot-smoke.result == skipped`; only `changes.result` distinguishes them. Checked
+      # first, before anything else, so every other branch below can assume applicability was
+      # actually computed.
+      - name: Confirm applicability was computed and every applicable leg passed
+        run: |
+          changes_result="${{ needs.changes.result }}"
+          smoke_result="${{ needs.aot-smoke.result }}"
+          legs='${{ needs.changes.outputs.legs }}'
+
+          if [ "$changes_result" != "success" ]; then
+            echo "::error::Applicability computation ('changes' job) did not succeed (result: $changes_result) - failing closed rather than trusting an unproven leg set." >&2
+            exit 1
+          fi
+
+          if [ "$smoke_result" = "failure" ] || [ "$smoke_result" = "cancelled" ]; then
+            echo "::error::One or more applicable AOT smoke legs failed or were cancelled - see the aot-smoke job above." >&2
+            exit 1
+          fi
+
+          if [ "$smoke_result" = "skipped" ]; then
+            # A legitimate skip only ever means "changes succeeded and found zero applicable legs" -
+            # aot-smoke's own `if: needs.changes.outputs.legs != '[]'` is the only thing that skips
+            # it when changes succeeded. Confirm that's really why, rather than trusting the skip
+            # blindly now that changes_result == success is already known.
+            if [ "$legs" != "[]" ]; then
+              echo "::error::aot-smoke was skipped but changes reported applicable legs ($legs) - this should never happen; failing closed." >&2
+              exit 1
+            fi
+            echo "No applicable AOT smoke legs for this change - gate passes."
+            exit 0
+          fi
+
+          if [ "$smoke_result" != "success" ]; then
+            echo "::error::Unexpected aot-smoke result: $smoke_result - failing closed." >&2
+            exit 1
+          fi
+
+          echo "AOT validation gate passed. Applicable legs: $legs"

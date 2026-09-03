@@ -547,3 +547,112 @@ only generated consumer-assembly code calls it. `TryGet` remains visible
 because the framework integration packages call it at runtime. This changes
 IntelliSense presentation only; both members remain public for their existing
 cross-assembly callers.
+
+## Amendment 7 (2026-09-03): Native AOT smoke coverage becomes a permanent, CI-blocking gate
+
+This ADR's own Negative Consequences (above) stated its AOT-safety claim was
+"a design argument, not yet a proven one" and required "a real `dotnet publish
+-p:PublishAot=true` + run smoke test... before `Compono.TUnit` is considered
+release-ready." That requirement was satisfied per-package, by hand, over
+several follow-up amendments and sibling ADRs (Amendment 5 above; ADR-0057 for
+`Compono.MSTest`; equivalent smoke tests for `Compono.NUnit`, `Compono.Http`,
+`Compono.Logging`, `Compono.TestDoubles`, and core `Compono` itself) — eight
+`test/*.AotSmokeTest` projects exist on `main` today. None of them are wired
+into any CI workflow; every one is a manual, run-by-hand verification. This
+was never a decided policy gap — this ADR only ever required proof to exist
+once, before a package's initial release, not proof that stays continuously
+true. The pre-1.0 cleanup gate (PLAN-0061) identified this as a real risk for
+a product whose stated goal is Native AOT/trimming compatibility: a
+regression introduced after a package's initial release has no automated gate
+to catch it before merge.
+
+**Decision: Native AOT smoke coverage becomes a permanent, CI-blocking gate,**
+not merely a one-time release requirement. A new workflow drives the existing
+eight `*.AotSmokeTest` projects' established `pack-compono.sh` +
+`dotnet publish -p:PublishAot=true` + run pattern via one reusable script and
+a matrix job, rather than reproducing per-project workflow boilerplate eight
+times over.
+
+**The exact guarantee this gate proves, stated precisely so it is never
+overclaimed:** *the packaged Compono package's exercised public API surface is
+callable from a Native-AOT-published, trimmed consumer application without
+runtime AOT/trimming failures.* This is deliberately narrower than "the
+package's public API surface" in two ways: it covers core `Compono` itself
+(`Compono.AotSmokeTest`), not only integration packages, and it makes no claim
+of exhaustive coverage of every public member — each smoke consumer is a
+throwaway console app that calls a specific, real entry point of the packaged
+integration's `[Compose]`-family API directly (e.g.
+`Compono.XunitV3.ComposeAttribute.GetData(...)`), and the guarantee holds only
+for the API path that consumer actually exercises. This gate makes **no
+claim** that xUnit v3, TUnit, MSTest, or NUnit's own test runners are
+Native-AOT compatible — the smoke apps never publish a test framework's
+runner/host as Native AOT at all. Any documentation or package guide
+referencing this gate must preserve both distinctions.
+
+**Trigger design — selective at the job level, not the workflow-trigger
+level, because this gate is a required check.** Running all eight legs on
+every PR regardless of changed files was rejected as unnecessary cost;
+triggering only on an exact per-package path match was rejected as a
+false-confidence risk, since a shared core/generator change can invalidate
+every leg at once. `docs.yml`'s existing `on: pull_request: paths:` filter is
+the wrong pattern to copy here: GitHub's required-check semantics mean a
+workflow that is *entirely skipped* by a `paths:` filter at the trigger level
+leaves its required check `Pending` rather than reporting success, which
+blocks the PR indefinitely rather than passing it — the opposite of the
+intended "no AOT-relevant change, gate reports green" behavior. A job skipped
+via an `if:` condition *inside* a workflow that did start, by contrast,
+reports a successful/skipped conclusion and satisfies a required check
+normally.
+
+Accordingly, the workflow itself has **no `paths:` filter on its
+`pull_request` trigger** — it starts on every relevant PR event, so its
+required check always has something to report. Selectivity happens entirely
+inside the workflow:
+
+1. An inexpensive first job computes which of the eight legs are applicable
+   for this PR's changed files (a small repository-owned script — `git diff
+   --name-only` against the PR's base — not a third-party changed-files
+   action, consistent with keeping this design understandable from the
+   workflow file itself), publishing that as a job output (e.g. a JSON array
+   consumed by a dynamic matrix, or one boolean output per leg).
+2. If the change touches core `Compono` runtime source (`src/Compono/**`),
+   `Compono.Generators` source (`src/Compono.Generators/**`),
+   `Directory.Packages.props`, any `Directory.Build.props`/`.targets`
+   affecting packed output, or the AOT-validation workflow/script itself,
+   every one of the eight legs is marked applicable — a shared core/generator
+   change can invalidate all of them at once, and reflexively narrowing this
+   would create false confidence.
+3. If the change is scoped to one integration package's own
+   `src/Compono.<X>/**` source, only that package's leg (plus core's own
+   `Compono.AotSmokeTest` leg, which every core-affecting change already
+   covers under point 2, and which this design does not run reflexively for
+   an integration-package-only change) is marked applicable.
+4. Each of the eight legs' actual publish-and-run jobs runs behind an `if:`
+   condition reading the first job's output — an inapplicable leg reports a
+   normal skipped conclusion, not a missing/pending status.
+5. A final, always-`if: always()`-run aggregation job depends on all eight leg
+   jobs and is the one job the branch protection/ruleset required-check
+   configuration actually names: it fails if any *applicable* leg job failed
+   or was cancelled, and succeeds if every applicable leg passed or if no leg
+   was applicable at all (nothing AOT-relevant changed). Failing closed
+   applies to the applicability computation itself, not only to a leg's own
+   result — if the first job (computing which legs apply) doesn't succeed
+   (fails, is cancelled, or errors), every leg job reports the same `skipped`
+   conclusion a legitimate zero-applicable-legs run would, but the
+   aggregation job checks the applicability job's own result *before*
+   looking at the legs' result, so an unproven leg set can never be
+   mistaken for "correctly found nothing to run." This is the job whose
+   result GitHub reports for the required check, so the check always
+   resolves to success/failure, never stays `Pending`.
+
+This repository does not use GitHub merge queues today (no workflow declares
+a `merge_group` trigger) — this design does not add one speculatively; if a
+merge queue is adopted later, `merge_group` can be added to this workflow's
+triggers as its own follow-up, not anticipated here.
+
+**Scope note.** This amendment does not reopen or re-verify any individual
+package's AOT-safety claim — those remain exactly as this ADR's own Amendments
+1-5 and each package's own ADR (ADR-0057, ADR-0059, ADR-0051, ADR-0055,
+ADR-0043) established them. It only changes *when* the existing proof
+mechanism runs: from "once, by hand, before release" to "on every relevant
+change, automatically, blocking."

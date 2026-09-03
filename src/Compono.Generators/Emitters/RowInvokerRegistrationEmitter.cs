@@ -9,21 +9,12 @@ namespace Compono.Generators.Emitters;
 /// </summary>
 internal static class RowInvokerRegistrationEmitter
 {
-    private static readonly string GeneratorVersion =
-        typeof(RowInvokerRegistrationEmitter).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
-            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>()
-            .Select(a => a.InformationalVersion)
-            .FirstOrDefault()
-        ?? typeof(RowInvokerRegistrationEmitter).Assembly.GetName().Version?.ToString()
-        ?? "0.0.0";
-
     public static void Generate(SourceProductionContext context, RowInvokerTypeInfo type)
     {
         var model = new
         {
             FullyQualifiedTypeName = type.FullyQualifiedTypeName,
-            GeneratorVersion,
+            GeneratorVersion = GeneratorVersion.Current,
         };
 
         var source = TemplateHelper.Render("RowInvokerRegistration.scriban", model);

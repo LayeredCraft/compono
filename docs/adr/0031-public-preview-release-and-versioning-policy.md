@@ -626,3 +626,42 @@ upper bounds, and package/dependency mapping are all unchanged.
   unmodified release pipeline this ADR's policy governs
 - [PLAN-0008](../plans/0008-milestone-8-public-preview.md) — Phase 0
   executes this ADR's package-readiness checklist
+
+## Amendment 5 (2026-09-03): `breaking-change` maps to `major` again — the `0.x` compatibility policy's own deliberate override no longer applies
+
+This ADR's "`0.x` compatibility policy" section (above) deliberately
+overrode `.github/release-drafter.yml`'s ordinary `breaking-change` →
+`major` mapping down to `minor`, specifically so a breaking-change-labeled
+PR could not "exit the `0.x` preview line by accident rather than by the
+deliberate decision this ADR's own compatibility policy... requires." That
+text, and the reasoning behind it, is left exactly as written — this
+amendment records that the deliberate decision it was guarding against has
+now actually been made: the product owner has confirmed Compono is ready to
+leave the `0.x` preview line via [PLAN-0061](../plans/0061-pre-1-0-cleanup-and-consolidation.md)'s
+pre-1.0 cleanup gate.
+
+**Decision:** `.github/release-drafter.yml`'s `version-resolver` reverts to
+its ordinary, un-overridden mapping — `breaking-change` → `major`,
+`type: feat` → `minor` (previously combined into one `minor` bucket covering
+both labels; split into two buckets so a breaking change and an ordinary
+feature addition no longer resolve to the same increment), everything else
+unchanged (`patch` for fix/docs/refactor/test/chore/ci/revert, and the
+existing bare `patch` fallback). This is the exact reversal this ADR's own
+"How a breaking change is communicated" section already named as the
+intentional graduation path — not a new mechanism, not a redesign of the
+labeling/categories scheme, which stays exactly as this ADR and PLAN-0008
+Phase 0 established it.
+
+**Consequence, stated plainly per this ADR's own "no undefined 0.x" driver:**
+the next `breaking-change`-labeled PR resolves the next version as a real
+major bump (`1.0.0`, or beyond it if further breaking changes land after
+that), not another `0.X+1.0` minor bump. The `0.x` compatibility policy
+section above describes `0.x`'s own compatibility contract accurately for
+every release that shipped under it — it does not retroactively change once
+Compono leaves `0.x`, per this repo's own "an ADR's original text stays
+exactly as written" rule; a reader of a historical `0.x` release still finds
+the policy that actually governed it.
+
+No other part of this ADR changes: lockstep versioning, the packaged-consumer
+readiness checklist, the dependency-range policy (Amendments 1/4), and the
+TFM-window policy are all unaffected by leaving `0.x`.

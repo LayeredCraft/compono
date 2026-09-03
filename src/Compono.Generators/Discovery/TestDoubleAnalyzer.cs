@@ -410,7 +410,7 @@ internal static class TestDoubleAnalyzer
             if (discriminatorSuffixByIdentity.ContainsKey(key))
                 continue;
 
-            var baseHash = TestDoubleOverloadIdentity.StableHash(key.Canonical);
+            var baseHash = StableHash.Compute(key.Canonical);
             var suffix = $"_{baseHash}";
             var disambiguator = 2;
 
@@ -647,7 +647,7 @@ internal static class TestDoubleAnalyzer
         // signature collision with an already-matching-eligible sibling of that exact literal name
         // (a genuine CS0111 risk, confirmed by compiler spike - see PLAN-0054's "Naming/collision
         // policy"), it falls back to a deterministic hash-suffixed name, reusing
-        // TestDoubleOverloadIdentity.StableHash exactly like discriminatorSuffixByIdentity above.
+        // StableHash.Compute exactly like discriminatorSuffixByIdentity above.
         var overloadMatchingEligibleCandidates = new HashSet<IMethodSymbol>(
             matchingEligibleShapedOverloadedCandidates.Where(m => !derivedNameCollisionMembers.Contains(m)),
             SymbolEqualityComparer.Default);
@@ -744,7 +744,7 @@ internal static class TestDoubleAnalyzer
                 continue;
             }
 
-            var baseHash = TestDoubleOverloadIdentity.StableHash(aliasBase);
+            var baseHash = StableHash.Compute(aliasBase);
             var aliasName = $"{aliasBase}_{baseHash}";
             var disambiguator = 2;
 
@@ -1782,7 +1782,7 @@ internal static class TestDoubleAnalyzer
 
             if (callbackNames.Any(reservedNames.Contains))
             {
-                var baseHash = TestDoubleOverloadIdentity.StableHash(member.FieldName);
+                var baseHash = StableHash.Compute(member.FieldName);
                 var disambiguator = 2;
                 var suffix = $"_{baseHash}";
 
@@ -2175,7 +2175,7 @@ internal static class TestDoubleAnalyzer
     // The full canonical signature text - never the hash - for any identity/equality decision
     // (diamond-collision grouping, zero-arg-extension-collision grouping). A 32-bit hash can collide
     // between two genuinely different signatures; the discriminator-suffix pre-pass above is the only
-    // place allowed to hash this text (TestDoubleOverloadIdentity.StableHash), and only with its own
+    // place allowed to hash this text (StableHash.Compute), and only with its own
     // collision-disambiguation fallback. Codex review, PR #88.
     private static string IdentityFor(ISymbol member) => member switch
     {

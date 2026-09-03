@@ -30,6 +30,14 @@ jobs:
       # CS1591 enforcement.
       BREAKING_CHANGE: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
       PACK_OUTPUT: ${{ github.workspace }}/artifacts/package-validation
+      # Single authoritative publishable-package list (PLAN-0061 Phase 1) - the baseline-lookup,
+      # pack, and CS1591-enforcement steps below all derive from this one job-level env var instead
+      # of each repeating the same 11-package literal, so adding/removing a package can't drift
+      # across the three independently. A job-level `env:` entry is injected into every step's own
+      # process environment by GitHub Actions itself, so this survives across the separate `run:`
+      # steps below (each its own shell process) with no extra plumbing - deliberately not a Bash
+      # array, which would only live for the one step that declared it.
+      PACKAGES: "Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit"
     steps:
       - uses: actions/checkout@v7
 
@@ -47,7 +55,7 @@ jobs:
       - name: Resolve nuget.org baseline versions
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit; do
+          for pkg in $PACKAGES; do
             id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
             # No -f here: a non-2xx response must still reach the status-code branch
             # below (curl -f suppresses the body/short-circuits on HTTP errors), and
@@ -96,33 +104,15 @@ jobs:
             dotnet pack "$csproj" -c Release -o "$PACK_OUTPUT" "${args[@]}"
           }
 
-          pack_one src/Compono/Compono.csproj BASELINE_Compono
-          pack_one src/Compono.XunitV3/Compono.XunitV3.csproj BASELINE_Compono_XunitV3
-          pack_one src/Compono.NSubstitute/Compono.NSubstitute.csproj BASELINE_Compono_NSubstitute
-          pack_one src/Compono.Bogus/Compono.Bogus.csproj BASELINE_Compono_Bogus
-          pack_one src/Compono.TUnit/Compono.TUnit.csproj BASELINE_Compono_TUnit
-          pack_one src/Compono.TestDoubles/Compono.TestDoubles.csproj BASELINE_Compono_TestDoubles
-          pack_one src/Compono.DependencyInjection/Compono.DependencyInjection.csproj BASELINE_Compono_DependencyInjection
-          pack_one src/Compono.Http/Compono.Http.csproj BASELINE_Compono_Http
-          pack_one src/Compono.Logging/Compono.Logging.csproj BASELINE_Compono_Logging
-          pack_one src/Compono.MSTest/Compono.MSTest.csproj BASELINE_Compono_MSTest
-          pack_one src/Compono.NUnit/Compono.NUnit.csproj BASELINE_Compono_NUnit
+          for pkg in $PACKAGES; do
+            pack_one "src/$pkg/$pkg.csproj" "BASELINE_$(echo "$pkg" | tr '.' '_')"
+          done
 
       - name: Enforce XML doc comments (CS1591) on publishable packages
         run: |
           set -euo pipefail
-          for csproj in \
-            src/Compono/Compono.csproj \
-            src/Compono.XunitV3/Compono.XunitV3.csproj \
-            src/Compono.NSubstitute/Compono.NSubstitute.csproj \
-            src/Compono.Bogus/Compono.Bogus.csproj \
-            src/Compono.TUnit/Compono.TUnit.csproj \
-            src/Compono.TestDoubles/Compono.TestDoubles.csproj \
-            src/Compono.DependencyInjection/Compono.DependencyInjection.csproj \
-            src/Compono.Http/Compono.Http.csproj \
-            src/Compono.Logging/Compono.Logging.csproj \
-            src/Compono.MSTest/Compono.MSTest.csproj \
-            src/Compono.NUnit/Compono.NUnit.csproj; do
+          for pkg in $PACKAGES; do
+            csproj="src/$pkg/$pkg.csproj"
             echo "Building $csproj with CS1591 as an error"
             dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done

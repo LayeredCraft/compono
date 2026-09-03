@@ -137,6 +137,16 @@ internal static class SampleTestMethods
         public void Configure(CompositionBuilder builder) => builder.Register(() => "from-profile");
     }
 
+    // ComposeAttribute{TProfile}'s own ApplyProfile failure case - a fixed, default-constructed
+    // profile whose Configure itself throws, proving that failure is wrapped with the "Seed: {value}"
+    // convention the same way ComposeAttribute{TProfile,TConfig}'s identical ApplyProfile failure
+    // already is. Mirrors Compono.TUnit.Tests.Fixtures.SampleTestMethods' identical fixture
+    // (PLAN-0061 Phase 1).
+    public sealed class ThrowingConfigureTestProfile : ICompositionProfile
+    {
+        public void Configure(CompositionBuilder builder) => throw new CompositionException("custom profile configuration failed");
+    }
+
     // ComposeAttribute{TProfile,TConfig} fixtures - a config record with exactly one public
     // constructor (the supported shape), a profile with exactly one public constructor accepting
     // exactly that config type, and one broken variant per ConfigProfileBinder failure mode.
