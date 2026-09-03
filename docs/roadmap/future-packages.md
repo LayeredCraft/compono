@@ -46,6 +46,19 @@ including Amendment 1, which raised the supported `MSTest.TestFramework`
 floor from `3.0.0` to `4.0.0` after implementation found the `3.x`/`4.x`
 lines are binary-incompatible) — see
 [`Compono.MSTest`](../packages/compono-mstest.md) for what it ships.
+`Compono.NUnit` moved from this page's "Admitted candidates" list to a
+roadmap item on 2026-09-02: Gate A is satisfied and Gate B was satisfied
+by an explicit product-owner request (not dogfooding evidence — none
+exists, per
+[RESEARCH-0018](../research/0018-nunit-integration-viability-research.md)
+§2), the same mechanism that already gated `Compono.TUnit` and
+Compono-owned source-generated test doubles. See
+[ADR-0059](../adr/0059-compono-nunit-package-design.md) (`Accepted`
+2026-09-03) for the package design, and
+[PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md) for
+the implementation plan prepared against it. Implementation has not
+begun — `PLAN-0059` stays `Not Started` until work actually starts, not
+merely because the ADR is accepted.
 
 ## Admission model
 
@@ -74,26 +87,42 @@ roadmap content. Compono-owned source-generated test doubles made the same
 full progression, shipping as `Compono.TestDoubles` once
 [PLAN-0043](../plans/0043-compono-generated-test-doubles.md) completed —
 see [`Compono.TestDoubles`](../packages/compono-testdoubles.md), also not
-roadmap content anymore. No candidate currently sits at roadmap-item
-status.
+roadmap content anymore. `Compono.NUnit` is the one candidate currently at
+roadmap-item status — see below.
 
 ## Roadmap items (cleared Gate A and Gate B)
 
-None currently. `Compono.TUnit` and Compono-owned source-generated test
-doubles were the two candidates to reach this status — see the Admission
-model note above; both shipped as packages and moved to
-[Package Guides](../packages/index.md).
+- **`Compono.NUnit`** — Gate A reconfirmed with stronger, spike-verified
+  evidence ([RESEARCH-0018](../research/0018-nunit-integration-viability-research.md)
+  §2); Gate B satisfied by explicit product-owner request (2026-09-02),
+  not dogfooding evidence. Package design **accepted** as
+  [ADR-0059](../adr/0059-compono-nunit-package-design.md) (`Accepted`
+  2026-09-03, after two rounds of pre-acceptance adversarial review) —
+  the extension seam is `ComposeAttribute : TestAttribute, ITestBuilder`
+  with `BuildFrom` declared `new` (spike-verified: no `[TestFixture]`
+  attribute needed at all, and the `new` declaration eliminates `CS0108`
+  with no behavioral difference), and the initial supported range is
+  `NUnit >= 3.14.0, < 5.0.0` (NUnit 5 tracked as forward-compatibility
+  surveillance until it ships stable). Implementation is **in progress** —
+  [PLAN-0059](../plans/0059-compono-nunit-package-design-impl-plan.md)
+  (`In Progress`) tracks what's done (core package, binding, generator
+  wiring, discovery/coexistence behavioral contracts, package/API-reference
+  validation) and what remains (packaged-consumer sample/external
+  validation, AOT smoke test, CI wiring — see its own Notes section). Will
+  move to
+  [Package Guides](../packages/index.md) once shipped, matching
+  `Compono.TUnit`/`Compono.TestDoubles`/`Compono.MSTest`'s own graduation
+  pattern.
+
+`Compono.TUnit` and Compono-owned source-generated test doubles made the
+same full progression earlier — see the Admission model note above; both
+shipped as packages and moved to [Package Guides](../packages/index.md).
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
-Each follows the pattern `Compono.NSubstitute`/`Compono.Bogus` already
-establish — a package built entirely on a public core extension point,
-core itself unchanged:
+None currently. `Compono.NUnit` was the sole remaining admitted candidate
+and has graduated to a roadmap item above.
 
-- **`Compono.NUnit`** — NUnit's `IParameterDataSource` gives genuine
-  per-parameter composition granularity `Compono.XunitV3`'s row model
-  doesn't have; `ITestBuilder`/`IFixtureBuilder` cover the row/fixture-
-  constructor cases.
 ## Documentation-only ideas (do not clear Gate A as packages today)
 
 - **FakeItEasy integration** — `FakeItEasy.Sdk.Create.Fake(Type)` is a
@@ -143,20 +172,20 @@ core itself unchanged:
 
 ## No committed sequence
 
-ADR-0039 records no candidate order. `Compono.TUnit` and the
-source-generated-test-doubles capability both cleared Gate B through an
-explicit product-owner request, not dogfooding evidence — the two real
-dogfooding passes recorded in [Post-MVP](post-mvp.md) still haven't
-produced a roadmap candidate of their own in this space. Ranking the sole
-remaining admitted candidate (`Compono.NUnit`) against a hypothetical next
-explicit-request-driven item still has no evidentiary basis. If more than one clears Gate B around the
-same time, ADR-0039's non-binding heuristics (value relative to
+ADR-0039 records no candidate order. `Compono.TUnit`,
+the source-generated-test-doubles capability, and now `Compono.NUnit` all
+cleared Gate B through an explicit product-owner request, not dogfooding
+evidence — the two real dogfooding passes recorded in
+[Post-MVP](post-mvp.md) still haven't produced a roadmap candidate of
+their own in this space. No admitted candidates currently remain on this
+page. If a future candidate clears Gate B around the same time as another
+still-open one, ADR-0039's non-binding heuristics (value relative to
 maintenance cost; architectural-validation diversity over repeating an
 already-proven pattern) apply — category completion (finishing all
 test-framework integrations before starting a test-double one, or vice
 versa) is explicitly rejected as a sequencing principle.
 
-Any admitted candidate above becomes real roadmap content the moment real
+Any admitted candidate becomes real roadmap content the moment real
 demand and a concrete design exist — see [Post-MVP](post-mvp.md) for the
 evidence-backed process, per
 [ADR-0029](../adr/0029-milestone-7-dogfooding-strategy-and-capability-gap-decision-framework.md).

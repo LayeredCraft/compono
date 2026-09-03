@@ -119,3 +119,4 @@ the mechanics: numbering, status, and the index.
 | [0055](0055-compono-logging-testing-support-package.md) | Compono.Logging: First-Class Microsoft.Extensions.Logging Testing Support | Accepted |
 | [0056](0056-composition-builder-share-graph-wide-sharing.md) | `CompositionBuilder.Share<T>()`: Graph-Wide Sharing as a Core Composition Concept | Accepted |
 | [0057](0057-compono-mstest-package-design.md) | Compono.MSTest Package Design | Accepted |
+| [0059](0059-compono-nunit-package-design.md) | Compono.NUnit Package Design | Accepted |

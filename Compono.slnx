@@ -11,6 +11,7 @@
     <Project Path="src/Compono.Http/Compono.Http.csproj" />
     <Project Path="src/Compono.Logging/Compono.Logging.csproj" />
     <Project Path="src/Compono.MSTest/Compono.MSTest.csproj" />
+    <Project Path="src/Compono.NUnit/Compono.NUnit.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
@@ -24,6 +25,8 @@
     <Project Path="test/Compono.Http.Tests/Compono.Http.Tests.csproj" />
     <Project Path="test/Compono.Logging.Tests/Compono.Logging.Tests.csproj" />
     <Project Path="test/Compono.MSTest.Tests/Compono.MSTest.Tests.csproj" />
+    <Project Path="test/Compono.NUnit.Tests/Compono.NUnit.Tests.csproj" />
+    <Project Path="test/Compono.NUnit.SignatureFixtures/Compono.NUnit.SignatureFixtures.csproj" />
     <!-- Compono.Http.AotSmokeTest (and its AnalyzerContract/ sub-projects) is deliberately NOT
          listed here - matching the existing, unlisted Compono.AotSmokeTest/Compono.TUnit.AotSmokeTest/
          Compono.TestDoubles.AotSmokeTest convention: a manual, one-shot PublishAot proof driven by
