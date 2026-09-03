@@ -1,6 +1,6 @@
 # [PLAN-0060] Public Generator-Facing Runtime Infrastructure
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0058](../adr/0058-public-generator-facing-runtime-infrastructure.md)
 
@@ -26,7 +26,7 @@ source, or runtime behavior.
 - [x] Update XML comments and append the ADR-0041 and ADR-0055 amendments.
 - [x] Add reflection-based contract tests for the core and Logging inventories.
 - [x] Regenerate API reference documentation.
-- [ ] Run the full build/test suite and a packaged consumer compilation, then
+- [x] Run the full build/test suite and a packaged consumer compilation, then
       record the results and mark this plan Done.
 
 ## Critical Files
@@ -65,3 +65,11 @@ Validation on 2026-09-02:
   Testing Platform exited with code 5 before executing the test assemblies;
   this is an environment/tooling issue, not a test failure. The full suite and
   packaged-consumer compilation remain required before marking the plan Done.
+
+Validation on 2026-09-03:
+
+- The repository-pinned .NET SDK `11.0.100-preview.7.26381.103` was available locally.
+- `dotnet build Compono.slnx --no-restore` passed with 0 errors and 40 existing xUnit analyzer
+  warnings. `dotnet test Compono.slnx --no-restore --no-build` passed all 3,452 tests.
+- The freshly packed `Compono.TestDoubles.SampleTests` consumer passed 256 tests across net8.0,
+  net9.0, net10.0, and net11.0, exercising the generator through packaged dependencies.
