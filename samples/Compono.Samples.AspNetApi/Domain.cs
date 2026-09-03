@@ -89,6 +89,9 @@ public sealed class ShippingClient
         var response = await _httpClient.PostAsJsonAsync(
             "/v1/labels", new { orderId = order.Id, quantity = order.Quantity }, cancellationToken);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<ShippingLabel>(cancellationToken))!;
+
+        var label = await response.Content.ReadFromJsonAsync<ShippingLabel>(cancellationToken);
+        return label ?? throw new HttpRequestException(
+            $"The carrier responded successfully to 'POST /v1/labels' for order '{order.Id}' but the response body deserialized to null.");
     }
 }

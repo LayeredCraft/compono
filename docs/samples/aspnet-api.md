@@ -1,7 +1,7 @@
 # Sample: ASP.NET API
 
 A realistic but tightly scoped ASP.NET Core minimal-API application
-demonstrating all four Compono packages working together — enough ASP.NET
+demonstrating six Compono packages working together — enough ASP.NET
 structure to host the scenario, not an architecture showcase; Compono
 usage stays the dominant content. Real, buildable code:
 [`samples/Compono.Samples.AspNetApi`](https://github.com/LayeredCraft/compono/tree/main/samples/Compono.Samples.AspNetApi)
