@@ -58,11 +58,6 @@ internal static class Program
     {
         try
         {
-            // DELIBERATE-FAILURE-PROOF: PLAN-0061 Phase 1 requires proving aot-gate actually fails
-            // when an applicable leg fails, before merging it as a real required check. Temporary -
-            // reverted before this PR merges.
-            throw new InvalidOperationException("PLAN-0061 deliberate AOT gate failure proof - expected to fail CI.");
-
             RunRow(
                 typeof(SmokeTestMethods).GetMethod(nameof(SmokeTestMethods.Handle))!,
                 new ComposeAttribute(),
