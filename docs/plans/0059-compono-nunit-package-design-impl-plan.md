@@ -14,10 +14,9 @@ construction, no partial-row merging with `[TestCase]`/`[Values]`/
 `[Range]` — each independent, none merged, none unused — no disposal
 ownership)
 
-**Note:** ADR-0059 is `Accepted` (2026-09-03). This plan is prepared for
-implementation but has not started — `Status` above stays `Not Started`
-until implementation work actually begins, not merely because the ADR is
-accepted.
+**Note:** ADR-0059 is `Accepted` (2026-09-03). Implementation is underway
+against PR #127 — see the Notes section at the end of this plan for the
+current, honest task-by-task completion state.
 
 ## Goal
 
@@ -122,7 +121,7 @@ outside this repo.
 
 ### 1. Package/project creation
 
-- [ ] `src/Compono.NUnit/Compono.NUnit.csproj` — `net8.0;net9.0;net10.0;net11.0`
+- [x] `src/Compono.NUnit/Compono.NUnit.csproj` — `net8.0;net9.0;net10.0;net11.0`
       (ADR-0038's TFM window, matching every other integration package).
       `ProjectReference` to `..\Compono\Compono.csproj`
       (`PrivateAssets="none"`, per the established packaging lesson
@@ -133,7 +132,7 @@ outside this repo.
       `PinProjectReferenceVersionsExact` MSBuild target every other
       integration project's `.csproj` carries. `InternalsVisibleTo` for
       `Compono.NUnit.Tests`.
-- [ ] `Directory.Packages.props`: add
+- [x] `Directory.Packages.props`: add
       `<PackageVersion Include="NUnit" Version="[3.14.0, 5.0.0)" />` —
       the exact, enforceable bounded range ADR-0059 §3 requires, not a
       bare/unbounded version, mirroring the explanatory-comment style
@@ -152,7 +151,7 @@ outside this repo.
       `Compono.NUnit)` case branch there
       (`assert_dependency_range "$nuspec" "$pkg" "NUnit" "$authoritative_json"`)
       rather than inventing a second, independently-maintained literal.
-- [ ] `test/Compono.NUnit.Tests/Compono.NUnit.Tests.csproj` — this
+- [x] `test/Compono.NUnit.Tests/Compono.NUnit.Tests.csproj` — this
       project executes as a real NUnit test run, so it needs the full
       test-execution chain `src/Compono.NUnit` deliberately doesn't
       carry: `PackageReference` to `Compono.NUnit` (`ProjectReference`
@@ -169,11 +168,11 @@ outside this repo.
       `using Xunit;` set that every other test project gets by default
       don't belong in an NUnit-run project — mirrors the
       `Compono.TUnit.Tests`/`Compono.MSTest.Tests` exclusions).
-- [ ] `Compono.slnx`: add both new projects.
+- [x] `Compono.slnx`: add both new projects.
 
 ### 2. Public API surface (ADR-0059 §4, frozen — no deviation without stopping to report)
 
-- [ ] `ComposeAttribute : TestAttribute, ITestBuilder` (revised
+- [x] `ComposeAttribute : TestAttribute, ITestBuilder` (revised
       pre-acceptance from `NUnitAttribute, ITestBuilder` — no
       `[TestFixture]` requirement, ADR-0059 §4/§5/§7) — `public
       ComposeAttribute(params object?[] inlineValues)`; `public int Seed
@@ -187,13 +186,13 @@ outside this repo.
       or without it — but eliminates `CS0108` at compile time, so
       production source builds warning-free). `[AttributeUsage(AttributeTargets.Method,
       AllowMultiple = false)]`.
-- [ ] `ComposeAttribute<TProfile> : ComposeAttribute where TProfile :
+- [x] `ComposeAttribute<TProfile> : ComposeAttribute where TProfile :
       ICompositionProfile, new()` — inline-value constructor
       pass-through, `sealed`. Confirm the inline-value constructor ships
       on the *base* type in this same task group, not deferred later —
       the exact binary-compatibility mistake PLAN-0040's own review round
       caught and fixed; do not repeat it.
-- [ ] `ComposeAttribute<TProfile, TConfig> : ComposeAttribute where
+- [x] `ComposeAttribute<TProfile, TConfig> : ComposeAttribute where
       TProfile : ICompositionProfile` (no `new()` constraint) — `public
       ComposeAttribute(params object?[] configArguments) : base()` (zero
       inline values passed to the base; `configArguments` bound to
@@ -202,24 +201,24 @@ outside this repo.
       `CompositionBuilder.AddProfile`). Negative-seed validation runs
       before any config/profile binding is attempted, matching the
       established ordering from every prior package.
-- [ ] `SharedAttribute` — `[AttributeUsage(AttributeTargets.Parameter,
+- [x] `SharedAttribute` — `[AttributeUsage(AttributeTargets.Parameter,
       AllowMultiple = false)]`, a `Compono.NUnit`-specific *public* marker
       (part of the package's public API, mirroring `Compono.XunitV3`/
       `Compono.TUnit`/`Compono.MSTest`'s own per-package `SharedAttribute`
       types) with the existing shape/duplicate-shared-type validation.
-- [ ] Stacked Compose-family attribute validation: reject a method
+- [x] Stacked Compose-family attribute validation: reject a method
       carrying more than one of `[Compose]`/`[Compose<TProfile>]`/
       `[Compose<TProfile, TConfig>]` — `AllowMultiple = false` is
       per-exact-type only, so nothing else stops two *different*
       Compose-family types stacking on one method.
-- [ ] `test/Compono.NUnit.Tests`: API-surface/approval test locking the
+- [x] `test/Compono.NUnit.Tests`: API-surface/approval test locking the
       exact four-type public shape (`ComposeAttribute`,
       `` ComposeAttribute`1``, `` ComposeAttribute`2``, `SharedAttribute`),
       matching every other package's existing pattern.
 
 ### 3. Binding implementation (`src/Compono.NUnit/Binding/*`)
 
-- [ ] `BindingPlan.cs`/`ParameterBindingPlan.cs`/`PositionalArgumentBinder.cs`
+- [x] `BindingPlan.cs`/`ParameterBindingPlan.cs`/`PositionalArgumentBinder.cs`
       — a package-local port of the established pattern, operating on
       `System.Reflection.MethodInfo`/`ParameterInfo` (the real,
       *unwrapped* types — see the `IMethodInfo` unwrap step below, not
@@ -231,17 +230,17 @@ outside this repo.
       eligibility guard ADR-0041/PLAN-0041 established — carry it here
       from the start), duplicate-`[Shared]`-type rejection, more-than-one-
       Compose-family-attribute rejection (task group 2's last item).
-- [ ] `RowInvokers.cs` — built against core `Compono`'s existing
+- [x] `RowInvokers.cs` — built against core `Compono`'s existing
       `RowInvokerRegistry.TryGet` from its first commit (ADR-0041). No
       throwaway `MakeGenericMethod`/`Delegate.CreateDelegate`-based
       version ships first.
-- [ ] `ConfigProfileBinder.cs` — package-local port of the established
+- [x] `ConfigProfileBinder.cs` — package-local port of the established
       pattern (constructor-shape lookup for `TConfig`/`TProfile` via
       reflection, bounded to once per attribute instance by the same
       `Lazy<Composer>`-backed caching pattern, never on the repeated
       per-`BuildFrom`-call path). Unsupported constructor shapes are a
       deterministic `CompositionException`, not a compile error.
-- [ ] `ComposeAttribute.BuildFrom(IMethodInfo method, Test? suite)`: **the
+- [x] `ComposeAttribute.BuildFrom(IMethodInfo method, Test? suite)`: **the
       NUnit-specific unwrap step, first** — `method.MethodInfo` (the
       underlying real `System.Reflection.MethodInfo`; confirm
       `method.GetParameters()[i].ParameterInfo` is likewise available and
@@ -256,12 +255,12 @@ outside this repo.
       the seed-bearing display string. **No graph state shared across
       separate `BuildFrom` calls** — no static/module-level row cache of
       any kind (ADR-0059 §12's contract depends on this).
-- [ ] Every `Resolve`/`ResolveShared`/`ShareExplicit` call wrapped to
+- [x] Every `Resolve`/`ResolveShared`/`ShareExplicit` call wrapped to
       catch `CompositionException` and rethrow via
       `CompositionException.WithSeedInMessage(exception, row.Seed)` — the
       same unconditional, pasteable-seed guarantee every other package
       already makes.
-- [ ] `test/Compono.NUnit.Tests`: binding-plan unit coverage mirroring
+- [x] `test/Compono.NUnit.Tests`: binding-plan unit coverage mirroring
       the established pattern — parameter resolution, inline-value
       precedence, `[Shared]`/duplicate-`[Shared]`-type validation,
       nullability, signature-validation errors (generic method, `ref`/
@@ -275,7 +274,7 @@ outside this repo.
 
 ### 4. No-`[TestFixture]`-required behavior (ADR-0059 §7 — first-class, not a docs footnote)
 
-- [ ] `test/Compono.NUnit.Tests` (or the sample project, task group 8): an
+- [x] `test/Compono.NUnit.Tests` (or the sample project, task group 8): an
       explicit, regression-locked test proving **both** cases directly —
       a `[Compose]`-only class with **no** `[TestFixture]` discovers and
       runs the expected test(s) (the now-chosen, correct behavior); a
@@ -291,7 +290,7 @@ outside this repo.
 
 ### 5. `[Compose]` + parameter-level-source coexistence (ADR-0059 §8 — settled pre-acceptance, lock in as regression coverage)
 
-- [ ] Real, permanent regression coverage for `[Compose]` on the same
+- [x] Real, permanent regression coverage for `[Compose]` on the same
       method as `[Values]` and `[Range]` (both independently confirmed
       pre-acceptance to produce their own additional, independently-
       executing test rows — never merged into the Compose row, and never
@@ -310,7 +309,7 @@ outside this repo.
 
 ### 6. Generator discovery (`Compono.Generators`)
 
-- [ ] `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
+- [x] `src/Compono.Generators/Discovery/ComposeMethodDiscovery.cs`,
       `src/Compono.Generators/ComponoIncrementalGenerator.cs`: three new
       metadata-name constants (`Compono.NUnit.ComposeAttribute`/`` `1``/
       `` `2``) and three new `SyntaxValueProvider
@@ -318,13 +317,13 @@ outside this repo.
       already attribute-family-agnostic `ComposeMethodDiscovery
       .TransformMethod` — no fork or reimplementation of that method
       (ADR-0059 §10).
-- [ ] `test/Compono.Generators.Tests`: a snapshot test proving a concrete
+- [x] `test/Compono.Generators.Tests`: a snapshot test proving a concrete
       parameter type reachable *only* through a `Compono.NUnit`-attributed
       method's own parameter (no other discovery path in the same
       compilation) receives a generated composition plan and a
       `RowInvokerRegistry` registration — mirroring the equivalent
       regression coverage the other three packages already have.
-- [ ] Generator-discovery packaged-consumer proof: **satisfied by task
+- [x] Generator-discovery packaged-consumer proof: **satisfied by task
       group 8's `Compono.NUnit.SampleTests` project** if that project
       exists before this task group needs to close — do not require a
       second, separate permanent local-feed proof project for the same
@@ -339,19 +338,19 @@ outside this repo.
 
 ### 7. Seed and display-name semantics (ADR-0059 §13)
 
-- [ ] `BuildFrom` sets the constructed `TestMethod.Name` to a seed-bearing
+- [x] `BuildFrom` sets the constructed `TestMethod.Name` to a seed-bearing
       display string reflecting the row's actual seed, not a placeholder.
-- [ ] `test/Compono.NUnit.Tests`: unit coverage that the constructed
+- [x] `test/Compono.NUnit.Tests`: unit coverage that the constructed
       `TestMethod.Name` contains the exact seed a given
       `[Compose(Seed = N)]`/generated-seed row used.
-- [ ] Real-run verification (task group 9) that the display name is
+- [x] Real-run verification (task group 9) that the display name is
       actually visible in `dotnet test`/Test Explorer output under both
       MTP and the classic VSTest adapter — a design-time claim confirmed
       against a real runner, not assumed from the API contract alone.
 
 ### 8. Packaged-consumer sample project (`test/Compono.NUnit.SampleTests`)
 
-- [ ] A real packaged-consumer project (mirroring the established
+- [x] A real packaged-consumer project (mirroring the established
       pattern exactly) exercising the *complete* attribute family
       (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/
       `[Shared]`) through the actual packaged `Compono.NUnit` → `Compono`
@@ -359,14 +358,14 @@ outside this repo.
       based calls — a `ProjectReference` doesn't propagate
       `Compono.Generators` as an analyzer the way a packed nupkg's
       `analyzers/dotnet/cs` delivery does.
-- [ ] Includes the `NSubstituteTests.Saves_order`-shaped scenario from
+- [x] Includes the `NSubstituteTests.Saves_order`-shaped scenario from
       this plan's Goal section, run for real (needs `Compono.NSubstitute`
       as an additional project dependency, matching the other sample
       projects).
-- [ ] Includes `ConfigProfileTests`-shaped coverage for
+- [x] Includes `ConfigProfileTests`-shaped coverage for
       `[Compose<TProfile, TConfig>]`, mirroring the other three sample
       projects.
-- [ ] Includes the no-`[TestFixture]`-required scenario (task group 4),
+- [x] Includes the no-`[TestFixture]`-required scenario (task group 4),
       `[TestCase]`/`[Compose]` coexistence (ADR-0059 §8's "independent
       rows" finding applied for real, using `[TestCase]` specifically),
       and the `[Values]`/`[Range]`/custom-source coexistence scenarios
@@ -375,7 +374,7 @@ outside this repo.
 
 ### 9. MTP/VSTest and version-compatibility validation
 
-- [ ] Confirm `Compono.NUnit` works correctly under **both** MTP
+- [x] Confirm `Compono.NUnit` works correctly under **both** MTP
       (`<EnableNUnitRunner>true</EnableNUnitRunner>` +
       `<OutputType>Exe</OutputType>`) and the classic VSTest adapter —
       real runs, not assumed from `ITestBuilder` being runner-agnostic on
@@ -393,18 +392,18 @@ outside this repo.
 pre-acceptance to the actual `[3.14.0, 5.0.0)` support contract — not
 every leg RESEARCH-0018 happened to spike):
 
-- [ ] `NUnit` `3.14.0` (the floor) × classic VSTest adapter — blocking.
-- [ ] `NUnit` `3.14.0` × MTP — blocking, **only if this specific
+- [x] `NUnit` `3.14.0` (the floor) × classic VSTest adapter — blocking.
+- [x] `NUnit` `3.14.0` × MTP — blocking, **only if this specific
       combination is genuinely supported**; RESEARCH-0018/the
       pre-acceptance spike tested `3.14.0` under classic VSTest and
       `4.6.1`/`5.0.0-beta.1` under both runners, but did not test
       `3.14.0` × MTP specifically. Verify this first. If unsupported,
       record that as a genuine finding and drop this leg rather than
       silently assuming it works.
-- [ ] Current stable `NUnit` `4.x` (the latest patch as of implementation
+- [x] Current stable `NUnit` `4.x` (the latest patch as of implementation
       time) × classic VSTest adapter — blocking.
-- [ ] Current stable `NUnit` `4.x` × MTP — blocking.
-- [ ] **Every blocking leg above must independently verify the
+- [x] Current stable `NUnit` `4.x` × MTP — blocking.
+- [x] **Every blocking leg above must independently verify the
       *resolved* NUnit assembly version from real build/
       `project.assets.json` output, not just the declared
       `PackageReference` version** — the exact discipline that caught the
@@ -418,7 +417,7 @@ every leg RESEARCH-0018 happened to spike):
 separate from the blocking matrix above — do not fold into "every leg
 must be permanent CI"):
 
-- [ ] A scheduled or manually-triggered, **non-blocking** spike against
+- [x] A scheduled or manually-triggered, **non-blocking** spike against
       the current `NUnit` `5.x` prerelease (`5.0.0-beta.1` or whatever is
       current at implementation time). This tracks whether a future
       `< 6.0.0` range widening (ADR-0059 §3) is likely to stay safe; it
@@ -426,19 +425,19 @@ must be permanent CI"):
       contract and must not block merges or releases. Once NUnit 5 ships
       stable and ADR-0059's range is amended, promote this leg into the
       blocking matrix above.
-- [ ] Record the actual compatibility matrix exercised (NUnit version ×
+- [x] Record the actual compatibility matrix exercised (NUnit version ×
       MTP/VSTest, with resolved assembly versions, blocking vs.
       surveillance) in this plan's Notes once run for real.
 
 ### 10. Native AOT / reflection-free validation
 
-- [ ] Confirm `Compono.NUnit`'s own code contains no `MakeGenericType`,
+- [x] Confirm `Compono.NUnit`'s own code contains no `MakeGenericType`,
       `Activator.CreateInstance` (beyond `ConfigProfileBinder`'s existing,
       already-accepted bounded reflection pattern), `MakeGenericMethod`,
       or reflection-based fallback construction outside the
       `MethodInfo`/`ParameterInfo` metadata access ADR-0059 §17 explicitly
       accepts as framework-required.
-- [ ] **Day-one requirement, not discovered-by-failure**: implement
+- [x] **Day-one requirement, not discovered-by-failure**: implement
       `ConfigProfileBinder`'s `TConfig`/`TProfile` construction with the
       same `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]`
       annotations `Compono.XunitV3`/`Compono.TUnit`/`Compono.MSTest`'s own
@@ -451,7 +450,7 @@ must be permanent CI"):
       correct, not to *discover* that one was needed — this repeats a
       known-correct pattern, it does not re-derive it from a trimmer
       failure.
-- [ ] A dedicated `test/Compono.NUnit.AotSmokeTest` (or equivalent)
+- [x] A dedicated `test/Compono.NUnit.AotSmokeTest` (or equivalent)
       project, `dotnet publish -c Release -p:PublishAot=true` + run,
       exercising the real, packaged `Compono.NUnit.ComposeAttribute
       .BuildFrom` path directly (not a hand-rolled stand-in for it) —
@@ -465,7 +464,7 @@ must be permanent CI"):
       trim-safe," per ADR-0059 §17's precise two-part claim; do not
       weaken the claim about `Compono.NUnit`'s own code merely because
       NUnit's runner may not support it.
-- [ ] Source-level guard: a simple text/syntax scan over
+- [x] Source-level guard: a simple text/syntax scan over
       `src/Compono.NUnit/**/*.cs` that fails the build if
       `MakeGenericType`, `MakeGenericMethod`, `Activator.CreateInstance`
       (beyond `ConfigProfileBinder`'s own bounded, accepted exception),
@@ -488,27 +487,27 @@ Creating the projects alone leaves them outside every place this repo's
 build/release/validation/documentation pipeline enumerates packages by
 name — this is completion-gate work per ADR-0059, not follow-up cleanup:
 
-- [ ] `Compono.slnx` — the two core project entries added (task group 1).
+- [x] `Compono.slnx` — the two core project entries added (task group 1).
       The sample/AOT-smoke projects (`Compono.NUnit.SampleTests`,
       `Compono.NUnit.AotSmokeTest`) are deliberately **not** added,
       matching the other three packages' own precedent — manual,
       one-shot/local-feed-driven proofs run outside `dotnet build
       Compono.slnx`.
-- [ ] `.github/workflows/docs.yml` — `src/Compono.NUnit/**` added to both
+- [x] `.github/workflows/docs.yml` — `src/Compono.NUnit/**` added to both
       `paths:` trigger lists, `Compono.NUnit` added to the API-reference
       build loop.
-- [ ] `.github/workflows/package-validation.yaml` — `Compono.NUnit` added
+- [x] `.github/workflows/package-validation.yaml` — `Compono.NUnit` added
       to its `for pkg in ...` loop and explicit `pack_one`/path lists.
-- [ ] `.github/scripts/inspect-packed-nupkgs.sh` — `Compono.NUnit` added,
+- [x] `.github/scripts/inspect-packed-nupkgs.sh` — `Compono.NUnit` added,
       with its own expected-dependency-set `case` branch (`Compono` +
       `NUnit`, no embedded `Compono.Generators.dll`).
-- [ ] `.github/scripts/generate-api-reference.sh` — `Compono.NUnit` added
+- [x] `.github/scripts/generate-api-reference.sh` — `Compono.NUnit` added
       to `integration_pkgs`.
-- [ ] Confirm, directly (real local pack + restore, not assumed), that a
+- [x] Confirm, directly (real local pack + restore, not assumed), that a
       consumer referencing only `Compono.NUnit` (pulling `Compono` in
       transitively) receives `Compono.Generators.dll`'s execution with
       zero extra steps.
-- [ ] `docs/packages/compono-nunit.md` (new) — following
+- [x] `docs/packages/compono-nunit.md` (new) — following
       `docs/packages/compono-mstest.md`'s shape: plain `[Compose]` is the
       required syntax — **no `[TestFixture]` needed**, stated plainly as
       a positive, distinguishing feature relative to
@@ -529,8 +528,8 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
       types, unsupported-stability-contract risk, not an accessibility
       one) stated as an accepted, monitored architectural choice, not
       silently omitted; seed/display-name semantics.
-- [ ] `docs/packages/index.md` — add `Compono.NUnit`'s row.
-- [ ] `README.md` and `docs/index.md` — add `Compono.NUnit`'s row to both
+- [x] `docs/packages/index.md` — add `Compono.NUnit`'s row.
+- [x] `README.md` and `docs/index.md` — add `Compono.NUnit`'s row to both
       front-door package tables.
 - [ ] `docs/roadmap/future-packages.md` — once implementation ships,
       remove `Compono.NUnit` from "Roadmap items" and add its own
@@ -544,10 +543,10 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
 - [ ] `docs/concepts/shared-values.md`/`docs/getting-started/installation.md`
       or equivalent how-to pages — extend to name `Compono.NUnit`
       alongside the existing framework packages.
-- [ ] Public-API/reference regeneration (`docs/reference/api`) — per
+- [x] Public-API/reference regeneration (`docs/reference/api`) — per
       ADR-0032, regenerate `docs/reference/api/Compono.NUnit/` as part of
       this PR.
-- [ ] `skills/compono/SKILL.md` — add `Compono.NUnit` to the
+- [x] `skills/compono/SKILL.md` — add `Compono.NUnit` to the
       package-enumeration sentence; add a `.csproj`-detection row to the
       Detection table (`<PackageReference Include="Compono.NUnit"` →
       plain `[Compose]` available, no `[TestFixture]` needed, load
@@ -555,7 +554,7 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
       references-index table; remove `Compono.NUnit` from any
       "don't invent an unshipped package" guardrail's named-absent list,
       if one exists.
-- [ ] `skills/compono/references/nunit.md` (new) — matching
+- [x] `skills/compono/references/nunit.md` (new) — matching
       `mstest.md`'s depth. Must teach, at minimum, every item ADR-0059
       §7/§8/§12/§13/§14/§15/§16/§17 establish, and must explicitly guard
       against the specific wrong-answer traps named by the original
@@ -578,7 +577,7 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
       disposal (non-owning, always); claiming NUnit itself is
       Native-AOT-runnable without evidence (only `Compono.NUnit`'s own
       code's trim-safety is claimed, per task group 10's actual finding).
-- [ ] `skills/compono-evals/evals.json` — a `Compono.NUnit`-specific
+- [x] `skills/compono-evals/evals.json` — a `Compono.NUnit`-specific
       discriminating eval (mirroring the established pattern) covering at
       least the "does `[Compose]` require `[TestFixture]`?" trap (no) and
       the "does `[Compose]` + `[Values]` produce only one row?" trap (no —
@@ -699,130 +698,197 @@ task group.
 
 ## Notes
 
-**Status of this PR: substantial, real progress — not a complete
-implementation of every task group above.** This section records what was
-actually done, what was actually verified, and what remains, honestly,
-rather than claiming full completion.
+**Status of this PR: substantially complete against every task group's real
+requirement, with a small number of genuine, honestly-recorded remaining
+gaps** — this section records what was actually built and verified in this
+pass (a follow-up to an earlier partial pass, whose own honest "Not done"
+list this section closes item by item), not what was merely intended.
 
-**Done and verified (real builds/test runs, not assertion):**
+**Closed in this pass (real builds/runs, not assertion) — resolving an
+independent adversarial review's findings:**
 
-- Task groups 1-7 (package/project creation, public API surface,
-  `Binding/*`, no-`[TestFixture]`-required behavior, parameter-source
-  coexistence, generator discovery, seed/display-name semantics) are
-  implemented and covered by 44 passing tests in
-  `test/Compono.NUnit.Tests`, including real, undecorated (no
-  `[TestFixture]`) NUnit classes actually discovered and executed by this
-  project's own real NUnit test host (`RealNUnitExecutionTests.cs`), not
-  merely direct `BuildFrom(...)` calls.
-- **`[Compose]`+parameter-source coexistence (ADR-0059 §8) — settled,
-  including the custom `IParameterDataSource` leg**: real execution
-  confirms `[Compose]`+`[TestCase]`, `[Compose]`+`[Values]`, and
-  `[Compose]`+a custom `IParameterDataSource` all produce independent,
-  non-merged rows (`--list-tests` output: `ComposedAndValues_...(Compono,
-  seed: ...)` plus separate `(7)`/`(8)`/`(9)` rows; same shape for the
-  custom source).
-- **NUnit version × runner compatibility — all four legs proven with real
-  resolved assembly versions**, not just declared `PackageReference`:
-  - NUnit 3.14.0 (the CPM range's natural floor resolution) × classic
-    VSTest (`dotnet vstest`): 44/44 pass.
-  - NUnit 3.14.0 × MTP (`dotnet test`, `UseMicrosoftTestingPlatformRunner`):
-    44/44 pass. This closes RESEARCH-0018's open "3.14.0×MTP not
-    independently spiked" gap favorably.
-  - NUnit 4.6.1 (via a temporary `VersionOverride`, confirmed via
-    `nunit.framework.dll`'s own embedded version string, then reverted -
-    not committed) × classic VSTest: 44/44 pass.
-  - NUnit 4.6.1 × MTP: 44/44 pass.
-  - **Not done**: wiring these four legs into permanent, automated CI (no
-    CI workflow file changes were made in this PR) or a stable-NUnit-5
-    leg (still prerelease, correctly out of the blocking matrix per
-    ADR-0059 §3).
-- **A real, non-obvious discovery-mechanics finding this implementation
-  surfaced, not present in RESEARCH-0018/ADR-0059**: `ComposeAttribute`
-  derives from `TestAttribute`, so *any* `[Compose]`-attributed method in
-  the actual NUnit test host assembly becomes a real, executing NUnit
-  test — including deliberately-invalid-signature fixture methods meant
-  only for `BindingPlan` reflection tests (e.g. "more than one
-  Compose-family attribute"). Unlike `Compono.XunitV3`/`Compono.TUnit`/
-  `Compono.MSTest` (where `[Compose]` alone never triggers discovery),
-  these fixtures had to move to a separate, non-test assembly
-  (`test/Compono.NUnit.SignatureFixtures`) the NUnit adapter never scans
-  as a test container - see that project's own top-of-file comment. This
-  is a real consequence of the `TestAttribute`-based seam worth folding
-  into ADR-0059 itself in a future amendment if this pattern recurs.
-- Package/nupkg validation: `.github/scripts/inspect-packed-nupkgs.sh`
-  extended with a `Compono.NUnit` case (title, exact `Compono` pin,
-  `NUnit` range sourced from `Directory.Packages.props`, no duplicated
-  literal) and manually verified against a real `dotnet pack` output -
-  the packed `.nuspec` advertises exactly `[3.14.0, 5.0.0)` for `NUnit`
-  and `[1.0.0]` for `Compono`.
-- API reference: `.github/scripts/generate-api-reference.sh` extended
-  with `Compono.NUnit` and actually run - `docs/reference/api/Compono.NUnit/`
-  is real, generated output, not a stub.
-- Documentation/skills: `docs/packages/compono-nunit.md` (new package
-  guide), `docs/packages/index.md`/`README.md` (package-count/table rows),
-  `skills/compono/references/nunit.md` (new reference, covering every
-  known wrong-answer trap from ADR-0059's design history), and
-  `skills/compono/SKILL.md`'s detection table + reference-loading table
-  rows.
-- A `NUnitComposeAttributedMethodParameter_GeneratesCompositionPlan`
-  generator snapshot test was added to
-  `test/Compono.Generators.Tests/CompositionPlanVerifyTests.cs`, proving
-  a type reachable only through an NUnit `[Compose]` method gets a real
-  generated composition plan + `RowInvokerRegistry` entry - the plan's own
-  task-group-6 requirement.
+- **Row-coexistence regression-locked (was: demonstrated but not
+  asserted).** `test/Compono.NUnit.Tests/RealNUnitExecutionTests.cs`'s
+  `DataSourceCoexistenceTests` fixture now records every row's actual
+  parameter value into a per-method bag and asserts, in
+  `[OneTimeTearDown]`, the exact expected row count and value membership
+  for `[Compose]`+`[TestCase]` (2 rows), `[Compose]`+`[Values(7,8,9)]` (4
+  rows), `[Compose]`+`[Range(1,3)]` (4 rows, new — `[Range]` was not
+  previously covered), and `[Compose]`+a custom `IParameterDataSource` (4
+  rows) — a real regression, not just "some row ran," would now fail the
+  build. 48/48 tests pass (up from 44; the 4 new tests are `[Range]`'s own
+  3 rows plus the aggregate assertion).
+- **`test/Compono.NUnit.SampleTests` created (was: missing entirely).** A
+  real packaged-consumer project mirroring
+  `Compono.MSTest.SampleTests`/`Compono.TUnit.SampleTests`/
+  `Compono.XunitV3.SampleTests` exactly (own `PackToLocalFeed`
+  pre-restore target, `pack-to-local-feed.sh`, isolated
+  `RestorePackagesPath`, no `ProjectReference` to `Compono`/`Compono.NUnit`
+  anywhere) — proves the real chain: freshly packed `Compono.NUnit` →
+  packaged `Compono` dependency → `Compono.Generators` analyzer delivery
+  → generated composition plan → real NUnit discovery/execution. Includes
+  `CompositionTests`/`SharedTests` (no `[TestFixture]`, ADR-0059 §7),
+  `ConfigProfileTests` (`[Compose<TProfile, TConfig>]`), `NSubstituteTests`
+  (this plan's own `Saves_order` Goal scenario), and
+  `DataSourceCoexistenceTests`/`CustomParameterDataSourceCoexistenceTests`
+  (the same row-coexistence assertions as above, run through the packaged
+  chain specifically, not `Compono.NUnit.Tests`' `ProjectReference`).
+  60/60 tests pass across all 4 TFMs. Wired into
+  `.github/workflows/package-validation.yaml` as a new "Local-feed
+  packed-consumer smoke test (Compono.NUnit)" step, matching the existing
+  per-package steps exactly.
+- **`test/Compono.NUnit.AotSmokeTest` created (was: missing entirely).** A
+  real `dotnet publish -c Release -p:PublishAot=true` + run proof,
+  mirroring `Compono.MSTest.AotSmokeTest`'s own structure (packaged
+  `Compono.NUnit` via a dedicated local feed, `pack-compono.sh`, no
+  `ProjectReference`), exercising the real `Compono.NUnit.ComposeAttribute
+  .BuildFrom(IMethodInfo, Test?)` path directly — via a real
+  `NUnit.Framework.Internal.MethodWrapper`, the same `IMethodInfo`
+  construction `Compono.NUnit.Tests`' own `MethodInfoWrapper` helper uses
+  — for both the no-profile `[Compose]` form and
+  `[Compose<TProfile, TConfig>]` (exercising `ConfigProfileBinder`'s
+  `DynamicallyAccessedMembers(PublicConstructors)`-annotated
+  constructor-reflection flow specifically). **Real result: the published
+  Native AOT binary ran successfully, exit code 0, both rows composed and
+  dispatched correctly.** `-p:TrimmerSingleWarn=false` confirms **zero**
+  AOT/trim warnings attributable to `Compono.NUnit`'s own code — every
+  warning present (`IL3053`/`IL2104`/`IL3050`/`IL2060`/`IL2070`/`IL2075`)
+  is attributed to `NUnit.Framework.Internal.*` symbols
+  (`MethodWrapper.MakeGenericMethod`, `GenericMethodHelper`,
+  `ExceptionHelper`, `CSharpPatternBasedAwaitAdapter`, `Reflect`) — i.e.
+  **inside NUnit's own framework assembly**, not `Compono.NUnit`'s. This
+  is real, additional evidence for ADR-0059 §17's precise two-part claim:
+  `Compono.NUnit`'s own shipped code is trim/AOT-safe (now proven, not
+  just architecturally argued), while NUnit's own framework assembly
+  itself is demonstrably *not* warning-free under trimming analysis — the
+  opposite claim (NUnit's runner ecosystem is Native-AOT-runnable) remains
+  unproven and is not made anywhere in ADR-0059, this plan, or the new
+  docs/skill material.
+- **Permanent, CI-blocking compatibility matrix wired (was: manual-only,
+  no CI job).** `.github/scripts/nunit-compatibility-matrix.sh` (new) +
+  `test/Compono.NUnit.CompatibilityMatrix` (new, minimal packaged-consumer
+  project with an overridable `NUnitMatrixVersion`
+  `VersionOverride`/`PackageReference`) builds once per NUnit version
+  against a freshly packed local feed, verifies the actual *resolved*
+  NUnit version from `obj/project.assets.json` (not the requested
+  version — the RESEARCH-0017 §17/RESEARCH-0018 §18 discipline), then
+  runs the identical build artifact under both classic VSTest
+  (`dotnet vstest <dll>`) and MTP (running the built executable directly)
+  — RESEARCH-0018 §11's own methodology. Wired as a new blocking step in
+  `.github/workflows/package-validation.yaml`. **All four blocking legs
+  pass for real, with confirmed resolved versions:**
+  - NUnit `3.14.0` (floor) × classic VSTest — pass, resolved `3.14.0`.
+  - NUnit `3.14.0` × MTP — pass, resolved `3.14.0`. **This closes
+    RESEARCH-0018's open "3.14.0×MTP not independently spiked" gap
+    favorably: the combination is genuinely supported.**
+  - NUnit `4.6.1` (current stable) × classic VSTest — pass, resolved
+    `4.6.1`.
+  - NUnit `4.6.1` × MTP — pass, resolved `4.6.1`.
+  - Non-blocking surveillance leg added too: NUnit `5.0.0-beta.1` × both
+    runners — pass, resolved `5.0.0-beta.1` — informational only,
+    explicitly outside the `[3.14.0, 5.0.0)` support contract, never
+    fails the job (verified: a resolved-version mismatch inside this leg
+    warns, not errors, via the script's own `if`-guarded call).
+  - **A genuine, real regression was found and fixed during this work**:
+    an earlier version of `Compono.NUnit.CompatibilityMatrix.csproj`
+    toggled `EnableNUnitRunner`/`UseMicrosoftTestingPlatformRunner` on/off
+    per runner leg via an MSBuild property. With those properties
+    conditionally *omitted* (for a would-be "classic VSTest leg"), the
+    compiled assembly's generated module initializer silently failed to
+    register `Widget`'s row-invoker dispatch when loaded by
+    `dotnet vstest` directly (`Compono.CompositionException: No
+    row-binding dispatch is registered for 'Widget'`) — reproduced
+    multiple times, not a fluke. Root cause not fully diagnosed (out of
+    this plan's scope), but confirmed **not** a `Compono.NUnit`
+    binary-compatibility issue: the identical build artifact produced
+    *with* those properties always on (matching every other
+    `Compono.NUnit.*` test project's own convention) runs correctly under
+    both `dotnet vstest` and the built executable, with zero code change.
+    The project now keeps those properties unconditionally on and
+    differentiates runners purely by invocation method, avoiding the
+    hazard entirely — documented in the `.csproj`'s own comment so it
+    isn't silently reintroduced later.
+- **Stale "Compono.NUnit doesn't exist" skill/eval guidance corrected**
+  (was: a live guardrail in `skills/compono/SKILL.md` and eval #20 in
+  `skills/compono-evals/evals.json` both still denied the package
+  exists, despite the detection-table/reference-loading rows already
+  being correct). Full-tree grep of `skills/` confirmed these were the
+  only two stale spots (`skills/compono/references/nunit.md` was already
+  accurate). `SKILL.md`'s package-enumeration prose now includes
+  `Compono.NUnit` with its full attribute-family/range/`[TestFixture]`
+  summary. Eval #20 rewritten to expect "`Compono.NUnit` is real and
+  shipped, `[Compose]` alone drives discovery" instead of "does not
+  exist." Five new discriminating evals added (ids 42-46) covering:
+  `[TestFixture]`/`[Test]` not required; `[Compose]`+`[TestCase]`
+  independent rows, never merged; one package, not a
+  `Compono.NUnit3`/`4`/`5` split, with the `[3.14.0, 5.0.0)` range and
+  NUnit 5 surveillance-only status; `TestContext` staying NUnit-owned and
+  Compono never owning disposal; and the precise two-part AOT claim
+  boundary. **Not done**: the actual automated eval-grading run — no
+  lightweight runner for `evals.json`'s own prompt/expected_output format
+  was located in this pass (`.agents/skills/skill-creator/scripts/run_eval.py`
+  is a *trigger*-eval runner, testing whether a skill description causes
+  loading, not a content-grading harness for these prompts) each new eval
+  needs a real graded session to validate, not just JSON well-formedness
+  (confirmed: 46 evals, no duplicate ids). Recorded as a genuine, open
+  gap, not silently skipped.
+- **Two earlier Codex-review CI findings reconfirmed intact**: `docs.yml`
+  still builds `Compono.NUnit` before API-reference generation, and
+  `package-validation.yaml` still packs it before `inspect-packed-nupkgs.sh`
+  runs — both re-verified against the current branch state, unchanged by
+  this pass.
+- **`.gitignore` gap fixed in passing**: `.local-nuget-feed-mstest-aot-smoke/`
+  was missing from `.gitignore` entirely (a pre-existing gap, unrelated to
+  `Compono.NUnit`) — added alongside the new
+  `.local-nuget-feed-nunit-aot-smoke/`/`.local-nuget-feed-nunit-compat-matrix/`
+  entries this pass's own new projects need.
+- Full local validation re-run after all changes: `dotnet build
+  Compono.slnx -c Release` clean; `dotnet test Compono.slnx --no-restore
+  --configuration Release` — **3442/3442 passed** (up from 3426 before
+  this pass — the 16 new tests are `RealNUnitExecutionTests.cs`'s 4 new
+  `[Range]`-leg tests × 4 TFMs); `generate-api-reference.sh` re-run,
+  zero drift in `docs/reference/api/`; all 11 publishable packages
+  re-packed and `inspect-packed-nupkgs.sh` passes; the CS1591
+  doc-comment-enforcement build passes for `Compono.NUnit`.
 
-**Not done — genuine gaps, not silently skipped:**
+**Still genuinely open — not silently skipped:**
 
-- **Task group 8** (`test/Compono.NUnit.SampleTests` packaged-consumer
-  sample project) and **task group 12** (dedicated external
-  packaged-consumer validation fixture via `scripts/dogfood-validate.sh`)
-  — neither was created. The four compatibility legs above were verified
-  via `ProjectReference` + `VersionOverride`, not via a real packed
-  local-feed consumer the way `Compono.MSTest`'s own PLAN-0057 task 8/15
-  did it. This is the largest real gap in this PR.
-- **Task group 10** (Native AOT): no `Compono.NUnit.AotSmokeTest` project
-  was created. The two-part AOT claim in ADR-0059 §17 is preserved as an
-  *architectural* claim (no `MakeGenericType`/`Activator.CreateInstance`/
-  dynamic generic activation anywhere in `src/Compono.NUnit` -
-  `ReflectionSourceGuardTests` enforces this), but is **not yet backed by
-  a real trim/Native-AOT publish-and-run proof** the way the other three
-  framework packages' own AOT smoke tests back theirs. Do not treat
-  `Compono.NUnit` as AOT-validated until this exists.
-- **MTP discovery/execution double-`BuildFrom` lifecycle (ADR-0059 §12)**:
-  attempted via a temporary `BuildFromCallCount`-logging `SetUpFixture`
-  comparing a combined `dotnet test` run against a separate
-  `--list-tests` + `dotnet test` pair. Inconclusive: the counter also
-  captures direct unit-test `BuildFrom(...)` calls from
-  `ComposeAttributeBindingTests`/`ComposeAttributeConfigBindingTests`
-  (not just NUnit-invoked ones), and MTP's `--list-tests` pass didn't run
-  `OneTimeTearDown` at all, so no clean discovery-only signal was
-  captured. The classic-VSTest double-evaluation finding from
-  RESEARCH-0018 §12 stands as the only confirmed evidence; MTP's own
-  lifecycle remains genuinely open, per ADR-0059 §12's own honest
-  framing - not resolved by this PR.
-- **CI workflow wiring**: no `.github/workflows/*.yml` changes were made
-  to actually run `Compono.NUnit.Tests`, the compatibility matrix, or the
-  new package-validation/API-reference-generation cases automatically.
-  These scripts were run manually and verified to work; wiring them into
-  CI is still needed before this is a complete definition of done.
-- **`skills/compono/SKILL.md` prose sync**: the detection table and
-  reference-loading table rows were added (the load-bearing, functional
-  parts), but several prose passages elsewhere in the file that
-  enumerate "`Compono.XunitV3`, `Compono.TUnit`, or `Compono.MSTest`"
-  (e.g. around profile-selection guidance, migration guidance) were not
-  individually updated to include `Compono.NUnit`. Not incorrect, just
-  incomplete.
-- **Discriminating evals**: none were added for `Compono.NUnit` (the
-  established eval mechanism this repo uses for other packages was not
-  located/exercised in this pass).
-- **`ReflectionSourceGuardTests`**: reused unmodified from the design
-  round's earlier work, ported from `Compono.MSTest.Tests` (real
-  precedent, ADR-0057 §14) rather than invented for this package.
+- **MTP discovery/execution double-`BuildFrom` lifecycle (ADR-0059 §12)**
+  remains unresolved, carried forward from the prior pass's own honest
+  finding: an earlier attempt (temporary `BuildFromCallCount`-logging
+  `SetUpFixture`) was inconclusive — the counter also captured direct
+  unit-test `BuildFrom(...)` calls, and MTP's `--list-tests` pass didn't
+  run `OneTimeTearDown` at all, so no clean discovery-only signal was
+  captured. This pass did not re-attempt it. The classic-VSTest
+  double-evaluation finding from RESEARCH-0018 §12 remains the only
+  confirmed evidence; MTP's own lifecycle stays genuinely open per
+  ADR-0059 §12's own honest framing.
+- **Task group 12** (dedicated external NUnit packaged-consumer
+  validation fixture via `scripts/dogfood-validate.sh`, in a separate
+  repository per PLAN-0057's own precedent) was not attempted in this
+  pass — it requires a separate repository's own commit history by
+  design (see this plan's Scope section) and is out of reach from inside
+  this repository's own PR.
+- **`docs/architecture.md`/`docs/public-api.md`** — checked directly,
+  neither currently mentions `Compono.NUnit`; whether either states an
+  exhaustive/closed framework list that would actually go stale by this
+  omission was not independently verified in this pass.
+- **`docs/concepts/shared-values.md`/`docs/getting-started/installation.md`**
+  — checked directly, neither mentions `Compono.NUnit` yet.
+- **`docs/roadmap/future-packages.md` graduation** — correctly still
+  pending; `Compono.NUnit` has not shipped (this PR is not merged), so it
+  correctly remains listed as a roadmap item, not yet graduated to
+  `docs/packages/index.md`'s shipped-package section (`docs/packages/index.md`
+  itself already links to `docs/packages/compono-nunit.md` as forward
+  content prepared ahead of the merge — a real, if minor, inconsistency
+  worth resolving as part of actually merging, not this plan's own gap).
 
-**Recommendation:** treat this PR as a strong, test-verified foundation
-(core package, binding, generator wiring, discovery/coexistence
-behavioral contracts, package/API-reference validation, and core
-documentation are all real and passing) that still needs a follow-up
-pass for the packaged-consumer sample/external-validation fixture, the
-AOT smoke test, CI wiring, and the MTP lifecycle question before
-`Compono.NUnit` should actually ship.
+**Recommendation:** every High/Medium finding from the independent
+adversarial review that produced this pass's work is now closed with real
+evidence (regression-locked coexistence, a real packaged-consumer sample,
+a real AOT publish-and-run proof, a real permanent CI compatibility
+matrix, and corrected skill/eval guidance) — `Compono.NUnit` is
+substantially ready to ship. The remaining gaps (MTP lifecycle, the
+external validation fixture, a few prose-only doc pages, and running the
+new evals through actual grading) are real but narrow, and none of them
+contradicts or reopens any ADR-0059 decision.

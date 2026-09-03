@@ -177,6 +177,26 @@ jobs:
           dotnet test test/Compono.MSTest.SampleTests/Compono.MSTest.SampleTests.csproj \
             -c Release
 
+      - name: Local-feed packed-consumer smoke test (Compono.NUnit)
+        # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
+        # source into .local-nuget-feed, restores as a real consumer would) - PLAN-0059 task group 8's
+        # own real generated-plan-through-the-packaged-dependency-chain proof, including the
+        # [TestCase]/[Values]/custom-IParameterDataSource independent-row coexistence scenario. No
+        # deliberately-failing proof tests exist in this project either, so no --filter-not-class is
+        # needed.
+        run: |
+          dotnet test test/Compono.NUnit.SampleTests/Compono.NUnit.SampleTests.csproj \
+            -c Release
+
+      - name: NUnit compatibility matrix (Compono.NUnit)
+        # PLAN-0059 task group 9's permanent, repeatable, CI-blocking supported-version x runner
+        # matrix (ADR-0059 §6's monitoring requirement for the accepted NUnit Internal-namespace
+        # dependency risk): NUnit 3.14.0 (floor) and the current stable 4.x line, each under both
+        # classic VSTest and MTP, each verifying the *resolved* NUnit assembly version from real
+        # build output - see .github/scripts/nunit-compatibility-matrix.sh for the full mechanism.
+        # NUnit 5 prerelease is deliberately excluded - non-blocking surveillance only.
+        run: .github/scripts/nunit-compatibility-matrix.sh
+
       - name: Local-feed packed-consumer smoke test (Compono.TestDoubles)
         # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
         # source into .local-nuget-feed, restores as a real consumer would) - PLAN-0043 Phase 2's own

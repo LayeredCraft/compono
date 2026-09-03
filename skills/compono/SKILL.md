@@ -327,13 +327,22 @@ undermines the reason Compono exists in this project.
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`
   as `[TestMethod]`-compatible `ITestDataSource` attributes, requires
   `MSTest.TestFramework` `4.0.0`+ (not `3.x` — a different, binary-
-  incompatible assembly identity), see `references/mstest.md`)
-  — there is no `Compono.NUnit`, `Compono.FakeItEasy`, or `Compono.Moq`,
-  and never invent a plausible-looking API for one. That
+  incompatible assembly identity), see `references/mstest.md`;
+  `Compono.NUnit` ships the same full attribute family —
+  `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
+  `ComposeAttribute : NUnit.Framework.TestAttribute, ITestBuilder` — no
+  `[TestFixture]` or `[Test]` needed alongside `[Compose]` (`[Compose]`
+  alone makes a method a real, independently discovered NUnit test),
+  requires `NUnit` `[3.14.0, 5.0.0)` (one package covers the whole
+  range — no `Compono.NUnit3`/`Compono.NUnit4`/`Compono.NUnit5` split;
+  NUnit 5 stays prerelease-only and outside the supported contract until
+  it ships stable), see `references/nunit.md`)
+  — there is no `Compono.FakeItEasy` or `Compono.Moq`, and never invent a
+  plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
   core `Composer.Create<T>()`/`CreateMany<T>()` work inside any test
-  framework's test body today, including NUnit, with no
-  framework-specific package required — just without `Compono.XunitV3`'s
+  framework's test body today, with no framework-specific package
+  required — just without `Compono.XunitV3`'s/`Compono.NUnit`'s
   `[Compose]`/`[Shared]`/row convenience. Likewise, don't overstate what
   `Compono.DependencyInjection` itself is: it's a narrow, one-direction
   bridge (`row.AsServiceProvider()`, reaching only scope/exact-
