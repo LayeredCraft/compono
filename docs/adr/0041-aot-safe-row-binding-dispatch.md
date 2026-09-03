@@ -472,3 +472,14 @@ ADR-0057/PLAN-0057's own scope. No `Compono.XunitV3` source file is
 modified by this amendment.
 
 **Tracked as** [LayeredCraft/compono#119](https://github.com/LayeredCraft/compono/issues/119).
+
+## Amendment 5 (2026-09-02): Generator registration discoverability follows ADR-0058
+
+The original implementation plan deliberately left
+`RowInvokerRegistry.Register` undecorated to match the then-existing cache
+precedent. ADR-0058 replaces that convention with a member-level rule:
+`Register` is marked `[EditorBrowsable(EditorBrowsableState.Never)]` because
+only generated consumer-assembly code calls it. `TryGet` remains visible
+because the framework integration packages call it at runtime. This changes
+IntelliSense presentation only; both members remain public for their existing
+cross-assembly callers.

@@ -37,6 +37,7 @@ public static class GeneratedTestDoubleRegistry
     /// registration for a <typeparamref name="T"/> already present (e.g. from another assembly's
     /// own generated module initializer) is a no-op, never a throw or an overwrite.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public static void RegisterFactory<T>(Func<T> factory)
         where T : class
     {
