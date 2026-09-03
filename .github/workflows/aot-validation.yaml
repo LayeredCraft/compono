@@ -142,11 +142,47 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm every applicable AOT smoke leg passed
+      # Fail closed, not just on an applicable leg's own failure: this job runs via `if: always()`
+      # specifically so it never sits Pending, but that same `always()` means it also runs when
+      # `changes` itself failed/was cancelled (checkout, `git diff`, or the applicability script
+      # erroring) - `aot-smoke` reports `skipped` in that case too (its own `if:` implicitly
+      # requires `needs.changes` to have succeeded), which the original version of this check could
+      # not tell apart from the legitimate "changes succeeded, zero legs applicable" skip. Both
+      # produce `aot-smoke.result == skipped`; only `changes.result` distinguishes them. Checked
+      # first, before anything else, so every other branch below can assume applicability was
+      # actually computed.
+      - name: Confirm applicability was computed and every applicable leg passed
         run: |
-          result="${{ needs.aot-smoke.result }}"
-          if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
-            echo "::error::One or more applicable AOT smoke legs failed - see the aot-smoke job above." >&2
+          changes_result="${{ needs.changes.result }}"
+          smoke_result="${{ needs.aot-smoke.result }}"
+          legs='${{ needs.changes.outputs.legs }}'
+
+          if [ "$changes_result" != "success" ]; then
+            echo "::error::Applicability computation ('changes' job) did not succeed (result: $changes_result) - failing closed rather than trusting an unproven leg set." >&2
             exit 1
           fi
-          echo "AOT validation gate passed. Applicable legs: ${{ needs.changes.outputs.legs }}"
+
+          if [ "$smoke_result" = "failure" ] || [ "$smoke_result" = "cancelled" ]; then
+            echo "::error::One or more applicable AOT smoke legs failed or were cancelled - see the aot-smoke job above." >&2
+            exit 1
+          fi
+
+          if [ "$smoke_result" = "skipped" ]; then
+            # A legitimate skip only ever means "changes succeeded and found zero applicable legs" -
+            # aot-smoke's own `if: needs.changes.outputs.legs != '[]'` is the only thing that skips
+            # it when changes succeeded. Confirm that's really why, rather than trusting the skip
+            # blindly now that changes_result == success is already known.
+            if [ "$legs" != "[]" ]; then
+              echo "::error::aot-smoke was skipped but changes reported applicable legs ($legs) - this should never happen; failing closed." >&2
+              exit 1
+            fi
+            echo "No applicable AOT smoke legs for this change - gate passes."
+            exit 0
+          fi
+
+          if [ "$smoke_result" != "success" ]; then
+            echo "::error::Unexpected aot-smoke result: $smoke_result - failing closed." >&2
+            exit 1
+          fi
+
+          echo "AOT validation gate passed. Applicable legs: $legs"

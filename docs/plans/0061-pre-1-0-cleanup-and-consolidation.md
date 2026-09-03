@@ -279,8 +279,12 @@ Ships as its own PR.
         conclusion, never a missing status.
   - [x] A final `if: always()` aggregation job depends on all eight leg jobs
         and is the one job named in branch protection/ruleset as the required
-        check — fails if any applicable leg failed, succeeds if every
-        applicable leg passed or none was applicable.
+        check — fails if any applicable leg failed or was cancelled, succeeds
+        if every applicable leg passed or none was applicable, **and fails
+        closed if the applicability computation itself didn't succeed**
+        (checked first, before the legs' own result, so a `changes` failure/
+        cancellation can never be mistaken for "correctly found nothing to
+        run" — PR #128 review finding, fixed post-merge-of-Phase-1-review).
   - [x] No `merge_group` trigger is added — this repository does not use
         GitHub merge queues today; revisit only if that changes.
   - [x] The workflow's job/step names and any package-guide text referencing

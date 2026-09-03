@@ -632,11 +632,18 @@ inside the workflow:
    normal skipped conclusion, not a missing/pending status.
 5. A final, always-`if: always()`-run aggregation job depends on all eight leg
    jobs and is the one job the branch protection/ruleset required-check
-   configuration actually names: it fails if any *applicable* leg job failed,
-   and succeeds if every applicable leg passed or if no leg was applicable at
-   all (nothing AOT-relevant changed). This is the job whose result GitHub
-   reports for the required check, so the check always resolves to
-   success/failure, never stays `Pending`.
+   configuration actually names: it fails if any *applicable* leg job failed
+   or was cancelled, and succeeds if every applicable leg passed or if no leg
+   was applicable at all (nothing AOT-relevant changed). Failing closed
+   applies to the applicability computation itself, not only to a leg's own
+   result — if the first job (computing which legs apply) doesn't succeed
+   (fails, is cancelled, or errors), every leg job reports the same `skipped`
+   conclusion a legitimate zero-applicable-legs run would, but the
+   aggregation job checks the applicability job's own result *before*
+   looking at the legs' result, so an unproven leg set can never be
+   mistaken for "correctly found nothing to run." This is the job whose
+   result GitHub reports for the required check, so the check always
+   resolves to success/failure, never stays `Pending`.
 
 This repository does not use GitHub merge queues today (no workflow declares
 a `merge_group` trigger) — this design does not add one speculatively; if a
