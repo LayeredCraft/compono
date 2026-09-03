@@ -121,6 +121,71 @@ else
     tests_failed=1
 fi
 
+# 6a. assert_dependency_range_per_tfm: Compono.Logging's real shape - per-TFM ranges for net8/9/10,
+# absent for net11.0 (satisfied by net11.0's own shared framework). Uses the real repository
+# Directory.Packages.props (via dotnet msbuild -p:TargetFramework=X per TFM, the same mechanism the
+# real function uses) rather than a synthetic fixture, since the whole point of this coverage is
+# proving the function reads the *actual* per-TFM authoritative values correctly - a synthetic props
+# file would just test that the function echoes back whatever synthetic value it was given.
+make_multi_tfm_nuspec() {
+    local path="$1"
+    local dep_id="$2"
+    local net8_range="$3"
+    local net9_range="$4"
+    local net10_range="$5"
+    local net11_has_entry="$6" # "yes" or "no"
+    local net11_line=""
+    if [ "$net11_has_entry" = "yes" ]; then
+        net11_line="        <dependency id=\"$dep_id\" version=\"[99.0.0, 100.0.0)\" exclude=\"Build,Analyzers\" />"
+    fi
+    cat >"$path" <<EOF
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <dependencies>
+      <group targetFramework="net8.0">
+        <dependency id="$dep_id" version="$net8_range" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net9.0">
+        <dependency id="$dep_id" version="$net9_range" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net10.0">
+        <dependency id="$dep_id" version="$net10_range" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net11.0">
+$net11_line
+      </group>
+    </dependencies>
+  </metadata>
+</package>
+EOF
+}
+
+repo_root="$script_dir/../.."
+real_props="$repo_root/Directory.Packages.props"
+real_net8=$(dotnet msbuild "$real_props" -nologo -getItem:PackageVersion -p:TargetFramework=net8.0 2>/dev/null | jq -r '.Items.PackageVersion[]? | select(.Identity == "Microsoft.Extensions.Logging.Abstractions") | .Version')
+real_net9=$(dotnet msbuild "$real_props" -nologo -getItem:PackageVersion -p:TargetFramework=net9.0 2>/dev/null | jq -r '.Items.PackageVersion[]? | select(.Identity == "Microsoft.Extensions.Logging.Abstractions") | .Version')
+real_net10=$(dotnet msbuild "$real_props" -nologo -getItem:PackageVersion -p:TargetFramework=net10.0 2>/dev/null | jq -r '.Items.PackageVersion[]? | select(.Identity == "Microsoft.Extensions.Logging.Abstractions") | .Version')
+
+nuspec_per_tfm_matching="$work_dir/per-tfm-matching.nuspec"
+make_multi_tfm_nuspec "$nuspec_per_tfm_matching" "Microsoft.Extensions.Logging.Abstractions" "$real_net8" "$real_net9" "$real_net10" "no"
+expect_pass "per-TFM range matching Directory.Packages.props for net8/9/10, absent for net11.0" \
+    assert_dependency_range_per_tfm "$nuspec_per_tfm_matching" "Compono.Logging" "Microsoft.Extensions.Logging.Abstractions" "$real_props"
+
+# 6b. A stale net9.0 range must fail even though net8.0/net10.0 still match - proves each TFM is
+# checked independently, not just "at least one matches".
+nuspec_per_tfm_stale_net9="$work_dir/per-tfm-stale-net9.nuspec"
+make_multi_tfm_nuspec "$nuspec_per_tfm_stale_net9" "Microsoft.Extensions.Logging.Abstractions" "$real_net8" "[0.0.1, 0.0.2)" "$real_net10" "no"
+expect_fail "per-TFM check fails when only net9.0's range disagrees" \
+    assert_dependency_range_per_tfm "$nuspec_per_tfm_stale_net9" "Compono.Logging" "Microsoft.Extensions.Logging.Abstractions" "$real_props"
+
+# 6c. An unexpected net11.0 dependency entry must fail - proves the "must be absent" direction is
+# actually checked, not merely unchecked.
+nuspec_per_tfm_unexpected_net11="$work_dir/per-tfm-unexpected-net11.nuspec"
+make_multi_tfm_nuspec "$nuspec_per_tfm_unexpected_net11" "Microsoft.Extensions.Logging.Abstractions" "$real_net8" "$real_net9" "$real_net10" "yes"
+expect_fail "per-TFM check fails when net11.0 unexpectedly declares the dependency" \
+    assert_dependency_range_per_tfm "$nuspec_per_tfm_unexpected_net11" "Compono.Logging" "Microsoft.Extensions.Logging.Abstractions" "$real_props"
+
 # 6. Sanity check against the real repository policy file, so this test suite
 # breaks if Directory.Packages.props' shape (Identity/Version JSON) ever stops
 # being what the validator expects - independent of any specific package.

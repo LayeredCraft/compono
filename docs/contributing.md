@@ -55,12 +55,14 @@ need to scope a run to one project or class.
   handwritten/explicit test data (this repo deliberately doesn't use
   AutoFixture-style generated test data for its own tests — see
   [Architecture](architecture/index.md) if you're curious why).
-- **XML doc comments are required on every new or changed public member**
-  across all projects — `Compono` and its integration packages are
-  published NuGet libraries, and IntelliSense is the primary
-  discoverability surface for a consumer who's never read the source.
-  `dotnet build -p:WarningsAsErrors=CS1591` fails a PR that's missing one,
-  the same gate that runs in CI.
+- **XML doc comments are required on every new or changed public member of
+  a publishable package** (`Compono` and every integration package) —
+  they're published NuGet libraries, and IntelliSense is the primary
+  discoverability surface for a consumer who's never read the source. An
+  ordinary `dotnet build Compono.slnx` already enforces this as a build
+  error for those packages — no extra flag needed. Non-packable projects
+  (samples, benchmarks, tests, fixtures) are intentionally outside this
+  boundary.
 - **Update the relevant docs page in the same PR**, not as a follow-up —
   if your change affects behavior a Concept, How-to Guide, or Package
   Guide already describes, update that page alongside the code.

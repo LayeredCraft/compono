@@ -9,4 +9,21 @@
          package surface, so test code doesn't need to satisfy CS1591. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
+
+  <!-- Promotes CS1591 (already a plain warning for every project, via
+       Directory.Build.props' unconditional GenerateDocumentationFile) to a build
+       error for every publishable package specifically - PLAN-0062: this used to be
+       enforced only by package-validation.yaml's own separate, full second rebuild
+       of all 11 packages with -p:WarningsAsErrors=CS1591; enforcing it here instead
+       means an ordinary pr-build.yaml build catches a missing doc comment on the PR
+       that introduces it, not only at the later, separate package-validation gate.
+       Scoped to IsPackable != 'false' (matched here, after the project body, the
+       same reason IsTestProject is only reliably readable at this import point) -
+       every non-packable project (samples, benchmarks, every test/*.AotSmokeTest/
+       *SampleTests/*.Tests project) sets IsPackable=false directly in its own
+       csproj, confirmed against all of them, so none of them are newly subject to
+       this policy. -->
+  <PropertyGroup Condition="'$(IsPackable)' != 'false'">
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+  </PropertyGroup>
 </Project>

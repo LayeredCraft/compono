@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Asserts the packed .nupkg contents for all seven publishable Compono packages
+# Asserts the packed .nupkg contents for every publishable Compono package
 # match ADR-0031's package-readiness bar (PLAN-0008 Phase 0's package-contents-
 # inspection CI job): the .nupkg's file listing matches the expected shape
 # exactly (an allowlist, not a denylist - nothing unexpected snuck in, not just
@@ -168,6 +168,65 @@ assert_dependency_range() {
     fi
 }
 
+# Compono.Logging's Microsoft.Extensions.Logging.Abstractions dependency is the one exception to
+# every other integration package's single, TFM-uniform third-party range: Directory.Packages.props
+# conditions it per $(TargetFramework) (net8.0/net9.0/net10.0 each track a different BCL logging-
+# abstractions version), and net11.0 carries no such dependency at all in the packed .nuspec - the
+# type is satisfied by net11.0's own shared framework, so an explicit PackageReference produces no
+# packed dependency entry for that TFM (confirmed against a real local pack, not assumed).
+# assert_dependency_range's single authoritative_json blob (evaluated with no $(TargetFramework) set)
+# can't see this per-TFM branching, so this sibling function re-evaluates Directory.Packages.props
+# once per TFM instead of once per package.
+assert_dependency_range_per_tfm() {
+    local nuspec="$1"
+    local pkg_name="$2"
+    local dep_id="$3"
+    local packages_props="$4"
+    local tfm
+
+    for tfm in net8.0 net9.0 net10.0; do
+        local expected_range
+        expected_range=$(dotnet msbuild "$packages_props" -nologo -getItem:PackageVersion -p:TargetFramework="$tfm" 2>/dev/null \
+            | jq -r --arg id "$dep_id" '.Items.PackageVersion[]? | select(.Identity == $id) | .Version' | head -1)
+        if [ -z "$expected_range" ]; then
+            echo "FAIL: could not determine authoritative PackageVersion for $dep_id ($tfm) in Directory.Packages.props" >&2
+            fail=1
+            continue
+        fi
+
+        local actual_range
+        actual_range=$(awk -v tfm="$tfm" -v dep="$dep_id" '
+            $0 ~ "<group targetFramework=\"" tfm "\"" { in_group=1 }
+            in_group && $0 ~ "</group>" { in_group=0 }
+            in_group && $0 ~ "id=\"" dep "\"" { print; exit }
+        ' "$nuspec" | sed -E "s/.*id=\"${dep_id}\" version=\"([^\"]*)\".*/\1/")
+
+        if [ "$actual_range" = "$expected_range" ]; then
+            echo "OK: $pkg_name's .nuspec constrains $dep_id to the intended tested range $actual_range for $tfm (matches Directory.Packages.props)"
+        else
+            echo "FAIL: $pkg_name's .nuspec dependency on $dep_id for $tfm is '${actual_range:-<absent>}', expected the intended tested range '$expected_range' (from Directory.Packages.props)" >&2
+            fail=1
+        fi
+    done
+
+    # net11.0: the BCL's own shared framework satisfies this dependency for that TFM - no packed
+    # <dependency> entry should exist at all. Asserted explicitly (not just left unchecked) so a
+    # regression in either direction - the framework un-bundling it, or a future change accidentally
+    # reintroducing an explicit dependency - fails loudly instead of silently.
+    local net11_entry
+    net11_entry=$(awk -v dep="$dep_id" '
+        $0 ~ "<group targetFramework=\"net11.0\"" { in_group=1 }
+        in_group && $0 ~ "</group>" { in_group=0 }
+        in_group && $0 ~ "id=\"" dep "\"" { print; exit }
+    ' "$nuspec")
+    if [ -z "$net11_entry" ]; then
+        echo "OK: $pkg_name's .nuspec has no $dep_id dependency for net11.0 (satisfied by net11.0's own shared framework)"
+    else
+        echo "FAIL: $pkg_name's .nuspec unexpectedly declares a $dep_id dependency for net11.0: $net11_entry" >&2
+        fail=1
+    fi
+}
+
 main() {
     local pack_output="${1:?usage: inspect-packed-nupkgs.sh <pack-output-dir>}"
     local script_dir
@@ -186,7 +245,7 @@ main() {
     }
 
     local pkg nupkg extract_dir extra_paths nuspec
-    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.MSTest Compono.NUnit; do
+    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -203,6 +262,12 @@ main() {
         # ComponoGeneratedTestDoubles (ADR-0043 Amendment 4, Finding F) - without it,
         # AnalyzerConfigOptionsProvider can never see a consumer's MSBuild setting for the opt-in.
         extra_paths=$'analyzers/dotnet/cs/Compono.Generators.dll\nbuild/Compono.props\nbuildTransitive/Compono.props'
+    elif [ "$pkg" = "Compono.Logging" ]; then
+        # build/ + buildTransitive/ Compono.Logging.props: defaults ComponoGeneratedLogging to true
+        # (ADR-0055 Amendment 3) - no analyzers/ entry here, unlike Compono above: logging activation
+        # generation lives inside the existing Compono.Generators (packed only into Compono.nupkg),
+        # reached transitively through this package's Compono dependency, not a second analyzer DLL.
+        extra_paths=$'build/Compono.Logging.props\nbuildTransitive/Compono.Logging.props'
     fi
     assert_exact_file_listing "$nupkg" "$pkg" "$extra_paths"
 
@@ -258,6 +323,11 @@ main() {
             # No third-party dependency: TestHttpHandler is a plain HttpMessageHandler subclass
             # over System.Net.Http (BCL) - nothing else to range-assert here (ADR-0051 "Minimal
             # dependency graph").
+            ;;
+        Compono.Logging)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Microsoft.Extensions.Logging Testing Support"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            assert_dependency_range_per_tfm "$nuspec" "$pkg" "Microsoft.Extensions.Logging.Abstractions" "$packages_props"
             ;;
         Compono.MSTest)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — MSTest Integration"
