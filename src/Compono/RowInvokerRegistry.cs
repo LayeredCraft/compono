@@ -51,10 +51,9 @@ public delegate void ShareExplicitInvoker(CompositionRow row, in CompositionRequ
 /// is no real question to defer here (ADR-0041 Amendment 3).
 /// </para>
 /// <para>
-/// Left undecorated with no <see cref="System.ComponentModel.EditorBrowsableAttribute"/> - a
-/// deliberate choice, matching <see cref="PlanCache{T}"/>/<see cref="CollectionPlanCache{T}"/>, its two
-/// closest precedents as "generator infrastructure, not consumer-facing" public types that carry no
-/// such attribute either, rather than making this one type inconsistent with them.
+/// <see cref="Register"/> is hidden from IntelliSense because only generated consumer-assembly code
+/// calls it. <see cref="TryGet"/> remains visible because test-framework integration packages call it.
+/// See ADR-0058.
 /// </para>
 /// <para>
 /// Every entry stored here permanently roots its registered delegates (and the generating assembly) -
@@ -75,6 +74,7 @@ public static class RowInvokerRegistry
     /// registration for a <paramref name="type"/> already present (e.g. from another assembly's own
     /// generated module initializer) is a no-op, never a throw or an overwrite.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public static void Register(Type type, ResolveInvoker resolve, ResolveSharedInvoker resolveShared, ShareExplicitInvoker shareExplicit)
     {
         ArgumentNullException.ThrowIfNull(type);

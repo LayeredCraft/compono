@@ -41,10 +41,9 @@ generator\-emitted source\.
             `T`) - unlike [PlanCache&lt;T&gt;](Compono.PlanCache_T_.md 'Compono\.PlanCache\<T\>')'s own genuine "which plan is correct" ambiguity, there
             is no real question to defer here (ADR-0041 Amendment 3).
 
-Left undecorated with no [System\.ComponentModel\.EditorBrowsableAttribute](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.editorbrowsableattribute 'System\.ComponentModel\.EditorBrowsableAttribute') - a
-deliberate choice, matching [PlanCache&lt;T&gt;](Compono.PlanCache_T_.md 'Compono\.PlanCache\<T\>')/[CollectionPlanCache&lt;T&gt;](Compono.CollectionPlanCache_T_.md 'Compono\.CollectionPlanCache\<T\>'), its two
-closest precedents as "generator infrastructure, not consumer-facing" public types that carry no
-such attribute either, rather than making this one type inconsistent with them.
+[Register\(Type, ResolveInvoker, ResolveSharedInvoker, ShareExplicitInvoker\)](Compono.RowInvokerRegistry.Register(System.Type,Compono.ResolveInvoker,Compono.ResolveSharedInvoker,Compono.ShareExplicitInvoker).md 'Compono\.RowInvokerRegistry\.Register\(System\.Type, Compono\.ResolveInvoker, Compono\.ResolveSharedInvoker, Compono\.ShareExplicitInvoker\)') is hidden from IntelliSense because only generated consumer-assembly code
+            calls it. [TryGet\(Type, ResolveInvoker, ResolveSharedInvoker, ShareExplicitInvoker\)](Compono.RowInvokerRegistry.TryGet(System.Type,Compono.ResolveInvoker,Compono.ResolveSharedInvoker,Compono.ShareExplicitInvoker).md 'Compono\.RowInvokerRegistry\.TryGet\(System\.Type, Compono\.ResolveInvoker, Compono\.ResolveSharedInvoker, Compono\.ShareExplicitInvoker\)') remains visible because test-framework integration packages call it.
+            See ADR-0058.
 
 Every entry stored here permanently roots its registered delegates (and the generating assembly) -
 this registry has no closed-generic-instantiation home-context tie the way [PlanCache&lt;T&gt;](Compono.PlanCache_T_.md 'Compono\.PlanCache\<T\>')/

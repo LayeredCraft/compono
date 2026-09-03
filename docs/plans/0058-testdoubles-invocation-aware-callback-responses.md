@@ -1,6 +1,6 @@
 # [PLAN-0058] Compono.TestDoubles: Invocation-Aware Callback Responses
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0053](../adr/0053-testdoubles-invocation-aware-callback-responses.md)
 
@@ -26,9 +26,9 @@ and general-purpose `CallInfo`/argument-bag APIs remain out of scope.
       DIM, required, async, delegate-returning, and closed-generic members.
 - [x] Extend the sample and Native AOT smoke tests.
 - [x] Update package, roadmap, and API-reference documentation.
-- [ ] Run full build/test, packaged consumer, AOT, and alexa-vox-craft dogfood
+- [x] Run full build/test, packaged consumer, AOT, and alexa-vox-craft dogfood
       validation.
-- [ ] Record verification and mark this plan Done.
+- [x] Record verification and mark this plan Done.
 
 ## Critical Files
 
@@ -110,3 +110,17 @@ proceeds.
   fixed per member and the dispatch path remains strongly typed with no reflection or boxing.
 - ADR-0053 Amendment 1 records the broader pre-1.0 source-compatibility impact and the rejected
   alternatives that would have preserved `ReturnConfigBuilder<T>` return types.
+
+### 2026-09-03 — ship validation
+
+- Used the repository-pinned .NET SDK `11.0.100-preview.7.26381.103`.
+- `dotnet build Compono.slnx --no-restore` passed with 0 errors and 40 existing xUnit analyzer
+  warnings. `dotnet test Compono.slnx --no-restore --no-build` passed all 3,452 tests.
+- The packaged `Compono.TestDoubles.SampleTests` consumer passed 256 tests across net8.0, net9.0,
+  net10.0, and net11.0.
+- Freshly packed `Compono` and `Compono.TestDoubles` packages passed the native
+  `Compono.TestDoubles.AotSmokeTest` publish-and-run check for `osx-arm64`.
+- `scripts/dogfood-validate.sh --consumer-repo /Users/jonasha/Repos/CSharp/alexa-vox-craft
+  --packages 'Compono Compono.TestDoubles'` passed against fresh local package version
+  `99.0.0-local.20260903093504-26508-28626`. The validator confirmed the consumer resolved that
+  version and restored its tracked files to their pre-run state.

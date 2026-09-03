@@ -25,6 +25,12 @@ implied as "already how it's done here."
   `InternalsVisibleTo` on the project being tested, targeting its
   `.Tests` project — don't widen a member to `public` just so a test can
   reach it.
+- A public member required only by source generated code compiled into an
+  arbitrary consumer assembly remains public, but carries
+  `[EditorBrowsable(EditorBrowsableState.Never)]`. Apply this at the member,
+  not type, level. Do not use the attribute for a runtime integration seam or
+  a manually-authored consumer API; it is an IntelliSense hint, not access
+  control. See ADR-0058.
 
 **Naming**
 

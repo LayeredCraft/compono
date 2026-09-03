@@ -32,6 +32,28 @@ public sealed class TestDoubleVerifyTests
             MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
         }, TestContext.Current.CancellationToken);
 
+    [Fact]
+    public Task CallbackPatternLocals_CollidingWithMemberParameters_AreDisambiguated() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace TestNamespace;
+
+                public interface IRepository
+                {
+                    int Add(int callback, int configuredCallback);
+                }
+
+                public sealed class OrderService(IRepository repository);
+
+                public static class EntryPoint
+                {
+                    public static void Run() => Compono.Composer.Create().Create<OrderService>();
+                }
+                """,
+            MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+        }, TestContext.Current.CancellationToken);
+
     private const string InterfaceAndService = """
         namespace TestNamespace
         {

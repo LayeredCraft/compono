@@ -536,3 +536,14 @@ carry equivalent, independently-verified preservation requirements for this
 profile-configuration binding shape - the last of the three
 `ConfigProfileBinder` ports to be proven, not just assumed by analogy. Closes
 [LayeredCraft/compono#119](https://github.com/LayeredCraft/compono/issues/119).
+
+## Amendment 6 (2026-09-02): Generator registration discoverability follows ADR-0058
+
+The original implementation plan deliberately left
+`RowInvokerRegistry.Register` undecorated to match the then-existing cache
+precedent. ADR-0058 replaces that convention with a member-level rule:
+`Register` is marked `[EditorBrowsable(EditorBrowsableState.Never)]` because
+only generated consumer-assembly code calls it. `TryGet` remains visible
+because the framework integration packages call it at runtime. This changes
+IntelliSense presentation only; both members remain public for their existing
+cross-assembly callers.

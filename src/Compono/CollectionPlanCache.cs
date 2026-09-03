@@ -35,5 +35,6 @@ public static class CollectionPlanCache<T>
     /// transitive composition graph reachable from a <c>Composer.Create&lt;T&gt;()</c> call site, or
     /// because the consuming assembly's module initializers haven't run yet.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public static ICompositionPlan<T>? Instance { get; set; }
 }

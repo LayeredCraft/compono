@@ -28,11 +28,9 @@ This is generator infrastructure, not ordinary consumer-facing usage surface - a
 `Compono.Logging` consumer composes through `UseLogging()`, inspects through
 [LoggerTestingExtensions](Compono.Logging.LoggerTestingExtensions.md 'Compono\.Logging\.LoggerTestingExtensions'), and constructs [CapturingLogger](Compono.Logging.CapturingLogger.md 'Compono\.Logging\.CapturingLogger')/
 [CapturingLogger&lt;T&gt;](Compono.Logging.CapturingLogger_T_.md 'Compono\.Logging\.CapturingLogger\<T\>') directly when bypassing composition; nothing about normal usage
-calls this type by hand. Left undecorated with no
-[System\.ComponentModel\.EditorBrowsableAttribute](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.editorbrowsableattribute 'System\.ComponentModel\.EditorBrowsableAttribute') - matching
-[GeneratedTestDoubleRegistry](../Compono/Compono.GeneratedTestDoubleRegistry.md 'Compono\.GeneratedTestDoubleRegistry')/[RowInvokerRegistry](../Compono/Compono.RowInvokerRegistry.md 'Compono\.RowInvokerRegistry')/[PlanCache&lt;T&gt;](../Compono/Compono.PlanCache_T_.md 'Compono\.PlanCache\`1'),
-none of which carry that attribute either, per this repo's own documented convention
-([RowInvokerRegistry](../Compono/Compono.RowInvokerRegistry.md 'Compono\.RowInvokerRegistry')'s remarks).
+calls this type by hand. [Register&lt;TCategory&gt;\(Func&lt;LoggingOptions,object&gt;\)](Compono.Logging.LoggingFactoryRegistry.Register_TCategory_(System.Func_Compono.Logging.LoggingOptions,object_).md 'Compono\.Logging\.LoggingFactoryRegistry\.Register\<TCategory\>\(System\.Func\<Compono\.Logging\.LoggingOptions,object\>\)') is hidden from IntelliSense because
+generated consumer-assembly code is its only supported caller; [TryCreate\(Type, LoggingOptions, object\)](Compono.Logging.LoggingFactoryRegistry.TryCreate(System.Type,Compono.Logging.LoggingOptions,object).md 'Compono\.Logging\.LoggingFactoryRegistry\.TryCreate\(System\.Type, Compono\.Logging\.LoggingOptions, object\)') remains
+visible for the runtime provider. See ADR-0058.
 
 [Register&lt;TCategory&gt;\(Func&lt;LoggingOptions,object&gt;\)](Compono.Logging.LoggingFactoryRegistry.Register_TCategory_(System.Func_Compono.Logging.LoggingOptions,object_).md 'Compono\.Logging\.LoggingFactoryRegistry\.Register\<TCategory\>\(System\.Func\<Compono\.Logging\.LoggingOptions,object\>\)') is idempotent - a second registration for a category type
             already present (e.g. from another assembly's own generated module initializer) is a no-op,

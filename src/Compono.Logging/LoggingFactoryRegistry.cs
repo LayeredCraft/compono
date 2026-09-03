@@ -23,11 +23,9 @@ namespace Compono.Logging;
 /// <c>Compono.Logging</c> consumer composes through <c>UseLogging()</c>, inspects through
 /// <see cref="LoggerTestingExtensions"/>, and constructs <see cref="CapturingLogger"/>/
 /// <see cref="CapturingLogger{T}"/> directly when bypassing composition; nothing about normal usage
-/// calls this type by hand. Left undecorated with no
-/// <see cref="System.ComponentModel.EditorBrowsableAttribute"/> - matching
-/// <see cref="GeneratedTestDoubleRegistry"/>/<see cref="RowInvokerRegistry"/>/<see cref="PlanCache{T}"/>,
-/// none of which carry that attribute either, per this repo's own documented convention
-/// (<see cref="RowInvokerRegistry"/>'s remarks).
+/// calls this type by hand. <see cref="Register{TCategory}"/> is hidden from IntelliSense because
+/// generated consumer-assembly code is its only supported caller; <see cref="TryCreate"/> remains
+/// visible for the runtime provider. See ADR-0058.
 /// </para>
 /// <para>
 /// <see cref="Register{TCategory}"/> is idempotent - a second registration for a category type
@@ -48,6 +46,7 @@ public static class LoggingFactoryRegistry
     /// here is an ordinary generic-token load inside this method's own per-<typeparamref name="TCategory"/>
     /// compiled instantiation, never <see cref="Type.MakeGenericType"/>.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public static void Register<TCategory>(Func<LoggingOptions, object> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);

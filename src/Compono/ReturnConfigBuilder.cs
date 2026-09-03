@@ -18,6 +18,7 @@ public readonly ref struct ReturnConfigBuilder<T>
     private readonly ref ReturnConfig<T> _slot;
 
     /// <summary>Wraps <paramref name="slot"/>, the generated double's own backing field for this member.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public ReturnConfigBuilder(ref ReturnConfig<T> slot) => _slot = ref slot;
 
     /// <summary>Configures the member to return <paramref name="value"/>, clearing any prior <see cref="Throws"/>/<see cref="ReturnsSequence"/>.</summary>

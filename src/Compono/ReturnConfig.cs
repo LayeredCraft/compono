@@ -26,12 +26,15 @@ public struct ReturnConfig<T>
     internal int SequenceOrdinal;
 
     /// <summary>Whether <see cref="ConfiguredValue"/> was set via <see cref="ReturnConfigBuilder{T}.Returns"/>.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public readonly bool HasConfiguredValue => HasValue;
 
     /// <summary>Whether <see cref="ConfiguredException"/> was set via <see cref="ReturnConfigBuilder{T}.Throws"/>.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public readonly bool HasConfiguredException => Exception is not null;
 
     /// <summary>Whether a response sequence was set via <see cref="ReturnConfigBuilder{T}.ReturnsSequence"/>.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public readonly bool HasConfiguredSequence => Sequence is not null;
 
     /// <summary>
@@ -40,6 +43,7 @@ public struct ReturnConfig<T>
     /// </summary>
     // Safe: generated dispatch code only reads this when HasConfiguredValue is true, the same
     // TryGetValue-style contract every other guarded accessor in this codebase follows.
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public readonly T ConfiguredValue => Value!;
 
     /// <summary>
@@ -47,9 +51,11 @@ public struct ReturnConfig<T>
     /// when <see cref="HasConfiguredException"/> is <see langword="true"/>.
     /// </summary>
     // Safe: generated dispatch code only reads this when HasConfiguredException is true.
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public readonly Exception ConfiguredException => Exception!;
 
     /// <summary>The number of times this member's dispatch body has actually run, read by <see cref="CallVerifier"/>.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public readonly int ConfiguredCallCount => CallCount;
 
     /// <summary>
@@ -58,6 +64,7 @@ public struct ReturnConfig<T>
     /// unwritable from the consumer assembly the generated code actually lives in. See ADR-0044
     /// Amendment 2, Finding 1.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public void RecordCall() => System.Threading.Interlocked.Increment(ref CallCount);
 
     /// <summary>
@@ -91,6 +98,7 @@ public struct ReturnConfig<T>
     /// claim two distinct, strictly-increasing ordinals and never observe or corrupt each other's
     /// index.
     /// </remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public T NextSequenceOutcome()
     {
         var outcomes = Sequence!;

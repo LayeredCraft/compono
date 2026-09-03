@@ -92,6 +92,12 @@ internal static class TestDoubleEmitter
                 var entryLocalName = SafeLocalName("__entry", parameterEscapedNames.Append(matchesLocalName));
                 var entryIndexLocalName = SafeLocalName("__i", parameterEscapedNames.Append(entryLocalName));
                 var callbackLocalName = SafeLocalName("__callback", parameterEscapedNames.Append(entryLocalName));
+                var configuredCallbackLocalName = SafeLocalName(
+                    "configuredCallback",
+                    parameterEscapedNames.Append(entryLocalName).Append(callbackLocalName));
+                var callbackPatternLocalName = SafeLocalName(
+                    "callback",
+                    parameterEscapedNames.Append(entryLocalName).Append(callbackLocalName).Append(configuredCallbackLocalName));
 
                 return new
                 {
@@ -114,6 +120,8 @@ internal static class TestDoubleEmitter
                     CallbackBuilderName = m.CallbackBuilderName,
                     CallbackFieldName = m.CallbackFieldName,
                     CallbackLocalName = callbackLocalName,
+                    ConfiguredCallbackLocalName = configuredCallbackLocalName,
+                    CallbackPatternLocalName = callbackPatternLocalName,
                     m.IsClosedInstantiationEligible,
                     m.ExtensionReceiverName,
                     m.GenericSuffix,

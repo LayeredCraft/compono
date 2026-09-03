@@ -1653,3 +1653,14 @@ implemented. Implementation itself (the real, permanent
 interoperability rule is documented rather than silent generator behavior)
 is intentionally **not** part of this amendment — it happens under
 `tasks/implement.md` once this reads `Accepted`.
+
+## Amendment 5 (2026-09-02): Generated registration discoverability follows ADR-0058
+
+Amendment 2 deliberately left `LoggingFactoryRegistry` undecorated to match
+the older generator-infrastructure convention. ADR-0058 replaces that
+convention with a member-level policy: `Register<TCategory>` is marked
+`[EditorBrowsable(EditorBrowsableState.Never)]` because generated
+consumer-assembly code is its only supported caller. `TryCreate` remains
+visible because `LoggingProvider` calls it at runtime. This changes
+IntelliSense presentation only; public accessibility remains required for the
+existing cross-assembly design.
