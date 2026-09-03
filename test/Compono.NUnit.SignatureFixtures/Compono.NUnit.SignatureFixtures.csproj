@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- IsTestProject=true only for repo convention purposes (test/Directory.Build.targets' CS1591
+         NoWarn scoping) - no NUnit3TestAdapter/Microsoft.NET.Test.Sdk/EnableNUnitRunner is
+         referenced, so this project has no test host/adapter to run and dotnet test simply skips it.
+         Deliberately NOT an NUnit test project in the sense that matters here (nothing scans it for
+         real NUnit tests):
+         this assembly exists only to hold [Compose]-attributed methods with deliberately invalid
+         signatures (more than one Compose-family attribute) for Compono.NUnit.Tests' own
+         BindingPlan.ValidateSignature reflection tests. Because Compono.NUnit's ComposeAttribute
+         derives from NUnit's own TestAttribute, any [Compose]-attributed method living inside the
+         actual NUnit test host assembly (Compono.NUnit.Tests.dll) becomes a real, independently
+         discovered NUnit test - so a deliberately-invalid fixture method would actually run (and
+         fail for real) if it lived there. Keeping these methods in a separate assembly the NUnit
+         adapter never scans as a test container is the correct fix - see
+         docs/adr/0059-compono-nunit-package-design.md §7/§8 and PLAN-0059 task group 4/5. -->
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts out of test/Directory.Build.targets' xUnit-v3-only PackageReference ItemGroup (this
+         project references no test framework/adapter at all) - "NUnit" is the closest existing
+         escape-hatch value, matching Compono.NUnit.Tests' own use of it, even though this project
+         is not itself a runnable NUnit test host. -->
+    <ComponoTestFramework>NUnit</ComponoTestFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
+    <ProjectReference Include="..\..\src\Compono.NUnit\Compono.NUnit.csproj" />
+  </ItemGroup>
+
+</Project>

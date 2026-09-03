@@ -1,0 +1,83 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PLAN-0059 task group 9's permanent, repeatable supported-version x runner compatibility
+       matrix - a real packaged Compono.NUnit consumer (not test/Compono.NUnit.Tests' own
+       ProjectReference calls), driven repeatedly by .github/scripts/nunit-compatibility-matrix.sh
+       with two MSBuild properties this project itself doesn't set a default opinion on:
+
+         NUnitMatrixVersion  - overrides the NUnit package version restored (leaves Compono.NUnit's
+                                own transitive floor, 3.14.0, in effect when unset).
+         NUnitMatrixRunner   - "MTP" (default) or "VSTest" - selects which of the two ADR-0059 §11
+                                runner paths this restore/run exercises.
+
+       Each invocation is a fresh restore against a freshly packed local feed (see
+       pack-to-local-feed.sh) - the matrix script inspects this project's own obj/project.assets.json
+       after restore to confirm the *resolved* NUnit assembly version, not merely the requested one
+       (the exact discipline RESEARCH-0017 §17/RESEARCH-0018 §18 already required, now made
+       permanent). Deliberately separate from test/Compono.NUnit.SampleTests (task group 8's own
+       proof, focused on the full attribute family and row-coexistence semantics through the
+       packaged chain) - this project's only job is proving the same minimal Compose dispatch works
+       correctly across every supported version x runner combination.
+
+       Runner selection is NOT an MSBuild-property toggle on this project - EnableNUnitRunner/
+       UseMicrosoftTestingPlatformRunner stay unconditionally on (matching Compono.NUnit.Tests'/
+       Compono.NUnit.SampleTests' own always-on convention), and the matrix script instead runs
+       classic VSTest and MTP against the *same* build artifact by invoking it two different ways
+       (`dotnet vstest <dll>` vs. running the built executable directly) - RESEARCH-0018 §11's own
+       methodology. A real, reproduced-during-this-project's-own-development regression motivates
+       this: conditionally omitting EnableNUnitRunner/UseMicrosoftTestingPlatformRunner for a
+       "classic VSTest leg" build produced a compiled assembly whose generated module initializer
+       silently failed to register Widget's row-invoker dispatch when loaded by `dotnet vstest`
+       directly (`Compono.CompositionException: No row-binding dispatch is registered for
+       'Widget'`) - a genuine, reproducible build-configuration hazard specific to toggling those
+       MSBuild properties, not a Compono.NUnit binary-compatibility problem (the identical build
+       artifact produced *with* those properties always on runs correctly under both `dotnet vstest`
+       and the built executable). Investigating the exact SDK-level root cause was out of scope for
+       this plan; avoiding the toggle entirely removes the hazard. -->
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.NUnit.CompatibilityMatrix</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-only ItemGroups, matching
+         Compono.NUnit.SampleTests'/Compono.NUnit.Tests' identical precedent. -->
+    <ComponoTestFramework>NUnit</ComponoTestFramework>
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Deliberately no ProjectReference to Compono/Compono.NUnit - same packaged-consumer reasoning
+         as Compono.NUnit.SampleTests. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed-nunit-compat-matrix</LocalFeedPath>
+    <!-- Isolated restore path, same reasoning as the other sample/matrix projects' own - NuGet never
+         re-extracts an already-present package id+version, so a shared path would let a stale entry
+         from a *different* matrix leg's NUnit version silently satisfy this leg's restore. Keyed by
+         both the caller-supplied id and the actual matrix version being exercised, so successive
+         legs never collide. -->
+    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)-$(NUnitMatrixVersion)/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Compono.NUnit" />
+    <!-- Only added when the matrix script requests a specific version - a direct top-level
+         PackageReference wins over Compono.NUnit's own transitive minimum-version dependency
+         (NuGet's normal nearest-wins resolution), letting one project prove every supported leg
+         without needing a separate project per NUnit version. VersionOverride, not Version - this
+         repo manages package versions centrally (Directory.Packages.props), and CPM requires
+         VersionOverride for a project-local per-PackageReference version pin (NU1008 otherwise). -->
+    <PackageReference Include="NUnit" VersionOverride="$(NUnitMatrixVersion)" Condition="'$(NUnitMatrixVersion)' != ''" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Mirrors Compono.NUnit.SampleTests' own PackToLocalFeed target and pack-to-local-feed.sh. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NUnit/Compono.NUnit.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+  </Target>
+
+</Project>

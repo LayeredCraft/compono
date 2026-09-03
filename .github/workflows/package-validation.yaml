@@ -47,7 +47,7 @@ jobs:
       - name: Resolve nuget.org baseline versions
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest; do
+          for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit; do
             id_lower=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
             # No -f here: a non-2xx response must still reach the status-code branch
             # below (curl -f suppresses the body/short-circuits on HTTP errors), and
@@ -106,6 +106,7 @@ jobs:
           pack_one src/Compono.Http/Compono.Http.csproj BASELINE_Compono_Http
           pack_one src/Compono.Logging/Compono.Logging.csproj BASELINE_Compono_Logging
           pack_one src/Compono.MSTest/Compono.MSTest.csproj BASELINE_Compono_MSTest
+          pack_one src/Compono.NUnit/Compono.NUnit.csproj BASELINE_Compono_NUnit
 
       - name: Enforce XML doc comments (CS1591) on publishable packages
         run: |
@@ -120,7 +121,8 @@ jobs:
             src/Compono.DependencyInjection/Compono.DependencyInjection.csproj \
             src/Compono.Http/Compono.Http.csproj \
             src/Compono.Logging/Compono.Logging.csproj \
-            src/Compono.MSTest/Compono.MSTest.csproj; do
+            src/Compono.MSTest/Compono.MSTest.csproj \
+            src/Compono.NUnit/Compono.NUnit.csproj; do
             echo "Building $csproj with CS1591 as an error"
             dotnet build "$csproj" -c Release -p:WarningsAsErrors=CS1591
           done
@@ -174,6 +176,26 @@ jobs:
         run: |
           dotnet test test/Compono.MSTest.SampleTests/Compono.MSTest.SampleTests.csproj \
             -c Release
+
+      - name: Local-feed packed-consumer smoke test (Compono.NUnit)
+        # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
+        # source into .local-nuget-feed, restores as a real consumer would) - PLAN-0059 task group 8's
+        # own real generated-plan-through-the-packaged-dependency-chain proof, including the
+        # [TestCase]/[Values]/custom-IParameterDataSource independent-row coexistence scenario. No
+        # deliberately-failing proof tests exist in this project either, so no --filter-not-class is
+        # needed.
+        run: |
+          dotnet test test/Compono.NUnit.SampleTests/Compono.NUnit.SampleTests.csproj \
+            -c Release
+
+      - name: NUnit compatibility matrix (Compono.NUnit)
+        # PLAN-0059 task group 9's permanent, repeatable, CI-blocking supported-version x runner
+        # matrix (ADR-0059 §6's monitoring requirement for the accepted NUnit Internal-namespace
+        # dependency risk): NUnit 3.14.0 (floor) and the current stable 4.x line, each under both
+        # classic VSTest and MTP, each verifying the *resolved* NUnit assembly version from real
+        # build output - see .github/scripts/nunit-compatibility-matrix.sh for the full mechanism.
+        # NUnit 5 prerelease is deliberately excluded - non-blocking surveillance only.
+        run: .github/scripts/nunit-compatibility-matrix.sh
 
       - name: Local-feed packed-consumer smoke test (Compono.TestDoubles)
         # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current

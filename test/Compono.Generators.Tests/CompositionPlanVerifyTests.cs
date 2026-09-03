@@ -2061,6 +2061,53 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task NUnitComposeAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = """
+                namespace Compono.NUnit
+                {
+                    // Stands in for the real Compono.NUnit.ComposeAttribute (a separate package/
+                    // assembly, not referenced from this generator test project) - ComposeMethodDiscovery
+                    // matches on the fully qualified metadata name alone, so a same-named type here
+                    // triggers it identically to the real one. See
+                    // docs/adr/0059-compono-nunit-package-design.md's "Generator discovery" section -
+                    // this is the fourth attribute family ComposeMethodDiscovery.TransformMethod feeds,
+                    // registered against Compono.NUnit's own metadata names, not
+                    // Compono.XunitV3's/Compono.TUnit's/Compono.MSTest's.
+                    public class ComposeAttribute : System.Attribute
+                    {
+                        public ComposeAttribute(params object?[] inlineValues) { }
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class DeliveryReceipt
+                    {
+                        public DeliveryReceipt(string confirmationCode) { ConfirmationCode = confirmationCode; }
+                        public string ConfirmationCode { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<DeliveryReceipt>()/CreateMany<DeliveryReceipt>() call site, no
+                        // [Composable] attribute, and no CompositionRow.Resolve<T>(descriptor) call
+                        // site anywhere in this source - DeliveryReceipt is reachable only as this
+                        // [Compose]-attributed method's own parameter, under Compono.NUnit's own
+                        // attribute metadata name rather than Compono.XunitV3's/Compono.TUnit's/
+                        // Compono.MSTest's, proving the NUnit-specific discovery registration on its
+                        // own.
+                        [Compono.NUnit.Compose]
+                        public static void Creates_deliveryReceipt(DeliveryReceipt deliveryReceipt)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ComposeAttributedGenericMethodParameter_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

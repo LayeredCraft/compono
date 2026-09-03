@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.NUnit.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-only ItemGroups
+         (Using Xunit/NSubstitute/AwesomeAssertions, the shared MTP/xunit.v3 PackageReferences) -
+         a property this project declares about itself, matching Compono.TUnit.Tests'/
+         Compono.MSTest.Tests' identical precedent (test/Directory.Build.targets' conditions were
+         extended to also check for 'NUnit', not just 'TUnit'/'MSTest', as part of this package's
+         own implementation). -->
+    <ComponoTestFramework>NUnit</ComponoTestFramework>
+    <!-- Microsoft Testing Platform (MTP) runner - NUnit's own modern-direction execution path
+         (ADR-0059 §11), matching Compono.XunitV3.Tests'/Compono.TUnit.Tests'/Compono.MSTest.Tests'
+         own explicit opt-in. Classic VSTest-adapter execution (the other ADR-0059 §11-required
+         runner path) is exercised separately - see task group 9's compatibility-matrix validation. -->
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- NUnit3TestAdapter (5.0+ supports MTP, 6.0+ supports MTP 2.0 - RESEARCH-0018 §3), plus
+         Microsoft.NET.Test.Sdk for the shared MTP host infrastructure - this project actually
+         executes as a real NUnit test run, unlike src/Compono.NUnit itself, which only authors
+         against NUnit's own ITestBuilder/IMethodInfo extensibility surface. -->
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.NUnit\Compono.NUnit.csproj" />
+    <!-- The deliberately-invalid "more than one Compose-family attribute" reflection fixtures live
+         in a separate, non-NUnit-test assembly - see that project's own top-of-file comment. -->
+    <ProjectReference Include="..\Compono.NUnit.SignatureFixtures\Compono.NUnit.SignatureFixtures.csproj" />
+    <!-- A plain ProjectReference to Compono.csproj (transitively, via Compono.NUnit) does not
+         propagate Compono.Generators.dll as an active analyzer - this project's own [Compose]-
+         attributed fixture methods need real RowInvokerRegistry registrations for their parameter
+         types, matching Compono.XunitV3.Tests'/Compono.TUnit.Tests'/Compono.MSTest.Tests' identical
+         precedent. -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

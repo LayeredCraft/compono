@@ -186,7 +186,7 @@ main() {
     }
 
     local pkg nupkg extract_dir extra_paths nuspec
-    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.MSTest; do
+    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.MSTest Compono.NUnit; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -263,6 +263,11 @@ main() {
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — MSTest Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "MSTest.TestFramework" "$authoritative_json"
+            ;;
+        Compono.NUnit)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — NUnit Integration"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            assert_dependency_range "$nuspec" "$pkg" "NUnit" "$authoritative_json"
             ;;
     esac
     done
