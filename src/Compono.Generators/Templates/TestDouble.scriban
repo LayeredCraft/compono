@@ -214,9 +214,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 var {{ member.entry_local_name }} = {{ member.bucket_local_name }}.Entries[{{ member.entry_index_local_name }}];
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
-                    if ({{ member.entry_local_name }}.Callback is { } configuredCallback)
+                    if ({{ member.entry_local_name }}.Callback is { } {{ member.configured_callback_local_name }})
                     {
-                        {{ member.callback_local_name }} = configuredCallback;
+                        {{ member.callback_local_name }} = {{ member.configured_callback_local_name }};
                         break;
                     }
                     // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
@@ -233,8 +233,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 }
             }
         }
-        if ({{ member.callback_local_name }} is { } callback)
-            return callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+        if ({{ member.callback_local_name }} is { } {{ member.callback_pattern_local_name }})
+            return {{ member.callback_pattern_local_name }}({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ if member.is_configuration_required ~}}
         throw new global::Compono.TestDoubleNotConfiguredException(
             "'{{ member.declaring_interface_fully_qualified_name }}.{{ member.original_name }}' was invoked without being configured (or without a matching argument configuration) for this closed type argument - call Configure().{{ member.escaped_name }}<{{ member.closed_instantiation_type_parameter_name }}>(...).Returns(...) or .Throws(...) before invoking it.");
@@ -245,7 +245,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
 {{~ end ~}}
 {{~ else ~}}
         {{ member.bucket_local_name }}.Config.RecordCall();
-        return {{ member.bucket_local_name }}.Callback is { } callback ? callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+        return {{ member.bucket_local_name }}.Callback is { } {{ member.callback_pattern_local_name }} ? {{ member.callback_pattern_local_name }}({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
             : {{ member.bucket_local_name }}.Config.HasConfiguredSequence ? {{ member.bucket_local_name }}.Config.NextSequenceOutcome()
             : {{ member.bucket_local_name }}.Config.HasConfiguredException ? throw {{ member.bucket_local_name }}.Config.ConfiguredException
             : {{ member.bucket_local_name }}.Config.HasConfiguredValue ? {{ member.bucket_local_name }}.Config.ConfiguredValue
@@ -324,9 +324,9 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
                 if ({{ for p in member.parameters }}({{ member.entry_local_name }}.Matcher_{{ p.original_name }} is not { } {{ p.matcher_local_name }} || {{ p.matcher_local_name }}.Matches({{ p.escaped_name }})){{ if !for.last }} && {{ end }}{{ end }})
                 {
 {{~ if member.is_callback_eligible ~}}
-                    if ({{ member.entry_local_name }}.Callback is { } configuredCallback)
+                    if ({{ member.entry_local_name }}.Callback is { } {{ member.configured_callback_local_name }})
                     {
-                        {{ member.callback_local_name }} = configuredCallback;
+                        {{ member.callback_local_name }} = {{ member.configured_callback_local_name }};
                         break;
                     }
 {{~ end ~}}
@@ -345,8 +345,8 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
             }
         }
 {{~ if member.is_callback_eligible ~}}
-        if ({{ member.callback_local_name }} is { } callback)
-            return callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+        if ({{ member.callback_local_name }} is { } {{ member.callback_pattern_local_name }})
+            return {{ member.callback_pattern_local_name }}({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ end ~}}
 {{~ if member.is_configuration_required ~}}
         throw new global::Compono.TestDoubleNotConfiguredException(
@@ -375,7 +375,7 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     {{ member.return_type_fully_qualified_name }} {{ member.declaring_interface_fully_qualified_name }}.{{ member.escaped_name }}{{ member.generic_suffix }}({{ for p in member.parameters }}{{ p.ref_kind_prefix }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
     {
         {{ member.field_name }}.RecordCall();
-        return {{ if member.is_callback_eligible }}{{ member.callback_field_name }} is { } callback ? callback({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
+        return {{ if member.is_callback_eligible }}{{ member.callback_field_name }} is { } {{ member.callback_pattern_local_name }} ? {{ member.callback_pattern_local_name }}({{ for p in member.parameters }}{{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }})
             : {{ end }}{{ member.field_name }}.HasConfiguredSequence ? {{ member.field_name }}.NextSequenceOutcome()
             : {{ member.field_name }}.HasConfiguredException ? throw {{ member.field_name }}.ConfiguredException
             : {{ member.field_name }}.HasConfiguredValue ? {{ member.field_name }}.ConfiguredValue
