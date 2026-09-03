@@ -13,21 +13,12 @@ namespace Compono.Generators.Emitters;
 /// </summary>
 internal static class LoggingActivationEmitter
 {
-    private static readonly string GeneratorVersion =
-        typeof(LoggingActivationEmitter).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
-            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>()
-            .Select(a => a.InformationalVersion)
-            .FirstOrDefault()
-        ?? typeof(LoggingActivationEmitter).Assembly.GetName().Version?.ToString()
-        ?? "0.0.0";
-
     public static void Generate(SourceProductionContext context, DiscoveredLoggingCategoryInfo category)
     {
         var model = new
         {
             CategoryFullyQualifiedName = category.CategoryFullyQualifiedName,
-            GeneratorVersion,
+            GeneratorVersion = GeneratorVersion.Current,
         };
 
         var source = TemplateHelper.Render("LoggingActivation.scriban", model);

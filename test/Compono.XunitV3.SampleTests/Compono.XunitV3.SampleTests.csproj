@@ -18,30 +18,31 @@
          Strategy. -->
     <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
     <!-- Isolates this restore from NuGet's shared global packages folder entirely (PR #26 review,
-         second/third rounds), scoped per Compono_LocalPackagesId - an environment variable
-         RealRunnerTests.cs sets to a fresh GUID before spawning its nested `dotnet test`, so its two
-         concurrent invocations (from the net10.0 and net11.0 Compono.XunitV3.Tests hosts CI runs
-         side by side) never share this path with each other. A fixed version ("1.0.0") would
-         otherwise let a stale entry silently satisfy a later restore even after the local feed's own
-         .nupkg contents changed. Two earlier fixes were tried and reverted first (see
-         pack-to-local-feed.sh's own comment and PLAN-0004 Phase 3 Notes for the full account):
+         second/third rounds), scoped per Compono_LocalPackagesId - an environment variable an
+         external caller can set to a fresh GUID before invoking this project's restore, so two
+         concurrent invocations never share this path with each other. A fixed version ("1.0.0")
+         would otherwise let a stale entry silently satisfy a later restore even after the local
+         feed's own .nupkg contents changed. This mechanism was originally built for
+         `RealRunnerTests.cs` (a now-removed test that spawned a nested `dotnet test` against this
+         project once per TFM its own host ran as - see PLAN-0004 Phase 3 Notes for the full
+         account of why an env var, not a fixed literal or an MSBuild-evaluated GUID, was the only
+         approach that actually worked) and is retained as the safe default for any future
+         concurrent restore of this project, not only that removed caller. Two earlier fixes were
+         tried and reverted first (see pack-to-local-feed.sh's own comment for the full account):
          clearing the *shared global* cache before every pack raced against a sibling process still
          reading from it; scoping this path by $(TargetFramework) instead of an env var seemed
-         reasonable but never actually worked - RealRunnerTests.cs hardcodes "-f net10.0" for its
-         nested command regardless of which TFM the *calling* test host itself runs as, so both
-         concurrent invocations resolved the identical "net10.0" value, isolating nothing (still
-         raced, just on a different shared path than before - also reproduced locally). $([System
-         .Guid]::NewGuid()) computed directly as an MSBuild property (rather than in the environment)
-         was tried before that and was unstable for an unrelated reason: NuGet's restore-graph
-         evaluation pass and the actual build evaluation pass each re-evaluate that property function
-         independently, producing two different GUIDs for the same nominal build (a real NU1102
-         version mismatch). An environment variable has none of these problems: it's set once, in the
-         C# process that spawns the nested `dotnet test`, and inherited stably by that whole child
-         process tree - every internal MSBuild re-evaluation reads the identical value, and a second,
-         independently-spawned nested process gets its own distinct one. Falls back to a fixed,
-         non-random literal (not another live function call) for a developer running this project
-         directly, without going through RealRunnerTests, where there is no concurrent sibling to
-         isolate from in the first place. -->
+         reasonable but never actually worked, since two concurrent invocations of the same TFM
+         still resolved the identical value, isolating nothing (still raced, just on a different
+         shared path than before). $([System.Guid]::NewGuid()) computed directly as an MSBuild
+         property (rather than in the environment) was tried before that and was unstable for an
+         unrelated reason: NuGet's restore-graph evaluation pass and the actual build evaluation
+         pass each re-evaluate that property function independently, producing two different GUIDs
+         for the same nominal build (a real NU1102 version mismatch). An environment variable has
+         none of these problems: set once by whatever process needs isolation, inherited stably by
+         its own process tree - every internal MSBuild re-evaluation reads the identical value.
+         Falls back to a fixed, non-random literal (not another live function call) for a developer
+         running this project directly, where there is no concurrent sibling to isolate from in the
+         first place. -->
     <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
     <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
   </PropertyGroup>
@@ -68,10 +69,12 @@
        project's own restore/build/run rather than being masked by a stale package.
 
        Delegates to pack-to-local-feed.sh, which serializes the two `dotnet pack` calls behind a
-       cross-process lock - CI (and RealRunnerTests) run this project's net10.0/net11.0 test hosts
-       concurrently, each independently triggering this target via its own nested `dotnet test`, and
-       two unsynchronized `dotnet pack` invocations racing on the same shared .local-nuget-feed/ and
-       src/Compono*/bin/obj output corrupts both (caught in CI - see PLAN-0004 Phase 3 Notes). -->
+       cross-process lock - this project restores across four TFMs (net8.0/net9.0/net10.0/net11.0,
+       inherited from test/Directory.Build.props) from one `dotnet test` invocation, each TFM's
+       restore independently triggering this target, and two unsynchronized `dotnet pack`
+       invocations racing on the same shared .local-nuget-feed/ and src/Compono*/bin/obj output
+       corrupts both (caught in CI - see PLAN-0004 Phase 3 Notes; originally also exercised by
+       `RealRunnerTests.cs`, a now-removed test that added its own concurrent nested invocations). -->
   <Target Name="PackToLocalFeed" BeforeTargets="Restore">
     <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
     <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />

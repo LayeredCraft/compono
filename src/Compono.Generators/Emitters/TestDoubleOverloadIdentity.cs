@@ -20,7 +20,7 @@ internal static class TestDoubleOverloadIdentity
     /// overload identity - either the same real overload (impossible within one interface, the
     /// compiler already prevents it) or a diamond collision: the same signature inherited from two
     /// different base interfaces (ADR-0044 Amendment 3 Finding 8). <b>Use this, not
-    /// <see cref="StableHash"/> of it, for any identity/equality decision</b> - a 32-bit hash can
+    /// <see cref="StableHash.Compute"/> of it, for any identity/equality decision</b> - a 32-bit hash can
     /// collide between two genuinely different signatures (Codex review, PR #88); the hash is only
     /// safe for generating a human-scannable, best-effort-unique naming suffix (with its own
     /// disambiguation fallback for when it does collide - see <c>TestDoubleAnalyzer</c>'s
@@ -157,22 +157,5 @@ internal static class TestDoubleOverloadIdentity
 
             builder.Append('>');
         }
-    }
-
-    // Same FNV-1a algorithm as TestDoubleIdentifierNaming.StableHash/GeneratedFileNaming.StableHash -
-    // never string.GetHashCode(), which is randomized per process on modern runtimes.
-    // Internal, not private: TestDoubleAnalyzer's suffix-disambiguation pre-pass needs to re-hash
-    // when two different canonical signatures collide under the base 8-hex hash.
-    internal static string StableHash(string value)
-    {
-        const uint offsetBasis = 2166136261;
-        const uint prime = 16777619;
-
-        var hash = offsetBasis;
-
-        foreach (var c in value)
-            hash = (hash ^ c) * prime;
-
-        return hash.ToString("x8");
     }
 }

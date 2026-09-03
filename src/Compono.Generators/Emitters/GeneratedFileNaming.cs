@@ -22,22 +22,6 @@ internal static class GeneratedFileNaming
         foreach (var c in readable)
             builder.Append(char.IsLetterOrDigit(c) || c == '.' ? c : '_');
 
-        return builder.Append('_').Append(StableHash(fullyQualifiedName)).ToString();
-    }
-
-    // FNV-1a, not string.GetHashCode() - the latter is randomized per process on modern runtimes,
-    // and a hint name that changes between builds would defeat incremental caching and churn
-    // EmitCompilerGeneratedFiles output paths.
-    private static string StableHash(string value)
-    {
-        const uint offsetBasis = 2166136261;
-        const uint prime = 16777619;
-
-        var hash = offsetBasis;
-
-        foreach (var c in value)
-            hash = (hash ^ c) * prime;
-
-        return hash.ToString("x8");
+        return builder.Append('_').Append(StableHash.Compute(fullyQualifiedName)).ToString();
     }
 }

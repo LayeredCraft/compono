@@ -149,6 +149,8 @@ nav:
     - Compono.DependencyInjection: packages/compono-dependencyinjection.md
     - Compono.Http: packages/compono-http.md
     - Compono.Logging: packages/compono-logging.md
+    - Compono.MSTest: packages/compono-mstest.md
+    - Compono.NUnit: packages/compono-nunit.md
   - Best Practices:
     - Overview: best-practices/index.md
     - Organizing Profiles: best-practices/organizing-profiles.md
@@ -185,6 +187,8 @@ nav:
       - Compono.DependencyInjection: reference/api/Compono.DependencyInjection/index.md
       - Compono.Http: reference/api/Compono.Http/index.md
       - Compono.Logging: reference/api/Compono.Logging/index.md
+      - Compono.MSTest: reference/api/Compono.MSTest/index.md
+      - Compono.NUnit: reference/api/Compono.NUnit/index.md
     - Diagnostics: reference/diagnostics.md
     - Glossary: reference/glossary.md
   - Roadmap:

@@ -167,6 +167,45 @@ public sealed class ComposeAttributeConfigBindingTests
     }
 
     [Fact]
+    public async Task GetData_AppendsTheConfiguredSeed_WhenAFixedProfileFailsBeforeARowExists_ForComposeAttributeTProfile()
+    {
+        // ComposeAttribute{TProfile}.ApplyProfile had no negative-seed guard or exception wrapping
+        // at all until PLAN-0061 Phase 1 - a copy-paste gap from before PR #65 introduced this
+        // convention for ComposeAttribute{TProfile, TConfig}. Mirrors that class's own
+        // GetData_AppendsTheConfiguredSeed_WhenProfileConstructionFailsBeforeARowExists test, and
+        // Compono.TUnit.Tests' identical, already-correct coverage for this one-generic-argument form.
+        var attribute = new ComposeAttribute<SampleTestMethods.ThrowingConfigureTestProfile> { Seed = 492173 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attribute.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*custom profile configuration failed*Seed: 492173*");
+    }
+
+    [Fact]
+    public async Task GetData_ReportsTheNegativeSeedDiagnostic_NotTheProfileFailure_ForComposeAttributeTProfile_WhenBothApply()
+    {
+        // Seed = -1 combined with a throwing TProfile.Configure must report the documented
+        // negative-seed diagnostic, not the profile failure with "Seed: -1" embedded - before
+        // PLAN-0061 Phase 1, this attribute had no guard at all, so CompositionBuilder.WithSeed's own
+        // unchecked(int->ulong) cast would have silently accepted the negative seed with no exception,
+        // rather than merely reporting the wrong exception. Mirrors
+        // GetData_ReportsTheNegativeSeedDiagnostic_NotTheBinderFailure_WhenBothApply below (the
+        // ComposeAttribute{TProfile, TConfig} form) and Compono.TUnit.Tests' identical, already-correct
+        // coverage for this one-generic-argument form.
+        var attributeWithThrowingProfile = new ComposeAttribute<SampleTestMethods.ThrowingConfigureTestProfile> { Seed = -1 };
+        var method = typeof(SampleTestMethods).GetMethod(nameof(SampleTestMethods.WithNonNullableReferenceParameter))!;
+        var tracker = new DisposalTracker();
+
+        var act = () => attributeWithThrowingProfile.GetData(method, tracker).AsTask();
+
+        await act.Should().ThrowAsync<CompositionException>()
+            .WithMessage("*non-negative seed*-1*");
+    }
+
+    [Fact]
     public async Task GetData_ReportsTheNegativeSeedDiagnostic_NotTheBinderFailure_WhenBothApply()
     {
         // Seed = -1 combined with an invalid profile/config shape must report the documented
