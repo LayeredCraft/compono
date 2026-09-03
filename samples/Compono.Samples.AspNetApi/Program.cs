@@ -3,6 +3,7 @@ using Compono.Samples.AspNetApi;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<IOrderRepository, InMemoryOrderRepository>();
 builder.Services.AddSingleton<OrderService>();
+builder.Services.AddHttpClient<ShippingClient>(client => client.BaseAddress = new Uri("https://shipping.example.com/"));
 
 var app = builder.Build();
 

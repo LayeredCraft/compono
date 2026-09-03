@@ -12,12 +12,12 @@ short overview linking out to it, not the code itself.
 
 | Sample | Demonstrates | Packages |
 |---|---|---|
-| [Basic Usage](basic-usage.md) | The core workflow: `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a reusable profile, registrations and member rules, a composed xUnit v3 theory, deterministic seed reproduction. | `Compono`, `Compono.XunitV3` |
-| [ASP.NET API](aspnet-api.md) | The full ecosystem in one realistic API: a `[Shared]` NSubstitute substitute injected into the system under test, `Compono.Bogus`-generated request data, inline plus composed theory values, and one integration-style endpoint test. | `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus` |
+| [Basic Usage](basic-usage.md) | The core workflow: `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a reusable profile, registrations and member rules, a composed xUnit v3 theory, deterministic seed reproduction, and an `ILogger<T>` logging scenario. | `Compono`, `Compono.XunitV3`, `Compono.Logging` |
+| [ASP.NET API](aspnet-api.md) | The full ecosystem in one realistic API: a `[Shared]` NSubstitute substitute injected into the system under test, `Compono.Bogus`-generated request data, inline plus composed theory values, one integration-style endpoint test, an outbound-HTTP scenario, and a DI-composed row provider. | `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`, `Compono.Http`, `Compono.DependencyInjection` |
 
-Both samples restore against `Compono`/`Compono.XunitV3`/`Compono.NSubstitute`/
-`Compono.Bogus` via a `ProjectReference`, matching every other project in
-this repository — the same package-readiness CI gates that already verify
+Both samples restore against every package in their own "Packages" row
+above via a `ProjectReference`, matching every other project in this
+repository — the same package-readiness CI gates that already verify
 the four publishable packages against a real packed consumer (Phase 0's
 `Compono.XunitV3.SampleTests`) cover the packed-artifact risk without
 needing every downstream project, including these two samples, to

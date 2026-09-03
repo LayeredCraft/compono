@@ -1,6 +1,6 @@
 # [PLAN-0061] Pre-1.0 Cleanup and Consolidation Gate
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0041 Amendment 7](../adr/0041-aot-safe-row-binding-dispatch.md),
 [ADR-0033 Amendment 2](../adr/0033-public-preview-samples-strategy.md)
@@ -302,31 +302,44 @@ Ships as its own PR.
 
 ### Phase 2 — Canonical samples
 
-**Status:** Not Started
+**Status:** Done
 
 Ships as its own PR, after Phase 1 merges.
 
-- [ ] `Compono.Samples.AspNetApi`: add a `Compono.Http` scenario (handler-based
+- [x] `Compono.Samples.AspNetApi`: add a `Compono.Http` scenario (handler-based
       testing of an outbound HTTP-calling endpoint/service already present in
       the sample, or a small new one if none currently makes an outbound
       call) demonstrating realistic assertions a consumer would actually
-      write, not merely a compiling reference.
-- [ ] `Compono.Samples.AspNetApi`: add a `Compono.DependencyInjection`
+      write, not merely a compiling reference. Added a new `ShippingClient`
+      (a typed `HttpClient` calling an external carrier API for a shipping
+      label) and `ShippingClientTests` (`[Shared] TestHttpHandler`,
+      realistic `RespondJson`/`Verify()` and failure-status assertions).
+- [x] `Compono.Samples.AspNetApi`: add a `Compono.DependencyInjection`
       scenario — a DI-composed row provider registered into the host's
       `IServiceCollection`, exercised through a realistic test.
-- [ ] `Compono.Samples.BasicUsage`: add a `Compono.Logging` scenario —
+      `DependencyInjectionTests` composes `IOrderRepository` via
+      `row.AsServiceProvider()` and registers it into a real
+      `WebApplicationFactory<Program>` host's `IServiceCollection`.
+- [x] `Compono.Samples.BasicUsage`: add a `Compono.Logging` scenario —
       compose an `ILogger<T>`-dependent type via `UseLogging()`, assert a
-      captured log entry via `Verify()`.
-- [ ] `docs/samples/*.md` overview pages for both samples: add a mention of
+      captured log entry via `Verify()`. Added `NotificationService`,
+      `LoggingSampleProfile`, and `LoggingTests`.
+- [x] `docs/samples/*.md` overview pages for both samples: add a mention of
       their new scenarios (no new per-scenario page, per
       [ADR-0033 Amendment 2](../adr/0033-public-preview-samples-strategy.md)).
-- [ ] `docs/packages/compono-http.md`, `compono-dependencyinjection.md`,
+- [x] `docs/packages/compono-http.md`, `compono-dependencyinjection.md`,
       `compono-logging.md`: link to their new sample scenario, if not already
       linked.
-- [ ] `README.md`/`docs/packages/index.md`: confirm every publishable
+- [x] `README.md`/`docs/packages/index.md`: confirm every publishable
       package's row links to a working example (sample or package guide),
-      correcting any that don't.
-- [ ] Full `dotnet build`/`dotnet test Compono.slnx` (both samples build/run
+      correcting any that don't. Confirmed: `docs/packages/index.md`
+      already links every package's row to its guide, and each of the three
+      new guides now links onward to its sample scenario. `README.md`'s
+      package table links no package to a guide (a pre-existing, uniform
+      convention across all eleven rows, not a gap specific to these three)
+      — left as is, correcting it would be an unrelated repository-wide
+      change out of this phase's scope.
+- [x] Full `dotnet build`/`dotnet test Compono.slnx` (both samples build/run
       as part of the solution today; confirm the new scenarios do too) and
       `package-validation.yaml` green.
 
@@ -356,8 +369,13 @@ Ships as its own PR, after Phase 1 merges.
 - `.github/workflows/package-validation.yaml` — package-list consolidation
   via job-level `env:`.
 - `.github/workflows/aot-validation.yaml` (new) — permanent AOT CI gate.
-- `samples/Compono.Samples.AspNetApi/**`, `samples/Compono.Samples.BasicUsage/**` —
-  Phase 2 sample scenarios.
+- `samples/Compono.Samples.AspNetApi/**`, `samples/Compono.Samples.AspNetApi.Tests/**`,
+  `samples/Compono.Samples.BasicUsage/**` — Phase 2 sample scenarios
+  (`ShippingClient`/`ShippingClientTests`, `DependencyInjectionTests`,
+  `NotificationService`/`LoggingSampleProfile`/`LoggingTests`).
+- `docs/samples/aspnet-api.md`, `docs/samples/basic-usage.md`,
+  `docs/packages/compono-http.md`, `compono-dependencyinjection.md`,
+  `compono-logging.md` — Phase 2 documentation sync.
 
 ## Test Plan
 
@@ -421,3 +439,33 @@ gate either PR.
   established convention.
 - PR title required a lowercase-subject fix (`amannn/action-semantic-pull-request`'s
   enforced convention) — mechanical, no scope impact.
+
+**Phase 2 validation (2026-09-03):**
+
+- `dotnet build Compono.slnx -c Release` — 0 errors, 0 warnings.
+- `dotnet test Compono.slnx -c Release` — 3482/3482 passed locally (3478
+  Phase-1 baseline + 4 new: 2 `ShippingClientTests`, 1
+  `DependencyInjectionTests`, 1 `LoggingTests`).
+- `samples/Compono.Samples.AspNetApi.Tests` alone: 9/9 passed (5 baseline +
+  4 new).
+- `samples/Compono.Samples.BasicUsage` alone: 7/7 passed (6 baseline + 1 new).
+- `ComponoGeneratedLogging` had to be set explicitly (`true`, plus a
+  `CompilerVisibleProperty`) in `Compono.Samples.BasicUsage.csproj` —
+  `Compono.Logging`'s packed-only default-true props asset doesn't reach a
+  `ProjectReference` consumer, the identical situation
+  `Compono.Samples.AspNetApi.Tests.csproj` already solved for
+  `ComponoGeneratedTestDoubles`. Confirmed by a failing build first
+  (`LoggingProvider` threw the "no generated activation" `InvalidOperationException`
+  at test-run time without it), then fixed the same way.
+- All new documentation links (`docs/samples/aspnet-api.md` →
+  `docs/packages/compono-http.md`/`compono-dependencyinjection.md`,
+  `docs/samples/basic-usage.md` → `docs/packages/compono-logging.md`, and
+  each guide's reverse link back) manually verified to resolve to files that
+  exist in this checkout; `mkdocs` itself isn't available in this
+  environment to run a full nav build.
+- No public API changed — `Compono.Http`, `Compono.DependencyInjection`,
+  `Compono.Logging` source untouched; only `samples/**` and `docs/**`.
+- `package-validation.yaml`/`aot-validation.yaml` are unaffected by this
+  phase (samples are `IsPackable=false`, not part of either workflow's
+  package/AOT-smoke matrix) — Phase 1's own green run already covers them,
+  confirmed no publishable-package source changed.

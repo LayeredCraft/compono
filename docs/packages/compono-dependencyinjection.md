@@ -138,6 +138,9 @@ dependency.
 
 ## Next
 
+- [ASP.NET API sample](../samples/aspnet-api.md) (`DependencyInjectionTests`)
+  — `row.AsServiceProvider()` bridged into a real ASP.NET Core host's own
+  `IServiceCollection`.
 - [`Compono.TestDoubles`](compono-testdoubles.md) — the primary provider
   demonstrated above.
 - [`Compono.NSubstitute`](compono-nsubstitute.md) — an equally supported,

@@ -51,6 +51,8 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Bogus/Compono.Bogus.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.TestDoubles/Compono.TestDoubles.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Http/Compono.Http.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.DependencyInjection/Compono.DependencyInjection.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Generators/Compono.Generators.csproj"
                        OutputItemType="Analyzer"
                        ReferenceOutputAssembly="false" />

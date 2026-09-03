@@ -1,7 +1,7 @@
 # Sample: ASP.NET API
 
 A realistic but tightly scoped ASP.NET Core minimal-API application
-demonstrating all four Compono packages working together — enough ASP.NET
+demonstrating six Compono packages working together — enough ASP.NET
 structure to host the scenario, not an architecture showcase; Compono
 usage stays the dominant content. Real, buildable code:
 [`samples/Compono.Samples.AspNetApi`](https://github.com/LayeredCraft/compono/tree/main/samples/Compono.Samples.AspNetApi)
@@ -31,10 +31,20 @@ usage stays the dominant content. Real, buildable code:
   a direct method call.
 - Deterministic [seed reproduction](../concepts/determinism-and-seeding.md)
   for the composed `Customer` data.
+- A `Compono.Http` scenario (`ShippingClientTests`): a `[Shared]`
+  `TestHttpHandler` stands in for a real external carrier API `ShippingClient`
+  calls through a real `HttpClient` pipeline — see the
+  [`Compono.Http` Package Guide](../packages/compono-http.md).
+- A `Compono.DependencyInjection` scenario (`DependencyInjectionTests`):
+  `row.AsServiceProvider()` bridges a Compono-configured `IOrderRepository`
+  into the host's own `IServiceCollection`, resolved through a real ASP.NET
+  Core host — see the
+  [`Compono.DependencyInjection` Package Guide](../packages/compono-dependencyinjection.md).
 
 ## Packages
 
-`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`.
+`Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`,
+`Compono.Http`, `Compono.DependencyInjection`.
 
 ## Running it
 
