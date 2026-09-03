@@ -76,4 +76,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0059](0059-compono-nunit-package-design-impl-plan.md) | Compono.NUnit Package Design | Done |
 | [0060](0060-public-generator-facing-runtime-infrastructure.md) | Public Generator-Facing Runtime Infrastructure | Done |
 | [0061](0061-pre-1-0-cleanup-and-consolidation.md) | Pre-1.0 Cleanup and Consolidation Gate | In Progress |
-| [0062](0062-package-validation-gap-fixes.md) | Package-Validation Gap Fixes | In Progress |
+| [0062](0062-package-validation-gap-fixes.md) | Package-Validation Gap Fixes | Done |

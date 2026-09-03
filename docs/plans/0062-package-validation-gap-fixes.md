@@ -1,6 +1,6 @@
 # [PLAN-0062] Package-Validation Gap Fixes
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)
 (implementation-correctness follow-up — no amendment; ADR-0031 requires the
