@@ -209,10 +209,47 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsMSTestAll);
 
+        // Compono.NUnit's own [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed
+        // methods hit the identical discovery gap the xUnit v3/TUnit/MSTest registrations above solve.
+        // See docs/adr/0059-compono-nunit-package-design.md's "Generator discovery" section.
+        var composeMethodResultsNUnit = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.NUnitAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeMethodsNUnit);
+
+        var composeGenericMethodResultsNUnit = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.NUnitGenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeGenericMethodsNUnit);
+
+        var composeTwoTypeParameterMethodResultsNUnit = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.NUnitTwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethodsNUnit);
+
+        var composeMethodResultsNUnitAll = composeMethodResultsNUnit.Collect()
+            .Combine(composeGenericMethodResultsNUnit.Collect())
+            .Combine(composeTwoTypeParameterMethodResultsNUnit.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeMethodsNUnitAll);
+
         var composeMethodResultsAll = composeMethodResultsXunitV3.Collect()
             .Combine(composeMethodResultsTUnitAll.Collect())
             .Combine(composeMethodResultsMSTestAll.Collect())
-            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .Combine(composeMethodResultsNUnitAll.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Left.Concat(results.Left.Left.Right).Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
@@ -596,6 +633,10 @@ internal static class TrackingNames
     public const string ComposeGenericMethodsMSTest = "ComposeMethods.MSTest.Generic";
     public const string ComposeTwoTypeParameterMethodsMSTest = "ComposeMethods.MSTest.TwoTypeParameter";
     public const string ComposeMethodsMSTestAll = "ComposeMethods.MSTest.All";
+    public const string ComposeMethodsNUnit = "ComposeMethods.NUnit";
+    public const string ComposeGenericMethodsNUnit = "ComposeMethods.NUnit.Generic";
+    public const string ComposeTwoTypeParameterMethodsNUnit = "ComposeMethods.NUnit.TwoTypeParameter";
+    public const string ComposeMethodsNUnitAll = "ComposeMethods.NUnit.All";
     public const string ComposeMethodsAll = "ComposeMethods.All";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";

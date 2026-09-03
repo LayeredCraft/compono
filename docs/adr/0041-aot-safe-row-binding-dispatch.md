@@ -473,7 +473,71 @@ modified by this amendment.
 
 **Tracked as** [LayeredCraft/compono#119](https://github.com/LayeredCraft/compono/issues/119).
 
-## Amendment 5 (2026-09-02): Generator registration discoverability follows ADR-0058
+## Amendment 5 (2026-09-02): `Compono.XunitV3.Binding.ConfigProfileBinder`'s Native AOT gap reproduced and fixed
+
+Issue #119's own reproduction procedure was carried out in full, against the
+real, packaged `Compono.XunitV3`, before any production code changed.
+
+**Reproduction.** A new permanent regression project,
+`test/Compono.XunitV3.AotSmokeTest` (mirroring `test/Compono.TUnit.AotSmokeTest`'s
+and `test/Compono.MSTest.AotSmokeTest`'s own package-based pattern - a
+`PackageReference` to a locally-packed `Compono.XunitV3` 1.0.0 nupkg, never a
+`ProjectReference`, for the exact NETSDK1207 reason issue #119 itself calls
+out), drives the real `Compono.XunitV3.ComposeAttribute.GetData(MethodInfo,
+DisposalTracker)` and `ComposeAttribute<TProfile, TConfig>` directly. Packed
+via its own `pack-compono.sh`, published with `dotnet publish -c Release -f
+net10.0 -p:PublishAot=true -r osx-arm64 --self-contained true`, and run as a
+native executable **before** `ConfigProfileBinder` was touched, it reproduced
+Amendment 4's predicted failure exactly:
+
+```
+FAIL: Compono.CompositionException: 'Compono.XunitV3.AotSmokeTest.ProfileConfig' must have exactly one public constructor to be used as profile configuration, but has 0.
+```
+
+thrown from `ConfigProfileBinder.ResolveSingleConstructor` via
+`ComposeAttribute<TProfile, TConfig>.ApplyProfile` - the identical shape
+already confirmed for `Compono.TUnit` (Amendment 1) and `Compono.MSTest`
+(ADR-0057). The non-generic row-binding-dispatch path this ADR's own Decision
+Outcome covers (`ComposeAttribute`'s plain `[Compose]` form, no profile) ran
+and passed cleanly in the same harness both before and after the fix below -
+confirming, empirically, that Amendment 4's gap was scoped exactly where it
+said: `ConfigProfileBinder`'s `ConstructorInfo.Invoke`-based `TConfig`/
+`TProfile` construction only, not `RowInvokerRegistry` dispatch.
+
+**Fix.** `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]`
+applied at the identical call-flow positions Amendment 1/ADR-0057 already
+established for the sibling packages: `ConfigProfileBinder.BindConfig`'s and
+`ResolveSingleConstructor`'s `Type configType`/`Type type` parameters,
+`ResolveSingleProfileConstructor`'s `Type profileType` parameter (not its
+`configType` parameter - only the type actually reflected via
+`GetConstructors()` needs the annotation), `BuildProfile`'s `TProfile` type
+parameter, and `ComposeAttribute<TProfile, TConfig>`'s own `TProfile`/
+`TConfig` class-level type parameters. No other change - no `Type`-typed
+parameter or generic argument outside this exact chain needed annotation, and
+no `DynamicDependency`/blanket-preservation escape hatch was needed since the
+DAM contract fully describes what the binder actually requires.
+
+**Post-fix proof.** Re-packed, re-published, re-run, same command line: both
+rows now pass -
+
+```
+PASS: Compono.XunitV3.ComposeAttribute dispatch survived Native AOT - Widget.Name='...', leaf='...'.
+PASS: Compono.XunitV3.ComposeAttribute<TProfile, TConfig> (ConfigProfileBinder) dispatch survived Native AOT - Widget.Name='...', leaf='...'.
+```
+
+with zero `Compono.XunitV3`-attributed trim warnings from the publish itself
+(the one remaining IL2104 warning is from `xunit.v3.core`, an upstream
+dependency, not this repo's own code, both before and after this fix - out of
+scope here). `dotnet build Compono.slnx` and `dotnet test Compono.slnx -f
+net10.0` both pass clean afterward (976/976).
+
+**Outcome.** `Compono.XunitV3`, `Compono.TUnit`, and `Compono.MSTest` now
+carry equivalent, independently-verified preservation requirements for this
+profile-configuration binding shape - the last of the three
+`ConfigProfileBinder` ports to be proven, not just assumed by analogy. Closes
+[LayeredCraft/compono#119](https://github.com/LayeredCraft/compono/issues/119).
+
+## Amendment 6 (2026-09-02): Generator registration discoverability follows ADR-0058
 
 The original implementation plan deliberately left
 `RowInvokerRegistry.Register` undecorated to match the then-existing cache

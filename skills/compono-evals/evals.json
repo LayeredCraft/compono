@@ -227,13 +227,78 @@
       "id": 20,
       "category": "behavioral-correctness",
       "prompt": "Does Compono support NUnit? I want to use it in an NUnit test project the same way we use Compono.XunitV3 in our xUnit projects.",
-      "expected_output": "States plainly that Compono.NUnit does not exist/ship today, without inventing a plausible-looking package name, API, or usage example for it. May mention that NUnit integration is an idea/admitted candidate tracked in docs/roadmap/future-packages.md (not committed, no evidence yet), and may note that core Compono (Composer.Create<T>() etc.) can still be called directly inside an NUnit test today without any NUnit-specific package.",
+      "expected_output": "States that Compono.NUnit exists and ships the same [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]/[Shared] family as Compono.XunitV3, on ComposeAttribute : NUnit.Framework.TestAttribute, ITestBuilder - and specifically that no [TestFixture] or [Test] is needed alongside [Compose] (unlike a naive port of the xUnit/MSTest shape), because [Compose] alone makes the method a real, independently discovered NUnit test.",
       "files": [],
       "expectations": [
-        "Does not claim Compono.NUnit is installable or reference a fabricated NuGet package/attribute/API for it",
-        "Does not invent a plausible-looking [Compose]-style NUnit attribute or extension method",
-        "Correctly distinguishes 'not shipped' from 'impossible' \u2014 core Compono usable directly in any test framework via Composer.Create<T>()",
-        "Does not silently redirect to Compono.XunitV3 as if it worked in NUnit"
+        "States plainly that Compono.NUnit is a real, shipped package, not an idea/admitted candidate",
+        "States that [Compose] alone (no [TestFixture], no [Test]) makes the method discoverable",
+        "Does not claim [TestFixture] is required on the containing class",
+        "Does not invent a different attribute name or API shape than the real ComposeAttribute/SharedAttribute family"
+      ]
+    },
+    {
+      "id": 42,
+      "category": "behavioral-correctness",
+      "prompt": "I'm writing an NUnit test with Compono.NUnit. Does [Compose] need [TestFixture] on the class, or [Test] on the method, the way Compono.MSTest needs [TestClass]/[TestMethod]?",
+      "expected_output": "States that neither is required: Compono.NUnit's ComposeAttribute derives from NUnit's own TestAttribute and implements ITestBuilder directly, so [Compose] alone makes the method a real, independently discovered NUnit test - a genuine divergence from Compono.MSTest's own [TestClass]/[TestMethod] requirement, not an oversight or a simplification a consumer should add back for safety.",
+      "files": [],
+      "expectations": [
+        "States [TestFixture] is not required on the containing class",
+        "States [Test] is not required on the method",
+        "Explains (or at least states) that [Compose] itself drives discovery because ComposeAttribute derives from TestAttribute",
+        "Does not conflate this with Compono.MSTest's own [TestClass]/[TestMethod] requirement or suggest adding [TestFixture]/[Test] 'to be safe'"
+      ]
+    },
+    {
+      "id": 43,
+      "category": "behavioral-correctness",
+      "prompt": "In my Compono.NUnit test, I have [Compose] and [TestCase(42)] on the same method parameter. Will Compono compose a value for that parameter and then have NUnit override it with 42 on the literal-value row, or how does this actually work?",
+      "expected_output": "Corrects the premise: [Compose] and [TestCase] never merge into one row. Each independently and completely owns its own row - two separate, independent test cases are produced (one fully composed, one using the literal TestCase value), never a hybrid row where one attribute fills in for the other. The same independent-row model applies to [Values]/[Range]/a custom IParameterDataSource alongside [Compose].",
+      "files": [],
+      "expectations": [
+        "States that [Compose] and [TestCase] produce two independent, separate test cases, not a merged row",
+        "Does not claim NUnit 'overrides' or 'fills in' a Compose-composed value with the TestCase literal",
+        "Generalizes correctly to [Values]/[Range]/custom IParameterDataSource producing their own independent rows too",
+        "Does not invent partial-row merging machinery or suggest Compono needs to be configured to prevent merging"
+      ]
+    },
+    {
+      "id": 44,
+      "category": "behavioral-correctness",
+      "prompt": "Our team is on NUnit 3.x for one service and NUnit 4.x for another. Do we need Compono.NUnit3 and Compono.NUnit4 as separate packages, the way some other AutoFixture-style libraries split by NUnit major version?",
+      "expected_output": "States there is exactly one Compono.NUnit package, supporting NUnit [3.14.0, 5.0.0) - no major-version-specific split. The same compiled Compono.NUnit works unmodified against NUnit 3.14.0 and current 4.x. NUnit 5 is currently prerelease and stays outside the supported contract (tracked only as non-blocking forward-compatibility surveillance) until it ships stable.",
+      "files": [],
+      "expectations": [
+        "States one Compono.NUnit package covers both services, not separate NUnit3/NUnit4 packages",
+        "States the supported range as [3.14.0, 5.0.0) or equivalently 'NUnit 3.14.0 through current 4.x, not yet NUnit 5 stable'",
+        "Does not invent or suggest a Compono.NUnit3/Compono.NUnit4/Compono.NUnit5 package split",
+        "Correctly frames NUnit 5 as prerelease/surveillance-only, not currently supported"
+      ]
+    },
+    {
+      "id": 45,
+      "category": "behavioral-correctness",
+      "prompt": "My Compono.NUnit test needs the current TestContext (for TestContext.CurrentContext.CancellationToken) and I also want the composed graph to clean up any IDisposable it creates automatically when the test ends. Can I get [Compose] to inject TestContext as a parameter, and does Compono dispose composed values for me?",
+      "expected_output": "Corrects both premises: (1) TestContext is NUnit's own static/ambient accessor (TestContext.CurrentContext) - Compono.NUnit does not, and should not, auto-inject it as a composed parameter; use the static accessor directly in the test body. (2) Compono never owns or disposes composed values, in NUnit or any other framework - disposal is the consumer's own responsibility (an NUnit [TearDown]/[OneTimeTearDown], or IDisposable on the fixture class).",
+      "files": [],
+      "expectations": [
+        "States TestContext.CurrentContext is NUnit's own static/ambient accessor, not something [Compose] injects as a parameter",
+        "States Compono does not own or dispose composed values",
+        "Points to NUnit's own [TearDown]/[OneTimeTearDown]/IDisposable-fixture mechanisms for cleanup, not a Compono-provided disposal feature",
+        "Does not invent a Compono.NUnit-specific TestContext-injection or auto-disposal mechanism"
+      ]
+    },
+    {
+      "id": 46,
+      "category": "behavioral-correctness",
+      "prompt": "Is composition in Compono.NUnit async, and does the fact that Compono.NUnit's own code is trim-safe mean NUnit test execution itself can run under Native AOT?",
+      "expected_output": "States composition remains synchronous everywhere in Compono, including Compono.NUnit (ITestBuilder.BuildFrom returns a plain IEnumerable<TestMethod>, no Task/ValueTask) - async resource setup belongs in NUnit's own lifecycle hooks, not Compono. Keeps the two AOT claims strictly separate: Compono.NUnit's own shipped integration code being trim/Native-AOT-safe (provable and proven) is a narrower claim than 'NUnit's own test runner/adapter ecosystem supports Native AOT execution' - the second claim must not be made without direct evidence, and none was found for it.",
+      "files": [],
+      "expectations": [
+        "States composition is synchronous, not async, in Compono.NUnit",
+        "Does not claim NUnit's own runner/adapter chain is proven Native-AOT-runnable",
+        "Distinguishes 'Compono.NUnit's own code is trim/AOT-safe' from 'NUnit itself can execute under Native AOT' as two separate claims",
+        "Does not conflate a passing AOT smoke test of Compono.NUnit's own dispatch code with proof of full NUnit-runner AOT support"
       ]
     },
     {

@@ -46,6 +46,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.Http`          | Handler-based `HttpClient` testing (`TestHttpHandler`) |
 | `Compono.Logging`       | `Microsoft.Extensions.Logging` testing support (`UseLogging()`, `CapturingLogger<T>`) |
 | `Compono.MSTest`        | MSTest integration                               |
+| `Compono.NUnit`         | NUnit integration (no `[TestFixture]` required)  |
 
 ## Example
 

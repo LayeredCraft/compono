@@ -1,6 +1,6 @@
 # Package Guides
 
-Compono ships as ten independently-installable NuGet packages. Pick which
+Compono ships as eleven independently-installable NuGet packages. Pick which
 ones you need before reading any single guide in depth — most projects only
 need the first two.
 
@@ -12,6 +12,7 @@ need the first two.
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
 | [`Compono.TUnit`](compono-tunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` data source attributes and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
 | [`Compono.MSTest`](compono-mstest.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` `ITestDataSource` attributes and `[Shared]` parameter sharing for MSTest. | You write MSTest tests and want composed method parameters instead of hand-built `[DataRow]`/`[DynamicData]` rows. |
+| [`Compono.NUnit`](compono-nunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` `TestAttribute`/`ITestBuilder` attributes and `[Shared]` parameter sharing for NUnit. No `[TestFixture]` required. | You write NUnit tests and want composed method parameters instead of hand-built `[TestCase]`/`[Values]` rows. |
 | [`Compono.TestDoubles`](compono-testdoubles.md) | A source-generated, AOT-safe double for an otherwise-unresolvable interface leaf, with per-member `Configure().Member().Returns(...)`/`.Throws(...)`. | You want a generated interface double without `Compono.NSubstitute`'s runtime-proxy dependency, or need the composed path to survive `PublishAot`. |
 | [`Compono.DependencyInjection`](compono-dependencyinjection.md) | `row.AsServiceProvider()` — a configured-resolution `IServiceProvider` bridge over a `CompositionRow`. | You need Compono's registered/provider-backed values reachable through a plain `IServiceProvider`, e.g. as a fallback provider for another ecosystem's own DI container. |
 | [`Compono.Http`](compono-http.md) | `TestHttpHandler` — a reflection-free `HttpMessageHandler` test double: `OnGet`/`OnPost`/etc. + `When(...)` matching, strict unmatched-request behavior, registration-handle verification. | Your test needs to exercise the real `HttpClient` pipeline against a configured HTTP response, instead of substituting an application-level interface. |
@@ -32,14 +33,19 @@ package you install — it's embedded inside `Compono.nupkg`'s
 ## The common case
 
 For most test projects, that's `Compono` plus whichever test-framework
-integration matches your test host — `Compono.XunitV3` for xUnit v3, or
-`Compono.TUnit` for TUnit:
+integration matches your test host — `Compono.XunitV3` for xUnit v3,
+`Compono.TUnit` for TUnit, `Compono.MSTest` for MSTest, or `Compono.NUnit`
+for NUnit:
 
 ```bash
 dotnet add package Compono --prerelease
 dotnet add package Compono.XunitV3 --prerelease
 # or, for TUnit:
 dotnet add package Compono.TUnit --prerelease
+# or, for MSTest:
+dotnet add package Compono.MSTest --prerelease
+# or, for NUnit:
+dotnet add package Compono.NUnit --prerelease
 ```
 
 Add `Compono.NSubstitute` and/or `Compono.Bogus` independently, as your
@@ -50,7 +56,7 @@ whether or not you're also using xUnit v3 integration).
 
 ## Version compatibility
 
-All nine packages ship in lockstep during the `0.x` line — each integration
+All eleven packages ship in lockstep during the `0.x` line — each integration
 package's dependency on `Compono` is exact-pinned at pack time, so mixing
 versions across packages (e.g. `Compono.XunitV3 0.3.0` with `Compono
 0.5.0`) is not supported and will fail to restore. Always update all

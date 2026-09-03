@@ -56,6 +56,15 @@ lookups, and the actual construction, are reflection \(`Compono.XunitV3.Binding.
 and cached to once per attribute instance by this attribute family's existing
 [System\.Lazy&lt;&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.lazy-1 'System\.Lazy\`1')\-backed [Composer](../Compono/Compono.Composer.md 'Compono\.Composer') caching \(`Compono.XunitV3.ComposeAttribute&lt;&gt;.ApplyProfile(Compono.CompositionBuilder)` is only ever
 invoked from inside that lazy initializer\), never on the repeated per\-row `GetData` path\.
+[TProfile](Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.md#Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.TProfile 'Compono\.XunitV3\.ComposeAttribute\<TProfile,TConfig\>\.TProfile') and [TConfig](Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.md#Compono.XunitV3.ComposeAttribute_TProfile,TConfig_.TConfig 'Compono\.XunitV3\.ComposeAttribute\<TProfile,TConfig\>\.TConfig') both carry
+[System\.Diagnostics\.CodeAnalysis\.DynamicallyAccessedMembersAttribute](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.dynamicallyaccessedmembersattribute 'System\.Diagnostics\.CodeAnalysis\.DynamicallyAccessedMembersAttribute')\([System\.Diagnostics\.CodeAnalysis\.DynamicallyAccessedMemberTypes\.PublicConstructors](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.dynamicallyaccessedmembertypes.publicconstructors 'System\.Diagnostics\.CodeAnalysis\.DynamicallyAccessedMemberTypes\.PublicConstructors')\)
+\- required, not decorative: a real Native AOT publish\-and\-run proof \(issue \#119\) showed the
+trimmer strips a closed generic argument's public constructors by default, since nothing in an
+unannotated `Type.GetConstructors()` call site tells it they're reachable \-
+`Compono.XunitV3.Binding.ConfigProfileBinder` failed at runtime with "has 0" public constructors on a type that
+plainly has one, until these annotations were added at every generic parameter/`Type`\-typed
+parameter along the call chain, mirroring the identical fix `Compono.TUnit`'s \(ADR\-0041
+Amendment 1\) and `Compono.MSTest`'s \(ADR\-0057\) own equivalent attributes already carry\.
 
 | Constructors | |
 | :--- | :--- |

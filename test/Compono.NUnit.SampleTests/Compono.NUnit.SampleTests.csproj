@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.NUnit.SampleTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-only ItemGroups
+         (Using Xunit/NSubstitute/AwesomeAssertions, the shared MTP/xunit.v3 PackageReferences) -
+         a property this project declares about itself, matching Compono.MSTest.SampleTests'/
+         Compono.TUnit.SampleTests' identical precedent. -->
+    <ComponoTestFramework>NUnit</ComponoTestFramework>
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Deliberately no ProjectReference to Compono/Compono.NUnit anywhere in this project - the
+         whole point is consuming Compono.NUnit exactly the way an external consumer would, via the
+         PackageReference below, so packaging mistakes (a missing dependency, wrong PrivateAssets,
+         the Compono.Generators analyzer not flowing transitively) surface here instead of being
+         masked by a ProjectReference build. Mirrors Compono.MSTest.SampleTests/
+         Compono.TUnit.SampleTests/Compono.XunitV3.SampleTests - this is PLAN-0059 task group 8's
+         own equivalent proof that ComposeMethodDiscovery's Compono.NUnit-attribute registrations
+         (ComponoIncrementalGenerator.cs) actually produce a real generated plan through the packaged
+         Compono.NUnit -> Compono dependency, not just Compono.Generators.Tests' isolated snapshot
+         test or Compono.NUnit.Tests' own ProjectReference-based calls. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
+    <!-- Isolated restore path, same reasoning as the other sample projects' own (see those
+         projects' csproj comments for the full account of why: NuGet never re-extracts an
+         already-present package id+version, so a shared/fixed path would let a stale entry
+         silently satisfy a later restore after this project's own local feed content changes). -->
+    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Compono.NUnit" />
+    <!-- PLAN-0059 task group 8's own Goal-section scenario, run for real: composing
+         Compono.NSubstitute through the actual packaged dependency chain, same reasoning as
+         Compono.MSTest.SampleTests above - mirrors Compono.TUnit.SampleTests'/
+         Compono.XunitV3.SampleTests' identical NSubstituteTests.cs. -->
+    <PackageReference Include="Compono.NSubstitute" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Delegates to pack-to-local-feed.sh, which serializes the three `dotnet pack` calls behind a
+       cross-process lock (see that script's own comment, shared verbatim reasoning with the other
+       sample projects' copies) - CI can run this project's multiple TFM test hosts concurrently,
+       each independently triggering this target. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NUnit/Compono.NUnit.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.NSubstitute/Compono.NSubstitute.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+  </Target>
+
+</Project>

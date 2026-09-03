@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — NUnit Integration</Title>
+        <Description>NUnit integration for Compono - [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] ITestBuilder attributes and [Shared] parameter sharing. No [TestFixture] required.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.NUnit - matching Compono.XunitV3/Compono.TUnit/Compono.MSTest's own
+             precedent (PLAN-0004 Phase 3's real packaging-bug lesson). -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <!-- NUnit only, per ADR-0059 §3 - the single framework package containing everything this
+             package needs (ITestBuilder, IMethodInfo, NUnitTestCaseBuilder/TestCaseParameters). No
+             NUnit3TestAdapter, Microsoft.Testing.Platform package, or Microsoft.NET.Test.Sdk - those
+             remain consumer/test-project runner concerns. Range [3.14.0, 5.0.0) per ADR-0059 §3:
+             empirically proven binary-compatible against 3.14.0/4.6.1/5.0.0-beta.1 (RESEARCH-0018
+             §5/§18), but NUnit 5 stays prerelease-only at time of writing - the upper bound excludes
+             it deliberately, not because of any found incompatibility. -->
+        <PackageReference Include="NUnit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.NUnit.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a
+         bare, minimum-inclusive version by default - rewrites the SDK's own
+         _ProjectReferencesWithVersions item (what GenerateNuspec actually reads) to bracket/exact
+         syntax instead. Matches every other integration package's own copy of this target. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

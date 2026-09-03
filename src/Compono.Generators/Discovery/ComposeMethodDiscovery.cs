@@ -96,6 +96,26 @@ internal static class ComposeMethodDiscovery
     /// <remarks><c>Compono.MSTest.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
     public const string MSTestTwoTypeParameterAttributeMetadataName = "Compono.MSTest.ComposeAttribute`2";
 
+    /// <summary>
+    /// <c>Compono.NUnit</c>'s own <c>[Compose]</c> - the identical discovery gap as
+    /// <see cref="AttributeMetadataName"/>, for a fourth attribute family. See
+    /// <c>docs/adr/0059-compono-nunit-package-design.md</c>'s "Generator discovery" section:
+    /// <c>Compono.NUnit</c>'s binding is likewise entirely runtime reflection (over the
+    /// <c>System.Reflection.MethodInfo</c> unwrapped from NUnit's own <c>IMethodInfo</c>), no textual
+    /// <c>Resolve&lt;T&gt;()</c> call site, so a parameter type reached only through a
+    /// <c>Compono.NUnit</c>-attributed method needs this same dedicated discovery path. Feeds the
+    /// identical, attribute-family-agnostic <see cref="TransformMethod"/>.
+    /// </summary>
+    public const string NUnitAttributeMetadataName = "Compono.NUnit.ComposeAttribute";
+
+    /// <inheritdoc cref="GenericAttributeMetadataName"/>
+    /// <remarks><c>Compono.NUnit.ComposeAttribute&lt;TProfile&gt;</c>'s own arity-suffixed form.</remarks>
+    public const string NUnitGenericAttributeMetadataName = "Compono.NUnit.ComposeAttribute`1";
+
+    /// <inheritdoc cref="TwoTypeParameterAttributeMetadataName"/>
+    /// <remarks><c>Compono.NUnit.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
+    public const string NUnitTwoTypeParameterAttributeMetadataName = "Compono.NUnit.ComposeAttribute`2";
+
     public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
@@ -26,6 +27,19 @@ namespace Compono.XunitV3.Binding;
 /// once per attribute instance, never the repeated per-row <c>GetData</c> path - no separate caching
 /// layer is needed here.
 /// </remarks>
+/// <remarks>
+/// Every <see cref="Type"/>-typed parameter along this binder's call chain (and
+/// <see cref="ComposeAttribute{TProfile, TConfig}"/>'s own <c>TProfile</c>/<c>TConfig</c> type
+/// parameters) carries
+/// <see cref="DynamicallyAccessedMembersAttribute"/>(<see cref="DynamicallyAccessedMemberTypes.PublicConstructors"/>)
+/// - required, not decorative: a real Native AOT publish-and-run proof (issue #119) showed the
+/// trimmer strips a closed generic argument's public constructors by default, since nothing in an
+/// unannotated <see cref="Type.GetConstructors()"/> call site tells it they're reachable - this
+/// binder failed at runtime with "has 0" public constructors on a type that plainly has one, until
+/// these annotations were added at every generic parameter/<see cref="Type"/>-typed parameter along
+/// the call chain, mirroring the identical fix <c>Compono.TUnit</c>'s (ADR-0041 Amendment 1) and
+/// <c>Compono.MSTest</c>'s (ADR-0057) own binders already carry for this same shape.
+/// </remarks>
 internal static class ConfigProfileBinder
 {
     /// <summary>
@@ -40,7 +54,9 @@ internal static class ConfigProfileBinder
     /// <see langword="null"/> for a non-nullable parameter; or a supplied argument's type isn't
     /// assignable to its parameter's type.
     /// </exception>
-    public static object BindConfig(Type configType, IReadOnlyList<object?> configArguments)
+    public static object BindConfig(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type configType,
+        IReadOnlyList<object?> configArguments)
     {
         var constructor = ResolveSingleConstructor(configType);
         var parameters = constructor.GetParameters();
@@ -86,7 +102,7 @@ internal static class ConfigProfileBinder
     /// <typeparamref name="TProfile"/> does not have exactly one public constructor accepting exactly
     /// one <typeparamref name="TConfig"/>-typed parameter.
     /// </exception>
-    public static TProfile BuildProfile<TProfile, TConfig>(object config)
+    public static TProfile BuildProfile<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProfile, TConfig>(object config)
         where TProfile : ICompositionProfile
     {
         var constructor = ResolveSingleProfileConstructor(typeof(TProfile), typeof(TConfig));
@@ -117,7 +133,8 @@ internal static class ConfigProfileBinder
         }
     }
 
-    private static ConstructorInfo ResolveSingleConstructor(Type type)
+    private static ConstructorInfo ResolveSingleConstructor(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type)
     {
         // An abstract type can still declare a public constructor (invoked only by a derived type's
         // own constructor chain) - GetConstructors would find it and this method would otherwise
@@ -143,7 +160,9 @@ internal static class ConfigProfileBinder
         return constructors[0];
     }
 
-    private static ConstructorInfo ResolveSingleProfileConstructor(Type profileType, Type configType)
+    private static ConstructorInfo ResolveSingleProfileConstructor(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type profileType,
+        Type configType)
     {
         // Same reasoning as ResolveSingleConstructor's abstract check above - an abstract TProfile
         // with a matching public constructor would otherwise reach ConstructorInfo.Invoke and throw

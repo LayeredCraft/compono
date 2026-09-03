@@ -1,4 +1,4 @@
-# [PLAN-0059] Public Generator-Facing Runtime Infrastructure
+# [PLAN-0060] Public Generator-Facing Runtime Infrastructure
 
 **Status:** In Progress
 
@@ -51,8 +51,8 @@ undecorated. Rebuild the generated API reference, run `dotnet build` and
 
 ## Notes
 
-The plan number is sequentially next even though it implements ADR-0058:
-PLAN-0058 already implements ADR-0053.
+PLAN-0060 replaces the originally assigned PLAN-0059 after `main` added the
+independent Compono.NUnit plan with that number.
 
 Validation on 2026-09-02:
 
