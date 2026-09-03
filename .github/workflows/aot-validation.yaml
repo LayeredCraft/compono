@@ -103,7 +103,16 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          # global.json pins a preview 11.0.x SDK for this repo; setup-dotnet must install every SDK
+          # major version pr-build.yaml/package-validation.yaml already do, even though every
+          # AotSmokeTest project itself only targets net10.0 - otherwise `dotnet` CLI resolution
+          # fails for the *whole checkout* the moment global.json's pinned SDK isn't present, not
+          # just for a net11.0-specific build.
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+            11.0.x
 
       - name: Pack ${{ matrix.leg }} into its local AOT smoke feed
         run: bash "test/${{ matrix.leg }}.AotSmokeTest/pack-compono.sh"
