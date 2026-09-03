@@ -2,9 +2,12 @@
 
 **Status:** Accepted
 
-**Date:** 2026-09-02
+**Date:** 2026-09-03
 
-**Decision Makers:** Nick Cipollina (product direction), Codex (draft)
+**Decision Makers:** Jonas Ha (proposal, this branch), Codex (initial
+draft), Claude (independent technical verification against
+`src/Compono.Generators` and repo source), Nick Cipollina (product-owner
+acceptance, 2026-09-03)
 
 ## Context
 
@@ -67,6 +70,17 @@ change CLR accessibility, binary compatibility, or generated-code execution.
 It is appropriate here precisely because the cross-assembly public members
 remain necessary. The policy must not claim to make those members inaccessible
 or safe against deliberate manual use.
+
+The rule above is stated at member level because no current type in the
+Evaluation Scope is *exclusively* generator-facing — `RowInvokerRegistry`,
+`GeneratedTestDoubleRegistry`, and `LoggingFactoryRegistry` each keep a
+`TryGet`/`TryCreate` member other Compono packages call directly, and
+`ReturnConfigBuilder<T>` keeps its consumer-facing fluent methods. A future
+type whose entire public surface exists solely for generated-code calls,
+with no member any manually-authored code (consumer or another Compono
+package) is meant to call, may apply `EditorBrowsableState.Never` at the
+type level instead — the same underlying rule (intended caller, not
+mutation risk), just with nothing left to leave visible.
 
 ### Positive Consequences
 
@@ -143,11 +157,18 @@ itself and its fluent response methods also remain visible because they are the
 consumer-facing return values of generated configuration extensions; only its
 constructor is an emitted-code hook.
 
-The implementation must append amendments to ADR-0041 and ADR-0055, whose
-local decisions deliberately left their hooks undecorated, and add the policy
-to `coding-standards.md`. A short plan is warranted because the change spans
-multiple packages, generated-code contract tests, and regenerated API
-reference.
+The implementation must append a cross-reference amendment to ADR-0041 —
+`RowInvokerRegistry`'s undecorated convention was established in that
+type's own doc comment, not in ADR-0041's text (ADR-0041 never discusses
+`EditorBrowsable`), so the amendment records this ADR's policy rather than
+correcting a decision ADR-0041 never made. ADR-0055's own text *does*
+already discuss and decide to leave `LoggingFactoryRegistry` undecorated
+(§ "No `[EditorBrowsable(EditorBrowsableState.Never)]` is added"), so its
+amendment is a genuine update to a prior decision. Check whether ADR-0043
+(`GeneratedTestDoubleRegistry.RegisterFactory`) needs the same treatment.
+Also add the policy to `coding-standards.md`. A short plan is warranted
+because the change spans multiple packages, generated-code contract tests,
+and regenerated API reference.
 
 ## Links
 
