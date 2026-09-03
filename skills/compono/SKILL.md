@@ -72,7 +72,9 @@ from a remembered version pattern.
 when the user explicitly asks. Add the `Compono` package (plus
 `Compono.XunitV3` if the project uses xUnit v3 theories, `Compono.TUnit`
 if it uses TUnit, `Compono.MSTest` if it uses MSTest (`MSTest.TestFramework`
-4.0.0+ only — see `references/mstest.md`), `Compono.NSubstitute`/
+4.0.0+ only — see `references/mstest.md`), `Compono.NUnit` if it uses
+NUnit (`NUnit` `3.14.0`+ — see `references/nunit.md`, no `[TestFixture]`/
+`[Test]` needed alongside `[Compose]`), `Compono.NSubstitute`/
 `Compono.Bogus` only if the user wants those). Don't retrofit existing
 passing tests to use Compono unprompted — that's a scope decision for the
 user to make test-by-test, not something to do as a drive-by.
@@ -125,8 +127,8 @@ verification remain separate capabilities.
      declared once, typically in a profile) for a reusable, profile-level
      sharing intent — every request for that type anywhere in the graph
      participates automatically, with **no `[Shared]` attribute needed**;
-     `[Shared]` (in `Compono.XunitV3`, `Compono.TUnit`, or `Compono.MSTest`,
-     whichever the project references) for a one-off, single-test case that doesn't
+     `[Shared]` (in `Compono.XunitV3`, `Compono.TUnit`, `Compono.MSTest`,
+     or `Compono.NUnit`, whichever the project references) for a one-off, single-test case that doesn't
      warrant a profile change. See
      `references/registrations-profiles-and-scopes.md`. Don't reach for
      either just to "make things consistent" or as a perceived performance
@@ -182,9 +184,10 @@ verification remain separate capabilities.
    - A value only known at a *specific test's call site* that must
      influence configuration logic running *inside* a profile (not a
      top-level test parameter) → `[Compose<TProfile, TConfig>]` (in
-     `Compono.XunitV3`, `Compono.TUnit`, or `Compono.MSTest`, whichever the
-     project references) — see `references/xunit-v3.md`, `references/tunit.md`,
-     or `references/mstest.md` to match. Prefer an enum/`typeof(...)` over a bare
+     `Compono.XunitV3`, `Compono.TUnit`, `Compono.MSTest`, or `Compono.NUnit`,
+     whichever the project references) — see `references/xunit-v3.md`,
+     `references/tunit.md`, `references/mstest.md`, or `references/nunit.md`
+     to match. Prefer an enum/`typeof(...)` over a bare
      string for the argument. Don't confuse this with a
      `CompositionProviderRequest.Name`-based custom provider
      (`references/registrations-profiles-and-scopes.md`), which solves a

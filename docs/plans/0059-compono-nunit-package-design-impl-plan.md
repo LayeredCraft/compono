@@ -866,9 +866,24 @@ independent adversarial review's findings:**
   - NUnit `3.14.0` × MTP — pass, resolved `3.14.0`. **This closes
     RESEARCH-0018's open "3.14.0×MTP not independently spiked" gap
     favorably: the combination is genuinely supported.**
-  - NUnit `4.6.1` (current stable) × classic VSTest — pass, resolved
-    `4.6.1`.
-  - NUnit `4.6.1` × MTP — pass, resolved `4.6.1`.
+  - Current stable NUnit 4.x × classic VSTest — pass. **Dynamically
+    tracked, not a hardcoded version literal** (corrected after PR #127
+    review: an earlier version of this leg hardcoded `4.6.1`, which would
+    have silently stopped tracking new stable 4.x releases the moment one
+    shipped, since the package's own `[3.14.0, 5.0.0)` range permits any
+    of them). The script now requests NuGet's own floating-version syntax
+    (`4.*`) via the matrix project's existing `NUnitMatrixVersion`/
+    `VersionOverride` mechanism, re-resolved fresh on every run (the
+    script always deletes `obj`/`bin` first), and asserts the concretely
+    *resolved* version is a genuine stable 4.x release
+    (`^4\.[0-9]+\.[0-9]+$`, no prerelease suffix) rather than asserting
+    exact equality to a fixed literal — the floor leg above keeps its own
+    exact-version assertion unchanged. Resolved at validation time:
+    `4.6.1` (the current latest stable 4.x release as of this writing) —
+    expected to track forward automatically as NUnit ships new 4.x
+    versions, with no script edit required.
+  - Current stable NUnit 4.x × MTP — pass, same dynamically-resolved
+    version.
   - Non-blocking surveillance leg added too: NUnit `5.0.0-beta.1` × both
     runners — pass, resolved `5.0.0-beta.1` — informational only,
     explicitly outside the `[3.14.0, 5.0.0)` support contract, never
