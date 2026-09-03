@@ -13,6 +13,7 @@ public sealed class DataSourceCoexistenceTests
 {
     private static readonly ConcurrentBag<int> TestCaseRowValues = new();
     private static readonly ConcurrentBag<int> ValuesRowValues = new();
+    private static readonly ConcurrentBag<int> RangeRowValues = new();
 
     [Compose]
     [TestCase(42)]
@@ -20,6 +21,14 @@ public sealed class DataSourceCoexistenceTests
 
     [Compose]
     public void ComposedAndValues_ProduceIndependentRows([Values(7, 8, 9)] int value) => ValuesRowValues.Add(value);
+
+    // Same contract as [Values] above, exercised through the actual packaged Compono.NUnit ->
+    // Compono dependency chain specifically - Pi's final review found this leg covered in
+    // test/Compono.NUnit.Tests/RealNUnitExecutionTests.cs but missing here, even though PLAN-0059
+    // task group 8 claims the packaged chain covers [Range] too. Expected: 1 Compose-owned row + 3
+    // [Range(1,3)]-owned rows (1, 2, 3) = 4 total.
+    [Compose]
+    public void ComposedAndRange_ProduceIndependentRows([Range(1, 3)] int value) => RangeRowValues.Add(value);
 
     [OneTimeTearDown]
     public void AssertIndependentRowCoexistence()
@@ -31,6 +40,10 @@ public sealed class DataSourceCoexistenceTests
         Assert.That(ValuesRowValues, Has.Count.EqualTo(4),
             "expected exactly 4 independent rows: 1 Compose-owned + 3 NUnit [Values]-owned");
         Assert.That(ValuesRowValues, Does.Contain(7).And.Contain(8).And.Contain(9));
+
+        Assert.That(RangeRowValues, Has.Count.EqualTo(4),
+            "expected exactly 4 independent rows: 1 Compose-owned + 3 NUnit [Range]-owned");
+        Assert.That(RangeRowValues, Does.Contain(1).And.Contain(2).And.Contain(3));
     }
 }
 

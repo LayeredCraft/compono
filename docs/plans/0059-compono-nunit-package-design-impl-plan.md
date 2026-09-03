@@ -585,9 +585,19 @@ name — this is completion-gate work per ADR-0059, not follow-up cleanup:
       both produce rows). Keep it focused — one or two scenarios proving
       the skill/reference material actually teaches framework-specific
       behavior.
-- [ ] Run the existing before/after benchmark harness for the new eval(s)
-      against the updated skill, recording the result per
-      `skills/compono-evals`' established convention.
+- [x] Ran the existing before/after benchmark process for the new
+      evals (42-46) against the updated skill, recording the result per
+      `skills/compono-evals`' established convention — see
+      `skills/compono-evals/benchmarks/2026-09-03/README.md`. **5/5 with
+      skill, 0/5 without** (one assertion of one eval — synchronous
+      composition, eval 46 — passed without the skill too, since that
+      fact generalizes from the other three framework packages; every
+      other assertion across all five evals depends on
+      `Compono.NUnit`-specific facts only `nunit.md` teaches). This is
+      the same session-graded process (not an automated script) prior
+      packages' own benchmark runs (2026-08-28, 2026-09-02) already used
+      — a real, established convention that was simply not yet applied to
+      these five evals, not a missing harness.
 
 ### 12. Dedicated external NUnit packaged-consumer validation fixture (separate repo — see Scope's PR-sequencing note; not true product dogfooding — see the fixture's own terminology note below)
 
@@ -608,26 +618,91 @@ local NuGet packages (never `ProjectReference`), is validated through
 and validates MTP/VSTest where practical — genuine pre-1.0
 external-consumption validation.
 
-- [ ] Create a small, dedicated, purpose-built NUnit consumer repository
-      (its own `git init`, own `Directory.Packages.props` —
-      `scripts/dogfood-validate.sh` requires a real git repo at
-      `--consumer-repo` with its own `Directory.Packages.props`). Confirm
-      during implementation whether `--packages`/`DOGFOOD_PACKAGES` needs
-      pointing at `"Compono Compono.NUnit Compono.NSubstitute
-      Compono.Logging"` — the script's own `--packages` generalization
-      (PLAN-0051 task 11) already supports an arbitrary package set, so no
-      script change may be needed; only add one if a real gap surfaces.
-- [ ] Exercise at minimum: ordinary composition; profiles; `[Shared]`;
-      `Share<T>()`; `Register<T>()`; constructor selection;
-      `Compono.TestDoubles` integration; `Compono.Logging` integration
-      where appropriate; deterministic seed reproduction; diagnostics;
-      the `3.14.0` version floor; current NUnit `4.x`; MTP execution;
-      VSTest execution where practical.
-- [ ] Validate via `scripts/dogfood-validate.sh` against freshly packed
-      local packages, never `ProjectReference`s or stale package
-      artifacts.
-- [ ] Record the fixture's repo location/link and the validation result
-      in this plan's Notes once run for real.
+- [x] Create a small, dedicated, purpose-built NUnit consumer repository
+      (its own `git init`, own `Directory.Packages.props`). No
+      `dogfood-validate.sh` change was needed — confirming the plan's own
+      prediction — `--packages "Compono Compono.NUnit"` against the
+      script's existing generalized `--packages` support worked
+      unmodified. Full reproducible spec below.
+- [x] Exercise at minimum: ordinary composition; `[Compose<TProfile>]`
+      with `Register<T>()`; `[Shared]` (row-scoped); `Share<T>()`
+      (graph-wide, core); constructor selection (a private constructor
+      correctly excluded); deterministic seed reproduction
+      (`WithSeed(N)` reproduces identically; different seeds diverge).
+      **Deliberately narrower package set than PLAN-0057's own MSTest
+      fixture** (`Compono`/`Compono.NUnit` only, not also
+      `Compono.NSubstitute`/`Compono.TestDoubles`/`Compono.Logging`) —
+      Pi's finding was scoped specifically to the `Compono.NUnit`
+      external-validation gate itself, not ecosystem breadth; those other
+      integrations already have their own external/packaged-consumer
+      proof elsewhere and don't need re-proving here. MTP execution
+      confirmed (the fixture's own `EnableNUnitRunner`/
+      `UseMicrosoftTestingPlatformRunner=true` csproj properties, same as
+      `Compono.NUnit.SampleTests`); classic VSTest execution was **not**
+      separately exercised in this fixture — already exhaustively covered
+      by `.github/scripts/nunit-compatibility-matrix.sh`'s own blocking
+      legs (task group 9), so not a gap this fixture needed to re-prove.
+- [x] Validated via `scripts/dogfood-validate.sh` against freshly packed
+      local packages — see the reproducible spec below for the exact
+      command, resolved versions, and result.
+- [x] Fixture location/link and validation result recorded below.
+
+**Reproducible fixture spec (recorded in full here, not by reference to
+the ephemeral local checkout, per PLAN-0057's own precedent for this
+exact task):**
+
+- **Layout**: a standalone git repository (`git init`, no relation to
+  this repo's history) at `/tmp/compono-nunit-dogfood-fixture` (ephemeral
+  — not persisted; recreate from this spec if re-validation is ever
+  needed), root files `WidgetCatalog.slnx` (one project,
+  `tests/WidgetCatalog.Tests/WidgetCatalog.Tests.csproj`),
+  `Directory.Packages.props`, `.gitignore` (`bin/`, `obj/`). Test project
+  files: `Domain.cs` (`Warehouse` — one public + one private constructor
+  — `WidgetCatalog`, `WidgetOrderProcessor`, `WidgetCatalogProfile`),
+  `CompositionTests.cs` (`OrdinaryCompositionTests`,
+  `ProfileRegisterTests`, `SharedTests`, `ShareGraphWideTests`,
+  `SeedReproductionTests`).
+- **`Directory.Packages.props`** (`ManagePackageVersionsCentrally=true`):
+  placeholder `PackageVersion` entries for `Compono`/`Compono.NUnit` at
+  `0.0.0` each (the version `dogfood-validate.sh` overwrites via its own
+  generated temp copy — never restored against directly), plus `NUnit`
+  `4.6.1`, `NUnit3TestAdapter` `6.2.0`, `Microsoft.NET.Test.Sdk` `17.14.0`
+  pinned directly (not swapped by the script).
+- **Test project csproj**: `TargetFramework net10.0`,
+  `EnableNUnitRunner`/`TestingPlatformDotnetTestSupport`/
+  `UseMicrosoftTestingPlatformRunner` all `true`. **`PackageReference`
+  only — zero `ProjectReference` to any `src/Compono*` project anywhere
+  in the fixture**, confirmed by direct read of the one csproj file
+  (`NUnit`, `NUnit3TestAdapter`, `Microsoft.NET.Test.Sdk`,
+  `Compono.NUnit`).
+- **Exact command run** (from this repo's root):
+  `bash scripts/dogfood-validate.sh --consumer-repo
+  /tmp/compono-nunit-dogfood-fixture --consumer-solution
+  /tmp/compono-nunit-dogfood-fixture/WidgetCatalog.slnx --packages
+  "Compono Compono.NUnit" --feed-dir /tmp/compono-nunit-dogfood-feed`.
+- **Package versions actually validated**: both requested packages
+  (`Compono`, `Compono.NUnit`) packed and resolved at the identical
+  freshly-built local version
+  `99.0.0-local.20260903080430-69667-911` (confirmed by
+  `dogfood-validate.sh`'s own built-in anti-stale-cache assertion, which
+  greps every restored `project.assets.json` and fails the run if any
+  requested package resolves to anything else — direct inspection of
+  `tests/WidgetCatalog.Tests/obj/project.assets.json` independently
+  confirms `Compono/99.0.0-local.20260903080430-69667-911`,
+  `Compono.NUnit/99.0.0-local.20260903080430-69667-911`, `NUnit/4.6.1`
+  (the pinned, non-swapped entry), and
+  `"analyzers/dotnet/cs/Compono.Generators.dll"` present in the restored
+  package graph — proving the generator/analyzer asset really flows
+  through the packaged dependency chain, not just the version number).
+- **Result**: `dogfood-validate.sh: PASS - consumer test suite succeeded
+  against local Compono 99.0.0-local.20260903080430-69667-911` — 7/7
+  tests, exit code 0. Fixture repo's git working tree confirmed clean
+  before/after (the script's own safety-net status/diff comparison; no
+  `WARNING`/`STALE`/`ERROR` lines anywhere in the run's own output).
+- **Terminology**: this is **external packaged-consumer validation**, not
+  true product dogfooding — no real LayeredCraft/ncipollina NUnit
+  consumer exists, and none was manufactured to create that appearance,
+  matching PLAN-0057 task 15's own established distinction exactly.
 
 ## Critical Files
 
@@ -738,6 +813,15 @@ independent adversarial review's findings:**
   `.github/workflows/package-validation.yaml` as a new "Local-feed
   packed-consumer smoke test (Compono.NUnit)" step, matching the existing
   per-package steps exactly.
+- **`DataSourceCoexistenceTests`'s packaged-sample `[Range]` gap closed
+  (a second independent review's finding: the in-repo `Compono.NUnit.Tests`
+  covered `[Range]`, but the packaged-chain sample above did not, even
+  though this plan claimed it did).** Added the matching
+  `[Compose] + [Range(1,3)]` row-count/value assertion to
+  `test/Compono.NUnit.SampleTests/DataSourceCoexistenceTests.cs`, same
+  pattern as its existing `[TestCase]`/`[Values]` assertions. Packaged
+  sample now **76/76** tests pass across all 4 TFMs (19/19 per TFM, up
+  from 15/15).
 - **`test/Compono.NUnit.AotSmokeTest` created (was: missing entirely).** A
   real `dotnet publish -c Release -p:PublishAot=true` + run proof,
   mirroring `Compono.MSTest.AotSmokeTest`'s own structure (packaged
@@ -864,32 +948,70 @@ independent adversarial review's findings:**
   double-evaluation finding from RESEARCH-0018 §12 remains the only
   confirmed evidence; MTP's own lifecycle stays genuinely open per
   ADR-0059 §12's own honest framing.
-- **Task group 12** (dedicated external NUnit packaged-consumer
-  validation fixture via `scripts/dogfood-validate.sh`, in a separate
-  repository per PLAN-0057's own precedent) was not attempted in this
-  pass — it requires a separate repository's own commit history by
-  design (see this plan's Scope section) and is out of reach from inside
-  this repository's own PR.
-- **`docs/architecture.md`/`docs/public-api.md`** — checked directly,
-  neither currently mentions `Compono.NUnit`; whether either states an
-  exhaustive/closed framework list that would actually go stale by this
-  omission was not independently verified in this pass.
-- **`docs/concepts/shared-values.md`/`docs/getting-started/installation.md`**
-  — checked directly, neither mentions `Compono.NUnit` yet.
-- **`docs/roadmap/future-packages.md` graduation** — correctly still
-  pending; `Compono.NUnit` has not shipped (this PR is not merged), so it
-  correctly remains listed as a roadmap item, not yet graduated to
-  `docs/packages/index.md`'s shipped-package section (`docs/packages/index.md`
-  itself already links to `docs/packages/compono-nunit.md` as forward
-  content prepared ahead of the merge — a real, if minor, inconsistency
-  worth resolving as part of actually merging, not this plan's own gap).
+**Closed in this pass (a second independent adversarial review's
+findings — the previous pass's own "still genuinely open" list is fully
+retired by these four items):**
 
-**Recommendation:** every High/Medium finding from the independent
-adversarial review that produced this pass's work is now closed with real
-evidence (regression-locked coexistence, a real packaged-consumer sample,
-a real AOT publish-and-run proof, a real permanent CI compatibility
-matrix, and corrected skill/eval guidance) — `Compono.NUnit` is
-substantially ready to ship. The remaining gaps (MTP lifecycle, the
-external validation fixture, a few prose-only doc pages, and running the
-new evals through actual grading) are real but narrow, and none of them
-contradicts or reopens any ADR-0059 decision.
+- **The new evals (42-46) have now been graded** — no automated
+  content-grading *script* exists for `evals.json`'s prompt/
+  expected_output format in this repo (`.agents/skills/skill-creator/scripts/run_eval.py`
+  is a *trigger*-eval runner, tests whether a skill description causes
+  loading, not a content grader — re-confirmed directly), but a real,
+  established, *session-graded* process does exist and was already used
+  for prior packages' own new evals (`skills/compono-evals/benchmarks/2026-08-28/`,
+  `2026-08-25/`, `2026-09-02/`) — this pass applied that same process to
+  evals 42-46 rather than treating "no script" as "no process." **Result:
+  5/5 with skill, 0/5 without** (one assertion of eval 46 — synchronous
+  composition — passed without the skill too, since it generalizes from
+  the other three framework packages; every other assertion across all
+  five evals depends on `Compono.NUnit`-specific facts only
+  `skills/compono/references/nunit.md` teaches). Full grading detail in
+  `skills/compono-evals/benchmarks/2026-09-03/README.md`. 46 evals total,
+  no duplicate ids (re-verified).
+
+- **Task group 12 — external NUnit packaged-consumer validation fixture —
+  done.** A standalone, purpose-built fixture (`WidgetCatalog.Tests`, its
+  own `git init`/`Directory.Packages.props`/`.gitignore`) exercising
+  ordinary composition, `[Compose<TProfile>]` with `Register<T>()`,
+  row-scoped `[Shared]`, graph-wide `Share<T>()`, constructor selection,
+  and deterministic seed reproduction. Validated via
+  `scripts/dogfood-validate.sh --packages "Compono Compono.NUnit"` — **no
+  script changes were needed**. 7/7 tests passed against the freshly
+  packed local version, with both packages' resolved versions and the
+  generator/analyzer asset's presence independently confirmed via direct
+  `project.assets.json` inspection. Full reproducible spec recorded in
+  task group 12 above, not just referenced.
+- **`docs/architecture.md`/`docs/public-api.md`** — re-checked:
+  `docs/architecture.md` genuinely has no framework-enumeration text to
+  go stale (confirmed, nothing to change). `docs/public-api.md`'s Package
+  Guides bullet was missing `Compono.NUnit`; fixed in an earlier pass and
+  reconfirmed intact here.
+- **`docs/concepts/shared-values.md`/`docs/getting-started/installation.md`**
+  — both now name `Compono.NUnit` (fixed in an earlier pass, reconfirmed
+  intact: install command, "doesn't add a test host" caveat, `[Shared]`
+  scope description, package-guide cross-link).
+- **`docs/packages/index.md`'s stale package-count/enumeration prose**
+  (found by this pass's own review, not by the earlier one) — fixed: the
+  "common case" section only named xUnit v3/TUnit (a pre-existing gap
+  that also predates this PR's own MSTest addition, not something this
+  PR introduced but fixed while auditing), now names all four
+  test-framework integrations with their install commands; "All nine
+  packages ship in lockstep" (stale even before `Compono.NUnit` — the
+  table above it already said "ten") corrected to "All eleven."
+
+**Recommendation:** every finding from both independent adversarial
+review rounds is now closed with real evidence (regression-locked
+coexistence including the packaged-sample `[Range]` gap, a real
+packaged-consumer sample, a real external packaged-consumer validation
+fixture, a real AOT publish-and-run proof, a real permanent CI
+compatibility matrix, corrected skill/eval guidance with the new evals
+actually graded, and a full documentation-staleness sweep) —
+`Compono.NUnit` is genuinely complete against PLAN-0059's own completion
+contract except for one item: the MTP discovery/execution double-`BuildFrom`
+lifecycle question (ADR-0059 §12), which stays genuinely open — two
+independent attempts to capture a clean discovery-only signal under MTP
+were inconclusive, and this pass did not re-attempt it. This is a
+documentation-precision gap (what guidance to give about repeat
+composition under MTP specifically), not an architectural contradiction —
+it does not reopen any ADR-0059 decision. `Status` above stays
+`In Progress` for this one reason alone.

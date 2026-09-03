@@ -33,14 +33,19 @@ package you install — it's embedded inside `Compono.nupkg`'s
 ## The common case
 
 For most test projects, that's `Compono` plus whichever test-framework
-integration matches your test host — `Compono.XunitV3` for xUnit v3, or
-`Compono.TUnit` for TUnit:
+integration matches your test host — `Compono.XunitV3` for xUnit v3,
+`Compono.TUnit` for TUnit, `Compono.MSTest` for MSTest, or `Compono.NUnit`
+for NUnit:
 
 ```bash
 dotnet add package Compono --prerelease
 dotnet add package Compono.XunitV3 --prerelease
 # or, for TUnit:
 dotnet add package Compono.TUnit --prerelease
+# or, for MSTest:
+dotnet add package Compono.MSTest --prerelease
+# or, for NUnit:
+dotnet add package Compono.NUnit --prerelease
 ```
 
 Add `Compono.NSubstitute` and/or `Compono.Bogus` independently, as your
@@ -51,7 +56,7 @@ whether or not you're also using xUnit v3 integration).
 
 ## Version compatibility
 
-All nine packages ship in lockstep during the `0.x` line — each integration
+All eleven packages ship in lockstep during the `0.x` line — each integration
 package's dependency on `Compono` is exact-pinned at pack time, so mixing
 versions across packages (e.g. `Compono.XunitV3 0.3.0` with `Compono
 0.5.0`) is not supported and will fail to restore. Always update all
