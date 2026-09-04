@@ -18,8 +18,8 @@ pipeline against a configured HTTP response — not substitute an
 application-level interface:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.Http --prerelease
+dotnet add package Compono
+dotnet add package Compono.Http
 ```
 
 If the seam under test is already an ordinary application interface

@@ -19,8 +19,8 @@ message, structured properties, exception, scope — not substitute an
 unrelated application interface:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.Logging --prerelease
+dotnet add package Compono
+dotnet add package Compono.Logging
 ```
 
 This package depends only on `Compono` and

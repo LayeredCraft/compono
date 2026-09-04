@@ -85,6 +85,13 @@ Exit code is 0 only if packing, restore, version verification (every requested p
 the exact freshly-packed version - not a stale cache hit, and not a mix of freshly-packed and
 previously published versions), and the consumer's full test suite all succeed. The consumer
 repo's git working tree is left exactly as it was found, regardless of outcome.
+
+Prerequisite: the default consumer (trivia-platform) includes Testcontainers-backed repository
+tests that require a running Docker daemon. Without one, those tests fail with
+DockerUnavailableException and this script exits non-zero even when every Compono package under
+test is fine - that's an environment gap, not a Compono regression. Start Docker (or point
+--consumer-repo/DOGFOOD_CONSUMER_REPO at a consumer that doesn't need it) before relying on this
+script's exit code as a pass/fail signal.
 EOF
 }
 

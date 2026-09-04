@@ -15,7 +15,7 @@ dependency of `Compono.XunitV3`/`Compono.NSubstitute`/`Compono.Bogus`, so
 directly.
 
 ```bash
-dotnet add package Compono --prerelease
+dotnet add package Compono
 ```
 
 ## What it gives you

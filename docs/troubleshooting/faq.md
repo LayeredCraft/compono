@@ -56,12 +56,19 @@ instance every call) rather than a fresh one.
 
 ## Is there a stable `1.0` release yet?
 
-Not yet — every published version during public preview is a
-`0.x.y-preview.N` prerelease (`--prerelease` required to install). See
-[MVP Non-goals](../mvp.md#mvp-non-goals) and
+Not yet, but most packages already have a stable `0.9.0` release — a plain
+`dotnet add package` picks it up with no extra flag. `Compono.MSTest` and
+`Compono.NUnit` are still preview-only (`0.x.y-preview.N`, `--prerelease`
+required) until their own first stable release ships. See
+[Installation](../getting-started/installation.md) for exact commands,
+[MVP Non-goals](../mvp.md#mvp-non-goals), and
 [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)
-for the compatibility policy this implies: a breaking change bumps the
-minor version (`0.X+1.0`), not a major version, until `1.0`.
+for the compatibility policy this implies. Note ADR-0031's own Amendment 5:
+a breaking change now bumps the major version (the ordinary SemVer
+`breaking-change → major` mapping), not the minor version — the ADR's
+original "bumps the minor version until `1.0`" override was a deliberate,
+temporary `0.x`-era guard that's since been lifted now that Compono is
+ready to leave the `0.x` line.
 
 ## Next
 

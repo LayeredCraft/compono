@@ -12,8 +12,8 @@ You want composed string/data members to look like plausible real values
 placeholder strings:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.Bogus --prerelease
+dotnet add package Compono
+dotnet add package Compono.Bogus
 ```
 
 If anonymous placeholder values are fine for your tests, you don't need

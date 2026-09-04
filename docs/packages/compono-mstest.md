@@ -9,7 +9,7 @@ that composes test method parameters directly, instead of hand-building
 You write MSTest tests and want method parameters composed automatically:
 
 ```bash
-dotnet add package Compono --prerelease
+dotnet add package Compono
 dotnet add package Compono.MSTest --prerelease
 ```
 

@@ -7,10 +7,10 @@ composed test method parameters/theories. That's two packages — `Compono`
 plus whichever test-framework integration matches your test host:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.XunitV3 --prerelease
+dotnet add package Compono
+dotnet add package Compono.XunitV3
 # or, for TUnit:
-dotnet add package Compono.TUnit --prerelease
+dotnet add package Compono.TUnit
 # or, for MSTest (MSTest.TestFramework 4.0.0+ - see the Compono.MSTest Package Guide):
 dotnet add package Compono.MSTest --prerelease
 # or, for NUnit (NUnit 3.14.0+ - see the Compono.NUnit Package Guide):
@@ -29,19 +29,21 @@ dotnet add package AwesomeAssertions
 Add the rest of the ecosystem as your tests need it:
 
 ```bash
-dotnet add package Compono.NSubstitute --prerelease         # automatic substitute composition
-dotnet add package Compono.Bogus --prerelease               # semantic fake data (names, emails, ...)
-dotnet add package Compono.DependencyInjection --prerelease # row.AsServiceProvider() bridge
-dotnet add package Compono.Http --prerelease                # TestHttpHandler for HttpClient tests
+dotnet add package Compono.NSubstitute         # automatic substitute composition
+dotnet add package Compono.Bogus               # semantic fake data (names, emails, ...)
+dotnet add package Compono.DependencyInjection # row.AsServiceProvider() bridge
+dotnet add package Compono.Http                # TestHttpHandler for HttpClient tests
 ```
 
-Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0`. Until the first stable `1.0`
-release, every published version is a `0.x.y-preview.N` prerelease — the
-`--prerelease` flag (or an explicit `<PackageReference Version="0.x.y-preview.N" />`)
-is required for `dotnet add package`/NuGet restore to pick it up at all,
-since a plain `dotnet add package` skips prerelease versions by default. See
-[Package Guides](../packages/index.md) for what each package is for and
-when to add it.
+Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0`. Most packages
+have a stable release, so a plain `dotnet add package` picks it up with no
+extra flag. `Compono.MSTest` and `Compono.NUnit` are still preview-only (no
+stable release has shipped for either yet), so they need `--prerelease`
+(or an explicit `<PackageReference Version="0.x.y-preview.N" />`) until
+their own first stable release ships — a plain `dotnet add package` skips
+prerelease versions by default, so it would otherwise resolve nothing for
+those two. See [Package Guides](../packages/index.md) for what each
+package is for and when to add it.
 
 ## No other setup required
 

@@ -67,17 +67,18 @@ AutoFixture users migrating xUnit tests need:
   anonymous values.
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.XunitV3 --prerelease
-dotnet add package Compono.NSubstitute --prerelease
-dotnet add package Compono.Bogus --prerelease
+dotnet add package Compono
+dotnet add package Compono.XunitV3
+dotnet add package Compono.NSubstitute
+dotnet add package Compono.Bogus
 ```
 
 Install matching versions of every Compono package you add — mixing
 versions across packages isn't supported; see
 [Package Guides: Version Compatibility](packages/index.md#version-compatibility).
 See [Installation](getting-started/installation.md) for the full setup,
-including why `--prerelease` is required during public preview.
+including which packages (`Compono.MSTest`, `Compono.NUnit`) are still
+preview-only and need `--prerelease`.
 
 ## Quick concept map
 

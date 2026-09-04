@@ -9,7 +9,7 @@ attribute that composes test method parameters directly, without needing
 You write NUnit tests and want method parameters composed automatically:
 
 ```bash
-dotnet add package Compono --prerelease
+dotnet add package Compono
 dotnet add package Compono.NUnit --prerelease
 ```
 

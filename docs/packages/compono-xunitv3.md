@@ -10,8 +10,8 @@ You write xUnit v3 tests (`xunit.v3` + the Microsoft Testing Platform
 runner) and want theory parameters composed automatically:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.XunitV3 --prerelease
+dotnet add package Compono
+dotnet add package Compono.XunitV3
 ```
 
 `Compono.XunitV3` doesn't add an xUnit v3 test host for you — it integrates

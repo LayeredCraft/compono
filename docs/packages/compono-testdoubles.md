@@ -11,8 +11,8 @@ generated double, without pulling in `Compono.NSubstitute`'s runtime proxy
 dependency (or when you need the composed path to survive `PublishAot`):
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.TestDoubles --prerelease
+dotnet add package Compono
+dotnet add package Compono.TestDoubles
 ```
 
 `Compono.TestDoubles` is not a general-purpose mocking framework — see
