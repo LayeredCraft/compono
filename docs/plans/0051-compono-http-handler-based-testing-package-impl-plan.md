@@ -339,6 +339,13 @@ these, even if implementation makes one look easy to add along the way:
       behavior, ADR-0051 — no cloning, no factory parameter).
 - [x] Every `Respond*`/`Throws` call finalizes and returns the
       `HttpResponseRegistration` handle (not `void`).
+- [x] `RespondBytes(byte[] content, string mediaType = "application/octet-stream")`
+      (ADR-0051 Amendment 2, added after this plan's original `Done`
+      status) — `content` is defensively copied (`(byte[])content.Clone()`)
+      once at registration time, not retained by reference; each
+      invocation constructs a fresh `ByteArrayContent` over that private
+      copy with its own `MediaTypeHeaderValue`, matching `RespondJson`'s
+      serialize-once-to-bytes model.
 
 ### 5. JSON/AOT correctness
 
@@ -503,6 +510,11 @@ these, even if implementation makes one look easy to add along the way:
       consumer).
 - [x] `RespondJson` sets `Content-Type: application/json; charset=utf-8`
       correctly on every fresh `ByteArrayContent`.
+- [x] `RespondBytes` round-trips content and defaults to
+      `application/octet-stream`, honors a supplied `mediaType`, and a
+      mutation to the caller's array after registration doesn't affect
+      an already-registered response (ADR-0051 Amendment 2 — added after
+      this plan's original `Done` status).
 - [x] `Throws(exception)` rethrows the exact same instance
       (`ReferenceEquals`) on repeated matches.
 - [x] `registration.Verify().Never()/.Once()/.Exactly(n)` — including the
