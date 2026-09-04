@@ -60,7 +60,11 @@ a v1-only limitation that might later be lifted.
   body matcher DSL.
 - Every match finalizes with `.Respond(HttpStatusCode)`,
   `.RespondText(content, mediaType, encoding)`,
-  `.RespondJson(value, options?)`, `.RespondJson(value, jsonTypeInfo)`, or
+  `.RespondJson(value, options?)`, `.RespondJson(value, jsonTypeInfo)`,
+  `.RespondBytes(content, mediaType)` (raw binary payloads — e.g. fetched
+  certificate bytes — that `RespondText` can't carry without a lossy text
+  encoding; `content` is copied at registration time, so mutating the
+  caller's array afterward never changes the registered response), or
   `.Throws(exception)` — each returns the `HttpResponseRegistration`
   handle, capture it for verification:
   ```csharp
