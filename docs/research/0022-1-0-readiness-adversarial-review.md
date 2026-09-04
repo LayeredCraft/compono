@@ -1,9 +1,9 @@
 # [RESEARCH-0022] 1.0 Readiness Adversarial Review
 
-**Status:** Complete. No product/API-design blocker found. Four
-release-mechanics items accepted as required pre-1.0 work (tracked below,
-resolved by this same record's own follow-up); five further items
-explicitly considered and rejected as unnecessary gates.
+**Status:** Complete. No product/API-design blocker found. Five
+release-mechanics/hardening items accepted as required pre-1.0 work
+(tracked below, resolved and verified across two follow-up rounds); five
+further items explicitly considered and rejected as unnecessary gates.
 
 ## Why this exists
 
@@ -76,12 +76,21 @@ Release Task items:
 
 **Accepted as required pre-1.0 work (4):**
 
-- Item 1 above (blocker-equivalent) — required checks. Resolved: see
-  `LayeredCraft/.github` PR #5 (repo-managed required-checks opt-out,
-  mirroring the `dynamodb-efcore-provider`/`devops-templates` pattern)
-  plus a live `main` branch-protection update on `LayeredCraft/compono`
-  adding `package-validation` and `aot-gate` to required contexts
-  alongside `build / build`.
+- Item 1 above (blocker-equivalent) — required checks. **Resolved and
+  verified live**: `LayeredCraft/.github` PR #5 (merged) opts Compono out
+  of safe-settings' `required_status_checks.contexts` management via the
+  same `{{EXTERNALLY_DEFINED}}` marker `dynamodb-efcore-provider`/
+  `devops-templates` already use — confirmed via
+  `gh api repos/LayeredCraft/compono/branches/main/protection`, before
+  (`["build / build"]` only, unaffected by the merge) and after applying
+  a narrow `PATCH .../branches/main/protection/required_status_checks`
+  (not a full protection-object replace) setting
+  `["build / build", "package-validation", "aot-gate"]` with
+  `strict: true`. Re-read after the change: exactly those three contexts
+  present, no literal `{{EXTERNALLY_DEFINED}}` check registered, and every
+  other branch-protection field (reviews, `enforce_admins`, linear
+  history, force-push/delete, conversation resolution, signatures)
+  byte-identical to before.
 - Item 3 — stale `--prerelease` install guidance. Resolved: audited and
   corrected across `docs/getting-started/installation.md`, all 11
   `docs/packages/*.md` guides, `docs/packages/index.md`,
@@ -107,6 +116,42 @@ Release Task items:
   would need correcting either.
 - Item 5 — dogfood Docker prerequisite. Resolved: `scripts/dogfood-validate.sh`'s
   usage text now states the prerequisite and its failure mode explicitly.
+- The README's "Status" section ("APIs are experimental until the first
+  public preview") was also already stale *today* — Compono has stable
+  `0.9.0` packages, not merely "preview." Corrected to state plainly:
+  publicly released, stable `0.x` packages exist, still pre-`1.0` so the
+  API can still change.
+- **New in this round: Compono skill eval/workspace structure** — brought
+  into alignment with the current [Agent Skills eval-workspace
+  convention](https://agentskills.io/skill-creation/evaluating-skills).
+  Authored `evals.json` moved from the sibling `skills/compono-evals/`
+  directory (a 2026-08-07 fix, at the time correct for the ecosystem
+  convention as it existed then — see PLAN-0035's own "Real defect"
+  note) into `skills/compono/evals/evals.json`, matching the doc's
+  canonical `<skill>/evals/evals.json` layout; the generated-workspace
+  half (`benchmarks/`, all historical, preserved as-is) moved to a new
+  sibling `skills/compono-workspace/`, matching the doc's
+  `<skill>-workspace/` sibling convention, with a new
+  `skills/compono-workspace/README.md` documenting the current
+  `iteration-N/`/`with_skill`+`old_skill`/`timing.json`/`grading.json`/
+  `benchmark.json`/`feedback.json` shape for future runs. **Trade-off
+  reintroduced, flagged rather than silently accepted:** this move puts
+  `evals.json` (51KB, 46 scenarios) back inside the directory `npx skills
+  add` copies verbatim to every consumer installing the `compono` skill —
+  exactly the bloat PLAN-0035's 2026-08-07 move was built to avoid. The
+  current agentskills.io specification and eval-workflow doc were both
+  checked directly and neither documents any installer-side exclusion
+  mechanism for `evals/`; the doc's own canonical example ships
+  `evals/evals.json` (and any `evals/files/`) as part of the installed
+  skill. This is a genuine, upstream-level tension between "evals belong
+  in the skill directory" (current convention) and "evals shouldn't ship
+  to every consumer" (this repo's original, still-valid concern) — not
+  something this pass invented or silently resolved. Implemented as
+  directed because the instruction was explicit and precisely specified,
+  not exploratory; flagged here as a decision the product owner may want
+  to revisit if consumer-side skill-install size becomes a real
+  complaint (e.g. by asking upstream for a `.skillsignore`-equivalent, or
+  reconsidering the trade-off).
 
 **Explicitly rejected as unnecessary pre-1.0 gates (5):**
 
@@ -137,11 +182,12 @@ Release Task items:
 
 **READY FOR 1.0**, pending only the release-execution act itself
 (cutting the actual `1.0.0` release is separately gated by product-owner
-decision, not by anything this review or its follow-up found). All four
-accepted pre-1.0 items above are resolved. No item originally listed as
-a Release Task, and later rejected, should be read as a mandatory gate —
-each rejection above is a deliberate product-owner decision, not an
-oversight.
+decision, not by anything this review or its follow-up found). All five
+accepted pre-1.0/hardening items above are resolved and verified,
+including the required-status-check change now confirmed live on
+`main`. No item originally listed as a Release Task, and later rejected,
+should be read as a mandatory gate — each rejection above is a
+deliberate product-owner decision, not an oversight.
 
 ## Links
 

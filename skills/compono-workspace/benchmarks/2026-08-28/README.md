@@ -1,7 +1,7 @@
 # Benchmark run — 2026-08-28
 
 Scoped, single-eval run for the new `Share<T>()` eval added by PLAN-0056
-Task 6 (id 34 in `../../evals.json`) — not a full re-run of all 34
+Task 6 (id 34 in `../../../compono/evals/evals.json`) — not a full re-run of all 34
 scenarios. With-skill and without-skill (`without_skill`, told not to
 read `skills/compono/`) subagents ran independently against eval 34's
 prompt, graded manually against its `expectations` (5 assertions).

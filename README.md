@@ -128,8 +128,11 @@ instead of opening a public issue.
 
 ## Status
 
-Compono is under active development. APIs are experimental until the
-first public preview.
+Compono is publicly released, with stable `0.x` packages on NuGet. It's
+still pre-`1.0`, so the public API can still change before the `1.0`
+compatibility boundary — see
+[Installation](https://layeredcraft.github.io/compono/getting-started/installation/)
+for which packages are stable today and which are still preview-only.
 
 ## License
 

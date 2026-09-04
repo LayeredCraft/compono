@@ -1,7 +1,7 @@
 # Benchmark run — 2026-09-02
 
 Scoped, two-eval run for the new `Compono.MSTest` evals added by
-PLAN-0057 task group 14 (ids 40-41 in `../../evals.json`) — not a full
+PLAN-0057 task group 14 (ids 40-41 in `../../../compono/evals/evals.json`) — not a full
 re-run of all 41 scenarios. Graded by the implementing session directly
 (same limitation as the 2026-08-28 run), reasoning through a with-skill
 answer (grounded in `skills/compono/references/mstest.md`'s actual

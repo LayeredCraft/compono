@@ -1,0 +1,20 @@
+{
+  "purpose": "Structural validation of the skills/compono/evals/ + skills/compono-workspace/ relocation (RESEARCH-0022 follow-up) - proves eval discovery, clean-context execution, output separation, timing capture, and grading still work after the move. Single eval (id 1), not a full 46-scenario re-run; not intended to drive a SKILL.md change.",
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": { "mean": 1.0 },
+      "tokens": { "mean": 53722 },
+      "duration_ms": { "mean": 54234 }
+    },
+    "without_skill": {
+      "pass_rate": { "mean": 0.667 },
+      "tokens": { "mean": 31624 },
+      "duration_ms": { "mean": 23619 }
+    },
+    "delta": {
+      "pass_rate": 0.333,
+      "tokens": 22098,
+      "duration_ms": 30615
+    }
+  }
+}
