@@ -610,3 +610,37 @@ opacity is a deliberate ADR-0048 property this amendment doesn't weaken
 just to let `Compono.Http` introspect it later. If a future need for
 richer `Match<T>` diagnostics surfaces beyond this one case, that's a
 separate, its-own-evidence decision.
+
+## Amendment 2 (2026-09-04): `RespondBytes` for raw binary payloads
+
+Dogfood evidence from `alexa-vox-craft` (`RequestVerificationTests.GetCertificate_ParsesFetchedCertificateBytes`)
+surfaced a gap: `HttpResponseRegistrationBuilder` had `RespondText` (string
+content) and `RespondJson` (serialized-to-JSON content), but no way to
+respond with an arbitrary byte payload. That test needed to serve a
+fetched X.509 certificate's raw DER bytes, and worked around the gap by
+round-tripping the bytes through `Encoding.Latin1` text - lossless (Latin1
+is a single-byte, bijective 0-255 char\<-\>byte mapping, unlike UTF-8) but
+an awkward, easy-to-get-wrong pattern for what is fundamentally a
+binary-content need, not a text one.
+
+**Decision**: add `RespondBytes(byte[] content, string mediaType =
+"application/octet-stream")`, following the same
+serialize-once-to-bytes model as `RespondJson` (this ADR's original
+Decision Outcome, "Serialize-once-to-bytes model"): `content` is
+defensively copied (`(byte[])content.Clone()`) once at registration time
+- not retained by reference - and every matched invocation constructs a
+fresh `ByteArrayContent` over that private copy, with its own
+`MediaTypeHeaderValue` - never a shared, mutable header instance across
+responses (same reasoning as `RespondJsonBytes`'s existing
+`MediaTypeHeaderValue` handling). The clone matters specifically because,
+unlike `RespondJson` (which already produces its own private buffer via
+`JsonSerializer.SerializeToUtf8Bytes`), `RespondBytes`'s `content` comes
+in as a caller-owned array - without the clone, a caller mutating or
+reusing that array after registration would silently change an
+already-registered response, which is exactly the snapshot semantics
+`RespondJson` already provides and this method's own doc claims to match.
+Caught in PR review (Codex, on the implementation PR) before merge.
+
+**Explicitly not done**: no change to `RespondText` or `RespondJson` -
+this is a purely additive third `Respond*` overload, source-compatible
+with every existing call site.
