@@ -201,6 +201,23 @@ public sealed class TestHttpHandlerTests
     }
 
     [Fact]
+    public async Task RespondBytes_MutatingCallersArrayAfterRegistration_DoesNotAffectResponse()
+    {
+        byte[] original = [0x01, 0x02, 0x03];
+        byte[] expected = [.. original];
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/cert.pem").RespondBytes(original);
+
+        original[0] = 0xFF;
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var response = await client.GetAsync("/cert.pem", TestContext.Current.CancellationToken);
+        var received = await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken);
+
+        received.Should().Equal(expected);
+    }
+
+    [Fact]
     public async Task RespondBytes_UsesSuppliedMediaType()
     {
         using var handler = new TestHttpHandler();

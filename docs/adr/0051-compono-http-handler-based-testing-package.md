@@ -626,11 +626,20 @@ binary-content need, not a text one.
 **Decision**: add `RespondBytes(byte[] content, string mediaType =
 "application/octet-stream")`, following the same
 serialize-once-to-bytes model as `RespondJson` (this ADR's original
-Decision Outcome, "Serialize-once-to-bytes model"): `content` is captured
-once, and every matched invocation constructs a fresh `ByteArrayContent`
-over it with its own `MediaTypeHeaderValue` - never a shared, mutable
-header instance across responses (same reasoning as `RespondJsonBytes`'s
-existing `MediaTypeHeaderValue` handling).
+Decision Outcome, "Serialize-once-to-bytes model"): `content` is
+defensively copied (`(byte[])content.Clone()`) once at registration time
+- not retained by reference - and every matched invocation constructs a
+fresh `ByteArrayContent` over that private copy, with its own
+`MediaTypeHeaderValue` - never a shared, mutable header instance across
+responses (same reasoning as `RespondJsonBytes`'s existing
+`MediaTypeHeaderValue` handling). The clone matters specifically because,
+unlike `RespondJson` (which already produces its own private buffer via
+`JsonSerializer.SerializeToUtf8Bytes`), `RespondBytes`'s `content` comes
+in as a caller-owned array - without the clone, a caller mutating or
+reusing that array after registration would silently change an
+already-registered response, which is exactly the snapshot semantics
+`RespondJson` already provides and this method's own doc claims to match.
+Caught in PR review (Codex, on the implementation PR) before merge.
 
 **Explicitly not done**: no change to `RespondText` or `RespondJson` -
 this is a purely additive third `Respond*` overload, source-compatible

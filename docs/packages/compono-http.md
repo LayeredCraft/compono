@@ -87,6 +87,11 @@ registration.Verify().Once();
     ergonomic runtime-metadata path (see JSON/AOT below).
   - `RespondJson<T>(T value, JsonTypeInfo<T> jsonTypeInfo)` — the
     source-generated, AOT-safe path.
+  - `RespondBytes(byte[] content, string mediaType = "application/octet-stream")` —
+    raw binary payloads (e.g. fetched certificate bytes) that `RespondText`
+    can't carry without a lossy or awkward text encoding. `content` is
+    defensively copied at registration time, so mutating the caller's array
+    afterward never changes the registered response.
   - `Throws(Exception exception)` — rethrows the **same instance** on every
     matched invocation; there's no exception-factory overload.
   - Every `Respond*` call builds a **fresh** response/content per matched

@@ -85,15 +85,18 @@ public sealed class HttpResponseRegistrationBuilder
     /// binary payloads (e.g. a fetched certificate's DER bytes) that would otherwise need a lossy
     /// or awkward text encoding to round-trip through <see cref="RespondText"/>. Same
     /// serialize-once-to-bytes model as <see cref="RespondJson{T}(T, JsonSerializerOptions?)"/>:
-    /// <paramref name="content"/> is captured once; every matched invocation constructs a fresh
-    /// <see cref="ByteArrayContent"/> over it (ADR-0051 Amendment 2).
+    /// <paramref name="content"/> is defensively copied once at registration time - not retained
+    /// by reference - so a caller mutating or reusing its own array afterward can never change an
+    /// already-registered response; every matched invocation constructs a fresh
+    /// <see cref="ByteArrayContent"/> over that private copy (ADR-0051 Amendment 2).
     /// </summary>
     public HttpResponseRegistration RespondBytes(byte[] content, string mediaType = "application/octet-stream")
     {
         ArgumentNullException.ThrowIfNull(content);
+        var snapshot = (byte[])content.Clone();
         return Finish(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new ByteArrayContent(content) { Headers = { ContentType = new MediaTypeHeaderValue(mediaType) } },
+            Content = new ByteArrayContent(snapshot) { Headers = { ContentType = new MediaTypeHeaderValue(mediaType) } },
         });
     }
 
