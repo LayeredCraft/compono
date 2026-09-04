@@ -56,10 +56,8 @@ instance every call) rather than a fresh one.
 
 ## Is there a stable `1.0` release yet?
 
-Not yet, but most packages already have a stable `0.9.0` release — a plain
-`dotnet add package` picks it up with no extra flag. `Compono.MSTest` and
-`Compono.NUnit` are still preview-only (`0.x.y-preview.N`, `--prerelease`
-required) until their own first stable release ships. See
+Not yet, but every package already has a stable release — a plain
+`dotnet add package` picks it up with no extra flag. See
 [Installation](../getting-started/installation.md) for exact commands,
 [MVP Non-goals](../mvp.md#mvp-non-goals), and
 [ADR-0031](../adr/0031-public-preview-release-and-versioning-policy.md)

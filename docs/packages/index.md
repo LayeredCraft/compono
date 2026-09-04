@@ -18,12 +18,9 @@ need the first two.
 | [`Compono.Http`](compono-http.md) | `TestHttpHandler` — a reflection-free `HttpMessageHandler` test double: `OnGet`/`OnPost`/etc. + `When(...)` matching, strict unmatched-request behavior, registration-handle verification. | Your test needs to exercise the real `HttpClient` pipeline against a configured HTTP response, instead of substituting an application-level interface. |
 | [`Compono.Logging`](compono-logging.md) | `UseLogging()` — `ILogger`/`ILogger<T>` compose as a hand-written `CapturingLogger`/`CapturingLogger<T>`, with structured-property extraction, real scope tracking, and `Verify()` verification. Generation is on by default once installed. | Your composed type takes an `ILogger`/`ILogger<T>` dependency and the test wants to assert what was logged. |
 
-Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0`. Most packages
-have a stable release; `Compono.MSTest` and `Compono.NUnit` are still
-preview-only (`0.x.y-preview.N`, `--prerelease` required) until their own
-first stable release ships — see
-[Installation](../getting-started/installation.md) for the exact
-`dotnet add package` commands. See
+Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and has a
+stable release — see [Installation](../getting-started/installation.md)
+for the exact `dotnet add package` commands. See
 [ADR-0038](../adr/0038-net8-net9-explicit-multi-target.md) for why `net8.0`/
 `net9.0` were added alongside the existing `net10.0`/`net11.0` window.
 
@@ -44,10 +41,10 @@ dotnet add package Compono
 dotnet add package Compono.XunitV3
 # or, for TUnit:
 dotnet add package Compono.TUnit
-# or, for MSTest (still preview-only):
-dotnet add package Compono.MSTest --prerelease
-# or, for NUnit (still preview-only):
-dotnet add package Compono.NUnit --prerelease
+# or, for MSTest:
+dotnet add package Compono.MSTest
+# or, for NUnit:
+dotnet add package Compono.NUnit
 ```
 
 Add `Compono.NSubstitute` and/or `Compono.Bogus` independently, as your

@@ -76,9 +76,7 @@ dotnet add package Compono.Bogus
 Install matching versions of every Compono package you add — mixing
 versions across packages isn't supported; see
 [Package Guides: Version Compatibility](packages/index.md#version-compatibility).
-See [Installation](getting-started/installation.md) for the full setup,
-including which packages (`Compono.MSTest`, `Compono.NUnit`) are still
-preview-only and need `--prerelease`.
+See [Installation](getting-started/installation.md) for the full setup.
 
 ## Quick concept map
 

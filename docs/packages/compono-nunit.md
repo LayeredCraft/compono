@@ -10,7 +10,7 @@ You write NUnit tests and want method parameters composed automatically:
 
 ```bash
 dotnet add package Compono
-dotnet add package Compono.NUnit --prerelease
+dotnet add package Compono.NUnit
 ```
 
 `Compono.NUnit` doesn't add an NUnit test host for you — it integrates with

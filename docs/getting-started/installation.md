@@ -12,9 +12,9 @@ dotnet add package Compono.XunitV3
 # or, for TUnit:
 dotnet add package Compono.TUnit
 # or, for MSTest (MSTest.TestFramework 4.0.0+ - see the Compono.MSTest Package Guide):
-dotnet add package Compono.MSTest --prerelease
+dotnet add package Compono.MSTest
 # or, for NUnit (NUnit 3.14.0+ - see the Compono.NUnit Package Guide):
-dotnet add package Compono.NUnit --prerelease
+dotnet add package Compono.NUnit
 ```
 
 This tutorial's assertions (`.Should()`, throughout this site's own
@@ -35,15 +35,11 @@ dotnet add package Compono.DependencyInjection # row.AsServiceProvider() bridge
 dotnet add package Compono.Http                # TestHttpHandler for HttpClient tests
 ```
 
-Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0`. Most packages
-have a stable release, so a plain `dotnet add package` picks it up with no
-extra flag. `Compono.MSTest` and `Compono.NUnit` are still preview-only (no
-stable release has shipped for either yet), so they need `--prerelease`
-(or an explicit `<PackageReference Version="0.x.y-preview.N" />`) until
-their own first stable release ships — a plain `dotnet add package` skips
-prerelease versions by default, so it would otherwise resolve nothing for
-those two. See [Package Guides](../packages/index.md) for what each
-package is for and when to add it.
+Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and has a
+stable release, so a plain `dotnet add package` picks up the right version
+for all of them with no extra flag. See
+[Package Guides](../packages/index.md) for what each package is for and
+when to add it.
 
 ## No other setup required
 

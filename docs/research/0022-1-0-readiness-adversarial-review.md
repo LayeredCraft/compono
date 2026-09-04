@@ -40,25 +40,34 @@ compatibility). One process-integrity finding was flagged at
 blocker-equivalent severity because it undermines confidence in every
 other gate the review relied on:
 
-- **Required status checks on `main` covered only `build / build`** —
-  `Package Validation` and `AOT Validation` (the gates PLAN-0061/0062
-  built specifically for the 1.0 boundary) were not required checks, so
-  either could fail red and a PR could still merge.
+- **[F0] Required status checks on `main` covered only `build / build`**
+  (blocker-equivalent, not a numbered Release Task) — `Package
+  Validation` and `AOT Validation` (the gates PLAN-0061/0062 built
+  specifically for the 1.0 boundary) were not required checks, so either
+  could fail red and a PR could still merge.
 
-Six items were originally classified as RELEASE TASKS:
+Six items were originally classified as RELEASE TASKS, numbered F1-F6
+below (this numbering is this record's own stable identifier scheme, not
+part of the original review's prose — introduced to remove the ambiguity
+a reviewer flagged in an earlier draft that referred back to items only
+as "Item N above"):
 
-1. `breaking-change` label auto-resolves to `v1.0.0` with no separate
-   decision point (ADR-0031 Amendment 5, already deliberately wired).
-2. Packed-consumer smoke-test coverage in `package-validation.yaml`
-   covers only 5 of 11 packages (XunitV3/TUnit/MSTest/NUnit/TestDoubles);
-   `Compono`, `Http`, `Logging`, `DependencyInjection`, `NSubstitute`,
-   `Bogus` rely on static nuspec inspection + AOT-smoke packing only.
-3. Install docs universally instruct `--prerelease`.
-4. ADR-0031's "rolling two-TFM window" prose appeared to disagree with
-   the actual four-TFM (`net8.0;net9.0;net10.0;net11.0`) build matrix.
-5. `scripts/dogfood-validate.sh` has an undocumented Docker prerequisite
-   (its default consumer's repository tests use Testcontainers).
-6. 20 xUnit-analyzer warnings (`xUnit1031`/`xUnit1051`) in
+1. **[F1]** `breaking-change` label auto-resolves to `v1.0.0` with no
+   separate decision point (ADR-0031 Amendment 5, already deliberately
+   wired).
+2. **[F2]** Packed-consumer smoke-test coverage in
+   `package-validation.yaml` covers only 5 of 11 packages
+   (XunitV3/TUnit/MSTest/NUnit/TestDoubles); `Compono`, `Http`, `Logging`,
+   `DependencyInjection`, `NSubstitute`, `Bogus` rely on static nuspec
+   inspection + AOT-smoke packing only.
+3. **[F3]** Install docs universally instruct `--prerelease`.
+4. **[F4]** ADR-0031's "rolling two-TFM window" prose appeared to
+   disagree with the actual four-TFM (`net8.0;net9.0;net10.0;net11.0`)
+   build matrix.
+5. **[F5]** `scripts/dogfood-validate.sh` has an undocumented Docker
+   prerequisite (its default consumer's repository tests use
+   Testcontainers).
+6. **[F6]** 20 xUnit-analyzer warnings (`xUnit1031`/`xUnit1051`) in
    `Compono.DependencyInjection.Tests` aren't gated as errors.
 
 Deferred decisions re-verified safely post-1.0, unchanged from prior
@@ -76,7 +85,7 @@ Release Task items:
 
 **Accepted as required pre-1.0 work (4):**
 
-- Item 1 above (blocker-equivalent) — required checks. **Resolved and
+- **[F0]** (blocker-equivalent) — required checks. **Resolved and
   verified live**: `LayeredCraft/.github` PR #5 (merged) opts Compono out
   of safe-settings' `required_status_checks.contexts` management via the
   same `{{EXTERNALLY_DEFINED}}` marker `dynamodb-efcore-provider`/
@@ -91,19 +100,41 @@ Release Task items:
   other branch-protection field (reviews, `enforce_admins`, linear
   history, force-push/delete, conversation resolution, signatures)
   byte-identical to before.
-- Item 3 — stale `--prerelease` install guidance. Resolved: audited and
-  corrected across `docs/getting-started/installation.md`, all 11
-  `docs/packages/*.md` guides, `docs/packages/index.md`,
-  `docs/migrating-from-autofixture.md`, and `docs/troubleshooting/faq.md`.
-  Correction: **most packages already have a stable `0.9.0` release** on
-  nuget.org (verified live) — `--prerelease` was already unnecessary and
-  wrong for `Compono`/`Compono.XunitV3`/`Compono.TUnit`/
-  `Compono.NSubstitute`/`Compono.Bogus`/`Compono.DependencyInjection`/
-  `Compono.Http`/`Compono.Logging`/`Compono.TestDoubles` *today*, not
-  merely "once 1.0 ships" as the original review assumed. `Compono.MSTest`
-  and `Compono.NUnit` genuinely have no stable release yet (verified live
-  against nuget.org) and correctly keep `--prerelease` in every doc.
-- Item 4 — the ADR-0031 TFM discrepancy. **Investigated and found to be a
+- **[F3]** — stale `--prerelease` install guidance. Resolved across three
+  passes:
+  1. First pass: audited and corrected `docs/getting-started/installation.md`,
+     all 11 `docs/packages/*.md` guides, `docs/packages/index.md`,
+     `docs/migrating-from-autofixture.md`, and `docs/troubleshooting/faq.md`.
+     Correction: **most packages already have a stable `0.9.0` release**
+     on nuget.org (verified live) — `--prerelease` was already unnecessary
+     and wrong for `Compono`/`Compono.XunitV3`/`Compono.TUnit`/
+     `Compono.NSubstitute`/`Compono.Bogus`/`Compono.DependencyInjection`/
+     `Compono.Http`/`Compono.Logging`/`Compono.TestDoubles` *today*, not
+     merely "once 1.0 ships" as the original review assumed. This pass
+     kept `Compono.MSTest`/`Compono.NUnit` on `--prerelease`, since
+     neither had a stable release (verified live against nuget.org).
+  2. A Codex review of PR #131 correctly flagged a bug this introduced:
+     `Compono.MSTest`/`Compono.NUnit` each pin their `Compono` dependency
+     to their own **exact** package version (`[%(ProjectVersion)]` bracket
+     syntax in each `.csproj`'s `PinProjectReferenceVersionsExact`
+     target) — verified directly against the packed `.nuspec` on
+     nuget.org: `Compono.MSTest`/`Compono.NUnit` `0.10.0-preview.101` both
+     declare `<dependency id="Compono" version="[0.10.0-preview.101]" />`.
+     The docs' shared "`dotnet add package Compono`" line (resolving
+     stable `0.9.0`) followed by `Compono.MSTest`/`Compono.NUnit
+     --prerelease` (resolving `0.10.0-preview.101`) taught an invalid
+     pairing — NuGet cannot satisfy an exact `[0.10.0-preview.101]`
+     dependency with an already-resolved `0.9.0` core.
+  3. Before that fix shipped, the product owner directed a different,
+     simpler resolution: `Compono.MSTest`/`Compono.NUnit` are about to go
+     stable together with every other package immediately after this PR
+     merges, so the docs now install all six packages
+     (`Compono`/`XunitV3`/`TUnit`/`MSTest`/`NUnit` plus the four
+     independent add-ons) the same way, with no `--prerelease` anywhere
+     and no stable/preview distinction — correct once that release lands,
+     and this record notes plainly that the docs are written slightly
+     ahead of the actual publish rather than pretending otherwise.
+- **[F4]** — the ADR-0031 TFM discrepancy. **Investigated and found to be a
   false positive**, not a real drift: ADR-0031's own **Amendment 3**
   (2026-08-10) already records, in the same file, that ADR-0038
   superseded the original two-TFM framing and that
@@ -114,7 +145,7 @@ Release Task items:
   needed — the decision record was already accurate. Nothing in
   current-facing docs (README, package guides) states a TFM count that
   would need correcting either.
-- Item 5 — dogfood Docker prerequisite. Resolved: `scripts/dogfood-validate.sh`'s
+- **[F5]** — dogfood Docker prerequisite. Resolved: `scripts/dogfood-validate.sh`'s
   usage text now states the prerequisite and its failure mode explicitly.
 - The README's "Status" section ("APIs are experimental until the first
   public preview") was also already stale *today* — Compono has stable
@@ -155,7 +186,7 @@ Release Task items:
 
 **Explicitly rejected as unnecessary pre-1.0 gates (5):**
 
-- Item 2 (additional packed-consumer smoke projects for the remaining 6
+- **[F2]** (additional packed-consumer smoke projects for the remaining 6
   packages) — the product owner determined the original Logging finding
   was specifically a ProjectReference-vs-packed-MSBuild-assets
   development concern (already correctly scoped and handled — see
@@ -165,7 +196,7 @@ Release Task items:
   `inspect-packed-nupkgs.sh`. No new concrete evidence of an actual
   uncovered packaging failure mode was presented, so six more
   packed-consumer scenarios were not added.
-- Item 6 (20 xUnit-analyzer warnings) — no shipped-product correctness
+- **[F6]** (20 xUnit-analyzer warnings) — no shipped-product correctness
   impact; left for separate follow-up.
 - Additional release-drafter machinery around `breaking-change → major`
   — that mapping (ADR-0031 Amendment 5) is intentional, already-decided
@@ -180,14 +211,16 @@ Release Task items:
 
 ## Final disposition
 
-**READY FOR 1.0**, pending only the release-execution act itself
-(cutting the actual `1.0.0` release is separately gated by product-owner
-decision, not by anything this review or its follow-up found). All five
-accepted pre-1.0/hardening items above are resolved and verified,
-including the required-status-check change now confirmed live on
-`main`. No item originally listed as a Release Task, and later rejected,
-should be read as a mandatory gate — each rejection above is a
-deliberate product-owner decision, not an oversight.
+**READY FOR 1.0**, pending only the release-execution act itself. The
+product owner has stated intent to cut `1.0.0` for every package
+immediately once PR #131 merges — F3's final documentation state (§
+above) is written for that near-term stable world, not the transient
+state that existed while `Compono.MSTest`/`Compono.NUnit` were still
+preview-only. All five accepted pre-1.0/hardening items above are
+resolved and verified, including the required-status-check change now
+confirmed live on `main`. No item originally listed as a Release Task,
+and later rejected, should be read as a mandatory gate — each rejection
+above is a deliberate product-owner decision, not an oversight.
 
 ## Links
 

@@ -10,7 +10,7 @@ You write MSTest tests and want method parameters composed automatically:
 
 ```bash
 dotnet add package Compono
-dotnet add package Compono.MSTest --prerelease
+dotnet add package Compono.MSTest
 ```
 
 `Compono.MSTest` doesn't add an MSTest test host for you — it integrates
