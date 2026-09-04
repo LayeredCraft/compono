@@ -80,6 +80,24 @@ public sealed class HttpResponseRegistrationBuilder
     }
 
     /// <summary>
+    /// Responds with HTTP 200 OK and <paramref name="content"/> verbatim, as
+    /// <paramref name="mediaType"/> - the raw-bytes counterpart to <see cref="RespondText"/> for
+    /// binary payloads (e.g. a fetched certificate's DER bytes) that would otherwise need a lossy
+    /// or awkward text encoding to round-trip through <see cref="RespondText"/>. Same
+    /// serialize-once-to-bytes model as <see cref="RespondJson{T}(T, JsonSerializerOptions?)"/>:
+    /// <paramref name="content"/> is captured once; every matched invocation constructs a fresh
+    /// <see cref="ByteArrayContent"/> over it (ADR-0051 Amendment 2).
+    /// </summary>
+    public HttpResponseRegistration RespondBytes(byte[] content, string mediaType = "application/octet-stream")
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return Finish(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(content) { Headers = { ContentType = new MediaTypeHeaderValue(mediaType) } },
+        });
+    }
+
+    /// <summary>
     /// Configures this registration to throw <paramref name="exception"/> instead of returning a
     /// response - the exact same instance is rethrown on every matched invocation (verified: an
     /// <see cref="Exception"/> carries no disposal semantics comparable to

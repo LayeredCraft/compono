@@ -185,6 +185,34 @@ public sealed class TestHttpHandlerTests
     }
 
     [Fact]
+    public async Task RespondBytes_RoundTripsContentAndDefaultsToOctetStreamContentType()
+    {
+        byte[] payload = [0x00, 0x01, 0xFF, 0x7F, 0x80];
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/cert.pem").RespondBytes(payload);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var response = await client.GetAsync("/cert.pem", TestContext.Current.CancellationToken);
+        var received = await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken);
+
+        received.Should().Equal(payload);
+        response.Content.Headers.ContentType.Should().NotBeNull();
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/octet-stream");
+    }
+
+    [Fact]
+    public async Task RespondBytes_UsesSuppliedMediaType()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/cert.pem").RespondBytes([0x01], "application/pkix-cert");
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var response = await client.GetAsync("/cert.pem", TestContext.Current.CancellationToken);
+
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/pkix-cert");
+    }
+
+    [Fact]
     public async Task Throws_RethrowsTheExactSameExceptionInstanceOnEachMatch()
     {
         using var handler = new TestHttpHandler();
