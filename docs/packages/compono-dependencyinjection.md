@@ -19,8 +19,8 @@ to enumerate and manually register every dependency a system under test
 might ask for:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.DependencyInjection --prerelease
+dotnet add package Compono
+dotnet add package Compono.DependencyInjection
 ```
 
 This package is deliberately **not** framework-specific. It doesn't

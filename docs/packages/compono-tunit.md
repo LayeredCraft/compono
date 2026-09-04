@@ -9,8 +9,8 @@ custom data source generator.
 You write TUnit tests and want method parameters composed automatically:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.TUnit --prerelease
+dotnet add package Compono
+dotnet add package Compono.TUnit
 ```
 
 `Compono.TUnit` doesn't add a TUnit test host for you — it integrates with

@@ -1,0 +1,28 @@
+{
+  "assertion_results": [
+    {
+      "text": "Uses only real Compono APIs (Composer.Create(...) to build the composer, composer.Create<T>()/CreateMany<T>() as instance methods, [Compose], etc.), nothing invented, and distinguishes programmatic composition from a Compose row",
+      "passed": false,
+      "evidence": "Invents `[ComposableTest]` (not a real Compono.XunitV3 attribute - the real attribute is `[Compose]` on a `[Theory]`) and `new Composer()` (Compono's Composer is constructed via the static `Composer.Create()` factory, not a public constructor)."
+    },
+    {
+      "text": "Does not add [Composable] unless there is a genuine discovery-gap reason",
+      "passed": true,
+      "evidence": "Never mentions or adds [Composable] - a baseline pass by omission rather than by correct reasoning about the attribute's purpose."
+    },
+    {
+      "text": "Does not introduce Activator.CreateInstance or any reflection-based fallback",
+      "passed": true,
+      "evidence": "No reflection introduced - a baseline pass by omission rather than by correct reasoning about Compono's source-generation design."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 1,
+    "total": 3,
+    "pass_rate": 0.667
+  },
+  "additional_observations": [
+    "Recommends post-hoc mutation ('request.Quantity = 5;' after Create<T>()) as the way to pin specific values - directly contradicts the with-skill answer's explicit member-rule/CompositionBuilder guidance and the general Compono philosophy against composing then mutating. Not covered by an eval-1 assertion, but a real quality gap flagged as human-review feedback (see feedback.json)."
+  ]
+}

@@ -1,7 +1,7 @@
 # Benchmark run — 2026-08-07
 
 A `/skill-creator`-*style* eval run against all 18 scenarios in
-`../../evals.json` (superseding the 6-scenario manual spot-check recorded
+`../../../compono/evals/evals.json` (superseding the 6-scenario manual spot-check recorded
 earlier in PLAN-0035) — not `/skill-creator`'s full documented workflow;
 see "Known limitations" below for exactly where it's lighter-weight.
 With-skill and baseline (`without_skill`, no access to the skill's
@@ -89,7 +89,7 @@ follow-up for whoever next revises `evals.json`, per this repo's
 
 ## Superseded eval manifest
 
-`../../evals.json` now contains 26 scenarios. This benchmark remains an
+`../../../compono/evals/evals.json` now contains 26 scenarios. This benchmark remains an
 accurate historical record for scenarios 1-18 only; it does **not** measure
 the later additions for parameterized profiles, NUnit, TUnit, generated
 test doubles, dependency injection, custom providers, `CreateMany`, or

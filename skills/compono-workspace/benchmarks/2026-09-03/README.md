@@ -1,7 +1,7 @@
 # Benchmark run — 2026-09-03
 
 Scoped, five-eval run for the new `Compono.NUnit` evals added by
-PLAN-0059 (ids 42-46 in `../../evals.json`) — not a full re-run of all 46
+PLAN-0059 (ids 42-46 in `../../../compono/evals/evals.json`) — not a full re-run of all 46
 scenarios. Graded by the implementing session directly (same limitation
 as the 2026-08-28/2026-09-02 runs — no automated content-grading harness
 exists for this repo's `evals.json` prompt/expected_output format;

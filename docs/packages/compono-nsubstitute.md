@@ -12,8 +12,8 @@ abstract classes) that you'd otherwise create with `Substitute.For<T>()` by
 hand:
 
 ```bash
-dotnet add package Compono --prerelease
-dotnet add package Compono.NSubstitute --prerelease
+dotnet add package Compono
+dotnet add package Compono.NSubstitute
 ```
 
 If none of your composed types have interface/delegate/abstract-class

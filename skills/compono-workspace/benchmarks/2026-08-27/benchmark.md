@@ -4,7 +4,7 @@ Focused regression run for the AWS Secrets Manager Provider TestDoubles matching
 
 ## Scope
 
-New evals added in `skills/compono-evals/evals.json`:
+New evals added in `skills/compono/evals/evals.json`:
 
 - 28 — `IConfigurationBuilder` argument-filtered verification
 - 29 — `IAmazonSecretsManager` argument-matched configuration
