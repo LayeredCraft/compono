@@ -224,6 +224,14 @@ pass over every comment from phase 1.
    top-level issue comments and review bodies have no "resolved" state on
    GitHub at all; the permalink-marked reply in step 8 is the entire
    deliverable for those (see step 2).
+10. **If this pass had real code changes** (not doc-only fixes) **and a bot
+    reviewer is configured on the repo** (e.g. `chatgpt-codex-connector`),
+    request a fresh review scoped to what actually changed — `gh pr comment
+    <number> --body "@codex review commit <sha> — <one line naming which
+    findings this addresses>"` — rather than a bare "@codex review". Skip
+    this step for a round that only touched docs/comments with no
+    behavioral diff; re-running a bot review round costs real turnaround
+    and isn't warranted when there's nothing new for it to check.
 
 ## Output
 
