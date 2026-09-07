@@ -72,6 +72,12 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     // internal __Add_calls tuple above uses for its own, unrelated, internal-only
     // matching purpose). Not emitted for an overload-matching-eligible member - ReceivedCalls() is
     // scoped to exactly ADR-0048's non-overloaded eligible-member set for 1.1.
+    // A parameter literally named the same as this record's own type (e.g. a real member
+    // `Foo(int __Foo_ReceivedCall)`) would otherwise produce a positional property with the same
+    // name as its enclosing type - CS0542 - since a record's declared parameter name IS its public
+    // property name; suffixed with "_Value" in that one case (Codex review, PR #134). Two real
+    // parameters can never already share a name (the compiler already guarantees that for the real
+    // member this record mirrors), so at most one parameter in this list ever needs the suffix.
     internal readonly record struct __Add_ReceivedCall(int callback, int configuredCallback);
 
     int global::TestNamespace.IRepository.Add(int callback, int configuredCallback)

@@ -165,7 +165,13 @@ internal sealed class {{ safe_identifier }}_Double : {{ interface_fully_qualifie
     // internal {{ member.field_name }}_calls tuple above uses for its own, unrelated, internal-only
     // matching purpose). Not emitted for an overload-matching-eligible member - ReceivedCalls() is
     // scoped to exactly ADR-0048's non-overloaded eligible-member set for 1.1.
-    internal readonly record struct {{ member.received_call_class_name }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ p.escaped_name }}{{ if !for.last }}, {{ end }}{{ end }});
+    // A parameter literally named the same as this record's own type (e.g. a real member
+    // `Foo(int __Foo_ReceivedCall)`) would otherwise produce a positional property with the same
+    // name as its enclosing type - CS0542 - since a record's declared parameter name IS its public
+    // property name; suffixed with "_Value" in that one case (Codex review, PR #134). Two real
+    // parameters can never already share a name (the compiler already guarantees that for the real
+    // member this record mirrors), so at most one parameter in this list ever needs the suffix.
+    internal readonly record struct {{ member.received_call_class_name }}({{ for p in member.parameters }}{{ p.fully_qualified_type_name }} {{ if p.escaped_name == member.received_call_class_name }}{{ p.escaped_name }}_Value{{ else }}{{ p.escaped_name }}{{ end }}{{ if !for.last }}, {{ end }}{{ end }});
 {{~ end ~}}
 {{~ end ~}}
 {{~ end ~}}

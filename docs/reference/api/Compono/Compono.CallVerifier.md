@@ -17,6 +17,8 @@ public readonly struct CallVerifier
 
 | Methods | |
 | :--- | :--- |
+| [AtLeast\(int\)](Compono.CallVerifier.AtLeast(int).md 'Compono\.CallVerifier\.AtLeast\(int\)') | Asserts the member was called at least [times](Compono.CallVerifier.AtLeast(int).md#Compono.CallVerifier.AtLeast(int).times 'Compono\.CallVerifier\.AtLeast\(int\)\.times') times\. |
+| [AtMost\(int\)](Compono.CallVerifier.AtMost(int).md 'Compono\.CallVerifier\.AtMost\(int\)') | Asserts the member was called at most [times](Compono.CallVerifier.AtMost(int).md#Compono.CallVerifier.AtMost(int).times 'Compono\.CallVerifier\.AtMost\(int\)\.times') times\. |
 | [Exactly\(int\)](Compono.CallVerifier.Exactly(int).md 'Compono\.CallVerifier\.Exactly\(int\)') | Asserts the member was called exactly [times](Compono.CallVerifier.Exactly(int).md#Compono.CallVerifier.Exactly(int).times 'Compono\.CallVerifier\.Exactly\(int\)\.times') times\. |
 | [Never\(\)](Compono.CallVerifier.Never().md 'Compono\.CallVerifier\.Never\(\)') | Asserts the member was never called\. |
 | [Once\(\)](Compono.CallVerifier.Once().md 'Compono\.CallVerifier\.Once\(\)') | Asserts the member was called exactly once\. |

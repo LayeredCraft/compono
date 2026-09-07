@@ -97,6 +97,19 @@ jobs:
             local baseline_env="$2"
             local baseline="${!baseline_env:-}"
             local args=()
+            # Pin this validation-only pack's own Version to the nuget.org baseline (never
+            # published - PACK_OUTPUT never leaves this job) whenever one exists. Without this,
+            # an unversioned `dotnet pack` always defaults to 1.0.0.0, which fails ApiCompat's
+            # CP0003 ("assembly version should be equal to or higher than baseline") the moment
+            # the real published baseline crosses 1.0.0 - as happened once 1.1.0-preview.103 was
+            # published, breaking every subsequent PR's package-validation regardless of content.
+            # Equal-to-baseline (not higher) is deliberate: this step only needs ApiCompat to run
+            # its actual signature-diff (additions are never flagged; only removals/incompatible
+            # changes are), not to assert a specific real version bump - that's computed by the
+            # separate publish-preview.yaml/publish-release.yaml pipelines at actual publish time.
+            if [ -n "$baseline" ]; then
+              args+=("-p:Version=${baseline}")
+            fi
             if [ "$BREAKING_CHANGE" != "true" ] && [ -n "$baseline" ]; then
               args+=("-p:PackageValidationBaselineVersion=${baseline}")
             fi

@@ -1157,6 +1157,130 @@ public sealed class TestDoubleVerifyTests
             "CMP0023",
             TestContext.Current.CancellationToken);
 
+    // PLAN-0063/ADR-0060 (Codex review, PR #134): ClearCalls()/ReceivedCalls() are always-emitted,
+    // always-zero-argument bridge extensions exactly like Configure()/Verify() - an interface member
+    // of either name applicable to a zero-argument call wins ordinary member lookup over the
+    // extension, silently leaving e.g. ClearCalls() a no-op. Must be caught by the same CMP0023
+    // reserved-name collision check.
+    [Fact]
+    public Task ClearCallsNamedMember_ReportsCollisionDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void ClearCalls();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0023",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ReceivedCallsNamedMember_ReportsCollisionDiagnostic() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        void ReceivedCalls();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            "CMP0023",
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0063/ADR-0060 (Codex review, PR #134): a real sibling member whose own natural field name
+    // exactly equals an eligible member's generated ReceivedCallClassName ("__{Name}_ReceivedCall")
+    // must demote the eligible member out of matching eligibility (its plain configuration surface
+    // still works) rather than emit two identically-named declarations (a real CS0102 in the consumer).
+    [Fact]
+    public Task ReceivedCallRecordNameCollidesWithSiblingMember_FallsBackWithoutRejectingEligibleMember() =>
+        GeneratorTestHelpers.Verify(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        int Foo(int value);
+                        void Foo_ReceivedCall();
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0063/ADR-0060 (Codex review, PR #134): a parameter literally named the same as its own
+    // eligible member's generated ReceivedCallClassName must not produce a record positional property
+    // with the same name as its enclosing type (CS0542) - the generated record renames just that one
+    // property, and the assertion here is simply that the whole double still compiles.
+    [Fact]
+    public Task ReceivedCallRecordParameterNameCollidesWithRecordType_ConsumerCompiles() =>
+        GeneratorTestHelpers.Verify(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        int Foo(int __Foo_ReceivedCall);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            TestContext.Current.CancellationToken);
+
     [Fact]
     public Task NullableReferenceReturnAndParameter_PreservesAnnotationInGeneratedCode() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions

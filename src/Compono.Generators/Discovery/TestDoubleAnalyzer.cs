@@ -64,8 +64,15 @@ internal static class TestDoubleAnalyzer
         // generic method. ADR-0044 Requirement 3 widens this reserved-name set to also cover "Verify",
         // reused by the new Verify() bridge - an interface declaring its own Verify member would
         // otherwise silently shadow it exactly like an undiagnosed Configure collision would have.
+        // PLAN-0063/ADR-0060 (Codex review, PR #134): "ClearCalls"/"ReceivedCalls" join the reserved
+        // set for the same reason - both are always-emitted, always-zero-argument bridge extensions
+        // (TestDouble.scriban's *_ClearCallsExtension/*_ReceivedCallsExtension are unconditional, not
+        // gated on the interface having any eligible member), and an interface member of either name
+        // applicable to a zero-argument call wins ordinary member lookup over the extension exactly
+        // like an undiagnosed Configure/Verify collision would - e.g. `repository.ClearCalls()` would
+        // silently invoke the interface's own member and never reach the generated bridge at all.
         var reservedNameCollision = closure.SelectMany(i => i.GetMembers())
-            .Where(m => m.Name is "Configure" or "Verify")
+            .Where(m => m.Name is "Configure" or "Verify" or "ClearCalls" or "ReceivedCalls")
             .FirstOrDefault(m => m is not IMethodSymbol method || IsApplicableToZeroArguments(method));
         if (reservedNameCollision is not null)
         {
@@ -490,10 +497,23 @@ internal static class TestDoubleAnalyzer
             // phantom collision, silently excluding it from argument matching entirely. Codex
             // review, PR #108 (round 1). Reserve only what this layout actually emits at this scope:
             // "_calls"/"_lock"/"_Entry"/"_entries".
+            // PLAN-0063/ADR-0060 (Codex review, PR #134): "_ReceivedCall" (the generated named
+            // snapshot-record type backing ReceivedCalls(), TestDoubleMemberInfo.ReceivedCallClassName)
+            // joins this reservation set for the identical reason as _calls/_lock/_Entry/_entries above
+            // - a sibling real member whose own natural FieldName happens to equal this derived name
+            // (e.g. a real member literally named "Foo_ReceivedCall" sitting alongside an eligible
+            // "Foo") would otherwise silently produce two identically-named declarations (a real
+            // CS0102/CS0111 duplicate-member compile error in the consumer), never caught by
+            // AssignCallbackNameSuffixes' later callback-only disambiguation pass, which renames
+            // colliding *callback* declarations but never this one. Feeding it into this same
+            // pre-pass means a genuine collision demotes the affected member out of matching
+            // eligibility (falling back to its plain configuration surface) exactly like any other
+            // derived-name collision here, rather than reaching the emitter at all.
             var derivedNames = new[]
                 {
                     $"__{candidateMethod.Name}_calls", $"__{candidateMethod.Name}_lock",
                     $"__{candidateMethod.Name}_Entry", $"__{candidateMethod.Name}_entries",
+                    $"__{candidateMethod.Name}_ReceivedCall",
                 };
 
             foreach (var name in derivedNames)

@@ -499,6 +499,44 @@ checklist" the ADR/plan warn against. If a future real interface needs
 this shape, it is already correctly handled by the eligibility-set-scoped
 implementation below — this is a documented fact, not an open risk.
 
+**PR #134 Codex review round (2026-09-07): three real generator-correctness bugs found and fixed,
+each with a real generator-fixture regression test** (`test/Compono.Generators.Tests/TestDoubleVerifyTests.cs`):
+1. P1 - `ClearCalls()`/`ReceivedCalls()` are always-emitted, always-zero-argument bridge extensions
+   exactly like `Configure()`/`Verify()`, but `TestDoubleAnalyzer`'s reserved-name collision check
+   (CMP0023) only covered `"Configure"`/`"Verify"`. An interface declaring its own zero-argument
+   `ClearCalls`/`ReceivedCalls` member would silently shadow the generated bridge (ordinary member
+   lookup wins over an extension method) with no diagnostic. Fixed: widened the reserved-name set;
+   `ClearCallsNamedMember_ReportsCollisionDiagnostic`/`ReceivedCallsNamedMember_ReportsCollisionDiagnostic`
+   cover it.
+2. P2 - an eligible member's generated `{FieldName}_ReceivedCall` record-class name could collide
+   with an unrelated real sibling member's own natural field name (e.g. eligible `Foo` alongside a
+   real member literally named `Foo_ReceivedCall`), producing a real CS0102 duplicate-declaration
+   compile error - never caught by `AssignCallbackNameSuffixes`' later callback-only disambiguation
+   pass. Fixed by feeding this derived name into the SAME earlier `derivedAuxiliaryNameOwners`
+   pre-pass that already handles this class of collision for `_calls`/`_lock`/`_Entry`/`_entries`
+   (demotes the colliding member out of matching eligibility rather than renaming, the pre-pass's
+   established convention). `ReceivedCallRecordNameCollidesWithSiblingMember_FallsBackWithoutRejectingEligibleMember`
+   covers it.
+3. P2 - a parameter literally named the same as its own member's generated `_ReceivedCall` record
+   type (e.g. `Foo(int __Foo_ReceivedCall)`) produced a positional record property sharing its
+   enclosing type's name - CS0542. Fixed in `TestDouble.scriban`: that one parameter's declared
+   name is suffixed `_Value` inside the record declaration only (positional construction elsewhere
+   is order-based, not name-based, so nothing else needed updating). Two real parameters can never
+   already share a name, so at most one parameter per record ever needs the suffix.
+
+All three fixes are additive/narrow (no change to any previously-emitted line for a non-colliding
+member, confirmed via the same purely-additive-comment snapshot diff review this plan's Task 9
+already established as the review method) - the full 313-per-TFM `Compono.Generators.Tests` suite
+plus these 4 new fixture tests (8 across net10.0/net11.0) all pass. Also fixed in the same round: a
+pre-existing `.github/workflows/package-validation.yaml` gap (unrelated to this plan's own code,
+but blocking this PR's checks) - its local validation-only pack never set `-p:Version`, always
+defaulting to `1.0.0.0`, which started failing ApiCompat's CP0003 the moment nuget.org's real
+published baseline crossed 1.0.0 (`1.1.0-preview.103`, published by PR #133's merge to `main`).
+Fixed by pinning that pack's `Version` to the resolved baseline. Also regenerated
+`docs/reference/api/` (API reference drift against this plan's own new public members - `CallVerifier.AtLeast`/`AtMost`,
+`LogVerificationBuilder.AtLeast`/`AtMost`, `ReturnConfig<T>.ClearObservedCalls`), which had been
+missed before the initial PR push.
+
 **Generic-in-`T` closed-instantiation-eligible members (ADR-0049) are
 mutually exclusive with `IsEligibleForMatching`**
 (`TestDoubleMemberInfo.cs:118`, confirmed again at
