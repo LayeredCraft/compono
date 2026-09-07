@@ -81,10 +81,15 @@ Console.WriteLine(failure.Properties?.First().Key);   // "OrderId", e.g.
 - **`logger.Verify()`** — the fluent entry point:
   `.AtLevel(level)`, `.WithEventId(id)`, `.WithException<TException>()`,
   `.WithMessageContaining(text)`, `.Matching(predicate)`, ending in
-  `.Once()` / `.Never()` / `.Exactly(n)` — the exact same single-verb
-  vocabulary `Compono.TestDoubles`/`Compono.Http` already use
-  (`repository.Verify().Save().Once()`, `registration.Verify().Once()`),
-  reusing core `Compono`'s `CallVerifier` unchanged.
+  `.Once()` / `.Never()` / `.Exactly(n)` / `.AtLeast(n)` / `.AtMost(n)`
+  ([ADR-0044 Amendment 22](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-22-2026-09-06-callverifieratleastintatmostint-added-requirement-3s-minimality-preserved-not-reversed))
+  — the exact same single-verb vocabulary `Compono.TestDoubles`/
+  `Compono.Http` already use (`repository.Verify().Save().Once()`,
+  `registration.Verify().Once()`), each a thin, one-line forward through
+  the same shared count-verification semantics core `Compono`'s
+  `CallVerifier` implements — the filter chain above narrows *which*
+  captured entries count, then the terminal counts them exactly the same
+  way regardless of which package it's reached through.
 - **`CapturingLogger` / `CapturingLogger<T>`** — hand-written, publicly,
   directly constructible with no composition involved at all:
   ```csharp

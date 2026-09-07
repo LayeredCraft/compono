@@ -305,6 +305,20 @@ internal sealed record TestDoubleMemberInfo(
     /// </summary>
     public string EntriesFieldName => $"{FieldName}_entries";
 
+    /// <summary>
+    /// PLAN-0063/ADR-0060: the generated <c>readonly record struct</c> name backing this
+    /// <see cref="IsEligibleForMatching"/> member's <c>ReceivedCalls()</c> retrospective-inspection
+    /// surface - a named, per-parameter-typed snapshot of one entry from the existing
+    /// <c>{FieldName}_calls</c> list (ADR-0048), reusing <see cref="FieldName"/>'s own already-proven
+    /// uniqueness (the same guarantee <see cref="EntryClassName"/> relies on) rather than introducing
+    /// a new collision-detection pass. Reserved in <c>TestDoubleAnalyzer</c>'s derived-name collision
+    /// pool alongside <see cref="EntryClassName"/>. Never populated for an overload-matching-eligible
+    /// member (<see cref="IsOverloadMatchingEligible"/>) - `ReceivedCalls()` is scoped to exactly
+    /// ADR-0048's non-overloaded eligible-member set for 1.1 (ADR-0060, "Considered Options —
+    /// eligibility scope").
+    /// </summary>
+    public string ReceivedCallClassName => $"{FieldName}_ReceivedCall";
+
     /// <summary>The generated strongly typed invocation-callback delegate name (ADR-0053).</summary>
     public string CallbackDelegateName => $"{FieldName}{CallbackNameSuffix}_Callback";
 

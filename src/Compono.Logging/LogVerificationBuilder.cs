@@ -57,6 +57,16 @@ public sealed class LogVerificationBuilder
     /// <paramref name="times"/> times.</exception>
     public void Exactly(int times) => ToCallVerifier().Exactly(times);
 
+    /// <summary>Asserts the accumulated filters matched at least <paramref name="times"/> times.</summary>
+    /// <exception cref="TestDoubleVerificationException">The filters matched fewer than
+    /// <paramref name="times"/> times.</exception>
+    public void AtLeast(int times) => ToCallVerifier().AtLeast(times);
+
+    /// <summary>Asserts the accumulated filters matched at most <paramref name="times"/> times.</summary>
+    /// <exception cref="TestDoubleVerificationException">The filters matched more than
+    /// <paramref name="times"/> times.</exception>
+    public void AtMost(int times) => ToCallVerifier().AtMost(times);
+
     private LogVerificationBuilder Add(string description, Func<CapturedLogEntry, bool> predicate)
     {
         _filters.Add((description, predicate));

@@ -170,6 +170,26 @@ public sealed class TestHttpHandlerTests
         registration.Verify().Exactly(2);
     }
 
+    // PLAN-0063/ADR-0044 Amendment 22: AtLeast/AtMost are reachable through
+    // HttpResponseRegistration.Verify() with zero package-side code changes (CallVerifier is
+    // returned directly by HttpResponseRegistration.Verify()).
+    [Fact]
+    public async Task Verify_AtLeastAndAtMost_AreReachableWithNoPackageCodeChanges()
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnGet("/users/42").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        await client.GetAsync("/users/42", TestContext.Current.CancellationToken);
+        await client.GetAsync("/users/42", TestContext.Current.CancellationToken);
+
+        registration.Verify().AtLeast(2);
+        registration.Verify().AtMost(2);
+
+        var act = () => registration.Verify().AtLeast(3);
+        act.Should().Throw<TestDoubleVerificationException>();
+    }
+
     [Fact]
     public async Task RespondJson_SetsJsonContentTypeWithUtf8Charset()
     {

@@ -90,20 +90,45 @@ TestDoubles, **read `references/testdoubles.md` before answering**. Do not
 answer from memory: older Compono guidance said generated doubles had no
 argument matching, but that is stale. Current TestDoubles supports
 `Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
-`Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
-multi-entry argument-distinguished response configuration, and
-`ReturnsCallback(...)` for supported non-void methods. Translate NSubstitute
-vocabulary directly where eligible:
-`Arg.Is<T>` → `Match.Is<T>`, `Arg.Any<T>()` → `Match.Any<T>()`,
-`Received(1)` → `Verify().Member(...).Once()`, `Received(n)` →
-`Verify().Member(...).Exactly(n)`, and `DidNotReceive()` →
-`Verify().Member(...).Never()`. Never invent non-existent TestDoubles APIs
-such as `CallsTo(...)`, `ReceivedCalls()`, or `[ComponoTest]`, and never
-recommend a hand-written recording fake solely because the old test used
-NSubstitute argument matchers. Use `ReturnsCallback((arg1, ...) => result)`
-when a supported method's result depends on its actual arguments. It is not
-an untyped `CallInfo` callback. True argument capture and call-order
-verification remain separate capabilities.
+`Match.Is<T>(predicate)`, argument-filtered
+`Never()`/`Once()`/`Exactly(n)`/`AtLeast(n)`/`AtMost(n)`, multi-entry
+argument-distinguished response configuration, `ReturnsCallback(...)` for
+supported non-void methods, and — for the same eligible-member set
+argument-filtered `Verify()` targets (non-overloaded, no ref-like
+parameter, no real parameter referencing the member's own open generic
+type parameter, no derived-name collision, not a one-parameter `Equals`)
+— `ReceivedCalls()` (retrospective, snapshot-based call inspection,
+returning a generated named record per call with real parameter names)
+and `ClearCalls()` (a direct, whole-double reset of every member's
+observation history — call counts and captured-argument history — that
+preserves all configured behavior, including a configured
+`ReturnsSequence`'s in-progress ordinal, which never rewinds). Translate
+NSubstitute vocabulary directly where eligible: `Arg.Is<T>` → `Match.Is<T>`,
+`Arg.Any<T>()` → `Match.Any<T>()`, `Received(1)` →
+`Verify().Member(...).Once()`, `Received(n)` →
+`Verify().Member(...).Exactly(n)`, `DidNotReceive()` →
+`Verify().Member(...).Never()`, and `Received()`/`ReceivedCalls()` on an
+eligible member → `.ReceivedCalls().Member()`. `ReceivedCalls()` does
+**not** exist for an overloaded member (even one with its own
+`<Member>Matching` argument-matching surface) — never claim it does; that
+expansion is real, plausible future work, not shipped. There is still no
+call-order verification and no strict/unexpected-call mode. Never invent
+non-existent TestDoubles APIs such as `CallsTo(...)` or `[ComponoTest]`,
+and never recommend a hand-written recording fake solely because the old
+test used NSubstitute argument matchers or `ReceivedCalls()` on an
+interface Compono's eligibility rules exclude. Use
+`ReturnsCallback((arg1, ...) => result)` when a supported method's result
+depends on its actual arguments. It is not an untyped `CallInfo` callback.
+`ReturnsCallback` (exercise-time, single-value capture) and
+`ReceivedCalls()` (after-the-fact, retrospective inspection) are two
+distinct, complementary mechanisms, not competing designs — recommend
+whichever matches the actual scenario (compute a response from the
+arguments vs. inspect what was passed after the SUT ran), not one as a
+universal substitute for the other. Matching (`Match.Is<T>`/`Match.Any<T>`)
+and retrospective inspection (`ReceivedCalls()`) remain distinct concepts
+too: matching narrows *which calls count* toward `Verify()`;
+`ReceivedCalls()` returns the actual argument values regardless of any
+matcher. Call-order verification remains unsupported by either.
 
 1. **Detect** — run the table above. Know which packages are actually
    installed before recommending any API from them.
@@ -145,17 +170,21 @@ verification remain separate capabilities.
      `UseGeneratedTestDoubles()`, if that package is referenced and the
      compile-time opt-in is set. Current generated doubles support
      `Configure()`, `Verify()`, literal equality matching, `Match.Any<T>()`,
-     `Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/
-     `Exactly(n)`, multi-entry argument-distinguished response configuration,
-     and `ReturnsCallback(...)` for eligible non-void methods. Do not mistake NSubstitute
-     vocabulary (`Arg.Is`, `Arg.Any`, `Received`, `DidNotReceive`) for a
-     reason to invent a hand-written recording fake; translate it to the
-     generated-double surface where the member shape is eligible. A callback
-     must return the member's declared type exactly, including `Task<T>` or
-     `ValueTask<T>`; Compono does not wrap a bare result. Argument capture,
-     call-order verification, classes, delegates, and other explicitly
-     unsupported shapes remain outside current `Compono.TestDoubles` support
-     — see `references/testdoubles.md`.
+     `Match.Is<T>(predicate)`, argument-filtered
+     `Never()`/`Once()`/`Exactly(n)`/`AtLeast(n)`/`AtMost(n)`, multi-entry
+     argument-distinguished response configuration, `ReturnsCallback(...)`
+     for eligible non-void methods, and — for that same eligible-member set
+     — `ReceivedCalls()` (retrospective call inspection) and `ClearCalls()`
+     (whole-double observation reset). Do not mistake NSubstitute
+     vocabulary (`Arg.Is`, `Arg.Any`, `Received`, `DidNotReceive`,
+     `ReceivedCalls`, `ClearReceivedCalls`) for a reason to invent a
+     hand-written recording fake; translate it to the generated-double
+     surface where the member shape is eligible. A callback must return the
+     member's declared type exactly, including `Task<T>` or `ValueTask<T>`;
+     Compono does not wrap a bare result. `ReceivedCalls()` for an
+     **overloaded** member, call-order verification, classes, delegates,
+     and other explicitly unsupported shapes remain outside current
+     `Compono.TestDoubles` support — see `references/testdoubles.md`.
    - A test deliberately needs to exercise the real HTTP client pipeline
      (real `HttpClient` → `TestHttpHandler` → configured response) rather
      than substitute an application-level interface away →

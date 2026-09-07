@@ -62,6 +62,44 @@ public sealed class LogVerificationBuilderTests
         act.Should().Throw<TestDoubleVerificationException>();
     }
 
+    // PLAN-0063/ADR-0044 Amendment 22: AtLeast/AtMost forwarders - proving filtering happens BEFORE
+    // the count terminal, not merely that the methods compile.
+
+    [Fact]
+    public void AtLeast_CountsOnlyTheFilteredSubset_NotTheWholeCaptureBuffer()
+    {
+        var logger = new CapturingLogger<LogVerificationBuilderTests>();
+        logger.LogWarning("one");
+        logger.LogWarning("two");
+        logger.LogInformation("unrelated");
+        logger.LogInformation("also unrelated");
+
+        // Four entries total, only two at Warning - AtLeast(2) must pass against the filtered count,
+        // and AtLeast(3) must fail even though four entries exist overall.
+        logger.Verify().AtLevel(LogLevel.Warning).AtLeast(2);
+
+        var act = () => logger.Verify().AtLevel(LogLevel.Warning).AtLeast(3);
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("Expected at least 3 call(s) to a log entry matching level Warning, but received 2.");
+    }
+
+    [Fact]
+    public void AtMost_CountsOnlyTheFilteredSubset_NotTheWholeCaptureBuffer()
+    {
+        var logger = new CapturingLogger<LogVerificationBuilderTests>();
+        logger.LogWarning("one");
+        logger.LogWarning("two");
+        logger.LogInformation("unrelated");
+        logger.LogInformation("also unrelated");
+
+        // AtMost(2) passes against the filtered Warning-only count even though four entries exist.
+        logger.Verify().AtLevel(LogLevel.Warning).AtMost(2);
+
+        var act = () => logger.Verify().AtLevel(LogLevel.Warning).AtMost(1);
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("Expected at most 1 call(s) to a log entry matching level Warning, but received 2.");
+    }
+
     [Fact]
     public void AtLevel_Alone_NarrowsToThatLevel()
     {

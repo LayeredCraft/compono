@@ -1752,6 +1752,10 @@ internal static class TestDoubleAnalyzer
                 reservedNames.Add(member.EntriesFieldName);
                 reservedNames.Add($"{member.FieldName}_calls");
                 reservedNames.Add($"{member.FieldName}_lock");
+
+                if (member.IsEligibleForMatching)
+                    reservedNames.Add(member.ReceivedCallClassName);
+
                 continue;
             }
 

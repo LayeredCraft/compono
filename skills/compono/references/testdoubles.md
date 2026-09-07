@@ -66,11 +66,15 @@ service.Repository.Configure().CountAsync().Returns(Task.FromResult(4));
 
 ## Argument matching and filtered verification
 
-Do not conflate argument matching with argument capture. Current
-`Compono.TestDoubles` supports matcher-based configuration and verification
-for eligible members. Supported non-void methods also support a strongly typed
-`ReturnsCallback(...)`; it does not expose an arbitrary call log or an
-untyped `CallInfo` callback API.
+Do not conflate argument matching with argument capture — they remain
+distinct concepts even though both are now supported for eligible members.
+Current `Compono.TestDoubles` supports matcher-based configuration and
+verification for eligible members, plus retrospective inspection of the
+actual received arguments via `ReceivedCalls()` (see below) for that same
+eligible set. Supported non-void methods also support a strongly typed
+`ReturnsCallback(...)`; neither that nor `ReceivedCalls()` exposes an
+untyped `CallInfo` callback API, and `ReceivedCalls()` is not available
+for an overloaded member.
 
 ### Invocation-aware responses
 
@@ -359,14 +363,21 @@ A failing assertion throws `Compono.TestDoubleVerificationException` (a
 plain exception, not a framework assertion type). A call counts whether it
 hits configured, default, or thrown behavior.
 
-**Still deliberately minimal** — `Never`/`Once`/`Exactly(n)` only, no
-`AtLeast`/`AtMost`, no `ReceivedCalls()`-style enumeration, no call-order
-verification. An eligible overload's `<Member>Matching(Match<T>...)` surface
-supports argument matching; same-name matcher-wrapped overload configuration
-does not. If a test needs anything this page doesn't cover (call-order
-verification, `ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that
-interface instead — the two providers can coexist (see "Precedence with
-`Compono.NSubstitute`" below).
+**`Never`/`Once`/`Exactly(n)`/`AtLeast(n)`/`AtMost(n)`** — a lower-bound/
+upper-bound count vocabulary, still deliberately narrow: no `Between`,
+`AtLeastOnce()`, `AtMostOnce()`, `Any()`, or `None()` (each either
+derivable from the primitives above at the call site, or a synonym for an
+existing terminal — ADR-0044 Amendment 22). Still no call-order
+verification. Retrospective inspection of the actual received arguments is
+`ReceivedCalls()`, a separate bridge from `Verify()` — see "Retrospective
+call inspection: `ReceivedCalls()`" below; it exists for the same
+eligible-member set argument-filtered `Verify()` targets, **not** for an
+overloaded member (an eligible overload's `<Member>Matching(Match<T>...)`
+surface supports argument *matching*, not retrospective capture — the two
+remain distinct capabilities). If a test needs anything this page doesn't
+cover (call-order verification, `ReturnsForAnyArgs`, etc.), use
+`Compono.NSubstitute` for that interface instead — the two providers can
+coexist (see "Precedence with `Compono.NSubstitute`" below).
 
 ## Argument matching and argument-filtered verification (v3)
 
@@ -517,15 +528,58 @@ This applies identically to sync/async/property members and to a fluent
 self-returning member (`IResponseBuilder`-shaped) — none of those get
 special-cased, all follow the same rule.
 
+## Retrospective call inspection: `ReceivedCalls()`
+
+`ReceivedCalls()` — a third bridge alongside `Configure()`/`Verify()` —
+returns the real argument values a member was actually invoked with, for
+exactly the same eligible-member set argument-filtered `Verify()` targets
+above (single-overload, no ref-like parameter, no real parameter
+referencing the member's own open generic type parameter, no derived-name
+collision, not a one-parameter `Equals`; ADR-0060):
+
+```csharp
+repository.Withdraw("acct-1", 50m, overdraftAllowed: true);
+repository.Withdraw("acct-2", 75m, overdraftAllowed: false);
+
+var calls = repository.ReceivedCalls().Withdraw();
+calls[0].accountId.Should().Be("acct-1");   // real parameter names, not .Item1/.Item2
+calls[1].amount.Should().Be(75m);
+```
+
+Each call comes back as a generated, per-member `readonly record struct`
+with the member's own real parameter names. `ReceivedCalls().Member()`
+returns a **snapshot** taken at call time, never a live view — a later
+invocation never grows or mutates an already-returned snapshot. **No deep
+copy**: a reference-type argument is retained by the same reference the
+caller passed (mutate it after the call, and a later inspection observes
+the mutation — a real, documented footgun, not a bug, consistent with
+NSubstitute's own identical behavior); a value-type argument is an
+ordinary value copy. Sequential calls preserve append order; there is no
+call-order *verification*, no timestamps, and no global sequence IDs.
+
+`repository.ClearCalls()` — a direct, whole-double operation, not nested
+under `Verify()` or `ReceivedCalls()` — resets every member's observation
+history (call counts and captured-argument history) while preserving
+every configured behavior (`Returns`/`Throws`/`ReturnsCallback`/
+`ReturnsSequence`, multi-entry and closed-instantiation configuration). A
+configured sequence's in-progress ordinal does **not** rewind: after
+`ReturnsSequence("A","B","C")`, two calls, then `ClearCalls()`, the next
+call returns `"C"`, not `"A"` — the ordinal is configured-behavior
+progress, not observation history. There is no per-member `ClearCalls()`.
+
 ## The #1 AutoFixture/NSubstitute-habit trap: matching is not capture
 
-`Compono.TestDoubles` is not a general-purpose mocking framework, but it
-does support argument matching and argument-filtered verification for the
-eligible member shapes above. The remaining boundary is stronger behavior
-that needs access to the actual invocation as a first-class value:
+`Compono.TestDoubles` is not a general-purpose mocking framework, but for
+the eligible member shapes above it now supports argument matching,
+argument-filtered verification, **and** retrospective inspection of the
+actual invocation via `ReceivedCalls()` (above) — the historical "matching
+only, no capture" boundary is gone for that eligible set. What remains a
+genuinely stronger, unsupported behavior:
 
-- true argument capture for later arbitrary inspection outside a generated
-  `Verify().Member(Match...)` count assertion;
+- `ReceivedCalls()` for an **overloaded** member — even one with its own
+  `<Member>Matching` argument-matching surface, ReceivedCalls() is not
+  available there (ADR-0060 deliberately did not expand eligibility past
+  ADR-0048's existing set for 1.1 — do not claim otherwise);
 - call-order verification;
 - strict mode, partial substitutes, recursive auto-configuration;
 - classes, delegates, indexers, events, and other unsupported shapes listed
@@ -533,11 +587,15 @@ that needs access to the actual invocation as a first-class value:
 
 If a test only needs "this member was called once with an argument matching
 this predicate," use `Verify().Member(Match.Is<T>(...)).Once()`. If it needs
-to store every argument for arbitrary later inspection, invoke a delegate
-argument, or verify call order, use an existing project-local fake or
-`Compono.NSubstitute` where the project intentionally keeps that dependency.
-Treat any real `Compono.NSubstitute`-can/`Compono.TestDoubles`-cannot case as
-roadmap evidence under ADR-0042 Amendment 2.
+the actual received arguments for an eligible member, use
+`ReceivedCalls().Member()` (above) — do not reach for a hand-written
+recording fake or `Compono.NSubstitute` for a scenario `ReceivedCalls()`
+already covers. If it needs an overloaded member's arguments, invoking a
+delegate argument mid-call, or call-order verification, use an existing
+project-local fake or `Compono.NSubstitute` where the project intentionally
+keeps that dependency. Treat any real `Compono.NSubstitute`-can/
+`Compono.TestDoubles`-cannot case as roadmap evidence under ADR-0042
+Amendment 2.
 
 ## Unsupported shapes are compile-time diagnostics, not silent gaps
 

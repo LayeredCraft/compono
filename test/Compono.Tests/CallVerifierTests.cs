@@ -81,6 +81,180 @@ public sealed class CallVerifierTests
             .WithMessage("Expected exactly 5 call(s) to IFoo.Bar, but received 3.");
     }
 
+    // PLAN-0063/ADR-0044 Amendment 22: AtLeast/AtMost boundary tests (below/equal/above), negative-
+    // count behavior matching Exactly's existing (non-)validation, and AtLeast(0)/AtMost(0) edge cases.
+
+    [Fact]
+    public void AtLeast_WhenObservedCountIsBelowThreshold_ThrowsWithMessage()
+    {
+        var verifier = new CallVerifier(2, "IFoo.Bar");
+
+        var act = () => verifier.AtLeast(3);
+
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("Expected at least 3 call(s) to IFoo.Bar, but received 2.");
+    }
+
+    [Fact]
+    public void AtLeast_WhenObservedCountEqualsThreshold_DoesNotThrow()
+    {
+        var verifier = new CallVerifier(3, "IFoo.Bar");
+
+        var act = () => verifier.AtLeast(3);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AtLeast_WhenObservedCountIsAboveThreshold_DoesNotThrow()
+    {
+        var verifier = new CallVerifier(4, "IFoo.Bar");
+
+        var act = () => verifier.AtLeast(3);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AtLeast_Zero_AlwaysPasses()
+    {
+        var verifier = new CallVerifier(0, "IFoo.Bar");
+
+        var act = () => verifier.AtLeast(0);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AtLeast_NegativeThreshold_BehavesLikeExactlyAlwaysVacuouslyTrue()
+    {
+        var verifier = new CallVerifier(0, "IFoo.Bar");
+
+        var act = () => verifier.AtLeast(-1);
+
+        act.Should().NotThrow("observedCount can never be negative, so AtLeast(-1) can never fail, " +
+            "matching Exactly's existing no-argument-validation behavior (ADR-0044 Amendment 22)");
+    }
+
+    [Fact]
+    public void AtMost_WhenObservedCountIsAboveThreshold_ThrowsWithMessage()
+    {
+        var verifier = new CallVerifier(4, "IFoo.Bar");
+
+        var act = () => verifier.AtMost(3);
+
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("Expected at most 3 call(s) to IFoo.Bar, but received 4.");
+    }
+
+    [Fact]
+    public void AtMost_WhenObservedCountEqualsThreshold_DoesNotThrow()
+    {
+        var verifier = new CallVerifier(3, "IFoo.Bar");
+
+        var act = () => verifier.AtMost(3);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AtMost_WhenObservedCountIsBelowThreshold_DoesNotThrow()
+    {
+        var verifier = new CallVerifier(2, "IFoo.Bar");
+
+        var act = () => verifier.AtMost(3);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AtMost_Zero_EquivalentToNever_WhenNeverCalled()
+    {
+        var verifier = new CallVerifier(0, "IFoo.Bar");
+
+        var act = () => verifier.AtMost(0);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AtMost_Zero_EquivalentToNever_WhenCalled()
+    {
+        var verifier = new CallVerifier(1, "IFoo.Bar");
+
+        var act = () => verifier.AtMost(0);
+
+        act.Should().Throw<TestDoubleVerificationException>()
+            .WithMessage("Expected at most 0 call(s) to IFoo.Bar, but received 1.");
+    }
+
+    [Fact]
+    public void AtMost_NegativeThreshold_ThrowsBecauseObservedCountCanNeverBeNegative()
+    {
+        var verifier = new CallVerifier(0, "IFoo.Bar");
+
+        var act = () => verifier.AtMost(-1);
+
+        act.Should().Throw<TestDoubleVerificationException>(
+            "0 > -1, matching Exactly's existing no-argument-validation behavior (ADR-0044 Amendment 22)");
+    }
+
+    // PLAN-0063/ADR-0060: ReturnConfig<T>.ClearObservedCalls() - the mirror of ClearConfiguredResponse(),
+    // clearing only CallCount, never Value/Exception/Sequence/SequenceOrdinal.
+
+    [Fact]
+    public void ClearObservedCalls_ResetsCallCountToZero()
+    {
+        var slot = new ReturnConfig<string>();
+        slot.RecordCall();
+        slot.RecordCall();
+
+        slot.ClearObservedCalls();
+
+        slot.ConfiguredCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void ClearObservedCalls_DoesNotAffectConfiguredValue()
+    {
+        var slot = new ReturnConfig<string>();
+        new ReturnConfigBuilder<string>(ref slot).Returns("configured");
+        slot.RecordCall();
+
+        slot.ClearObservedCalls();
+
+        slot.HasConfiguredValue.Should().BeTrue();
+        slot.ConfiguredValue.Should().Be("configured");
+    }
+
+    [Fact]
+    public void ClearObservedCalls_DoesNotAffectConfiguredException()
+    {
+        var slot = new ReturnConfig<string>();
+        var exception = new InvalidOperationException("boom");
+        new ReturnConfigBuilder<string>(ref slot).Throws(exception);
+        slot.RecordCall();
+
+        slot.ClearObservedCalls();
+
+        slot.HasConfiguredException.Should().BeTrue();
+        slot.ConfiguredException.Should().BeSameAs(exception);
+    }
+
+    [Fact]
+    public void ClearObservedCalls_DoesNotRewindSequenceOrdinal()
+    {
+        var slot = new ReturnConfig<string>();
+        new ReturnConfigBuilder<string>(ref slot).ReturnsSequence("A", "B", "C");
+        slot.NextSequenceOutcome().Should().Be("A");
+        slot.NextSequenceOutcome().Should().Be("B");
+
+        slot.ClearObservedCalls();
+
+        slot.NextSequenceOutcome().Should().Be("C", "SequenceOrdinal is runtime progress through configured " +
+            "behavior, not observation history - ClearCalls() must never rewind it (ADR-0060)");
+    }
+
     [Fact]
     public void RecordCall_IncrementsConfiguredCallCount()
     {

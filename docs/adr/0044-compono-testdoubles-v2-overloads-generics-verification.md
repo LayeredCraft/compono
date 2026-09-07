@@ -2601,3 +2601,209 @@ three-arg case sketched above.
   risk checks, not a general competitive benchmark).
 - `docs/packages/compono-testdoubles.md`, `skills/compono/references/testdoubles.md` —
   updated once implemented (PLAN-0044 Phase 4), not by this ADR directly.
+
+## Amendment 22 (2026-09-06): `CallVerifier.AtLeast(int)`/`AtMost(int)` added; Requirement 3's minimality preserved, not reversed
+
+[RESEARCH-0023](../research/0023-compono-logging-1.1-research.md),
+[RESEARCH-0024](../research/0024-compono-http-1.1-research.md), and
+[RESEARCH-0025](../research/0025-compono-testdoubles-1.1-research.md)
+established a fact Requirement 3's original design (2026-08-14) had no
+occasion to consider: `Compono.CallVerifier` is no longer a
+`Compono.TestDoubles`-only implementation detail. `Compono.Http`
+(`HttpResponseRegistration.Verify()`, `src/Compono.Http/HttpResponseRegistration.cs:56`)
+returns it directly, and `Compono.Logging` (`LogVerificationBuilder`,
+`src/Compono.Logging/LogVerificationBuilder.cs`) constructs one internally
+via a private `ToCallVerifier()` and hand-forwards `Once`/`Never`/`Exactly`
+through its own fluent surface. Three packages now share this exact
+vocabulary. [RESEARCH-0027](../research/0027-compono-callverifier-atleast-atmost-investigation.md)
+is the deep-design pass behind this amendment.
+
+**What Requirement 3 actually rejected, re-read precisely.** The original
+text (line 395 of this ADR, quoted verbatim): *"Deliberately minimal,
+matching the explicit instruction: `Never`/`Once`/`Exactly(n)` only — no
+`AtLeast`/`AtMost`, no argument-aware recording, no call-order
+verification, no `ReceivedCalls()`-style enumeration, no strict mode."*
+`AtLeast`/`AtMost` were named, but named as one line item in a bundle
+whose real target — per the surrounding rationale ("don't allocate just to
+support `Once()`", "no dictionary... no allocation per call") — was
+argument-aware recording, ordering, and enumeration: capabilities that
+would have required new storage, new generated dispatch code, or a bigger
+verification DSL. `AtLeast`/`AtMost` do not share that cost profile: both
+read the same `observedCount` int `CallVerifier` already receives in its
+constructor (`src/Compono/CallVerifier.cs`) — no new field on
+`ReturnConfig<T>`, no new generated dispatch code, no additional
+`Interlocked` operation, no allocation. This amendment reads Requirement
+3's original rejection as bundled-in-with a much more expensive Option 3
+("a full `Received()`-equivalent"), not as an independent verdict that
+count-range assertions are undesirable on their own terms.
+
+**Decision:** add exactly two new instance methods to `CallVerifier`,
+nothing else:
+
+```csharp
+public readonly struct CallVerifier(int observedCount, string memberDescription)
+{
+    public void Never() => Exactly(0);
+    public void Once() => Exactly(1);
+
+    public void Exactly(int times) { /* unchanged */ }
+
+    public void AtLeast(int times)
+    {
+        if (observedCount < times)
+            throw new TestDoubleVerificationException(
+                $"Expected at least {times} call(s) to {memberDescription}, but received {observedCount}.");
+    }
+
+    public void AtMost(int times)
+    {
+        if (observedCount > times)
+            throw new TestDoubleVerificationException(
+                $"Expected at most {times} call(s) to {memberDescription}, but received {observedCount}.");
+    }
+}
+```
+
+Failure-message wording matches `Exactly`'s existing shape exactly
+("Expected {qualifier} {times} call(s) to {memberDescription}, but
+received {observedCount}."), same `TestDoubleVerificationException` type —
+no new exception type, no message-format drift.
+
+**Explicitly rejected, per RESEARCH-0027 and the explicit instruction not
+to re-enlarge the vocabulary:** `Between(min, max)`, `AtLeastOnce()`,
+`AtMostOnce()`, `Any()`, `None()`. Every one of these is either directly
+derivable from `AtLeast`/`AtMost`/`Never` at the call site
+(`AtLeastOnce()` is `AtLeast(1)`; `Between(a, b)` is two calls or a tiny
+consumer-side helper) or adds a synonym for an existing terminal
+(`Any()`/`None()` duplicate `Never()`'s job under a different name).
+Requirement 3's "one small, concrete... slot, no dictionary" architecture
+stays intact — this amendment completes the lower-bound/upper-bound count
+vocabulary `Exactly` already sits inside, it does not open a general
+verification DSL.
+
+**Negative-count semantics — Option A chosen, no new validation on any
+count-taking method, including the two new ones.** `Exactly(int)` has
+never validated its argument — `Exactly(-1)` today is simply an assertion
+that can never pass (impossible to observe -1 calls), not an
+`ArgumentOutOfRangeException`. Three options were considered:
+
+- **A. No validation on any count-taking method** (chosen) — `AtLeast(-1)`
+  and `AtMost(-1)` behave the same way `Exactly(-1)` already does: a
+  vacuously-true or vacuously-false assertion, never a thrown
+  `ArgumentException`. Preserves `Exactly`'s existing, released, pre-this-
+  amendment behavior exactly, and keeps the three sibling methods
+  behaviorally consistent with each other.
+- **B. Validate only the two new methods.** Rejected: three sibling
+  methods on the same struct with inconsistent argument-validation
+  contracts (two throw `ArgumentOutOfRangeException` up front, one doesn't)
+  is a worse API than either extreme, and gives a consumer no way to guess
+  which is which without reading the source.
+- **C. Validate all three, including changing `Exactly(int)`.** Rejected
+  outright — this is a real post-1.0 behavioral change to already-shipped,
+  released behavior (a call that used to reach the "0 != -1" comparison
+  and throw `TestDoubleVerificationException` would instead throw
+  `ArgumentOutOfRangeException` before ever reaching that comparison), for
+  a case (`Exactly(-1)`) with no evidence anyone relies on either behavior
+  but that this ADR has no license to change silently as a side effect of
+  an unrelated addition.
+
+`AtLeast(0)` is meaningful and well-defined (always passes — every count
+is at least zero) and is not rejected as redundant; it is a legitimate,
+if rarely-needed, no-op-shaped assertion, consistent with not adding
+special-case validation. `AtMost(0)` is behaviorally identical to
+`Never()` (`observedCount > 0` vs. `observedCount != 0` are equivalent
+when `observedCount` can never be negative, which it never can — it's an
+`Interlocked.Increment`-only counter starting at zero) — both are kept:
+`Never()` remains the discoverable, self-documenting spelling for the
+common case, `AtMost(0)` is the mechanical consequence of a general
+upper-bound primitive existing at all, matching this ADR's existing
+"prefer the general primitive, don't special-case away its edge" posture
+elsewhere (e.g. Requirement 1's per-overload identity applies uniformly
+rather than special-casing single-overload members).
+
+**`Compono.Logging` consequence.** `Compono.TestDoubles`'s generated
+`Verify()` extension and `Compono.Http`'s `HttpResponseRegistration.Verify()`
+both return `Compono.CallVerifier` directly today, so both packages gain
+`AtLeast`/`AtMost` automatically the moment this amendment's two methods
+exist — zero code changes in either package. `Compono.Logging` does not:
+`LogVerificationBuilder` (`src/Compono.Logging/LogVerificationBuilder.cs`)
+deliberately keeps `CallVerifier` off its own public surface (per that
+type's doc comment, "`CallVerifier` itself is never part of this type's
+public API") and hand-forwards `Once()`/`Never()`/`Exactly(int)` through
+its private `ToCallVerifier()` bridge. Making `AtLeast`/`AtMost` reach
+`Compono.Logging` consumers requires two mechanical one-line companion
+forwarders on `LogVerificationBuilder`, following the exact pattern its
+existing three terminals already use:
+
+```csharp
+public void AtLeast(int times) => ToCallVerifier().AtLeast(times);
+public void AtMost(int times) => ToCallVerifier().AtMost(times);
+```
+
+This amendment records the consequence and the exact shape of the fix;
+it does not itself amend [ADR-0055](0055-compono-logging-testing-support-package.md)
+(the ADR that owns `LogVerificationBuilder`'s design) — ADR-0055's own
+Decision/Consequences text is not being corrected or reversed by anything
+here, and per this repo's documentation convention, `LogVerificationBuilder`'s
+own doc comment and ADR-0055's cross-referenced current-state docs get
+updated at implementation time, not preemptively by an ADR-0044 amendment
+that isn't ADR-0055's own record.
+
+**Completion criteria for implementation of this amendment** (not
+satisfied by this amendment itself — this is a design decision, not an
+implementation):
+
+- Core `Compono` unit tests for `AtLeast`/`AtMost` (pass/fail boundaries,
+  `AtLeast(0)`, `AtMost(0)` vs. `Never()` equivalence, message wording).
+- `Compono.TestDoubles` and `Compono.Http` usage tests confirming the new
+  methods are reachable with zero package-side code changes (compile-time
+  proof, not just core unit tests).
+- `Compono.Logging`'s two forwarding methods on `LogVerificationBuilder`,
+  plus tests confirming they preserve the existing level/message/property
+  filtering `Once`/`Never`/`Exactly` already apply before delegating.
+- Public API surface diff review (additive-only) and, if this repo runs a
+  public-API-shape verification step, confirmation it passes without
+  requiring a baseline update beyond the addition.
+- Native AOT/trimming smoke coverage exercised the same way `Exactly`
+  already is — no new coverage category, just confirmation the new
+  methods are hit by whatever AOT smoke path already covers `CallVerifier`.
+- `docs/packages/compono-testdoubles.md`, `docs/packages/compono-http.md`,
+  and `docs/packages/compono-logging.md`-equivalent docs (whichever exist)
+  updated to mention `AtLeast`/`AtMost` alongside `Once`/`Never`/`Exactly`.
+- `skills/compono/references/testdoubles.md` (line 362-363: *"Still
+  deliberately minimal — `Never`/`Once`/`Exactly(n)` only, no
+  `AtLeast`/`AtMost`..."*), `skills/compono/references/http.md`, and
+  `skills/compono/references/logging.md` all currently assert or imply
+  `AtLeast`/`AtMost` don't exist — every such claim must be corrected, not
+  left stale, once implemented.
+- `skills/compono/evals/evals.json` reviewed for any eval whose expected
+  output currently asserts `AtLeast`/`AtMost` are unsupported, and updated;
+  new eval(s) added exercising `AtLeast`/`AtMost` usage (at minimum one
+  per package: TestDoubles, Http, Logging) plus the "matching is not
+  capture"-adjacent boundary staying accurate.
+- Because the skill changes, run the established skill-evaluation
+  workflow (snapshot/baseline the pre-change skill, update the skill, run
+  updated-skill evals in a clean context, run baseline-skill evals in a
+  clean context, compare, keep generated eval workspaces out of source
+  control) before treating the skill update as done.
+
+### Links (Amendment 22)
+
+- [RESEARCH-0027](../research/0027-compono-callverifier-atleast-atmost-investigation.md) —
+  the investigation this amendment records the outcome of: original-decision
+  re-reading, cross-package consistency check against real source, and the
+  ADR-mechanism recommendation (amend, don't supersede or leave undocumented)
+  this amendment follows.
+- [RESEARCH-0023](../research/0023-compono-logging-1.1-research.md),
+  [RESEARCH-0024](../research/0024-compono-http-1.1-research.md),
+  [RESEARCH-0025](../research/0025-compono-testdoubles-1.1-research.md) —
+  the three per-package 1.1 research passes that first surfaced
+  `CallVerifier`'s now-cross-package reuse.
+- [ADR-0055](0055-compono-logging-testing-support-package.md) — owns
+  `LogVerificationBuilder`'s design; this amendment's Logging-consequence
+  section records what that ADR's own future update needs to cover, without
+  amending ADR-0055 itself.
+- `src/Compono/CallVerifier.cs`, `src/Compono/ReturnConfig.cs`,
+  `src/Compono.Http/HttpResponseRegistration.cs:56`,
+  `src/Compono.Logging/LogVerificationBuilder.cs` — the real source this
+  amendment's cross-package claims were checked against, not assumed.
