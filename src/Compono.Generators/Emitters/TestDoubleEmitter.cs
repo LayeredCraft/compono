@@ -193,6 +193,8 @@ internal static class TestDoubleEmitter
                     BoxedLocalName = boxedLocalName,
                     EntryClassName = m.EntryClassName,
                     EntriesFieldName = m.EntriesFieldName,
+                    ReceivedCallClassName = m.ReceivedCallClassName,
+                    ReceivedCallRecordParametersText = m.ReceivedCallRecordParametersText,
                     EntryLocalName = entryLocalName,
                     EntryIndexLocalName = entryIndexLocalName,
                     Parameters = m.Parameters

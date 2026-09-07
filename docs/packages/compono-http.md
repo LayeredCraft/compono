@@ -99,7 +99,9 @@ registration.Verify().Once();
     next.
 - **`registration.Verify()`** — returns a `CallVerifier` (the exact type
   core `Compono` already uses elsewhere): `.Never()`, `.Once()`,
-  `.Exactly(n)`. Answers "how many times did *this configured behavior*
+  `.Exactly(n)`, `.AtLeast(n)`, `.AtMost(n)`
+  ([ADR-0044 Amendment 22](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-22-2026-09-06-callverifieratleastintatmostint-added-requirement-3s-minimality-preserved-not-reversed)).
+  Answers "how many times did *this configured behavior*
   match" — kept deliberately separate from `handler.Requests`, which
   answers "what did the system under test actually send."
 - **`handler.Requests: IReadOnlyList<HttpRequestMessage>`** — every request

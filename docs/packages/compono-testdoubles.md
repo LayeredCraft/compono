@@ -19,13 +19,16 @@ dotnet add package Compono.TestDoubles
 [ADR-0042](../adr/0042-compono-owned-source-generated-test-doubles.md)'s
 Non-Goals — but current generated doubles do support `Configure()`,
 `Verify()`, literal equality matching, `Match.Any<T>()`,
-`Match.Is<T>(predicate)`, argument-filtered `Never()`/`Once()`/`Exactly(n)`,
-and multi-entry argument-distinguished response configuration for eligible
-member shapes. Use [`Compono.NSubstitute`](compono-nsubstitute.md) when you
-intentionally want a familiar runtime-proxy substitute or a capability still
-outside generated-double support, such as invocation-aware callbacks, true
-argument capture, call-order verification, or partial/strict substitutes;
-the two packages are not mutually exclusive.
+`Match.Is<T>(predicate)`, argument-filtered
+`Never()`/`Once()`/`Exactly(n)`/`AtLeast(n)`/`AtMost(n)`, retrospective
+call inspection (`ReceivedCalls()`) and whole-double observation reset
+(`ClearCalls()`) for eligible member shapes, invocation-aware callbacks,
+and multi-entry argument-distinguished response configuration. Use
+[`Compono.NSubstitute`](compono-nsubstitute.md) when you intentionally
+want a familiar runtime-proxy substitute or a capability still outside
+generated-double support, such as call-order verification, argument
+capture for an **overloaded** member, or partial/strict substitutes; the
+two packages are not mutually exclusive.
 
 ## Compile-time opt-in
 
@@ -419,7 +422,9 @@ and remains unsupported until a future design addresses it.
 `Verify()` — parallel to and independent from `Configure()` — asserts how
 many times a member was actually called (v2,
 [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
-Requirement 3). `Never()`/`Once()`/`Exactly(n)` only:
+Requirement 3, extended by
+[Amendment 22](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-22-2026-09-06-callverifieratleastintatmostint-added-requirement-3s-minimality-preserved-not-reversed)).
+`Never()`/`Once()`/`Exactly(n)`/`AtLeast(n)`/`AtMost(n)`:
 
 ```csharp
 service.Repository.Configure().CountAsync().Returns(Task.FromResult(5));
@@ -429,6 +434,8 @@ var order = await service.PlaceAsync(3);
 service.Repository.Verify().CountAsync().Once();
 service.Repository.Verify().Save().Once();
 service.Repository.Verify().UtcNow().Never(); // never read in this call path
+service.Repository.Verify().CountAsync().AtLeast(1);
+service.Repository.Verify().CountAsync().AtMost(1);
 ```
 
 A failing assertion throws `Compono.TestDoubleVerificationException` (a
@@ -441,15 +448,164 @@ discriminator mechanism `Configure()` does: `repository.Verify().Speak("x")`
 selects the same overload-specific counter `repository.Configure().Speak("x")`
 would.
 
-**Still deliberately minimal** - `Never`/`Once`/`Exactly(n)` only, no
-`AtLeast`/`AtMost`, no `ReceivedCalls()`-style enumeration, and (see below)
-no call-order verification. Argument-aware recording is available both for
-a non-overloaded eligible member (see "Argument matching and
-argument-filtered verification" below) and, per-overload, via the
-`<Member>Matching` surface ("Overload-safe argument matching" above). If a
-test needs anything else this page doesn't cover (call-order verification,
-`ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for that interface
-instead - the two providers can coexist (see below).
+**Still deliberately minimal, but no longer just `Never`/`Once`/`Exactly(n)`** -
+`AtLeast(n)`/`AtMost(n)` round out the lower-bound/upper-bound count
+vocabulary `Exactly` already sits inside (per Amendment 22, this closes a
+narrow, low-cost gap Requirement 3's original minimality left open - it
+does not reopen a general verification DSL: `Between`, `AtLeastOnce()`,
+`AtMostOnce()`, `Any()`, and `None()` all remain deliberately unsupported,
+each either derivable from the primitives above at the call site or a
+synonym for an existing terminal). Neither method validates its argument
+any differently than `Exactly` already doesn't - `AtLeast(-1)` and
+`AtMost(-1)` behave the same way `Exactly(-1)` always has (a
+vacuously-true or vacuously-false assertion, never a thrown
+`ArgumentException`), and `AtMost(0)` is behaviorally identical to
+`Never()` for the same reason (an observed call count can never be
+negative). Still no call-order verification. Argument-aware recording is
+available both for a non-overloaded eligible member (see "Argument
+matching and argument-filtered verification" below) and, per-overload, via
+the `<Member>Matching` surface ("Overload-safe argument matching" above).
+If a test needs anything else this page doesn't cover (call-order
+verification, `ReturnsForAnyArgs`, etc.), use `Compono.NSubstitute` for
+that interface instead - the two providers can coexist (see below).
+
+## Retrospective call inspection: `ReceivedCalls()`
+
+`ReceivedCalls()` — a third bridge alongside `Configure()`/`Verify()`,
+inspecting rather than arranging or asserting — returns the real argument
+values a member was actually invoked with, for the same eligible-member
+set "Argument matching and argument-filtered verification" below scopes
+`Match<T>`-based matching to (single-overload, no ref-like parameter, no
+real parameter referencing the member's own open generic type parameter,
+no derived-name collision, not a one-parameter `Equals`;
+[ADR-0060](../adr/0060-testdoubles-received-calls-and-clear-calls.md)):
+
+```csharp
+repository.Withdraw("acct-1", 50m, overdraftAllowed: true);
+repository.Withdraw("acct-2", 75m, overdraftAllowed: false);
+
+var calls = repository.ReceivedCalls().Withdraw();
+
+calls.Should().HaveCount(2);
+calls[0].accountId.Should().Be("acct-1");   // a named record, not the internal call log's .Item1
+calls[1].amount.Should().Be(75m);
+```
+
+Each call is exposed as a generated, per-member `readonly record struct`
+with the member's own real parameter names (not `Item1`/`Item2` - the
+internal call log ADR-0048's argument-filtered `Verify()` already
+maintains uses an unnamed tuple, which `ReceivedCalls()` maps into this
+named shape instead of exposing directly). Calls come back in append
+order for sequential invocations; under genuinely concurrent invocations,
+order reflects whichever call acquired the member's internal recording
+lock first - the same ordering guarantee (and lack of a stronger one)
+argument-filtered `Verify()`'s own scan already implicitly relies on.
+`ReceivedCalls().Member()` returns a **snapshot** - a fresh, independent
+copy taken under that same lock at the moment it's called, never a live
+view. A later invocation never retroactively changes an
+already-returned snapshot:
+
+```csharp
+repository.Withdraw("acct-1", 10m, overdraftAllowed: false);
+var firstSnapshot = repository.ReceivedCalls().Withdraw();
+
+repository.Withdraw("acct-2", 20m, overdraftAllowed: true);
+
+firstSnapshot.Count.Should().Be(1); // unaffected by the second call
+```
+
+**Capture semantics: no deep copy, ordinary C# value/reference semantics.**
+A reference-type argument (a class, an array, a mutable collection) is
+retained by the *same reference* the caller passed - if the caller mutates
+that object after the call returns, a later `ReceivedCalls()` inspection
+observes the mutation, not a snapshot from invocation time:
+
+```csharp
+var record = new MutableRecord { Value = 1 };
+archiver.Archive(record);
+record.Value = 2; // mutated AFTER the call
+
+archiver.ReceivedCalls().Archive()[0].record.Value.Should().Be(2); // observes the mutation
+```
+
+This is a real, documented footgun for a mutable argument, not a bug -
+consistent with NSubstitute's own identical `Received()`/argument-capture
+behavior, which most migrating consumers already have the right intuition
+for. A value-type argument (`int`, `decimal`, a `struct`) is an ordinary
+value copy, unaffected by anything the caller does with its own local
+variable afterward.
+
+**What stays unsupported.** `ReceivedCalls()` uses exactly ADR-0048's
+eligible-member set, unchanged - an **overloaded** member has no
+`ReceivedCalls()` surface, even though it may have a `<Member>Matching`
+argument-matching surface (see "Overload-safe argument matching" above).
+There's no call-order verification, no strict/unexpected-call mode, no
+invocation timestamps, no global sequence IDs, and no bounded/ring-buffer
+history or capture cap - a long-running double that accumulates many
+calls keeps them all until `ClearCalls()` (below) or the double itself is
+discarded.
+
+## Resetting observation history: `ClearCalls()`
+
+`ClearCalls()` resets a double's *observation* history - every member's
+call count and every eligible member's captured-argument history - while
+leaving every *configured* behavior untouched:
+
+```csharp
+repository.Configure().Withdraw().Returns(true);
+repository.Withdraw("acct-1", 10m, overdraftAllowed: false);
+
+repository.ClearCalls();
+
+repository.Verify().Withdraw().Never();               // observation reset
+repository.ReceivedCalls().Withdraw().Should().BeEmpty();
+repository.Withdraw("acct-2", 20m, overdraftAllowed: false).Should().BeTrue(); // configuration preserved
+```
+
+It's a direct, **whole-double** operation - `repository.ClearCalls()`, not
+`repository.Verify().ClearCalls()` or `repository.ReceivedCalls().Clear()`
+(both would blur "assert"/"inspect" with "mutate") and not a per-member
+`ClearCalls()` (no evidenced scenario needs selectively forgetting one
+member's history while keeping another's - the realistic use case is
+resetting a *whole* shared double between phases of one test). Every
+generated member is cleared, including one outside the `ReceivedCalls()`-
+eligible set (a member with no argument-aware history still has a call
+count worth resetting).
+
+**Preserved, not cleared:** `Returns`/`Throws`/`ReturnsCallback`-configured
+behavior, a configured `ReturnsSequence`, [multi-entry](#multiple-response-configurations-per-member)
+argument-matched configuration, and
+[closed-instantiation](#per-closed-instantiation-configuration-for-self-referencing-generic-returns)
+per-`T` configuration all survive `ClearCalls()` unchanged.
+
+**A configured sequence's progress does not rewind.** This is the one
+case worth calling out explicitly, since it's easy to assume otherwise:
+
+```csharp
+repository.Configure().Withdraw().ReturnsSequence("A", "B", "C");
+
+repository.Withdraw(/* ... */); // "A"
+repository.Withdraw(/* ... */); // "B"
+
+repository.ClearCalls();
+
+repository.Withdraw(/* ... */); // "C" - not "A"
+```
+
+A sequence's in-progress ordinal is *configured-behavior progress* (the
+same category as "what value will `Returns` produce next"), not
+observation history - `ClearCalls()` only ever resets state whose sole
+purpose is recording what already happened, never state that decides what
+happens next. Rewinding it would silently re-run part of a sequence a
+test already exercised and moved past, a stronger and more surprising
+side effect than a call-history reset should ever have.
+
+`ClearCalls()` is also a real memory-release operation, not merely a
+logical reset: once cleared, any argument references an eligible member's
+captured-call history held (per the reference-retention semantics above)
+become eligible for garbage collection, which matters for a long-lived
+shared double that has captured many large or mutable arguments across a
+long-running test fixture.
 
 ## Argument matching and argument-filtered verification
 
@@ -795,11 +951,19 @@ concrete implementation is fully supported; see "Static abstract members
 inherited from a base interface" above
 ([ADR-0046](../adr/0046-static-abstract-member-conformance-only-generation.md)).
 Overloaded members, a `ref`/`out`/`in` parameter's own overload, generic
-methods independent of their own type parameter, and minimal call
-verification (`Never`/`Once`/`Exactly(n)`) are now supported (see above,
+methods independent of their own type parameter, and call verification
+(`Never`/`Once`/`Exactly(n)`/`AtLeast(n)`/`AtMost(n)`) are now supported
+(see above,
 [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)).
-An unsupported member shape is a compile-time diagnostic
-(`CMP0020`-`CMP0032`), not a silent gap.
+Retrospective call inspection (`ReceivedCalls()`) and whole-double
+observation reset (`ClearCalls()`) are now supported for the same
+eligible-member set argument-filtered `Verify()` already targets — see
+"Retrospective call inspection" and "Resetting observation history" above
+([ADR-0060](../adr/0060-testdoubles-received-calls-and-clear-calls.md)) —
+but **not** for an overloaded member, even one with its own
+`<Member>Matching` argument-matching surface; that expansion is real,
+plausible future work, not resolved here. An unsupported member shape is a
+compile-time diagnostic (`CMP0020`-`CMP0032`), not a silent gap.
 
 ## Next
 
@@ -809,5 +973,5 @@ An unsupported member shape is a compile-time diagnostic
   provider sits in the resolution pipeline.
 - [`Compono.NSubstitute`](compono-nsubstitute.md) — the runtime-proxy
   alternative, for capabilities still outside generated-double support
-  (for example invocation-aware callbacks, true argument capture,
-  call-order verification, or partial/strict substitutes).
+  (for example call-order verification, argument capture for an
+  overloaded member, or partial/strict substitutes).

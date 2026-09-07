@@ -83,6 +83,16 @@ public struct ReturnConfig<T>
     }
 
     /// <summary>
+    /// Clears the recorded call count without changing the configured value, exception, or sequence -
+    /// the mirror of <see cref="ClearConfiguredResponse"/>. Backs <c>ClearCalls()</c> (PLAN-0063/
+    /// ADR-0060): observation history is reset, configured behavior (including in-progress
+    /// <see cref="SequenceOrdinal"/> progress) is untouched, so a subsequent call resumes the
+    /// sequence rather than rewinding it.
+    /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public void ClearObservedCalls() => System.Threading.Interlocked.Exchange(ref CallCount, 0);
+
+    /// <summary>
     /// Consumes and returns (or throws) the next outcome in the configured sequence, by invocation
     /// ordinal - the first call gets index 0, the second index 1, and so on. Only meaningful when
     /// <see cref="HasConfiguredSequence"/> is <see langword="true"/>. Once the sequence is exhausted,

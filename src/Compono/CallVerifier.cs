@@ -31,4 +31,30 @@ public readonly struct CallVerifier(int observedCount, string memberDescription)
                 $"Expected exactly {times} call(s) to {memberDescription}, but received {observedCount}.");
         }
     }
+
+    /// <summary>Asserts the member was called at least <paramref name="times"/> times.</summary>
+    /// <exception cref="TestDoubleVerificationException">
+    /// The member was called fewer than <paramref name="times"/> times.
+    /// </exception>
+    public void AtLeast(int times)
+    {
+        if (observedCount < times)
+        {
+            throw new TestDoubleVerificationException(
+                $"Expected at least {times} call(s) to {memberDescription}, but received {observedCount}.");
+        }
+    }
+
+    /// <summary>Asserts the member was called at most <paramref name="times"/> times.</summary>
+    /// <exception cref="TestDoubleVerificationException">
+    /// The member was called more than <paramref name="times"/> times.
+    /// </exception>
+    public void AtMost(int times)
+    {
+        if (observedCount > times)
+        {
+            throw new TestDoubleVerificationException(
+                $"Expected at most {times} call(s) to {memberDescription}, but received {observedCount}.");
+        }
+    }
 }

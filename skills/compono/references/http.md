@@ -70,7 +70,7 @@ a v1-only limitation that might later be lifted.
   ```csharp
   var registration = handler.OnPost("/v1/orders").RespondJson(order);
   ...
-  registration.Verify().Once();   // .Never() / .Exactly(n) also available
+  registration.Verify().Once();   // .Never() / .Exactly(n) / .AtLeast(n) / .AtMost(n) also available
   ```
 
 ## Matching semantics
@@ -99,9 +99,9 @@ unmatched request still appears in `handler.Requests`.
 
 Two different questions, two different APIs — never conflate them:
 
-- `registration.Verify().Once()` / `.Never()` / `.Exactly(n)` — "how many
-  times did *this configured behavior* match." Reuses core `Compono`'s
-  `CallVerifier` unchanged.
+- `registration.Verify().Once()` / `.Never()` / `.Exactly(n)` /
+  `.AtLeast(n)` / `.AtMost(n)` — "how many times did *this configured
+  behavior* match." Reuses core `Compono`'s `CallVerifier` unchanged.
 - `handler.Requests` (`IReadOnlyList<HttpRequestMessage>`) — "what did the
   system under test actually send," every request in arrival order,
   matched or not, snapshotted fresh on every access.

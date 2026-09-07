@@ -246,6 +246,51 @@ internal static class Program
                 .Once();
             accountRepository.Verify().Withdraw().Exactly(4);
 
+            // PLAN-0063/ADR-0044 Amendment 22: CallVerifier.AtLeast/AtMost, reachable through the
+            // generated Verify() bridge with no package-side code changes, under Native AOT.
+            accountRepository.Verify().Withdraw().AtLeast(4);
+            accountRepository.Verify().Withdraw().AtMost(4);
+
+            var atLeastShouldFail = true;
+            try
+            {
+                accountRepository.Verify().Withdraw().AtLeast(5);
+                atLeastShouldFail = false;
+            }
+            catch (TestDoubleVerificationException)
+            {
+                // expected
+            }
+
+            if (!atLeastShouldFail)
+                throw new InvalidOperationException("Expected AtLeast(5) to throw when only 4 calls were observed.");
+
+            // PLAN-0063/ADR-0060: ReceivedCalls() - retrospective, snapshot-based call inspection,
+            // under Native AOT (no reflection, no dynamic code generation).
+            var receivedWithdrawCalls = accountRepository.ReceivedCalls().Withdraw();
+
+            if (receivedWithdrawCalls.Count != 4)
+                throw new InvalidOperationException($"Expected 4 received Withdraw() calls, got {receivedWithdrawCalls.Count}.");
+
+            if (receivedWithdrawCalls[0].accountId != "acct-1")
+                throw new InvalidOperationException("Expected the first received call's accountId to be 'acct-1'.");
+
+            // PLAN-0063/ADR-0060: ClearCalls() - whole-double observation reset, preserving configured
+            // behavior, under Native AOT.
+            accountRepository.ClearCalls();
+
+            accountRepository.Verify().Withdraw().Never();
+
+            if (accountRepository.ReceivedCalls().Withdraw().Count != 0)
+                throw new InvalidOperationException("Expected ReceivedCalls() to be empty immediately after ClearCalls().");
+
+            var postClearCall = accountRepository.Withdraw("acct-1", 1m, overdraftAllowed: true);
+
+            if (!postClearCall)
+                throw new InvalidOperationException("Expected ClearCalls() to preserve the configured Match.Is<bool> entry for acct-1.");
+
+            accountRepository.Verify().Withdraw().Once();
+
             // ADR-0053: the generated strongly typed callback delegate and member-specific builder
             // survive trimming/AOT and receive the invocation's real arguments.
             accountRepository.Configure()
@@ -385,6 +430,18 @@ internal static class Program
                 throw new InvalidOperationException(
                     $"Expected independent per-entry sequence ordinals (false,true / true,false), got " +
                     $"({seq1First},{seq2First},{seq1Second},{seq2Second}).");
+
+            // PLAN-0063/ADR-0060: ClearCalls() must never rewind a configured sequence's ordinal,
+            // under Native AOT - acct-seq-1's sequence (false, true) has already been fully consumed
+            // above; after ClearCalls(), the next call must repeat the final outcome (true, per
+            // ADR-0054's exhaustion semantics), not rewind to the first (false).
+            accountRepository.ClearCalls();
+            var seq1AfterClear = accountRepository.Withdraw("acct-seq-1", 1m, true);
+
+            if (!seq1AfterClear)
+                throw new InvalidOperationException(
+                    "Expected ClearCalls() to leave the acct-seq-1 sequence ordinal exhausted at its " +
+                    "final (true) outcome, not rewind it back to the first (false) outcome.");
 
             // ADR-0044 Amendment 21: overload-safe argument matching under Native AOT - coexistence/
             // precedence (a broad discriminator-only Configure() registered first, a narrower

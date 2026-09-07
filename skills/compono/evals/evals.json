@@ -416,13 +416,14 @@
       "id": 30,
       "category": "behavioral-correctness",
       "prompt": "I'm reviewing a Compono.TestDoubles migration in AWS Secrets Manager Provider. The old tests are full of NSubstitute vocabulary: Arg.Is, Arg.Any, Received(1), Received(2), and DidNotReceive. The project intentionally removed NSubstitute and Compono.NSubstitute; it now references Compono.XunitV3 and Compono.TestDoubles with generated doubles enabled. Should I write recording fakes for IAmazonSecretsManager, IConfigurationBuilder, and ILoggerFactory because the old tests used those NSubstitute APIs? Assume the members being migrated are eligible non-overloaded interface members.",
-      "expected_output": "Says no: NSubstitute vocabulary alone is not evidence a fake is required. Translates Arg.Is<T> -> Match.Is<T>, Arg.Any<T> -> Match.Any<T>, Received(1) -> Verify().Member(...).Once(), Received(n) -> Verify().Member(...).Exactly(n), and DidNotReceive() -> Verify().Member(...).Never() for eligible TestDoubles members. Recommends local fakes only for actual unsupported boundaries such as capture/callback/call order, not for ordinary matching/filtering.",
+      "expected_output": "Says no: NSubstitute vocabulary alone is not evidence a fake is required. Translates Arg.Is<T> -> Match.Is<T>, Arg.Any<T> -> Match.Any<T>, Received(1) -> Verify().Member(...).Once(), Received(n) -> Verify().Member(...).Exactly(n), DidNotReceive() -> Verify().Member(...).Never(), and .ReceivedCalls() (the capture property) -> .ReceivedCalls().Member() for eligible TestDoubles members. Recommends local fakes only for actual unsupported boundaries such as call-order verification or capture on an overloaded member, not for ordinary matching/filtering/retrospective inspection of an eligible member's real arguments.",
       "files": [],
       "expectations": [
-        "Explicitly rejects writing recording fakes solely because the original tests use Arg.Is/Arg.Any/Received/DidNotReceive",
+        "Explicitly rejects writing recording fakes solely because the original tests use Arg.Is/Arg.Any/Received/DidNotReceive/ReceivedCalls",
         "Maps Arg.Is<T> to Match.Is<T> and Arg.Any<T> to Match.Any<T>",
         "Maps Received(1) to Verify().Once(), Received(n) to Verify().Exactly(n), and DidNotReceive() to Verify().Never() where the member shape is eligible",
-        "Distinguishes ordinary matching/filtering from actual unsupported boundaries such as capture, callbacks, and call-order verification"
+        "Maps NSubstitute's ReceivedCalls() capture property to Compono.TestDoubles' ReceivedCalls().Member() for an eligible (non-overloaded) member, rather than claiming capture is unsupported",
+        "Distinguishes ordinary matching/filtering/capture (all supported for eligible members) from actual unsupported boundaries such as call-order verification or ReceivedCalls() on an overloaded member"
       ]
     },
     {
@@ -564,6 +565,84 @@
         "States that GetData/registration factories may run more than once across MSTest discovery and execution sessions, and that Compono makes no exactly-once guarantee for Register<T>()/ICompositionValueProvider factories",
         "Does not claim or imply Compono.MSTest ships an exactly-once composition guarantee",
         "Does not invent a workaround (custom caching, a static exactly-once flag) to force single invocation - correctly identifies this as an MSTest-runner-lifecycle property, not something to engineer around"
+      ]
+    },
+    {
+      "id": 47,
+      "category": "behavioral-correctness",
+      "prompt": "This IAccountRepository.Withdraw(string accountId, decimal amount, bool overdraftAllowed) member is a Compono.TestDoubles-generated double, non-overloaded and otherwise eligible. My test calls it several times with different arguments and I need to assert it was called at least twice, and separately that it was called at most three times. What's the idiomatic way to do this with Compono.TestDoubles?",
+      "expected_output": "Recommends repository.Verify().Withdraw(...).AtLeast(2) and repository.Verify().Withdraw(...).AtMost(3), the same CallVerifier terminals used for Once()/Never()/Exactly(n), not a hand-rolled count comparison against a captured call list.",
+      "files": [],
+      "expectations": [
+        "Uses Verify().Member(...).AtLeast(n) for a lower-bound count assertion",
+        "Uses Verify().Member(...).AtMost(n) for an upper-bound count assertion",
+        "Does not invent a Between(...)/AtLeastOnce()/AtMostOnce() method - none of these exist on CallVerifier",
+        "Does not fall back to manually counting ReceivedCalls().Member() entries when AtLeast/AtMost already does the job"
+      ]
+    },
+    {
+      "id": 48,
+      "category": "behavioral-correctness",
+      "prompt": "I have a Compono.TestDoubles generated double for IAccountRepository (non-overloaded, eligible Withdraw(string, decimal, bool) member). After exercising the system under test, I want to inspect the actual accountId and amount values Withdraw() was called with, not just how many times it was called. Is there a way to do this without writing a hand-rolled recording fake?",
+      "expected_output": "Recommends repository.ReceivedCalls().Withdraw(), which returns a strongly typed, generated record per call with the real parameter names (accountId, amount, overdraftAllowed), not a positional tuple. Explains it's a snapshot taken at call time, and that this only works because Withdraw is a non-overloaded, ADR-0048-eligible member.",
+      "files": [],
+      "expectations": [
+        "Recommends ReceivedCalls().Member() rather than a hand-written recording fake",
+        "States the returned type is a generated record with real parameter names, not Item1/Item2 or an untyped tuple",
+        "Mentions or implies this is a snapshot, not a live view over ongoing calls",
+        "Does not claim this works for every member unconditionally - ties it to the same eligibility rules as argument-filtered Verify()"
+      ]
+    },
+    {
+      "id": 49,
+      "category": "behavioral-correctness",
+      "prompt": "I called repository.Save(order) twice in my test, mutated the same `order` object between the two calls, and then inspected repository.ReceivedCalls().Save(). Both captured entries show the object's final, post-mutation state instead of what it looked like at each call. Is this a bug in Compono.TestDoubles?",
+      "expected_output": "Explains this is expected, documented behavior, not a bug: ReceivedCalls() retains the same reference the caller passed for a reference-type argument, with no deep copy - mutating the object after a call is observed by later inspection of that same captured entry. Compares this to NSubstitute's own identical reference-retention behavior for received-call arguments, and recommends passing a defensive copy at the call site (or capturing the state needed before mutating) if the test needs the value as of the call, not the current value.",
+      "files": [],
+      "expectations": [
+        "States this is expected behavior per ADR-0060, not a defect",
+        "Explains ReceivedCalls() stores a reference for reference-type arguments, not a deep copy",
+        "Does not suggest Compono.TestDoubles is broken or file a bug",
+        "Offers a concrete fix (pass a copy, or capture needed state before mutating) rather than just describing the limitation"
+      ]
+    },
+    {
+      "id": 50,
+      "category": "behavioral-correctness",
+      "prompt": "I share one Compono.TestDoubles generated double instance across two phases of the same test - configure it, exercise phase 1, verify phase 1's calls, then I want to exercise phase 2 and verify phase 2's calls independently, without phase 1's calls still counting. The double's configured Returns()/ReturnsSequence() behavior should still apply in phase 2. What should I use?",
+      "expected_output": "Recommends repository.ClearCalls() between the two phases - a direct, whole-double operation (not repository.Verify().ClearCalls() or repository.ReceivedCalls().Clear()) that resets every member's call count and captured-argument history while leaving all configured behavior (Returns/Throws/ReturnsCallback/ReturnsSequence, multi-entry and closed-instantiation configuration) untouched.",
+      "files": [],
+      "expectations": [
+        "Recommends repository.ClearCalls() as a direct call on the double itself",
+        "Does not suggest Verify().ClearCalls() or ReceivedCalls().Clear() as the receiver",
+        "States that configured behavior (Returns/Throws/ReturnsSequence/etc.) survives ClearCalls()",
+        "Does not suggest creating a second double instance or re-composing as the only way to reset observation history"
+      ]
+    },
+    {
+      "id": 51,
+      "category": "behavioral-correctness",
+      "prompt": "A Compono.TestDoubles member is configured with Configure().NextValue().ReturnsSequence(\"A\", \"B\", \"C\"). I call it twice (getting \"A\" then \"B\"), then call repository.ClearCalls(), then call it a third time. Which value do I get: \"A\" again, or \"C\"?",
+      "expected_output": "\"C\" - ClearCalls() only resets observation history (call counts, captured-argument history), never a configured sequence's in-progress ordinal. The ordinal is configured-behavior progress (the same category as 'what value Returns produces next'), not a record of what already happened, so it never rewinds.",
+      "files": [],
+      "expectations": [
+        "Answers \"C\", not \"A\"",
+        "Explains that ClearCalls() does not rewind a configured ReturnsSequence's ordinal",
+        "Frames the ordinal as configured-behavior progress, not observation history",
+        "Does not claim ClearCalls() is equivalent to fully resetting/recomposing the double"
+      ]
+    },
+    {
+      "id": 52,
+      "category": "behavioral-correctness",
+      "prompt": "IGateway has two overloads of Send: Send(string message) and Send(int retryCount, string message). Both are Compono.TestDoubles generated-double members with an existing <Member>Matching argument-matching surface (ADR-0044 Amendment 21). Can I call repository.ReceivedCalls().Send(...) to inspect the actual arguments each overload received?",
+      "expected_output": "No - ReceivedCalls() is scoped to exactly ADR-0048's non-overloaded eligible-member set for this release; an overloaded member (even one with its own <Member>Matching argument-matching surface) has no ReceivedCalls() surface. Recommends Verify()'s existing per-overload count/argument-matching surface for assertions, or Compono.NSubstitute/a project-local fake if retrospective capture of an overloaded member's arguments is genuinely required.",
+      "files": [],
+      "expectations": [
+        "States that ReceivedCalls() does not support overloaded members, even with an existing <Member>Matching surface",
+        "Does not fabricate a ReceivedCalls() overload-disambiguation API that doesn't exist",
+        "Points to Verify()'s existing overload-safe argument-matching surface for what IS supported",
+        "Suggests Compono.NSubstitute or a project-local fake as the real answer if capture on the overloaded member is required"
       ]
     }
   ]

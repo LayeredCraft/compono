@@ -102,7 +102,10 @@ discovered.
   explicitly considered and rejected):
   `.AtLevel(level)`, `.WithEventId(id)`, `.WithException<TException>()`,
   `.WithMessageContaining(text)`, `.Matching(predicate)`, ending in
-  `.Once()` / `.Never()` / `.Exactly(n)`.
+  `.Once()` / `.Never()` / `.Exactly(n)` / `.AtLeast(n)` / `.AtMost(n)` —
+  each a thin forward through the same shared count-verification semantics
+  `Compono.TestDoubles`/`Compono.Http` use, applied to the filtered match
+  count, not the whole capture buffer.
 - `new CapturingLogger<T>(options?)` / `new CapturingLogger(options?)` —
   direct construction, no composition required, identical behavior to a
   provider-composed instance.

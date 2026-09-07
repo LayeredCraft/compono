@@ -305,6 +305,66 @@ internal sealed record TestDoubleMemberInfo(
     /// </summary>
     public string EntriesFieldName => $"{FieldName}_entries";
 
+    /// <summary>
+    /// PLAN-0063/ADR-0060: the generated <c>readonly record struct</c> name backing this
+    /// <see cref="IsEligibleForMatching"/> member's <c>ReceivedCalls()</c> retrospective-inspection
+    /// surface - a named, per-parameter-typed snapshot of one entry from the existing
+    /// <c>{FieldName}_calls</c> list (ADR-0048), reusing <see cref="FieldName"/>'s own already-proven
+    /// uniqueness (the same guarantee <see cref="EntryClassName"/> relies on) rather than introducing
+    /// a new collision-detection pass. Reserved in <c>TestDoubleAnalyzer</c>'s derived-name collision
+    /// pool alongside <see cref="EntryClassName"/>. Never populated for an overload-matching-eligible
+    /// member (<see cref="IsOverloadMatchingEligible"/>) - `ReceivedCalls()` is scoped to exactly
+    /// ADR-0048's non-overloaded eligible-member set for 1.1 (ADR-0060, "Considered Options —
+    /// eligibility scope").
+    /// </summary>
+    public string ReceivedCallClassName => $"{FieldName}_ReceivedCall";
+
+    /// <summary>
+    /// PLAN-0063/ADR-0060 (Codex review, PR #134 round 2): the identifier each parameter's generated
+    /// <see cref="ReceivedCallClassName"/> positional record property uses, positionally aligned with
+    /// <see cref="Parameters"/> - normally just that parameter's own <see cref="TestDoubleParameterInfo.EscapedName"/>,
+    /// except for the one real parameter (at most one - the compiler already guarantees two real
+    /// parameters can never share a name) literally named the same as the record's own type, which
+    /// would otherwise produce a positional property sharing its enclosing type's name (CS0542). That
+    /// one parameter is renamed by appending "_Value", then "_Value2", "_Value3", ... until the
+    /// candidate is free of every OTHER real parameter's own name too - round 1's naive unconditional
+    /// "_Value" suffix collided with a second real parameter already literally named that
+    /// (`Foo(int __Foo_ReceivedCall, int __Foo_ReceivedCall_Value)`), a real fixture-catchable bug
+    /// caught by Codex review round 2, not merely a hypothetical.
+    /// </summary>
+    /// <remarks>
+    /// Rendered here as one ready-to-splice, comma-joined parameter-declaration string (not exposed
+    /// as a positionally-indexed list) - Scriban's default reflection-based object binding doesn't
+    /// support indexer access into a plain .NET array/list from template code
+    /// (<c>member.some_list[for.index]</c> resolves to <see langword="null"/>, confirmed directly),
+    /// and this repo's other templates never rely on that either (only ever <c>for.index</c> as a
+    /// plain value, e.g. <c>CompositionPlan.scriban</c>'s constructor-parameter descriptors).
+    /// </remarks>
+    public string ReceivedCallRecordParametersText
+    {
+        get
+        {
+            var names = Parameters.Select(p => p.EscapedName).ToArray();
+            var reserved = new HashSet<string>(names, StringComparer.Ordinal);
+
+            for (var i = 0; i < names.Length; i++)
+            {
+                if (names[i] != ReceivedCallClassName)
+                    continue;
+
+                var candidate = $"{names[i]}_Value";
+                var disambiguator = 2;
+                while (reserved.Contains(candidate))
+                    candidate = $"{names[i]}_Value{disambiguator++}";
+
+                reserved.Add(candidate);
+                names[i] = candidate;
+            }
+
+            return string.Join(", ", names.Select((name, i) => $"{Parameters[i].FullyQualifiedTypeName} {name}"));
+        }
+    }
+
     /// <summary>The generated strongly typed invocation-callback delegate name (ADR-0053).</summary>
     public string CallbackDelegateName => $"{FieldName}{CallbackNameSuffix}_Callback";
 
