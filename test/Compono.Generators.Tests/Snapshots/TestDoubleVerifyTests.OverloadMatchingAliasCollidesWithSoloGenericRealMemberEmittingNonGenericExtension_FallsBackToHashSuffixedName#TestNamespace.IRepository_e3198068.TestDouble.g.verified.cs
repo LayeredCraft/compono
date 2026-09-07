@@ -98,9 +98,12 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     // A parameter literally named the same as this record's own type (e.g. a real member
     // `Foo(int __Foo_ReceivedCall)`) would otherwise produce a positional property with the same
     // name as its enclosing type - CS0542 - since a record's declared parameter name IS its public
-    // property name; suffixed with "_Value" in that one case (Codex review, PR #134). Two real
-    // parameters can never already share a name (the compiler already guarantees that for the real
-    // member this record mirrors), so at most one parameter in this list ever needs the suffix.
+    // property name. member.received_call_record_parameters_text (TestDoubleMemberInfo.ReceivedCallRecordParametersText)
+    // renames just that one parameter to a name guaranteed free of every OTHER real parameter's own
+    // name too, not merely an unconditional "_Value" suffix - Codex review, PR #134 round 2 caught a
+    // real fixture where the unconditional suffix collided with an actual second parameter already
+    // named that (`Foo(int __Foo_ReceivedCall, int __Foo_ReceivedCall_Value)`). Rendered fully in C#
+    // rather than as an indexed Scriban loop - see the property's own remarks for why.
     internal readonly record struct __FooMatching_ReceivedCall(int value);
 
     bool global::TestNamespace.IRepository.Foo(int id)

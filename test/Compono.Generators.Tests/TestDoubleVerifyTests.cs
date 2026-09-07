@@ -1281,6 +1281,38 @@ public sealed class TestDoubleVerifyTests
             },
             TestContext.Current.CancellationToken);
 
+    // PLAN-0063/ADR-0060 (Codex review, PR #134 round 2): fresh evidence for the fix above - a real
+    // SECOND parameter already literally named the naive "_Value"-suffixed candidate
+    // (__Foo_ReceivedCall_Value) makes an unconditional rename collide with it too, producing a
+    // duplicate positional property. The generated record must pick a name free of every real
+    // parameter, not just the one it's renaming - here that means "__Foo_ReceivedCall_Value2".
+    [Fact]
+    public Task ReceivedCallRecordParameterNameCollidesWithBothRecordTypeAndItsNaiveRenameCandidate_ConsumerCompiles() =>
+        GeneratorTestHelpers.Verify(
+            new CodeGenerationOptions
+            {
+                SourceCode = """
+                    namespace TestNamespace;
+
+                    public interface IRepository
+                    {
+                        int Foo(int __Foo_ReceivedCall, int __Foo_ReceivedCall_Value);
+                    }
+
+                    public sealed class OrderService
+                    {
+                        public OrderService(IRepository repository) { }
+                    }
+
+                    public static class EntryPoint
+                    {
+                        public static void Run() => Compono.Composer.Create().Create<TestNamespace.OrderService>();
+                    }
+                    """,
+                MSBuildProperties = new Dictionary<string, string> { ["ComponoGeneratedTestDoubles"] = "true" },
+            },
+            TestContext.Current.CancellationToken);
+
     [Fact]
     public Task NullableReferenceReturnAndParameter_PreservesAnnotationInGeneratedCode() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions

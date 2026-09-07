@@ -14,22 +14,62 @@ internal interface TestNamespace_IRepository_e3198068_IClearableCallState
 [global::System.CodeDom.Compiler.GeneratedCode("Compono.Generators", "REPLACED")]
 internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNamespace.IRepository
 {
-    // ADR-0050: multi-entry response configuration - replaces the single
-    // __Seek/__Seek_m_{param} shape with an ordered, append-only
-    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
-    internal sealed class __Seek_Entry
+    internal delegate int __Foo_Callback(int __Foo_ReceivedCall, int __Foo_ReceivedCall_Value);
+
+    internal readonly ref struct __Foo_Builder
     {
-        internal global::Compono.Match<int>? Matcher_value;
-        internal global::Compono.ReturnConfig<global::Compono.Unit> Config;
+        private readonly ref global::Compono.ReturnConfig<int> _config;
+        private readonly ref __Foo_Callback? _callback;
+
+        internal __Foo_Builder(ref global::Compono.ReturnConfig<int> config, ref __Foo_Callback? callback)
+        {
+            _config = ref config;
+            _callback = ref callback;
+        }
+
+        public void Returns(int value)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int>(ref _config).Returns(value);
+        }
+
+        public void Throws(global::System.Exception exception)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int>(ref _config).Throws(exception);
+        }
+
+        public void ReturnsSequence(params global::Compono.SequenceOutcome<int>[] outcomes)
+        {
+            _callback = null;
+            new global::Compono.ReturnConfigBuilder<int>(ref _config).ReturnsSequence(outcomes);
+        }
+
+        public void ReturnsCallback(__Foo_Callback callback)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(callback);
+            _config.ClearConfiguredResponse();
+            _callback = callback;
+        }
+    }
+    // ADR-0050: multi-entry response configuration - replaces the single
+    // __Foo/__Foo_m_{param} shape with an ordered, append-only
+    // entry list. Configure() appends; dispatch scans in reverse (last-matching-registration-wins).
+    internal sealed class __Foo_Entry
+    {
+        internal global::Compono.Match<int>? Matcher___Foo_ReceivedCall;
+        internal global::Compono.Match<int>? Matcher___Foo_ReceivedCall_Value;
+        internal global::Compono.ReturnConfig<int> Config;
+        internal __Foo_Callback? Callback;
     }
 
-    internal readonly global::System.Collections.Generic.List<__Seek_Entry> __Seek_entries = [];
-    internal readonly global::System.Collections.Generic.List<int> __Seek_calls = [];
-    internal readonly object __Seek_lock = new();
+    internal readonly global::System.Collections.Generic.List<__Foo_Entry> __Foo_entries = [];
+    internal readonly global::System.Collections.Generic.List<(int, int)> __Foo_calls = [];
+    internal readonly object __Foo_lock = new();
 
     // PLAN-0063/ADR-0060: named snapshot record backing ReceivedCalls() for this eligible member -
     // one field per real parameter, real parameter names (not the positional "Item1"/"Item2" the
-    // internal __Seek_calls tuple above uses for its own, unrelated, internal-only
+    // internal __Foo_calls tuple above uses for its own, unrelated, internal-only
     // matching purpose). Not emitted for an overload-matching-eligible member - ReceivedCalls() is
     // scoped to exactly ADR-0048's non-overloaded eligible-member set for 1.1.
     // A parameter literally named the same as this record's own type (e.g. a real member
@@ -41,63 +81,63 @@ internal sealed class TestNamespace_IRepository_e3198068_Double : global::TestNa
     // real fixture where the unconditional suffix collided with an actual second parameter already
     // named that (`Foo(int __Foo_ReceivedCall, int __Foo_ReceivedCall_Value)`). Rendered fully in C#
     // rather than as an indexed Scriban loop - see the property's own remarks for why.
-    internal readonly record struct __Seek_ReceivedCall(int value);
+    internal readonly record struct __Foo_ReceivedCall(int __Foo_ReceivedCall_Value2, int __Foo_ReceivedCall_Value);
 
-    void global::TestNamespace.IRepository.Seek([global::System.Diagnostics.CodeAnalysis.UnscopedRef] out int value)
+    int global::TestNamespace.IRepository.Foo(int __Foo_ReceivedCall, int __Foo_ReceivedCall_Value)
     {
-        value = default;
-    }
-
-    void global::TestNamespace.IRepository.Seek(int value)
-    {
-        // ADR-0050 (extended to overloaded members by ADR-0044 Amendment 21 / PLAN-0054 Phase 2):
-        // reverse-scan the ordered entry list - last matching registration wins. Both the call-log
-        // append and the full scan stay under the SAME lock acquisition as Configure()'s Add()
-        // (Codex review, PR #108 round 5) - the prior split-lock shape (a short lock around
-        // _calls.Add() only, then an unlocked scan) let a concurrent Configure() call mutate
-        // List<T>'s backing array while dispatch was still iterating it.
-        lock (__Seek_lock)
+        __Foo_Callback? __callback = null;
+        // ADR-0050: reverse-scan the ordered entry list - last matching registration wins. Both
+        // the call-log append and the full scan stay under the SAME lock acquisition as
+        // Configure()'s Add() (Codex review, PR #108 round 5) - the prior split-lock shape (a
+        // short lock around _calls.Add() only, then an unlocked scan) let a concurrent Configure()
+        // call mutate List<T>'s backing array while dispatch was still iterating it. `return`/
+        // `throw` inside a C# `lock` block still releases the lock (try/finally under the hood).
+        lock (__Foo_lock)
         {
-            __Seek_calls.Add(value);
-            for (var __i = __Seek_entries.Count - 1; __i >= 0; __i--)
+            __Foo_calls.Add((__Foo_ReceivedCall, __Foo_ReceivedCall_Value));
+            for (var __i = __Foo_entries.Count - 1; __i >= 0; __i--)
             {
-                var __entry = __Seek_entries[__i];
-                if ((__entry.Matcher_value is not { } __m_value || __m_value.Matches(value)))
+                var __entry = __Foo_entries[__i];
+                if ((__entry.Matcher___Foo_ReceivedCall is not { } __m___Foo_ReceivedCall || __m___Foo_ReceivedCall.Matches(__Foo_ReceivedCall)) && (__entry.Matcher___Foo_ReceivedCall_Value is not { } __m___Foo_ReceivedCall_Value || __m___Foo_ReceivedCall_Value.Matches(__Foo_ReceivedCall_Value)))
                 {
-                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - see the
-                    // value-returning branch below for the full reasoning; a matched entry with
-                    // neither a configured exception nor a configured value must not shadow an
-                    // older, configured matching entry. Void members still have a genuine
-                    // "configured" state distinct from "incomplete" - `HasConfiguredValue` is set
-                    // by `.Returns(default)` (a `global::Compono.Unit`) even though there's nothing
-                    // to return - so it must
-                    // stop the scan (`return;`) exactly like the value-returning branch below, not
-                    // be treated as equivalent to an unconfigured/incomplete entry (Codex review,
-                    // PR #108 round 7).
-                    // ADR-0054: a configured sequence still stops the scan - the sequence's own next
-                    // outcome may itself be a configured exception (thrown by NextSequenceOutcome()),
-                    // exactly mirroring the exception check immediately below.
-                    if (__entry.Config.HasConfiguredSequence) { __entry.Config.NextSequenceOutcome(); return; }
+                    if (__entry.Callback is { } configuredCallback)
+                    {
+                        __callback = configuredCallback;
+                        break;
+                    }
+                    // ADR-0050: no `break` here (Codex review, PR #108 round 6) - if this entry
+                    // matched but has neither a configured exception nor a configured value (e.g.
+                    // its builder is still being set up when this call arrives), it must NOT shadow
+                    // an older, fully-configured matching entry; the scan continues to the next
+                    // (older) entry instead of falling through to the default/required-config rule.
+                    // ADR-0054: a configured sequence is checked first - Returns/Throws/ReturnsSequence
+                    // are mutually exclusive on one Config, so order between this and the two checks
+                    // below doesn't change behavior, but leads with the newest-added capability.
+                    if (__entry.Config.HasConfiguredSequence) return __entry.Config.NextSequenceOutcome();
                     if (__entry.Config.HasConfiguredException) throw __entry.Config.ConfiguredException;
-                    if (__entry.Config.HasConfiguredValue) return;
+                    if (__entry.Config.HasConfiguredValue) return __entry.Config.ConfiguredValue;
                 }
             }
         }
+        if (__callback is { } callback)
+            return callback(__Foo_ReceivedCall, __Foo_ReceivedCall_Value);
+        return default;
     }
 }
 
 internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
 {
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> value)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Foo_Builder Foo(this global::TestNamespace_IRepository_e3198068_Double __self, global::Compono.Match<int> __Foo_ReceivedCall, global::Compono.Match<int> __Foo_ReceivedCall_Value)
     {
         // ADR-0050: appends a new entry - see the closed-instantiation Configure()
         // above for the reallocation-hazard proof, identical reasoning applies here. The Add()
         // itself is under the same member lock dispatch scans under (Codex review, PR #108
         // round 5).
-        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Seek_Entry();
-        __entry.Matcher_value = value;
-        lock (__self.__Seek_lock) { __self.__Seek_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Foo_Entry();
+        __entry.Matcher___Foo_ReceivedCall = __Foo_ReceivedCall;
+        __entry.Matcher___Foo_ReceivedCall_Value = __Foo_ReceivedCall_Value;
+        lock (__self.__Foo_lock) { __self.__Foo_entries.Add(__entry); }
+        return new global::TestNamespace_IRepository_e3198068_Double.__Foo_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
     // Compatibility overload (Codex review, PLAN-0048): v1/v2 gave every non-overloaded member a
@@ -106,11 +146,11 @@ internal static class TestNamespace_IRepository_e3198068_DoubleConfiguration
     // own new, all-null-matcher (always-matching) entry; being the most-recently-appended entry, the
     // reverse scan finds it before any earlier, more specific entry, exactly reproducing v1/v2's
     // argument-independent override behavior without mutating any earlier entry's state at all.
-    public static global::Compono.ReturnConfigBuilder<global::Compono.Unit> Seek(this global::TestNamespace_IRepository_e3198068_Double self)
+    public static global::TestNamespace_IRepository_e3198068_Double.__Foo_Builder Foo(this global::TestNamespace_IRepository_e3198068_Double self)
     {
-        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Seek_Entry();
-        lock (self.__Seek_lock) { self.__Seek_entries.Add(__entry); }
-        return new global::Compono.ReturnConfigBuilder<global::Compono.Unit>(ref __entry.Config);
+        var __entry = new global::TestNamespace_IRepository_e3198068_Double.__Foo_Entry();
+        lock (self.__Foo_lock) { self.__Foo_entries.Add(__entry); }
+        return new global::TestNamespace_IRepository_e3198068_Double.__Foo_Builder(ref __entry.Config, ref __entry.Callback);
     }
 
 }
@@ -135,30 +175,30 @@ internal static class TestNamespace_IRepository_e3198068_VerifyExtension
 
 internal static class TestNamespace_IRepository_e3198068_DoubleVerification
 {
-    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<int> value)
+    public static global::Compono.CallVerifier Foo(this global::TestNamespace_IRepository_e3198068_DoubleVerifier __self, global::Compono.Match<int> __Foo_ReceivedCall, global::Compono.Match<int> __Foo_ReceivedCall_Value)
     {
         int __count;
-        lock (__self.Instance.__Seek_lock)
+        lock (__self.Instance.__Foo_lock)
         {
             __count = 0;
-            foreach (var call in __self.Instance.__Seek_calls)
+            foreach (var call in __self.Instance.__Foo_calls)
             {
-                if (value.Matches(call))
+                if (__Foo_ReceivedCall.Matches(call.Item1) && __Foo_ReceivedCall_Value.Matches(call.Item2))
                     __count++;
             }
         }
-        return new(__count, "global::TestNamespace.IRepository.Seek");
+        return new(__count, "global::TestNamespace.IRepository.Foo");
     }
 
     // Compatibility overload - ADR-0050: the removed single-slot field no longer
     // tracks a call count at all (RecordCall() is gone from dispatch for this shape) - the call
     // log's own Count, under its existing lock, is exactly the same number and is already
     // maintained regardless of how many response entries exist.
-    public static global::Compono.CallVerifier Seek(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self)
+    public static global::Compono.CallVerifier Foo(this global::TestNamespace_IRepository_e3198068_DoubleVerifier self)
     {
         int __count;
-        lock (self.Instance.__Seek_lock) { __count = self.Instance.__Seek_calls.Count; }
-        return new(__count, "global::TestNamespace.IRepository.Seek");
+        lock (self.Instance.__Foo_lock) { __count = self.Instance.__Foo_calls.Count; }
+        return new(__count, "global::TestNamespace.IRepository.Foo");
     }
 
 }
@@ -188,15 +228,15 @@ internal static class TestNamespace_IRepository_e3198068_DoubleReceivedCallsAcce
 {
     // Snapshot under the same ADR-0048 per-member lock Verify()'s own scan already uses - no live
     // mutable collection is ever returned, per ADR-0060's snapshot-semantics decision.
-    public static global::System.Collections.Generic.IReadOnlyList<global::TestNamespace_IRepository_e3198068_Double.__Seek_ReceivedCall> Seek(this global::TestNamespace_IRepository_e3198068_DoubleReceivedCalls self)
+    public static global::System.Collections.Generic.IReadOnlyList<global::TestNamespace_IRepository_e3198068_Double.__Foo_ReceivedCall> Foo(this global::TestNamespace_IRepository_e3198068_DoubleReceivedCalls self)
     {
-        lock (self.Instance.__Seek_lock)
+        lock (self.Instance.__Foo_lock)
         {
-            var __snapshot = new global::TestNamespace_IRepository_e3198068_Double.__Seek_ReceivedCall[self.Instance.__Seek_calls.Count];
+            var __snapshot = new global::TestNamespace_IRepository_e3198068_Double.__Foo_ReceivedCall[self.Instance.__Foo_calls.Count];
             for (var __i = 0; __i < __snapshot.Length; __i++)
             {
-                var call = self.Instance.__Seek_calls[__i];
-                __snapshot[__i] = new(call);
+                var call = self.Instance.__Foo_calls[__i];
+                __snapshot[__i] = new(call.Item1, call.Item2);
             }
 
             return __snapshot;
@@ -222,7 +262,7 @@ internal static class TestNamespace_IRepository_e3198068_ClearCallsExtension
                 "registration wins process-wide (Compono.GeneratedTestDoubleRegistry, first-registration-wins) " +
                 "- this is a known v1 limitation, not a bug in your test.");
 
-        lock (__double.__Seek_lock) { __double.__Seek_calls.Clear(); }
+        lock (__double.__Foo_lock) { __double.__Foo_calls.Clear(); }
     }
 }
 
