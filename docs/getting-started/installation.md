@@ -41,6 +41,22 @@ for all of them with no extra flag. See
 [Package Guides](../packages/index.md) for what each package is for and
 when to add it.
 
+### Minimum .NET SDK version
+
+Building a `net8.0` project against `Compono` needs **.NET SDK `8.0.400`
+or later** — not just any SDK that can target `net8.0`. `Compono`'s
+embedded source generator (below) is a Roslyn analyzer, and Roslyn refuses
+to load an analyzer built against a newer compiler than the host SDK's own
+(silently — a build warning, `CS9057`, not an error — so the generator
+just stops running instead of failing loudly). An SDK older than `8.0.400`
+(i.e. any `8.0.1xx`/`8.0.2xx`/`8.0.3xx` feature band) bundles a compiler
+older than what `Compono` requires and hits exactly that. `net9.0`,
+`net10.0`, and `net11.0` have no equivalent minimum beyond "the SDK that
+ships that TFM" — every released SDK for those already bundles a new
+enough compiler. See
+[ADR-0003 Amendment 1](../adr/0003-generator-package-distribution.md) for
+the full account.
+
 ## No other setup required
 
 `Compono` embeds its source generator as a Roslyn analyzer inside its own
