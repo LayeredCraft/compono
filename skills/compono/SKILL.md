@@ -3,25 +3,19 @@ name: compono
 description: >-
   **WORKFLOW SKILL** - Compono test-composition guidance for .NET/C# unit
   tests. Compono is a source-generated AutoFixture alternative
-  (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
-  registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.MSTest`/`Compono.NUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`/`Compono.Options`
-  packages).
-  USE FOR: writing/modifying/reviewing Compono tests, diagnosing
-  `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
-  (generated-test-double opt-in informational diagnostics), `CMP0033`-
-  `CMP0034` (explicit constructor selection errors), `CMP0038`-`CMP0039`
-  (Compono.Logging activation-generation diagnostics), or
-  `CompositionException` failures, deciding on
-  `[Composable]`/`Register<T>()`/`.For<T>()`/`[Shared]`, adding Compono
-  when asked, migrating AutoFixture tests (`[Frozen]`, `AutoData`), any
-  Compono/`Composer`/`[Compose]` question.
-  DO NOT USE FOR: ordinary xUnit/NUnit/MSTest, NSubstitute, or Bogus work
-  with no Compono package referenced; generic reflection/DI questions;
-  production object construction.
-  SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`mstest.md`/`nunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`/`options.md`
-  references when that package is referenced or requested.
+  (composer.Create<T>()/CreateMany<T>(), [Composable], registrations,
+  profiles, [Shared]), plus optional integration packages
+  (XunitV3/TUnit/MSTest/NUnit/NSubstitute/Bogus/TestDoubles/DependencyInjection/Http/Logging/Options).
+  USE FOR: writing/reviewing Compono tests, diagnosing CMP00xx diagnostics
+  or CompositionException failures, deciding on
+  [Composable]/Register<T>()/.For<T>()/[Shared], adding Compono, migrating
+  AutoFixture tests ([Frozen], AutoData).
+  DO NOT USE FOR: ordinary xUnit/NUnit/MSTest/NSubstitute/Bogus work with
+  no Compono package referenced; reflection/DI questions; production
+  object construction.
+  SCOPES TO: only load the matching package reference file
+  (xunit-v3/tunit/mstest/nunit/nsubstitute/bogus/testdoubles/dependencyinjection/http/logging/options.md)
+  when that package is referenced.
 license: MIT
 metadata:
   author: LayeredCraft
