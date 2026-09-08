@@ -184,7 +184,19 @@
          PrivateAssets="all" so they never leak to consumers - see
          docs/adr/0003-generator-package-distribution.md. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <!-- Pinned to the .NET 8 SDK's own bundled Roslyn compiler version (4.11.0.0), the oldest
+         Compono officially supports (net8.0;net9.0;net10.0;net11.0), not the latest available -
+         empirically confirmed 5.9.0 made Compono.Generators.dll fail Roslyn's own analyzer
+         version gate (CS9057: "references version 'X' of the compiler, which is newer than the
+         currently running version") under the .NET 8/9/10 STABLE SDKs (bundled Roslyn 4.11.0.0/
+         4.14.0.0/5.0.0.0 respectively) - the generator silently never ran, and a consuming
+         Composer.Create<T>() failed at runtime with a misleading "no generated plan" exception
+         instead of a build error pointing at the real cause. A Roslyn analyzer assembly is
+         forward-compatible with a newer host compiler (the host's own version check is
+         one-directional - too-new fails, older-or-equal always loads), so pinning to the oldest
+         supported SDK's compiler version is correct and sufficient; it isn't a floor that needs
+         bumping merely because a newer package version exists. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
     <!-- Templating, per docs/adr/0005-generator-implementation-conventions.md - shipped as source
          (PackageScribanIncludeSource, set on Compono.Generators.csproj) rather than a compiled lib,
          matching dynamo-mapper's pattern exactly: Scriban's code compiles directly into

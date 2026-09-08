@@ -34,6 +34,22 @@ updates:
           - "major"
         patterns:
           - "*"
+    ignore:
+      # Directory.Packages.props' central Microsoft.CodeAnalysis.CSharp pin is deliberately
+      # floored to the .NET 8 SDK's own bundled Roslyn compiler version (4.11.0), not the latest
+      # available - Compono.Generators.dll (the packaged, shipped analyzer) is built once against
+      # this version and loaded as-is by every consumer's host compiler regardless of their own
+      # TargetFramework. A newer Roslyn compiler always loads an older-referenced analyzer fine
+      # (forward-compatible), but the reverse silently fails: Roslyn's own analyzer-version gate
+      # (CS9057) refuses to load an analyzer built against a NEWER compiler than the host's own,
+      # with only a build warning, not an error - the generator then just never runs, and a
+      # consumer's Composer.Create<T>() fails at runtime with a misleading "no generated plan"
+      # CompositionException instead of a build-time signal pointing at the real cause. Confirmed
+      # empirically: bumping this above 4.11.0 breaks the .NET 8/9/10 STABLE SDKs (this repo's own
+      # CI pins an 11.0-preview SDK, so CI alone would not catch a regression here). Raising this
+      # floor is a deliberate, manually-verified decision (re-run the cross-SDK empirical check
+      # this ignore rule's own commit performed), not something to accept via an automated bump.
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp"
 
   - package-ecosystem: "github-actions"
     directory: "/"

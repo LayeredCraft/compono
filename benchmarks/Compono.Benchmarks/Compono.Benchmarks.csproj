@@ -22,14 +22,18 @@
         <!-- Ecosystem-comparison reference point only - see the AutoFixture comment in
              Directory.Packages.props. -->
         <PackageReference Include="AutoFixture" />
-        <!-- BenchmarkDotNet pulls in Microsoft.CodeAnalysis.CSharp 4.14.0 transitively, older
-             than the 5.6.0 Compono.Generators/Compono.Generators.Tests use (Directory.Packages.props).
-             CI publishes every project's output into one shared per-TFM folder, so without this
-             explicit bump the lower transitive version wins the copy and
-             Compono.Generators.Tests fails at runtime with FileNotFoundException looking for
-             Microsoft.CodeAnalysis 5.6.0.0. Pinning to the same central version here keeps every
-             published Microsoft.CodeAnalysis.dll consistent. -->
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <!-- Directory.Packages.props' central Microsoft.CodeAnalysis.CSharp pin is deliberately
+             floored to the .NET 8 SDK's own bundled Roslyn compiler version (4.11.0) so the packaged
+             Compono.Generators.dll analyzer loads under every officially-supported SDK - see that
+             file's comment. This project is never packed/shipped, so that host-compiler-compatibility
+             constraint doesn't apply to it, and it needs a newer version anyway:
+             GeneratorDriverBenchmarks.cs (ADR-0034) drives ComponoIncrementalGenerator in-process via
+             CSharpGeneratorDriver against LanguageVersion.CSharp14 (net10.0/net11.0 targets), which
+             4.11.0's LanguageVersion enum doesn't define yet. Also avoids the NU1605 downgrade error
+             BenchmarkDotNet's own >= 4.14.0 transitive floor would otherwise trigger, and keeps every
+             published Microsoft.CodeAnalysis.dll in CI's shared per-TFM output folder consistent -
+             same reasoning and version test/Compono.Generators.Tests uses for the identical need. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
     </ItemGroup>
 
     <!-- ADR-0034's SourceGeneration category drives ComponoIncrementalGenerator directly via
