@@ -184,18 +184,28 @@
          PrivateAssets="all" so they never leak to consumers - see
          docs/adr/0003-generator-package-distribution.md. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
-    <!-- Pinned to the .NET 8 SDK's own bundled Roslyn compiler version (4.11.0.0), the oldest
-         Compono officially supports (net8.0;net9.0;net10.0;net11.0), not the latest available -
-         empirically confirmed 5.9.0 made Compono.Generators.dll fail Roslyn's own analyzer
-         version gate (CS9057: "references version 'X' of the compiler, which is newer than the
-         currently running version") under the .NET 8/9/10 STABLE SDKs (bundled Roslyn 4.11.0.0/
-         4.14.0.0/5.0.0.0 respectively) - the generator silently never ran, and a consuming
-         Composer.Create<T>() failed at runtime with a misleading "no generated plan" exception
-         instead of a build error pointing at the real cause. A Roslyn analyzer assembly is
+    <!-- Pinned to 4.11.0, not the latest available - this is a hard technical floor, not a chosen
+         one: Compono.Generators/Discovery/TestDoubleAnalyzer.cs uses
+         ITypeParameterSymbol.AllowsRefLikeType, a Roslyn API that only exists starting at compiler
+         package version 4.11.0 (bisected empirically: 4.9.2/4.10.0 fail CS1061, 4.11.0 compiles) -
+         a genuinely lower pin (e.g. 4.8.0, matching .NET 8 SDK 8.0.100's GA-bundled compiler)
+         doesn't compile at all, not just "doesn't load." 4.11.0 first shipped with .NET SDK
+         8.0.4xx (VS 17.11-era, per Microsoft's Roslyn-to-SDK-feature-band mapping) - so Compono's
+         real minimum-supported .NET 8 SDK is 8.0.400, not 8.0.100, which
+         docs/getting-started/installation.md now states explicitly (docs/adr/0003's Amendment 1) -
+         a Codex review finding on PR #136 caught that this repo's docs previously stated no minimum
+         SDK *feature band* at all, only the net8.0/net9.0/net10.0/net11.0 TFM floor, which would
+         have left every pre-8.0.400 .NET 8 install undocumented as broken. Separately, empirically
+         confirmed 5.9.0 made Compono.Generators.dll fail Roslyn's own analyzer version gate
+         (CS9057: "references version 'X' of the compiler, which is newer than the currently
+         running version") under the .NET 8/9/10 STABLE SDKs - the generator silently never ran, and
+         a consuming Composer.Create<T>() failed at runtime with a misleading "no generated plan"
+         exception instead of a build error pointing at the real cause. A Roslyn analyzer assembly is
          forward-compatible with a newer host compiler (the host's own version check is
          one-directional - too-new fails, older-or-equal always loads), so pinning to the oldest
-         supported SDK's compiler version is correct and sufficient; it isn't a floor that needs
-         bumping merely because a newer package version exists. -->
+         supported SDK's actual GA compiler version is correct and sufficient; it isn't a floor that
+         needs bumping merely because a newer package version exists - see
+         docs/adr/0003-generator-package-distribution.md's Amendment 1. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
     <!-- Templating, per docs/adr/0005-generator-implementation-conventions.md - shipped as source
          (PackageScribanIncludeSource, set on Compono.Generators.csproj) rather than a compiled lib,

@@ -151,3 +151,68 @@ exactly.
   scope ("Create generator project").
 - Precedent: `AlexaVoxCraft.MediatR.csproj` /
   `AlexaVoxCraft.MediatR.Generators.csproj` in the `alexa-vox-craft` repo.
+
+## Amendment 1 (2026-09-08): minimum-supported Roslyn/SDK version
+
+**Context.** This ADR's own Milestone 1 review round (`docs/plans/0001-milestone-1-source-generation-foundation.md`)
+already flagged pinning `Compono.Generators`' compile-time
+`Microsoft.CodeAnalysis.CSharp` reference to the oldest supported
+Roslyn/SDK version as "a real supply-chain concern," but the decision on
+an actual minimum version was explicitly deferred at the time. That gap
+became a real, live bug: `Directory.Packages.props` pinned
+`Microsoft.CodeAnalysis.CSharp` at `5.6.0`–`5.9.0` from the very first
+generator commit onward — every published `Compono` release, `v0.1.0`
+through `v1.2.0`. Roslyn refuses to load an analyzer built against a
+compiler *newer* than the host's own (silently — `CS9057`, a build
+warning, never an error), so on any officially-supported `net8.0`/
+`net9.0`/`net10.0` **stable** SDK, `Compono.Generators.dll` simply never
+ran; a consumer's `Composer.Create<T>()` then failed at runtime with a
+misleading "no generated plan" `CompositionException` instead of a
+build-time signal pointing at the real cause. This repo's own CI, and
+every dogfood consumer used to validate releases, all pin an
+`11.0.100-preview` SDK (`global.json`), whose bundled Roslyn was new
+enough — so nothing caught it until a Codex review on the fixing PR
+(#136) pointed out the first attempted fix itself only verified against
+one specific .NET 8 SDK patch build, not the actual documented minimum.
+
+**Decision.** `Microsoft.CodeAnalysis.CSharp` is pinned to `4.11.0` —
+confirmed to be a **hard technical floor**, not a chosen one:
+`Compono.Generators/Discovery/TestDoubleAnalyzer.cs` uses
+`ITypeParameterSymbol.AllowsRefLikeType`, a Roslyn API that only exists
+starting at compiler package version `4.11.0` (bisected empirically:
+`4.9.2`/`4.10.0` fail `CS1061`, `4.11.0` compiles). `4.11.0` first shipped
+with .NET SDK **`8.0.4xx`** (the VS 17.11-era feature band) — so
+Compono's real minimum-supported .NET 8 SDK is **`8.0.400`**, not
+`8.0.100` (GA), which is a materially narrower floor than
+`docs/getting-started/installation.md` previously implied (it stated only
+the `net8.0`/`net9.0`/`net10.0`/`net11.0` TFM floor, with no SDK feature-
+band minimum at all). `net9.0`/`net10.0`/`net11.0` have no equivalent
+constraint — every released SDK for those TFMs already bundles a Roslyn
+compiler `>= 4.11.0`.
+
+Verified empirically across all four officially-supported SDKs (a
+throwaway packed-consumer build/run against `8.0.408`, `9.0.304`,
+`10.0.103`, and `11.0.100-preview.7`) both before (`CS9057` +
+`CompositionException` on the three stable SDKs) and after (identical,
+correct generated output on all four) this fix.
+
+**Consequences.**
+
+- `docs/getting-started/installation.md` now states the `8.0.400` minimum
+  explicitly, closing the documentation gap the Codex review caught.
+- `.github/dependabot.yml` ignores all automated updates to
+  `Microsoft.CodeAnalysis.CSharp` — this floor is a deliberately
+  cross-SDK/API-verified decision (both "does it load" and "does it even
+  compile" constraints), not something that should move via an unattended
+  bump; this repo's own CI wouldn't catch a regression here, since it
+  pins the `11.0-preview` SDK.
+- Raising this floor in the future (e.g. to use a newer Roslyn API) is a
+  deliberate decision that should re-run this same empirical verification
+  before merging, not something to infer is safe from a successful local
+  build alone (a local build only proves the *compile-time* floor, not
+  the *runtime-load* floor on every supported SDK — this amendment's own
+  history is a direct example of that distinction actually mattering).
+- This does not change ADR-0003's core decision (single sibling project,
+  never independently published) — it only completes a previously
+  explicitly-deferred piece of the same "how does a consumer's host
+  actually consume this analyzer" question ADR-0003 already opened.
