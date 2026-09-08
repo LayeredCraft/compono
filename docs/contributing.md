@@ -22,7 +22,12 @@ instead of opening a public issue.
   issue first and let a maintainer weigh in before you invest in an
   implementation — this repo intentionally has one way to do each thing,
   and a design conversation up front is cheaper than a large PR that has
-  to change direction in review.
+  to change direction in review. If what you're proposing is a new
+  capability or package rather than a fix, run it through
+  [Capability & Package Admission](architecture/capability-admission.md)
+  first — it's the standalone process Compono uses to decide whether
+  something like this belongs in the project at all, before any design
+  work starts.
 - Looking for a first contribution? A missing [Cookbook](cookbook/index.md)
   recipe is the easiest way in — narrow in scope, easy to review, and
   doesn't require touching the composition engine itself. See the

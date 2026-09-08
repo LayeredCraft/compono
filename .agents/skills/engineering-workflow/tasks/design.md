@@ -40,6 +40,14 @@ alternatives are even legal:
    the docs, here's where" (`design-decisions.md`'s opening rule). A design
    session grounded in what's already decided beats one that re-derives a
    solved problem.
+
+   If the request is a genuinely new capability, a material expansion of
+   an existing package's public surface, or a new extension/integration
+   package, run it through
+   [`docs/architecture/capability-admission.md`](../../../../docs/architecture/capability-admission.md)
+   first — a candidate that doesn't clear that process doesn't get an ADR
+   at all, and this task shouldn't reconstruct that admission reasoning
+   from `docs/adr/0029-...`/`docs/adr/0039-...` from scratch each time.
 2. **Decide light vs. deep**, per `design-decisions.md`:
    - **Light** — problem and solution shape are already clear (adding a
      provider following a pattern another provider already uses, adopting

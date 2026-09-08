@@ -245,7 +245,7 @@ main() {
     }
 
     local pkg nupkg extract_dir extra_paths nuspec
-    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit; do
+    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit Compono.Options; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -338,6 +338,14 @@ main() {
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — NUnit Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "NUnit" "$authoritative_json"
+            ;;
+        Compono.Options)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Configuration/Options Testing Support"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            # Per-TFM range, same shape as Compono.Logging's Microsoft.Extensions.Logging.Abstractions
+            # dependency above (net11.0 carries no explicit dependency entry - satisfied by that TFM's
+            # own shared framework, confirmed against a real local pack).
+            assert_dependency_range_per_tfm "$nuspec" "$pkg" "Microsoft.Extensions.Options" "$packages_props"
             ;;
     esac
     done

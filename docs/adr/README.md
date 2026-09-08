@@ -122,3 +122,4 @@ the mechanics: numbering, status, and the index.
 | [0058](0058-public-generator-facing-runtime-infrastructure.md) | Public Generator-Facing Runtime Infrastructure | Accepted |
 | [0059](0059-compono-nunit-package-design.md) | Compono.NUnit Package Design | Accepted |
 | [0060](0060-testdoubles-received-calls-and-clear-calls.md) | Compono.TestDoubles: `ReceivedCalls()` Retrospective Inspection and `ClearCalls()` | Accepted |
+| [0061](0061-compono-options-testing-support.md) | Compono.Options: First-Class .NET Configuration/Options Testing Support | Accepted |

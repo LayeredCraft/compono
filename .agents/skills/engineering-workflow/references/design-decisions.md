@@ -11,6 +11,17 @@ already decided" is more useful than one that re-derives a solved problem
 from first principles, and it's a fast check relative to the cost of
 designing around a wrong assumption.
 
+If the request is a genuinely new capability, a material expansion of an
+existing package's public surface, or a new extension/integration
+package — not a bug fix or straightforward implementation against an
+already-`Accepted` ADR — run it through
+[`docs/architecture/capability-admission.md`](../../../../docs/architecture/capability-admission.md)
+**before** deciding light vs. deep dive below. That page is the standalone,
+current process for whether something belongs in Compono at all; a
+candidate that doesn't clear it doesn't get an ADR of its own, light or
+deep. `docs/adr/0029-...` and `docs/adr/0039-...` are that page's
+underlying decisions, not a substitute for reading it directly.
+
 ## Where decisions live
 
 Four places, each with a different job — don't blur them together:

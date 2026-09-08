@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — Configuration/Options Testing Support</Title>
+        <Description>First-class Microsoft.Extensions.Options testing support for Compono - TestOptionsSource&lt;T&gt; is a reflection-free, hand-written source of truth that coherently backs IOptions&lt;T&gt;/IOptionsSnapshot&lt;T&gt;/IOptionsMonitor&lt;T&gt; for one settings type from one test-configured instance, wired via a single UseOptions&lt;T&gt;() composition call.</Description>
+        <!-- No public member on this package is annotated [RequiresDynamicCode]/[RequiresUnreferencedCode] -
+             TestOptionsSource<T> and the internal frozen view are plain, reflection-free classes over
+             Microsoft.Extensions.Options's interfaces. Set per Compono.Http's own documented finding
+             (empirical verification, not assumption) - see test/Compono.Options.AotSmokeTest. -->
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.Options. -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <!-- The IOptions<T>/IOptionsSnapshot<T>/IOptionsMonitor<T> interface package only - see
+             docs/adr/0061-compono-options-testing-support.md. No PackageReference to
+             Microsoft.Extensions.Options.ConfigurationExtensions, .DataAnnotations, or any
+             Microsoft.Extensions.DependencyInjection package. -->
+        <PackageReference Include="Microsoft.Extensions.Options" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.Options.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.Http.csproj/Compono.Bogus.csproj's identical target for the full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

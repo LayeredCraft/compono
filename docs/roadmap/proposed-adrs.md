@@ -3,7 +3,21 @@
 A status-filtered view of [`docs/adr/README.md`](../adr/README.md): every
 ADR that's `Proposed`, or `Accepted` but not yet implemented.
 
-## Current state: none proposed or pending implementation
+## Current state: none pending
+
+[ADR-0061](../adr/0061-compono-options-testing-support.md) (`Compono.Options`:
+first-class Configuration/Options testing support) — `Accepted`
+(2026-09-08), cleared Gate A and Gate B per
+[RESEARCH-0028](../research/0028-compono-options-configuration-admission-research.md) —
+was this page's last entry. Fully implemented by
+[PLAN-0064](../plans/0064-compono-options-testing-support.md) (`Done`),
+including code, tests (unit/AOT-smoke/dogfooding), docs
+(`docs/packages/compono-options.md`, the Configuration Cookbook), and
+`skills/compono` (`SKILL.md`, `references/options.md`, `evals/evals.json`,
+plus the mandatory baseline-vs-updated skill-eval comparison), so it's
+removed from this page per its own "entries removed once implemented"
+rule — see [`Compono.Options`](../packages/compono-options.md) for what it
+ships.
 
 [ADR-0044 Amendment 22](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-22-2026-09-06-callverifieratleastintatmostint-added-requirement-3s-minimality-preserved-not-reversed)
 (`CallVerifier.AtLeast(int)`/`AtMost(int)`, plus the `Compono.Logging`

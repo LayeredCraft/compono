@@ -37,7 +37,7 @@ jobs:
       # process environment by GitHub Actions itself, so this survives across the separate `run:`
       # steps below (each its own shell process) with no extra plumbing - deliberately not a Bash
       # array, which would only live for the one step that declared it.
-      PACKAGES: "Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit"
+      PACKAGES: "Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit Compono.Options"
     steps:
       - uses: actions/checkout@v7
 

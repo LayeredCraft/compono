@@ -26,7 +26,12 @@ today.
   own candidate list; it came from a dedicated admission research doc
   triggered by a real `alexa-vox-craft` dogfooding need — see
   [RESEARCH-0009](../research/0009-compono-http-admission-research.md).
-  If a capability isn't documented in
+  [`Compono.Options`](../packages/compono-options.md)
+  ([ADR-0061](../adr/0061-compono-options-testing-support.md)) reached
+  this shipped state the same way, via a dedicated admission research doc
+  ([RESEARCH-0028](../research/0028-compono-options-configuration-admission-research.md))
+  triggered by an explicit product-owner request rather than this page's
+  own candidate pipeline. If a capability isn't documented in
   [Concepts](../concepts/index.md), [How-to Guides](../how-to/index.md),
   or a [Package Guide](../packages/index.md), it isn't available yet —
   see below for where it might be headed.

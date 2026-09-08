@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PLAN-0064 Task 6, mirroring Compono.Http.AotSmokeTest/Compono.Logging.AotSmokeTest's own shape
+       almost verbatim (see those projects' comments for the fuller reasoning behind each choice
+       below): a real Native AOT publish-and-run proof through the actual packaged
+       Compono/Compono.Options dependency chain - TestOptionsSource<T>/UseOptions<T> composed and
+       exercised post-publish, confirming zero reflection/IL2xxx/IL3xxx warnings from this package's
+       own code. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Overrides test/Directory.Build.props' multi-TFM sweep - this is a one-shot AOT
+         publish-and-run proof, not a matrix run; a single current TFM is enough. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The repo's central Directory.Packages.props doesn't (and shouldn't) know about the
+         throwaway "1.0.0" version pack-compono.sh stamps onto its local-feed-only nupkgs. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Isolates this restore from NuGet's shared global packages folder entirely - see
+         Compono.Http.AotSmokeTest's own identical comment for why this matters across reruns. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <!-- test/Directory.Build.props' global usings assume every project under test/ references
+       Xunit/NSubstitute/AwesomeAssertions - this one deliberately doesn't. -->
+  <ItemGroup>
+    <Using Remove="Xunit" />
+    <Using Remove="NSubstitute" />
+    <Using Remove="AwesomeAssertions" />
+  </ItemGroup>
+
+  <!-- PackageReferences, not ProjectReferences to src/Compono*/*.csproj - the same consumption shape
+       any real consumer uses, and required here specifically (see Compono.Http.AotSmokeTest's own
+       identical comment): a ProjectReference's global properties (PublishAot/RuntimeIdentifier/
+       SelfContained) flow down into Compono.csproj's own analyzer-only ProjectReference to
+       Compono.Generators.csproj (netstandard2.0), failing `dotnet publish -p:PublishAot=true` with
+       NETSDK1207. Packed into ../../.local-nuget-feed-options-aot-smoke by pack-compono.sh (run
+       before publish, a deliberate manual one-shot proof, not part of ordinary inner-loop restore). -->
+  <ItemGroup>
+    <PackageReference Include="Compono.Options" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

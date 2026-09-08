@@ -78,3 +78,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0061](0061-pre-1-0-cleanup-and-consolidation.md) | Pre-1.0 Cleanup and Consolidation Gate | Done |
 | [0062](0062-package-validation-gap-fixes.md) | Package-Validation Gap Fixes | Done |
 | [0063](0063-callverifier-atleast-atmost-and-testdoubles-received-calls-clear-calls.md) | `CallVerifier.AtLeast`/`AtMost`, `Compono.TestDoubles` `ReceivedCalls()` + `ClearCalls()` | Done |
+| [0064](0064-compono-options-testing-support.md) | Compono.Options: First-Class .NET Configuration/Options Testing Support | Done |

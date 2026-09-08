@@ -47,6 +47,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.Logging` | `Microsoft.Extensions.Logging` testing support (`UseLogging()`, `CapturingLogger<T>`) | [![NuGet](https://img.shields.io/nuget/v/Compono.Logging.svg)](https://www.nuget.org/packages/Compono.Logging) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Logging.svg)](https://www.nuget.org/packages/Compono.Logging) |
 | `Compono.MSTest` | MSTest integration | [![NuGet](https://img.shields.io/nuget/v/Compono.MSTest.svg)](https://www.nuget.org/packages/Compono.MSTest) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.MSTest.svg)](https://www.nuget.org/packages/Compono.MSTest) |
 | `Compono.NUnit` | NUnit integration (no `[TestFixture]` required) | [![NuGet](https://img.shields.io/nuget/v/Compono.NUnit.svg)](https://www.nuget.org/packages/Compono.NUnit) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.NUnit.svg)](https://www.nuget.org/packages/Compono.NUnit) |
+| `Compono.Options` | `Microsoft.Extensions.Options` testing support (`TestOptionsSource<T>`, `UseOptions<T>()`) | [![NuGet](https://img.shields.io/nuget/v/Compono.Options.svg)](https://www.nuget.org/packages/Compono.Options) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Options.svg)](https://www.nuget.org/packages/Compono.Options) |
 
 ## Example
 

@@ -59,6 +59,9 @@ dogfooding evidence), the same mechanism that already gated
 
 ## Admission model
 
+See [Capability & Package Admission](../architecture/capability-admission.md)
+for the full, standalone process this page's dispositions are decided
+against — this section is a short summary, not the operational reference.
 [ADR-0039](../adr/0039-future-extension-package-admission-gate-and-release-sequence.md)
 records a two-stage admission model for everything on this page:
 
@@ -84,16 +87,26 @@ roadmap content. Compono-owned source-generated test doubles made the same
 full progression, shipping as `Compono.TestDoubles` once
 [PLAN-0043](../plans/0043-compono-generated-test-doubles.md) completed —
 see [`Compono.TestDoubles`](../packages/compono-testdoubles.md), also not
-roadmap content anymore. No candidate currently sits at roadmap-item
-status — `Compono.NUnit` made the same full progression and graduated
-too, see above.
+roadmap content anymore. `Compono.NUnit` made the same full progression and
+graduated too, see above. `Compono.Options` — cleared Gate A and Gate B
+([RESEARCH-0028](../research/0028-compono-options-configuration-admission-research.md),
+reassessed 2026-09-07) via a dedicated admission research doc (like
+`Compono.Http`/`Compono.DependencyInjection`, not this page's own candidate
+pipeline), triggered by an explicit product-owner request and reassessed
+once against Compono's own composition-ergonomics precedent (`Share<T>()`,
+`Compono.Bogus`) before Gate A was confirmed — graduated from this page's
+roadmap once [PLAN-0064](../plans/0064-compono-options-testing-support.md)'s
+implementation completed against
+[ADR-0061](../adr/0061-compono-options-testing-support.md) (`Accepted`
+2026-09-08) — see [`Compono.Options`](../packages/compono-options.md) for
+what it ships. A dedicated `Compono.Configuration` package was explicitly
+evaluated and rejected (RESEARCH-0028 §3/§17) — see "Documentation-only
+ideas" below for the Cookbook deliverable that survives instead. No
+candidate currently sits at roadmap-item status.
 
 ## Roadmap items (cleared Gate A and Gate B)
 
-None currently. `Compono.TUnit`, Compono-owned source-generated test
-doubles, and `Compono.NUnit` were the three candidates to reach this
-status — see the Admission model note above; all three shipped as
-packages and moved to [Package Guides](../packages/index.md).
+None currently.
 
 ## Admitted candidates (cleared Gate A, no evidence yet)
 
@@ -134,6 +147,25 @@ None currently.
   runtime-reflection question tracked in
   [Source Generation](../architecture/current/source-generation.md) — unchanged
   by ADR-0039, not evaluated against Gate A here.
+- **Configuration composition (`IConfiguration`/`ConfigurationBuilder`) —
+  documentation-only, not a package.** Evaluated alongside
+  `Compono.Options` (RESEARCH-0028 §3/§12a) and explicitly rejected as a
+  package, including under the sharper composition-ergonomics question
+  that admitted `Compono.Options` itself — `Register<IConfiguration>(...)`
+  already keeps a consumer fully inside Compono's composition model, with
+  no multi-interface consistency risk analogous to Options. **Required
+  Cookbook deliverable, tracked against [ADR-0061](../adr/0061-compono-options-testing-support.md):**
+  basic in-memory `IConfiguration` composition, layered/override
+  configuration, reusable configuration through a profile, and the
+  routing guidance distinguishing "use ordinary Configuration +
+  `Register<IConfiguration>`" from "use `Compono.Options` for the
+  Options interfaces it owns" — explicitly not implying a
+  `Compono.Configuration` package exists. This documentation survives as
+  a defined deliverable of the `Compono.Options` effort even though no
+  package will be created for it. **Fulfilled** — see
+  [Compose Configuration From an In-Memory Collection](../cookbook/compose-configuration-from-an-in-memory-collection.md),
+  [Layer Configuration Overrides in a Test](../cookbook/layer-configuration-overrides-in-a-test.md),
+  and [Reuse Configuration Through a Profile](../cookbook/reuse-configuration-through-a-profile.md).
 
 ## Deferred indefinitely
 
@@ -148,18 +180,22 @@ None currently.
 
 ## No committed sequence
 
-ADR-0039 records no candidate order. `Compono.TUnit`,
-the source-generated-test-doubles capability, and now `Compono.NUnit` all
-cleared Gate B through an explicit product-owner request, not dogfooding
-evidence — the two real dogfooding passes recorded in
-[Post-MVP](post-mvp.md) still haven't produced a roadmap candidate of
-their own in this space. No admitted candidates currently remain on this
-page. If a future candidate clears Gate B around the same time as another
-still-open one, ADR-0039's non-binding heuristics (value relative to
-maintenance cost; architectural-validation diversity over repeating an
-already-proven pattern) apply — category completion (finishing all
-test-framework integrations before starting a test-double one, or vice
-versa) is explicitly rejected as a sequencing principle.
+ADR-0039 records no candidate order. `Compono.TUnit`, the
+source-generated-test-doubles capability, `Compono.NUnit`, and now
+`Compono.Options` all cleared Gate B through an explicit product-owner
+request, not dogfooding evidence — the two real ADR-0029 dogfooding
+passes recorded in [Post-MVP](post-mvp.md) still haven't produced a
+roadmap candidate of their own in this space; `Compono.Options` reached
+this page through the same admission-research path as `Compono.Http`
+and `Compono.DependencyInjection`, not this page's own candidate
+pipeline. No admitted candidates currently remain on this page — one
+roadmap item (`Compono.Options`) does, tracked above. If a future
+candidate clears Gate B around the same time as another still-open one,
+ADR-0039's non-binding heuristics (value relative to maintenance cost;
+architectural-validation diversity over repeating an already-proven
+pattern) apply — category completion (finishing all test-framework
+integrations before starting a test-double one, or vice versa) is
+explicitly rejected as a sequencing principle.
 
 Any admitted candidate becomes real roadmap content the moment real
 demand and a concrete design exist — see [Post-MVP](post-mvp.md) for the
