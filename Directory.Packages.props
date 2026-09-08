@@ -42,11 +42,11 @@
          this is the extensibility-authoring layer, matching xunit.v3.extensibility.core's
          own minimal-reference precedent immediately above. A tested-range constraint,
          not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="TUnit.Core" Version="[1.65.63, 2.0.0)" />
+    <PackageVersion Include="TUnit.Core" Version="[1.65.68, 2.0.0)" />
     <!-- test/Compono.TUnit.Tests' own dependency - the full TUnit meta-package
          (engine + core + assertions), since that project actually executes as a
          TUnit test run, not just authors against TUnit.Core's extension surface. -->
-    <PackageVersion Include="TUnit" Version="[1.65.63, 2.0.0)" />
+    <PackageVersion Include="TUnit" Version="[1.65.68, 2.0.0)" />
     <!-- Compono.XunitV3.SampleTests' own dependency, same reasoning as Compono.XunitV3/
          Compono.NSubstitute/Compono.Bogus above - never a ProjectReference, and this
          version must match the -p:Version passed to PackToLocalFeed's pack of
@@ -67,7 +67,7 @@
          Compono.MSTest.dll compiled against 3.x cannot implement the ITestDataSource a 4.x test host
          checks for, confirmed by a real FileNotFoundException reproduction during implementation. A
          tested range, not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="MSTest.TestFramework" Version="[4.0.0, 5.0.0)" />
+    <PackageVersion Include="MSTest.TestFramework" Version="[4.3.3, 5.0.0)" />
     <!-- test/Compono.MSTest.Tests' own dependency - the full MSTest meta-package (framework +
          adapter + analyzers), since that project actually executes as a real MSTest test run, not
          just authors against MSTest.TestFramework's extension surface. -->
@@ -92,7 +92,7 @@
     <!-- test/Compono.NUnit.Tests'/test/Compono.NUnit.SampleTests' own dependency - the classic
          VSTest-adapter runner path, per ADR-0059 §11 (Compono.NUnit itself stays runner-neutral;
          this remains a consumer/test-project concern). Current stable at time of writing. -->
-    <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.3.0" />
     <!-- test/Compono.NUnit.SampleTests' own dependency, same reasoning as Compono.TUnit/
          Compono.TestDoubles/Compono.MSTest above - never a ProjectReference, and this version must
          match the -p:Version passed to PackToLocalFeed's pack of Compono.NUnit. -->
@@ -219,7 +219,7 @@
     <PackageVersion Include="Scriban" Version="7.2.6" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.163" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.164" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
