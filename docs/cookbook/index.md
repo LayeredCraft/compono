@@ -16,9 +16,12 @@ made once the list is actually large enough to need it, not guessed at now.
 ## Recipes
 
 - [Compose a Substitute With One Method Stubbed](compose-a-substitute-with-one-method-stubbed.md)
+- [Compose Configuration From an In-Memory Collection](compose-configuration-from-an-in-memory-collection.md)
 - [Freeze a Shared HttpMessageHandler](freeze-a-shared-httpmessagehandler.md)
 - [Generate a Realistic Email](generate-a-realistic-email.md)
+- [Layer Configuration Overrides in a Test](layer-configuration-overrides-in-a-test.md)
 - [Override One Field Only for One Test](override-one-field-only-for-one-test.md)
+- [Reuse Configuration Through a Profile](reuse-configuration-through-a-profile.md)
 - [Seed a Specific Failing Case for Reproduction](seed-a-specific-failing-case-for-reproduction.md)
 
 ## Next

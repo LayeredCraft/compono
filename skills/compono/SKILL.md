@@ -5,7 +5,7 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (`composer.Create<T>()`/`CreateMany<T>()`, `[Composable]`,
   registrations, profiles, `[Shared]`, plus optional
-  `Compono.XunitV3`/`Compono.TUnit`/`Compono.MSTest`/`Compono.NUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`
+  `Compono.XunitV3`/`Compono.TUnit`/`Compono.MSTest`/`Compono.NUnit`/`Compono.NSubstitute`/`Compono.Bogus`/`Compono.TestDoubles`/`Compono.DependencyInjection`/`Compono.Http`/`Compono.Logging`/`Compono.Options`
   packages).
   USE FOR: writing/modifying/reviewing Compono tests, diagnosing
   `CMP0001`-`CMP0013` (errors), `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
@@ -20,7 +20,7 @@ description: >-
   with no Compono package referenced; generic reflection/DI questions;
   production object construction.
   SCOPES TO: only load
-  `xunit-v3.md`/`tunit.md`/`mstest.md`/`nunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`
+  `xunit-v3.md`/`tunit.md`/`mstest.md`/`nunit.md`/`nsubstitute.md`/`bogus.md`/`testdoubles.md`/`dependencyinjection.md`/`http.md`/`logging.md`/`options.md`
   references when that package is referenced or requested.
 license: MIT
 metadata:
@@ -57,6 +57,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.DependencyInjection"` or `.AsServiceProvider()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `row.AsServiceProvider()` available — load `references/dependencyinjection.md` |
 | `<PackageReference Include="Compono.Http"` | `.csproj` | Definitive | `TestHttpHandler`/`OnGet`/`OnPost`/etc. available — load `references/http.md` |
 | `<PackageReference Include="Compono.Logging"` or `UseLogging()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `ILogger`/`ILogger<T>` compose via `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`, `Verify()` available — load `references/logging.md`. Generation is on by default once the package is referenced — never suggest a manual MSBuild opt-in step |
+| `<PackageReference Include="Compono.Options"` or `UseOptions(` in `*.cs` | `.csproj`/`*.cs` | Definitive | `TestOptionsSource<T>`/`UseOptions<T>()` available — load `references/options.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3`, `Compono.TUnit`, `Compono.MSTest`, or `Compono.NUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -208,6 +209,13 @@ matcher. Call-order verification remains unsupported by either.
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
      generated values are fine when realism doesn't matter to the test.
+   - A composed type takes `IOptions<T>`/`IOptionsSnapshot<T>`/
+     `IOptionsMonitor<T>` for a settings type → `Compono.Options`'s
+     `TestOptionsSource<T>` + `UseOptions<T>()`, if that package is
+     referenced — see `references/options.md`. Don't reach for this when
+     the composed type depends on plain `IConfiguration` directly instead
+     — that's ordinary `ConfigurationBuilder`/`Register<IConfiguration>`
+     composition (Configuration Cookbook), no dedicated package involved.
    - Cross-test/cross-project reusable setup → an `ICompositionProfile`,
      not a copy-pasted builder lambda in every test.
    - A value only known at a *specific test's call site* that must
@@ -337,8 +345,8 @@ undermines the reason Compono exists in this project.
   hasn't shipped — but distinguish "no dedicated package" from "no
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
   `Compono.MSTest`, `Compono.NSubstitute`, `Compono.Bogus`,
-  `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`, and
-  `Compono.Logging` ship as packages today
+  `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`,
+  `Compono.Logging`, and `Compono.Options` ship as packages today
   (`Compono.TUnit`
   ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
@@ -368,7 +376,11 @@ undermines the reason Compono exists in this project.
   requires `NUnit` `[3.14.0, 5.0.0)` (one package covers the whole
   range — no `Compono.NUnit3`/`Compono.NUnit4`/`Compono.NUnit5` split;
   NUnit 5 stays prerelease-only and outside the supported contract until
-  it ships stable), see `references/nunit.md`)
+  it ships stable), see `references/nunit.md`;
+  `Compono.Options` ships `TestOptionsSource<T>`/`UseOptions<T>()` — a
+  coherent `IOptions<T>`/`IOptionsSnapshot<T>`/`IOptionsMonitor<T>` source,
+  not a plain `IConfiguration` package, and there is no
+  `Compono.Configuration`, see `references/options.md`)
   — there is no `Compono.FakeItEasy` or `Compono.Moq`, and never invent a
   plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
@@ -460,4 +472,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/dependencyinjection.md` | `Compono.DependencyInjection` is referenced or `.AsServiceProvider()` is called — `row.AsServiceProvider()`, its stable-identity/caching contract, and what it deliberately can't resolve |
 | `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
 | `references/logging.md` | `Compono.Logging` is referenced or `UseLogging()` is called — `ILogger`/`ILogger<T>` composition, `CapturingLogger`/`CapturingLogger<T>`, structured properties, scope semantics, `Verify()`, and the `ComponoGeneratedLogging` default-on/opt-out behavior |
+| `references/options.md` | `Compono.Options` is referenced or `UseOptions(` is called — `TestOptionsSource<T>`/`UseOptions<T>()` identity model, named options, the unconfigured-name diagnostic, `IConfiguration`-vs-`Compono.Options` routing, and the Finding B boundary |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

@@ -155,6 +155,26 @@
   <ItemGroup Label="Microsoft.Extensions.Logging.Abstractions (net11.0)" Condition="'$(TargetFramework)' == 'net11.0'">
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="[11.0.0-preview.6.26359.118, 12.0.0-a)" />
   </ItemGroup>
+  <!-- Compono.Options's own dependency, per docs/adr/0061-compono-options-testing-support.md:
+       the IOptions<T>/IOptionsSnapshot<T>/IOptionsMonitor<T> interface package only - never
+       Microsoft.Extensions.Options.ConfigurationExtensions or DataAnnotations, and never a
+       transitive Microsoft.Extensions.DependencyInjection dependency beyond what this package
+       itself requires. Same per-TargetFramework conditional-range shape as
+       Microsoft.Extensions.Logging.Abstractions above. -->
+  <ItemGroup Label="Microsoft.Extensions.Options (net8.0)" Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="[8.0.2, 9.0.0)" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Options (net9.0)" Condition="'$(TargetFramework)' == 'net9.0'">
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="[9.0.6, 10.0.0)" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Options (net10.0)" Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="[10.0.11, 11.0.0)" />
+  </ItemGroup>
+  <!-- Lower bound is a prerelease, which causes NuGet to consider prerelease candidates for this
+       package id - same reasoning as Microsoft.Extensions.Logging.Abstractions (net11.0) above. -->
+  <ItemGroup Label="Microsoft.Extensions.Options (net11.0)" Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="[11.0.0-preview.7.26381.103, 12.0.0-a)" />
+  </ItemGroup>
   <ItemGroup>
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />

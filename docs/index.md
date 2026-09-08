@@ -47,6 +47,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.Logging`       | `Microsoft.Extensions.Logging` testing support (`UseLogging()`, `CapturingLogger<T>`) |
 | `Compono.MSTest`        | MSTest integration                               |
 | `Compono.NUnit`         | NUnit integration (no `[TestFixture]` required)  |
+| `Compono.Options`       | `Microsoft.Extensions.Options` testing support (`TestOptionsSource<T>`, `UseOptions<T>()`) |
 
 ## Example
 

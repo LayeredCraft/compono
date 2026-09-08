@@ -1,6 +1,6 @@
 name: AOT Validation
 
-# ADR-0041 Amendment 7: permanent, CI-blocking Native AOT smoke gate for the eight existing
+# ADR-0041 Amendment 7: permanent, CI-blocking Native AOT smoke gate for the nine existing
 # test/*.AotSmokeTest projects, replacing the previous manual-only "run it by hand before release"
 # verification.
 #
@@ -8,7 +8,7 @@ name: AOT Validation
 # skipped by trigger-level path filtering leaves its required status check `Pending` rather than
 # reporting success, under GitHub's required-check semantics - that would block a PR indefinitely
 # instead of passing it on an AOT-irrelevant change. Selectivity happens *inside* the workflow
-# instead: the `changes` job below computes which of the eight legs are actually applicable from the
+# instead: the `changes` job below computes which of the nine legs are actually applicable from the
 # PR's changed files (a small repository-owned `git diff` script, not a third-party changed-files
 # action), each leg's own publish-and-run job runs behind an `if:` reading that output (an
 # inapplicable leg reports an ordinary skipped conclusion, never a missing status), and `aot-gate` -
@@ -56,14 +56,14 @@ jobs:
           echo "Changed files:"
           echo "$changed"
 
-          all_legs='["Compono","Compono.Http","Compono.Logging","Compono.MSTest","Compono.NUnit","Compono.TestDoubles","Compono.TUnit","Compono.XunitV3"]'
+          all_legs='["Compono","Compono.Http","Compono.Logging","Compono.MSTest","Compono.NUnit","Compono.Options","Compono.TestDoubles","Compono.TUnit","Compono.XunitV3"]'
 
           # A change to shared/core/generator infrastructure (or to this workflow itself) can affect
-          # every packaged leg at once - run all eight rather than reflexively narrowing to only the
+          # every packaged leg at once - run all nine rather than reflexively narrowing to only the
           # paths that happened to change (ADR-0041 Amendment 7's own "do not run it reflexively, but
           # do not under-run it either" balance).
           if echo "$changed" | grep -qE '^(src/Compono/|src/Compono\.Generators/|Directory\.Packages\.props|Directory\.Build\.(props|targets)|test/Directory\.Build\.(props|targets)|\.github/workflows/aot-validation\.yaml)'; then
-            echo "Core/generator/shared-config change detected - running all eight legs."
+            echo "Core/generator/shared-config change detected - running all nine legs."
             echo "legs=$all_legs" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -77,12 +77,13 @@ jobs:
           echo "$changed" | grep -q '^src/Compono\.Logging/'     && add_leg "Compono.Logging"
           echo "$changed" | grep -q '^src/Compono\.MSTest/'      && add_leg "Compono.MSTest"
           echo "$changed" | grep -q '^src/Compono\.NUnit/'       && add_leg "Compono.NUnit"
+          echo "$changed" | grep -q '^src/Compono\.Options/'     && add_leg "Compono.Options"
           echo "$changed" | grep -q '^src/Compono\.TestDoubles/' && add_leg "Compono.TestDoubles"
           echo "$changed" | grep -q '^src/Compono\.TUnit/'       && add_leg "Compono.TUnit"
           echo "$changed" | grep -q '^src/Compono\.XunitV3/'     && add_leg "Compono.XunitV3"
 
           # A change scoped to one leg's own AotSmokeTest project only needs that leg re-run, not all
-          # eight - extract which leg(s) directly from the changed paths.
+          # nine - extract which leg(s) directly from the changed paths.
           for proj in $(echo "$changed" | grep -oE '^test/[^/]+\.AotSmokeTest/' | sed -E 's#^test/(.+)\.AotSmokeTest/#\1#' | sort -u); do
             add_leg "$proj"
           done

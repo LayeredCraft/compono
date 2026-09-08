@@ -644,6 +644,45 @@
         "Points to Verify()'s existing overload-safe argument-matching surface for what IS supported",
         "Suggests Compono.NSubstitute or a project-local fake as the real answer if capture on the overloaded member is required"
       ]
+    },
+    {
+      "id": 53,
+      "category": "routing",
+      "prompt": "My composed SkillService takes IOptionsMonitor<SkillServiceConfiguration> and IOptions<SkillServiceConfiguration> as constructor dependencies. Compono.Options is referenced. How should I compose these in a test?",
+      "expected_output": "Construct a TestOptionsSource<SkillServiceConfiguration> directly with the initial value, then wire it with builder.UseOptions(source) - one call coherently satisfies both IOptions<T> and IOptionsMonitor<T> (plus IOptionsSnapshot<T>) from that one source. Does not recommend two separate hand-wired registrations, and does not recommend a hand-rolled IOptionsMonitor<T> fake.",
+      "files": [],
+      "expectations": [
+        "Recommends TestOptionsSource<T> constructed directly, not a hand-rolled IOptionsMonitor<T> fake",
+        "Recommends the single UseOptions<T>(source) wiring call, not separate Register<IOptions<T>>/Register<IOptionsMonitor<T>> calls",
+        "States that IOptions<T> stays frozen after the source's value later changes, while IOptionsMonitor<T> reflects the current value",
+        "Does not claim IOptions<T> has a Get(name) named-lookup surface"
+      ]
+    },
+    {
+      "id": 54,
+      "category": "routing",
+      "prompt": "My composed type takes a plain IConfiguration dependency (not IOptions<T>). Compono.Options is referenced in this project. Should I use Compono.Options for this?",
+      "expected_output": "No - Compono.Options only satisfies IOptions<T>/IOptionsSnapshot<T>/IOptionsMonitor<T>, not plain IConfiguration. For IConfiguration itself, use ordinary ConfigurationBuilder/AddInMemoryCollection/Register<IConfiguration> composition (the Configuration Cookbook recipes) - there is no Compono.Configuration package, and none should be invented.",
+      "files": [],
+      "expectations": [
+        "States that Compono.Options does not satisfy plain IConfiguration dependencies",
+        "Recommends ordinary ConfigurationBuilder/AddInMemoryCollection/Register<IConfiguration> composition instead",
+        "States plainly that there is no Compono.Configuration package",
+        "Does not fabricate a Compono.Configuration package or an IConfiguration-specific API on Compono.Options"
+      ]
+    },
+    {
+      "id": 55,
+      "category": "behavioral-correctness",
+      "prompt": "My test uses Compono.Options. It calls monitor.Get(\"secondary\") but I never called source.Change(\"secondary\", ...) anywhere - the test throws UnconfiguredNamedOptionException. Is this a bug in Compono.Options?",
+      "expected_output": "No - this is intentional, documented behavior, not a bug. Compono.Options throws UnconfiguredNamedOptionException for a name never established via TestOptionsSource<T>.Change(name, value), diverging deliberately from real IOptionsFactory<T> (which silently returns new TOptions() for an unmatched name). The fix is to call source.Change(\"secondary\", value) for that name before resolving it.",
+      "files": [],
+      "expectations": [
+        "States this is intentional/deliberate behavior, not a bug to work around",
+        "Explains the fix is calling TestOptionsSource<T>.Change(name, value) for that name before resolving it",
+        "Does not suggest catching/suppressing the exception, or that it indicates a Compono.Options defect",
+        "Optionally notes this diverges deliberately from real IOptionsFactory<T>'s silent-default behavior"
+      ]
     }
   ]
 }

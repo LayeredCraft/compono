@@ -106,6 +106,7 @@ otherwise favors.
 
 | When you're about to... | Read |
 |---|---|
+| Decide whether a proposed capability, feature, integration, or new package belongs in Compono at all, before any design work starts | [`docs/architecture/capability-admission.md`](../../../docs/architecture/capability-admission.md) (standalone; read it directly, not via `references/`) |
 | Decide where an architecture/feature decision belongs, run a design dive (light or deep) before writing code, write/reference an ADR (`docs/adr/`), or write/track a plan (`docs/plans/`) | `references/design-decisions.md` |
 | Write or review any C# (naming, nullable, async, DI, error handling, file layout) | `references/coding-standards.md` |
 | Add or change tests | `references/testing.md` |
