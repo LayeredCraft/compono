@@ -481,13 +481,10 @@ mirroring the response side, is the whole v1 surface.
 **What Compono.Http itself guarantees, stated narrowly:**
 
 - Every built-in matcher (`WithBody`, `WithFormBody`, `WithJsonBody<T>`)
-  reads `request.Content` using an **ordinary, public** `HttpContent` read
-  API — `WithBody` calls `ReadAsByteArrayAsync(CancellationToken)`;
-  `WithFormBody` and both `WithJsonBody<T>` overloads call
-  `ReadAsStringAsync(CancellationToken)`, since both operate on text
-  (percent-encoded form pairs, JSON) rather than raw bytes. No private
+  reads `request.Content` using the **ordinary, public**
+  `HttpContent.ReadAsByteArrayAsync(CancellationToken)` API — no private
   reflection, no `ReadAsStream()`/`ReadAsStreamAsync()` direct-stream
-  access, no custom buffering wrapper of Compono's own, in any case.
+  access, no custom buffering wrapper of Compono's own.
 - **Compono.Http performs no buffering, consumption, disposal, or
   replacement of the caller-supplied `HttpContent` itself.** The
   `HttpRequestMessage`/`HttpContent` instance handed to `SendAsync` is the
@@ -912,6 +909,29 @@ override.
   (mitigation: documented explicitly and deliberately, D10, matching how
   `RespondJson<T>`'s own serialization already can throw on the response
   side).
+
+## Amendment 1 (2026-09-12): D9's content-read API guarantee corrected
+
+D9 originally stated that **every** built-in matcher (`WithBody`,
+`WithFormBody`, `WithJsonBody<T>`) reads `request.Content` via
+`ReadAsByteArrayAsync(CancellationToken)`. That's inaccurate — only
+`WithBody` calls `ReadAsByteArrayAsync`; `WithFormBody` and both
+`WithJsonBody<T>` overloads call `ReadAsStringAsync(CancellationToken)`,
+since both operate on text (percent-encoded form pairs, JSON) rather than
+raw bytes — matching the shipped implementation
+(`HttpResponseRegistrationBuilder.cs`, the `WithFormBody`/`WithJsonBody<T>`
+matcher bodies). Caught by Codex review on PR #138, before merge.
+
+This is a correction to D9's own text, recorded here per this repo's
+"an ADR's original text is immutable once `Accepted`, a later correction
+is a dated Amendment" convention — applied even though this ADR was
+`Accepted` within the same still-open PR, not a separately-merged one,
+matching the precedent `ADR-0061` Amendment 1 already set (a documentation
+correction found during that PR's own final review pass, recorded as an
+Amendment rather than a silent in-place edit). Every other D9 guarantee
+(no reflection, no direct-stream access, no Compono-owned buffering, no
+promise about arbitrary custom `HttpContent` subclasses) is unaffected and
+remains accurate as originally written.
 
 ## Links
 
