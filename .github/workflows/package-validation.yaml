@@ -41,21 +41,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The 11.0 entry below is exact-pinned, not a floating "11.0.x" - a floating request lets
+      # setup-dotnet install whatever preview/rc build is currently newest in the 11.0 channel, which
+      # combines with global.json's rollForward:latestFeature to make MSBuild silently prefer that
+      # newer SDK over the one global.json actually pins. Reproduced: 11.0.100-rc.1.26425.128 broke
+      # the NUnit compatibility matrix's classic-VSTest leg (module initializer failed to register
+      # Widget's row-binding dispatch, "No row-binding dispatch is registered for Widget") while the
+      # exact SDK global.json pins (preview.7.26381.103) runs it correctly - confirmed by diffing this
+      # job's SDK-install log against the last known-good run's. Bump this in lockstep with
+      # global.json's own sdk.version, never independently.
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             9.0.x
             10.0.x
-            # Exact-pinned, not a floating "11.0.x" - a floating request lets setup-dotnet install
-            # whatever preview/rc build is currently newest in the 11.0 channel, which combines with
-            # global.json's rollForward:latestFeature to make MSBuild silently prefer that newer SDK
-            # over the one global.json actually pins. Reproduced: 11.0.100-rc.1.26425.128 broke the
-            # NUnit compatibility matrix's classic-VSTest leg (module initializer failed to register
-            # Widget's row-binding dispatch, "No row-binding dispatch is registered for Widget") while
-            # the exact SDK global.json pins (preview.7.26381.103) runs it correctly - confirmed by
-            # diffing this job's SDK-install log against the last known-good run's. Bump this in
-            # lockstep with global.json's own sdk.version, never independently.
             11.0.100-preview.7.26381.103
 
       - name: Restore
