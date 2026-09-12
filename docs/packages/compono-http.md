@@ -2,11 +2,15 @@
 
 A reflection-free, handler-based test double for code built on `HttpClient` —
 `TestHttpHandler` (an `HttpMessageHandler` subclass) with `OnGet`/`OnPost`/
-`OnPut`/`OnPatch`/`OnDelete` + `When(...)` matching, last-match-wins
-precedence, strict unmatched-request behavior, and a registration-handle
-verification model reusing core `Compono`'s `CallVerifier` unmodified. See
+`OnPut`/`OnPatch`/`OnDelete` + `When`/`WhenAsync` matching,
+`WithHeader`/`WithBody`/`WithFormBody`/`WithJsonBody<T>` chainable body/
+header conditions, last-match-wins precedence, strict unmatched-request
+behavior, and a registration-handle verification model reusing core
+`Compono`'s `CallVerifier` unmodified. See
 [ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md) for
-the full decision record and
+the original decision record,
+[ADR-0062](../adr/0062-compono-http-body-header-request-matching.md) for
+the body/header matching addition, and
 [RESEARCH-0009](../research/0009-compono-http-admission-research.md) for
 the admission investigation this package's shape came from.
 
@@ -62,11 +66,60 @@ registration.Verify().Once();
     than guessing which kind it is. See
     [ADR-0051](../adr/0051-compono-http-handler-based-testing-package.md)'s
     Amendment 1 for why.
-- **`When(Func<HttpRequestMessage, bool> predicate)`** — the whole-request
-  escape hatch, for conditions spanning method, URI, headers, and content
-  type together (e.g. `req.Content is FormUrlEncodedContent`). There is
-  **no** dedicated header/query/body matcher DSL in v1 — `When(...)` is the
-  only mechanism for those dimensions.
+- **`When(Func<HttpRequestMessage, bool> predicate)`** — the synchronous
+  whole-request escape hatch, for conditions spanning method, URI, and
+  headers together. For anything that needs to read the request body, or
+  await something to decide, use `WhenAsync` or one of the named body/
+  header matchers below instead — `When`'s own predicate is deliberately
+  synchronous and unchanged.
+- **`WhenAsync(Func<HttpRequestMessage, CancellationToken, ValueTask<bool>> predicate)`** —
+  the async peer of `When`. Also the primitive `WithHeader`/`WithBody`/
+  `WithFormBody`/`WithJsonBody<T>` (below) compile to internally, exposed
+  publicly so a condition none of them covers still has a first-class
+  escape hatch (ADR-0062).
+- **`.WithHeader(string name, string value)`, `.WithBody(Func<byte[], bool> predicate)`,
+  `.WithFormBody(Func<ILookup<string,string>, bool> predicate)`,
+  `.WithJsonBody<T>(Func<T?, bool> predicate, JsonTypeInfo<T> jsonTypeInfo)`/
+  `.WithJsonBody<T>(Func<T?, bool> predicate, JsonSerializerOptions? options = null)`** —
+  chainable request-matching conditions on `OnX(...)`/`When`/`WhenAsync`,
+  ANDed together in declaration order with short-circuiting (a failing
+  earlier condition means a later, more expensive one never runs):
+
+  ```csharp
+  handler.OnPost("/auth/o2/token")
+      .WithFormBody(form =>
+          form["grant_type"].SingleOrDefault() == "refresh_token" &&
+          form["client_id"].SingleOrDefault() == expectedClientId)
+      .RespondJson(tokenResponse);
+  ```
+
+  - `WithHeader` checks both `HttpRequestMessage.Headers` and
+    `HttpRequestMessage.Content?.Headers`, with no precedence between
+    them — matches if the value appears in either. Header-name comparison
+    is case-insensitive; value comparison is ordinal. A header with
+    multiple values matches if any one equals the expected value. A
+    missing header evaluates to no match, never an exception. The value
+    for `Authorization`/`Proxy-Authorization`/`Cookie`/`Set-Cookie`
+    (case-insensitive) is **redacted in `Verify()`'s diagnostic
+    description only** — matching always compares the real value.
+  - `WithFormBody` **requires** `Content-Type: application/x-www-form-urlencoded`
+    (case-insensitive) — a missing or different media type evaluates to
+    no match *without reading the body at all*. The parsed fields are an
+    `ILookup<string,string>`, not a dictionary, because a real form body
+    can legitimately repeat a key (a checkbox group) — the lookup's
+    indexer returns every value for a key, in wire order, or an empty
+    sequence (never a throw) for an absent key.
+  - `WithJsonBody<T>` **requires** a JSON media type — exactly
+    `application/json`, or any type whose subtype ends in `+json`
+    (case-insensitive, e.g. `application/vnd.api+json`) — checked before
+    deserializing. A body that fails to deserialize as `T` (malformed
+    JSON) propagates the underlying `JsonException` directly — it is
+    **not** treated as "no match." See JSON / AOT below for the two
+    overloads' AOT posture.
+  - `WithBody` is the generic, **media-type-agnostic** foundation the
+    other two are themselves built on — no `Content-Type` requirement, by
+    design, since it's the escape hatch for a condition that isn't one of
+    the two named representations above.
 - **Precedence: last-registered-first, first match wins.** A later, more
   specific registration overrides an earlier, broader one — register a
   catch-all first, then override it:
@@ -176,23 +229,32 @@ Prefer the `JsonTypeInfo<T>` overload in any project that publishes Native
 AOT or enables trim analysis. Not all `RespondJson` usage is automatically
 AOT-safe — only this overload is.
 
+`WithJsonBody<T>` mirrors this exactly:
+`WithJsonBody<T>(predicate, JsonTypeInfo<T>)` is the AOT-safe path (no
+attribute); `WithJsonBody<T>(predicate, JsonSerializerOptions? = null)`
+carries the same `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`
+attributes for the identical reason.
+
 ## v1 non-goals
 
-Deliberately not in this package — see ADR-0051's Decision Outcome for the
-rationale behind each:
+Deliberately not in this package — see ADR-0051's and ADR-0062's Decision
+Outcomes for the rationale behind each:
 
 - `IHttpClientFactory`/named-client/typed-client integration.
-- Dedicated header/query-string/JSON-body matcher types (`When(...)` is the
-  only mechanism for these).
-- Async request-matching predicates.
+- Streaming/multipart request or response bodies.
 - Retry/Polly-aware testing behavior.
 - Callback-based, delayed, or sequential/queued responses per registration.
-- WireMock-style stateful scenarios.
-- Call-order verification (only count-based `Never`/`Once`/`Exactly`).
+- WireMock-style stateful scenarios, numeric priority, or regex path
+  matching.
+- Call-order verification (only count-based `Never`/`Once`/`Exactly`/
+  `AtLeast`/`AtMost`).
 - A strict/loose unmatched-request mode toggle.
 - A raw `HttpResponseMessage`-accepting `Respond(HttpResponseMessage)`
   overload.
 - Composition-owned disposal of `TestHttpHandler`.
+- A configurable/extensible sensitive-header redaction list — the
+  `Authorization`/`Proxy-Authorization`/`Cookie`/`Set-Cookie` denylist is
+  fixed.
 
 ## Next
 

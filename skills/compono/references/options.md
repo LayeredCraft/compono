@@ -28,6 +28,107 @@ registrations for the same settings type (`Register<SkillServiceConfiguration>`
 independently) — nothing enforces those stay consistent; `UseOptions<T>`
 does, structurally, from one source.
 
+## Context-aware profile — a different value per test call site
+
+The example above shows one fixed `TestOptionsSource<T>`, wired inline.
+When different tests need different settings values for the **same**
+settings type, don't hand-construct the SUT to work around it — reach for
+a `[Compose<TProfile, TConfig>]` context-aware profile (see
+`registrations-profiles-and-scopes.md`'s "When test-specific configuration
+should shape the graph" and `xunit-v3.md`'s `[Compose<TProfile, TConfig>]`
+section for the general mechanics). `TConfig`'s constructor arguments must
+be attribute-legal (an `enum`, a primitive, `typeof(...)` — never a whole
+settings object, since attribute arguments must be compile-time
+constants), so the profile builds the actual settings instance from
+`TConfig`'s primitive fields, then wires it exactly the same way as the
+fixed case:
+
+```csharp
+public sealed record RetryPolicyConfig(int MaxRetries);
+
+public sealed class RetryPolicyProfile : ICompositionProfile
+{
+    public RetryPolicyProfile(RetryPolicyConfig config) => Config = config;
+    public RetryPolicyConfig Config { get; }
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.UseOptions(new TestOptionsSource<RetryOptions>(
+            new RetryOptions { MaxRetries = Config.MaxRetries }));
+}
+
+[Theory]
+[Compose<RetryPolicyProfile, RetryPolicyConfig>(0)]
+public void GivesUpImmediately_WhenNoRetriesConfigured(RetryingClient client) { }
+
+[Theory]
+[Compose<RetryPolicyProfile, RetryPolicyConfig>(3)]
+public void RetriesUpToTheConfiguredLimit(RetryingClient client) { }
+```
+
+`RetryingClient` (the SUT) is still composed the ordinary way in both
+tests — never hand-constructed, never given a manually-built
+`IOptions<RetryOptions>`/`Options.Create(...)` value inline per test. Only
+the profile's own configuration varies, via `TConfig`. Recommend this
+shape whenever a consumer describes "different tests need different
+option values for the same settings type" — that's exactly this pattern,
+not a reason to bypass composition.
+
+**If an existing, unrelated profile already applies to these tests, don't
+bolt on a second, competing profile.** A method can carry only one
+`Compose`-family attribute (`[Compose]`/`[Compose<TProfile>]`/
+`[Compose<TProfile, TConfig>]`) — stacking `[Compose<ExistingProfile>]`
+alongside `[Compose<RetryPolicyProfile, RetryPolicyConfig>(...)]` on the
+same method compiles but throws `CompositionException` at data-binding
+time (see `xunit-v3.md`'s "Hard constraint: one Compose-family attribute
+per method"). Fold the existing profile's setup into the new,
+`TConfig`-parameterized profile's own `Configure` method instead — either
+directly, or by calling `builder.AddProfile<ExistingProfile>()` from
+inside it — so the whole test still applies through the single
+`[Compose<TProfile, TConfig>]` attribute:
+
+```csharp
+public sealed class RetryPolicyProfile : ICompositionProfile
+{
+    public RetryPolicyProfile(RetryPolicyConfig config) => Config = config;
+    public RetryPolicyConfig Config { get; }
+
+    public void Configure(CompositionBuilder builder)
+    {
+        builder.AddProfile<ExistingUnrelatedProfile>(); // keeps its setup, doesn't replace it
+        builder.UseOptions(new TestOptionsSource<RetryOptions>(
+            new RetryOptions { MaxRetries = Config.MaxRetries }));
+    }
+}
+```
+
+## Bare `T` alongside an Options interface — same value, two registrations
+
+**`UseOptions<T>()` wires `IOptions<T>`/`IOptionsSnapshot<T>`/
+`IOptionsMonitor<T>` only — it never registers bare `T` itself.** Never
+imply otherwise, and never suggest a consumer can drop a plain `RetryOptions`
+constructor parameter alongside `IOptions<RetryOptions>` and expect
+`UseOptions<T>()` alone to satisfy both. If something in the graph
+genuinely needs the bare settings type directly (not through an Options
+interface), register it separately, sourced from the **same** value
+`TestOptionsSource<T>` was constructed with — so both stay coherent
+instead of silently drifting apart:
+
+```csharp
+public void Configure(CompositionBuilder builder)
+{
+    var options = new RetryOptions { MaxRetries = Config.MaxRetries };
+
+    builder.UseOptions(new TestOptionsSource<RetryOptions>(options));
+    builder.Register<RetryOptions>(() => options); // same instance, not a second independently-built one
+}
+```
+
+This is an ordinary `Register<T>()` call — no new API, no
+`Compono.Options` surface change. The point is coherence: both
+registrations trace back to the one `options` value constructed once in
+`Configure`, the same discipline `UseOptions<T>()` itself already applies
+across the three Options interfaces it does own.
+
 ## `IConfiguration` vs. `Compono.Options` — the routing distinction
 
 These are two different, independently-composable things. Never conflate

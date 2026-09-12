@@ -86,6 +86,43 @@ silently omitting the cycling member. See
 coming from AutoFixture's recursion-behavior configuration — there's
 nothing to configure here, by design.
 
+### The type looks composable, but the generated plan is unexpectedly missing
+
+If composition looks valid — the type has an accessible constructor, no
+`CMP` diagnostic fired, nothing about the code changed — but you still
+hit a runtime "no generated plan"-style failure (the tree message above
+naming "generated plan" among the stages that couldn't satisfy the
+request), the generator may not have run at all for this compilation,
+rather than having run and correctly declined. This is a **secondary
+symptom**, not the root cause — check your build output for an analyzer
+warning before assuming the composition itself is wrong.
+
+The .NET SDK's Roslyn compiler host refuses to load an analyzer
+(`Compono.Generators.dll`) built against a *newer* compiler than the
+host's own — silently, as a build warning (`CS9057`), never a build
+error, so a generator that failed to load produces no obvious signal
+unless you go looking at the build's warning output. `docs/getting-started/installation.md`'s
+"Minimum .NET SDK version" section and
+[ADR-0003 Amendment 1](../adr/0003-generator-package-distribution.md#amendment-1-2026-09-08-minimum-supported-roslynsdk-version)
+record Compono's own actual minimum (.NET SDK `8.0.400` or later for a
+`net8.0` build — `net9.0`/`net10.0`/`net11.0` have no equivalent floor,
+every released SDK for those TFMs already bundles a new-enough Roslyn) —
+an older host SDK than that is a real, sourced, non-hypothetical way for
+this to happen. It is not, however, the only conceivable cause of a
+generator failing to run — an unusual or non-standard build toolchain
+could, in principle, produce the same symptom for a different reason.
+
+**Don't over-generalize this**: a "no generated plan" failure is far more
+often a genuine, correctly-reported composition gap (a type the generator
+correctly never intended to compose, or a real missing registration) than
+a generator-didn't-run incident — most runtime composition failures are
+exactly what the message says, not this. Treat this as one specific thing
+to rule out, not the default explanation: if the failing type looks like
+it *should* have a generated plan and nothing else in this page's
+"Runtime composition failures" section explains it, check your build
+output for `CS9057` (or any other analyzer-loading warning) before
+looking further at the composition itself.
+
 ### "My test throws `CompositionConfigurationException`"
 
 This is a *configuration* error, thrown when `Composer.Create(...)`

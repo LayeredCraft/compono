@@ -54,10 +54,16 @@ a v1-only limitation that might later be lifted.
   tell `Any()` from `Is(...)` from the outside (ADR-0051 Amendment 1);
   never claim a `Match<string>`-based registration's failure message names
   the actual path or predicate.
-- `handler.When(req => ...)` — whole-request predicate (method, URI,
-  headers, content type together). The only mechanism for matching on
-  anything beyond method+path — there is **no** dedicated header/query/
-  body matcher DSL.
+- `handler.When(req => ...)` — synchronous whole-request predicate (method,
+  URI, headers together). **Never suggest a blocking
+  `.GetAwaiter().GetResult()`/`.Result` call inside a `When` predicate to
+  read the request body** — that's exactly the anti-pattern
+  `WithFormBody`/`WithJsonBody<T>`/`WhenAsync` (below) exist to replace.
+  For a real `alexa-vox-craft` example of the type-only-check trap this
+  causes, see "Body/header matching," below.
+- `handler.WhenAsync(async (req, ct) => ...)` — the async peer of `When`,
+  for any body-reading/awaited condition none of the named matchers below
+  covers.
 - Every match finalizes with `.Respond(HttpStatusCode)`,
   `.RespondText(content, mediaType, encoding)`,
   `.RespondJson(value, options?)`, `.RespondJson(value, jsonTypeInfo)`,
@@ -72,6 +78,62 @@ a v1-only limitation that might later be lifted.
   ...
   registration.Verify().Once();   // .Never() / .Exactly(n) / .AtLeast(n) / .AtMost(n) also available
   ```
+
+## Body/header matching — reach for a named matcher, not a type-only check
+
+**When a test needs to verify what a request actually carried — a header
+value, a form field, a JSON property — chain `.WithHeader(...)`/
+`.WithFormBody(...)`/`.WithJsonBody<T>(...)`/`.WithBody(...)` onto the
+same registration, don't drop to `req.Content is FormUrlEncodedContent`
+(a type-only check) or a hand-rolled `When` predicate that can't safely
+read the body.** This is a real, shipped trap this package's own history
+hit: a real `alexa-vox-craft` OAuth test could only assert
+`req.Content is FormUrlEncodedContent` — not the actual `grant_type`/
+`client_id`/`client_secret` field values — because `When`'s predicate is
+synchronous and reading a body is async. The fix (ADR-0062):
+
+```csharp
+handler.OnPost("/auth/o2/token")
+    .WithFormBody(form =>
+        form["grant_type"].SingleOrDefault() == "refresh_token" &&
+        form["client_id"].SingleOrDefault() == expectedClientId)
+    .RespondJson(tokenResponse);
+```
+
+Never recommend a type-only `is FormUrlEncodedContent`/`is StringContent`
+check, or a `When` predicate that blocks on `.Result`/`.GetAwaiter().GetResult()`
+to read a body, when `WithFormBody`/`WithJsonBody<T>`/`WithBody` already
+cover the case — those are exactly the pattern this feature replaced.
+
+- **`.WithHeader(name, value)`** — checks both `HttpRequestMessage.Headers`
+  and `HttpRequestMessage.Content?.Headers`, no precedence between them
+  (matches if the value is in either). Case-insensitive name, ordinal
+  value, any-of-multiple-values, missing header → no match (never throws).
+  The value for `Authorization`/`Proxy-Authorization`/`Cookie`/`Set-Cookie`
+  is redacted in `Verify()`'s diagnostic text only — **matching itself
+  always uses the real value**; never claim the redaction affects matching
+  behavior.
+- **`.WithFormBody(Func<ILookup<string,string>, bool>)`** — **requires**
+  `Content-Type: application/x-www-form-urlencoded` (case-insensitive); a
+  wrong/missing media type is "no match," and the body is never read in
+  that case. The lookup, not a dictionary, because a form body can
+  legitimately repeat a key — `form["tags"]` returns every value for that
+  key, in order, or an empty sequence for an absent one.
+- **`.WithJsonBody<T>(predicate, jsonTypeInfo)` /
+  `.WithJsonBody<T>(predicate, options?)`** — **requires** a JSON media
+  type (`application/json` or a `+json`-suffixed type) before
+  deserializing; a malformed body under a JSON `Content-Type` throws the
+  real `JsonException` — **never** claim this is "no match," it's a loud
+  failure by design (ADR-0062 D10). AOT posture mirrors `RespondJson<T>`
+  exactly: `jsonTypeInfo` is the AOT-safe overload, `options?` carries the
+  same `RequiresDynamicCode`/`RequiresUnreferencedCode` attributes.
+- **`.WithBody(Func<byte[], bool>)`** — the generic, **media-type-agnostic**
+  escape hatch the other two are built on; no `Content-Type` requirement,
+  deliberately.
+- All chained conditions on one registration are ANDed in declaration
+  order, short-circuiting on the first failure — recommend ordering a
+  cheap header check before an expensive body-reading one when both are
+  needed.
 
 ## Matching semantics
 

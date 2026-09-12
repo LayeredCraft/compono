@@ -113,7 +113,22 @@ public sealed class TestHttpHandler : HttpMessageHandler
     public HttpResponseRegistrationBuilder When(Func<HttpRequestMessage, bool> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
-        return new HttpResponseRegistrationBuilder(this, predicate, "When(...) request");
+        return new HttpResponseRegistrationBuilder(this, (request, _) => new ValueTask<bool>(predicate(request)), "When(...) request");
+    }
+
+    /// <summary>
+    /// Matches any request satisfying <paramref name="predicate"/> - the async peer of
+    /// <see cref="When"/>, for a condition that needs to read the request body/await something to
+    /// decide (ADR-0062 D4). Also the primitive every named matcher (<see cref="HttpResponseRegistrationBuilder.WithHeader"/>/
+    /// <see cref="HttpResponseRegistrationBuilder.WithBody"/>/<see cref="HttpResponseRegistrationBuilder.WithFormBody"/>/
+    /// <c>WithJsonBody</c>) compiles to internally - exposed publicly so a condition none of them
+    /// covers still has a first-class escape hatch, the same role <see cref="When"/> already plays
+    /// for the synchronous case.
+    /// </summary>
+    public HttpResponseRegistrationBuilder WhenAsync(Func<HttpRequestMessage, CancellationToken, ValueTask<bool>> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        return new HttpResponseRegistrationBuilder(this, new AsyncRequestMatcher(predicate), "WhenAsync(...) request");
     }
 
     /// <summary>
@@ -142,13 +157,20 @@ public sealed class TestHttpHandler : HttpMessageHandler
     }
 
     /// <inheritdoc />
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    // ADR-0062 D11/D9: the matching loop below awaits each registration's (possibly async, possibly
+    // body-reading) matcher in last-registered-first order, sequentially, stopping at the first
+    // fully-matching registration - a real, documented execution-shape change from a purely
+    // synchronous scan (still the same last-registered-first, first-match-wins outcome, per
+    // ADR-0051 "Precedence", unchanged). RecordRequest still runs unconditionally, before any
+    // matching/awaiting is attempted, so an unmatched (or still-being-matched) request is always
+    // already visible in Requests.
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         if (_disposed)
         {
-            return Task.FromException<HttpResponseMessage>(new ObjectDisposedException(nameof(TestHttpHandler)));
+            throw new ObjectDisposedException(nameof(TestHttpHandler));
         }
 
         RecordRequest(request);
@@ -156,7 +178,7 @@ public sealed class TestHttpHandler : HttpMessageHandler
         HttpResponseRegistration? matched = null;
         for (var i = _registrations.Count - 1; i >= 0; i--)
         {
-            if (_registrations[i].Matches(request))
+            if (await _registrations[i].Matches(request, cancellationToken).ConfigureAwait(false))
             {
                 matched = _registrations[i];
                 break;
@@ -165,18 +187,11 @@ public sealed class TestHttpHandler : HttpMessageHandler
 
         if (matched is null)
         {
-            return Task.FromException<HttpResponseMessage>(new UnmatchedHttpRequestException(request.Method, request.RequestUri));
+            throw new UnmatchedHttpRequestException(request.Method, request.RequestUri);
         }
 
         matched.RecordMatch();
-        try
-        {
-            return Task.FromResult(matched.CreateResponse(request));
-        }
-        catch (Exception ex)
-        {
-            return Task.FromException<HttpResponseMessage>(ex);
-        }
+        return matched.CreateResponse(request);
     }
 
     /// <inheritdoc />
@@ -208,7 +223,7 @@ public sealed class TestHttpHandler : HttpMessageHandler
         var description = $"{method.Method} {path}";
         return new HttpResponseRegistrationBuilder(
             this,
-            request => request.Method == method && string.Equals(request.RequestUri?.PathAndQuery ?? string.Empty, path, StringComparison.Ordinal),
+            (request, _) => new ValueTask<bool>(request.Method == method && string.Equals(request.RequestUri?.PathAndQuery ?? string.Empty, path, StringComparison.Ordinal)),
             description);
     }
 
@@ -223,7 +238,7 @@ public sealed class TestHttpHandler : HttpMessageHandler
         var description = $"{method.Method} request matching a custom path condition";
         return new HttpResponseRegistrationBuilder(
             this,
-            request => request.Method == method && path.Matches(request.RequestUri?.PathAndQuery ?? string.Empty),
+            (request, _) => new ValueTask<bool>(request.Method == method && path.Matches(request.RequestUri?.PathAndQuery ?? string.Empty)),
             description);
     }
 }
