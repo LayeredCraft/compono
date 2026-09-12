@@ -245,11 +245,28 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsNUnitAll);
 
+        // Compono.XunitV3.Aot's own [Compose]-attributed methods (ADR-0066/PLAN-0066) hit the
+        // identical PlanCache<T>/RowInvokerRegistry discovery gap the four families above solve - same
+        // TransformMethod, so a custom composed parameter type still gets a real generated plan
+        // through the packaged Compono.XunitV3.Aot -> Compono dependency chain. Phase 1 has no generic
+        // (arity-1/arity-2) form yet, so this is the only registration for this attribute family - see
+        // AotComposeMethodDiscovery below for the separate, per-method registration this same
+        // attribute also drives.
+        var composeMethodResultsXunitV3Aot = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.AotAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeMethodsXunitV3Aot);
+
         var composeMethodResultsAll = composeMethodResultsXunitV3.Collect()
             .Combine(composeMethodResultsTUnitAll.Collect())
             .Combine(composeMethodResultsMSTestAll.Collect())
             .Combine(composeMethodResultsNUnitAll.Collect())
-            .SelectMany(static (results, _) => results.Left.Left.Left.Concat(results.Left.Left.Right).Concat(results.Left.Right).Concat(results.Right))
+            .Combine(composeMethodResultsXunitV3Aot.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Left.Left.Concat(results.Left.Left.Left.Right).Concat(results.Left.Left.Right).Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
@@ -599,6 +616,31 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
 
             RowInvokerRegistrationEmitter.Generate(productionContext, type);
         });
+
+        // ADR-0066/PLAN-0066: Compono.XunitV3.Aot's per-method RegisteredEngineConfig.
+        // RegisterTheoryDataRowFactory(...) registration - independent of, and additional to, the
+        // composeMethodResultsXunitV3Aot/rowInvokerTypes plan-generation registration above (see
+        // AotComposeMethodDiscovery's own remarks for why this needs its own discovery, preserving
+        // per-method identity and parameter order that the type-deduped worklist above discards).
+        var aotComposeMethods = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AotComposeMethodDiscovery.AttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, ct) => AotComposeMethodDiscovery.TransformMethod(ctx, ct))
+            .Where(static result => result is not null)
+            .Select(static (result, _) => result!)
+            .WithTrackingName(TrackingNames.AotComposeMethods);
+
+        context.RegisterSourceOutput(aotComposeMethods, static (productionContext, method) =>
+        {
+            foreach (var diagnostic in method.Diagnostics)
+                diagnostic.Report(productionContext);
+
+            if (method.Diagnostics.Count > 0)
+                return;
+
+            AotTheoryDataRowRegistrationEmitter.Generate(productionContext, method);
+        });
     }
 }
 
@@ -637,7 +679,9 @@ internal static class TrackingNames
     public const string ComposeGenericMethodsNUnit = "ComposeMethods.NUnit.Generic";
     public const string ComposeTwoTypeParameterMethodsNUnit = "ComposeMethods.NUnit.TwoTypeParameter";
     public const string ComposeMethodsNUnitAll = "ComposeMethods.NUnit.All";
+    public const string ComposeMethodsXunitV3Aot = "ComposeMethods.XunitV3Aot";
     public const string ComposeMethodsAll = "ComposeMethods.All";
+    public const string AotComposeMethods = "AotComposeMethods";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";
     public const string DiscoveredDistinct = "Discovered.Distinct";

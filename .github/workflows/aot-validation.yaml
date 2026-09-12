@@ -16,14 +16,22 @@ name: AOT Validation
 # (`if: always()`) and always resolves to success or failure, so the required check never sits
 # Pending.
 #
-# The exact guarantee this gate proves: the packaged Compono package's exercised public API surface
-# is callable from a Native-AOT-published, trimmed consumer application without runtime AOT/trimming
-# failures. This is deliberately narrower than "the package's public API surface": it covers core
-# `Compono` itself, not only integration packages, and it makes no claim of exhaustive coverage of
-# every public member - each leg is a throwaway console app calling a specific, real entry point of
-# the packaged API directly. This gate makes NO claim that xUnit v3, TUnit, MSTest, or NUnit's own
-# test runners are Native-AOT compatible - no leg ever publishes a test framework's runner/host as
-# Native AOT.
+# The exact guarantee the nine aot-smoke legs prove: the packaged Compono package's exercised public
+# API surface is callable from a Native-AOT-published, trimmed consumer application without runtime
+# AOT/trimming failures. This is deliberately narrower than "the package's public API surface": it
+# covers core `Compono` itself, not only integration packages, and it makes no claim of exhaustive
+# coverage of every public member - each leg is a throwaway console app calling a specific, real
+# entry point of the packaged API directly. Those nine legs make NO claim that xUnit v3, TUnit,
+# MSTest, or NUnit's own test runners are Native-AOT compatible - no leg ever publishes a test
+# framework's runner/host as Native AOT.
+#
+# The tenth leg, aot-xunitv3-aot-pipeline (ADR-0066/PLAN-0066), is the one exception to that last
+# sentence: it publishes a real Compono.XunitV3.Aot-consuming xUnit v3 test project - real
+# [Theory]+[Compose], real Compono.Generators-emitted RegisteredEngineConfig.RegisterTheoryDataRowFactory
+# registration, real xunit.v3.aot.mtp-v2 - and proves xUnit v3's own AOT discovery/execution pipeline
+# actually discovers and runs a Compono-composed test under Native AOT. This claim is scoped to
+# xUnit v3 (Phase 1's plain [Compose] only) specifically - it says nothing about TUnit/MSTest/NUnit's
+# own runners, which remain covered only by the nine aot-smoke legs' narrower guarantee above.
 #
 # This repository does not use GitHub merge queues today - no `merge_group` trigger is added
 # speculatively; add one later only if that changes.
@@ -40,6 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       legs: ${{ steps.compute.outputs.legs }}
+      xunitv3_aot_applicable: ${{ steps.compute.outputs.xunitv3_aot_applicable }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -62,8 +71,25 @@ jobs:
           # every packaged leg at once - run all nine rather than reflexively narrowing to only the
           # paths that happened to change (ADR-0041 Amendment 7's own "do not run it reflexively, but
           # do not under-run it either" balance).
+          # ADR-0066/PLAN-0066: the tenth leg (Compono.XunitV3.Aot's own real-generator, real-xUnit-AOT-
+          # pipeline proof) shares this same core/generator/shared-config trigger, plus its own
+          # dedicated paths, computed separately below since it runs as its own job
+          # (aot-xunitv3-aot-pipeline), not part of the aot-smoke matrix - it needs a materially
+          # different publish invocation (see test/Compono.XunitV3.Aot.SampleTests.csproj's own
+          # comment) and drives a real xUnit v3 AOT test project, not a hand-dispatch console app.
+          core_or_shared_change=false
           if echo "$changed" | grep -qE '^(src/Compono/|src/Compono\.Generators/|Directory\.Packages\.props|Directory\.Build\.(props|targets)|test/Directory\.Build\.(props|targets)|\.github/workflows/aot-validation\.yaml)'; then
-            echo "Core/generator/shared-config change detected - running all nine legs."
+            core_or_shared_change=true
+          fi
+
+          if echo "$changed" | grep -qE '^(src/Compono\.XunitV3\.Aot/|test/Compono\.XunitV3\.Aot\.SampleTests/|test/Compono\.XunitV3\.Aot\.Tests/)' || [ "$core_or_shared_change" = "true" ]; then
+            echo "xunitv3_aot_applicable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "xunitv3_aot_applicable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$core_or_shared_change" = "true" ]; then
+            echo "Core/generator/shared-config change detected - running all nine AotSmokeTest legs."
             echo "legs=$all_legs" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -138,8 +164,44 @@ jobs:
         if: matrix.leg == 'Compono.Http'
         run: bash test/Compono.Http.AotSmokeTest/AnalyzerContract/verify-analyzer-contract.sh
 
+  # ADR-0066/PLAN-0066's tenth leg - critically different from the aot-smoke matrix above: this
+  # publishes a REAL Compono.XunitV3.Aot-consuming xUnit v3 test project (real [Theory]+[Compose],
+  # real Compono.Generators-emitted RegisteredEngineConfig.RegisterTheoryDataRowFactory registration,
+  # real xunit.v3.aot.mtp-v2), not a hand-dispatch console app - it proves xUnit's own AOT
+  # discovery/execution pipeline actually runs a Compono-composed test, which none of the nine
+  # aot-smoke legs attempt (ADR-0041 Amendment 7's own stated scope boundary).
+  aot-xunitv3-aot-pipeline:
+    needs: changes
+    if: needs.changes.outputs.xunitv3_aot_applicable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+            11.0.x
+
+      - name: Publish Compono.XunitV3.Aot.SampleTests as Native AOT
+        # REQUIRED form - pass RuntimeIdentifier/SelfContained as -p: MSBuild properties, not the
+        # `-r <rid>`/`--self-contained` CLI shorthand flags. See
+        # test/Compono.XunitV3.Aot.SampleTests/Compono.XunitV3.Aot.SampleTests.csproj's own comment
+        # for the empirically-confirmed MSB3030 apphost-copy failure the CLI-flag form hits on this
+        # specific project.
+        run: |
+          dotnet publish test/Compono.XunitV3.Aot.SampleTests \
+            -c Release -f net10.0 \
+            -p:RuntimeIdentifier=linux-x64 -p:SelfContained=true -p:PublishAot=true -p:UseAppHost=true \
+            -o test/Compono.XunitV3.Aot.SampleTests/bin/aot-publish
+
+      - name: Run the published Native AOT binary - real xUnit v3 AOT discovery/execution
+        run: "./test/Compono.XunitV3.Aot.SampleTests/bin/aot-publish/Compono.XunitV3.Aot.SampleTests"
+
   aot-gate:
-    needs: [changes, aot-smoke]
+    needs: [changes, aot-smoke, aot-xunitv3-aot-pipeline]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -156,7 +218,9 @@ jobs:
         run: |
           changes_result="${{ needs.changes.result }}"
           smoke_result="${{ needs.aot-smoke.result }}"
+          xunitv3_aot_result="${{ needs.aot-xunitv3-aot-pipeline.result }}"
           legs='${{ needs.changes.outputs.legs }}'
+          xunitv3_aot_applicable='${{ needs.changes.outputs.xunitv3_aot_applicable }}'
 
           if [ "$changes_result" != "success" ]; then
             echo "::error::Applicability computation ('changes' job) did not succeed (result: $changes_result) - failing closed rather than trusting an unproven leg set." >&2
@@ -168,22 +232,35 @@ jobs:
             exit 1
           fi
 
-          if [ "$smoke_result" = "skipped" ]; then
-            # A legitimate skip only ever means "changes succeeded and found zero applicable legs" -
-            # aot-smoke's own `if: needs.changes.outputs.legs != '[]'` is the only thing that skips
-            # it when changes succeeded. Confirm that's really why, rather than trusting the skip
-            # blindly now that changes_result == success is already known.
-            if [ "$legs" != "[]" ]; then
-              echo "::error::aot-smoke was skipped but changes reported applicable legs ($legs) - this should never happen; failing closed." >&2
-              exit 1
-            fi
-            echo "No applicable AOT smoke legs for this change - gate passes."
-            exit 0
-          fi
-
-          if [ "$smoke_result" != "success" ]; then
+          if [ "$smoke_result" != "success" ] && [ "$smoke_result" != "skipped" ]; then
             echo "::error::Unexpected aot-smoke result: $smoke_result - failing closed." >&2
             exit 1
           fi
 
-          echo "AOT validation gate passed. Applicable legs: $legs"
+          if [ "$smoke_result" = "skipped" ] && [ "$legs" != "[]" ]; then
+            # A legitimate skip only ever means "changes succeeded and found zero applicable legs" -
+            # aot-smoke's own `if: needs.changes.outputs.legs != '[]'` is the only thing that skips
+            # it when changes succeeded. Confirm that's really why, rather than trusting the skip
+            # blindly now that changes_result == success is already known.
+            echo "::error::aot-smoke was skipped but changes reported applicable legs ($legs) - this should never happen; failing closed." >&2
+            exit 1
+          fi
+
+          # Same fail-closed shape for the tenth leg (ADR-0066/PLAN-0066), gated on its own
+          # xunitv3_aot_applicable output rather than the nine-leg legs array.
+          if [ "$xunitv3_aot_result" = "failure" ] || [ "$xunitv3_aot_result" = "cancelled" ]; then
+            echo "::error::The Compono.XunitV3.Aot real-pipeline leg failed or was cancelled - see the aot-xunitv3-aot-pipeline job above." >&2
+            exit 1
+          fi
+
+          if [ "$xunitv3_aot_result" != "success" ] && [ "$xunitv3_aot_result" != "skipped" ]; then
+            echo "::error::Unexpected aot-xunitv3-aot-pipeline result: $xunitv3_aot_result - failing closed." >&2
+            exit 1
+          fi
+
+          if [ "$xunitv3_aot_result" = "skipped" ] && [ "$xunitv3_aot_applicable" != "false" ]; then
+            echo "::error::aot-xunitv3-aot-pipeline was skipped but changes reported it applicable ($xunitv3_aot_applicable) - this should never happen; failing closed." >&2
+            exit 1
+          fi
+
+          echo "AOT validation gate passed. Applicable AotSmokeTest legs: $legs. Compono.XunitV3.Aot real-pipeline leg applicable: $xunitv3_aot_applicable."

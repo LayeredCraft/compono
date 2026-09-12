@@ -56,6 +56,19 @@ implementation completed (`Done`) against
 dogfooding evidence), the same mechanism that already gated
 `Compono.TUnit` and Compono-owned source-generated test doubles — see
 [`Compono.NUnit`](../packages/compono-nunit.md) for what it ships.
+`Compono.XunitV3.Aot` graduated from this page's roadmap once
+[PLAN-0066](../plans/0066-compono-xunitv3-aot-package-architecture-impl-plan.md)'s
+Phase 1 completed against
+[ADR-0066](../adr/0066-compono-xunitv3-aot-package-architecture.md)
+(`Accepted`) — it never appeared here as an admitted candidate first
+either, arriving instead through
+[RESEARCH-0031](../research/0031-native-aot-framework-native-testing-admission-research.md)/
+[RESEARCH-0032](../research/0032-compono-xunitv3-native-aot-package-architecture.md)'s
+dedicated investigation (a real, present incompatibility between
+`Compono.XunitV3` and xUnit v3's own Native AOT package family, plus an
+explicit product-owner request) — see
+[`Compono.XunitV3.Aot`](../packages/compono-xunitv3-aot.md) for what it
+ships.
 
 ## Admission model
 

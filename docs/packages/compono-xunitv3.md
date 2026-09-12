@@ -20,6 +20,11 @@ xUnit v3 without composed data, you don't need this package; core `Compono`
 still works standalone via `Composer.Create()` and the resulting
 composer's own `Create<T>()`.
 
+**Publishing your test project as Native AOT?** This package depends on
+xUnit v3's reflection-mode assemblies and cannot be combined with xUnit's
+Native AOT package family (`xunit.v3.aot.mtp-v2`) in the same project — see
+[`Compono.XunitV3.Aot`](compono-xunitv3-aot.md) instead.
+
 ## What it gives you
 
 - **`[Compose]`** — every theory parameter is composed. See

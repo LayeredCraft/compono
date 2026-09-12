@@ -4,6 +4,10 @@ Every `CMP` diagnostic code Compono's source generator can report, one
 entry each. `CMP0001`–`CMP0013` are compile-time **errors** raised by
 `Compono.Generators` during a normal build — they appear in your IDE's
 error list and fail `dotnet build`, the same as any other compiler error.
+`CMP0040` is also a compile-time **error**, but only applies to
+`Compono.XunitV3.Aot`-attributed test methods (see
+[`Compono.XunitV3.Aot`](../packages/compono-xunitv3-aot.md)) — it has no
+runtime fallback, unlike the other `[Compose]`-family integrations.
 `CMP0020`–`CMP0032` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
 is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
@@ -31,7 +35,8 @@ dispatch-eligibility guard; the generated-test-double diagnostics
 extended by [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
 for `CMP0022`, `CMP0029`, `CMP0030`, and `CMP0031`, and by
 [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
-for `CMP0032` (and `CMP0025`'s narrowed condition).
+for `CMP0032` (and `CMP0025`'s narrowed condition); `CMP0040` by
+[ADR-0066](../adr/0066-compono-xunitv3-aot-package-architecture.md).
 
 ## CMP0001 — Ambiguous construction path
 
@@ -561,6 +566,39 @@ interface still generates, and each such member dispatches by throwing
 **Fix:** None needed — informational. Call
 `Configure().Member(...).Returns(...)`/`.Throws(...)` on the member before
 your test exercises it, same as any other member's `Configure()` surface.
+
+## CMP0040 — Unsupported `Compono.XunitV3.Aot`-attributed method signature
+
+**Severity:** Error.
+
+**Message:** `'{Method}' cannot be registered for Native AOT theory-data
+generation: {Reason}. Compono.XunitV3.Aot's Phase 1 supports only
+ordinary, non-generic parameters (no generic test methods, no
+ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.`
+
+**Cause:** A `[Compose]`-attributed test method under `Compono.XunitV3.Aot`
+has a shape Phase 1 doesn't support: a generic test method, a
+`ref`/`out`/`in` or `params` parameter, or a parameter type that can never
+be a legal `CompositionRow.Resolve<T>()` type argument (an open generic
+parameter, a `ref struct`, a pointer, a function pointer, or an
+unsupported array shape). Unlike `Compono.XunitV3`'s `[Compose]` family,
+`Compono.XunitV3.Aot.ComposeAttribute` is a marker only — it has no
+runtime fallback to catch an unsupported shape later, so without this
+diagnostic the failure mode depends on the shape: a generic test method or
+a `ref`/`out`/`in`/`params` parameter is rejected before any registration
+is built, so the method would simply never be discovered by xUnit's
+Native AOT pipeline, with no diagnostic anywhere; a parameter of an
+ineligible type would instead reach code generation, producing a
+registration containing an illegal `CompositionRow.Resolve<T>()` call —
+the consumer would see a generated-code compiler error instead of an
+actionable diagnostic pointing at their own test method. This is caught
+at compile time instead, before either failure mode can occur.
+
+**Fix:** Remove the generic parameter/ref-out-in-params parameter from the
+test method, or change the offending parameter's type to an ordinary
+composable type. See the
+[`Compono.XunitV3.Aot` Package Guide](../packages/compono-xunitv3-aot.md)
+for Phase 1's exact scope.
 
 ## Next
 

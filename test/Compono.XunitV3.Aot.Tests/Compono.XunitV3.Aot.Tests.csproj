@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.XunitV3.Aot.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-reflection-mode-only
+         ItemGroups (Using Xunit/NSubstitute/AwesomeAssertions, the xunit.v3.mtp-v2 PackageReference)
+         - a property this project declares about itself, matching Compono.TUnit.Tests'/
+         Compono.MSTest.Tests'/Compono.NUnit.Tests' identical precedent
+         (test/Directory.Build.targets' conditions were extended to also check for 'XunitV3Aot' as
+         part of this package's own implementation). Never references the reflection-mode
+         xunit.v3.mtp-v2/xunit.v3.extensibility.core packages at all - see the PackageReference
+         below and ADR-0066 for why that's the whole point. -->
+    <ComponoTestFramework>XunitV3Aot</ComponoTestFramework>
+    <!-- net9.0+ only, matching Compono.XunitV3.Aot's own floor (ADR-0066/RESEARCH-0032) - there is
+         no net8.0 xUnit v3 Native AOT package to test against. -->
+    <TargetFrameworks>net9.0;net10.0;net11.0</TargetFrameworks>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.aot.mtp-v2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono.XunitV3.Aot\Compono.XunitV3.Aot.csproj" />
+    <!-- A plain ProjectReference to Compono.csproj (transitively, via Compono.XunitV3.Aot) does not
+         propagate Compono.Generators.dll as an active analyzer - this project's own [Compose]-
+         attributed test methods need real AotTheoryDataRowRegistration/PlanCache/RowInvokerRegistry
+         registrations for their parameter types, matching Compono.XunitV3.Tests'/
+         Compono.TUnit.Tests'/Compono.MSTest.Tests'/Compono.NUnit.Tests' identical precedent. -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

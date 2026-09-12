@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <!-- net9.0+ only, narrower than Compono.XunitV3's net8.0-net11.0 sweep - xUnit v3's own
+             stated Native AOT floor (extensive [OverloadResolutionPriority] use), confirmed in
+             RESEARCH-0031/RESEARCH-0032. There is no lower floor to support: xunit.v3.aot.mtp-v2
+             itself doesn't exist below net9.0. -->
+        <TargetFrameworks>net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — xUnit v3 Native AOT Integration</Title>
+        <Description>xUnit v3 Native AOT integration for Compono - the [Compose] theory data attribute for Compono.XunitV3.Aot.ComposeAttribute, generator-emitted RegisteredEngineConfig.RegisterTheoryDataRowFactory registration. Phase 1: plain [Compose] only (no inline values, [Shared], or profile variants yet) - see docs/adr/0066-compono-xunitv3-aot-package-architecture.md.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Compono packs its source generator as an analyzer asset. PrivateAssets="none" allows
+             that analyzer to flow through this integration package to consumers that reference
+             only Compono.XunitV3.Aot - matching Compono.XunitV3/Compono.TUnit/Compono.MSTest/
+             Compono.NUnit's own precedent (PLAN-0004 Phase 3's real packaging-bug lesson). -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+        <!-- The AOT-specific attribute-authoring package - xunit.v3.extensibility.core.aot, never
+             the reflection-mode xunit.v3.extensibility.core (that dependency is exactly what makes
+             the existing Compono.XunitV3 package incompatible with xUnit's real AOT package family,
+             per RESEARCH-0031/RESEARCH-0032/ADR-0066). This is the dependency version this package's
+             own .nuspec ships to consumers - a tested-range constraint, not a bare unbounded floor
+             or a blanket exact pin, per ADR-0031 Amendment 1. -->
+        <PackageReference Include="xunit.v3.extensibility.core.aot" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.XunitV3.Aot.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a
+         bare, minimum-inclusive version by default - rewrites the SDK's own
+         _ProjectReferencesWithVersions item (what GenerateNuspec actually reads) to bracket/exact
+         syntax instead. Matches every other integration package's own copy of this target. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

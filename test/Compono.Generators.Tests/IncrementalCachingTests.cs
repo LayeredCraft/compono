@@ -89,4 +89,94 @@ public sealed class IncrementalCachingTests
             "across runs (Cached or Unchanged), not be recomputed as genuinely new or modified - proving real incremental " +
             "cache-hit behavior, not merely that the generator ran twice");
     }
+
+    [Fact]
+    public void AotComposeMethodsStage_ReportsACacheHit_WhenAnUnrelatedSourceEditFollows()
+    {
+        const string original = """
+            namespace Xunit
+            {
+                public interface ITheoryDataRow { }
+                public sealed class TheoryDataRow : ITheoryDataRow { public TheoryDataRow(object?[] data) { } }
+            }
+
+            namespace Xunit.Sdk
+            {
+                public sealed class DisposalTracker { }
+            }
+
+            namespace Xunit.v3
+            {
+                public abstract class DataAttribute : System.Attribute { }
+
+                public static class RegisteredEngineConfig
+                {
+                    public static void RegisterTheoryDataRowFactory(
+                        string testClassIndex, string methodName, bool disableDiscoveryEnumeration,
+                        System.Func<Xunit.Sdk.DisposalTracker, System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<Xunit.ITheoryDataRow>>> factory) { }
+                }
+            }
+
+            namespace Compono.XunitV3.Aot
+            {
+                public sealed class ComposeAttribute : Xunit.v3.DataAttribute { }
+            }
+
+            namespace TestNamespace;
+
+            public sealed class WidgetTests
+            {
+                [Compono.XunitV3.Aot.Compose]
+                public void Widget_is_composed(string leaf)
+                {
+                }
+            }
+            """;
+
+        // Same reasoning as ComposableTypesStage_ReportsACacheHit_WhenAnUnrelatedSourceEditFollows
+        // above - an edit with no possible effect on WidgetTests' own [Compose]-attributed method.
+        const string edited = original + """
+
+            namespace TestNamespace;
+
+            public sealed class Unrelated;
+            """;
+
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
+        var originalTree = CSharpSyntaxTree.ParseText(original, parseOptions, "Program.cs", cancellationToken: TestContext.Current.CancellationToken);
+
+        var compilationOptions = new CSharpCompilationOptions(
+            OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable);
+        List<MetadataReference> references =
+        [
+#if NET11_0_OR_GREATER
+            .. Basic.Reference.Assemblies.Net110.References.All,
+#elif NET10_0_OR_GREATER
+            .. Basic.Reference.Assemblies.Net100.References.All,
+#endif
+            MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+        ];
+        var originalCompilation = CSharpCompilation.Create("IncrementalCachingTestsAssembly", [originalTree], references, compilationOptions);
+
+        var generator = new ComponoIncrementalGenerator().AsSourceGenerator();
+        var driverOptions = new GeneratorDriverOptions(disabledOutputs: default, trackIncrementalGeneratorSteps: true);
+        var driver = ((GeneratorDriver)CSharpGeneratorDriver.Create([generator], driverOptions: driverOptions))
+            .RunGenerators(originalCompilation, TestContext.Current.CancellationToken);
+
+        var editedTree = originalTree.WithChangedText(Microsoft.CodeAnalysis.Text.SourceText.From(edited));
+        var editedCompilation = originalCompilation.ReplaceSyntaxTree(originalTree, editedTree);
+
+        var secondRunDriver = driver.RunGenerators(editedCompilation, TestContext.Current.CancellationToken);
+        var secondResult = secondRunDriver.GetRunResult();
+
+        var steps = secondResult.Results.Single().TrackedSteps[TrackingNames.AotComposeMethods];
+
+        steps.Should().NotBeEmpty("the Compono.XunitV3.Aot [Compose]-attributed method should still produce a tracked step on the second run");
+
+        steps.SelectMany(step => step.Outputs).Should().OnlyContain(
+            output => output.Reason == IncrementalStepRunReason.Cached || output.Reason == IncrementalStepRunReason.Unchanged,
+            "an edit with no effect on the [Compose]-attributed method's own syntax should let this stage's result compare equal " +
+            "across runs (Cached or Unchanged), proving the new AotComposeMethodDiscovery pipeline gets the same real " +
+            "incremental cache-hit behavior as every other tracked stage, not merely that the generator ran twice");
+    }
 }
