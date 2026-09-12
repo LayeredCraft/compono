@@ -176,6 +176,33 @@ some failures (e.g. `HashSet<T>`/`Dictionary` unique-value exhaustion via
 `UniqueValueResolver`) have no structured diagnostic, only the exception
 message with `Seed:` appended.
 
+## The generator silently not running — a secondary-symptom trap
+
+A `TargetFramework` that Compono lists as supported is not the only
+compatibility dimension for `Compono.Generators` — the **consumer's own
+.NET SDK** supplies the Roslyn compiler host that loads
+`Compono.Generators.dll` as an analyzer, and Roslyn refuses to load an
+analyzer built against a *newer* compiler than the host's own. This
+happens silently — a build warning (`CS9057`), never a build error — so
+if the generator doesn't run for this reason, composition still fails,
+but only at runtime, and the resulting message (naming "generated plan"
+among the stages that couldn't satisfy a request) gives no hint that a
+compile-time analyzer-loading failure is the real cause. Compono's own
+real, verified minimum is **.NET SDK `8.0.400`** for a `net8.0` build
+(`docs/getting-started/installation.md`'s "Minimum .NET SDK version",
+[ADR-0003 Amendment 1](../../../docs/adr/0003-generator-package-distribution.md#amendment-1-2026-09-08-minimum-supported-roslynsdk-version)) —
+`net9.0`/`net10.0`/`net11.0` have no equivalent floor beyond "the SDK
+that ships that TFM."
+
+**Don't over-apply this**: most "no generated plan" runtime failures are
+exactly what they say — a genuine missing registration or a type the
+generator correctly never intended to compose, not a `CS9057` incident.
+If the failing type looks like it should be composable and nothing else
+explains it, check the build's warning output for `CS9057` before
+assuming the composition logic itself is wrong — treat it as one thing to
+rule out, not the default explanation for every "no generated plan"
+message.
+
 ## Troubleshooting workflow
 
 1. Is this a build failure or a test-run failure? Build → compile-time
@@ -184,7 +211,9 @@ message with `Seed:` appended.
    not the root.
 3. Read the message under the tree — it names which pipeline stages were
    tried and missed (registration, semantic provider, test-double
-   provider, built-in provider, generated plan).
+   provider, built-in provider, generated plan). If "generated plan" is
+   one of them and the type looks like it should have one, see "The
+   generator silently not running," above, before going further.
 4. Fix by adding what's missing at the stage that should have supplied
    it — a `Register<T>()`, a `UseNSubstitute()`/`UseBogus()` if the
    package is referenced, or a `.For<T>()` rule. Don't work around the

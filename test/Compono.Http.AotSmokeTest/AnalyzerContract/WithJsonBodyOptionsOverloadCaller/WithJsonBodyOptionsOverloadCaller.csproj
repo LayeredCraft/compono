@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR-0062/PLAN-0065 Task 6, Proof A (half 1 of 2): calls
+       WithJsonBody<T>(predicate, JsonSerializerOptions?) with IsAotCompatible=true - this project's
+       own build must produce IL2026 (RequiresUnreferencedCode) and IL3050 (RequiresDynamicCode)
+       warnings AT THIS CALL SITE, proving Compono.Http's attribute propagates outward to an
+       AOT/trim-checked consumer rather than being swallowed inside Compono.Http itself - the exact
+       same contract already proven for RespondJson(value, JsonSerializerOptions?) by the sibling
+       ../OptionsOverloadCaller project. Driven by ../verify-analyzer-contract.sh, not run as part of
+       the ordinary `dotnet test`/solution build - this project is EXPECTED to warn, so it must not
+       participate in the repo's normal 0-warnings-0-errors gate. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <IsAotCompatible>true</IsAotCompatible>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="Xunit" />
+    <Using Remove="NSubstitute" />
+    <Using Remove="AwesomeAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A PackageReference, not a ProjectReference - see ../OptionsOverloadCaller's own comment for
+         the empirically-verified reason this matters for the analyzer contract specifically. -->
+    <PackageReference Include="Compono.Http" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

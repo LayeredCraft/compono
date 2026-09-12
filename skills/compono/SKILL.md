@@ -222,7 +222,13 @@ matcher. Call-order verification remains unsupported by either.
      string for the argument. Don't confuse this with a
      `CompositionProviderRequest.Name`-based custom provider
      (`references/registrations-profiles-and-scopes.md`), which solves a
-     different (name-based, not call-site) selection problem.
+     different (name-based, not call-site) selection problem. **This is
+     also the answer when a settings/`Compono.Options` value should vary
+     per test** — a profile whose `Configure` calls `UseOptions<T>()`
+     with a value built from `TConfig`, selected via `[Compose<TProfile,
+     TConfig>]`, not a hand-constructed SUT or an inline
+     `Options.Create(...)` per test — see `references/options.md`'s
+     "Context-aware profile" section for the worked example.
 4. **Check `[Composable]` necessity** — see
    `references/composition-model.md`'s Discovery section. Most types need
    nothing; only add it when the type has no local `Create<T>()`/

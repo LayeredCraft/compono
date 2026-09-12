@@ -6,7 +6,10 @@ namespace Compono.Http.AotSmokeTest;
 
 internal sealed record UserResponse(string Name, int Value);
 
+internal sealed record CreateOrderRequest(int CustomerId, string Sku);
+
 [JsonSerializable(typeof(UserResponse))]
+[JsonSerializable(typeof(CreateOrderRequest))]
 internal partial class SmokeTestJsonContext : JsonSerializerContext
 {
 }
@@ -87,10 +90,68 @@ internal static class Program
             if (!ReferenceEquals(caught, exception))
                 throw new InvalidOperationException("Expected Throws(exception) to rethrow the exact same instance.");
 
+            // ADR-0062/PLAN-0065: the new body/header matcher vocabulary, exercised on the
+            // guaranteed-AOT-safe path only. WithJsonBody<T>(..., JsonSerializerOptions?) is
+            // deliberately NOT called here - see AnalyzerContract/ (Proof A) for that overload's
+            // separate, intentionally-warning-producing validation.
+            using var matchHandler = new TestHttpHandler();
+            using var matchClient = matchHandler.CreateClient(new Uri("https://api.example.com/"));
+
+            var headerRegistration = matchHandler.OnGet("/traced")
+                .WithHeader("X-Trace", "abc123")
+                .Respond(HttpStatusCode.OK);
+            using var tracedRequest = new HttpRequestMessage(HttpMethod.Get, "/traced");
+            tracedRequest.Headers.Add("X-Trace", "abc123");
+            var tracedResponse = await matchClient.SendAsync(tracedRequest);
+            if (tracedResponse.StatusCode != HttpStatusCode.OK)
+                throw new InvalidOperationException("Expected WithHeader to match a request carrying the expected header value.");
+            headerRegistration.Verify().Once();
+
+            var formRegistration = matchHandler.OnPost("/token")
+                .WithFormBody(form => form["grant_type"].SingleOrDefault() == "refresh_token")
+                .Respond(HttpStatusCode.OK);
+            using var formRequest = new HttpRequestMessage(HttpMethod.Post, "/token")
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["grant_type"] = "refresh_token" }),
+            };
+            var formResponse = await matchClient.SendAsync(formRequest);
+            if (formResponse.StatusCode != HttpStatusCode.OK)
+                throw new InvalidOperationException("Expected WithFormBody to match the configured form field.");
+            formRegistration.Verify().Once();
+
+            var bodyRegistration = matchHandler.OnPost("/raw")
+                .WithBody(bytes => bytes is [1, 2, 3])
+                .Respond(HttpStatusCode.OK);
+            using var rawRequest = new HttpRequestMessage(HttpMethod.Post, "/raw") { Content = new ByteArrayContent([1, 2, 3]) };
+            var rawResponse = await matchClient.SendAsync(rawRequest);
+            if (rawResponse.StatusCode != HttpStatusCode.OK)
+                throw new InvalidOperationException("Expected WithBody to match the configured raw bytes.");
+            bodyRegistration.Verify().Once();
+
+            var jsonBodyRegistration = matchHandler.OnPost("/orders")
+                .WithJsonBody<CreateOrderRequest>(o => o is { CustomerId: 42 }, SmokeTestJsonContext.Default.CreateOrderRequest)
+                .Respond(HttpStatusCode.Created);
+            var jsonBodyResponse = await matchClient.PostAsJsonAsync("/orders", new CreateOrderRequest(42, "widget"), SmokeTestJsonContext.Default.CreateOrderRequest);
+            if (jsonBodyResponse.StatusCode != HttpStatusCode.Created)
+                throw new InvalidOperationException("Expected WithJsonBody<T>(..., JsonTypeInfo<T>) to match the configured JSON body.");
+            jsonBodyRegistration.Verify().Once();
+
+            var whenAsyncRegistration = matchHandler.WhenAsync(async (req, ct) =>
+            {
+                var content = req.Content is null ? null : await req.Content.ReadAsStringAsync(ct);
+                return content == "async-body";
+            }).Respond(HttpStatusCode.OK);
+            using var whenAsyncRequest = new HttpRequestMessage(HttpMethod.Get, "/anything") { Content = new StringContent("async-body") };
+            var whenAsyncResponse = await matchClient.SendAsync(whenAsyncRequest);
+            if (whenAsyncResponse.StatusCode != HttpStatusCode.OK)
+                throw new InvalidOperationException("Expected WhenAsync to match via a real async predicate.");
+            whenAsyncRegistration.Verify().Once();
+
             Console.WriteLine(
                 $"PASS: TestHttpHandler (OnGet + Match<string>, RespondJson via JsonTypeInfo<T>, " +
                 $"last-match-wins, strict UnmatchedHttpRequestException with Requests still " +
-                $"recording it, registration.Verify(), Throws same-instance rethrow) survived " +
+                $"recording it, registration.Verify(), Throws same-instance rethrow, WithHeader, " +
+                $"WithFormBody, WithBody, WithJsonBody<T> via JsonTypeInfo<T>, WhenAsync) survived " +
                 $"Native AOT through the packaged Compono.Http dependency chain - body={body}.");
             return 0;
         }

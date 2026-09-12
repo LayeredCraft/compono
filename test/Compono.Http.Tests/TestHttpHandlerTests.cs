@@ -1,6 +1,14 @@
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Compono.Http.Tests;
+
+internal sealed record OrderDto(int CustomerId, string Sku);
+
+[JsonSerializable(typeof(OrderDto))]
+internal partial class TestHttpHandlerTestsJsonContext : JsonSerializerContext;
 
 public sealed class TestHttpHandlerTests
 {
@@ -436,5 +444,605 @@ public sealed class TestHttpHandlerTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         first.Verify().Once();
+    }
+
+    // --- Compatibility regressions under the now-async-capable dispatch path (PLAN-0065 task 4) ---
+
+    [Fact]
+    public async Task LastMatchWins_WithMixedSyncAndChainedRegistrations()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/orders/1").Respond(HttpStatusCode.InternalServerError);
+        var specific = handler.OnGet("/orders/1").WithHeader("X-Trace", "abc").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/orders/1");
+        request.Headers.Add("X-Trace", "abc");
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        specific.Verify().Once();
+    }
+
+    [Fact]
+    public async Task UnmatchedRequest_WhenEveryRegistrationChainFails_StillThrows()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/orders/1").WithHeader("X-Trace", "expected").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var act = async () => await client.GetAsync("/orders/1", TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+    }
+
+    [Fact]
+    public async Task Requests_StillRecordsBeforeMatching_EvenWithAsyncCondition()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/orders/1").WithHeader("X-Trace", "expected").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        try
+        {
+            await client.GetAsync("/orders/1", TestContext.Current.CancellationToken);
+        }
+        catch (UnmatchedHttpRequestException)
+        {
+            // expected - the request should still be recorded despite throwing.
+        }
+
+        handler.Requests.Should().ContainSingle(r => r.RequestUri!.PathAndQuery == "/orders/1");
+    }
+
+    [Fact]
+    public async Task Verify_CountCorrect_WithChainedConditionRegistration()
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnPost("/orders")
+            .WithHeader("X-Trace", "abc")
+            .WithFormBody(form => form["sku"].SingleOrDefault() == "widget")
+            .Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+
+        using (var matching = new HttpRequestMessage(HttpMethod.Post, "/orders"))
+        {
+            matching.Headers.Add("X-Trace", "abc");
+            matching.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["sku"] = "widget" });
+            await client.SendAsync(matching, TestContext.Current.CancellationToken);
+        }
+
+        using (var nonMatching = new HttpRequestMessage(HttpMethod.Post, "/orders"))
+        {
+            nonMatching.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["sku"] = "other" });
+            try
+            {
+                await client.SendAsync(nonMatching, TestContext.Current.CancellationToken);
+            }
+            catch (UnmatchedHttpRequestException)
+            {
+            }
+        }
+
+        registration.Verify().Once();
+    }
+
+    [Fact]
+    public async Task ChainedRegistration_RepeatedMatches_GetFreshResponseEachTime()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/orders/1").WithHeader("X-Trace", "abc").RespondJson(new { value = 1 });
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+
+        using var first = new HttpRequestMessage(HttpMethod.Get, "/orders/1");
+        first.Headers.Add("X-Trace", "abc");
+        var firstResponse = await client.SendAsync(first, TestContext.Current.CancellationToken);
+        firstResponse.Content.Headers.ContentType!.CharSet = "iso-8859-1";
+
+        using var second = new HttpRequestMessage(HttpMethod.Get, "/orders/1");
+        second.Headers.Add("X-Trace", "abc");
+        var secondResponse = await client.SendAsync(second, TestContext.Current.CancellationToken);
+
+        secondResponse.Content.Headers.ContentType!.CharSet.Should().Be("utf-8");
+    }
+
+    [Fact]
+    public async Task ConcurrentSendAsync_WithMixOfSyncAndChainedRegistrations()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/plain").Respond(HttpStatusCode.OK);
+        var chained = handler.OnGet("/traced").WithHeader("X-Trace", "abc").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+
+        var tasks = new List<Task>();
+        for (var i = 0; i < 20; i++)
+        {
+            tasks.Add(client.GetAsync("/plain", TestContext.Current.CancellationToken));
+
+            using var tracedRequest = new HttpRequestMessage(HttpMethod.Get, "/traced");
+            tracedRequest.Headers.Add("X-Trace", "abc");
+            tasks.Add(client.SendAsync(tracedRequest, TestContext.Current.CancellationToken));
+        }
+
+        await Task.WhenAll(tasks);
+
+        chained.Verify().Exactly(20);
+        handler.Requests.Should().HaveCount(40);
+    }
+
+    [Fact]
+    public async Task PostFinish_WithHeader_ThrowsAndRegistrationUnaffected()
+    {
+        using var handler = new TestHttpHandler();
+        var builder = handler.OnGet("/orders/1");
+        var registration = builder.Respond(HttpStatusCode.OK);
+
+        var act = () => builder.WithHeader("X-Test", "abc");
+
+        act.Should().Throw<InvalidOperationException>();
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var response = await client.GetAsync("/orders/1", TestContext.Current.CancellationToken);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        registration.Verify().Once();
+    }
+
+    // --- WithHeader (PLAN-0065 task 5) ---
+
+    [Fact]
+    public async Task WithHeader_ExactMatch_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/x").WithHeader("X-Trace", "abc").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/x");
+        request.Headers.Add("X-Trace", "abc");
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithHeader_CaseInsensitiveName_OrdinalValue()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/x").WithHeader("x-trace", "abc").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/x");
+        request.Headers.Add("X-Trace", "abc");
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithHeader_ValueInContentHeadersOnly_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x").WithHeader("Content-Type", "text/plain; charset=utf-8").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x") { Content = new StringContent("body") };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithHeader_NamePresentInBothCollectionsWithDifferentValue_MatchingValueInOther_Matches()
+    {
+        // The exact scenario the ADR-0062 review caught: the header name exists in BOTH
+        // collections, request-level has a non-matching value, content-level has the expected
+        // value - a precedence-based fallback would wrongly return false here.
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x").WithHeader("X-Marker", "expected").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x") { Content = new StringContent("body") };
+        request.Headers.Add("X-Marker", "not-expected");
+        request.Content.Headers.Add("X-Marker", "expected");
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithHeader_MultipleValues_ExpectedValueAmongSeveral_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/x").WithHeader("Accept", "application/json").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/x");
+        request.Headers.Add("Accept", "text/plain");
+        request.Headers.Add("Accept", "application/json");
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithHeader_MissingHeader_NoMatchNoThrow()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnGet("/x").WithHeader("X-Trace", "abc").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var act = async () => await client.GetAsync("/x", TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+    }
+
+    [Theory]
+    [InlineData("Authorization")]
+    [InlineData("Proxy-Authorization")]
+    [InlineData("Cookie")]
+    [InlineData("Set-Cookie")]
+    public async Task WithHeader_SensitiveHeaderName_RedactsValueInVerifyFailureMessage(string headerName)
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnGet("/x").WithHeader(headerName, "super-secret-value").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/x");
+        request.Headers.TryAddWithoutValidation(headerName, "super-secret-value");
+        await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        var act = () => registration.Verify().Never();
+
+        act.Should().Throw<TestDoubleVerificationException>()
+            .Which.Message.Should().Contain("<redacted>").And.NotContain("super-secret-value");
+    }
+
+    [Fact]
+    public async Task WithHeader_NonSensitiveHeaderName_ShowsRealValueInVerifyFailureMessage()
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnGet("/x").WithHeader("X-Trace", "abc123").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/x");
+        request.Headers.Add("X-Trace", "abc123");
+        await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        var act = () => registration.Verify().Never();
+
+        act.Should().Throw<TestDoubleVerificationException>().Which.Message.Should().Contain("abc123");
+    }
+
+    // --- WithBody (PLAN-0065 task 5) ---
+
+    [Fact]
+    public async Task WithBody_ByteMatch_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x").WithBody(bytes => bytes is [1, 2, 3]).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x") { Content = new ByteArrayContent([1, 2, 3]) };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithBody_PredicateFalse_NoMatch()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x").WithBody(bytes => bytes is [9, 9, 9]).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x") { Content = new ByteArrayContent([1, 2, 3]) };
+        var act = async () => await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+    }
+
+    [Fact]
+    public async Task WithBody_NoContent_NoMatchPredicateNeverInvoked()
+    {
+        using var handler = new TestHttpHandler();
+        var invoked = false;
+        handler.OnGet("/x").WithBody(_ =>
+        {
+            invoked = true;
+            return true;
+        }).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var act = async () => await client.GetAsync("/x", TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+        invoked.Should().BeFalse();
+    }
+
+    // --- WithFormBody (PLAN-0065 task 5) ---
+
+    [Theory]
+    [InlineData("name=Nick+Cipollina", "name", "Nick Cipollina")]
+    [InlineData("value=a%2Bb", "value", "a+b")]
+    [InlineData("empty=", "empty", "")]
+    [InlineData("flag", "flag", "")]
+    public async Task WithFormBody_DecodesFieldCorrectly(string body, string key, string expectedValue)
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x").WithFormBody(form => form[key].SingleOrDefault() == expectedValue).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+        };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithFormBody_DuplicateKeys_BothValuesRetainedInOrder()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x")
+            .WithFormBody(form => form["tags"].SequenceEqual(["a", "b"]))
+            .Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent("tags=a&tags=b", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+        };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WithFormBody_WrongContentType_NoMatchWithoutReadingBody()
+    {
+        using var handler = new TestHttpHandler();
+        var invoked = false;
+        handler.OnPost("/x").WithFormBody(_ =>
+        {
+            invoked = true;
+            return true;
+        }).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent("grant_type=refresh_token", System.Text.Encoding.UTF8, "text/plain"),
+        };
+        var act = async () => await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+        invoked.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task WithFormBody_CorrectContentTypeAnyCasing_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x").WithFormBody(form => form["k"].SingleOrDefault() == "v").Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent("k=v", System.Text.Encoding.UTF8, "Application/X-WWW-Form-Urlencoded"),
+        };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // --- WithJsonBody<T> (PLAN-0065 task 5) ---
+
+    [Fact]
+    public async Task WithJsonBody_JsonTypeInfoOverload_SatisfyingPredicate_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/orders")
+            .WithJsonBody<OrderDto>(o => o is { CustomerId: 42 }, TestHttpHandlerTestsJsonContext.Default.OrderDto)
+            .Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var response = await client.PostAsJsonAsync("/orders", new OrderDto(42, "widget"), TestHttpHandlerTestsJsonContext.Default.OrderDto, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task WithJsonBody_JsonSerializerOptionsOverload_SatisfyingPredicate_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/orders")
+            .WithJsonBody<OrderDto>(o => o is { CustomerId: 42 })
+            .Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/orders")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new OrderDto(42, "widget")), System.Text.Encoding.UTF8, "application/json"),
+        };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task WithJsonBody_PredicateFalse_NoMatch()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/orders")
+            .WithJsonBody<OrderDto>(o => o is { CustomerId: 999 }, TestHttpHandlerTestsJsonContext.Default.OrderDto)
+            .Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        var act = async () => await client.PostAsJsonAsync("/orders", new OrderDto(42, "widget"), TestHttpHandlerTestsJsonContext.Default.OrderDto, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+    }
+
+    [Fact]
+    public async Task WithJsonBody_TextPlainContentType_NoMatchWithoutDeserializing()
+    {
+        using var handler = new TestHttpHandler();
+        var invoked = false;
+        handler.OnPost("/orders").WithJsonBody<OrderDto>(_ =>
+        {
+            invoked = true;
+            return true;
+        }, TestHttpHandlerTestsJsonContext.Default.OrderDto).Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/orders")
+        {
+            Content = new StringContent("""{"CustomerId":42,"Sku":"widget"}""", System.Text.Encoding.UTF8, "text/plain"),
+        };
+        var act = async () => await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+        invoked.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task WithJsonBody_PlusJsonSuffixContentType_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/orders")
+            .WithJsonBody<OrderDto>(o => o is { CustomerId: 42 }, TestHttpHandlerTestsJsonContext.Default.OrderDto)
+            .Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/orders")
+        {
+            Content = new StringContent("""{"CustomerId":42,"Sku":"widget"}""", System.Text.Encoding.UTF8, "application/vnd.api+json"),
+        };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task WithJsonBody_MalformedJson_ThrowsJsonExceptionNotUnmatched()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/orders")
+            .WithJsonBody<OrderDto>(_ => true, TestHttpHandlerTestsJsonContext.Default.OrderDto)
+            .Respond(HttpStatusCode.Created);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/orders")
+        {
+            Content = new StringContent("not valid json", System.Text.Encoding.UTF8, "application/json"),
+        };
+        var act = async () => await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<JsonException>();
+    }
+
+    // --- WhenAsync (PLAN-0065 task 5) ---
+
+    [Fact]
+    public async Task WhenAsync_RealAsyncPredicate_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        handler.WhenAsync(async (request, cancellationToken) =>
+        {
+            await Task.Yield();
+            var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            return body == "expected";
+        }).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x") { Content = new StringContent("expected") };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WhenAsync_ObservesCancellation()
+    {
+        using var handler = new TestHttpHandler();
+        handler.WhenAsync(async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return true;
+        }).Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var act = async () => await client.GetAsync("/x", cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    // --- Chaining/short-circuit (PLAN-0065 task 5) ---
+
+    [Fact]
+    public async Task Chain_FailingHeaderCondition_NeverReadsBody()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x")
+            .WithHeader("X-Trace", "expected")
+            .WithFormBody(_ => throw new InvalidOperationException("body should never be read"))
+            .Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent("k=v", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+        };
+        var act = async () => await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+    }
+
+    [Fact]
+    public async Task Chain_PassingHeaderFailingBody_NoMatch()
+    {
+        using var handler = new TestHttpHandler();
+        handler.OnPost("/x")
+            .WithHeader("X-Trace", "expected")
+            .WithFormBody(form => form["k"].SingleOrDefault() == "wrong")
+            .Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent("k=v", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+        };
+        request.Headers.Add("X-Trace", "expected");
+        var act = async () => await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<UnmatchedHttpRequestException>();
+    }
+
+    [Fact]
+    public async Task Chain_BothConditionsPassing_Matches()
+    {
+        using var handler = new TestHttpHandler();
+        var registration = handler.OnPost("/x")
+            .WithHeader("X-Trace", "expected")
+            .WithFormBody(form => form["k"].SingleOrDefault() == "v")
+            .Respond(HttpStatusCode.OK);
+
+        using var client = handler.CreateClient(new Uri("https://api.example.com/"));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/x")
+        {
+            Content = new StringContent("k=v", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+        };
+        request.Headers.Add("X-Trace", "expected");
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        registration.Verify().Once();
     }
 }

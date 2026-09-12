@@ -41,13 +41,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The 11.0 entry below is exact-pinned, not a floating "11.0.x" - a floating request lets
+      # setup-dotnet install whatever preview/rc build is currently newest in the 11.0 channel, which
+      # combines with global.json's rollForward:latestFeature to make MSBuild silently prefer that
+      # newer SDK over the one global.json actually pins. Reproduced: 11.0.100-rc.1.26425.128 broke
+      # the NUnit compatibility matrix's classic-VSTest leg (module initializer failed to register
+      # Widget's row-binding dispatch, "No row-binding dispatch is registered for Widget") while the
+      # exact SDK global.json pins (preview.7.26381.103) runs it correctly - confirmed by diffing this
+      # job's SDK-install log against the last known-good run's. Bump this in lockstep with
+      # global.json's own sdk.version, never independently.
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             9.0.x
             10.0.x
-            11.0.x
+            11.0.100-preview.7.26381.103
 
       - name: Restore
         run: dotnet restore Compono.slnx
@@ -150,26 +159,38 @@ jobs:
         # CLI rejects a wildcard placed in the middle of a filter expression
         # ("wildcards may only be at the beginning and/or end"), confirmed
         # directly against the built test host.
+        # Runs from the project's own directory, not a relative path from the repo root - a
+        # `dotnet test <relative-path>` invocation from outside the project directory hit a real,
+        # reproduced dotnet SDK/Microsoft Testing Platform path-resolution bug under the current
+        # 11.0.x preview SDK (the resolved project path gets the project's own relative directory
+        # segment doubled, e.g. `test/X/test/X/X.csproj`) - confirmed locally against this exact
+        # command and this exact project, unrelated to this project's own content. `working-directory`
+        # plus a path-less `dotnet test` sidesteps it entirely (verified locally: all 4 TFMs restore/
+        # build/run correctly this way).
+        working-directory: test/Compono.XunitV3.SampleTests
         run: |
-          dotnet test test/Compono.XunitV3.SampleTests/Compono.XunitV3.SampleTests.csproj \
-            -c Release \
+          dotnet test -c Release \
             -- --filter-not-class "Compono.XunitV3.SampleTests.Failing*"
 
       - name: Local-feed packed-consumer smoke test (Compono.TUnit)
         # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
         # source into .local-nuget-feed, restores as a real consumer would) - no deliberately-failing
         # proof tests exist in this project yet, so no --filter-not-class is needed.
+        # See the Compono.XunitV3 step's own comment above for why this runs from the project's
+        # own directory rather than a relative path from the repo root.
+        working-directory: test/Compono.TUnit.SampleTests
         run: |
-          dotnet test test/Compono.TUnit.SampleTests/Compono.TUnit.SampleTests.csproj \
-            -c Release
+          dotnet test -c Release
 
       - name: Local-feed packed-consumer smoke test (Compono.MSTest)
         # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
         # source into .local-nuget-feed, restores as a real consumer would) - no deliberately-failing
         # proof tests exist in this project yet, so no --filter-not-class is needed.
+        # See the Compono.XunitV3 step's own comment above for why this runs from the project's
+        # own directory rather than a relative path from the repo root.
+        working-directory: test/Compono.MSTest.SampleTests
         run: |
-          dotnet test test/Compono.MSTest.SampleTests/Compono.MSTest.SampleTests.csproj \
-            -c Release
+          dotnet test -c Release
 
       - name: Local-feed packed-consumer smoke test (Compono.NUnit)
         # Same reasoning as the xUnit v3 step above (own PackToLocalFeed restore, packs current
@@ -178,9 +199,11 @@ jobs:
         # [TestCase]/[Values]/custom-IParameterDataSource independent-row coexistence scenario. No
         # deliberately-failing proof tests exist in this project either, so no --filter-not-class is
         # needed.
+        # See the Compono.XunitV3 step's own comment above for why this runs from the project's
+        # own directory rather than a relative path from the repo root.
+        working-directory: test/Compono.NUnit.SampleTests
         run: |
-          dotnet test test/Compono.NUnit.SampleTests/Compono.NUnit.SampleTests.csproj \
-            -c Release
+          dotnet test -c Release
 
       - name: NUnit compatibility matrix (Compono.NUnit)
         # PLAN-0059 task group 9's permanent, repeatable, CI-blocking supported-version x runner
@@ -196,6 +219,8 @@ jobs:
         # source into .local-nuget-feed, restores as a real consumer would) - PLAN-0043 Phase 2's own
         # real generated-double-through-the-packaged-dependency-chain proof. No deliberately-failing
         # proof tests exist in this project either, so no --filter-not-class is needed.
+        # See the Compono.XunitV3 step's own comment above for why this runs from the project's
+        # own directory rather than a relative path from the repo root.
+        working-directory: test/Compono.TestDoubles.SampleTests
         run: |
-          dotnet test test/Compono.TestDoubles.SampleTests/Compono.TestDoubles.SampleTests.csproj \
-            -c Release
+          dotnet test -c Release

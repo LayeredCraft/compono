@@ -683,6 +683,35 @@
         "Does not suggest catching/suppressing the exception, or that it indicates a Compono.Options defect",
         "Optionally notes this diverges deliberately from real IOptionsFactory<T>'s silent-default behavior"
       ]
+    },
+    {
+      "id": 56,
+      "category": "activation",
+      "prompt": "My OrderPricingService constructor takes IOptions<DiscountOptions>. I need a test where the configured discount percentage is 10, and another where it's 0 (no discount applied). More cases like this (different discount percentages) are likely to be added later by other people on the team. Compono.Options is referenced in this project, and there's already a DiscountTestProfile used by a couple of other tests in this file for unrelated setup. Write the tests.",
+      "expected_output": "Composes OrderPricingService normally in every test (never manually constructed with a hand-built IOptions<DiscountOptions>/Options.Create(...) or a hand-wired dependency graph). Recognizes that the discount percentage varies per test case and reaches for a profile-configuration-argument mechanism (a TConfig-parameterized composition profile selected per test) rather than duplicating setup in each test or bypassing the existing DiscountTestProfile. The profile's Configure method builds the settings value from the per-test argument and wires it via Compono.Options so IOptions<DiscountOptions> resolves correctly, coherent with any other Options interface the same settings type might need.",
+      "files": [],
+      "expectations": [
+        "Never manually constructs OrderPricingService or any of its dependencies by hand in a test body",
+        "Never inlines Options.Create(...) (or an equivalent hand-built IOptions<DiscountOptions>) directly inside each test method",
+        "Uses a per-test-call-site-configurable composition profile (a TConfig-style argument to the profile, not a fixed/default-constructed one) to vary the discount percentage, rather than one profile per discount value or copy-pasted setup",
+        "Reuses or extends the existing DiscountTestProfile rather than introducing an unrelated, parallel setup mechanism",
+        "Wires the settings value through Compono.Options's own vocabulary (a source-of-truth object plus the builder extension that satisfies IOptions<T>), not a hand-rolled IOptions<T> fake",
+        "Does not claim the composition builder's Options-wiring call also registers the bare settings type - if the test also needs the bare DiscountOptions type directly, it registers it separately from the same value"
+      ]
+    },
+    {
+      "id": 57,
+      "category": "activation",
+      "prompt": "My test uses Compono.Http to fake the HTTP endpoint my LoginClient posts to. I want to assert the request actually sent the right username and password, not just that some form data was sent. Right now my test only checks that req.Content is a FormUrlEncodedContent - can you make it actually verify the field values?",
+      "expected_output": "Reaches for handler.OnPost(path).WithFormBody(form => ...) to parse the real form fields and assert on the actual username/password values, rather than blocking on .Result/.GetAwaiter().GetResult() inside a When predicate or leaving the type-only check in place. Recognizes that WithFormBody requires Content-Type: application/x-www-form-urlencoded and reads field values via the parsed ILookup<string,string> (e.g. form[\"username\"]), not a hand-rolled string-splitting parser.",
+      "files": [],
+      "expectations": [
+        "Recommends WithFormBody (or an equivalent already-documented first-class body matcher) chained onto the existing OnPost/When registration, not a hand-rolled body parser",
+        "Does not suggest calling .Result or .GetAwaiter().GetResult() inside a When predicate to read the request body",
+        "Does not leave the type-only 'req.Content is FormUrlEncodedContent' check as the final answer to verifying field values",
+        "Does not hand-write ad-hoc string splitting/percent-decoding logic for the form body when the package already provides this",
+        "Asserts on actual field values (e.g. a username/password comparison), not just the presence or type of the content"
+      ]
     }
   ]
 }

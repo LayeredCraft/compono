@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ADR-0062/PLAN-0065 Task 6, Proof A (half 2 of 2): calls
+       WithJsonBody<T>(predicate, JsonTypeInfo<T>) with IsAotCompatible=true - this project's own
+       build must produce ZERO IL2026/IL3050 warnings, confirming that overload is genuinely clean,
+       not just clean "by omission." Sibling of ../WithJsonBodyOptionsOverloadCaller, which is
+       expected to warn - see that project's own comment for why the pair exists. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <IsAotCompatible>true</IsAotCompatible>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/</RestorePackagesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="Xunit" />
+    <Using Remove="NSubstitute" />
+    <Using Remove="AwesomeAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A PackageReference, not a ProjectReference - see ../OptionsOverloadCaller's own comment for
+         the empirically-verified reason this matters for the analyzer contract specifically. -->
+    <PackageReference Include="Compono.Http" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

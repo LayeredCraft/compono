@@ -9,19 +9,24 @@ namespace Compono.Http;
 /// </summary>
 public sealed class HttpResponseRegistration
 {
-    private readonly Func<HttpRequestMessage, bool> _matcher;
+    private readonly AsyncRequestMatcher _matcher;
     private readonly string _description;
     private Func<HttpRequestMessage, HttpResponseMessage>? _responseFactory;
     private int _matchedCallCount;
 
-    internal HttpResponseRegistration(Func<HttpRequestMessage, bool> matcher, string description)
+    internal HttpResponseRegistration(AsyncRequestMatcher matcher, string description)
     {
         _matcher = matcher;
         _description = description;
     }
 
-    /// <summary>Whether <paramref name="request"/> matches this registration's configured condition.</summary>
-    internal bool Matches(HttpRequestMessage request) => _matcher(request);
+    /// <summary>
+    /// Whether <paramref name="request"/> matches this registration's configured condition -
+    /// already-compiled and snapshotted at <see cref="HttpResponseRegistrationBuilder"/>'s
+    /// <c>Finish()</c> time (ADR-0062 D2), so this never observes a later builder mutation.
+    /// </summary>
+    internal ValueTask<bool> Matches(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        _matcher(request, cancellationToken);
 
     /// <summary>
     /// Sets this registration's response behavior - a factory describing *how to build* a response,

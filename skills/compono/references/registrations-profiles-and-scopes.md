@@ -123,6 +123,56 @@ var composer = Composer.Create(b => b.AddProfile<OrderTestProfile>());
 consumer/test class that happens to use them — don't grow one giant
 catch-all profile.
 
+### When test-specific configuration should shape the graph — reach for a context-aware profile, not hand-construction
+
+**When test-specific configuration should influence how the graph is
+built, prefer a context-aware `Profile` through `[Compose<TProfile,
+TConfig>]` rather than manually constructing the SUT's dependencies.**
+This is the single most common place an otherwise-idiomatic Compono test
+regresses into AutoFixture/hand-rolled-DI habits: a SUT depends on some
+configuration-shaped interface (most often `IOptions<T>`/
+`IOptionsSnapshot<T>`/`IOptionsMonitor<T>`, but the pattern is general),
+different tests need different values for it, and the instinct is to
+`new` the SUT directly with a hand-built dependency graph instead of
+letting Compono compose it. Don't do that — a context-aware profile keeps
+the SUT itself composed normally:
+
+```csharp
+public sealed record RetryPolicyConfig(int MaxRetries);
+
+public sealed class RetryPolicyProfile : ICompositionProfile
+{
+    public RetryPolicyProfile(RetryPolicyConfig config) => Config = config;
+    public RetryPolicyConfig Config { get; }
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.UseOptions(new TestOptionsSource<RetryOptions>(
+            new RetryOptions { MaxRetries = Config.MaxRetries }));
+}
+
+[Theory]
+[Compose<RetryPolicyProfile, RetryPolicyConfig>(0)]
+public void GivesUpImmediately_WhenNoRetriesConfigured(RetryingClient client) { }
+
+[Theory]
+[Compose<RetryPolicyProfile, RetryPolicyConfig>(3)]
+public void RetriesUpToTheConfiguredLimit(RetryingClient client) { }
+```
+
+`RetryingClient` (the SUT) is composed the ordinary way in both tests —
+nothing about it changes; only the profile's own configuration varies per
+call site, via `TConfig`. See `xunit-v3.md`'s `[Compose<TProfile,
+TConfig>]` section for the full mechanics (profile configuration
+arguments, the one-constructor-each contract, when *not* to reach for
+this). See `options.md` for the `Compono.Options`-specific version of this
+same pattern (`TestOptionsSource<T>`/`UseOptions<T>()` inside a
+context-aware profile) in full, including the bare-`T`-plus-Options-
+interface coherence case and what to do when an existing, unrelated
+profile already applies to the same tests — **don't stack a second
+`Compose`-family attribute to add both**, since only one is allowed per
+method; fold the existing profile in via `builder.AddProfile<...>()`
+inside the new one's `Configure` instead.
+
 ## Custom providers — matching on request shape, including name
 
 `Register<T>()`/`.For<T>()` are exact-type-keyed. When a value genuinely
