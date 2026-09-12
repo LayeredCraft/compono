@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (52,20)-(52,48),
+      Message: 'TestNamespace.RefParameterTests.Ref_parameter_is_unsupported' cannot be registered for Native AOT theory-data generation: parameter 'value' is ref/out/in, which is not supported. Compono.XunitV3.Aot's Phase 1 supports only ordinary, non-generic parameters (no generic test methods, no ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0040,
+        Title: Compono.XunitV3.Aot-attributed test method has an unsupported signature,
+        MessageFormat: '{0}' cannot be registered for Native AOT theory-data generation: {1}. Compono.XunitV3.Aot's Phase 1 supports only ordinary, non-generic parameters (no generic test methods, no ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -2108,6 +2108,98 @@ public sealed class CompositionPlanVerifyTests
         }, TestContext.Current.CancellationToken);
 
     [Fact]
+    public Task XunitV3AotComposeAttributedMethodParameter_GeneratesCompositionPlan() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            // Compono.XunitV3.Aot's own metadata name is matched by BOTH ComposeMethodDiscovery (this
+            // test's own target - ordinary PlanCache<T>/RowInvokerRegistry emission) and
+            // AotComposeMethodDiscovery (the separate per-method RegisteredEngineConfig registration,
+            // covered on its own in AotTheoryDataRowRegistrationVerifyTests) - both always fire
+            // together for this one attribute, so the Xunit.Sdk/Xunit.v3 stand-ins that second
+            // pipeline's own emitted code needs must be present here too, or its generated output
+            // fails to compile and this test's own "generated code compiles" assertion fails for an
+            // unrelated reason.
+            SourceCode = """
+                namespace Xunit
+                {
+                    public interface ITheoryDataRow
+                    {
+                    }
+
+                    public sealed class TheoryDataRow : ITheoryDataRow
+                    {
+                        public TheoryDataRow(object?[] data) { }
+                    }
+                }
+
+                namespace Xunit.Sdk
+                {
+                    public sealed class DisposalTracker
+                    {
+                    }
+                }
+
+                namespace Xunit.v3
+                {
+                    public abstract class DataAttribute : System.Attribute
+                    {
+                    }
+
+                    public static class RegisteredEngineConfig
+                    {
+                        public static void RegisterTheoryDataRowFactory(
+                            string testClassIndex,
+                            string methodName,
+                            bool disableDiscoveryEnumeration,
+                            System.Func<Xunit.Sdk.DisposalTracker, System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<Xunit.ITheoryDataRow>>> factory)
+                        {
+                        }
+                    }
+                }
+
+                namespace Compono.XunitV3.Aot
+                {
+                    // Stands in for the real Compono.XunitV3.Aot.ComposeAttribute (a separate
+                    // package/assembly, not referenced from this generator test project) -
+                    // ComposeMethodDiscovery matches on the fully qualified metadata name alone, so
+                    // a same-named type here triggers it identically to the real one. See
+                    // docs/adr/0066-compono-xunitv3-aot-package-architecture.md's "Generator
+                    // discovery" - this is the fifth attribute family ComposeMethodDiscovery.
+                    // TransformMethod feeds, registered against Compono.XunitV3.Aot's own metadata
+                    // name (shared with AotComposeMethodDiscovery's own, separate per-method
+                    // registration - see AotTheoryDataRowRegistrationVerifyTests for that half).
+                    public sealed class ComposeAttribute : Xunit.v3.DataAttribute
+                    {
+                    }
+                }
+
+                namespace TestNamespace
+                {
+                    public sealed class InsurancePolicy
+                    {
+                        public InsurancePolicy(string policyNumber) { PolicyNumber = policyNumber; }
+                        public string PolicyNumber { get; }
+                    }
+
+                    public static class TestClass
+                    {
+                        // No Create<InsurancePolicy>()/CreateMany<InsurancePolicy>() call site, no
+                        // [Composable] attribute, and no CompositionRow.Resolve<T>(descriptor) call
+                        // site anywhere in this source - InsurancePolicy is reachable only as this
+                        // [Compose]-attributed method's own parameter, under Compono.XunitV3.Aot's
+                        // own attribute metadata name rather than Compono.XunitV3's/Compono.TUnit's/
+                        // Compono.MSTest's/Compono.NUnit's, proving the Compono.XunitV3.Aot-specific
+                        // discovery registration on its own.
+                        [Compono.XunitV3.Aot.Compose]
+                        public static void Creates_insurancePolicy(InsurancePolicy insurancePolicy)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
     public Task ComposeAttributedGenericMethodParameter_GeneratesNoPlan() =>
         GeneratorTestHelpers.Verify(new CodeGenerationOptions
         {

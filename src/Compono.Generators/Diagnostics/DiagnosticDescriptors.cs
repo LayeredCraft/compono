@@ -359,4 +359,22 @@ internal static class DiagnosticDescriptors
         "Compono.Logging",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    // CMP004x: Compono.XunitV3.Aot diagnostics (ADR-0066/PLAN-0066) - unlike the other four
+    // [Compose]-family attribute families (Compono.XunitV3/TUnit/MSTest/NUnit), an unsupported
+    // signature shape here has no runtime BindingPlan.ValidateSignature-equivalent to fall back on:
+    // Compono.XunitV3.Aot.ComposeAttribute is a marker only (RESEARCH-0032 §2/§9), never invoked at
+    // runtime under xUnit's AOT pipeline, so a silently-skipped registration would leave the test
+    // simply never discovered instead of failing with a clear message - a compile-time error is the
+    // only place this can be caught at all.
+
+    public static readonly DiagnosticDescriptor UnsupportedAotComposeMethodSignature = new(
+        "CMP0040",
+        "Compono.XunitV3.Aot-attributed test method has an unsupported signature",
+        "'{0}' cannot be registered for Native AOT theory-data generation: {1}. Compono.XunitV3.Aot's " +
+        "Phase 1 supports only ordinary, non-generic parameters (no generic test methods, no " +
+        "ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

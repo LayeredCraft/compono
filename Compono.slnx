@@ -3,6 +3,7 @@
     <Project Path="src/Compono/Compono.csproj" />
     <Project Path="src/Compono.Generators/Compono.Generators.csproj" />
     <Project Path="src/Compono.XunitV3/Compono.XunitV3.csproj" />
+    <Project Path="src/Compono.XunitV3.Aot/Compono.XunitV3.Aot.csproj" />
     <Project Path="src/Compono.NSubstitute/Compono.NSubstitute.csproj" />
     <Project Path="src/Compono.Bogus/Compono.Bogus.csproj" />
     <Project Path="src/Compono.TUnit/Compono.TUnit.csproj" />
@@ -18,6 +19,7 @@
     <Project Path="test/Compono.Tests/Compono.Tests.csproj" />
     <Project Path="test/Compono.Generators.Tests/Compono.Generators.Tests.csproj" />
     <Project Path="test/Compono.XunitV3.Tests/Compono.XunitV3.Tests.csproj" />
+    <Project Path="test/Compono.XunitV3.Aot.Tests/Compono.XunitV3.Aot.Tests.csproj" />
     <Project Path="test/Compono.NSubstitute.Tests/Compono.NSubstitute.Tests.csproj" />
     <Project Path="test/Compono.Bogus.Tests/Compono.Bogus.Tests.csproj" />
     <Project Path="test/Compono.TUnit.Tests/Compono.TUnit.Tests.csproj" />

@@ -80,3 +80,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0063](0063-callverifier-atleast-atmost-and-testdoubles-received-calls-clear-calls.md) | `CallVerifier.AtLeast`/`AtMost`, `Compono.TestDoubles` `ReceivedCalls()` + `ClearCalls()` | Done |
 | [0064](0064-compono-options-testing-support.md) | Compono.Options: First-Class .NET Configuration/Options Testing Support | Done |
 | [0065](0065-compono-http-body-header-request-matching.md) | Compono.Http: Body and Header Request Matching | Done |
+| [0066](0066-compono-xunitv3-aot-package-architecture-impl-plan.md) | Compono.XunitV3.Aot Package Architecture | Not Started |

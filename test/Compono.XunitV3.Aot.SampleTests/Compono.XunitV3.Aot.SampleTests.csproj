@@ -1,0 +1,75 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.XunitV3.Aot.SampleTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <ComponoTestFramework>XunitV3Aot</ComponoTestFramework>
+    <!-- Overrides test/Directory.Build.props' multi-TFM sweep with a single TFM, matching
+         test/Compono.XunitV3.AotSmokeTest's/test/Compono.NUnit.AotSmokeTest's own established
+         override shape - this is a one-shot AOT publish-and-run proof (plus an ordinary JIT sample
+         test), not a matrix run; a single current TFM is enough. net10.0 is both Compono.XunitV3.Aot's
+         current default and this repo's primary AOT-validation TFM. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Deliberately no ProjectReference to Compono/Compono.XunitV3.Aot anywhere in this project -
+         the whole point is consuming Compono.XunitV3.Aot exactly the way an external consumer would,
+         via the PackageReference below, so packaging mistakes (a missing dependency, wrong
+         PrivateAssets, the Compono.Generators analyzer not flowing transitively, or - the specific
+         thing ADR-0066 exists to prevent - a transitively-restored reflection-mode xUnit assembly)
+         surface here instead of being masked by a ProjectReference build. Mirrors
+         Compono.NUnit.SampleTests/Compono.MSTest.SampleTests/Compono.TUnit.SampleTests/
+         Compono.XunitV3.SampleTests. -->
+    <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed</LocalFeedPath>
+    <!-- Isolated restore path, same reasoning as the other sample projects' own. -->
+    <Compono_LocalPackagesId Condition="'$(Compono_LocalPackagesId)' == ''">manual</Compono_LocalPackagesId>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)obj/.nuget-packages/$(Compono_LocalPackagesId)/</RestorePackagesPath>
+    <!-- This project doubles as PLAN-0066's real Native AOT pipeline proof (Tier 3) - an ordinary
+         `dotnet test`/JIT run exercises it as a packaged-dependency-chain sample test (Tier 2); a
+         publish of this same project as Native AOT + native-binary execution is the permanent AOT
+         proof, run manually and wired into .github/workflows/aot-validation.yaml. No separate
+         AOT-only project needed, since this one already has everything the proof requires (real
+         Compono.XunitV3.Aot, real Compono.Generators, real xunit.v3.aot.mtp-v2, real
+         [Theory]+[Compose] tests).
+
+         REQUIRED publish invocation - pass RuntimeIdentifier/SelfContained as -p: MSBuild properties,
+         NOT the `-r <rid>`/`--self-contained` CLI shorthand flags:
+
+             dotnet publish test/Compono.XunitV3.Aot.SampleTests -c Release -f net10.0 \
+                 -p:RuntimeIdentifier=<rid> -p:SelfContained=true -p:PublishAot=true -p:UseAppHost=true
+
+         Confirmed empirically during implementation: the CLI shorthand form (`-r <rid>
+         --self-contained true`) reliably fails this specific project's self-contained RID-specific
+         publish with `MSB3030: Could not copy ... obj/Release/net10.0/<rid>/apphost ... because it
+         was not found` - reproducible from a clean obj/bin, and not present on sibling sample
+         projects (e.g. Compono.NUnit.SampleTests) using the CLI-flag form successfully. The
+         -p:-property form does not hit this. Root cause not fully isolated (something in how the CLI
+         flags propagate as global properties interacts with this project's isolated
+         RestorePackagesPath/PackToLocalFeed pre-restore target or with this repo's root
+         Directory.Build.props unconditional `<OutputPath></OutputPath>` reset - both were considered
+         candidates but not conclusively confirmed) - recorded here so CI and any future contributor
+         use the working form directly instead of rediscovering this. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.aot.mtp-v2" />
+    <PackageReference Include="Compono.XunitV3.Aot" />
+  </ItemGroup>
+
+  <!-- Populates the local feed nuget.config (in this directory) points restore at, by packing the
+       current source tree - not a stale checked-in .nupkg - every time this project restores.
+       Delegates to pack-to-local-feed.sh, which serializes the two `dotnet pack` calls behind a
+       cross-process lock (see that script's own comment, shared verbatim reasoning with the other
+       sample projects' copies) - CI can run this project's multiple TFM test hosts concurrently,
+       each independently triggering this target. -->
+  <Target Name="PackToLocalFeed" BeforeTargets="Restore">
+    <MakeDir Directories="$(LocalFeedPath)" Condition="!Exists('$(LocalFeedPath)')" />
+    <Exec Command="&quot;$(MSBuildThisFileDirectory)pack-to-local-feed.sh&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj&quot; &quot;$(MSBuildThisFileDirectory)../../src/Compono.XunitV3.Aot/Compono.XunitV3.Aot.csproj&quot; &quot;$(LocalFeedPath)&quot; $(Configuration) &quot;$(RestorePackagesPath)&quot;" />
+  </Target>
+
+</Project>

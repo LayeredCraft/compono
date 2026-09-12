@@ -36,6 +36,22 @@
          constraint (tested minimum, exclusive next-untested-major upper bound), not a bare
          unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
     <PackageVersion Include="xunit.v3.extensibility.core" Version="[3.2.2, 5.0.0)" />
+    <!-- Compono.XunitV3.Aot's own dependency (ADR-0066/PLAN-0066/RESEARCH-0032) - the AOT-specific
+         DataAttribute/RegisteredEngineConfig extension surface, a separate, non-interchangeable
+         assembly from xunit.v3.extensibility.core above (confirmed: referencing both in one project
+         produces CS0433 on TheoryAttribute). Floor 4.0.0, the version that introduced xUnit v3
+         Native AOT support at all - there is no lower version to support. A tested-range constraint,
+         not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
+    <PackageVersion Include="xunit.v3.extensibility.core.aot" Version="[4.0.0, 5.0.0)" />
+    <!-- test/Compono.XunitV3.Aot.Tests'/test/Compono.XunitV3.Aot.SampleTests' own dependency - the
+         full AOT meta-package (framework + assert + in-proc console runner), since those projects
+         actually execute as real xUnit v3 Native AOT test runs, not just author against
+         xunit.v3.extensibility.core.aot's extension surface. -->
+    <PackageVersion Include="xunit.v3.aot.mtp-v2" Version="4.0.0" />
+    <!-- test/Compono.XunitV3.Aot.SampleTests' own dependency, same reasoning as Compono.TUnit/
+         Compono.MSTest/Compono.NUnit above - never a ProjectReference, and this version must match
+         the -p:Version passed to PackToLocalFeed's pack of Compono.XunitV3.Aot. -->
+    <PackageVersion Include="Compono.XunitV3.Aot" Version="1.0.0" />
     <!-- Compono.TUnit's own dependency - the UntypedDataSourceGeneratorAttribute/
          DataGeneratorMetadata/ITestDiscoveryEventReceiver extension surface, per
          ADR-0040. TUnit.Core only (not the full TUnit/TUnit.Engine meta-packages) -

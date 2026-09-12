@@ -116,6 +116,20 @@ internal static class ComposeMethodDiscovery
     /// <remarks><c>Compono.NUnit.ComposeAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed form.</remarks>
     public const string NUnitTwoTypeParameterAttributeMetadataName = "Compono.NUnit.ComposeAttribute`2";
 
+    /// <summary>
+    /// <c>Compono.XunitV3.Aot</c>'s own <c>[Compose]</c> (ADR-0066/PLAN-0066) - the identical
+    /// discovery gap as <see cref="AttributeMetadataName"/>, for a fifth attribute family, feeding the
+    /// same attribute-family-agnostic <see cref="TransformMethod"/> so its parameter types still get
+    /// ordinary <c>PlanCache&lt;T&gt;</c>/<c>RowInvokerRegistry</c> entries. Deliberately the same
+    /// string <see cref="AotComposeMethodDiscovery.AttributeMetadataName"/> uses - one attribute,
+    /// two independent discovery registrations (this one for plan generation, that one for the
+    /// per-method AOT registration itself; see its own remarks for why they're separate). Unlike the
+    /// other four families, <c>Compono.XunitV3.Aot.ComposeAttribute</c> is a Phase 1 marker only - no
+    /// generic (<c>TProfile</c>/<c>TProfile, TConfig</c>) forms exist yet, so there is no
+    /// arity-suffixed sibling constant to register here.
+    /// </summary>
+    public const string AotAttributeMetadataName = AotComposeMethodDiscovery.AttributeMetadataName;
+
     public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)

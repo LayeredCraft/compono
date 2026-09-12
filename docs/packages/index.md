@@ -1,13 +1,14 @@
 # Package Guides
 
-Compono ships as twelve independently-installable NuGet packages. Pick which
-ones you need before reading any single guide in depth — most projects only
-need the first two.
+Compono ships as thirteen independently-installable NuGet packages. Pick
+which ones you need before reading any single guide in depth — most
+projects only need the first two.
 
 | Package | What it adds | Install if... |
 |---|---|---|
 | [`Compono`](compono.md) | The core composition engine: `Composer`, the resolution pipeline, and the source generator (embedded, no separate install). | Always — every other package depends on it. |
 | [`Compono.XunitV3`](compono-xunitv3.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` theory data attributes and `[Shared]` parameter sharing for xUnit v3. | You write xUnit v3 tests and want composed theory parameters instead of hand-built test data. |
+| [`Compono.XunitV3.Aot`](compono-xunitv3-aot.md) | `[Compose]` (Phase 1: plain form only) for xUnit v3 test projects publishing as Native AOT, via xUnit's own `xunit.v3.aot.mtp-v2` package family. | Your xUnit v3 test project publishes with `PublishAot=true` — never install alongside `Compono.XunitV3` in the same project. |
 | [`Compono.NSubstitute`](compono-nsubstitute.md) | Automatic substitute composition for interface, delegate, and (optionally) abstract-class parameters. | Your composed types depend on interfaces you'd otherwise stub by hand with NSubstitute. |
 | [`Compono.Bogus`](compono-bogus.md) | Realistic fake data — member-name-convention matching plus explicit `Faker<T>` sugar. | You want `FullName`/`Email`/`StreetAddress`-shaped fields to look like real data instead of anonymous strings. |
 | [`Compono.TUnit`](compono-tunit.md) | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` data source attributes and `[Shared]` parameter sharing for TUnit. | You write TUnit tests and want composed method parameters instead of hand-built data sources. |
@@ -20,7 +21,9 @@ need the first two.
 | [`Compono.Options`](compono-options.md) | `TestOptionsSource<T>`/`UseOptions<T>()` — one test-configured source of truth coherently backing `IOptions<T>`/`IOptionsSnapshot<T>`/`IOptionsMonitor<T>` for a settings type. | Your composed type depends on `IOptions<T>`/`IOptionsSnapshot<T>`/`IOptionsMonitor<T>` and the test wants one coherent source, not hand-wired separate registrations or a buggy hand-rolled Monitor fake. |
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and has a
-stable release — see [Installation](../getting-started/installation.md)
+stable release, except `Compono.XunitV3.Aot` (`net9.0`/`net10.0`/`net11.0`
+only — matching xUnit v3's own Native AOT floor) — see
+[Installation](../getting-started/installation.md)
 for the exact `dotnet add package` commands. See
 [ADR-0038](../adr/0038-net8-net9-explicit-multi-target.md) for why `net8.0`/
 `net9.0` were added alongside the existing `net10.0`/`net11.0` window.
