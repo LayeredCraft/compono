@@ -18,16 +18,20 @@ dotnet add package Compono.NUnit
 ```
 
 If your xUnit v3 test project publishes with `PublishAot=true` (Native
-AOT), install `Compono.XunitV3.Aot` instead of `Compono.XunitV3` — the two
-are mutually exclusive in the same project (xUnit v3's reflection-mode and
+AOT), install `Compono.XunitV3.Aot` and xUnit's own `xunit.v3.aot.mtp-v2`
+host instead of `Compono.XunitV3`/`xunit.v3.mtp-v2` — the two families are
+mutually exclusive in the same project (xUnit v3's reflection-mode and
 Native-AOT-mode package families can't be referenced together, a hard
-`CS0433` conflict). See the
+`CS0433` conflict). If you're migrating an existing reflection-mode
+project, remove `xunit.v3.mtp-v2` too — leaving it installed alongside
+`xunit.v3.aot.mtp-v2` reintroduces the same `CS0433` conflict. See the
 [`Compono.XunitV3.Aot` Package Guide](../packages/compono-xunitv3-aot.md)
 for the decision table and Phase 1 scope:
 
 ```bash
 dotnet add package Compono
 dotnet add package Compono.XunitV3.Aot
+dotnet add package xunit.v3.aot.mtp-v2
 ```
 
 This tutorial's assertions (`.Should()`, throughout this site's own

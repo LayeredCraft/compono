@@ -92,14 +92,20 @@ These are real, additional generator work deferred to a later phase — see
 
 Because `ComposeAttribute` is a marker only (see below) with no runtime
 fallback, an unsupported `[Compose]`-attributed method shape is rejected
-at compile time with **`CMP0040`**, rather than silently never being
-discovered by xUnit's Native AOT pipeline:
+at compile time with **`CMP0040`** instead:
 
-- A generic test method.
-- A `ref`/`out`/`in` or `params` parameter.
+- A generic test method — rejected before any registration is built, so
+  without this diagnostic the method would simply never be discovered by
+  xUnit's Native AOT pipeline, with no diagnostic anywhere.
+- A `ref`/`out`/`in` or `params` parameter — same silent-non-discovery
+  failure mode as above.
 - A parameter type that can never be a legal `CompositionRow.Resolve<T>()`
   type argument — an open generic parameter, a `ref struct`, a pointer, a
-  function pointer, or an unsupported array shape.
+  function pointer, or an unsupported array shape. Without this
+  diagnostic, code generation would proceed and emit a registration
+  containing an illegal `CompositionRow.Resolve<T>()` call, so the
+  consumer would see a generated-code compiler error instead of an
+  actionable diagnostic pointing at their own test method.
 
 See [CMP0040](../reference/diagnostics.md#cmp0040-unsupported-componoxunitv3aot-attributed-method-signature)
 for the full diagnostic reference entry.

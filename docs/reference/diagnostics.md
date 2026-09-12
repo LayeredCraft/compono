@@ -583,10 +583,16 @@ be a legal `CompositionRow.Resolve<T>()` type argument (an open generic
 parameter, a `ref struct`, a pointer, a function pointer, or an
 unsupported array shape). Unlike `Compono.XunitV3`'s `[Compose]` family,
 `Compono.XunitV3.Aot.ComposeAttribute` is a marker only — it has no
-runtime fallback to catch an unsupported shape later, so an unsupported
-method would otherwise simply never be discovered by xUnit's Native AOT
-pipeline, with no diagnostic anywhere. This is caught at compile time
-instead.
+runtime fallback to catch an unsupported shape later, so without this
+diagnostic the failure mode depends on the shape: a generic test method or
+a `ref`/`out`/`in`/`params` parameter is rejected before any registration
+is built, so the method would simply never be discovered by xUnit's
+Native AOT pipeline, with no diagnostic anywhere; a parameter of an
+ineligible type would instead reach code generation, producing a
+registration containing an illegal `CompositionRow.Resolve<T>()` call —
+the consumer would see a generated-code compiler error instead of an
+actionable diagnostic pointing at their own test method. This is caught
+at compile time instead, before either failure mode can occur.
 
 **Fix:** Remove the generic parameter/ref-out-in-params parameter from the
 test method, or change the offending parameter's type to an ordinary
