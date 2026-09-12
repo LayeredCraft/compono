@@ -1,0 +1,30 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (52,55)-(52,77),
+      Message: 'System.Span<int>' is a ref struct (ref-like type), which cannot be used as a type argument for Compono's generated ICompositionPlan<T>/PlanCache<T>,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0009,
+        Title: Type argument is a ref struct,
+        MessageFormat: '{0}' is a ref struct (ref-like type), which cannot be used as a type argument for Compono's generated ICompositionPlan<T>/PlanCache<T>,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: Program.cs: (52,20)-(52,54),
+      Message: 'TestNamespace.RefStructParameterTypeTests.Span_parameter_type_is_unsupported' cannot be registered for Native AOT theory-data generation: parameter 'value' has a type that cannot be composed (an open generic parameter, ref struct, pointer, function pointer, or unsupported array shape). Compono.XunitV3.Aot's Phase 1 supports only ordinary, non-generic parameters (no generic test methods, no ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0040,
+        Title: Compono.XunitV3.Aot-attributed test method has an unsupported signature,
+        MessageFormat: '{0}' cannot be registered for Native AOT theory-data generation: {1}. Compono.XunitV3.Aot's Phase 1 supports only ordinary, non-generic parameters (no generic test methods, no ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

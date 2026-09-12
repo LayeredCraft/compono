@@ -142,6 +142,7 @@ nav:
     - Overview: packages/index.md
     - Compono: packages/compono.md
     - Compono.XunitV3: packages/compono-xunitv3.md
+    - Compono.XunitV3.Aot: packages/compono-xunitv3-aot.md
     - Compono.NSubstitute: packages/compono-nsubstitute.md
     - Compono.Bogus: packages/compono-bogus.md
     - Compono.TUnit: packages/compono-tunit.md
@@ -180,6 +181,7 @@ nav:
     - API Reference:
       - Compono: reference/api/Compono/index.md
       - Compono.XunitV3: reference/api/Compono.XunitV3/index.md
+      - Compono.XunitV3.Aot: reference/api/Compono.XunitV3.Aot/index.md
       - Compono.NSubstitute: reference/api/Compono.NSubstitute/index.md
       - Compono.Bogus: reference/api/Compono.Bogus/index.md
       - Compono.TUnit: reference/api/Compono.TUnit/index.md

@@ -63,6 +63,10 @@ assert_exact_file_listing() {
     local nupkg="$1"
     local pkg_name="$2"
     local extra_paths="$3"
+    # Defaults to every current TFM (net8.0/net9.0/net10.0/net11.0); a caller whose package
+    # targets a narrower set (e.g. Compono.XunitV3.Aot's net9.0+ floor, matching xUnit v3's own
+    # Native AOT floor - no net8.0 lib/ folder ships) passes its own space-separated list instead.
+    local tfms="${4:-net8.0 net9.0 net10.0 net11.0}"
     # An allowlist, not a denylist of known-bad patterns (*.pdb/obj/) - the prior
     # denylist would stay green if packing accidentally included something that
     # isn't a .pdb or under obj/ at all (a stray test DLL, a .deps.json, a leaked
@@ -77,18 +81,14 @@ _rels/.rels
 ${pkg_name}.nuspec
 README.md
 icon.png
-lib/net8.0/${pkg_name}.dll
-lib/net8.0/${pkg_name}.xml
-lib/net9.0/${pkg_name}.dll
-lib/net9.0/${pkg_name}.xml
-lib/net10.0/${pkg_name}.dll
-lib/net10.0/${pkg_name}.xml
-lib/net11.0/${pkg_name}.dll
-lib/net11.0/${pkg_name}.xml
 [Content_Types].xml
 package/services/metadata/core-properties/nuget.psmdcp
 EOF
 )
+    local tfm
+    for tfm in $tfms; do
+        expected="${expected}"$'\n'"lib/${tfm}/${pkg_name}.dll"$'\n'"lib/${tfm}/${pkg_name}.xml"
+    done
     if [ -n "$extra_paths" ]; then
         expected="${expected}"$'\n'"${extra_paths}"
     fi
@@ -245,7 +245,7 @@ main() {
     }
 
     local pkg nupkg extract_dir extra_paths nuspec
-    for pkg in Compono Compono.XunitV3 Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit Compono.Options; do
+    for pkg in Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit Compono.Options; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -269,7 +269,13 @@ main() {
         # reached transitively through this package's Compono dependency, not a second analyzer DLL.
         extra_paths=$'build/Compono.Logging.props\nbuildTransitive/Compono.Logging.props'
     fi
-    assert_exact_file_listing "$nupkg" "$pkg" "$extra_paths"
+    if [ "$pkg" = "Compono.XunitV3.Aot" ]; then
+        # net9.0+ only - matches xUnit v3's own Native AOT floor (ADR-0066/RESEARCH-0032); no
+        # net8.0 lib/ folder ships, unlike every other publishable package.
+        assert_exact_file_listing "$nupkg" "$pkg" "$extra_paths" "net9.0 net10.0 net11.0"
+    else
+        assert_exact_file_listing "$nupkg" "$pkg" "$extra_paths"
+    fi
 
     nuspec=$(find "$extract_dir" -maxdepth 1 -iname "*.nuspec" | head -1)
     assert_exists "${nuspec:-__missing__}" "$pkg .nuspec"
@@ -290,6 +296,13 @@ main() {
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — xUnit v3 Integration"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range "$nuspec" "$pkg" "xunit.v3.extensibility.core" "$authoritative_json"
+            ;;
+        Compono.XunitV3.Aot)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — xUnit v3 Native AOT Integration"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            # xunit.v3.extensibility.core.aot, never the reflection-mode xunit.v3.extensibility.core
+            # above - the whole point of this separate package (ADR-0066).
+            assert_dependency_range "$nuspec" "$pkg" "xunit.v3.extensibility.core.aot" "$authoritative_json"
             ;;
         Compono.NSubstitute)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — NSubstitute Integration"

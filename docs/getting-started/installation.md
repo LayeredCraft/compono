@@ -17,6 +17,19 @@ dotnet add package Compono.MSTest
 dotnet add package Compono.NUnit
 ```
 
+If your xUnit v3 test project publishes with `PublishAot=true` (Native
+AOT), install `Compono.XunitV3.Aot` instead of `Compono.XunitV3` — the two
+are mutually exclusive in the same project (xUnit v3's reflection-mode and
+Native-AOT-mode package families can't be referenced together, a hard
+`CS0433` conflict). See the
+[`Compono.XunitV3.Aot` Package Guide](../packages/compono-xunitv3-aot.md)
+for the decision table and Phase 1 scope:
+
+```bash
+dotnet add package Compono
+dotnet add package Compono.XunitV3.Aot
+```
+
 This tutorial's assertions (`.Should()`, throughout this site's own
 examples) come from [AwesomeAssertions](https://github.com/AwesomeAssertions/AwesomeAssertions),
 not Compono itself — add it too if your project doesn't already reference
@@ -36,8 +49,9 @@ dotnet add package Compono.Http                # TestHttpHandler for HttpClient 
 ```
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and has a
-stable release, so a plain `dotnet add package` picks up the right version
-for all of them with no extra flag. See
+stable release, except `Compono.XunitV3.Aot` (`net9.0`/`net10.0`/`net11.0`
+only — matching xUnit v3's own Native AOT floor). A plain `dotnet add
+package` still picks up the right version with no extra flag. See
 [Package Guides](../packages/index.md) for what each package is for and
 when to add it.
 

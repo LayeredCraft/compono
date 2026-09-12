@@ -88,6 +88,22 @@ them (a real compile error results, not silent incorrect behavior):
 These are real, additional generator work deferred to a later phase — see
 [PLAN-0066](../plans/0066-compono-xunitv3-aot-package-architecture-impl-plan.md).
 
+## Unsupported method/parameter shapes (`CMP0040`)
+
+Because `ComposeAttribute` is a marker only (see below) with no runtime
+fallback, an unsupported `[Compose]`-attributed method shape is rejected
+at compile time with **`CMP0040`**, rather than silently never being
+discovered by xUnit's Native AOT pipeline:
+
+- A generic test method.
+- A `ref`/`out`/`in` or `params` parameter.
+- A parameter type that can never be a legal `CompositionRow.Resolve<T>()`
+  type argument — an open generic parameter, a `ref struct`, a pointer, a
+  function pointer, or an unsupported array shape.
+
+See [CMP0040](../reference/diagnostics.md#cmp0040-unsupported-componoxunitv3aot-attributed-method-signature)
+for the full diagnostic reference entry.
+
 ## How it actually works under the hood
 
 Unlike `Compono.XunitV3.ComposeAttribute`, this package's `ComposeAttribute`

@@ -56,6 +56,9 @@ internal static class AotComposeMethodDiscovery
             if (parameter.IsParams)
                 return Unsupported(fullyQualifiedTestClassName, method.Name, location, methodDisplayName, $"parameter '{parameter.Name}' is a params parameter, which is not supported");
 
+            if (!ComposedTypeAnalyzer.IsRowInvokerShapeEligible(parameter.Type, context.SemanticModel.Compilation))
+                return Unsupported(fullyQualifiedTestClassName, method.Name, location, methodDisplayName, $"parameter '{parameter.Name}' has a type that cannot be composed (an open generic parameter, ref struct, pointer, function pointer, or unsupported array shape)");
+
             parameters.Add(new AotComposeParameterInfo(
                 parameter.Name,
                 parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),

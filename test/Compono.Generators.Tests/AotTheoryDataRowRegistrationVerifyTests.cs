@@ -183,4 +183,26 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0040",
             TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task RefStructParameterType_ReportsCmp0040() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class RefStructParameterTypeTests
+                        {
+                            [Compono.XunitV3.Aot.Compose]
+                            public void Span_parameter_type_is_unsupported(System.Span<int> value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0040",
+            TestContext.Current.CancellationToken);
 }
