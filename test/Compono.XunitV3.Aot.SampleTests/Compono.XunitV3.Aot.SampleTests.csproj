@@ -37,13 +37,13 @@
          [Theory]+[Compose] tests).
 
          REQUIRED publish invocation - pass RuntimeIdentifier/SelfContained as -p: MSBuild properties,
-         NOT the `-r <rid>`/`--self-contained` CLI shorthand flags:
+         NOT the `-r rid`/`self-contained` CLI shorthand flags:
 
-             dotnet publish test/Compono.XunitV3.Aot.SampleTests -c Release -f net10.0 \
-                 -p:RuntimeIdentifier=<rid> -p:SelfContained=true -p:PublishAot=true -p:UseAppHost=true
+             dotnet publish test/Compono.XunitV3.Aot.SampleTests -c Release -f net10.0
+                 -p:RuntimeIdentifier=rid -p:SelfContained=true -p:PublishAot=true -p:UseAppHost=true
 
-         Confirmed empirically during implementation: the CLI shorthand form (`-r <rid>
-         --self-contained true`) reliably fails this specific project's self-contained RID-specific
+         Confirmed empirically during implementation: the CLI shorthand form (`-r rid
+         self-contained true`) reliably fails this specific project's self-contained RID-specific
          publish with `MSB3030: Could not copy ... obj/Release/net10.0/<rid>/apphost ... because it
          was not found` - reproducible from a clean obj/bin, and not present on sibling sample
          projects (e.g. Compono.NUnit.SampleTests) using the CLI-flag form successfully. The
