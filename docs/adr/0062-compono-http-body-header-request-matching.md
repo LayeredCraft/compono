@@ -481,10 +481,13 @@ mirroring the response side, is the whole v1 surface.
 **What Compono.Http itself guarantees, stated narrowly:**
 
 - Every built-in matcher (`WithBody`, `WithFormBody`, `WithJsonBody<T>`)
-  reads `request.Content` using the **ordinary, public**
-  `HttpContent.ReadAsByteArrayAsync(CancellationToken)` API — no private
+  reads `request.Content` using an **ordinary, public** `HttpContent` read
+  API — `WithBody` calls `ReadAsByteArrayAsync(CancellationToken)`;
+  `WithFormBody` and both `WithJsonBody<T>` overloads call
+  `ReadAsStringAsync(CancellationToken)`, since both operate on text
+  (percent-encoded form pairs, JSON) rather than raw bytes. No private
   reflection, no `ReadAsStream()`/`ReadAsStreamAsync()` direct-stream
-  access, no custom buffering wrapper of Compono's own.
+  access, no custom buffering wrapper of Compono's own, in any case.
 - **Compono.Http performs no buffering, consumption, disposal, or
   replacement of the caller-supplied `HttpContent` itself.** The
   `HttpRequestMessage`/`HttpContent` instance handed to `SendAsync` is the
