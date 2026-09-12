@@ -69,11 +69,19 @@ backward-compatibility decision).
       registration calling
       `global::Xunit.v3.RegisteredEngineConfig.RegisterTheoryDataRowFactory(...)`
       with compile-time-closed-generic `row.Resolve<T>(descriptor)` calls.
-      Also emits **`CMP0040`** for a generic test method or ref/out/in/
-      params parameter - no runtime fallback exists for this attribute
-      family, so this has to be a compile-time diagnostic, unlike the
-      other four `[Compose]` integrations' silent-skip-plus-runtime-throw
-      pattern.
+      Also emits **`CMP0040`** for a generic test method, a ref/out/in/
+      params parameter, or a parameter type that can't be a legal
+      `CompositionRow.Resolve<T>()` type argument (an open generic
+      parameter, ref struct, pointer, function pointer, or unsupported
+      array shape, via the same `ComposedTypeAnalyzer
+      .IsRowInvokerShapeEligible` guard `ComposeMethodDiscovery` already
+      uses) - no runtime fallback exists for this attribute family, so
+      this has to be a compile-time diagnostic, unlike the other four
+      `[Compose]` integrations' silent-skip-plus-runtime-throw pattern.
+      Added during PR #139's Codex review round 1, after the reviewer
+      found the type-eligibility gap would otherwise let an ineligible
+      parameter type reach code generation and produce an illegal
+      `CompositionRow.Resolve<T>()` call in generated code.
 - [x] Confirmed: this needs its own discovery
       (`AotComposeMethodDiscovery`), not a share of
       `ComposeMethodDiscovery.TransformMethod` - that function's own
