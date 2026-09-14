@@ -290,7 +290,7 @@ implementation review
 
 This ADR's Decision Outcome originally recorded only `CMP0041`-`CMP0043` - the three checks directly
 mirroring `ConfigProfileBinder`'s own runtime rules (constructor count/shape, argument match). PR #140's
-Codex review (ten rounds) found six further real shapes where the compile-time-verified, direct-
+Codex review (twelve rounds) found six further real shapes where the compile-time-verified, direct-
 construction design (this ADR's chosen Option 1) needed its own additional restrictions beyond what
 `ConfigProfileBinder`'s JIT-mode reflection ever had to consider - JIT's `ConstructorInfo.Invoke` simply
 doesn't encounter most of these problems, since reflection bypasses the C# compiler checks and analyzer
@@ -298,6 +298,18 @@ hints a direct `new T(...)`/generic `new T()` call site is subject to. These are
 restrictions on what constructor shapes are accepted, not implementation details, so they belong in this
 ADR's own decision record - PLAN-0067's Notes section has the full round-by-round discovery and fix
 narrative for each; this amendment records only the resulting diagnostics.
+
+The same review also found that `CMP0041`/`CMP0042` *themselves* - already part of the original Decision
+Outcome, as the direct `ConfigProfileBinder`-mirroring checks - needed AOT-only exclusions
+`ConfigProfileBinder`'s runtime reflection never needed, folded into the same "0 usable constructors"
+count rather than reported as separate diagnostics (consistent with how every addition below is folded
+into an existing code where one already fits): a sole matching constructor with a `ref`/`out`/`in`
+parameter (round 3) or a `dynamic`-typed parameter (round 6, `CMP0041` only - a `dynamic` parameter can
+never match `CMP0042`'s exact-`TConfig`-type requirement) is not counted as usable, nor is one marked
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` (round 8/9). Like the six
+new diagnostics below, none of this required revisiting the Decision Outcome itself - `CMP0041`/`CMP0042`
+still perform the same fundamental check `ConfigProfileBinder` does, just with a stricter, AOT-specific
+notion of "usable" than JIT-mode reflection needs.
 
 | Code | Condition |
 |---|---|

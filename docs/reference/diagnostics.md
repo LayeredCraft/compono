@@ -600,39 +600,64 @@ composable type. See the
 [`Compono.XunitV3.Aot` Package Guide](../packages/compono-xunitv3-aot.md)
 for Phase 1's exact scope.
 
-## CMP0041 — Profile configuration type does not have exactly one public constructor
+## CMP0041 — Profile configuration type does not have exactly one usable public constructor
 
 **Severity:** Error.
 
 **Message:** `'{TConfig}' is used as the TConfig type argument of
 [Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
-public constructor to be used as profile configuration - it has {Count}`
+usable public constructor to be used as profile configuration - it has
+{Count} (a constructor with a ref/out/in parameter, a dynamic-typed
+parameter, or one marked
+[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
+does not count as usable)`
 
 **Cause:** `[Compose<TProfile, TConfig>]`'s `TConfig` type argument has
-zero or more than one public constructor (or is abstract). The compile-time
-counterpart to `Compono.XunitV3.Binding.ConfigProfileBinder`'s identical
-runtime check (ADR-0036) — performed here because
+zero or more than one public constructor (or is abstract) — the
+compile-time counterpart to `Compono.XunitV3.Binding.ConfigProfileBinder`'s
+identical runtime check (ADR-0036), performed here because
 `Compono.XunitV3.Aot.ComposeAttribute<TProfile, TConfig>` has no runtime
-`GetData` fallback to check this through (ADR-0067).
+`GetData` fallback to check this through (ADR-0067) — **or** `TConfig` has
+exactly one public constructor, but it isn't *usable* for this package's
+AOT direct-construction codegen: it has a `ref`/`out`/`in` parameter, a
+`dynamic`-typed parameter, or is marked `[RequiresDynamicCode]`/
+`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` (ADR-0067 Amendment
+2 — AOT-only restrictions `ConfigProfileBinder`'s reflection-based
+construction never needed). `{Count}` reports the *usable* count in this
+second case, which can be `0` even though `TConfig` has one public
+constructor in the ordinary sense — the constructor exists, it just isn't
+usable here.
 
-**Fix:** Give `TConfig` exactly one public constructor.
+**Fix:** Give `TConfig` exactly one public constructor, with no
+`ref`/`out`/`in` or `dynamic`-typed parameter and no
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]`
+attribute.
 
-## CMP0042 — Profile type does not have exactly one public constructor accepting its configuration type
+## CMP0042 — Profile type does not have exactly one usable public constructor accepting its configuration type
 
 **Severity:** Error.
 
 **Message:** `'{TProfile}' is used as the TProfile type argument of
 [Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
-public constructor accepting a single '{TConfig}' parameter - it has
-{Count}`
+usable public constructor accepting a single '{TConfig}' parameter - it
+has {Count} (a constructor with a ref/out/in parameter, or one marked
+[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
+does not count as usable)`
 
 **Cause:** `[Compose<TProfile, TConfig>]`'s `TProfile` type argument does
 not have exactly one public constructor accepting exactly one
-`TConfig`-typed parameter (or is abstract). The compile-time counterpart to
-`ConfigProfileBinder`'s identical runtime check (ADR-0036).
+`TConfig`-typed parameter (or is abstract) — the compile-time counterpart
+to `ConfigProfileBinder`'s identical runtime check (ADR-0036) — **or**
+`TProfile` has exactly one matching public constructor, but it isn't
+*usable*: it has a `ref`/`out`/`in` parameter, or is marked
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/
+`[RequiresAssemblyFiles]` (ADR-0067 Amendment 2). Same `{Count}` caveat as
+`CMP0041` — it can report `0` even though the matching constructor exists.
 
 **Fix:** Give `TProfile` exactly one public constructor accepting a single
-`TConfig` parameter.
+`TConfig` parameter, with no `ref`/`out`/`in` parameter and no
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]`
+attribute.
 
 ## CMP0043 — Profile configuration argument does not match the configuration type's constructor
 

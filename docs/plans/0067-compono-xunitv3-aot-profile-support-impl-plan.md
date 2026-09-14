@@ -734,3 +734,36 @@ own fix, still purely docs, no code/behavior change:
 
 Re-validated: full rebuild 0 warnings/errors, `Compono.Generators.Tests` re-run as a sanity check (docs-
 only round, no generator/codegen change expected or found): 720/720 unchanged.
+
+**PR #140 Codex review round 12** found three more real findings - the second a genuine user-facing
+message-accuracy bug this time, not pure prose drift:
+
+- **Amendment 2's own framing still characterized `CMP0041`/`CMP0042` as unmodified, exact
+  `ConfigProfileBinder` mirrors, even though round 11's fix had already documented their AOT-only
+  exclusions (by-ref/dynamic/prohibited-AOT-attribute) in the package guide.** The amendment recorded
+  only `CMP0044`-`CMP0049` as additions, when `CMP0041`/`CMP0042` themselves - already part of the
+  original Decision Outcome - had gained the same class of AOT-only restriction through this same
+  review. **Fixed:** added a paragraph to Amendment 2 explaining these restrictions, and updated
+  `AnalyzerReleases.Unshipped.md`'s `CMP0041`/`CMP0042`/`CMP0044` rows to match.
+- **`CMP0041`/`CMP0042`'s actual emitted diagnostic message text says "it has {N}" using the *filtered,
+  usable* constructor count, not the raw public-constructor count - so a `TConfig`/`TProfile` with
+  exactly one public constructor that's merely unusable (a by-ref/dynamic parameter, or a prohibited AOT
+  attribute) reports "it has 0", factually claiming the type has zero public constructors when it
+  actually has one.** This is a real product-quality bug, not documentation drift - the compiler error a
+  consumer sees is misleading about what's actually wrong. **Fixed:** reworded both message templates to
+  describe *usable* constructors uniformly (accurate for both gates - the raw-count gate's count and
+  usable count are identical there, since nothing's been filtered yet) and to name what disqualifies an
+  otherwise-matching constructor inline in the message itself, not just in external docs. Eleven existing
+  `CMP0041`/`CMP0042` snapshot tests' `.verified.txt` files updated for the new message text (no `.cs`
+  generated-code snapshot changed - this is purely a diagnostic message wording fix, zero codegen
+  change).
+- **`AnalyzerReleases.Unshipped.md`'s `CMP0044` row still described only scalar `typeof`/enum arguments**,
+  not the array cases round 11 had already added to the ADR/package guide/diagnostics reference - the
+  rule-metadata catalog shipped with the analyzer itself was the one place round 11 missed. **Fixed:**
+  updated to match.
+
+Re-validated: full `Compono.Generators` build 0 warnings/errors, `Compono.Generators.Tests` 720/720
+(after the 11-snapshot promotion above), `Compono.XunitV3.Aot.Tests` 18/18,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings - full validation run (not just a sanity rebuild) since this
+round changed a real, user-facing diagnostic message, not only prose.
