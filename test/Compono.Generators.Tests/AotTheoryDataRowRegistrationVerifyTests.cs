@@ -766,6 +766,89 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
                 """,
         }, TestContext.Current.CancellationToken);
 
+    // PR #140 Codex review round 3 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigHasAmbiguousConstructorsIncludingByRef_ReportsCmp0041WithRawCount() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class AmbiguousConfig
+                        {
+                            // One ordinary constructor and one with a ref parameter - Compono.XunitV3's
+                            // JIT-mode ConfigProfileBinder counts both via Type.GetConstructors() (a
+                            // ref/out/in-parameter constructor is real, reflectable metadata there too)
+                            // and rejects this TConfig as ambiguous ("has 2"), before it ever inspects
+                            // either constructor's parameter shapes. Filtering the ref-parameter one out
+                            // *before* counting would let this succeed here while JIT-mode rejects the
+                            // identical TConfig outright - a real parity divergence.
+                            public AmbiguousConfig(int value) { }
+                            public AmbiguousConfig(ref int value) { }
+                        }
+
+                        public sealed class AmbiguousConfigProfile : Compono.ICompositionProfile
+                        {
+                            public AmbiguousConfigProfile(AmbiguousConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041AmbiguousTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<AmbiguousConfigProfile, AmbiguousConfig>(1)]
+                            public void Test_config_has_ordinary_and_byref_constructors(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigIsStructWithOnlyImplicitConstructor_ReportsCmp0041() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // No explicit constructor - Roslyn's own INamedTypeSymbol.Constructors still
+                        // reports one (IsImplicitlyDeclared = true, confirmed by direct probe), but
+                        // Compono.XunitV3's JIT-mode ConfigProfileBinder uses
+                        // Type.GetConstructors(Public | Instance), which returns *zero* constructors
+                        // for exactly this shape (also confirmed by direct probe) - counting the
+                        // synthesized one here would let this TConfig succeed (emitting `new
+                        // ImplicitCtorConfig()`) while JIT-mode rejects it with "has 0".
+                        public struct ImplicitCtorConfig
+                        {
+                            public int Value;
+                        }
+
+                        public sealed class ImplicitCtorProfile : Compono.ICompositionProfile
+                        {
+                            public ImplicitCtorProfile(ImplicitCtorConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041ImplicitCtorTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ImplicitCtorProfile, ImplicitCtorConfig>]
+                            public void Test_config_is_struct_with_only_implicit_constructor(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
     [Fact]
     public Task RefStructParameterType_ReportsCmp0040() =>
         GeneratorTestHelpers.VerifyFailure(

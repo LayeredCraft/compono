@@ -384,3 +384,55 @@ ReportsCmp0041`, `TwoTypeParameterAttribute_TProfileConstructorHasByRefParameter
 build 0 warnings/errors, `Compono.Generators.Tests` 682/682, `Compono.XunitV3.Aot.Tests` 15/15,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 3** found two more real, confirmed parity divergences against
+`Compono.XunitV3.Binding.ConfigProfileBinder.ResolveSingleConstructor` - both verified empirically with
+standalone probes before touching code, given round 2 had already produced one false positive:
+
+- **`TConfig` constructor counting excluded ref/out/in constructors *before* counting, not after.**
+  Round 2's fix filtered ref/out/in-parameter constructors out of the candidate set first, then
+  counted what remained - so a `TConfig` with one ordinary and one ref/out/in-parameter public
+  constructor silently succeeded here (filtered count = 1), while
+  `Type.GetConstructors(Public | Instance)` (confirmed by a direct reflection probe) returns *both*
+  constructors, so JIT-mode's `ResolveSingleConstructor` sees count = 2 and rejects the identical
+  `TConfig` as ambiguous - a real, confirmed divergence, not just a wording nicety
+  (ADR-0067's own stated design intent: "performs, at compile time, the same three checks
+  `ConfigProfileBinder` performs at runtime"). Restructured into the same two sequential gates
+  JIT-mode actually has: raw public-constructor count first (matches `ResolveSingleConstructor`'s own
+  gate exactly, reported with the true raw count), then - only once exactly one constructor exists -
+  whether *that* constructor is usable for AOT's direct-construction codegen (a ref/out/in parameter
+  still can't be satisfied by a generated literal argument, unlike JIT's reflection-based
+  `ConstructorInfo.Invoke`, which a second direct probe confirmed actually *succeeds* for a ref
+  parameter given a plain boxed argument - reflection marshals by-ref parameters transparently, a
+  capability AOT's compile-time-generated direct `new` call structurally cannot replicate). Both gates
+  reuse the existing `CMP0041` diagnostic (the raw count, or `0` for "exists but unusable"), matching
+  the existing abstract/non-named-type convention - no new diagnostic. (`TProfile`'s own constructor
+  selection needed no equivalent change: JIT-mode's `ResolveSingleProfileConstructor` already filters
+  by `parameters[0].ParameterType == configType` as part of its *matching* criteria, not as a separate
+  count-then-filter step, and a ref/out/in `TConfig`-typed parameter's reflected `ParameterType` is a
+  distinct byref type that never equals `configType` - so JIT-mode's own matching logic already
+  excludes it structurally, and this repo's filter-then-count approach for `TProfile` already agreed
+  with that.)
+- **A struct `TConfig` with no explicitly declared constructor.** Roslyn's `INamedTypeSymbol.Constructors`
+  includes the compiler-synthesized public parameterless constructor for this shape
+  (`IsImplicitlyDeclared = true`, confirmed by a direct Roslyn probe), so the "exactly one public
+  constructor" count previously included it and let this `TConfig` succeed (emitting `new
+  TConfig()`). `Type.GetConstructors(Public | Instance)` (confirmed by a direct reflection probe)
+  returns *zero* constructors for exactly this shape - the implicit constructor isn't reflectable at
+  all - so JIT-mode's binder rejects the identical `TConfig` with "has 0". Fixed by excluding
+  `IsImplicitlyDeclared` constructors from the counted set.
+- **Rejected as a false positive, with evidence, not fixed: "`typeof(int*)`/function-pointer profile
+  configuration arguments need an unsafe context in the generated file."** This was round 2's
+  finding, not round 3's - listed here only for completeness of the false-positive count (two
+  standalone compile probes in round 2 already showed `typeof(...)` over a pointer/function-pointer
+  type is exempt from C#'s unsafe-context requirement entirely; that thread remains open, unresolved,
+  by design).
+
+Two new tests: `TwoTypeParameterAttribute_TConfigHasAmbiguousConstructorsIncludingByRef_
+ReportsCmp0041WithRawCount` (proves the raw count, not the filtered count, is what gets reported -
+"has 2", matching JIT exactly), `TwoTypeParameterAttribute_TConfigIsStructWithOnlyImplicitConstructor_
+ReportsCmp0041` (a struct `TConfig` with zero explicit constructors is rejected, not silently
+constructed via `new TConfig()`). Re-validated: full build 0 warnings/errors,
+`Compono.Generators.Tests` 686/686, `Compono.XunitV3.Aot.Tests` 15/15,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.

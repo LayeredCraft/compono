@@ -184,21 +184,54 @@ internal static class AotComposeMethodDiscovery
         // trusting that) structurally has zero usable constructors, reported through the same CMP0041/
         // CMP0042 "wrong constructor count" diagnostics an abstract type already uses, rather than an
         // unconditional cast throwing InvalidCastException inside the generator.
+        //
+        // PR #140 Codex review round 3: counting must match
+        // Compono.XunitV3.Binding.ConfigProfileBinder.ResolveSingleConstructor's exact two-step shape -
+        // it counts *every* public constructor first (regardless of parameter kind; a real
+        // Type.GetConstructors(Public|Instance) call, confirmed by direct probe, returns a ref/out/in-
+        // parameter constructor right alongside an ordinary one), and only rejects "ambiguous" at that
+        // raw count. Filtering ref/out/in constructors out *before* counting (the round-2 fix) let a
+        // TConfig with one ordinary and one ref/out/in constructor silently succeed here while JIT-mode
+        // would reject it outright as ambiguous ("has 2") - a real, confirmed parity divergence, not
+        // just a wording nicety (ADR-0067's own design intent: "performs, at compile time, the same
+        // three checks ConfigProfileBinder performs at runtime"). Restructured into the same two
+        // sequential gates JIT-mode has: raw-count ambiguity first, then (only once exactly one
+        // constructor exists) whether that sole constructor is actually usable for AOT's direct-
+        // construction codegen - a ref/out/in parameter still can't be satisfied by a generated literal
+        // argument (no addressable variable to pass by reference, unlike JIT's reflection-based
+        // ConstructorInfo.Invoke, confirmed by direct probe to actually succeed there), so it's still
+        // rejected, just at the second gate rather than folded into the first.
         var configType = configTypeArgument as INamedTypeSymbol;
-        var configConstructors = configType is { IsAbstract: false }
-            // PR #140 Codex review round 2: a constructor with a ref/out/in parameter is not usable
-            // for this attribute family - TypedConstantMatcher only ever compares parameter.Type
-            // (which strips the ref modifier), so a literal argument would otherwise be accepted
-            // against it, and the generated `new TConfig(literal)` call fails with CS1620 for
-            // ref/out (a literal isn't an assignable variable) or silently diverges from
-            // Compono.XunitV3's JIT-mode binder for `in` (call-site-optional there, but the JIT
-            // reflection-based binder never matches this shape at all since it sees TConfig&).
-            // Excluded from the "usable public constructor" set entirely, same category as an
-            // abstract/non-named type argument above.
-            ? configType.Constructors
-                .Where(static c => c.DeclaredAccessibility == Accessibility.Public
-                    && c.Parameters.All(static p => p.RefKind == RefKind.None))
-                .ToArray()
+        var allConfigConstructors = configType is { IsAbstract: false }
+            // A struct's own compiler-synthesized parameterless constructor (no constructor explicitly
+            // declared) is real, discoverable Roslyn metadata (INamedTypeSymbol.Constructors includes
+            // it, IsImplicitlyDeclared = true, confirmed by direct probe) but is *not* reflectable -
+            // Type.GetConstructors(Public|Instance) returns zero constructors for exactly this shape,
+            // confirmed by direct probe - so JIT-mode's ConfigProfileBinder would reject this same
+            // TConfig with "has 0", not silently succeed the way an unfiltered Roslyn count would.
+            // Excluded here so the two counts agree.
+            ? configType.Constructors.Where(static c => c.DeclaredAccessibility == Accessibility.Public && !c.IsImplicitlyDeclared).ToArray()
+            : Array.Empty<IMethodSymbol>();
+
+        if (allConfigConstructors.Length != 1)
+        {
+            diagnostics.Add(new DiagnosticInfo(
+                DiagnosticDescriptors.InvalidProfileConfigConstructorShape,
+                location,
+                configDisplayName,
+                profileDisplayName,
+                methodDisplayName,
+                allConfigConstructors.Length));
+
+            return null;
+        }
+
+        // Second gate: the sole constructor exists (JIT-mode would select it too) but isn't usable for
+        // AOT's direct `new TConfig(literalArgs)` construction if it has a ref/out/in parameter -
+        // reported the same way an abstract/non-named type argument is (zero *usable* constructors),
+        // consistent with that existing convention rather than a new diagnostic just for this shape.
+        var configConstructors = allConfigConstructors[0].Parameters.All(static p => p.RefKind == RefKind.None)
+            ? allConfigConstructors
             : Array.Empty<IMethodSymbol>();
 
         if (configConstructors.Length != 1)
