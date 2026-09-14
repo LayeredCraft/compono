@@ -1128,4 +1128,133 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0040",
             TestContext.Current.CancellationToken);
+
+    // PR #140 Codex review round 5/6 findings (missed by an incomplete `gh api` query at the time of
+    // round 5's own fix commit, caught during round 6's re-check).
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_EmptyArrayOfInaccessibleElementType_ReportsCmp0044() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class Cmp0044EmptyArrayTests
+                        {
+                            // PR #140 Codex review round 5 (comment missed until round 6's re-check):
+                            // EmbeddedTypes' Array-kind case only recursed into the array's *elements*
+                            // (constant.Values), never checked the array's own *declared element type* -
+                            // an EMPTY array has zero elements to recurse into, so this slipped through
+                            // entirely even though the renderer still emits
+                            // `new global::TestNamespace.Cmp0044EmptyArrayTests.PrivateKind[] { }` in the
+                            // generated top-level file, failing CS0122.
+                            private enum PrivateKind
+                            {
+                                Default,
+                            }
+
+                            public sealed class EmptyArrayConfig
+                            {
+                                public EmptyArrayConfig(object value) { }
+                            }
+
+                            public sealed class EmptyArrayConfigProfile : Compono.ICompositionProfile
+                            {
+                                public EmptyArrayConfigProfile(EmptyArrayConfig config) { }
+                                public void Configure(Compono.CompositionBuilder builder) { }
+                            }
+
+                            [Compono.XunitV3.Aot.Compose<EmptyArrayConfigProfile, EmptyArrayConfig>(new PrivateKind[] { })]
+                            public void Test_config_argument_is_empty_array_of_private_enum(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0044",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorHasDynamicParameter_ReportsCmp0041() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 6: a `dynamic`-typed constructor parameter passes
+                        // TypedConstantMatcher.Validate (ClassifyConversion treats string->dynamic as an
+                        // implicit reference conversion, confirmed by direct probe) and would have
+                        // generated a `(dynamic)"value"` cast in the top-level registration, invoking
+                        // the C# runtime dynamic binder - not Native-AOT/trim-safe, violating ADR-0067's
+                        // zero-reflection guarantee. Excluded from the usable-constructor set the same
+                        // way a ref/out/in parameter already was, reported through the same CMP0041
+                        // "0 usable constructors" diagnostic rather than a new one.
+                        public sealed class DynamicParameterConfig
+                        {
+                            public DynamicParameterConfig(dynamic value) { }
+                        }
+
+                        public sealed class DynamicParameterConfigProfile : Compono.ICompositionProfile
+                        {
+                            public DynamicParameterConfigProfile(DynamicParameterConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041DynamicParameterTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<DynamicParameterConfigProfile, DynamicParameterConfig>("value")]
+                            public void Test_config_constructor_has_dynamic_parameter(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorIsObsoleteAsError_ReportsCmp0047() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 6: a constructor marked [Obsolete("...", error:
+                        // true)] passes every shape/accessibility/required-members check (it's otherwise
+                        // a perfectly ordinary, JIT-reflectable constructor) but the generated
+                        // registration calls it directly (`new ObsoleteConfig(...)`), which the compiler
+                        // rejects with CS0619 for this attribute shape specifically (confirmed by direct
+                        // compile probe).
+                        public sealed class ObsoleteConfig
+                        {
+                            [System.Obsolete("do not use", error: true)]
+                            public ObsoleteConfig(string value) { }
+                        }
+
+                        public sealed class ObsoleteConfigProfile : Compono.ICompositionProfile
+                        {
+                            public ObsoleteConfigProfile(ObsoleteConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0047ObsoleteConstructorTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ObsoleteConfigProfile, ObsoleteConfig>("value")]
+                            public void Test_config_constructor_is_obsolete_as_error(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0047",
+            TestContext.Current.CancellationToken);
 }

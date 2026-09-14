@@ -236,10 +236,19 @@ internal static class AotComposeMethodDiscovery
         }
 
         // Second gate: the sole constructor exists (JIT-mode would select it too) but isn't usable for
-        // AOT's direct `new TConfig(literalArgs)` construction if it has a ref/out/in parameter -
-        // reported the same way an abstract/non-named type argument is (zero *usable* constructors),
-        // consistent with that existing convention rather than a new diagnostic just for this shape.
-        var configConstructors = allConfigConstructors[0].Parameters.All(static p => p.RefKind == RefKind.None)
+        // AOT's direct `new TConfig(literalArgs)` construction if it has a ref/out/in parameter, or a
+        // `dynamic`-typed parameter - reported the same way an abstract/non-named type argument is
+        // (zero *usable* constructors), consistent with that existing convention rather than a new
+        // diagnostic just for either shape. PR #140 Codex review round 6: a `dynamic` parameter passes
+        // TypedConstantMatcher.Validate (ClassifyConversion treats string->dynamic as an implicit
+        // reference conversion, confirmed by direct probe) and would generate a `(dynamic)"literal"`
+        // cast, invoking the C# runtime dynamic binder - not Native-AOT/trim-safe, violating ADR-0067's
+        // zero-reflection guarantee. Unlike ref/out/in, JIT-mode's reflection-based
+        // ConstructorInfo.Invoke *can* satisfy a dynamic parameter (it's just object at the metadata
+        // level), so this is an AOT-only restriction, not a JIT-parity gap - still folded into the same
+        // "0 usable constructors" gate rather than a new diagnostic.
+        var configConstructors = allConfigConstructors[0].Parameters.All(static p =>
+            p.RefKind == RefKind.None && p.Type.TypeKind != TypeKind.Dynamic)
             ? allConfigConstructors
             : Array.Empty<IMethodSymbol>();
 
@@ -310,6 +319,18 @@ internal static class AotComposeMethodDiscovery
         if (!ConstructorSatisfiesRequiredMembers(profileType!, profileConstructor))
         {
             diagnostics.Add(RequiredMembersDiagnostic(profileType!, profileConstructor, methodDisplayName, location));
+            return null;
+        }
+
+        if (IsObsoleteAsError(configConstructor))
+        {
+            diagnostics.Add(ObsoleteConstructorDiagnostic(configType!, methodDisplayName, location));
+            return null;
+        }
+
+        if (IsObsoleteAsError(profileConstructor))
+        {
+            diagnostics.Add(ObsoleteConstructorDiagnostic(profileType!, methodDisplayName, location));
             return null;
         }
 
@@ -465,6 +486,17 @@ internal static class AotComposeMethodDiscovery
                 break;
 
             case TypedConstantKind.Array:
+                // PR #140 Codex review round 5 (finding not caught until round 6's re-check): the
+                // array's own *declared element type* is embedded in the rendered literal
+                // (`new global::Ns.PrivateEnum[] { ... }`) regardless of whether the array actually
+                // has any elements - an empty array of a private type (`new PrivateEnum[] { }`) has
+                // no Values to recurse into at all, so the per-element walk alone never catches it.
+                // Checked independently of the per-element recursion below (which instead catches a
+                // *value* embedding some other type, e.g. a typeof(...) element inside a Type[] array
+                // whose own declared element type - System.Type - is always accessible).
+                if (constant.Type is IArrayTypeSymbol arrayType)
+                    yield return arrayType.ElementType;
+
                 foreach (var element in constant.Values)
                 foreach (var embeddedType in EmbeddedTypes(element))
                     yield return embeddedType;
@@ -521,6 +553,24 @@ internal static class AotComposeMethodDiscovery
 
         return "(unknown)";
     }
+
+    // PR #140 Codex review round 6 (CMP0047) - a constructor marked [Obsolete("...", error: true)] is
+    // otherwise a perfectly normal, selectable constructor (shape/accessibility/required-members all
+    // pass), but Compono.Generators' generated registration calls it directly (`new T(...)`), which the
+    // compiler rejects with CS0619 for this attribute shape specifically - confirmed by direct compile
+    // probe. `error: false` (the default, a mere warning) is left alone: CS0618 does not block
+    // compilation, so the generated registration still builds.
+    private static bool IsObsoleteAsError(IMethodSymbol constructor) =>
+        constructor.GetAttributes().Any(static a =>
+            a.AttributeClass?.ToDisplayString() == "System.ObsoleteAttribute"
+            && a.ConstructorArguments is [_, { Value: true }]);
+
+    private static DiagnosticInfo ObsoleteConstructorDiagnostic(INamedTypeSymbol type, string methodDisplayName, LocationInfo? location) =>
+        new(
+            DiagnosticDescriptors.ObsoleteProfileConstructor,
+            location,
+            type.ToDisplayString(),
+            methodDisplayName);
 
     private static AotComposeMethodInfo Unsupported(
         string fullyQualifiedTestClassName,

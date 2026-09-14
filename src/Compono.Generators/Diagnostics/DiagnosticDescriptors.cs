@@ -450,4 +450,21 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // PR #140 Codex review round 6: a selected TConfig/TProfile constructor marked
+    // [Obsolete(error: true)] passes every shape/accessibility/required-members check above but
+    // produces an uncompilable `new T(...)` call (CS0619) in the generated registration - caught here
+    // as its own diagnostic rather than folded into CMP0041/CMP0042's "0 usable constructors" count,
+    // since (unlike ref/out/in or dynamic) an [Obsolete(error: true)] constructor is otherwise a
+    // completely normal, JIT-reflectable constructor - this is purely a "the generated call site can't
+    // use it" problem, not a shape problem.
+    public static readonly DiagnosticDescriptor ObsoleteProfileConstructor = new(
+        "CMP0047",
+        "Selected TConfig/TProfile constructor is marked [Obsolete(error: true)]",
+        "'{0}''s selected constructor is marked [Obsolete(error: true)] (used by [Compose<...>] on " +
+        "'{1}') - Compono.Generators constructs '{0}' via a direct `new {0}(...)` call in the generated " +
+        "registration, which would fail with CS0619",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

@@ -520,3 +520,57 @@ UsesSelectedPublicConstructor` (real JIT execution in `Compono.XunitV3.Aot.Tests
 warnings/errors, `Compono.Generators.Tests` 696/696, `Compono.XunitV3.Aot.Tests` 18/18,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**Process correction, round 5/6 boundary:** round 5's own fix commit was pushed against only two of
+round 5's three actual Codex findings - an unpaginated `gh api .../comments` query silently truncated
+the result set and a third finding (below) was missed entirely. This was caught during round 6's
+re-check (a full `gh api` review-threads query showed more unresolved threads than the single expected
+false-positive one), not by round 6 itself being clean - the initial round-6 check also under-queried
+and briefly concluded "no actionable findings" before a paginated (`?per_page=100`) re-query surfaced
+the two real round-6 findings below. All `gh api .../comments` queries from this point on use
+`?per_page=100` (or full pagination) to avoid repeating this.
+
+- **The missed round 5 finding - `EmbeddedTypes` never checked an array's own declared element type,
+  only its elements.** An *empty* array of an inaccessible type (`new PrivateKind[] { }`) has no
+  elements for the existing per-element recursion to walk, so it slipped past `CMP0044` entirely even
+  though `TypedConstantLiteralRenderer` still emits the array's declared element type in the rendered
+  literal (`new global::Ns.PrivateKind[] { }`), which would fail `CS0122` in the generated top-level
+  file. Fixed by having the `TypedConstantKind.Array` case in `EmbeddedTypes` also `yield return` the
+  constant's own `IArrayTypeSymbol.ElementType` unconditionally, alongside (not instead of) the existing
+  per-element recursion into `.Values` (which still independently catches a *value* embedding some
+  other type, e.g. a `typeof(...)` element inside an accessible `Type[]` array).
+- **A `dynamic`-typed `TConfig` constructor parameter passed every existing check and would have
+  generated a `(dynamic)"literal"` cast.** `TypedConstantMatcher.Validate`'s accepted-conversion
+  criteria (`IsImplicit && IsReference`) is - correctly, for every *other* shape it needs to accept -
+  satisfied by `ClassifyConversion(string, dynamic)` (confirmed by a direct Roslyn probe), so the
+  validator itself needed no change; the actual defect was that a `dynamic`-parameter constructor should
+  never have been in the *usable-constructor* set to begin with. A `(dynamic)` cast at the generated
+  call site binds through `Microsoft.CSharp.RuntimeBinder`, the C# runtime dynamic binder - not
+  Native-AOT/trim-safe, a direct violation of ADR-0067's zero-reflection guarantee. Unlike a ref/out/in
+  parameter, this is not a JIT-parity gap (`ConstructorInfo.Invoke` can satisfy a `dynamic` parameter
+  fine, it's `object` at the metadata level) - it's an AOT-only restriction. Fixed by extending the same
+  second-gate usability filter that already excludes ref/out/in parameters
+  (`BuildTwoTypeParameterProfile`'s `configConstructors` filter) to also exclude any constructor with a
+  `TypeKind.Dynamic` parameter, folded into the same `CMP0041` "0 usable constructors" diagnostic rather
+  than a new one, consistent with the ref/out/in precedent.
+- **A selected `TConfig`/`TProfile` constructor marked `[Obsolete("...", error: true)]` passed every
+  shape/accessibility/required-members check but produces an uncompilable generated call.** Such a
+  constructor is otherwise completely ordinary and JIT-reflectable - `ConstructorInfo.Invoke` doesn't
+  care about `[Obsolete]` at all - so this isn't folded into the existing "0 usable constructors" gates
+  the way ref/out/in and `dynamic` are; it's purely that the generated registration's direct
+  `new T(...)` call site can't use it, confirmed by a direct compile probe showing `CS0619`. Added a new
+  diagnostic, `CMP0047`, and a post-selection check (mirroring `ConstructorSatisfiesRequiredMembers`'s
+  own placement, right after the `CMP0046` required-members checks) applied to both the selected
+  `configConstructor` and `profileConstructor`, looking for `[ObsoleteAttribute]` with its `error`
+  constructor argument `true`. (`[Obsolete("...")]`/`[Obsolete("...", error: false)]` - a mere `CS0618`
+  warning, not an error - is left alone; the generated registration still compiles.)
+
+Three new tests, all `VerifyFailure` generator-snapshot tests (no real-execution proof needed - each is
+a rejection, not a construction-correctness question):
+`TwoTypeParameterAttribute_EmptyArrayOfInaccessibleElementType_ReportsCmp0044`,
+`TwoTypeParameterAttribute_TConfigConstructorHasDynamicParameter_ReportsCmp0041`,
+`TwoTypeParameterAttribute_TConfigConstructorIsObsoleteAsError_ReportsCmp0047`. Re-validated: full
+`Compono.Generators` build 0 warnings/errors (including the new `CMP0047` `AnalyzerReleases.Unshipped.md`
+entry, no `RS2000`), `Compono.Generators.Tests` 702/702, `Compono.XunitV3.Aot.Tests` 18/18,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.

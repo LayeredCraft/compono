@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (100,20)-(100,71),
+      Message: 'TestNamespace.Cmp0044EmptyArrayTests.PrivateKind' is referenced by [Compose<...>] on 'TestNamespace.Cmp0044EmptyArrayTests.Test_config_argument_is_empty_array_of_private_enum' (the profile configuration argument for parameter 'value'), but is not accessible from Compono.Generators' generated top-level registration - referencing it there would fail with CS0122. Make 'TestNamespace.Cmp0044EmptyArrayTests.PrivateKind' at least internal (with InternalsVisibleTo if it lives in another assembly), or public.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0044,
+        Title: A type referenced by [Compose<TProfile>]/[Compose<TProfile, TConfig>] is not accessible from the generated registration,
+        MessageFormat: '{0}' is referenced by [Compose<...>] on '{1}' ({2}), but is not accessible from Compono.Generators' generated top-level registration - referencing it there would fail with CS0122. Make '{0}' at least internal (with InternalsVisibleTo if it lives in another assembly), or public.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
