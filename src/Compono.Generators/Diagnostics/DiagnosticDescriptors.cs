@@ -410,4 +410,44 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // CMP0044-CMP0046: further compile-time shape validation for Compono.XunitV3.Aot's profile forms
+    // (ADR-0067/PLAN-0067), added after PR #140's Codex review found real generator-crash/
+    // uncompilable-generated-code gaps in the initial CMP0041-CMP0043 pass - same "no runtime
+    // fallback, so this has to be a compile-time diagnostic" reasoning as the rest of this series.
+
+    public static readonly DiagnosticDescriptor InaccessibleProfileSymbol = new(
+        "CMP0044",
+        "A type referenced by [Compose<TProfile>]/[Compose<TProfile, TConfig>] is not accessible from the generated registration",
+        "'{0}' is referenced by [Compose<...>] on '{1}' ({2}), but is not accessible from " +
+        "Compono.Generators' generated top-level registration - referencing it there would fail with " +
+        "CS0122. Make '{0}' at least internal (with InternalsVisibleTo if it lives in another " +
+        "assembly), or public.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor MultipleAotComposeAttributes = new(
+        "CMP0045",
+        "More than one Compono.XunitV3.Aot Compose-family attribute on one test method",
+        "More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on '{0}' " +
+        "- only one Compose-family attribute per test method is allowed. Unlike Compono.XunitV3, " +
+        "these three attribute types share no common base class here, so a second one on the same " +
+        "method would otherwise each independently register their own theory-data factory under the " +
+        "same generated hint name and crash the generator instead of producing a diagnostic.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ProfileConstructorRequiredMembersUnsatisfied = new(
+        "CMP0046",
+        "Selected TConfig/TProfile constructor does not satisfy the type's required members",
+        "'{0}''s selected constructor does not satisfy required member '{1}' (used by [Compose<...>] " +
+        "on '{2}') - Compono.Generators constructs '{0}' via a direct constructor call, which requires " +
+        "either no required members, or the constructor to carry " +
+        "[System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail with CS9035 in the " +
+        "generated registration",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

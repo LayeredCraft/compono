@@ -1,0 +1,30 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (87,20)-(87,58),
+      Message: More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on 'TestNamespace.Cmp0045Tests.Test_has_two_compose_family_attributes' - only one Compose-family attribute per test method is allowed. Unlike Compono.XunitV3, these three attribute types share no common base class here, so a second one on the same method would otherwise each independently register their own theory-data factory under the same generated hint name and crash the generator instead of producing a diagnostic.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0045,
+        Title: More than one Compono.XunitV3.Aot Compose-family attribute on one test method,
+        MessageFormat: More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on '{0}' - only one Compose-family attribute per test method is allowed. Unlike Compono.XunitV3, these three attribute types share no common base class here, so a second one on the same method would otherwise each independently register their own theory-data factory under the same generated hint name and crash the generator instead of producing a diagnostic.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: Program.cs: (87,20)-(87,58),
+      Message: More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on 'TestNamespace.Cmp0045Tests.Test_has_two_compose_family_attributes' - only one Compose-family attribute per test method is allowed. Unlike Compono.XunitV3, these three attribute types share no common base class here, so a second one on the same method would otherwise each independently register their own theory-data factory under the same generated hint name and crash the generator instead of producing a diagnostic.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0045,
+        Title: More than one Compono.XunitV3.Aot Compose-family attribute on one test method,
+        MessageFormat: More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on '{0}' - only one Compose-family attribute per test method is allowed. Unlike Compono.XunitV3, these three attribute types share no common base class here, so a second one on the same method would otherwise each independently register their own theory-data factory under the same generated hint name and crash the generator instead of producing a diagnostic.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

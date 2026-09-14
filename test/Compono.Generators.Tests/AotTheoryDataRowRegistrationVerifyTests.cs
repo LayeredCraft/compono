@@ -69,16 +69,21 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             // instead resolves ICompositionProfile via ordinary namespace-nesting lookup to the real
             // Compono.ICompositionProfile - exactly matching how the real production
             // Compono.XunitV3.Aot.ComposeAttribute{TProfile}.cs file itself resolves it.
-            public class ComposeAttribute : Xunit.v3.DataAttribute
+            //
+            // All three forms derive directly from Xunit.v3.DataAttribute, mirroring the real
+            // production shape exactly (ADR-0067 Amendment 1) - no shared base class between them,
+            // so AotComposeMethodDiscovery.CountAotComposeAttributes' metadata-name-based cross-check
+            // (CMP0045) is genuinely necessary here, not a stand-in-only artifact.
+            public sealed class ComposeAttribute : Xunit.v3.DataAttribute
             {
             }
 
-            public sealed class ComposeAttribute<TProfile> : ComposeAttribute
+            public sealed class ComposeAttribute<TProfile> : Xunit.v3.DataAttribute
                 where TProfile : ICompositionProfile, new()
             {
             }
 
-            public sealed class ComposeAttribute<TProfile, TConfig> : ComposeAttribute
+            public sealed class ComposeAttribute<TProfile, TConfig> : Xunit.v3.DataAttribute
                 where TProfile : ICompositionProfile
             {
                 public ComposeAttribute(params object?[] configArguments) { }
@@ -399,6 +404,190 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0043",
             TestContext.Current.CancellationToken);
+
+    // PR #140 Codex review findings - CMP0044/CMP0045/CMP0046 and the two real-value rendering fixes
+    // (non-named TConfig no longer crashes the generator; NaN/Infinity/negative-zero render as valid
+    // C#), added after the initial pass.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_InaccessibleTConfig_ReportsCmp0044() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class Cmp0044Tests
+                        {
+                            // Private to Cmp0044Tests - legal at the [Compose<...>] use site (nested
+                            // inside the same class), but not accessible from the generated top-level
+                            // registration file, which would fail with CS0122 if this weren't caught
+                            // here first.
+                            private sealed class PrivateConfig
+                            {
+                                public PrivateConfig(int value) { }
+                            }
+
+                            public sealed class PrivateConfigProfile : Compono.ICompositionProfile
+                            {
+                                public PrivateConfigProfile(PrivateConfig config) { }
+                                public void Configure(Compono.CompositionBuilder builder) { }
+                            }
+
+                            [Compono.XunitV3.Aot.Compose<PrivateConfigProfile, PrivateConfig>(1)]
+                            public void Test_config_type_is_private(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0044",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task StackedComposeAndGenericAttribute_ReportsCmp0045() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class StackedProfile : Compono.ICompositionProfile
+                        {
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0045Tests
+                        {
+                            // [Compose] and [Compose<TProfile>] are unrelated attribute types (ADR-0067
+                            // Amendment 1) - nothing in the C# compiler itself rejects stacking both on
+                            // one method, so this has to be caught here instead of crashing the
+                            // generator with a duplicate AddSource hint name.
+                            [Compono.XunitV3.Aot.Compose]
+                            [Compono.XunitV3.Aot.Compose<StackedProfile>]
+                            public void Test_has_two_compose_family_attributes(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0045",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_NonNamedTConfig_ReportsCmp0041WithoutCrashing() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class ArrayConfigProfile : Compono.ICompositionProfile
+                        {
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041NonNamedTests
+                        {
+                            // TConfig carries no constraint at all, so a non-named type (an array,
+                            // here) is legal C# generic-attribute syntax - an earlier pass cast
+                            // TypeArguments[1] straight to INamedTypeSymbol, which throws
+                            // InvalidCastException (crashing the whole generator) for exactly this
+                            // shape instead of reporting CMP0041.
+                            [Compono.XunitV3.Aot.Compose<ArrayConfigProfile, string[]>(new[] { "a", "b" })]
+                            public void Test_supplies_array_type_as_config(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_RequiredMemberUnsatisfied_ReportsCmp0046() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class RequiredMemberConfig
+                        {
+                            public RequiredMemberConfig(int value) { Value = value; }
+
+                            public int Value { get; }
+
+                            // Not satisfied by the constructor above (no [SetsRequiredMembers]) - a
+                            // direct `new RequiredMemberConfig(1)` call fails with CS9035 in the
+                            // generated registration unless this is caught here first.
+                            public required string Name { get; init; }
+                        }
+
+                        public sealed class RequiredMemberProfile : Compono.ICompositionProfile
+                        {
+                            public RequiredMemberProfile(RequiredMemberConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0046Tests
+                        {
+                            [Compono.XunitV3.Aot.Compose<RequiredMemberProfile, RequiredMemberConfig>(1)]
+                            public void Test_config_has_unsatisfied_required_member(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0046",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_SpecialFloatingPointValues_RenderAsValidCSharp() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = XunitAotStandIns + """
+
+                namespace TestNamespace
+                {
+                    public sealed class FloatingPointConfig
+                    {
+                        public FloatingPointConfig(double notANumber, double positiveInfinity, double negativeInfinity, double negativeZero, float floatNotANumber)
+                        {
+                        }
+                    }
+
+                    public sealed class FloatingPointProfile : Compono.ICompositionProfile
+                    {
+                        public FloatingPointProfile(FloatingPointConfig config) { }
+                        public void Configure(Compono.CompositionBuilder builder) { }
+                    }
+
+                    public sealed class FloatingPointTests
+                    {
+                        // double.NaN/PositiveInfinity/NegativeInfinity and float.NaN are real, legal
+                        // compile-time-constant attribute arguments - the initial TypedConstantLiteralRenderer
+                        // pass rendered these as bare "NaN"/"Infinity" identifiers via Convert.ToString,
+                        // which isn't valid C# syntax; -0.0 lost its sign the same way. This is a
+                        // compiles-and-runs (Verify, not VerifyFailure) proof, not just a snapshot of
+                        // the rendered text - GeneratorTestHelpers.Verify already asserts the generated
+                        // code has zero compiler errors.
+                        [Compono.XunitV3.Aot.Compose<FloatingPointProfile, FloatingPointConfig>(double.NaN, double.PositiveInfinity, double.NegativeInfinity, -0.0, float.NaN)]
+                        public void Test_supplies_special_floating_point_values(string value)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
 
     [Fact]
     public Task RefStructParameterType_ReportsCmp0040() =>

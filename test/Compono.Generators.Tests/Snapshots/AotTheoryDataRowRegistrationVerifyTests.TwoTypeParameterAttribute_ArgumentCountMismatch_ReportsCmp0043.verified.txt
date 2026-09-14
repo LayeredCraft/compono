@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (83,20)-(83,51),
+      Location: Program.cs: (88,20)-(88,51),
       Message: [Compose<TestNamespace.MismatchProfile, TestNamespace.TwoArgConfig>] on 'TestNamespace.Cmp0043CountTests.Test_supplies_too_few_arguments' supplies a profile configuration argument that does not match 'TestNamespace.TwoArgConfig''s constructor: 'TestNamespace.TwoArgConfig' requires 2 argument(s), but 1 were supplied,
       Severity: Error,
       Descriptor: {

@@ -651,6 +651,67 @@ matching `PositionalArgumentBinder`'s exact runtime rule).
 **Fix:** Match the supplied arguments to `TConfig`'s constructor
 parameters exactly — same count, same or convertible types.
 
+## CMP0044 — A type referenced by `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` is not accessible from the generated registration
+
+**Severity:** Error.
+
+**Message:** `'{Type}' is referenced by [Compose<...>] on '{Method}'
+({Role}), but is not accessible from Compono.Generators' generated
+top-level registration - referencing it there would fail with CS0122.
+Make '{Type}' at least internal (with InternalsVisibleTo if it lives in
+another assembly), or public.`
+
+**Cause:** `TProfile`, `TConfig`, or a `typeof(...)`/enum-typed profile
+configuration argument's own type is `private`/`protected` (commonly: a
+profile or config type nested inside the attributed test class itself) —
+legal at the `[Compose<...>]` use site, but the generator's registration
+is a top-level `file` type outside that scope, so referencing an
+inaccessible type there would fail to compile with `CS0122`.
+
+**Fix:** Make the referenced type at least `internal` (adding
+`InternalsVisibleTo` if it lives in a different assembly than the test
+project), or `public`.
+
+## CMP0045 — More than one `Compono.XunitV3.Aot` Compose-family attribute on one test method
+
+**Severity:** Error.
+
+**Message:** `More than one [Compose]/[Compose<TProfile>]/
+[Compose<TProfile, TConfig>] attribute on '{Method}' - only one
+Compose-family attribute per test method is allowed. ...`
+
+**Cause:** `[Compose]`, `[Compose<TProfile>]`, and `[Compose<TProfile,
+TConfig>]` are independent marker types with no shared base class
+(ADR-0067 Amendment 1) — nothing in the C# compiler stops stacking two
+different forms on the same method, which would otherwise make each
+independently register a theory-data factory under the same generated
+hint name and crash the generator instead of producing a diagnostic.
+
+**Fix:** Keep exactly one Compose-family attribute on the method.
+
+## CMP0046 — Selected `TConfig`/`TProfile` constructor does not satisfy the type's required members
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s selected constructor does not satisfy required
+member '{Member}' (used by [Compose<...>] on '{Method}') - Compono.Generators
+constructs '{Type}' via a direct constructor call, which requires either
+no required members, or the constructor to carry
+[System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail
+with CS9035 in the generated registration`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s selected `TConfig`/`TProfile`
+constructor doesn't satisfy a `required` member the type declares (no
+`[SetsRequiredMembers]`) — `Compono.Generators` constructs both types via
+a direct `new` call from literal attribute arguments, not through
+Compono's provider pipeline, so there's no composed value to auto-supply
+a required member with the way ordinary composed types can.
+
+**Fix:** Remove the `required` modifier if the member isn't actually
+needed, set it via the constructor and mark the constructor
+`[SetsRequiredMembers]`, or choose a different `TConfig`/`TProfile` type
+that doesn't have this shape.
+
 ## Next
 
 - [Troubleshooting: Common Errors](../troubleshooting/common-errors.md) —

@@ -69,10 +69,50 @@ internal static class TypedConstantLiteralRenderer
             string s => SymbolDisplay.FormatLiteral(s, quote: true),
             char c => SymbolDisplay.FormatLiteral(c, quote: true),
             bool b => b ? "true" : "false",
-            byte or sbyte or short or ushort or int or uint or long or ulong or float or double =>
+            double or float => RenderFloatingPoint(constant.Type!, value),
+            byte or sbyte or short or ushort or int or uint or long or ulong =>
                 RenderCast(constant.Type!, value),
             _ => throw new NotSupportedException($"Unsupported primitive value type '{value.GetType()}' for profile configuration argument rendering."),
         };
+    }
+
+    // double.NaN/double.PositiveInfinity/double.NegativeInfinity (and their float equivalents) are
+    // real, legal compile-time-constant attribute arguments (declared `const`, confirmed by a direct
+    // compile probe during PR #140 review) - RenderCast's Convert.ToString(...) renders these as the
+    // bare identifiers "NaN"/"Infinity"/"-Infinity", which are not valid C# literal/cast syntax
+    // ((double)NaN doesn't compile), so they need their own qualified-constant rendering instead.
+    // Negative zero is a related, separate correctness gap the same underlying digit-string approach
+    // has: RenderCast's Convert.ToString(-0.0) renders "-0", and casting the *int* literal -0 (unary
+    // minus of int 0, itself just 0) to double produces positive zero, silently losing the sign bit -
+    // rendered here as an explicit unary negation of a real zero double/float instead, which IEEE 754
+    // negation correctly turns into negative zero.
+    private static string RenderFloatingPoint(ITypeSymbol constantType, object value)
+    {
+        var typeName = constantType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        // double.IsNegative/float.IsNegative aren't available on netstandard2.0 (Compono.Generators'
+        // own TFM) - the reciprocal trick (1/-0.0 = -Infinity, 1/0.0 = +Infinity) detects the sign of
+        // zero using only APIs netstandard2.0 has always had.
+        var (isNaN, isPositiveInfinity, isNegativeInfinity, isNegativeZero) = value switch
+        {
+            double d => (double.IsNaN(d), double.IsPositiveInfinity(d), double.IsNegativeInfinity(d), d == 0d && double.IsNegativeInfinity(1d / d)),
+            float f => (float.IsNaN(f), float.IsPositiveInfinity(f), float.IsNegativeInfinity(f), f == 0f && float.IsNegativeInfinity(1f / f)),
+            _ => throw new InvalidOperationException($"Unreachable: RenderFloatingPoint called with non-floating-point value type '{value.GetType()}'."),
+        };
+
+        if (isNaN)
+            return $"{typeName}.NaN";
+
+        if (isPositiveInfinity)
+            return $"{typeName}.PositiveInfinity";
+
+        if (isNegativeInfinity)
+            return $"{typeName}.NegativeInfinity";
+
+        if (isNegativeZero)
+            return $"-({typeName})0";
+
+        return RenderCast(constantType, value);
     }
 
     // An explicit cast against the constant's own real type - always round-trips, regardless of

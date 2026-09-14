@@ -48,6 +48,25 @@ internal static class AotComposeMethodDiscovery
         var fullyQualifiedTestClassName = declaringType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var methodDisplayName = $"{declaringType.ToDisplayString()}.{method.Name}";
         var location = LocationInfo.From(method);
+        var compilation = context.SemanticModel.Compilation;
+
+        // PR #140 Codex review: [Compose<TProfile>] and [Compose<TProfile, TConfig>] are distinct
+        // attribute types sharing no common base class (ADR-0067 Amendment 1 - each derives directly
+        // from Xunit.v3.DataAttribute), so nothing stops stacking two different forms on the same
+        // method the way BindingPlan.ValidateSignature's single GetCustomAttributes<ComposeAttribute>()
+        // query catches this for Compono.XunitV3's own three forms. Left unchecked, each would
+        // independently reach the emitter below and both call AddSource with the identical
+        // class-and-method-derived hint name, throwing inside the generator (crashing the whole
+        // compilation) instead of producing an actionable diagnostic - caught here, first, before any
+        // other processing.
+        if (CountAotComposeAttributes(method) > 1)
+        {
+            return new AotComposeMethodInfo(
+                fullyQualifiedTestClassName,
+                method.Name,
+                Array.Empty<AotComposeParameterInfo>().ToEquatableArray(),
+                new[] { new DiagnosticInfo(DiagnosticDescriptors.MultipleAotComposeAttributes, location, methodDisplayName) }.ToEquatableArray());
+        }
 
         // No runtime BindingPlan.ValidateSignature-equivalent exists for this attribute family
         // (ComposeAttribute is a marker only, per RESEARCH-0032 §2/§9) - an unsupported shape has to
@@ -66,7 +85,7 @@ internal static class AotComposeMethodDiscovery
             if (parameter.IsParams)
                 return Unsupported(fullyQualifiedTestClassName, method.Name, location, methodDisplayName, $"parameter '{parameter.Name}' is a params parameter, which is not supported");
 
-            if (!ComposedTypeAnalyzer.IsRowInvokerShapeEligible(parameter.Type, context.SemanticModel.Compilation))
+            if (!ComposedTypeAnalyzer.IsRowInvokerShapeEligible(parameter.Type, compilation))
                 return Unsupported(fullyQualifiedTestClassName, method.Name, location, methodDisplayName, $"parameter '{parameter.Name}' has a type that cannot be composed (an open generic parameter, ref struct, pointer, function pointer, or unsupported array shape)");
 
             parameters.Add(new AotComposeParameterInfo(
@@ -78,15 +97,16 @@ internal static class AotComposeMethodDiscovery
 
         // context.Attributes contains exactly one match - ForAttributeWithMetadataName matches an
         // attribute usage's own attribute-class metadata name exactly, and [AttributeUsage(AllowMultiple
-        // = false)] rules out a second usage of the same closed form on one method.
+        // = false)] rules out a second usage of the same closed form on one method (the
+        // CountAotComposeAttributes check above rules out a second usage of a *different* form).
         var attributeData = context.Attributes[0];
         var profileDiagnostics = new List<DiagnosticInfo>();
 
         var profile = attributeData.AttributeClass!.Arity switch
         {
             0 => null,
-            1 => BuildOneTypeParameterProfile(attributeData),
-            2 => BuildTwoTypeParameterProfile(attributeData, methodDisplayName, location, context.SemanticModel.Compilation, profileDiagnostics),
+            1 => BuildOneTypeParameterProfile(attributeData, methodDisplayName, location, compilation, profileDiagnostics),
+            2 => BuildTwoTypeParameterProfile(attributeData, methodDisplayName, location, compilation, profileDiagnostics),
             var arity => throw new NotSupportedException($"Unsupported Compono.XunitV3.Aot.ComposeAttribute arity '{arity}'."),
         };
 
@@ -108,12 +128,25 @@ internal static class AotComposeMethodDiscovery
     }
 
     // [Compose<TProfile>] - TProfile : ICompositionProfile, new() is enforced by the C# compiler at
-    // the use site (a generic-attribute constraint, like any other closed generic type), so there is
-    // no additional compile-time check to perform here at all - identical to
-    // Compono.XunitV3.ComposeAttribute<TProfile>'s own "nothing left to validate" remarks.
-    private static AotProfileInfo BuildOneTypeParameterProfile(AttributeData attributeData)
+    // the use site (a generic-attribute constraint, like any other closed generic type: it also rules
+    // out an abstract or non-named TProfile, since neither can satisfy new()), so the only remaining
+    // compile-time check this form needs is accessibility (CMP0044) - a private/protected TProfile
+    // nested inside the attributed method's own containing type is legal at the [Compose<TProfile>]
+    // use site but not from the generated top-level AddProfile<TProfile>() call.
+    private static AotProfileInfo? BuildOneTypeParameterProfile(
+        AttributeData attributeData,
+        string methodDisplayName,
+        LocationInfo? location,
+        Compilation compilation,
+        List<DiagnosticInfo> diagnostics)
     {
         var profileType = attributeData.AttributeClass!.TypeArguments[0];
+
+        if (!compilation.IsSymbolAccessibleWithin(profileType, compilation.Assembly))
+        {
+            diagnostics.Add(InaccessibleSymbolDiagnostic(profileType, methodDisplayName, location, "the TProfile type argument"));
+            return null;
+        }
 
         return new AotProfileInfo(
             profileType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -125,9 +158,14 @@ internal static class AotComposeMethodDiscovery
     // Compono.XunitV3.Binding.ConfigProfileBinder performs at runtime (ADR-0036): TConfig has exactly
     // one public constructor (CMP0041); TProfile has exactly one public constructor accepting exactly
     // one TConfig-typed parameter (CMP0042); the supplied profile configuration arguments match that
-    // constructor's parameters (CMP0043). Any failure appends to diagnostics and this method returns a
-    // value the caller discards (the diagnostics list being non-empty is what matters, per
-    // TransformMethod's own check).
+    // constructor's parameters (CMP0043) - plus three further checks PR #140's Codex review found the
+    // initial pass missing: both types (and any typeof/enum-typed argument's own type) must be
+    // accessible from the generated top-level registration (CMP0044); TProfile/TConfig are
+    // unconstrained/only interface-constrained, so a non-named type argument (e.g. TConfig = string[])
+    // must not reach an unconditional INamedTypeSymbol cast (guarded below rather than crashing); and
+    // the selected constructors must not leave a required member unsatisfied (CMP0046). Any failure
+    // appends to diagnostics and this method returns a value the caller discards (the diagnostics list
+    // being non-empty is what matters, per TransformMethod's own check).
     private static AotProfileInfo? BuildTwoTypeParameterProfile(
         AttributeData attributeData,
         string methodDisplayName,
@@ -135,14 +173,21 @@ internal static class AotComposeMethodDiscovery
         Compilation compilation,
         List<DiagnosticInfo> diagnostics)
     {
-        var profileType = (INamedTypeSymbol)attributeData.AttributeClass!.TypeArguments[0];
-        var configType = (INamedTypeSymbol)attributeData.AttributeClass!.TypeArguments[1];
-        var profileDisplayName = profileType.ToDisplayString();
-        var configDisplayName = configType.ToDisplayString();
+        var profileTypeArgument = attributeData.AttributeClass!.TypeArguments[0];
+        var configTypeArgument = attributeData.AttributeClass!.TypeArguments[1];
+        var profileDisplayName = profileTypeArgument.ToDisplayString();
+        var configDisplayName = configTypeArgument.ToDisplayString();
 
-        var configConstructors = configType.IsAbstract
-            ? Array.Empty<IMethodSymbol>()
-            : configType.Constructors.Where(static c => c.DeclaredAccessibility == Accessibility.Public).ToArray();
+        // A non-named TConfig (e.g. string[], legal since TConfig carries no constraint at all) or
+        // TProfile (practically unreachable in ordinary use - ICompositionProfile is an interface
+        // constraint, which only a named type can satisfy - but guarded the same way rather than
+        // trusting that) structurally has zero usable constructors, reported through the same CMP0041/
+        // CMP0042 "wrong constructor count" diagnostics an abstract type already uses, rather than an
+        // unconditional cast throwing InvalidCastException inside the generator.
+        var configType = configTypeArgument as INamedTypeSymbol;
+        var configConstructors = configType is { IsAbstract: false }
+            ? configType.Constructors.Where(static c => c.DeclaredAccessibility == Accessibility.Public).ToArray()
+            : Array.Empty<IMethodSymbol>();
 
         if (configConstructors.Length != 1)
         {
@@ -157,13 +202,20 @@ internal static class AotComposeMethodDiscovery
             return null;
         }
 
-        var profileConstructors = profileType.IsAbstract
-            ? Array.Empty<IMethodSymbol>()
-            : profileType.Constructors
+        if (!compilation.IsSymbolAccessibleWithin(configType!, compilation.Assembly))
+        {
+            diagnostics.Add(InaccessibleSymbolDiagnostic(configType!, methodDisplayName, location, "the TConfig type argument"));
+            return null;
+        }
+
+        var profileType = profileTypeArgument as INamedTypeSymbol;
+        var profileConstructors = profileType is { IsAbstract: false }
+            ? profileType.Constructors
                 .Where(c => c.DeclaredAccessibility == Accessibility.Public
                     && c.Parameters.Length == 1
                     && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, configType))
-                .ToArray();
+                .ToArray()
+            : Array.Empty<IMethodSymbol>();
 
         if (profileConstructors.Length != 1)
         {
@@ -178,7 +230,27 @@ internal static class AotComposeMethodDiscovery
             return null;
         }
 
+        if (!compilation.IsSymbolAccessibleWithin(profileType!, compilation.Assembly))
+        {
+            diagnostics.Add(InaccessibleSymbolDiagnostic(profileType!, methodDisplayName, location, "the TProfile type argument"));
+            return null;
+        }
+
         var configConstructor = configConstructors[0];
+        var profileConstructor = profileConstructors[0];
+
+        if (!ConstructorSatisfiesRequiredMembers(configType!, configConstructor))
+        {
+            diagnostics.Add(RequiredMembersDiagnostic(configType!, configConstructor, methodDisplayName, location));
+            return null;
+        }
+
+        if (!ConstructorSatisfiesRequiredMembers(profileType!, profileConstructor))
+        {
+            diagnostics.Add(RequiredMembersDiagnostic(profileType!, profileConstructor, methodDisplayName, location));
+            return null;
+        }
+
         var configParameters = configConstructor.Parameters;
         var suppliedArguments = NormalizeConstructorArguments(attributeData);
 
@@ -225,12 +297,29 @@ internal static class AotComposeMethodDiscovery
                     return null;
             }
 
+            // A typeof(...)/enum-typed argument embeds a reference to another type in the rendered
+            // literal (typeof(global::Ns.SomeType), (global::Ns.SomeEnum)1) - that type needs the same
+            // top-level-accessibility guarantee TProfile/TConfig themselves just got, or the generated
+            // registration fails with CS0122 the same way (PR #140 Codex review).
+            var embeddedType = argument.Kind switch
+            {
+                TypedConstantKind.Type => (ITypeSymbol)argument.Value!,
+                TypedConstantKind.Enum => argument.Type,
+                _ => null,
+            };
+
+            if (embeddedType is not null && !compilation.IsSymbolAccessibleWithin(embeddedType, compilation.Assembly))
+            {
+                diagnostics.Add(InaccessibleSymbolDiagnostic(embeddedType, methodDisplayName, location, $"the profile configuration argument for parameter '{parameter.Name}'"));
+                return null;
+            }
+
             renderedArguments.Add(new AotProfileConfigArgumentInfo(TypedConstantLiteralRenderer.Render(argument, parameter.Type)));
         }
 
         return new AotProfileInfo(
-            profileType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            configType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            profileType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            configType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             renderedArguments.ToEquatableArray());
     }
 
@@ -264,6 +353,79 @@ internal static class AotComposeMethodDiscovery
         var paramsArray = attributeData.ConstructorArguments[0];
 
         return paramsArray.IsNull ? [paramsArray] : paramsArray.Values;
+    }
+
+    // PR #140 Codex review: [Compose<TProfile>]/[Compose<TProfile, TConfig>] are independent marker
+    // types (ADR-0067 Amendment 1) with no shared base class for a single GetAttributes<T>() query to
+    // catch, so this compares each attribute's own metadata name against all three forms directly -
+    // the compile-time equivalent of Compono.XunitV3.Binding.BindingPlan.ValidateSignature's runtime
+    // GetCustomAttributes<ComposeAttribute>().Count() check.
+    private static int CountAotComposeAttributes(IMethodSymbol method) =>
+        method.GetAttributes().Count(a => a.AttributeClass is { } attributeClass && IsAotComposeAttribute(attributeClass));
+
+    private static bool IsAotComposeAttribute(INamedTypeSymbol attributeClass)
+    {
+        var metadataName = $"{attributeClass.ContainingNamespace.ToDisplayString()}.{attributeClass.MetadataName}";
+
+        return metadataName is AttributeMetadataName or GenericAttributeMetadataName or TwoTypeParameterAttributeMetadataName;
+    }
+
+    private static DiagnosticInfo InaccessibleSymbolDiagnostic(ITypeSymbol type, string methodDisplayName, LocationInfo? location, string role) =>
+        new(
+            DiagnosticDescriptors.InaccessibleProfileSymbol,
+            location,
+            type.ToDisplayString(),
+            methodDisplayName,
+            role);
+
+    // The compile-time counterpart to RequiredMemberCollector's own [SetsRequiredMembers] check
+    // (used for core Compono's ordinary composed-type construction) - deliberately narrower: this
+    // attribute family constructs TConfig/TProfile directly from literal attribute arguments, not
+    // through Compono's provider pipeline, so there is no sensible composed value to auto-supply a
+    // required member with the way core construction does. An unsatisfied required member is
+    // reported as a diagnostic (CMP0046) rather than attempted.
+    private static bool ConstructorSatisfiesRequiredMembers(INamedTypeSymbol type, IMethodSymbol constructor)
+    {
+        if (constructor.GetAttributes().Any(static a =>
+                a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
+            return true;
+
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers())
+            {
+                if (member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true })
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static DiagnosticInfo RequiredMembersDiagnostic(INamedTypeSymbol type, IMethodSymbol constructor, string methodDisplayName, LocationInfo? location)
+    {
+        var unsatisfiedMember = FindFirstUnsatisfiedRequiredMember(type);
+
+        return new DiagnosticInfo(
+            DiagnosticDescriptors.ProfileConstructorRequiredMembersUnsatisfied,
+            location,
+            type.ToDisplayString(),
+            unsatisfiedMember,
+            methodDisplayName);
+    }
+
+    private static string FindFirstUnsatisfiedRequiredMember(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers())
+            {
+                if (member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true })
+                    return member.Name;
+            }
+        }
+
+        return "(unknown)";
     }
 
     private static AotComposeMethodInfo Unsupported(

@@ -1,8 +1,8 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (89,20)-(89,57),
-      Message: 'TestNamespace.BadConfig' is used as the TConfig type argument of [Compose<TestNamespace.SomeProfile, TestNamespace.BadConfig>] on 'TestNamespace.Cmp0041Tests.Test_has_ambiguous_config_constructor', but must have exactly one public constructor to be used as profile configuration - it has 2,
+      Location: Program.cs: (87,20)-(87,54),
+      Message: 'string[]' is used as the TConfig type argument of [Compose<TestNamespace.ArrayConfigProfile, string[]>] on 'TestNamespace.Cmp0041NonNamedTests.Test_supplies_array_type_as_config', but must have exactly one public constructor to be used as profile configuration - it has 0,
       Severity: Error,
       Descriptor: {
         Id: CMP0041,

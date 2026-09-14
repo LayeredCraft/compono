@@ -129,9 +129,12 @@ attribute's own compile-time-constant constructor arguments:
 
 | Diagnostic | Condition |
 |---|---|
-| `CMP0041` | `TConfig` does not have exactly one public constructor |
+| `CMP0041` | `TConfig` does not have exactly one public constructor (or isn't a usable named type at all) |
 | `CMP0042` | `TProfile` does not have exactly one public constructor accepting exactly one `TConfig`-typed parameter |
 | `CMP0043` | A supplied constructor argument's count/nullability/type doesn't match `TConfig`'s single constructor's parameters |
+| `CMP0044` | `TProfile`, `TConfig`, or a `typeof(...)`/enum-typed argument's own type isn't accessible from the generated top-level registration (commonly: a profile/config type nested `private` inside the attributed test class) |
+| `CMP0045` | More than one Compose-family attribute (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) on one test method |
+| `CMP0046` | The selected `TConfig`/`TProfile` constructor doesn't satisfy the type's `required` members |
 
 This is a deliberate, documented divergence — not accidental drift between
 the two packages: earlier, IDE-visible feedback instead of a

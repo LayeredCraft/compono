@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (92,20)-(92,47),
+      Message: 'TestNamespace.Cmp0044Tests.PrivateConfig' is referenced by [Compose<...>] on 'TestNamespace.Cmp0044Tests.Test_config_type_is_private' (the TConfig type argument), but is not accessible from Compono.Generators' generated top-level registration - referencing it there would fail with CS0122. Make 'TestNamespace.Cmp0044Tests.PrivateConfig' at least internal (with InternalsVisibleTo if it lives in another assembly), or public.,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0044,
+        Title: A type referenced by [Compose<TProfile>]/[Compose<TProfile, TConfig>] is not accessible from the generated registration,
+        MessageFormat: '{0}' is referenced by [Compose<...>] on '{1}' ({2}), but is not accessible from Compono.Generators' generated top-level registration - referencing it there would fail with CS0122. Make '{0}' at least internal (with InternalsVisibleTo if it lives in another assembly), or public.,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

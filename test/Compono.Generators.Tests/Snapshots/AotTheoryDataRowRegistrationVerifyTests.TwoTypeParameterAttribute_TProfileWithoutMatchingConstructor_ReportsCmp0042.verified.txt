@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (83,20)-(83,58),
+      Location: Program.cs: (88,20)-(88,58),
       Message: 'TestNamespace.BadProfile' is used as the TProfile type argument of [Compose<TestNamespace.BadProfile, TestNamespace.SomeConfig>] on 'TestNamespace.Cmp0042Tests.Test_profile_has_no_config_constructor', but must have exactly one public constructor accepting a single 'TestNamespace.SomeConfig' parameter - it has 0,
       Severity: Error,
       Descriptor: {

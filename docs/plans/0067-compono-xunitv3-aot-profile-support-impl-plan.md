@@ -279,3 +279,58 @@ build clean (0 warnings/errors, full solution), `Compono.Generators.Tests` 666/6
 re-published native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings - confirming the correction was a
 pure type-hierarchy change with no behavioral effect, as predicted (discovery/codegen never depended on
 the inheritance relationship).
+
+**PR #140 Codex review round 1** found five real gaps in the initial implementation, all fixed - three
+new diagnostics (`CMP0044`/`CMP0045`/`CMP0046`) and two rendering-correctness fixes, none requiring an
+ADR change:
+
+- **`CMP0044`** — `TProfile`/`TConfig`/a `typeof`-or-enum-typed argument's own type wasn't checked for
+  accessibility from the generated top-level registration before this pass. A `private` nested
+  profile/config type (legal at the `[Compose<...>]` use site, common for a test-local fixture type)
+  would have reached code generation and failed with `CS0122` in the generated file instead of a clear
+  diagnostic at the real attribute use site - the same class of gap `CMP0013` already guards against
+  for ordinary composed parameter types, now applied here too.
+- **`CMP0045`** — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` share no common base
+  class (Amendment 1), so nothing stopped stacking two different forms on one method the way
+  `BindingPlan.ValidateSignature`'s single reflection query catches this for `Compono.XunitV3`'s three
+  forms. Left unchecked, both would reach `AddSource` with the identical class-and-method-derived hint
+  name and **crash the whole generator** (not just fail this one method) - now caught first, before any
+  other processing, mirroring the JIT-mode check's own message text. (Known minor cosmetic effect,
+  accepted rather than fixed further: the diagnostic is reported once per matching attribute form on the
+  stacked method - e.g. twice for two stacked attributes - since each has its own independent discovery
+  registration; `Compono.XunitV3`'s own JIT-mode equivalent has the analogous "reported once per
+  attribute instance's `GetData` call" behavior for the same underlying cause, so this isn't a new
+  inconsistency.)
+- **TConfig non-named-type guard** — `TConfig` carries no generic constraint at all, so `TConfig =
+  string[]` (or any other non-named type) is legal `[Compose<TProfile, TConfig>]` syntax; the initial
+  pass's unconditional `(INamedTypeSymbol)` cast on both type arguments threw `InvalidCastException`
+  inside the generator for this shape instead of reporting `CMP0041`. Fixed by treating a non-named
+  (or abstract) type argument as "zero constructors" for both `TConfig` and `TProfile` - reuses the
+  existing `CMP0041`/`CMP0042` diagnostics rather than adding new ones, no crash either way now.
+- **`double.NaN`/`PositiveInfinity`/`NegativeInfinity`/negative-zero rendering** — these are real,
+  legal compile-time-constant attribute arguments (confirmed by a direct compile probe, not assumed);
+  `TypedConstantLiteralRenderer`'s original `Convert.ToString(...)`-based cast rendering produced the
+  bare identifiers `NaN`/`Infinity`/`-Infinity` (not valid C# syntax - `(double)NaN` doesn't compile)
+  for the first three, and silently discarded the sign of `-0.0` for the fourth (`Convert.ToString(-0.0)`
+  → the digit string `"-0"` → `(double)-0` casts the *int* literal `-0` = `0`, losing the negative-zero
+  bit entirely - a silent wrong-value bug, not a compile failure). Fixed with dedicated
+  `double.NaN`/`double.PositiveInfinity`/`double.NegativeInfinity` (and `float` equivalents) rendering,
+  and an explicit `-(double)0`/`-(float)0` unary-negation rendering for negative zero (IEEE 754 negation
+  of a real zero value correctly produces negative zero, unlike negating the digit string first).
+- **`CMP0046`** — the selected `TConfig`/`TProfile` constructor can leave a `required` member
+  unsatisfied (no `[SetsRequiredMembers]`), which the initial pass's shape checks (constructor *count*
+  only) never caught - the generated direct `new` call would fail with `CS9035`. Deliberately a
+  compile-time rejection, not an attempt to auto-compose required members the way core Compono's own
+  `RequiredMemberCollector` does for ordinary composed types: `TConfig`/`TProfile` are built from
+  literal attribute arguments, not Compono's provider pipeline, so there's no sensible composed value to
+  auto-supply a required member with - inventing one would be a confusing, undocumented semantic, not a
+  "smallest correct fix."
+
+All five: new/updated snapshot coverage in `test/Compono.Generators.Tests`
+(`AotTheoryDataRowRegistrationVerifyTests` - `CMP0044`/`CMP0045`/`CMP0046` each get their own
+`VerifyFailure` case; the non-named-`TConfig` case proves `CMP0041` fires without crashing; the
+floating-point case is a `Verify` - compiles-and-runs, not just a snapshot - proving the rendered
+literals are real valid C#). Re-validated after these fixes: full build 0 warnings/errors,
+`Compono.Generators.Tests` 676/676, `Compono.XunitV3.Aot.Tests` 15/15,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.
