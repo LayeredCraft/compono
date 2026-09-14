@@ -646,3 +646,37 @@ reproduce a `[CompilerFeatureRequired]`-marked constructor at all). Re-validated
 build 0 warnings/errors, `Compono.Generators.Tests` 714/714, `Compono.XunitV3.Aot.Tests` 18/18,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 9** found three more real gaps - the second the most structurally
+interesting: an entire code path (`[Compose<TProfile>]`, the one-type-parameter form) had zero
+constructor-safety coverage at all, unlike the two-type-parameter form this whole diagnostic family had
+been built against:
+
+- **`[RequiresAssemblyFiles]` is a third, independent member of the round-8 AOT-hazard-attribute family**
+  (alongside `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`) - produces `IL3002` rather than
+  `IL3050`/`IL2026`, confirmed reachable the same way by direct probe. Folded into the same
+  `HasProhibitedAotAttribute` check and `CMP0041`/`CMP0042` diagnostics.
+- **`[Compose<TProfile>]`'s `new()` constraint guarantees a public parameterless `TProfile` constructor
+  exists, but `BuildOneTypeParameterProfile` never checked whether it was actually safe to call** - the
+  two-type-parameter form's entire `HasProhibitedAotAttribute` exclusion only ever applied to
+  `BuildTwoTypeParameterProfile`. Confirmed by direct probe that this is a real, reachable gap: the
+  generated registration's `AddProfile<TProfile>()` call closes Compono core's own generic `new T()`
+  construction over the real `TProfile` *at that generated call site* - the trim/AOT analyzer flags the
+  warning there, not inside `AddProfile<T>()`'s own generic definition (verified with a standalone
+  `Factory.Create<T>() where T : new() => new T();` probe: the `IL3050` warning appeared at
+  `Factory.Create<MyType>()`, the closing call site, not at `Create<T>`'s own declaration). A second probe
+  confirmed the *other* prohibited-attribute family (`CMP0047`'s `[Obsolete(error: true)]`/
+  `[Experimental]`/`[CompilerFeatureRequired]`) does **not** need the same treatment - those are
+  compiler-enforced checks against a concrete member, and none of them fire through a generic `new T()`
+  construction at all. Added a new diagnostic, `CMP0049`, and a check in `BuildOneTypeParameterProfile`
+  that finds `TProfile`'s parameterless constructor and applies the same `HasProhibitedAotAttribute` test.
+- **Round 8's sole `CMP0048` test only exercised the `TConfig` branch** (round 7's own lesson, missed
+  again) - added a dedicated `TProfile`-only case.
+
+Three new tests: `TwoTypeParameterAttribute_TConfigConstructorRequiresAssemblyFiles_ReportsCmp0041`,
+`GenericAttribute_TProfileParameterlessConstructorRequiresDynamicCode_ReportsCmp0049` (the first real
+coverage of the one-type-parameter form's constructor safety at all),
+`TwoTypeParameterAttribute_TProfileConstructorSupersededByOverloadPriority_ReportsCmp0048`. Re-validated:
+full `Compono.Generators` build 0 warnings/errors, `Compono.Generators.Tests` 720/720,
+`Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
+re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.

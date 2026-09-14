@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (92,20)-(92,80),
+      Message: 'TestNamespace.RequiresDynamicCodeProfile''s public parameterless constructor is marked [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] (used by [Compose<...>] on 'TestNamespace.Cmp0049RequiresDynamicCodeProfileTests.Test_profile_parameterless_constructor_requires_dynamic_code') - Compono.Generators' generated registration constructs 'TestNamespace.RequiresDynamicCodeProfile' via AddProfile<TProfile>()'s generic `new TProfile()`, which would surface an IL3050/IL2026/IL3002 warning for any consumer with trim/AOT analysis enabled,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0049,
+        Title: TProfile's parameterless constructor is marked with an AOT/trim-unsafe attribute,
+        MessageFormat: '{0}''s public parameterless constructor is marked [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] (used by [Compose<...>] on '{1}') - Compono.Generators' generated registration constructs '{0}' via AddProfile<TProfile>()'s generic `new TProfile()`, which would surface an IL3050/IL2026/IL3002 warning for any consumer with trim/AOT analysis enabled,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

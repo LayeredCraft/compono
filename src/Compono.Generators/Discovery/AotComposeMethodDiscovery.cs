@@ -148,6 +148,29 @@ internal static class AotComposeMethodDiscovery
             return null;
         }
 
+        // PR #140 Codex review round 9: the `new()` constraint guarantees a public parameterless
+        // constructor exists, but not that it's safe to actually call - the generated top-level
+        // registration calls `Composer.Create(b => b.AddProfile<TProfile>())`, and `AddProfile<T>()`'s
+        // own generic `new T()` construction closes over the real TProfile at the *generated call site*,
+        // so a [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]-marked
+        // constructor surfaces its IL3050/IL2026/IL3002 warning there - confirmed by direct probe that
+        // this is how the trim/AOT analyzer treats a closed generic `where T : new()` construction
+        // (unlike CMP0047's family - Obsolete(error:true)/Experimental/CompilerFeatureRequired - which a
+        // second probe confirmed do NOT surface through generic `new T()` at all, since those are
+        // compiler-enforced checks against a concrete member, not analyzer-surfaced hints, so they don't
+        // need a check here).
+        if (profileType is INamedTypeSymbol { InstanceConstructors: var profileTypeConstructors }
+            && profileTypeConstructors.FirstOrDefault(static c => c.Parameters.Length == 0) is { } parameterlessConstructor
+            && HasProhibitedAotAttribute(parameterlessConstructor))
+        {
+            diagnostics.Add(new DiagnosticInfo(
+                DiagnosticDescriptors.ProfileConstructorRequiresAotUnsafeFeature,
+                location,
+                profileType.ToDisplayString(),
+                methodDisplayName));
+            return null;
+        }
+
         return new AotProfileInfo(
             profileType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             null,
@@ -634,11 +657,15 @@ internal static class AotComposeMethodDiscovery
     // from Compono.Generators' generated direct `new T(...)` call produces a real IL3050/IL2026 warning
     // for any consumer with trim/AOT analysis enabled (confirmed by direct probe) - exactly the failure
     // mode these attributes exist to flag, so it's excluded from the usable-constructor set entirely
-    // rather than emitted and hoped clean.
+    // rather than emitted and hoped clean. PR #140 Codex review round 9: generalized to also detect
+    // [RequiresAssemblyFiles] - a third, independent member of the same "analyzer-surfaced AOT/trim/
+    // single-file hazard" family (produces IL3002 rather than IL3050/IL2026), confirmed reachable the
+    // same way by direct probe.
     private static bool HasProhibitedAotAttribute(IMethodSymbol constructor) =>
         constructor.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() is
             "System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute" or
-            "System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute");
+            "System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute" or
+            "System.Diagnostics.CodeAnalysis.RequiresAssemblyFilesAttribute");
 
     private static DiagnosticInfo ProhibitedConstructorDiagnostic(INamedTypeSymbol type, string methodDisplayName, LocationInfo? location, string prohibitedAttribute) =>
         new(

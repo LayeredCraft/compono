@@ -780,6 +780,37 @@ superseding sibling constructor, lower its priority to at or below the
 selected constructor's own, or choose a different `TConfig`/`TProfile`
 type without this shape.
 
+## CMP0049 — TProfile's parameterless constructor is marked with an AOT/trim-unsafe attribute
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s public parameterless constructor is marked
+[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
+(used by [Compose<...>] on '{Method}') - Compono.Generators' generated
+registration constructs '{Type}' via AddProfile<TProfile>()'s generic
+new TProfile(), which would surface an IL3050/IL2026/IL3002 warning for
+any consumer with trim/AOT analysis enabled`
+
+**Cause:** `[Compose<TProfile>]`'s `where TProfile : ICompositionProfile,
+new()` constraint guarantees a public parameterless constructor exists,
+but not that it's safe to call under trim/AOT analysis. The generated
+registration calls `Composer.Create(b => b.AddProfile<TProfile>())`, and
+`AddProfile<T>()`'s own generic `new T()` construction closes over the
+real `TProfile` *at that generated call site* — so a constructor marked
+`[System.Diagnostics.CodeAnalysis.RequiresDynamicCode]`,
+`[RequiresUnreferencedCode]`, or `[RequiresAssemblyFiles]` surfaces its
+warning (`IL3050`, `IL2026`, or `IL3002` respectively) there, for any
+consumer with trim/AOT analysis enabled — directly contradicting this
+package's zero-reflection/AOT-safety guarantee. This is the
+one-type-parameter form's counterpart to the same exclusion
+`CMP0041`/`CMP0042` already apply to the two-type-parameter form's
+`TConfig`/`TProfile` constructors, reached through a different generated
+code shape (a closed generic call, not a direct `new T(...)`).
+
+**Fix:** Choose a different `TProfile` whose parameterless constructor
+isn't marked with one of these attributes, or remove the attribute if
+the constructor doesn't actually need it.
+
 ## Next
 
 - [Troubleshooting: Common Errors](../troubleshooting/common-errors.md) —

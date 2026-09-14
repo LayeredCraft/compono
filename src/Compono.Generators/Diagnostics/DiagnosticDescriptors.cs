@@ -494,4 +494,26 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // PR #140 Codex review round 9: [Compose<TProfile>]'s `new()` constraint guarantees a public
+    // parameterless TProfile constructor exists, but not that it's AOT/trim-safe - the generated
+    // registration's `AddProfile<TProfile>()` call closes Compono core's own generic `new T()`
+    // construction over the real TProfile at that call site, so a constructor marked
+    // [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] surfaces its warning
+    // there, confirmed by direct probe - the same underlying hazard `HasProhibitedAotAttribute` already
+    // excludes for the two-type-parameter form's TConfig/TProfile constructors, just reached through a
+    // different generated code shape (a closed generic call, not a direct `new T(...)`), so it needs its
+    // own diagnostic rather than folding into an existing "0 usable constructors" count this form has
+    // no counterpart of.
+    public static readonly DiagnosticDescriptor ProfileConstructorRequiresAotUnsafeFeature = new(
+        "CMP0049",
+        "TProfile's parameterless constructor is marked with an AOT/trim-unsafe attribute",
+        "'{0}''s public parameterless constructor is marked [RequiresDynamicCode]/" +
+        "[RequiresUnreferencedCode]/[RequiresAssemblyFiles] (used by [Compose<...>] on '{1}') - " +
+        "Compono.Generators' generated registration constructs '{0}' via AddProfile<TProfile>()'s " +
+        "generic `new TProfile()`, which would surface an IL3050/IL2026/IL3002 warning for any " +
+        "consumer with trim/AOT analysis enabled",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

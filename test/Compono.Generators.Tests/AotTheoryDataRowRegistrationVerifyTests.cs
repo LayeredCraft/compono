@@ -1539,4 +1539,122 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
         stream.Position = 0;
         return MetadataReference.CreateFromStream(stream);
     }
+
+    // PR #140 Codex review round 9 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorRequiresAssemblyFiles_ReportsCmp0041() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 9: [RequiresAssemblyFiles] is a third, independent
+                        // member of the RequiresDynamicCode/RequiresUnreferencedCode family (produces
+                        // IL3002 rather than IL3050/IL2026, confirmed by direct probe) - same exclusion,
+                        // same CMP0041 diagnostic.
+                        public sealed class RequiresAssemblyFilesConfig
+                        {
+                            [System.Diagnostics.CodeAnalysis.RequiresAssemblyFiles("needs files")]
+                            public RequiresAssemblyFilesConfig(string value) { }
+                        }
+
+                        public sealed class RequiresAssemblyFilesConfigProfile : Compono.ICompositionProfile
+                        {
+                            public RequiresAssemblyFilesConfigProfile(RequiresAssemblyFilesConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041RequiresAssemblyFilesTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<RequiresAssemblyFilesConfigProfile, RequiresAssemblyFilesConfig>("value")]
+                            public void Test_config_constructor_requires_assembly_files(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task GenericAttribute_TProfileParameterlessConstructorRequiresDynamicCode_ReportsCmp0049() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 9: [Compose<TProfile>]'s `new()` constraint
+                        // guarantees a public parameterless constructor exists, but the generated
+                        // registration's AddProfile<TProfile>() call closes Compono core's own generic
+                        // `new T()` construction over TProfile at that call site - confirmed by direct
+                        // probe that the trim/AOT analyzer surfaces the warning there, not inside
+                        // AddProfile<T>()'s own generic definition. This check had no coverage at all
+                        // before this round (BuildOneTypeParameterProfile only checked accessibility).
+                        public sealed class RequiresDynamicCodeProfile : Compono.ICompositionProfile
+                        {
+                            [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("uses reflection emit")]
+                            public RequiresDynamicCodeProfile() { }
+
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0049RequiresDynamicCodeProfileTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<RequiresDynamicCodeProfile>]
+                            public void Test_profile_parameterless_constructor_requires_dynamic_code(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0049",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TProfileConstructorSupersededByOverloadPriority_ReportsCmp0048() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 9: round 8's sole CMP0048 test only put the
+                        // superseding sibling on TConfig, exercising only the first
+                        // FindHigherPriorityAccessibleSibling call - this test covers the separate
+                        // TProfile check independently.
+                        public sealed class ProfilePriorityConfig
+                        {
+                            public ProfilePriorityConfig(string value) { }
+                        }
+
+                        public sealed class ProfilePriorityProfile : Compono.ICompositionProfile
+                        {
+                            public ProfilePriorityProfile(ProfilePriorityConfig config) { }
+
+                            [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]
+                            internal ProfilePriorityProfile(object config) { }
+
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0048ProfilePriorityTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ProfilePriorityProfile, ProfilePriorityConfig>("value")]
+                            public void Test_profile_constructor_superseded_by_priority(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0048",
+            TestContext.Current.CancellationToken);
 }
