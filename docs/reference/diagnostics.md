@@ -661,8 +661,10 @@ top-level registration - referencing it there would fail with CS0122.
 Make '{Type}' at least internal (with InternalsVisibleTo if it lives in
 another assembly), or public.`
 
-**Cause:** `TProfile`, `TConfig`, or a `typeof(...)`/enum-typed profile
-configuration argument's own type is `private`/`protected` (commonly: a
+**Cause:** `TProfile`, `TConfig`, a `typeof(...)`/enum-typed profile
+configuration argument's own type, or — for an array-typed argument —
+its declared element type or any `typeof(...)`/enum-typed value
+recursively embedded in it, is `private`/`protected` (commonly: a
 profile or config type nested inside the attributed test class itself) —
 legal at the `[Compose<...>]` use site, but the generator's registration
 is a top-level `file` type outside that scope, so referencing an
@@ -678,7 +680,12 @@ project), or `public`.
 
 **Message:** `More than one [Compose]/[Compose<TProfile>]/
 [Compose<TProfile, TConfig>] attribute on '{Method}' - only one
-Compose-family attribute per test method is allowed. ...`
+Compose-family attribute per test method is allowed. Unlike
+Compono.XunitV3, these three attribute types share no common base class
+here, so a second one on the same method would otherwise each
+independently register their own theory-data factory under the same
+generated hint name and crash the generator instead of producing a
+diagnostic.`
 
 **Cause:** `[Compose]`, `[Compose<TProfile>]`, and `[Compose<TProfile,
 TConfig>]` are independent marker types with no shared base class

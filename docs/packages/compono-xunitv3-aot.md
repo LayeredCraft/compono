@@ -74,6 +74,11 @@ dotnet add package xunit.v3.aot.mtp-v2
   and the referenced packages change when moving a test project from JIT
   to Native AOT — the `[Theory]`/`[Compose]` source itself doesn't.
 
+## Profile-based composition (Phase 2)
+
+`[Compose<TProfile>]` and `[Compose<TProfile, TConfig>]` — added in Phase 2
+(ADR-0067/PLAN-0067), after Phase 1 shipped plain `[Compose]` only:
+
 - **`[Compose<TProfile>]`** — applies `TProfile` (`where TProfile :
   ICompositionProfile, new()`) before composing every parameter, textually
   identical to `Compono.XunitV3.ComposeAttribute<TProfile>`:
@@ -129,10 +134,10 @@ attribute's own compile-time-constant constructor arguments:
 
 | Diagnostic | Condition |
 |---|---|
-| `CMP0041` | `TConfig` does not have exactly one public constructor (or isn't a usable named type at all) |
-| `CMP0042` | `TProfile` does not have exactly one public constructor accepting exactly one `TConfig`-typed parameter |
+| `CMP0041` | `TConfig` does not have exactly one *usable* public constructor - isn't a usable named type at all, has zero or more than one public constructor, or its sole public constructor has a by-ref (`ref`/`out`/`in`) parameter, a `dynamic`-typed parameter, or is marked `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` |
+| `CMP0042` | `TProfile` does not have exactly one *usable* public constructor accepting exactly one `TConfig`-typed parameter - same additional exclusions as `CMP0041` (by-ref parameter, or a prohibited AOT attribute) applied to the matching constructor |
 | `CMP0043` | A supplied constructor argument's count/nullability/type doesn't match `TConfig`'s single constructor's parameters |
-| `CMP0044` | `TProfile`, `TConfig`, or a `typeof(...)`/enum-typed argument's own type isn't accessible from the generated top-level registration (commonly: a profile/config type nested `private` inside the attributed test class) |
+| `CMP0044` | `TProfile`, `TConfig`, a `typeof(...)`/enum-typed argument's own type, or (for an array-typed argument) its declared element type or any `typeof(...)`/enum-typed value recursively embedded in it isn't accessible from the generated top-level registration (commonly: a profile/config type nested `private` inside the attributed test class) |
 | `CMP0045` | More than one Compose-family attribute (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) on one test method |
 | `CMP0046` | The selected `TConfig`/`TProfile` constructor doesn't satisfy the type's `required` members |
 | `CMP0047` | The selected `TConfig`/`TProfile` constructor is marked `[Obsolete("...", error: true)]`, `[Experimental("...")]`, or non-optional `[CompilerFeatureRequired("...")]`, making any use of it a compiler error |

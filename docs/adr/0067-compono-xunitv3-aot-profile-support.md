@@ -301,7 +301,7 @@ narrative for each; this amendment records only the resulting diagnostics.
 
 | Code | Condition |
 |---|---|
-| `CMP0044` | A type referenced by `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` (`TProfile`, `TConfig`, or a `typeof`/enum-typed profile configuration argument's own type) isn't accessible from the generated top-level registration |
+| `CMP0044` | A type referenced by `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` (`TProfile`, `TConfig`; a `typeof`/enum-typed profile configuration argument's own type; or, for an array-typed argument, its declared element type or any `typeof`/enum-typed value recursively embedded in it) isn't accessible from the generated top-level registration |
 | `CMP0045` | More than one Compose-family attribute (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) on one test method - these three share no common base class (Amendment 1), so nothing else stops stacking them |
 | `CMP0046` | The selected `TConfig`/`TProfile` constructor doesn't satisfy the type's `required` members (no `[SetsRequiredMembers]`) |
 | `CMP0047` | The selected `TConfig`/`TProfile` constructor is marked with an attribute that makes any *use* of it a compiler error - `[Obsolete("...", error: true)]`, `[Experimental("...")]`, or non-optional `[CompilerFeatureRequired("...")]` |

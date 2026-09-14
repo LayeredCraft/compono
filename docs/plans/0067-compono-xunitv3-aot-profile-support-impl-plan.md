@@ -707,3 +707,30 @@ check: 720/720 unchanged. Per this repo's own re-review guidance, a round touchi
 (this ADR, the regenerated API reference) still warrants a targeted re-review request even with zero
 source behavior change, so one was requested rather than treated as below the re-review bar the way a
 plan-Notes-only round would be.
+
+**PR #140 Codex review round 11** found four more real documentation-debt findings - all in round 10's
+own fix, still purely docs, no code/behavior change:
+
+- **Amendment 2's `CMP0044` row, and both the package guide's and diagnostics reference's `CMP0044`
+  prose, described only `TProfile`/`TConfig`/a `typeof`/enum-typed argument's own type - never the array
+  cases `EmbeddedTypes` has covered since round 5/6** (a scalar array's declared element type, and any
+  `typeof`/enum-typed value recursively embedded in an array's elements). **Fixed:** broadened the
+  wording in all three places to name the array cases explicitly.
+- **The package guide's `CMP0041`/`CMP0042` table rows still described only constructor-count/shape
+  failures**, never the additional exclusions rounds 3/6/8 added (by-ref parameter, `dynamic` parameter,
+  a prohibited-AOT attribute) - a reader hitting `CMP0041` on an apparently unique, correctly-shaped
+  constructor had no documented explanation. **Fixed:** expanded both rows to name every exclusion
+  folded into each diagnostic's "0 usable constructors" count.
+- **`docs/reference/diagnostics.md`'s `CMP0045` Message field ended with a literal `...`** instead of the
+  descriptor's actual final two sentences (the unrelated-base-class/duplicate-hint-name explanation) -
+  every other diagnostic entry in that file reproduces its complete message; this one alone was
+  truncated. **Fixed:** replaced with the full message text, copied verbatim from
+  `DiagnosticDescriptors.MultipleAotComposeAttributes`.
+- **The package guide's profile-form bullets (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) were
+  added under the unchanged `## What it gives you (Phase 1)` heading**, telling a reader that Phase 1
+  included profile support - contradicting PLAN-0066's explicit deferral and this whole PR's own Phase 2
+  scope. **Fixed:** split the profile bullets out into their own `## Profile-based composition (Phase
+  2)` section, with a one-line note on when each form shipped.
+
+Re-validated: full rebuild 0 warnings/errors, `Compono.Generators.Tests` re-run as a sanity check (docs-
+only round, no generator/codegen change expected or found): 720/720 unchanged.
