@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (96,20)-(96,65),
+      Message: 'TestNamespace.DynamicParameterConfig' is used as the TConfig type argument of [Compose<TestNamespace.DynamicParameterConfigProfile, TestNamespace.DynamicParameterConfig>] on 'TestNamespace.Cmp0041DynamicParameterTests.Test_config_constructor_has_dynamic_parameter', but must have exactly one usable public constructor to be used as profile configuration - it has 0 usable public constructor(s) (a constructor with a ref/out/in parameter, a dynamic-typed parameter, or one marked [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] does not count as usable),
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0041,
+        Title: Profile configuration type does not have exactly one usable public constructor,
+        MessageFormat: '{0}' is used as the TConfig type argument of [Compose<{1}, {0}>] on '{2}', but must have exactly one usable public constructor to be used as profile configuration - it has {3} {4},
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

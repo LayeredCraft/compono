@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (88,20)-(88,51),
+      Message: [Compose<TestNamespace.MismatchProfile, TestNamespace.TwoArgConfig>] on 'TestNamespace.Cmp0043CountTests.Test_supplies_too_few_arguments' supplies a profile configuration argument that does not match 'TestNamespace.TwoArgConfig''s constructor: 'TestNamespace.TwoArgConfig' requires 2 argument(s), but 1 were supplied,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0043,
+        Title: Profile configuration argument does not match the configuration type's constructor,
+        MessageFormat: [Compose<{0}, {1}>] on '{2}' supplies a profile configuration argument that does not match '{1}''s constructor: {3},
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

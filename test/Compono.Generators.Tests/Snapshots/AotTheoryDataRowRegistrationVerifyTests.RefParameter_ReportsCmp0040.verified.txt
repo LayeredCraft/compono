@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (52,20)-(52,48),
+      Location: Program.cs: (77,20)-(77,48),
       Message: 'TestNamespace.RefParameterTests.Ref_parameter_is_unsupported' cannot be registered for Native AOT theory-data generation: parameter 'value' is ref/out/in, which is not supported. Compono.XunitV3.Aot's Phase 1 supports only ordinary, non-generic parameters (no generic test methods, no ref/out/in/params parameters) - see docs/packages/compono-xunitv3-aot.md.,
       Severity: Error,
       Descriptor: {

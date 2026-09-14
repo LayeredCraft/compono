@@ -33,8 +33,20 @@ dependency, leaves a `[Compose]`\-attributed method undiscovered by xUnit's AOT 
 no compile error, since a marker attribute with no matching registration is, from the compiler's
 perspective, indistinguishable from a marker attribute nobody generates anything for\.
 
-Phase 1 scope (ADR-0066's Decision Outcome): plain parameters only - no inline values, no
-`[Shared]`, no profile variants (`[Compose<TProfile>]`/
-`[Compose<TProfile, TConfig>]`). This attribute's parameterless-only constructor and
-lack of generic siblings enforce that scope structurally: there is no supported syntax to attempt
-any of those forms with this package's current public surface.
+Phase 1 scope (ADR-0066's Decision Outcome): this non-generic form itself supports plain
+parameters only - no inline values, no `[Shared]`.
+
+Deliberately [sealed](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/sealed 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/sealed') - unlike `Compono.XunitV3.ComposeAttribute` (whose
+generic siblings genuinely extend its shared runtime state: a cached [Composer](../Compono/Compono.Composer.md 'Compono\.Composer'),
+cached binding delegates, a real `GetData` override), this type carries no functional state
+or behavior at all for a subtype to extend, and AOT discovery matches purely on each closed
+attribute type's own fully qualified metadata name (never on assignability/inheritance - see
+`AotComposeMethodDiscovery`'s remarks). Inheriting from this type would buy a consumer
+nothing functionally while creating a real hazard specific to this marker-only attribute family:
+a consumer-authored subclass would compile without error but never be discovered by
+`Compono.Generators` (its own metadata name wouldn't match any registered discovery
+provider), silently never running - exactly the failure mode ADR-0066's `CMP0040` exists to
+prevent for every other unsupported shape. [ComposeAttribute&lt;TProfile&gt;](Compono.XunitV3.Aot.ComposeAttribute_TProfile_.md 'Compono\.XunitV3\.Aot\.ComposeAttribute\<TProfile\>') and
+[ComposeAttribute&lt;TProfile,TConfig&gt;](Compono.XunitV3.Aot.ComposeAttribute_TProfile,TConfig_.md 'Compono\.XunitV3\.Aot\.ComposeAttribute\<TProfile,TConfig\>') (ADR-0067/PLAN-0067) are independent marker
+siblings instead - same short type name and `[AttributeUsage]` convention, own direct
+`Xunit.v3.DataAttribute` base, no inheritance relationship to this type (ADR-0067 Amendment 1).

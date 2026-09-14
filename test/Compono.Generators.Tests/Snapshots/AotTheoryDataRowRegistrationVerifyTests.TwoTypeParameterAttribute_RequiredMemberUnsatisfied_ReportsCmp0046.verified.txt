@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (95,20)-(95,63),
+      Message: 'TestNamespace.RequiredMemberConfig''s selected constructor does not satisfy required member 'Name' (used by [Compose<...>] on 'TestNamespace.Cmp0046Tests.Test_config_has_unsatisfied_required_member') - Compono.Generators constructs 'TestNamespace.RequiredMemberConfig' via a direct constructor call, which requires either no required members, or the constructor to carry [System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail with CS9035 in the generated registration,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0046,
+        Title: Selected TConfig/TProfile constructor does not satisfy the type's required members,
+        MessageFormat: '{0}''s selected constructor does not satisfy required member '{1}' (used by [Compose<...>] on '{2}') - Compono.Generators constructs '{0}' via a direct constructor call, which requires either no required members, or the constructor to carry [System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail with CS9035 in the generated registration,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

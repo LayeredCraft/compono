@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (95,20)-(95,64),
+      Message: 'TestNamespace.ObsoleteConfig''s selected constructor is marked [Obsolete(error: true)], which makes any use of it a compiler error (used by [Compose<...>] on 'TestNamespace.Cmp0047ObsoleteConstructorTests.Test_config_constructor_is_obsolete_as_error') - Compono.Generators constructs 'TestNamespace.ObsoleteConfig' via a direct `new TestNamespace.ObsoleteConfig(...)` call in the generated registration, which would fail to compile,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0047,
+        Title: Selected TConfig/TProfile constructor cannot be used at its generated call site,
+        MessageFormat: '{0}''s selected constructor is marked {2}, which makes any use of it a compiler error (used by [Compose<...>] on '{1}') - Compono.Generators constructs '{0}' via a direct `new {0}(...)` call in the generated registration, which would fail to compile,
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

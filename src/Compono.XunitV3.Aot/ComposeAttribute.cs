@@ -26,11 +26,24 @@ namespace Compono.XunitV3.Aot;
 /// no compile error, since a marker attribute with no matching registration is, from the compiler's
 /// perspective, indistinguishable from a marker attribute nobody generates anything for.
 /// <para>
-/// Phase 1 scope (ADR-0066's Decision Outcome): plain parameters only - no inline values, no
-/// <c>[Shared]</c>, no profile variants (<c>[Compose&lt;TProfile&gt;]</c>/
-/// <c>[Compose&lt;TProfile, TConfig&gt;]</c>). This attribute's parameterless-only constructor and
-/// lack of generic siblings enforce that scope structurally: there is no supported syntax to attempt
-/// any of those forms with this package's current public surface.
+/// Phase 1 scope (ADR-0066's Decision Outcome): this non-generic form itself supports plain
+/// parameters only - no inline values, no <c>[Shared]</c>.
+/// </para>
+/// <para>
+/// Deliberately <see langword="sealed"/> - unlike <c>Compono.XunitV3.ComposeAttribute</c> (whose
+/// generic siblings genuinely extend its shared runtime state: a cached <see cref="Composer"/>,
+/// cached binding delegates, a real <c>GetData</c> override), this type carries no functional state
+/// or behavior at all for a subtype to extend, and AOT discovery matches purely on each closed
+/// attribute type's own fully qualified metadata name (never on assignability/inheritance - see
+/// <c>AotComposeMethodDiscovery</c>'s remarks). Inheriting from this type would buy a consumer
+/// nothing functionally while creating a real hazard specific to this marker-only attribute family:
+/// a consumer-authored subclass would compile without error but never be discovered by
+/// <c>Compono.Generators</c> (its own metadata name wouldn't match any registered discovery
+/// provider), silently never running - exactly the failure mode ADR-0066's <c>CMP0040</c> exists to
+/// prevent for every other unsupported shape. <see cref="ComposeAttribute{TProfile}"/> and
+/// <see cref="ComposeAttribute{TProfile, TConfig}"/> (ADR-0067/PLAN-0067) are independent marker
+/// siblings instead - same short type name and <c>[AttributeUsage]</c> convention, own direct
+/// <see cref="DataAttribute"/> base, no inheritance relationship to this type (ADR-0067 Amendment 1).
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]

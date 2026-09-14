@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (87,20)-(87,54),
+      Message: 'string[]' is used as the TConfig type argument of [Compose<TestNamespace.ArrayConfigProfile, string[]>] on 'TestNamespace.Cmp0041NonNamedTests.Test_supplies_array_type_as_config', but must have exactly one usable public constructor to be used as profile configuration - it has 0 public constructor(s),
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0041,
+        Title: Profile configuration type does not have exactly one usable public constructor,
+        MessageFormat: '{0}' is used as the TConfig type argument of [Compose<{1}, {0}>] on '{2}', but must have exactly one usable public constructor to be used as profile configuration - it has {3} {4},
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

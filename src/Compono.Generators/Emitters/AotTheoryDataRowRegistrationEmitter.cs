@@ -29,6 +29,25 @@ internal static class AotTheoryDataRowRegistrationEmitter
                 LocalName = $"value{p.Ordinal}",
                 NameLiteral = SymbolDisplay.FormatLiteral(p.Name, quote: true),
             }).ToArray(),
+            // ADR-0067/PLAN-0067: null for plain [Compose]; non-null (with ConfigTypeName null) for
+            // [Compose<TProfile>]; non-null (with ConfigTypeName set) for [Compose<TProfile, TConfig>].
+            Profile = method.Profile is { } profile
+                ? new
+                {
+                    ProfileTypeName = profile.FullyQualifiedProfileTypeName,
+                    ConfigTypeName = profile.FullyQualifiedConfigTypeName,
+                    // Each argument is wrapped in an explicit cast to its own selected constructor
+                    // parameter's declared type in the template (PR #140 Codex review round 5) - the
+                    // generated registration lives in the consumer's own assembly, so without a cast,
+                    // ordinary C# overload resolution could pick a more-specific accessible sibling
+                    // constructor Compono.Generators didn't actually select/validate.
+                    ConfigArguments = profile.ConfigArguments.Select(a => new
+                    {
+                        a.RenderedLiteral,
+                        a.FullyQualifiedParameterTypeName,
+                    }).ToArray(),
+                }
+                : null,
             GeneratorVersion = GeneratorVersion.Current,
         };
 

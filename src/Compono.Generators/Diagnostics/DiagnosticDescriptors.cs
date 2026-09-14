@@ -377,4 +377,166 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // CMP0041-CMP0043: Compono.XunitV3.Aot.ComposeAttribute<TProfile, TConfig> compile-time shape/
+    // argument validation (ADR-0067/PLAN-0067) - the compile-time counterpart to
+    // Compono.XunitV3.Binding.ConfigProfileBinder's identical runtime checks (ADR-0036). Performed
+    // here, not at runtime, for the same reason CMP0040 exists: this attribute family has no
+    // DataAttribute.GetData runtime fallback to report through.
+
+    // PR #140 Codex review round 12/13: both messages below originally said "it has {3}" meaning the
+    // raw public-constructor count - accurate for the first gate (ambiguous/zero/non-named-type count),
+    // but actively misleading for the second gate (round 3's by-ref exclusion, round 6's dynamic
+    // exclusion, round 8's prohibited-AOT-attribute exclusion): a TConfig/TProfile with exactly one
+    // public constructor that happens to have a ref/out/in parameter reports "it has 0", when the type
+    // in fact has 1 public constructor - it just isn't *usable* for AOT's direct-construction codegen.
+    // Round 12's first attempt reworded the message to always say "usable", reasoning the raw and usable
+    // counts are "identical when the count itself is the problem" - true for the *single*-constructor
+    // case (0 or 1), but round 13 caught that this breaks down for the *ambiguous* case: a TConfig with
+    // two public constructors, one ordinary and one disqualified by a by-ref/dynamic parameter, hits the
+    // first gate with the RAW count (2), which the "usable" wording then falsely claims are both usable
+    // when only one is. Fixed properly this time: `{4}` carries the noun phrase itself, so each gate
+    // supplies wording that actually matches what `{3}` counts - "public constructor(s)" for the first
+    // (raw-ambiguity) gate, "usable public constructor(s)" plus the disqualifying-shapes explanation for
+    // the second (usability) gate. Round 14 caught that round 13's own fix, in turn, surfaced a
+    // pre-existing "abstract TConfig synthesizes as 0 constructors" shortcut (rounds 1/4) as an outright
+    // false claim, once the raw-ambiguity gate started explicitly saying "public constructor(s)" - an
+    // abstract TConfig that actually declares one or more public constructors (just can't be `new`'d
+    // directly) now reports its TRUE declared count via a separately-computed `rawConfigConstructors`,
+    // while the usability gate itself still forces abstract types to fail regardless of that count.
+    public static readonly DiagnosticDescriptor InvalidProfileConfigConstructorShape = new(
+        "CMP0041",
+        "Profile configuration type does not have exactly one usable public constructor",
+        "'{0}' is used as the TConfig type argument of [Compose<{1}, {0}>] on '{2}', but must have " +
+        "exactly one usable public constructor to be used as profile configuration - it has {3} {4}",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidProfileConstructorShape = new(
+        "CMP0042",
+        "Profile type does not have exactly one usable public constructor accepting its configuration type",
+        "'{0}' is used as the TProfile type argument of [Compose<{0}, {1}>] on '{2}', but must have " +
+        "exactly one usable public constructor accepting a single '{1}' parameter - it has {3} usable " +
+        "public constructor(s) (a constructor with a ref/out/in parameter, or one marked " +
+        "[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] does not count as " +
+        "usable)",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ProfileConfigArgumentMismatch = new(
+        "CMP0043",
+        "Profile configuration argument does not match the configuration type's constructor",
+        "[Compose<{0}, {1}>] on '{2}' supplies a profile configuration argument that does not match " +
+        "'{1}''s constructor: {3}",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // CMP0044-CMP0046: further compile-time shape validation for Compono.XunitV3.Aot's profile forms
+    // (ADR-0067/PLAN-0067), added after PR #140's Codex review found real generator-crash/
+    // uncompilable-generated-code gaps in the initial CMP0041-CMP0043 pass - same "no runtime
+    // fallback, so this has to be a compile-time diagnostic" reasoning as the rest of this series.
+
+    public static readonly DiagnosticDescriptor InaccessibleProfileSymbol = new(
+        "CMP0044",
+        "A type referenced by [Compose<TProfile>]/[Compose<TProfile, TConfig>] is not accessible from the generated registration",
+        "'{0}' is referenced by [Compose<...>] on '{1}' ({2}), but is not accessible from " +
+        "Compono.Generators' generated top-level registration - referencing it there would fail with " +
+        "CS0122. Make '{0}' at least internal (with InternalsVisibleTo if it lives in another " +
+        "assembly), or public.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor MultipleAotComposeAttributes = new(
+        "CMP0045",
+        "More than one Compono.XunitV3.Aot Compose-family attribute on one test method",
+        "More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on '{0}' " +
+        "- only one Compose-family attribute per test method is allowed. Unlike Compono.XunitV3, " +
+        "these three attribute types share no common base class here, so a second one on the same " +
+        "method would otherwise each independently register their own theory-data factory under the " +
+        "same generated hint name and crash the generator instead of producing a diagnostic.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ProfileConstructorRequiredMembersUnsatisfied = new(
+        "CMP0046",
+        "Selected TConfig/TProfile constructor does not satisfy the type's required members",
+        "'{0}''s selected constructor does not satisfy required member '{1}' (used by [Compose<...>] " +
+        "on '{2}') - Compono.Generators constructs '{0}' via a direct constructor call, which requires " +
+        "either no required members, or the constructor to carry " +
+        "[System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail with CS9035 in the " +
+        "generated registration",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // PR #140 Codex review round 6: a selected TConfig/TProfile constructor marked
+    // [Obsolete(error: true)] passes every shape/accessibility/required-members check above but
+    // produces an uncompilable `new T(...)` call (CS0619) in the generated registration - caught here
+    // as its own diagnostic rather than folded into CMP0041/CMP0042's "0 usable constructors" count,
+    // since (unlike ref/out/in or dynamic) such a constructor is otherwise a completely normal,
+    // JIT-reflectable constructor - this is purely a "the generated call site can't use it" problem,
+    // not a shape problem. PR #140 Codex review round 7: generalized to also catch
+    // [System.Diagnostics.CodeAnalysis.Experimental("...")] (confirmed by direct compile probe to be a
+    // second, independent standard attribute that makes any *use* of the marked constructor a compiler
+    // error - always severity Error, with a diagnostic ID the attribute itself supplies) - same
+    // underlying problem class as [Obsolete(error: true)], so it's reported through this same CMP0047
+    // diagnostic rather than a new one, with the message naming which attribute was actually found.
+    public static readonly DiagnosticDescriptor ProhibitedProfileConstructor = new(
+        "CMP0047",
+        "Selected TConfig/TProfile constructor cannot be used at its generated call site",
+        "'{0}''s selected constructor is marked {2}, which makes any use of it a compiler error (used " +
+        "by [Compose<...>] on '{1}') - Compono.Generators constructs '{0}' via a direct `new {0}(...)` " +
+        "call in the generated registration, which would fail to compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // PR #140 Codex review round 8: round 5's fix for the overload-hijack finding (casting every
+    // rendered argument to the selected constructor's own declared parameter type) does not defend
+    // against [System.Runtime.CompilerServices.OverloadResolutionPriorityAttribute] - confirmed by
+    // direct probe that an accessible sibling constructor with a higher priority value still wins
+    // ordinary overload resolution even when the call site's argument is explicitly cast to the selected
+    // constructor's own parameter type, because C#'s overload-resolution-priority pruning happens
+    // *before* applicability/betterness comparison, not after. There's no codegen shape that can defeat
+    // this (unlike round 5's fix, which a cast *could* defeat) - the only safe response is to refuse to
+    // construct this way at all.
+    public static readonly DiagnosticDescriptor ProfileConstructorSupersededByPriority = new(
+        "CMP0048",
+        "An accessible sibling constructor could supersede the selected TConfig/TProfile constructor via OverloadResolutionPriority",
+        "'{0}''s selected constructor could be silently superseded at its generated call site by '{2}', " +
+        "which is accessible from the generated registration and marked with a higher " +
+        "[OverloadResolutionPriority] (used by [Compose<...>] on '{1}') - Compono.Generators constructs " +
+        "'{0}' via a direct `new {0}(...)` call, and overload-resolution-priority pruning would select " +
+        "the higher-priority constructor regardless of argument casts, unlike the exact constructor JIT " +
+        "mode's ConstructorInfo.Invoke would call",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // PR #140 Codex review round 9: [Compose<TProfile>]'s `new()` constraint guarantees a public
+    // parameterless TProfile constructor exists, but not that it's AOT/trim-safe - the generated
+    // registration's `AddProfile<TProfile>()` call closes Compono core's own generic `new T()`
+    // construction over the real TProfile at that call site, so a constructor marked
+    // [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] surfaces its warning
+    // there, confirmed by direct probe - the same underlying hazard `HasProhibitedAotAttribute` already
+    // excludes for the two-type-parameter form's TConfig/TProfile constructors, just reached through a
+    // different generated code shape (a closed generic call, not a direct `new T(...)`), so it needs its
+    // own diagnostic rather than folding into an existing "0 usable constructors" count this form has
+    // no counterpart of.
+    public static readonly DiagnosticDescriptor ProfileConstructorRequiresAotUnsafeFeature = new(
+        "CMP0049",
+        "TProfile's parameterless constructor is marked with an AOT/trim-unsafe attribute",
+        "'{0}''s public parameterless constructor is marked [RequiresDynamicCode]/" +
+        "[RequiresUnreferencedCode]/[RequiresAssemblyFiles] (used by [Compose<...>] on '{1}') - " +
+        "Compono.Generators' generated registration constructs '{0}' via AddProfile<TProfile>()'s " +
+        "generic `new TProfile()`, which would surface an IL3050/IL2026/IL3002 warning for any " +
+        "consumer with trim/AOT analysis enabled",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

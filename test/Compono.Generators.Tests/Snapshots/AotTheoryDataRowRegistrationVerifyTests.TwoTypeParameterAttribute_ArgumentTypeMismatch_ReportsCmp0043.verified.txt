@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (91,20)-(91,58),
+      Message: [Compose<TestNamespace.NumericProfile, TestNamespace.NumericConfig>] on 'TestNamespace.Cmp0043TypeTests.Test_supplies_int_for_double_parameter' supplies a profile configuration argument that does not match 'TestNamespace.NumericConfig''s constructor: argument for parameter 'value' is not assignable to 'double',
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0043,
+        Title: Profile configuration argument does not match the configuration type's constructor,
+        MessageFormat: [Compose<{0}, {1}>] on '{2}' supplies a profile configuration argument that does not match '{1}''s constructor: {3},
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

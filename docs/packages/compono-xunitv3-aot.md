@@ -21,7 +21,7 @@ with a mode switch — never reference both in the same project.
 | xUnit package it pairs with | `xunit.v3.mtp-v2` | `xunit.v3.aot.mtp-v2` |
 | Minimum xUnit v3 version | Whatever `Compono.XunitV3` already supports | **4.0.0+** — the version that introduced xUnit's Native AOT support at all |
 | Minimum .NET | Compono's ordinary floor | **.NET 9+** — xUnit's own stated Native AOT requirement |
-| `[Compose]` surface | Full: inline values, `[Shared]`, `[Compose<TProfile>]`, `[Compose<TProfile, TConfig>]` | **Phase 1: plain `[Compose]` only** — no inline values, `[Shared]`, or profile variants yet |
+| `[Compose]` surface | Full: inline values, `[Shared]`, `[Compose<TProfile>]`, `[Compose<TProfile, TConfig>]` | Plain `[Compose]`, `[Compose<TProfile>]`, `[Compose<TProfile, TConfig>]` — no inline values or `[Shared]` yet |
 
 **Why two packages, not one:** xUnit v3 ships its reflection-mode and
 Native AOT surfaces as genuinely separate, non-interchangeable assemblies
@@ -74,19 +74,86 @@ dotnet add package xunit.v3.aot.mtp-v2
   and the referenced packages change when moving a test project from JIT
   to Native AOT — the `[Theory]`/`[Compose]` source itself doesn't.
 
-## Not yet supported (Phase 1 limitations)
+## Profile-based composition (Phase 2)
 
-`Compono.XunitV3.Aot.ComposeAttribute` is a parameterless-only, sealed,
-non-generic attribute — the following `Compono.XunitV3` capabilities are
-**not available** in this package yet, and there is no syntax to attempt
-them (a real compile error results, not silent incorrect behavior):
+`[Compose<TProfile>]` and `[Compose<TProfile, TConfig>]` — added in Phase 2
+(ADR-0067/PLAN-0067), after Phase 1 shipped plain `[Compose]` only:
 
-- Inline values (`[Compose(42, "widget")]`)
-- `[Shared]` parameter reuse
-- `[Compose<TProfile>]` / `[Compose<TProfile, TConfig>]` profile variants
+- **`[Compose<TProfile>]`** — applies `TProfile` (`where TProfile :
+  ICompositionProfile, new()`) before composing every parameter, textually
+  identical to `Compono.XunitV3.ComposeAttribute<TProfile>`:
 
-These are real, additional generator work deferred to a later phase — see
-[PLAN-0066](../plans/0066-compono-xunitv3-aot-package-architecture-impl-plan.md).
+  ```csharp
+  [Theory]
+  [Compose<MyProfile>]
+  public void Test_uses_profile(Widget widget) { ... }
+  ```
+
+  The generated registration constructs `TProfile` via a direct,
+  compile-time-closed `Composer.Create(b => b.AddProfile<TProfile>())` call
+  — no reflection, since `TProfile`'s `new()` constraint is already
+  enforced by the C# compiler at the attribute use site.
+
+- **`[Compose<TProfile, TConfig>]`** — constructs `TConfig` from this
+  attribute's own constructor arguments, then `TProfile` from that
+  `TConfig`, then applies it — textually identical to
+  `Compono.XunitV3.ComposeAttribute<TProfile, TConfig>`:
+
+  ```csharp
+  [Theory]
+  [Compose<MyProfile, MyConfig>(MyConfigValue.Foo, "widget")]
+  public void Test_uses_configured_profile(Widget widget) { ... }
+  ```
+
+  See [ADR-0067](../adr/0067-compono-xunitv3-aot-profile-support.md) for
+  the full design — the compile-time-verified-construction mechanism this
+  form uses, and how it differs from `Compono.XunitV3`'s runtime
+  `ConfigProfileBinder`.
+
+## Not yet supported
+
+`Compono.XunitV3.Aot.ComposeAttribute`'s three forms don't support inline
+values (`[Compose(42, "widget")]`) or `[Shared]` parameter reuse yet — real,
+additional generator work deferred to a later phase. There is no syntax to
+attempt either (a real compile error results, not silent incorrect
+behavior). See
+[PLAN-0066](../plans/0066-compono-xunitv3-aot-package-architecture-impl-plan.md)/
+[PLAN-0067](../plans/0067-compono-xunitv3-aot-profile-support-impl-plan.md).
+
+## `[Compose<TProfile, TConfig>]` diagnostics differ from `Compono.XunitV3` — by design
+
+`Compono.XunitV3.ComposeAttribute<TProfile, TConfig>` validates `TConfig`'s/
+`TProfile`'s constructor shape and the supplied profile configuration
+arguments **at runtime**, via `ConfigProfileBinder` reflection (the first
+time the attribute's `GetData` runs), because C#'s generic-constraint
+system cannot express "has a constructor accepting exactly this type."
+`Compono.XunitV3.Aot` has no runtime `GetData` path at all to check this
+through, so `Compono.Generators` performs the identical checks **at
+compile time** instead, against the real declared symbols and this
+attribute's own compile-time-constant constructor arguments:
+
+| Diagnostic | Condition |
+|---|---|
+| `CMP0041` | `TConfig` does not have exactly one *usable* public constructor - isn't a usable named type at all, has zero or more than one public constructor, or its sole public constructor has a by-ref (`ref`/`out`/`in`) parameter, a `dynamic`-typed parameter, or is marked `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` |
+| `CMP0042` | `TProfile` does not have exactly one *usable* public constructor accepting exactly one `TConfig`-typed parameter - same additional exclusions as `CMP0041` (by-ref parameter, or a prohibited AOT attribute) applied to the matching constructor |
+| `CMP0043` | A supplied constructor argument's count/nullability/type doesn't match `TConfig`'s single constructor's parameters |
+| `CMP0044` | `TProfile`, `TConfig`, a `typeof(...)`/enum-typed argument's own type, or (for an array-typed argument) its declared element type or any `typeof(...)`/enum-typed value recursively embedded in it isn't accessible from the generated top-level registration (commonly: a profile/config type nested `private` inside the attributed test class) |
+| `CMP0045` | More than one Compose-family attribute (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) on one test method |
+| `CMP0046` | The selected `TConfig`/`TProfile` constructor doesn't satisfy the type's `required` members |
+| `CMP0047` | The selected `TConfig`/`TProfile` constructor is marked `[Obsolete("...", error: true)]`, `[Experimental("...")]`, or non-optional `[CompilerFeatureRequired("...")]`, making any use of it a compiler error |
+| `CMP0048` | An accessible sibling constructor with a higher `[OverloadResolutionPriority]` could silently supersede the selected `TConfig`/`TProfile` constructor at the generated call site |
+| `CMP0049` | `[Compose<TProfile>]`'s `TProfile` has a public parameterless constructor marked `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` |
+
+This is a deliberate, documented divergence — not accidental drift between
+the two packages: earlier, IDE-visible feedback instead of a
+test-execution-time failure, and a byproduct of `Compono.Generators` being
+able to see everything it needs at compile time for this attribute family.
+See [ADR-0067](../adr/0067-compono-xunitv3-aot-profile-support.md)'s "One
+accepted, explicit divergence" section. `Compono.XunitV3.Aot.ComposeAttribute<TProfile,
+TConfig>`'s generated code constructs both types via a direct `new`
+call with no reflection and no `[DynamicallyAccessedMembers]` annotation
+anywhere in the path — strictly stronger AOT-safety than the JIT-mode path
+it mirrors.
 
 ## Unsupported method/parameter shapes (`CMP0040`)
 

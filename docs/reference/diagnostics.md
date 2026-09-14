@@ -600,6 +600,257 @@ composable type. See the
 [`Compono.XunitV3.Aot` Package Guide](../packages/compono-xunitv3-aot.md)
 for Phase 1's exact scope.
 
+## CMP0041 — Profile configuration type does not have exactly one usable public constructor
+
+**Severity:** Error.
+
+**Message:** either (a raw-ambiguity case) `'{TConfig}' is used as the
+TConfig type argument of [Compose<{TProfile}, {TConfig}>] on '{Method}',
+but must have exactly one usable public constructor to be used as
+profile configuration - it has {Count} public constructor(s)`, or (a
+sole-but-unusable case) the same lead-in ending `...it has {Count} usable
+public constructor(s) (a constructor with a ref/out/in parameter, a
+dynamic-typed parameter, or one marked
+[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
+does not count as usable)`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s `TConfig` type argument has
+zero or more than one public constructor (or is abstract) — the
+compile-time counterpart to `Compono.XunitV3.Binding.ConfigProfileBinder`'s
+identical runtime check (ADR-0036), performed here because
+`Compono.XunitV3.Aot.ComposeAttribute<TProfile, TConfig>` has no runtime
+`GetData` fallback to check this through (ADR-0067) — **or** `TConfig` has
+exactly one public constructor, but it isn't *usable* for this package's
+AOT direct-construction codegen: it has a `ref`/`out`/`in` parameter, a
+`dynamic`-typed parameter, or is marked `[RequiresDynamicCode]`/
+`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` (ADR-0067 Amendment
+2 — AOT-only restrictions `ConfigProfileBinder`'s reflection-based
+construction never needed). `{Count}` and the noun phrase describing it
+change together depending on which case fired: the raw-ambiguity case
+reports the *raw* public-constructor count — always the type's true
+declared count, including when `TConfig` is abstract (an abstract type
+still always fails this check, since it can never be `new`'d directly,
+regardless of how many public constructors it declares); the
+sole-but-unusable case reports the *usable* count, which is always `0`
+in that case even though `TConfig` has exactly one public constructor in
+the ordinary sense — the constructor exists, it just isn't usable here.
+
+**Fix:** Give `TConfig` exactly one public constructor, with no
+`ref`/`out`/`in` or `dynamic`-typed parameter and no
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]`
+attribute.
+
+## CMP0042 — Profile type does not have exactly one usable public constructor accepting its configuration type
+
+**Severity:** Error.
+
+**Message:** `'{TProfile}' is used as the TProfile type argument of
+[Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
+usable public constructor accepting a single '{TConfig}' parameter - it
+has {Count} usable public constructor(s) (a constructor with a
+ref/out/in parameter, or one marked
+[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
+does not count as usable)`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s `TProfile` type argument does
+not have exactly one public constructor accepting exactly one
+`TConfig`-typed parameter (or is abstract) — the compile-time counterpart
+to `ConfigProfileBinder`'s identical runtime check (ADR-0036) — **or**
+`TProfile` has exactly one matching public constructor, but it isn't
+*usable*: it has a `ref`/`out`/`in` parameter, or is marked
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/
+`[RequiresAssemblyFiles]` (ADR-0067 Amendment 2). Same `{Count}` caveat as
+`CMP0041` — it can report `0` even though the matching constructor exists.
+
+**Fix:** Give `TProfile` exactly one public constructor accepting a single
+`TConfig` parameter, with no `ref`/`out`/`in` parameter and no
+`[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]`
+attribute.
+
+## CMP0043 — Profile configuration argument does not match the configuration type's constructor
+
+**Severity:** Error.
+
+**Message:** `[Compose<{TProfile}, {TConfig}>] on '{Method}' supplies a
+profile configuration argument that does not match '{TConfig}''s
+constructor: {Detail}`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s supplied constructor arguments
+don't match `TConfig`'s single constructor's parameters — a count
+mismatch, a `null` argument for a non-nullable parameter, or an argument
+whose type isn't assignable to its parameter's type (no numeric widening,
+matching `PositionalArgumentBinder`'s exact runtime rule).
+
+**Fix:** Match the supplied arguments to `TConfig`'s constructor
+parameters exactly — same count, same or convertible types.
+
+## CMP0044 — A type referenced by `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` is not accessible from the generated registration
+
+**Severity:** Error.
+
+**Message:** `'{Type}' is referenced by [Compose<...>] on '{Method}'
+({Role}), but is not accessible from Compono.Generators' generated
+top-level registration - referencing it there would fail with CS0122.
+Make '{Type}' at least internal (with InternalsVisibleTo if it lives in
+another assembly), or public.`
+
+**Cause:** `TProfile`, `TConfig`, a `typeof(...)`/enum-typed profile
+configuration argument's own type, or — for an array-typed argument —
+its declared element type or any `typeof(...)`/enum-typed value
+recursively embedded in it, is `private`/`protected` (commonly: a
+profile or config type nested inside the attributed test class itself) —
+legal at the `[Compose<...>]` use site, but the generator's registration
+is a top-level `file` type outside that scope, so referencing an
+inaccessible type there would fail to compile with `CS0122`.
+
+**Fix:** Make the referenced type at least `internal` (adding
+`InternalsVisibleTo` if it lives in a different assembly than the test
+project), or `public`.
+
+## CMP0045 — More than one `Compono.XunitV3.Aot` Compose-family attribute on one test method
+
+**Severity:** Error.
+
+**Message:** `More than one [Compose]/[Compose<TProfile>]/
+[Compose<TProfile, TConfig>] attribute on '{Method}' - only one
+Compose-family attribute per test method is allowed. Unlike
+Compono.XunitV3, these three attribute types share no common base class
+here, so a second one on the same method would otherwise each
+independently register their own theory-data factory under the same
+generated hint name and crash the generator instead of producing a
+diagnostic.`
+
+**Cause:** `[Compose]`, `[Compose<TProfile>]`, and `[Compose<TProfile,
+TConfig>]` are independent marker types with no shared base class
+(ADR-0067 Amendment 1) — nothing in the C# compiler stops stacking two
+different forms on the same method, which would otherwise make each
+independently register a theory-data factory under the same generated
+hint name and crash the generator instead of producing a diagnostic.
+
+**Fix:** Keep exactly one Compose-family attribute on the method.
+
+## CMP0046 — Selected `TConfig`/`TProfile` constructor does not satisfy the type's required members
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s selected constructor does not satisfy required
+member '{Member}' (used by [Compose<...>] on '{Method}') - Compono.Generators
+constructs '{Type}' via a direct constructor call, which requires either
+no required members, or the constructor to carry
+[System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail
+with CS9035 in the generated registration`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s selected `TConfig`/`TProfile`
+constructor doesn't satisfy a `required` member the type declares (no
+`[SetsRequiredMembers]`) — `Compono.Generators` constructs both types via
+a direct `new` call from literal attribute arguments, not through
+Compono's provider pipeline, so there's no composed value to auto-supply
+a required member with the way ordinary composed types can.
+
+**Fix:** Remove the `required` modifier if the member isn't actually
+needed, set it via the constructor and mark the constructor
+`[SetsRequiredMembers]`, or choose a different `TConfig`/`TProfile` type
+that doesn't have this shape.
+
+## CMP0047 — Selected `TConfig`/`TProfile` constructor cannot be used at its generated call site
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s selected constructor is marked {Attribute},
+which makes any use of it a compiler error (used by [Compose<...>] on
+'{Method}') - Compono.Generators constructs '{Type}' via a direct new
+{Type}(...) call in the generated registration, which would fail to
+compile`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s selected `TConfig`/`TProfile`
+constructor is marked with an attribute that makes any *use* of that
+constructor a compiler error — `[Obsolete("...", error: true)]`
+(rejected with `CS0619`),
+`[System.Diagnostics.CodeAnalysis.Experimental("...")]` (rejected with
+the attribute's own diagnostic ID, e.g. `EXP001`, at default severity
+Error), or a non-optional
+`[System.Runtime.CompilerServices.CompilerFeatureRequired("...")]`
+(rejected with `CS9041`; source code can't apply this attribute directly,
+but a constructor imported from a referenced assembly can carry it). The
+constructor is otherwise completely ordinary and ships as a valid
+selection through every other check
+(`CMP0041`/`CMP0042`/`CMP0046`) — but `Compono.Generators` constructs
+both types via a direct `new T(...)` call in the generated registration,
+which can't use a constructor marked this way.
+`[Obsolete("...")]`/`[Obsolete("...", error: false)]` (a warning, not an
+error) doesn't trigger this diagnostic — the generated registration still
+compiles.
+
+**Fix:** Choose a different constructor that isn't marked
+`[Obsolete(error: true)]`/`[Experimental]`/`[CompilerFeatureRequired]`,
+or a different `TConfig`/`TProfile` type entirely.
+
+## CMP0048 — An accessible sibling constructor could supersede the selected constructor via OverloadResolutionPriority
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s selected constructor could be silently
+superseded at its generated call site by '{SupersedingConstructor}',
+which is accessible from the generated registration and marked with a
+higher [OverloadResolutionPriority] (used by [Compose<...>] on
+'{Method}') - Compono.Generators constructs '{Type}' via a direct new
+{Type}(...) call, and overload-resolution-priority pruning would select
+the higher-priority constructor regardless of argument casts, unlike the
+exact constructor JIT mode's ConstructorInfo.Invoke would call`
+
+**Cause:** `TConfig`/`TProfile` has an accessible sibling constructor
+(e.g. an `internal` constructor in the same assembly as the generated
+registration) marked with a higher
+`[System.Runtime.CompilerServices.OverloadResolutionPriority]` value
+than the selected constructor's own (default 0). `Compono.Generators`
+constructs the type via a direct `new T(...)` call in the generated
+registration, guarding against ordinary accessible-sibling overload
+hijacking by casting each argument to the selected constructor's own
+declared parameter type — but `OverloadResolutionPriority` pruning
+happens *before* the compiler compares applicability/conversion quality,
+so the cast cannot defend against it: the higher-priority sibling still
+wins, silently constructing the type differently than the constructor
+that was actually selected and validated. `Compono.XunitV3`'s JIT-mode
+binder never has this problem — it invokes the exact
+`ConstructorInfo` it resolved via reflection, with no overload
+resolution involved at all.
+
+**Fix:** Remove the `[OverloadResolutionPriority]` attribute from the
+superseding sibling constructor, lower its priority to at or below the
+selected constructor's own, or choose a different `TConfig`/`TProfile`
+type without this shape.
+
+## CMP0049 — TProfile's parameterless constructor is marked with an AOT/trim-unsafe attribute
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s public parameterless constructor is marked
+[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
+(used by [Compose<...>] on '{Method}') - Compono.Generators' generated
+registration constructs '{Type}' via AddProfile<TProfile>()'s generic
+new TProfile(), which would surface an IL3050/IL2026/IL3002 warning for
+any consumer with trim/AOT analysis enabled`
+
+**Cause:** `[Compose<TProfile>]`'s `where TProfile : ICompositionProfile,
+new()` constraint guarantees a public parameterless constructor exists,
+but not that it's safe to call under trim/AOT analysis. The generated
+registration calls `Composer.Create(b => b.AddProfile<TProfile>())`, and
+`AddProfile<T>()`'s own generic `new T()` construction closes over the
+real `TProfile` *at that generated call site* — so a constructor marked
+`[System.Diagnostics.CodeAnalysis.RequiresDynamicCode]`,
+`[RequiresUnreferencedCode]`, or `[RequiresAssemblyFiles]` surfaces its
+warning (`IL3050`, `IL2026`, or `IL3002` respectively) there, for any
+consumer with trim/AOT analysis enabled — directly contradicting this
+package's zero-reflection/AOT-safety guarantee. This is the
+one-type-parameter form's counterpart to the same exclusion
+`CMP0041`/`CMP0042` already apply to the two-type-parameter form's
+`TConfig`/`TProfile` constructors, reached through a different generated
+code shape (a closed generic call, not a direct `new T(...)`).
+
+**Fix:** Choose a different `TProfile` whose parameterless constructor
+isn't marked with one of these attributes, or remove the attribute if
+the constructor doesn't actually need it.
+
 ## Next
 
 - [Troubleshooting: Common Errors](../troubleshooting/common-errors.md) —

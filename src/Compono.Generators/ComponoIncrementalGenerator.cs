@@ -248,10 +248,9 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
         // Compono.XunitV3.Aot's own [Compose]-attributed methods (ADR-0066/PLAN-0066) hit the
         // identical PlanCache<T>/RowInvokerRegistry discovery gap the four families above solve - same
         // TransformMethod, so a custom composed parameter type still gets a real generated plan
-        // through the packaged Compono.XunitV3.Aot -> Compono dependency chain. Phase 1 has no generic
-        // (arity-1/arity-2) form yet, so this is the only registration for this attribute family - see
+        // through the packaged Compono.XunitV3.Aot -> Compono dependency chain. See
         // AotComposeMethodDiscovery below for the separate, per-method registration this same
-        // attribute also drives.
+        // attribute family also drives.
         var composeMethodResultsXunitV3Aot = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 ComposeMethodDiscovery.AotAttributeMetadataName,
@@ -261,11 +260,40 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeMethodsXunitV3Aot);
 
+        // [Compose<TProfile>] under Compono.XunitV3.Aot (ADR-0067/PLAN-0067) - same arity-suffixed
+        // metadata-name reasoning as every other family's own generic registration above.
+        var composeGenericMethodResultsXunitV3Aot = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.AotGenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeGenericMethodsXunitV3Aot);
+
+        // [Compose<TProfile, TConfig>] under Compono.XunitV3.Aot (ADR-0067/PLAN-0067) - same
+        // arity-suffixed metadata-name reasoning as every other family's own two-type-parameter
+        // registration above.
+        var composeTwoTypeParameterMethodResultsXunitV3Aot = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.AotTwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethodsXunitV3Aot);
+
+        var composeMethodResultsXunitV3AotAll = composeMethodResultsXunitV3Aot.Collect()
+            .Combine(composeGenericMethodResultsXunitV3Aot.Collect())
+            .Combine(composeTwoTypeParameterMethodResultsXunitV3Aot.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeMethodsXunitV3AotAll);
+
         var composeMethodResultsAll = composeMethodResultsXunitV3.Collect()
             .Combine(composeMethodResultsTUnitAll.Collect())
             .Combine(composeMethodResultsMSTestAll.Collect())
             .Combine(composeMethodResultsNUnitAll.Collect())
-            .Combine(composeMethodResultsXunitV3Aot.Collect())
+            .Combine(composeMethodResultsXunitV3AotAll.Collect())
             .SelectMany(static (results, _) => results.Left.Left.Left.Left.Concat(results.Left.Left.Left.Right).Concat(results.Left.Left.Right).Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
@@ -631,7 +659,35 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Select(static (result, _) => result!)
             .WithTrackingName(TrackingNames.AotComposeMethods);
 
-        context.RegisterSourceOutput(aotComposeMethods, static (productionContext, method) =>
+        // ADR-0067/PLAN-0067: [Compose<TProfile>]/[Compose<TProfile, TConfig>]'s own per-method
+        // registrations - same TransformMethod (branches internally on the matched attribute's
+        // arity), separate providers only because ForAttributeWithMetadataName needs each
+        // arity-suffixed metadata name registered independently.
+        var aotComposeGenericMethods = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AotComposeMethodDiscovery.GenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, ct) => AotComposeMethodDiscovery.TransformMethod(ctx, ct))
+            .Where(static result => result is not null)
+            .Select(static (result, _) => result!)
+            .WithTrackingName(TrackingNames.AotComposeGenericMethods);
+
+        var aotComposeTwoTypeParameterMethods = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AotComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, ct) => AotComposeMethodDiscovery.TransformMethod(ctx, ct))
+            .Where(static result => result is not null)
+            .Select(static (result, _) => result!)
+            .WithTrackingName(TrackingNames.AotComposeTwoTypeParameterMethods);
+
+        var aotComposeMethodsAll = aotComposeMethods.Collect()
+            .Combine(aotComposeGenericMethods.Collect())
+            .Combine(aotComposeTwoTypeParameterMethods.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.AotComposeMethodsAll);
+
+        context.RegisterSourceOutput(aotComposeMethodsAll, static (productionContext, method) =>
         {
             foreach (var diagnostic in method.Diagnostics)
                 diagnostic.Report(productionContext);
@@ -680,8 +736,14 @@ internal static class TrackingNames
     public const string ComposeTwoTypeParameterMethodsNUnit = "ComposeMethods.NUnit.TwoTypeParameter";
     public const string ComposeMethodsNUnitAll = "ComposeMethods.NUnit.All";
     public const string ComposeMethodsXunitV3Aot = "ComposeMethods.XunitV3Aot";
+    public const string ComposeGenericMethodsXunitV3Aot = "ComposeMethods.XunitV3Aot.Generic";
+    public const string ComposeTwoTypeParameterMethodsXunitV3Aot = "ComposeMethods.XunitV3Aot.TwoTypeParameter";
+    public const string ComposeMethodsXunitV3AotAll = "ComposeMethods.XunitV3Aot.All";
     public const string ComposeMethodsAll = "ComposeMethods.All";
     public const string AotComposeMethods = "AotComposeMethods";
+    public const string AotComposeGenericMethods = "AotComposeMethods.Generic";
+    public const string AotComposeTwoTypeParameterMethods = "AotComposeMethods.TwoTypeParameter";
+    public const string AotComposeMethodsAll = "AotComposeMethods.All";
     public const string ComposeMethodsTypes = "ComposeMethods.Types";
     public const string DiscoveredCollected = "Discovered.Collected";
     public const string DiscoveredDistinct = "Discovered.Distinct";
