@@ -849,6 +849,187 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             "CMP0041",
             TestContext.Current.CancellationToken);
 
+    // PR #140 Codex review round 4 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigClassImplicitCtor_Succeeds() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = XunitAotStandIns + """
+
+                namespace TestNamespace
+                {
+                    // No explicit constructor - unlike a struct's synthesized parameterless
+                    // constructor (not reflectable), a *class*'s own implicit default constructor is
+                    // real, reflectable IL (Type.GetConstructors(Public|Instance) returns 1, confirmed
+                    // by direct probe) - ConfigProfileBinder succeeds constructing this TConfig, and
+                    // the round-3 fix must not regress that by excluding every IsImplicitlyDeclared
+                    // constructor regardless of value-type-ness. Short names below - the generated
+                    // hint-name path already gets long once the test-class/method/fact names combine.
+                    public sealed class ImplicitCtorClassConfig
+                    {
+                    }
+
+                    public sealed class ImplicitCtorClassProfile : Compono.ICompositionProfile
+                    {
+                        public ImplicitCtorClassProfile(ImplicitCtorClassConfig config) { }
+                        public void Configure(Compono.CompositionBuilder builder) { }
+                    }
+
+                    public sealed class ImplicitCtorClassTests
+                    {
+                        [Compono.XunitV3.Aot.Compose<ImplicitCtorClassProfile, ImplicitCtorClassConfig>]
+                        public void Test_uses_class(string value)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public void TwoTypeParameterAttribute_NestedErroneousArrayElement_DoesNotCrashGenerator()
+    {
+        // A malformed *array* argument (new int[] { UndefinedIdentifier }) reports a well-typed outer
+        // Array TypedConstant whose *element* is Kind = Error - the round-2 fix only checked the outer
+        // constant, so this shape still reached TypedConstantLiteralRenderer.Render's unhandled arm via
+        // RenderArray's own recursive Render call. Same driver-based approach as
+        // TwoTypeParameterAttribute_ErroneousArgumentExpression_DoesNotCrashGenerator - the property
+        // under test is that the generator doesn't crash, not that this deliberately-invalid source
+        // compiles.
+        const string source = """
+            namespace Xunit
+            {
+                public interface ITheoryDataRow { }
+                public sealed class TheoryDataRow : ITheoryDataRow { public TheoryDataRow(object?[] data) { } }
+            }
+
+            namespace Xunit.Sdk
+            {
+                public sealed class DisposalTracker { }
+            }
+
+            namespace Xunit.v3
+            {
+                public abstract class DataAttribute : System.Attribute { }
+
+                public static class RegisteredEngineConfig
+                {
+                    public static void RegisterTheoryDataRowFactory(
+                        string testClassIndex, string methodName, bool disableDiscoveryEnumeration,
+                        System.Func<Xunit.Sdk.DisposalTracker, System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<Xunit.ITheoryDataRow>>> factory) { }
+                }
+            }
+
+            namespace Compono.XunitV3.Aot
+            {
+                public sealed class ComposeAttribute : Xunit.v3.DataAttribute { }
+
+                public sealed class ComposeAttribute<TProfile, TConfig> : Xunit.v3.DataAttribute
+                    where TProfile : ICompositionProfile
+                {
+                    public ComposeAttribute(params object?[] configArguments) { }
+                }
+            }
+
+            namespace TestNamespace;
+
+            public sealed class ArrayErrorConfig
+            {
+                public ArrayErrorConfig(int[] values) { }
+            }
+
+            public sealed class ArrayErrorProfile : Compono.ICompositionProfile
+            {
+                public ArrayErrorProfile(ArrayErrorConfig config) { }
+                public void Configure(Compono.CompositionBuilder builder) { }
+            }
+
+            public sealed class ArrayErrorArgumentTests
+            {
+                [Compono.XunitV3.Aot.Compose<ArrayErrorProfile, ArrayErrorConfig>(new int[] { UndefinedIdentifier })]
+                public void Test_supplies_array_containing_undefined_identifier(string value)
+                {
+                }
+            }
+            """;
+
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
+        var tree = CSharpSyntaxTree.ParseText(source, parseOptions, "Program.cs", cancellationToken: TestContext.Current.CancellationToken);
+
+        var compilationOptions = new CSharpCompilationOptions(
+            OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable);
+        List<MetadataReference> references =
+        [
+#if NET11_0_OR_GREATER
+            .. Basic.Reference.Assemblies.Net110.References.All,
+#elif NET10_0_OR_GREATER
+            .. Basic.Reference.Assemblies.Net100.References.All,
+#endif
+            MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+        ];
+        var compilation = CSharpCompilation.Create("ArrayErrorArgumentTestsAssembly", [tree], references, compilationOptions);
+
+        var generator = new ComponoIncrementalGenerator().AsSourceGenerator();
+        var driver = ((GeneratorDriver)CSharpGeneratorDriver.Create([generator]))
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var act = () => driver.GetRunResult();
+
+        act.Should().NotThrow("a malformed array element must not crash the generator - it should be ignored/diagnosed, never an unhandled exception");
+    }
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_InaccessibleTypeInsideArrayArgument_ReportsCmp0044() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class Cmp0044ArrayTests
+                        {
+                            // Private to Cmp0044ArrayTests - legal at the [Compose<...>] use site. A
+                            // PrivateKind[] argument bound to an `object`-typed config constructor
+                            // parameter is real, legal attribute syntax (confirmed by direct probe: the
+                            // array-creation-expression binds to the params object?[] element as one
+                            // *boxed array* argument, not CS0182-illegal, since the declared parameter
+                            // type it binds to - object - is what the array-creation-expression rule
+                            // actually checks against, not the outer params array's own type). The
+                            // round-1 CMP0044 fix only inspected the top-level TypedConstant's own Kind
+                            // (Array here, not Enum), never recursing into the array's elements - so
+                            // this slipped through, and the renderer would have emitted `new
+                            // global::TestNamespace.Cmp0044ArrayTests.PrivateKind[] { ... }` in the
+                            // generated top-level file, failing CS0122.
+                            private enum PrivateKind
+                            {
+                                Default,
+                                Special,
+                            }
+
+                            public sealed class ArrayConfig
+                            {
+                                public ArrayConfig(object value) { }
+                            }
+
+                            public sealed class ArrayConfigProfile : Compono.ICompositionProfile
+                            {
+                                public ArrayConfigProfile(ArrayConfig config) { }
+                                public void Configure(Compono.CompositionBuilder builder) { }
+                            }
+
+                            [Compono.XunitV3.Aot.Compose<ArrayConfigProfile, ArrayConfig>(new PrivateKind[] { PrivateKind.Special })]
+                            public void Test_config_argument_is_array_of_private_enum(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0044",
+            TestContext.Current.CancellationToken);
+
     [Fact]
     public Task RefStructParameterType_ReportsCmp0040() =>
         GeneratorTestHelpers.VerifyFailure(

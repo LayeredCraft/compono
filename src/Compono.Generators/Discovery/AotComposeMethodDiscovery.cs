@@ -209,8 +209,17 @@ internal static class AotComposeMethodDiscovery
             // Type.GetConstructors(Public|Instance) returns zero constructors for exactly this shape,
             // confirmed by direct probe - so JIT-mode's ConfigProfileBinder would reject this same
             // TConfig with "has 0", not silently succeed the way an unfiltered Roslyn count would.
-            // Excluded here so the two counts agree.
-            ? configType.Constructors.Where(static c => c.DeclaredAccessibility == Accessibility.Public && !c.IsImplicitlyDeclared).ToArray()
+            // PR #140 Codex review round 4: this exclusion must be scoped to value types only - a
+            // *class*'s own implicit parameterless constructor is also IsImplicitlyDeclared = true in
+            // Roslyn, but (unlike a struct's) it genuinely is real, reflectable IL
+            // (Type.GetConstructors(Public|Instance) returns 1 for a no-explicit-ctor class, confirmed
+            // by a direct probe) - excluding it too would have made an entirely ordinary `class Config
+            // { }` fail CMP0041 with "has 0" when JIT-mode succeeds. `configType.IsValueType` is the
+            // exact condition that distinguishes the two cases.
+            ? configType.Constructors
+                .Where(c => c.DeclaredAccessibility == Accessibility.Public
+                    && !(configType.IsValueType && c.IsImplicitlyDeclared))
+                .ToArray()
             : Array.Empty<IMethodSymbol>();
 
         if (allConfigConstructors.Length != 1)
@@ -353,18 +362,17 @@ internal static class AotComposeMethodDiscovery
             // A typeof(...)/enum-typed argument embeds a reference to another type in the rendered
             // literal (typeof(global::Ns.SomeType), (global::Ns.SomeEnum)1) - that type needs the same
             // top-level-accessibility guarantee TProfile/TConfig themselves just got, or the generated
-            // registration fails with CS0122 the same way (PR #140 Codex review).
-            var embeddedType = argument.Kind switch
+            // registration fails with CS0122 the same way (PR #140 Codex review). Walks into array
+            // elements too (PR #140 round 4 evidence: an array of a private nested enum/Type value has
+            // Kind = Array at the top level - EmbeddedTypes recurses so an inaccessible type nested
+            // inside an array argument is caught the same way a top-level one already was).
+            foreach (var embeddedType in EmbeddedTypes(argument))
             {
-                TypedConstantKind.Type => (ITypeSymbol)argument.Value!,
-                TypedConstantKind.Enum => argument.Type,
-                _ => null,
-            };
-
-            if (embeddedType is not null && !compilation.IsSymbolAccessibleWithin(embeddedType, compilation.Assembly))
-            {
-                diagnostics.Add(InaccessibleSymbolDiagnostic(embeddedType, methodDisplayName, location, $"the profile configuration argument for parameter '{parameter.Name}'"));
-                return null;
+                if (!compilation.IsSymbolAccessibleWithin(embeddedType, compilation.Assembly))
+                {
+                    diagnostics.Add(InaccessibleSymbolDiagnostic(embeddedType, methodDisplayName, location, $"the profile configuration argument for parameter '{parameter.Name}'"));
+                    return null;
+                }
             }
 
             renderedArguments.Add(new AotProfileConfigArgumentInfo(TypedConstantLiteralRenderer.Render(argument, parameter.Type)));
@@ -430,6 +438,29 @@ internal static class AotComposeMethodDiscovery
             type.ToDisplayString(),
             methodDisplayName,
             role);
+
+    // PR #140 Codex review round 4: recurses into array elements, not just the top-level constant -
+    // typeof(...)/enum-typed values embedded inside an array argument (e.g. new PrivateEnum[] { ... })
+    // need the same accessibility check a top-level typeof(...)/enum argument already gets.
+    private static IEnumerable<ITypeSymbol> EmbeddedTypes(TypedConstant constant)
+    {
+        switch (constant.Kind)
+        {
+            case TypedConstantKind.Type:
+                yield return (ITypeSymbol)constant.Value!;
+                break;
+
+            case TypedConstantKind.Enum when constant.Type is not null:
+                yield return constant.Type;
+                break;
+
+            case TypedConstantKind.Array:
+                foreach (var element in constant.Values)
+                foreach (var embeddedType in EmbeddedTypes(element))
+                    yield return embeddedType;
+                break;
+        }
+    }
 
     // The compile-time counterpart to RequiredMemberCollector's own [SetsRequiredMembers] check
     // (used for core Compono's ordinary composed-type construction) - deliberately narrower: this

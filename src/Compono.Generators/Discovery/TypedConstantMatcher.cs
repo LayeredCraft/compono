@@ -32,14 +32,18 @@ internal static class TypedConstantMatcher
         if (constant.Type is null)
             return TypedConstantValidation.TypeMismatch;
 
-        // PR #140 Codex review round 2: during an incomplete/erroneous compilation (a live IDE
-        // analysis pass mid-edit, most commonly), Roslyn can hand back a TypedConstant of
-        // Kind = Error whose Type is still the parameter's own declared type - ClassifyConversion
-        // would then find a trivial identity conversion and report Valid, and
-        // TypedConstantLiteralRenderer.Render has no rendering for Kind = Error at all (it throws).
-        // Rejected here, uniformly, before any conversion classification - the same "diagnose rather
-        // than let something obscure happen" rule this repo already applies (CMP0040's own rationale).
-        if (constant.Kind == TypedConstantKind.Error)
+        // PR #140 Codex review round 2 (root-level) + round 4 (nested-array-element evidence): during
+        // an incomplete/erroneous compilation (a live IDE analysis pass mid-edit, most commonly),
+        // Roslyn can hand back a TypedConstant of Kind = Error whose Type is still the parameter's own
+        // declared type - ClassifyConversion would then find a trivial identity conversion and report
+        // Valid, and TypedConstantLiteralRenderer.Render has no rendering for Kind = Error at all (it
+        // throws). The round-2 fix only checked the outer constant; round 4 found a malformed *array*
+        // argument (e.g. new int[] { UndefinedIdentifier }) reports a well-typed outer Array constant
+        // whose *element* is Kind = Error - HasError walks the whole constant tree (including nested
+        // array elements) so both shapes are caught here, uniformly, before any conversion
+        // classification - the same "diagnose rather than let something obscure happen" rule this repo
+        // already applies (CMP0040's own rationale).
+        if (HasError(constant))
             return TypedConstantValidation.TypeMismatch;
 
         var conversion = ((CSharpCompilation)compilation).ClassifyConversion(constant.Type, underlyingType);
@@ -48,6 +52,10 @@ internal static class TypedConstantMatcher
             ? TypedConstantValidation.Valid
             : TypedConstantValidation.TypeMismatch;
     }
+
+    private static bool HasError(TypedConstant constant) =>
+        constant.Kind == TypedConstantKind.Error
+        || (constant.Kind == TypedConstantKind.Array && constant.Values.Any(HasError));
 
     private static bool IsNullable(ITypeSymbol type)
     {

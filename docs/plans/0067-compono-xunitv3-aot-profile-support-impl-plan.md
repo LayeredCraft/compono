@@ -436,3 +436,44 @@ constructed via `new TConfig()`). Re-validated: full build 0 warnings/errors,
 `Compono.Generators.Tests` 686/686, `Compono.XunitV3.Aot.Tests` 15/15,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 4** found three more real gaps - the first a genuine regression in
+round 3's own fix, the other two a further-generalized form of round 1's/round 2's "didn't recurse
+into array elements" limitation, which the implementation had already flagged as a known gap when it
+shipped:
+
+- **Round 3's `IsImplicitlyDeclared` exclusion was scoped too broadly - it also rejected an ordinary
+  `class` with no explicit constructor.** A *class*'s own implicit default constructor is
+  `IsImplicitlyDeclared = true` in Roslyn too, same as a struct's, but (unlike a struct's) it's real,
+  reflectable IL - `Type.GetConstructors(Public | Instance)` returns 1 for a no-explicit-ctor class,
+  confirmed by a direct probe - so `ConfigProfileBinder` succeeds constructing it, while the round-3
+  fix's blanket exclusion made this same, entirely ordinary `TConfig` shape fail here with "has 0".
+  Fixed by scoping the exclusion to `configType.IsValueType` specifically - the exact condition that
+  distinguishes the two cases (confirmed real by direct reflection probe before touching anything, the
+  same discipline every prior round's finding got).
+- **Nested `TypedConstantKind.Error` inside an array argument reached the renderer unguarded.** The
+  round-2 fix (`TypedConstantMatcher.Validate`) only checked the *outer* constant's `Kind` - for a
+  malformed array argument (`new int[] { UndefinedIdentifier }`), Roslyn reports a well-typed outer
+  `Array` constant whose *element* is `Kind = Error`, which the outer check never saw, letting it reach
+  `TypedConstantLiteralRenderer.Render`'s recursive `RenderArray` call and crash the generator the same
+  way the round-2 case did. Fixed with a `HasError` helper that walks the whole constant tree
+  (recursing through `Kind = Array`'s own `Values`), replacing the single `Kind == Error` check.
+- **Nested inaccessible types inside array arguments bypassed `CMP0044` the same way.** The round-1
+  `CMP0044` fix only inspected the top-level argument's own `Kind` (`Type`/`Enum`) - an array of a
+  private nested enum's values (e.g. `new PrivateKind[] { PrivateKind.Value }` bound to an
+  `object`-typed `TConfig` constructor parameter - confirmed real and legal attribute syntax by a
+  direct probe, since the array-creation-expression's declared parameter type is what `CS0182` actually
+  checks, not the outer `params object?[]`'s own type) has `Kind = Array` at the top level, so the
+  private `PrivateKind` type embedded in each element slipped through undetected, and the renderer
+  would have emitted an inaccessible-type reference (`CS0122`) the same way a top-level `typeof`/enum
+  argument already would have without the round-1 fix. Fixed with an `EmbeddedTypes` helper that
+  recurses through array elements the same way `HasError` does, replacing the single-level `switch`.
+
+Three new tests: `TwoTypeParameterAttribute_TConfigClassImplicitCtor_Succeeds` (an ordinary
+no-explicit-ctor `class TConfig` must still succeed, proving the round-3 fix didn't regress the
+common case), `TwoTypeParameterAttribute_NestedErroneousArrayElement_DoesNotCrashGenerator` (drives the
+real `GeneratorDriver` directly, same pattern as the round-2 equivalent, with a malformed array
+argument), `TwoTypeParameterAttribute_InaccessibleTypeInsideArrayArgument_ReportsCmp0044`. Re-validated:
+full build 0 warnings/errors, `Compono.Generators.Tests` 692/692, `Compono.XunitV3.Aot.Tests` 15/15,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.
