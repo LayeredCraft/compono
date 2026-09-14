@@ -1337,4 +1337,206 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0047",
             TestContext.Current.CancellationToken);
+
+    // PR #140 Codex review round 8 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorRequiresDynamicCode_ReportsCmp0041() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 8: [RequiresDynamicCode]/[RequiresUnreferencedCode]
+                        // compile and run fine under ordinary JIT execution (ConstructorInfo.Invoke
+                        // doesn't care), but a PublishAot=true consumer of the generated direct
+                        // `new T(...)` call gets a real IL3050/IL2026 warning (confirmed by direct
+                        // probe) - directly contradicting this package's zero-reflection/AOT-safety
+                        // guarantee. Excluded from the usable-constructor set the same way `dynamic` was
+                        // in round 6, folded into the same CMP0041 diagnostic.
+                        public sealed class RequiresDynamicCodeConfig
+                        {
+                            [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("uses reflection emit")]
+                            public RequiresDynamicCodeConfig(string value) { }
+                        }
+
+                        public sealed class RequiresDynamicCodeConfigProfile : Compono.ICompositionProfile
+                        {
+                            public RequiresDynamicCodeConfigProfile(RequiresDynamicCodeConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041RequiresDynamicCodeTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<RequiresDynamicCodeConfigProfile, RequiresDynamicCodeConfig>("value")]
+                            public void Test_config_constructor_requires_dynamic_code(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TProfileConstructorRequiresUnreferencedCode_ReportsCmp0042() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 8: the same RequiresDynamicCode/
+                        // RequiresUnreferencedCode exclusion applied to the TProfile constructor branch
+                        // independently (round 7's own lesson: test both branches, not just TConfig's).
+                        public sealed class RequiresUnreferencedCodeConfig
+                        {
+                            public RequiresUnreferencedCodeConfig(string value) { }
+                        }
+
+                        public sealed class RequiresUnreferencedCodeConfigProfile : Compono.ICompositionProfile
+                        {
+                            [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("uses reflection")]
+                            public RequiresUnreferencedCodeConfigProfile(RequiresUnreferencedCodeConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0042RequiresUnreferencedCodeTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<RequiresUnreferencedCodeConfigProfile, RequiresUnreferencedCodeConfig>("value")]
+                            public void Test_profile_constructor_requires_unreferenced_code(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0042",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorSupersededByOverloadPriority_ReportsCmp0048() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 8: round 5's fix for the overload-hijack finding
+                        // (casting the rendered argument to the selected constructor's own declared
+                        // parameter type) does not defend against [OverloadResolutionPriority] - a
+                        // higher-priority accessible sibling constructor still wins even with an explicit
+                        // cast, confirmed by direct probe, because priority pruning happens before
+                        // applicability/conversion-quality comparison. No codegen shape can defeat this,
+                        // so the only safe response is to reject it with a diagnostic.
+                        public sealed class PriorityConfig
+                        {
+                            public PriorityConfig(object value) { }
+
+                            [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]
+                            internal PriorityConfig(string value) { }
+                        }
+
+                        public sealed class PriorityConfigProfile : Compono.ICompositionProfile
+                        {
+                            public PriorityConfigProfile(PriorityConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0048PriorityTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<PriorityConfigProfile, PriorityConfig>("value")]
+                            public void Test_config_constructor_superseded_by_priority(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0048",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorIsCompilerFeatureRequired_ReportsCmp0047()
+    {
+        // PR #140 Codex review round 8: [CompilerFeatureRequired("...")] is blocked from direct source
+        // use by CS8335 (a compiler-reserved attribute), so the only way to reproduce the real-world
+        // shape - a constructor imported from *referenced metadata* that carries it (e.g. compiled by a
+        // future/different compiler) - is to build that metadata directly via IL emission, the same way
+        // the standalone probe that confirmed this finding did.
+        var libraryReference = CompilerFeatureRequiredLibraryReference();
+
+        return GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class Cmp0047CompilerFeatureRequiredTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<CfrLib.CfrConfigProfile, CfrLib.CfrConfig>("value")]
+                            public void Test_config_constructor_is_compiler_feature_required(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+                ExtraReferences = [libraryReference],
+            },
+            "CMP0047",
+            TestContext.Current.CancellationToken);
+    }
+
+    private static MetadataReference CompilerFeatureRequiredLibraryReference()
+    {
+        var asmName = new System.Reflection.AssemblyName("CfrLib_" + System.Guid.NewGuid().ToString("N"));
+        var ab = new System.Reflection.Emit.PersistedAssemblyBuilder(asmName, typeof(object).Assembly);
+        var mb = ab.DefineDynamicModule("CfrLib.dll");
+
+        var configType = mb.DefineType("CfrLib.CfrConfig", System.Reflection.TypeAttributes.Public | System.Reflection.TypeAttributes.Class);
+        var configCtor = configType.DefineConstructor(
+            System.Reflection.MethodAttributes.Public,
+            System.Reflection.CallingConventions.Standard,
+            [typeof(string)]);
+        configCtor.GetILGenerator().Emit(System.Reflection.Emit.OpCodes.Ret);
+
+        var cfrCtor = typeof(System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute).GetConstructor([typeof(string)])!;
+        configCtor.SetCustomAttribute(new System.Reflection.Emit.CustomAttributeBuilder(cfrCtor, ["FutureFeature"]));
+
+        configType.CreateType();
+
+        var profileType = mb.DefineType(
+            "CfrLib.CfrConfigProfile",
+            System.Reflection.TypeAttributes.Public | System.Reflection.TypeAttributes.Class,
+            typeof(object),
+            [typeof(Compono.ICompositionProfile)]);
+        var profileCtor = profileType.DefineConstructor(
+            System.Reflection.MethodAttributes.Public,
+            System.Reflection.CallingConventions.Standard,
+            [configType]);
+        var profileCtorIl = profileCtor.GetILGenerator();
+        profileCtorIl.Emit(System.Reflection.Emit.OpCodes.Ldarg_0);
+        profileCtorIl.Emit(System.Reflection.Emit.OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        profileCtorIl.Emit(System.Reflection.Emit.OpCodes.Ret);
+
+        var configureMethod = profileType.DefineMethod(
+            "Configure",
+            System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Virtual,
+            typeof(void),
+            [typeof(Compono.CompositionBuilder)]);
+        configureMethod.GetILGenerator().Emit(System.Reflection.Emit.OpCodes.Ret);
+
+        profileType.CreateType();
+
+        using var stream = new System.IO.MemoryStream();
+        ab.Save(stream);
+        stream.Position = 0;
+        return MetadataReference.CreateFromStream(stream);
+    }
 }

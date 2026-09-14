@@ -472,4 +472,26 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // PR #140 Codex review round 8: round 5's fix for the overload-hijack finding (casting every
+    // rendered argument to the selected constructor's own declared parameter type) does not defend
+    // against [System.Runtime.CompilerServices.OverloadResolutionPriorityAttribute] - confirmed by
+    // direct probe that an accessible sibling constructor with a higher priority value still wins
+    // ordinary overload resolution even when the call site's argument is explicitly cast to the selected
+    // constructor's own parameter type, because C#'s overload-resolution-priority pruning happens
+    // *before* applicability/betterness comparison, not after. There's no codegen shape that can defeat
+    // this (unlike round 5's fix, which a cast *could* defeat) - the only safe response is to refuse to
+    // construct this way at all.
+    public static readonly DiagnosticDescriptor ProfileConstructorSupersededByPriority = new(
+        "CMP0048",
+        "An accessible sibling constructor could supersede the selected TConfig/TProfile constructor via OverloadResolutionPriority",
+        "'{0}''s selected constructor could be silently superseded at its generated call site by '{2}', " +
+        "which is accessible from the generated registration and marked with a higher " +
+        "[OverloadResolutionPriority] (used by [Compose<...>] on '{1}') - Compono.Generators constructs " +
+        "'{0}' via a direct `new {0}(...)` call, and overload-resolution-priority pruning would select " +
+        "the higher-priority constructor regardless of argument casts, unlike the exact constructor JIT " +
+        "mode's ConstructorInfo.Invoke would call",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

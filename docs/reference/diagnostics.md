@@ -724,12 +724,16 @@ compile`
 
 **Cause:** `[Compose<TProfile, TConfig>]`'s selected `TConfig`/`TProfile`
 constructor is marked with an attribute that makes any *use* of that
-constructor a compiler error — either `[Obsolete("...", error: true)]`
-(rejected with `CS0619`) or
+constructor a compiler error — `[Obsolete("...", error: true)]`
+(rejected with `CS0619`),
 `[System.Diagnostics.CodeAnalysis.Experimental("...")]` (rejected with
 the attribute's own diagnostic ID, e.g. `EXP001`, at default severity
-Error). The constructor is otherwise completely ordinary and ships as a
-valid selection through every other check
+Error), or a non-optional
+`[System.Runtime.CompilerServices.CompilerFeatureRequired("...")]`
+(rejected with `CS9041`; source code can't apply this attribute directly,
+but a constructor imported from a referenced assembly can carry it). The
+constructor is otherwise completely ordinary and ships as a valid
+selection through every other check
 (`CMP0041`/`CMP0042`/`CMP0046`) — but `Compono.Generators` constructs
 both types via a direct `new T(...)` call in the generated registration,
 which can't use a constructor marked this way.
@@ -738,8 +742,43 @@ error) doesn't trigger this diagnostic — the generated registration still
 compiles.
 
 **Fix:** Choose a different constructor that isn't marked
-`[Obsolete(error: true)]`/`[Experimental]`, or a different
-`TConfig`/`TProfile` type entirely.
+`[Obsolete(error: true)]`/`[Experimental]`/`[CompilerFeatureRequired]`,
+or a different `TConfig`/`TProfile` type entirely.
+
+## CMP0048 — An accessible sibling constructor could supersede the selected constructor via OverloadResolutionPriority
+
+**Severity:** Error.
+
+**Message:** `'{Type}''s selected constructor could be silently
+superseded at its generated call site by '{SupersedingConstructor}',
+which is accessible from the generated registration and marked with a
+higher [OverloadResolutionPriority] (used by [Compose<...>] on
+'{Method}') - Compono.Generators constructs '{Type}' via a direct new
+{Type}(...) call, and overload-resolution-priority pruning would select
+the higher-priority constructor regardless of argument casts, unlike the
+exact constructor JIT mode's ConstructorInfo.Invoke would call`
+
+**Cause:** `TConfig`/`TProfile` has an accessible sibling constructor
+(e.g. an `internal` constructor in the same assembly as the generated
+registration) marked with a higher
+`[System.Runtime.CompilerServices.OverloadResolutionPriority]` value
+than the selected constructor's own (default 0). `Compono.Generators`
+constructs the type via a direct `new T(...)` call in the generated
+registration, guarding against ordinary accessible-sibling overload
+hijacking by casting each argument to the selected constructor's own
+declared parameter type — but `OverloadResolutionPriority` pruning
+happens *before* the compiler compares applicability/conversion quality,
+so the cast cannot defend against it: the higher-priority sibling still
+wins, silently constructing the type differently than the constructor
+that was actually selected and validated. `Compono.XunitV3`'s JIT-mode
+binder never has this problem — it invokes the exact
+`ConstructorInfo` it resolved via reflection, with no overload
+resolution involved at all.
+
+**Fix:** Remove the `[OverloadResolutionPriority]` attribute from the
+superseding sibling constructor, lower its priority to at or below the
+selected constructor's own, or choose a different `TConfig`/`TProfile`
+type without this shape.
 
 ## Next
 

@@ -246,9 +246,16 @@ internal static class AotComposeMethodDiscovery
         // zero-reflection guarantee. Unlike ref/out/in, JIT-mode's reflection-based
         // ConstructorInfo.Invoke *can* satisfy a dynamic parameter (it's just object at the metadata
         // level), so this is an AOT-only restriction, not a JIT-parity gap - still folded into the same
-        // "0 usable constructors" gate rather than a new diagnostic.
+        // "0 usable constructors" gate rather than a new diagnostic. PR #140 Codex review round 8: a
+        // constructor marked [RequiresDynamicCode]/[RequiresUnreferencedCode] compiles and runs under
+        // JIT (ConstructorInfo.Invoke doesn't care), but a `PublishAot=true` consumer of the generated
+        // direct `new T(...)` call gets a real IL3050/IL2026 warning (confirmed by direct probe) -
+        // exactly the trim/AOT-unsafety this attribute exists to flag, directly contradicting this
+        // package's zero-reflection/AOT-safety guarantee. Same tier as `dynamic`: excluded from the
+        // usable-constructor set rather than emitting code that's merely *likely* to work.
         var configConstructors = allConfigConstructors[0].Parameters.All(static p =>
             p.RefKind == RefKind.None && p.Type.TypeKind != TypeKind.Dynamic)
+            && !HasProhibitedAotAttribute(allConfigConstructors[0])
             ? allConfigConstructors
             : Array.Empty<IMethodSymbol>();
 
@@ -284,7 +291,10 @@ internal static class AotComposeMethodDiscovery
                     // JIT-mode binder, which sees the by-ref runtime Type (TConfig&) and never matches
                     // it as this exact shape at all - excluded uniformly here for both reasons.
                     && c.Parameters[0].RefKind == RefKind.None
-                    && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, configType))
+                    && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, configType)
+                    // PR #140 Codex review round 8: same RequiresDynamicCode/RequiresUnreferencedCode
+                    // exclusion as configConstructors above, applied to the TProfile constructor too.
+                    && !HasProhibitedAotAttribute(c))
                 .ToArray()
             : Array.Empty<IMethodSymbol>();
 
@@ -331,6 +341,18 @@ internal static class AotComposeMethodDiscovery
         if (ProhibitedCallSiteAttribute(profileConstructor) is { } profileProhibitedAttribute)
         {
             diagnostics.Add(ProhibitedConstructorDiagnostic(profileType!, methodDisplayName, location, profileProhibitedAttribute));
+            return null;
+        }
+
+        if (FindHigherPriorityAccessibleSibling(configType!, configConstructor, compilation) is { } configSupersedingCtor)
+        {
+            diagnostics.Add(SupersededByPriorityDiagnostic(configType!, configSupersedingCtor, methodDisplayName, location));
+            return null;
+        }
+
+        if (FindHigherPriorityAccessibleSibling(profileType!, profileConstructor, compilation) is { } profileSupersedingCtor)
+        {
+            diagnostics.Add(SupersededByPriorityDiagnostic(profileType!, profileSupersedingCtor, methodDisplayName, location));
             return null;
         }
 
@@ -577,11 +599,46 @@ internal static class AotComposeMethodDiscovery
                 case "System.Diagnostics.CodeAnalysis.ExperimentalAttribute":
                     var diagnosticId = attribute.ConstructorArguments is [{ Value: string id }] ? id : "...";
                     return $"[Experimental(\"{diagnosticId}\")]";
+
+                // PR #140 Codex review round 8: [CompilerFeatureRequired("...")] with the default
+                // IsOptional = false is a third independent attribute in this same bucket - source code
+                // can never apply it directly (CS8335 blocks that), but a constructor from a *referenced*
+                // assembly (e.g. compiled by a future/different compiler, or IL-emitted) can carry it,
+                // and Roslyn still reports it via GetAttributes() on the imported symbol (confirmed by a
+                // direct probe: built such a constructor via PersistedAssemblyBuilder, referenced it, and
+                // confirmed both that a real C# compiler rejects `new T(...)` with CS9041, and that this
+                // generator's own Roslyn APIs see the attribute on the imported symbol identically to any
+                // other constructor attribute).
+                case "System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute":
+                    var isOptional = attribute.NamedArguments
+                        .FirstOrDefault(static na => na.Key == "IsOptional").Value is { Value: true };
+                    if (isOptional)
+                        continue;
+                    // Best-effort: the feature name renders correctly against a real compiled reference
+                    // assembly, but falls back to "..." rather than failing when it can't be read (e.g.
+                    // an IL-emitted PersistedAssemblyBuilder reference, as this file's own test coverage
+                    // uses) - this is purely cosmetic, the rejection itself doesn't depend on the name.
+                    var featureName = attribute.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is string feature
+                        ? feature
+                        : "...";
+                    return $"[CompilerFeatureRequired(\"{featureName}\")]";
             }
         }
 
         return null;
     }
+
+    // PR #140 Codex review round 8 - a constructor marked [RequiresDynamicCode]/[RequiresUnreferencedCode]
+    // compiles and runs fine under ordinary JIT execution (this is purely an analyzer-surfaced hint, not
+    // a compiler-enforced restriction the way the ProhibitedCallSiteAttribute family is), but using it
+    // from Compono.Generators' generated direct `new T(...)` call produces a real IL3050/IL2026 warning
+    // for any consumer with trim/AOT analysis enabled (confirmed by direct probe) - exactly the failure
+    // mode these attributes exist to flag, so it's excluded from the usable-constructor set entirely
+    // rather than emitted and hoped clean.
+    private static bool HasProhibitedAotAttribute(IMethodSymbol constructor) =>
+        constructor.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() is
+            "System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute" or
+            "System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute");
 
     private static DiagnosticInfo ProhibitedConstructorDiagnostic(INamedTypeSymbol type, string methodDisplayName, LocationInfo? location, string prohibitedAttribute) =>
         new(
@@ -590,6 +647,57 @@ internal static class AotComposeMethodDiscovery
             type.ToDisplayString(),
             methodDisplayName,
             prohibitedAttribute);
+
+    // PR #140 Codex review round 8 (CMP0048) - round 5's explicit-cast fix for the overload-hijack
+    // finding only defends against ordinary overload resolution; it does nothing against
+    // [OverloadResolutionPriority], which prunes candidates to the highest-priority group *before*
+    // applicability/conversion quality is even compared - confirmed by direct probe that a higher-
+    // priority accessible sibling constructor still wins even when the call site's argument is cast to
+    // the selected constructor's own parameter type. Conservative by design (predictability over magic,
+    // ADR-0001): any accessible sibling with an explicit priority strictly greater than the selected
+    // constructor's own (default 0 if absent) is treated as a potential supersession, regardless of
+    // whether its parameter shape would actually be applicable to the rendered arguments - correctly
+    // computing real C# overload applicability at compile time here would mean reimplementing overload
+    // resolution itself, which this generator has consistently avoided elsewhere (round 3's two-gate
+    // restructure took the same "diagnostic over cleverness" position for ref/out/in ambiguity).
+    private static IMethodSymbol? FindHigherPriorityAccessibleSibling(INamedTypeSymbol type, IMethodSymbol selected, Compilation compilation)
+    {
+        var selectedPriority = OverloadResolutionPriorityOf(selected);
+
+        foreach (var candidate in type.Constructors)
+        {
+            if (SymbolEqualityComparer.Default.Equals(candidate, selected))
+                continue;
+
+            if (OverloadResolutionPriorityOf(candidate) <= selectedPriority)
+                continue;
+
+            if (compilation.IsSymbolAccessibleWithin(candidate, compilation.Assembly))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static int OverloadResolutionPriorityOf(IMethodSymbol constructor)
+    {
+        foreach (var attribute in constructor.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.OverloadResolutionPriorityAttribute"
+                && attribute.ConstructorArguments is [{ Value: int priority }])
+                return priority;
+        }
+
+        return 0;
+    }
+
+    private static DiagnosticInfo SupersededByPriorityDiagnostic(INamedTypeSymbol type, IMethodSymbol supersedingConstructor, string methodDisplayName, LocationInfo? location) =>
+        new(
+            DiagnosticDescriptors.ProfileConstructorSupersededByPriority,
+            location,
+            type.ToDisplayString(),
+            methodDisplayName,
+            supersedingConstructor.ToDisplayString());
 
     private static AotComposeMethodInfo Unsupported(
         string fullyQualifiedTestClassName,

@@ -602,3 +602,47 @@ own three):
 `Compono.Generators` build 0 warnings/errors, `Compono.Generators.Tests` 706/706,
 `Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
 re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 8** found three more real gaps - the third the most severe of any round so
+far, a genuine silent-wrong-construction bug in round 5's own overload-hijack fix:
+
+- **A constructor marked `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]` compiles and runs fine
+  under JIT but produces a real `IL3050`/`IL2026` warning for any `PublishAot=true`/trim-analyzed
+  consumer of the generated direct call** - confirmed by direct probe. Unlike the `CMP0047` family
+  (a hard compiler error), this is only an analyzer-surfaced warning - but it directly contradicts this
+  package's own "zero `IL2xxx`/`IL3xxx` warnings" Native AOT proof, so it's treated the same way
+  `dynamic` was in round 6: excluded from the usable-constructor set entirely (folded into
+  `CMP0041`/`CMP0042`), applied to both the `TConfig` and `TProfile` constructor filters.
+- **`CMP0047`'s check only recognized `[Obsolete(error: true)]` and `[Experimental(...)]`, not
+  non-optional `[CompilerFeatureRequired("...")]`** - a third attribute in the same "any use is a
+  compiler error" bucket (`CS9041` specifically). Source code can never apply this attribute directly
+  (`CS8335` blocks it), but a constructor imported from *referenced* metadata (e.g. compiled by a
+  future/different compiler) can carry it, and Roslyn reports it identically to any other constructor
+  attribute on the imported symbol - confirmed by building exactly such a constructor via
+  `System.Reflection.Emit.PersistedAssemblyBuilder` and referencing it. `ProhibitedCallSiteAttribute`
+  generalized again to recognize this third shape.
+- **Round 5's overload-hijack fix (casting every rendered argument to the selected constructor's own
+  declared parameter type) does not defend against
+  `[System.Runtime.CompilerServices.OverloadResolutionPriorityAttribute]`.** Confirmed by direct probe:
+  an accessible sibling constructor marked with a higher priority value still wins ordinary overload
+  resolution *even with the explicit cast in place*, because C#'s priority-pruning happens before
+  applicability/conversion-quality comparison is ever reached - unlike the plain accessible-internal-
+  sibling shape round 5 fixed (where the cast genuinely does disambiguate), there is no codegen shape
+  that can defeat this. Added a new diagnostic, `CMP0048`, and a conservative cross-constructor check
+  (`FindHigherPriorityAccessibleSibling`): if *any* accessible sibling constructor of `TConfig`/`TProfile`
+  carries an explicit priority strictly greater than the selected constructor's own (default 0), reject -
+  regardless of whether that sibling's parameter shape would actually apply to the rendered arguments,
+  since correctly computing real overload applicability at compile time here would mean reimplementing
+  overload resolution itself (consistent with round 3's "diagnostic over cleverness" precedent for
+  ref/out/in ambiguity).
+
+Four new tests: `TwoTypeParameterAttribute_TConfigConstructorRequiresDynamicCode_ReportsCmp0041`,
+`TwoTypeParameterAttribute_TProfileConstructorRequiresUnreferencedCode_ReportsCmp0042` (round 7's lesson
+- test both the `TConfig` and `TProfile` branches, not just one),
+`TwoTypeParameterAttribute_TConfigConstructorSupersededByOverloadPriority_ReportsCmp0048`, and
+`TwoTypeParameterAttribute_TConfigConstructorIsCompilerFeatureRequired_ReportsCmp0047` (the last built
+against a real IL-emitted reference assembly via `PersistedAssemblyBuilder`, the only way to legally
+reproduce a `[CompilerFeatureRequired]`-marked constructor at all). Re-validated: full `Compono.Generators`
+build 0 warnings/errors, `Compono.Generators.Tests` 714/714, `Compono.XunitV3.Aot.Tests` 18/18,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.

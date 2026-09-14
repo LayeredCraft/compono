@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (92,20)-(92,71),
+      Message: 'TestNamespace.RequiresUnreferencedCodeConfigProfile' is used as the TProfile type argument of [Compose<TestNamespace.RequiresUnreferencedCodeConfigProfile, TestNamespace.RequiresUnreferencedCodeConfig>] on 'TestNamespace.Cmp0042RequiresUnreferencedCodeTests.Test_profile_constructor_requires_unreferenced_code', but must have exactly one public constructor accepting a single 'TestNamespace.RequiresUnreferencedCodeConfig' parameter - it has 0,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0042,
+        Title: Profile type does not have exactly one public constructor accepting its configuration type,
+        MessageFormat: '{0}' is used as the TProfile type argument of [Compose<{0}, {1}>] on '{2}', but must have exactly one public constructor accepting a single '{1}' parameter - it has {3},
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

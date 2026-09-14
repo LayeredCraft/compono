@@ -135,7 +135,8 @@ attribute's own compile-time-constant constructor arguments:
 | `CMP0044` | `TProfile`, `TConfig`, or a `typeof(...)`/enum-typed argument's own type isn't accessible from the generated top-level registration (commonly: a profile/config type nested `private` inside the attributed test class) |
 | `CMP0045` | More than one Compose-family attribute (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) on one test method |
 | `CMP0046` | The selected `TConfig`/`TProfile` constructor doesn't satisfy the type's `required` members |
-| `CMP0047` | The selected `TConfig`/`TProfile` constructor is marked `[Obsolete("...", error: true)]` or `[Experimental("...")]`, making any use of it a compiler error |
+| `CMP0047` | The selected `TConfig`/`TProfile` constructor is marked `[Obsolete("...", error: true)]`, `[Experimental("...")]`, or non-optional `[CompilerFeatureRequired("...")]`, making any use of it a compiler error |
+| `CMP0048` | An accessible sibling constructor with a higher `[OverloadResolutionPriority]` could silently supersede the selected `TConfig`/`TProfile` constructor at the generated call site |
 
 This is a deliberate, documented divergence — not accidental drift between
 the two packages: earlier, IDE-visible feedback instead of a
