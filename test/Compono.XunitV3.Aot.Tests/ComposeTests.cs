@@ -90,3 +90,38 @@ public sealed class TwoTypeParameterComposeTests
         Assert.Equal(7, quantity);
     }
 }
+
+// PR #140 Codex review round 5 - real, runtime proof (not just a generator snapshot) that the
+// generated `new OverloadConfig((object)"value")` call actually invokes the *public* constructor
+// Compono.Generators selected and validated, not the more-specific *internal* one ordinary C# overload
+// resolution would otherwise prefer (the generated registration lives in this same assembly, so the
+// internal constructor is genuinely accessible from it). Each constructor sets a different observable
+// value specifically so a real xUnit run - not just "it compiled" - proves which one actually ran.
+public sealed class OverloadConfig
+{
+    public OverloadConfig(object value) => Source = "public(object)";
+
+    internal OverloadConfig(string value) => Source = "internal(string)";
+
+    public string Source { get; }
+}
+
+public sealed class OverloadProfile : ICompositionProfile
+{
+    private readonly OverloadConfig _config;
+
+    public OverloadProfile(OverloadConfig config) => _config = config;
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register<string>(() => _config.Source);
+}
+
+public sealed class OverloadSelectionTests
+{
+    [Theory]
+    [Compose<OverloadProfile, OverloadConfig>("value")]
+    public void TConfigWithMoreSpecificInternalOverload_UsesSelectedPublicConstructor(string source)
+    {
+        Assert.Equal("public(object)", source);
+    }
+}

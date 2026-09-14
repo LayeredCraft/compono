@@ -477,3 +477,46 @@ argument), `TwoTypeParameterAttribute_InaccessibleTypeInsideArrayArgument_Report
 full build 0 warnings/errors, `Compono.Generators.Tests` 692/692, `Compono.XunitV3.Aot.Tests` 15/15,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 5** found two more real, confirmed bugs - the second a genuine crash
+(worse than described, an outright `NullReferenceException`, not merely an unhandled edge case):
+
+- **Generated `TConfig` construction could silently resolve to a different, more-specific accessible
+  constructor than the one `Compono.Generators` selected and validated.** The generated registration
+  is a `file`-scoped type living in the *consumer's own assembly* - so if `TConfig` has one public
+  constructor (the one `CMP0041` selects) and an `internal` sibling constructor with a more specific
+  parameter type (e.g. public `TConfig(object)` + internal `TConfig(string)`), the generated
+  `new TConfig("value")` call is genuinely ambiguous to the C# compiler, which resolves it to the
+  more-specific `internal TConfig(string)` overload via ordinary overload resolution - silently
+  constructing `TConfig` differently than what was validated. `Compono.XunitV3.Binding
+  .ConfigProfileBinder` never has this problem: `ConstructorInfo.Invoke` invokes the *exact*
+  `ConstructorInfo` it already resolved, with no overload resolution involved at all. Fixed by
+  wrapping every rendered constructor argument in an explicit cast to the *selected* constructor's own
+  declared parameter type (`(object)"value"`, not the bare `"value"` `TypedConstantLiteralRenderer`
+  already rendered) - `AotProfileConfigArgumentInfo` now also carries
+  `FullyQualifiedParameterTypeName` for this. Confirmed as a real, reachable divergence by reasoning
+  through C# overload-resolution rules (an internal sibling constructor genuinely is accessible from
+  the generated file), then proven concretely with a real, JIT-executed test
+  (`TConfigWithMoreSpecificInternalOverload_UsesSelectedPublicConstructor` in
+  `Compono.XunitV3.Aot.Tests`, not just a generator snapshot) - each constructor sets a different
+  observable value, and the test asserts the *public* one actually ran.
+- **`EmbeddedTypes`' array-element recursion (round 4's own `CMP0044` fix) crashed on a legitimately
+  null argument.** A bare `[Compose<P, C>(null)]` targeting a nullable `TConfig` constructor parameter
+  is valid, common usage - `NormalizeConstructorArguments` already handles it (the whole params array
+  binds as `IsNull = true`, normalized to "one supplied argument, whose value is null"), and
+  `TypedConstantMatcher.Validate` already correctly reports it `Valid` for a nullable parameter. But
+  that same null `TypedConstant` still reports `Kind = Array` (matching the params array's own
+  declared type), and accessing its `.Values` property throws `NullReferenceException` outright -
+  confirmed by a direct probe, worse than the "empty array" framing the finding used. `EmbeddedTypes`
+  didn't guard `IsNull` before recursing into `.Values`, so this real, reachable shape crashed the
+  generator. Fixed with an `IsNull` guard at the top of `EmbeddedTypes`, returning no embedded types
+  for a null constant (mirroring the same guard `TypedConstantMatcher.Validate`/
+  `TypedConstantLiteralRenderer.Render` already had, just missing from this newer helper).
+
+Three new tests: `TwoTypeParameterAttribute_ArgumentCastToSelectedConstructorParameterType` (generator
+snapshot proving the cast is emitted), `TConfigWithMoreSpecificInternalOverload_
+UsesSelectedPublicConstructor` (real JIT execution in `Compono.XunitV3.Aot.Tests`, described above),
+`TwoTypeParameterAttribute_NullArgumentForNullableParameter_DoesNotCrash`. Re-validated: full build 0
+warnings/errors, `Compono.Generators.Tests` 696/696, `Compono.XunitV3.Aot.Tests` 18/18,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.

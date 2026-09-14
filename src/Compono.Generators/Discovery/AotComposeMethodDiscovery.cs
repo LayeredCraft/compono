@@ -375,7 +375,9 @@ internal static class AotComposeMethodDiscovery
                 }
             }
 
-            renderedArguments.Add(new AotProfileConfigArgumentInfo(TypedConstantLiteralRenderer.Render(argument, parameter.Type)));
+            renderedArguments.Add(new AotProfileConfigArgumentInfo(
+                TypedConstantLiteralRenderer.Render(argument, parameter.Type),
+                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
         }
 
         return new AotProfileInfo(
@@ -442,8 +444,16 @@ internal static class AotComposeMethodDiscovery
     // PR #140 Codex review round 4: recurses into array elements, not just the top-level constant -
     // typeof(...)/enum-typed values embedded inside an array argument (e.g. new PrivateEnum[] { ... })
     // need the same accessibility check a top-level typeof(...)/enum argument already gets.
+    // PR #140 Codex review round 5: a null array constant (e.g. the whole params array is null, per
+    // NormalizeConstructorArguments' own null-array handling for a bare [Compose<P, C>(null)] use
+    // site) still reports Kind = Array, but its .Values throws NullReferenceException - confirmed by
+    // a direct probe, not merely an empty-array edge case. Guarded first, uniformly, since IsNull is
+    // meaningful for every Kind this switch handles, not just Array.
     private static IEnumerable<ITypeSymbol> EmbeddedTypes(TypedConstant constant)
     {
+        if (constant.IsNull)
+            yield break;
+
         switch (constant.Kind)
         {
             case TypedConstantKind.Type:

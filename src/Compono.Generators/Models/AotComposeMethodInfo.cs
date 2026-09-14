@@ -47,4 +47,18 @@ internal sealed record AotProfileInfo(
 /// <see cref="Emitters.TypedConstantLiteralRenderer"/> produced at discovery time, in
 /// <c>TConfig</c>'s constructor's own declared parameter order.
 /// </summary>
-internal sealed record AotProfileConfigArgumentInfo(string RenderedLiteral);
+/// <param name="RenderedLiteral">
+/// The argument's own literal C# source text (<c>"value"</c>, <c>(global::Ns.SomeEnum)1</c>, ...).
+/// </param>
+/// <param name="FullyQualifiedParameterTypeName">
+/// The selected constructor parameter's own declared type - the generated call wraps
+/// <see cref="RenderedLiteral"/> in an explicit cast to this type (PR #140 Codex review round 5): the
+/// generated registration lives in the *consumer's own assembly*, so an internal-but-accessible
+/// sibling constructor overload with a more specific parameter type could otherwise win ordinary C#
+/// overload resolution instead of the one <c>Compono.Generators</c> actually selected and validated
+/// (e.g. a public <c>TConfig(object)</c> plus an internal <c>TConfig(string)</c>, with a string
+/// literal argument - <c>Compono.XunitV3.Binding.ConfigProfileBinder</c> never has this problem,
+/// since <c>ConstructorInfo.Invoke</c> invokes the exact constructor it resolved, with no overload
+/// resolution involved at all).
+/// </param>
+internal sealed record AotProfileConfigArgumentInfo(string RenderedLiteral, string FullyQualifiedParameterTypeName);

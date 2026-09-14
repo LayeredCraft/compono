@@ -17,7 +17,7 @@ file static class AotTheoryDataRowRegistration
             factory: static disposalTracker =>
             {
 {{~ if profile && profile.config_type_name ~}}
-                var profileConfig = new {{ profile.config_type_name }}({{ for a in profile.config_arguments }}{{ a }}{{ if !for.last }}, {{ end }}{{ end }});
+                var profileConfig = new {{ profile.config_type_name }}({{ for a in profile.config_arguments }}({{ a.fully_qualified_parameter_type_name }}){{ a.rendered_literal }}{{ if !for.last }}, {{ end }}{{ end }});
                 var profileInstance = new {{ profile.profile_type_name }}(profileConfig);
                 var composer = global::Compono.Composer.Create(b => b.AddProfile(profileInstance));
 {{~ else if profile ~}}

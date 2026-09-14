@@ -17,7 +17,7 @@ file static class AotTheoryDataRowRegistration
             disableDiscoveryEnumeration: true,
             factory: static disposalTracker =>
             {
-                var profileConfig = new global::TestNamespace.FloatingPointConfig(double.NaN, double.PositiveInfinity, double.NegativeInfinity, -(double)0, float.NaN);
+                var profileConfig = new global::TestNamespace.FloatingPointConfig((double)double.NaN, (double)double.PositiveInfinity, (double)double.NegativeInfinity, (double)-(double)0, (float)float.NaN);
                 var profileInstance = new global::TestNamespace.FloatingPointProfile(profileConfig);
                 var composer = global::Compono.Composer.Create(b => b.AddProfile(profileInstance));
                 var row = composer.CreateRow(typeof(global::TestNamespace.FloatingPointTests));

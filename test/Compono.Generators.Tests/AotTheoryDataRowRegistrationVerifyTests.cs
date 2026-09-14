@@ -1030,6 +1030,83 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             "CMP0044",
             TestContext.Current.CancellationToken);
 
+    // PR #140 Codex review round 5 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_ArgumentCastToSelectedConstructorParameterType() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = XunitAotStandIns + """
+
+                namespace TestNamespace
+                {
+                    public sealed class OverloadConfig
+                    {
+                        // The public constructor is the one CMP0041 selects and validates - but
+                        // without an explicit cast, `new OverloadConfig("value")` in the *generated*
+                        // file (which lives in the same, consuming assembly, so the internal
+                        // constructor is accessible there too) would resolve to the more-specific
+                        // internal overload via ordinary C# overload resolution instead, silently
+                        // diverging from what was selected. Compono.XunitV3.Binding.ConfigProfileBinder
+                        // never has this problem - ConstructorInfo.Invoke invokes the exact constructor
+                        // it resolved, with no overload resolution involved at all.
+                        public OverloadConfig(object value) { }
+                        internal OverloadConfig(string value) { }
+                    }
+
+                    public sealed class OverloadProfile : Compono.ICompositionProfile
+                    {
+                        public OverloadProfile(OverloadConfig config) { }
+                        public void Configure(Compono.CompositionBuilder builder) { }
+                    }
+
+                    public sealed class OverloadTests
+                    {
+                        [Compono.XunitV3.Aot.Compose<OverloadProfile, OverloadConfig>("value")]
+                        public void Test_config_has_more_specific_internal_overload(string value)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_NullArgumentForNullableParameter_DoesNotCrash() =>
+        GeneratorTestHelpers.Verify(new CodeGenerationOptions
+        {
+            SourceCode = XunitAotStandIns + """
+
+                namespace TestNamespace
+                {
+                    public sealed class NullableArgConfig
+                    {
+                        public NullableArgConfig(string? label) { }
+                    }
+
+                    public sealed class NullableArgProfile : Compono.ICompositionProfile
+                    {
+                        public NullableArgProfile(NullableArgConfig config) { }
+                        public void Configure(Compono.CompositionBuilder builder) { }
+                    }
+
+                    public sealed class NullableArgTests
+                    {
+                        // A bare `null` binds to the params object?[] parameter in non-expanded form
+                        // (the whole array is null, per NormalizeConstructorArguments' own handling) -
+                        // the resulting TypedConstant reports Kind = Array with IsNull = true, and its
+                        // own .Values throws NullReferenceException if accessed without an IsNull guard
+                        // first (confirmed by a direct probe) - EmbeddedTypes' recursive array-element
+                        // walk (added for CMP0044's own array-recursion fix) hit exactly this.
+                        [Compono.XunitV3.Aot.Compose<NullableArgProfile, NullableArgConfig>(null)]
+                        public void Test_supplies_null_for_nullable_parameter(string value)
+                        {
+                        }
+                    }
+                }
+                """,
+        }, TestContext.Current.CancellationToken);
+
     [Fact]
     public Task RefStructParameterType_ReportsCmp0040() =>
         GeneratorTestHelpers.VerifyFailure(
