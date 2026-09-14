@@ -225,7 +225,14 @@ internal static class AotComposeMethodDiscovery
         // ConstructorInfo.Invoke, confirmed by direct probe to actually succeed there), so it's still
         // rejected, just at the second gate rather than folded into the first.
         var configType = configTypeArgument as INamedTypeSymbol;
-        var allConfigConstructors = configType is { IsAbstract: false }
+        // PR #140 Codex review round 14: computed unconditionally (not gated on `IsAbstract: false`) so
+        // an abstract TConfig's diagnostic can still report its true declared public-constructor count -
+        // round 13 added an explicit "public constructor(s)" noun to the raw-ambiguity gate's message,
+        // which turned the pre-existing "abstract types report as having 0" shortcut below (`
+        // allConfigConstructors`, still correctly forced to empty for the *usability* gate - an abstract
+        // type can never be `new`'d regardless of how many constructors it declares) into an outright
+        // false claim for an abstract type that actually has one or more public constructors.
+        var rawConfigConstructors = configType?.Constructors
             // A struct's own compiler-synthesized parameterless constructor (no constructor explicitly
             // declared) is real, discoverable Roslyn metadata (INamedTypeSymbol.Constructors includes
             // it, IsImplicitlyDeclared = true, confirmed by direct probe) but is *not* reflectable -
@@ -239,11 +246,14 @@ internal static class AotComposeMethodDiscovery
             // by a direct probe) - excluding it too would have made an entirely ordinary `class Config
             // { }` fail CMP0041 with "has 0" when JIT-mode succeeds. `configType.IsValueType` is the
             // exact condition that distinguishes the two cases.
-            ? configType.Constructors
-                .Where(c => c.DeclaredAccessibility == Accessibility.Public
-                    && !(configType.IsValueType && c.IsImplicitlyDeclared))
-                .ToArray()
-            : Array.Empty<IMethodSymbol>();
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public
+                && !(configType.IsValueType && c.IsImplicitlyDeclared))
+            .ToArray() ?? Array.Empty<IMethodSymbol>();
+
+        // The *usability* gate below still needs abstract forced to zero regardless of `rawConfigConstructors`
+        // - an abstract type can never be constructed via `new T(...)` no matter how many constructors it
+        // declares, so it must always fail this gate, but with the message now reporting the true count.
+        var allConfigConstructors = configType is { IsAbstract: false } ? rawConfigConstructors : Array.Empty<IMethodSymbol>();
 
         if (allConfigConstructors.Length != 1)
         {
@@ -253,7 +263,7 @@ internal static class AotComposeMethodDiscovery
                 configDisplayName,
                 profileDisplayName,
                 methodDisplayName,
-                allConfigConstructors.Length,
+                rawConfigConstructors.Length,
                 // PR #140 Codex review round 13: this raw-ambiguity gate's count is the raw public-
                 // constructor count, BEFORE the second gate's usability filtering - a TConfig with two
                 // public constructors, one ordinary and one disqualified by a by-ref/dynamic parameter,

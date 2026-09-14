@@ -789,3 +789,33 @@ both message shapes explicitly. Eight existing `CMP0041` snapshot tests' `.verif
 generated-code change). Re-validated: full build 0 warnings/errors, `Compono.Generators.Tests` 720/720,
 `Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
 re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 14** found two more real findings - both fallout from round 13's own fix,
+in the exact CMP0041/CMP0042 wording area round 13 had touched:
+
+- **Round 13's fix (adding an explicit "public constructor(s)" noun to `CMP0041`'s raw-ambiguity gate)
+  surfaced a pre-existing shortcut (rounds 1/4: an abstract `TConfig` synthesizes as having 0
+  constructors, since abstract types can never be `new`'d directly regardless of declared count) as an
+  outright false claim** - an abstract `TConfig` that genuinely declares one or more public constructors
+  now reported "it has 0 public constructor(s)", which is factually wrong (it may well have 1, 2, or
+  more - they're just all unusable because the type is abstract). Before round 13's fix this was merely
+  vague ("it has 0" with no noun); round 13's own improvement is what turned it into a false claim.
+  **Fixed:** computed a separate `rawConfigConstructors` (the type's true declared public-constructor
+  count, computed unconditionally rather than gated on `IsAbstract: false`) used only for the message,
+  while the actual usability-gate check (`allConfigConstructors`) still correctly forces abstract types
+  to fail regardless of that count. Added
+  `TwoTypeParameterAttribute_TConfigIsAbstractWithDeclaredPublicConstructor_ReportsTrueCountNotZero` -
+  the first test coverage for an abstract `TConfig` with a declared constructor at all (its absence is
+  exactly why this shipped untested in round 13).
+- **`CMP0042`'s message template was never given the `{4}` noun-phrase treatment round 13 added to
+  `CMP0041`** - round 13's own reasoning correctly concluded `CMP0042`'s count is always accurate (its
+  usability filters are folded into one combined predicate before counting, unlike `CMP0041`'s two
+  sequential gates), but that conclusion was about *accuracy*, not *completeness* - the message text
+  itself still read "it has 0 (a constructor with..." with no noun between the count and the
+  parenthetical, an incomplete sentence. **Fixed:** added "usable public constructor(s)" directly into
+  `CMP0042`'s fixed message template (no new format argument needed, since `CMP0042` never varies its
+  noun the way `CMP0041` does). Existing `CMP0042` snapshot tests updated for the corrected wording.
+
+Re-validated: full build 0 warnings/errors, `Compono.Generators.Tests` 722/722 (one new test),
+`Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
+re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.

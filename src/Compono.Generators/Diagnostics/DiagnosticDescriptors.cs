@@ -398,7 +398,12 @@ internal static class DiagnosticDescriptors
     // when only one is. Fixed properly this time: `{4}` carries the noun phrase itself, so each gate
     // supplies wording that actually matches what `{3}` counts - "public constructor(s)" for the first
     // (raw-ambiguity) gate, "usable public constructor(s)" plus the disqualifying-shapes explanation for
-    // the second (usability) gate.
+    // the second (usability) gate. Round 14 caught that round 13's own fix, in turn, surfaced a
+    // pre-existing "abstract TConfig synthesizes as 0 constructors" shortcut (rounds 1/4) as an outright
+    // false claim, once the raw-ambiguity gate started explicitly saying "public constructor(s)" - an
+    // abstract TConfig that actually declares one or more public constructors (just can't be `new`'d
+    // directly) now reports its TRUE declared count via a separately-computed `rawConfigConstructors`,
+    // while the usability gate itself still forces abstract types to fail regardless of that count.
     public static readonly DiagnosticDescriptor InvalidProfileConfigConstructorShape = new(
         "CMP0041",
         "Profile configuration type does not have exactly one usable public constructor",
@@ -412,8 +417,8 @@ internal static class DiagnosticDescriptors
         "CMP0042",
         "Profile type does not have exactly one usable public constructor accepting its configuration type",
         "'{0}' is used as the TProfile type argument of [Compose<{0}, {1}>] on '{2}', but must have " +
-        "exactly one usable public constructor accepting a single '{1}' parameter - it has {3} (a " +
-        "constructor with a ref/out/in parameter, or one marked " +
+        "exactly one usable public constructor accepting a single '{1}' parameter - it has {3} usable " +
+        "public constructor(s) (a constructor with a ref/out/in parameter, or one marked " +
         "[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] does not count as " +
         "usable)",
         "Compono.Usage",

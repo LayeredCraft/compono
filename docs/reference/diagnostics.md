@@ -627,11 +627,13 @@ AOT direct-construction codegen: it has a `ref`/`out`/`in` parameter, a
 2 — AOT-only restrictions `ConfigProfileBinder`'s reflection-based
 construction never needed). `{Count}` and the noun phrase describing it
 change together depending on which case fired: the raw-ambiguity case
-reports the *raw* public-constructor count (which can be `2` or more,
-none individually confirmed usable, or `0`); the sole-but-unusable case
-reports the *usable* count, which is always `0` in that case even though
-`TConfig` has exactly one public constructor in the ordinary sense — the
-constructor exists, it just isn't usable here.
+reports the *raw* public-constructor count — always the type's true
+declared count, including when `TConfig` is abstract (an abstract type
+still always fails this check, since it can never be `new`'d directly,
+regardless of how many public constructors it declares); the
+sole-but-unusable case reports the *usable* count, which is always `0`
+in that case even though `TConfig` has exactly one public constructor in
+the ordinary sense — the constructor exists, it just isn't usable here.
 
 **Fix:** Give `TConfig` exactly one public constructor, with no
 `ref`/`out`/`in` or `dynamic`-typed parameter and no
@@ -645,7 +647,8 @@ attribute.
 **Message:** `'{TProfile}' is used as the TProfile type argument of
 [Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
 usable public constructor accepting a single '{TConfig}' parameter - it
-has {Count} (a constructor with a ref/out/in parameter, or one marked
+has {Count} usable public constructor(s) (a constructor with a
+ref/out/in parameter, or one marked
 [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
 does not count as usable)`
 

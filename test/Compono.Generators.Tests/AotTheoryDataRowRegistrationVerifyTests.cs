@@ -1657,4 +1657,46 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0048",
             TestContext.Current.CancellationToken);
+
+    // PR #140 Codex review round 14 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigIsAbstractWithDeclaredPublicConstructor_ReportsTrueCountNotZero() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 14: an abstract TConfig can never be `new`'d
+                        // directly regardless of how many public constructors it declares, so the
+                        // usability gate must still force it to fail here - but round 13's own fix
+                        // (adding an explicit "public constructor(s)" noun to the raw-ambiguity gate's
+                        // message) turned the pre-existing "abstract synthesizes as 0" shortcut into an
+                        // outright false claim for a type like this one, which genuinely declares one
+                        // public constructor. The message must report "it has 1", not "it has 0".
+                        public abstract class AbstractConfigWithCtor
+                        {
+                            public AbstractConfigWithCtor(string value) { }
+                        }
+
+                        public sealed class AbstractConfigProfile : Compono.ICompositionProfile
+                        {
+                            public AbstractConfigProfile(AbstractConfigWithCtor config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041AbstractConfigTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<AbstractConfigProfile, AbstractConfigWithCtor>("value")]
+                            public void Test_config_is_abstract_with_one_declared_public_constructor(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
 }
