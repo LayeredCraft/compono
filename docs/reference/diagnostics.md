@@ -712,28 +712,34 @@ needed, set it via the constructor and mark the constructor
 `[SetsRequiredMembers]`, or choose a different `TConfig`/`TProfile` type
 that doesn't have this shape.
 
-## CMP0047 — Selected `TConfig`/`TProfile` constructor is marked `[Obsolete(error: true)]`
+## CMP0047 — Selected `TConfig`/`TProfile` constructor cannot be used at its generated call site
 
 **Severity:** Error.
 
-**Message:** `'{Type}''s selected constructor is marked
-[Obsolete(error: true)] (used by [Compose<...>] on '{Method}') -
-Compono.Generators constructs '{Type}' via a direct new {Type}(...) call
-in the generated registration, which would fail with CS0619`
+**Message:** `'{Type}''s selected constructor is marked {Attribute},
+which makes any use of it a compiler error (used by [Compose<...>] on
+'{Method}') - Compono.Generators constructs '{Type}' via a direct new
+{Type}(...) call in the generated registration, which would fail to
+compile`
 
 **Cause:** `[Compose<TProfile, TConfig>]`'s selected `TConfig`/`TProfile`
-constructor is marked `[Obsolete("...", error: true)]`. The constructor
-is otherwise completely ordinary and ships as a valid selection through
-every other check (`CMP0041`/`CMP0042`/`CMP0046`) — but
-`Compono.Generators` constructs both types via a direct `new T(...)` call
-in the generated registration, and the compiler rejects any use of an
-`[Obsolete(error: true)]` member with `CS0619`.
+constructor is marked with an attribute that makes any *use* of that
+constructor a compiler error — either `[Obsolete("...", error: true)]`
+(rejected with `CS0619`) or
+`[System.Diagnostics.CodeAnalysis.Experimental("...")]` (rejected with
+the attribute's own diagnostic ID, e.g. `EXP001`, at default severity
+Error). The constructor is otherwise completely ordinary and ships as a
+valid selection through every other check
+(`CMP0041`/`CMP0042`/`CMP0046`) — but `Compono.Generators` constructs
+both types via a direct `new T(...)` call in the generated registration,
+which can't use a constructor marked this way.
 `[Obsolete("...")]`/`[Obsolete("...", error: false)]` (a warning, not an
 error) doesn't trigger this diagnostic — the generated registration still
 compiles.
 
-**Fix:** Choose a different, non-obsolete `TConfig`/`TProfile`
-constructor, or a different `TConfig`/`TProfile` type entirely.
+**Fix:** Choose a different constructor that isn't marked
+`[Obsolete(error: true)]`/`[Experimental]`, or a different
+`TConfig`/`TProfile` type entirely.
 
 ## Next
 

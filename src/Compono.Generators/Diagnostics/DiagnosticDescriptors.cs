@@ -455,15 +455,20 @@ internal static class DiagnosticDescriptors
     // [Obsolete(error: true)] passes every shape/accessibility/required-members check above but
     // produces an uncompilable `new T(...)` call (CS0619) in the generated registration - caught here
     // as its own diagnostic rather than folded into CMP0041/CMP0042's "0 usable constructors" count,
-    // since (unlike ref/out/in or dynamic) an [Obsolete(error: true)] constructor is otherwise a
-    // completely normal, JIT-reflectable constructor - this is purely a "the generated call site can't
-    // use it" problem, not a shape problem.
-    public static readonly DiagnosticDescriptor ObsoleteProfileConstructor = new(
+    // since (unlike ref/out/in or dynamic) such a constructor is otherwise a completely normal,
+    // JIT-reflectable constructor - this is purely a "the generated call site can't use it" problem,
+    // not a shape problem. PR #140 Codex review round 7: generalized to also catch
+    // [System.Diagnostics.CodeAnalysis.Experimental("...")] (confirmed by direct compile probe to be a
+    // second, independent standard attribute that makes any *use* of the marked constructor a compiler
+    // error - always severity Error, with a diagnostic ID the attribute itself supplies) - same
+    // underlying problem class as [Obsolete(error: true)], so it's reported through this same CMP0047
+    // diagnostic rather than a new one, with the message naming which attribute was actually found.
+    public static readonly DiagnosticDescriptor ProhibitedProfileConstructor = new(
         "CMP0047",
-        "Selected TConfig/TProfile constructor is marked [Obsolete(error: true)]",
-        "'{0}''s selected constructor is marked [Obsolete(error: true)] (used by [Compose<...>] on " +
-        "'{1}') - Compono.Generators constructs '{0}' via a direct `new {0}(...)` call in the generated " +
-        "registration, which would fail with CS0619",
+        "Selected TConfig/TProfile constructor cannot be used at its generated call site",
+        "'{0}''s selected constructor is marked {2}, which makes any use of it a compiler error (used " +
+        "by [Compose<...>] on '{1}') - Compono.Generators constructs '{0}' via a direct `new {0}(...)` " +
+        "call in the generated registration, which would fail to compile",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

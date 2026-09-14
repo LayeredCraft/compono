@@ -574,3 +574,31 @@ a rejection, not a construction-correctness question):
 entry, no `RS2000`), `Compono.Generators.Tests` 702/702, `Compono.XunitV3.Aot.Tests` 18/18,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 7** found two more real gaps, both in round 6's own `CMP0047` fix:
+
+- **`CMP0047`'s check only recognized `[Obsolete(error: true)]`, not
+  `[System.Diagnostics.CodeAnalysis.Experimental("...")]`** - a second, independent standard attribute
+  with the same underlying problem: any *use* of a constructor it marks is a compiler error (its own
+  diagnostic ID, e.g. `EXP001`, at default severity Error - unlike `Obsolete`, there's no `error: false`
+  equivalent to opt out of), confirmed by a direct compile probe. Generalized the round-6 `IsObsoleteAsError`
+  helper into `ProhibitedCallSiteAttribute`, which now recognizes either attribute and returns the
+  rendered attribute syntax found (`"[Obsolete(error: true)]"` or `"[Experimental(\"EXP001\")]"`) for the
+  diagnostic message - `CMP0047`'s descriptor message was generalized to name whichever attribute was
+  actually found rather than hardcoding `[Obsolete(error: true)]`/`CS0619`, since the specific compiler
+  error differs by attribute (`CS0619` vs. the attribute's own `DiagnosticId`). Same diagnostic ID
+  (`CMP0047`) and same post-selection placement (right after the `CMP0046` checks) - this is a widened
+  detection surface for the same problem class, not a new problem class.
+- **The round-6 `CMP0047` test only exercised the `TConfig` branch of the check, never the separate
+  `TProfile` branch** - `ProhibitedCallSiteAttribute(configConstructor)` and
+  `ProhibitedCallSiteAttribute(profileConstructor)` are two independent call sites in
+  `BuildTwoTypeParameterProfile`; if the `TProfile` one were removed or broke, the existing test suite
+  would stay green. Added a dedicated test with only the `TProfile` constructor marked obsolete.
+
+Two new tests, both `VerifyFailure` generator-snapshot tests (same rejection-only reasoning as round 6's
+own three):
+`TwoTypeParameterAttribute_TProfileConstructorIsObsoleteAsError_ReportsCmp0047`,
+`TwoTypeParameterAttribute_TConfigConstructorIsExperimental_ReportsCmp0047`. Re-validated: full
+`Compono.Generators` build 0 warnings/errors, `Compono.Generators.Tests` 706/706,
+`Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
+re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.

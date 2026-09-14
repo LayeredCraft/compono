@@ -1257,4 +1257,84 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0047",
             TestContext.Current.CancellationToken);
+
+    // PR #140 Codex review round 7 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TProfileConstructorIsObsoleteAsError_ReportsCmp0047() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 7: the round-6 CMP0047 test only marked the TConfig
+                        // constructor obsolete, never exercising the separate
+                        // ProhibitedCallSiteAttribute(profileConstructor) check - this test covers that
+                        // check independently, with only the TProfile constructor marked obsolete.
+                        public sealed class ObsoleteProfileOnlyConfig
+                        {
+                            public ObsoleteProfileOnlyConfig(string value) { }
+                        }
+
+                        public sealed class ObsoleteProfileOnlyProfile : Compono.ICompositionProfile
+                        {
+                            [System.Obsolete("do not use", error: true)]
+                            public ObsoleteProfileOnlyProfile(ObsoleteProfileOnlyConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0047ObsoleteProfileConstructorTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ObsoleteProfileOnlyProfile, ObsoleteProfileOnlyConfig>("value")]
+                            public void Test_profile_constructor_is_obsolete_as_error(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0047",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorIsExperimental_ReportsCmp0047() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        // PR #140 Codex review round 7: [System.Diagnostics.CodeAnalysis.Experimental]
+                        // is a second, independent standard attribute (distinct from
+                        // [Obsolete(error: true)]) where any *use* of the marked constructor is always a
+                        // compiler error at default severity - confirmed by direct compile probe. Caught
+                        // by the same generalized ProhibitedCallSiteAttribute check, reported through the
+                        // same CMP0047 diagnostic.
+                        public sealed class ExperimentalConfig
+                        {
+                            [System.Diagnostics.CodeAnalysis.Experimental("EXP0047")]
+                            public ExperimentalConfig(string value) { }
+                        }
+
+                        public sealed class ExperimentalConfigProfile : Compono.ICompositionProfile
+                        {
+                            public ExperimentalConfigProfile(ExperimentalConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0047ExperimentalConstructorTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ExperimentalConfigProfile, ExperimentalConfig>("value")]
+                            public void Test_config_constructor_is_experimental(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0047",
+            TestContext.Current.CancellationToken);
 }

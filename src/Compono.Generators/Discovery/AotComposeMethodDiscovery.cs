@@ -322,15 +322,15 @@ internal static class AotComposeMethodDiscovery
             return null;
         }
 
-        if (IsObsoleteAsError(configConstructor))
+        if (ProhibitedCallSiteAttribute(configConstructor) is { } configProhibitedAttribute)
         {
-            diagnostics.Add(ObsoleteConstructorDiagnostic(configType!, methodDisplayName, location));
+            diagnostics.Add(ProhibitedConstructorDiagnostic(configType!, methodDisplayName, location, configProhibitedAttribute));
             return null;
         }
 
-        if (IsObsoleteAsError(profileConstructor))
+        if (ProhibitedCallSiteAttribute(profileConstructor) is { } profileProhibitedAttribute)
         {
-            diagnostics.Add(ObsoleteConstructorDiagnostic(profileType!, methodDisplayName, location));
+            diagnostics.Add(ProhibitedConstructorDiagnostic(profileType!, methodDisplayName, location, profileProhibitedAttribute));
             return null;
         }
 
@@ -559,18 +559,37 @@ internal static class AotComposeMethodDiscovery
     // pass), but Compono.Generators' generated registration calls it directly (`new T(...)`), which the
     // compiler rejects with CS0619 for this attribute shape specifically - confirmed by direct compile
     // probe. `error: false` (the default, a mere warning) is left alone: CS0618 does not block
-    // compilation, so the generated registration still builds.
-    private static bool IsObsoleteAsError(IMethodSymbol constructor) =>
-        constructor.GetAttributes().Any(static a =>
-            a.AttributeClass?.ToDisplayString() == "System.ObsoleteAttribute"
-            && a.ConstructorArguments is [_, { Value: true }]);
+    // compilation, so the generated registration still builds. PR #140 Codex review round 7: generalized
+    // to also detect [System.Diagnostics.CodeAnalysis.Experimental("...")] - confirmed by a direct
+    // compile probe to be a second, independent standard attribute where any *use* of the marked
+    // constructor is always a compiler error (the attribute's own diagnostic ID, e.g. EXP001, at default
+    // severity Error - there is no "off" mode the way Obsolete has `error: false`). Returns the rendered
+    // attribute syntax to name in the diagnostic message, or null if the constructor carries neither.
+    private static string? ProhibitedCallSiteAttribute(IMethodSymbol constructor)
+    {
+        foreach (var attribute in constructor.GetAttributes())
+        {
+            switch (attribute.AttributeClass?.ToDisplayString())
+            {
+                case "System.ObsoleteAttribute" when attribute.ConstructorArguments is [_, { Value: true }]:
+                    return "[Obsolete(error: true)]";
 
-    private static DiagnosticInfo ObsoleteConstructorDiagnostic(INamedTypeSymbol type, string methodDisplayName, LocationInfo? location) =>
+                case "System.Diagnostics.CodeAnalysis.ExperimentalAttribute":
+                    var diagnosticId = attribute.ConstructorArguments is [{ Value: string id }] ? id : "...";
+                    return $"[Experimental(\"{diagnosticId}\")]";
+            }
+        }
+
+        return null;
+    }
+
+    private static DiagnosticInfo ProhibitedConstructorDiagnostic(INamedTypeSymbol type, string methodDisplayName, LocationInfo? location, string prohibitedAttribute) =>
         new(
-            DiagnosticDescriptors.ObsoleteProfileConstructor,
+            DiagnosticDescriptors.ProhibitedProfileConstructor,
             location,
             type.ToDisplayString(),
-            methodDisplayName);
+            methodDisplayName,
+            prohibitedAttribute);
 
     private static AotComposeMethodInfo Unsupported(
         string fullyQualifiedTestClassName,

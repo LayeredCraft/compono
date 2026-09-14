@@ -1,8 +1,8 @@
 ﻿{
   Diagnostics: [
     {
-      Location: Program.cs: (95,20)-(95,64),
-      Message: 'TestNamespace.ObsoleteConfig''s selected constructor is marked [Obsolete(error: true)], which makes any use of it a compiler error (used by [Compose<...>] on 'TestNamespace.Cmp0047ObsoleteConstructorTests.Test_config_constructor_is_obsolete_as_error') - Compono.Generators constructs 'TestNamespace.ObsoleteConfig' via a direct `new TestNamespace.ObsoleteConfig(...)` call in the generated registration, which would fail to compile,
+      Location: Program.cs: (95,20)-(95,59),
+      Message: 'TestNamespace.ExperimentalConfig''s selected constructor is marked [Experimental("EXP0047")], which makes any use of it a compiler error (used by [Compose<...>] on 'TestNamespace.Cmp0047ExperimentalConstructorTests.Test_config_constructor_is_experimental') - Compono.Generators constructs 'TestNamespace.ExperimentalConfig' via a direct `new TestNamespace.ExperimentalConfig(...)` call in the generated registration, which would fail to compile,
       Severity: Error,
       Descriptor: {
         Id: CMP0047,
