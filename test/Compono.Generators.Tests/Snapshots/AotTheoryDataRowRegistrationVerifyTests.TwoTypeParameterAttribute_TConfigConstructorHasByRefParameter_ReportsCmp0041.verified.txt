@@ -1,0 +1,17 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: Program.cs: (93,20)-(93,63),
+      Message: 'TestNamespace.ByRefConfig' is used as the TConfig type argument of [Compose<TestNamespace.ByRefConfigProfile, TestNamespace.ByRefConfig>] on 'TestNamespace.Cmp0041ByRefTests.Test_config_constructor_takes_ref_parameter', but must have exactly one public constructor to be used as profile configuration - it has 0,
+      Severity: Error,
+      Descriptor: {
+        Id: CMP0041,
+        Title: Profile configuration type does not have exactly one public constructor,
+        MessageFormat: '{0}' is used as the TConfig type argument of [Compose<{1}, {0}>] on '{2}', but must have exactly one public constructor to be used as profile configuration - it has {3},
+        Category: Compono.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

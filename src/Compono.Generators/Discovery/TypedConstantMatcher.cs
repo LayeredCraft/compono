@@ -32,6 +32,16 @@ internal static class TypedConstantMatcher
         if (constant.Type is null)
             return TypedConstantValidation.TypeMismatch;
 
+        // PR #140 Codex review round 2: during an incomplete/erroneous compilation (a live IDE
+        // analysis pass mid-edit, most commonly), Roslyn can hand back a TypedConstant of
+        // Kind = Error whose Type is still the parameter's own declared type - ClassifyConversion
+        // would then find a trivial identity conversion and report Valid, and
+        // TypedConstantLiteralRenderer.Render has no rendering for Kind = Error at all (it throws).
+        // Rejected here, uniformly, before any conversion classification - the same "diagnose rather
+        // than let something obscure happen" rule this repo already applies (CMP0040's own rationale).
+        if (constant.Kind == TypedConstantKind.Error)
+            return TypedConstantValidation.TypeMismatch;
+
         var conversion = ((CSharpCompilation)compilation).ClassifyConversion(constant.Type, underlyingType);
 
         return conversion.Exists && (conversion.IsIdentity || conversion.IsBoxing || (conversion.IsImplicit && conversion.IsReference))

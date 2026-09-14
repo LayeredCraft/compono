@@ -1,3 +1,6 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+
 namespace Compono.Generators.Tests;
 
 /// <summary>
@@ -549,6 +552,180 @@ public sealed class AotTheoryDataRowRegistrationVerifyTests
             },
             "CMP0046",
             TestContext.Current.CancellationToken);
+
+    // PR #140 Codex review round 2 findings.
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TConfigConstructorHasByRefParameter_ReportsCmp0041() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class ByRefConfig
+                        {
+                            // A supplied literal argument isn't an assignable variable - `new
+                            // ByRefConfig(1)` would fail with CS1620 if this constructor were ever
+                            // selected as the "one usable public constructor". IParameterSymbol.Type
+                            // strips the ref modifier, so a naive Type-only match would have accepted
+                            // this and reported CMP0041 with count 0 was previously not enforced here.
+                            public ByRefConfig(ref int value) { }
+                        }
+
+                        public sealed class ByRefConfigProfile : Compono.ICompositionProfile
+                        {
+                            public ByRefConfigProfile(ByRefConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0041ByRefTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ByRefConfigProfile, ByRefConfig>(1)]
+                            public void Test_config_constructor_takes_ref_parameter(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0041",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task TwoTypeParameterAttribute_TProfileConstructorHasByRefParameter_ReportsCmp0042() =>
+        GeneratorTestHelpers.VerifyFailure(
+            new CodeGenerationOptions
+            {
+                SourceCode = XunitAotStandIns + """
+
+                    namespace TestNamespace
+                    {
+                        public sealed class PlainConfig
+                        {
+                            public PlainConfig(int value) { }
+                        }
+
+                        public sealed class ByRefProfile : Compono.ICompositionProfile
+                        {
+                            // IParameterSymbol.Type strips the ref modifier, so this would otherwise
+                            // match PlainConfig by type alone - the generated `new ByRefProfile(profileConfig)`
+                            // call (no `in` keyword) would actually compile (the `in` modifier is
+                            // call-site-optional), silently diverging from Compono.XunitV3's JIT-mode
+                            // binder, which never matches this shape at all (it sees PlainConfig&).
+                            public ByRefProfile(in PlainConfig config) { }
+                            public void Configure(Compono.CompositionBuilder builder) { }
+                        }
+
+                        public sealed class Cmp0042ByRefTests
+                        {
+                            [Compono.XunitV3.Aot.Compose<ByRefProfile, PlainConfig>(1)]
+                            public void Test_profile_constructor_takes_in_parameter(string value)
+                            {
+                            }
+                        }
+                    }
+                    """,
+            },
+            "CMP0042",
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public void TwoTypeParameterAttribute_ErroneousArgumentExpression_DoesNotCrashGenerator()
+    {
+        // PR #140 Codex review round 2: an incomplete/erroneous compilation (e.g. a live IDE analysis
+        // pass mid-edit) can hand TypedConstantMatcher a TypedConstant of Kind = Error whose Type is
+        // still the parameter's own declared type - before the fix, ClassifyConversion would find a
+        // trivial identity conversion and report Valid, reaching TypedConstantLiteralRenderer.Render's
+        // unhandled default arm, which throws and crashes the whole generator (not just this method).
+        // UndefinedIdentifier below is deliberately never declared, so the compiler itself reports
+        // CS0103 for it - the property under test is that the generator driver doesn't also throw an
+        // unhandled exception on top of that, not that this (deliberately invalid) source compiles.
+        const string source = """
+            namespace Xunit
+            {
+                public interface ITheoryDataRow { }
+                public sealed class TheoryDataRow : ITheoryDataRow { public TheoryDataRow(object?[] data) { } }
+            }
+
+            namespace Xunit.Sdk
+            {
+                public sealed class DisposalTracker { }
+            }
+
+            namespace Xunit.v3
+            {
+                public abstract class DataAttribute : System.Attribute { }
+
+                public static class RegisteredEngineConfig
+                {
+                    public static void RegisterTheoryDataRowFactory(
+                        string testClassIndex, string methodName, bool disableDiscoveryEnumeration,
+                        System.Func<Xunit.Sdk.DisposalTracker, System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<Xunit.ITheoryDataRow>>> factory) { }
+                }
+            }
+
+            namespace Compono.XunitV3.Aot
+            {
+                public sealed class ComposeAttribute : Xunit.v3.DataAttribute { }
+
+                public sealed class ComposeAttribute<TProfile, TConfig> : Xunit.v3.DataAttribute
+                    where TProfile : ICompositionProfile
+                {
+                    public ComposeAttribute(params object?[] configArguments) { }
+                }
+            }
+
+            namespace TestNamespace;
+
+            public sealed class ErrorConfig
+            {
+                public ErrorConfig(int value) { }
+            }
+
+            public sealed class ErrorProfile : Compono.ICompositionProfile
+            {
+                public ErrorProfile(ErrorConfig config) { }
+                public void Configure(Compono.CompositionBuilder builder) { }
+            }
+
+            public sealed class ErrorArgumentTests
+            {
+                [Compono.XunitV3.Aot.Compose<ErrorProfile, ErrorConfig>(UndefinedIdentifier)]
+                public void Test_supplies_undefined_identifier_as_argument(string value)
+                {
+                }
+            }
+            """;
+
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
+        var tree = CSharpSyntaxTree.ParseText(source, parseOptions, "Program.cs", cancellationToken: TestContext.Current.CancellationToken);
+
+        var compilationOptions = new CSharpCompilationOptions(
+            OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable);
+        List<MetadataReference> references =
+        [
+#if NET11_0_OR_GREATER
+            .. Basic.Reference.Assemblies.Net110.References.All,
+#elif NET10_0_OR_GREATER
+            .. Basic.Reference.Assemblies.Net100.References.All,
+#endif
+            MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+        ];
+        var compilation = CSharpCompilation.Create("ErrorArgumentTestsAssembly", [tree], references, compilationOptions);
+
+        var generator = new ComponoIncrementalGenerator().AsSourceGenerator();
+        var driver = ((GeneratorDriver)CSharpGeneratorDriver.Create([generator]))
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        // The property under test: this call must not throw. GetRunResult() would surface an
+        // unhandled generator exception as an aggregate failure if TypedConstantLiteralRenderer's
+        // default arm were still reachable for Kind = Error.
+        var act = () => driver.GetRunResult();
+
+        act.Should().NotThrow("a malformed attribute argument must not crash the generator - it should be ignored/diagnosed, never an unhandled exception");
+    }
 
     [Fact]
     public Task TwoTypeParameterAttribute_SpecialFloatingPointValues_RenderAsValidCSharp() =>

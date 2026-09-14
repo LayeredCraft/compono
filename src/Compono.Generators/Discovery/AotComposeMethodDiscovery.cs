@@ -186,7 +186,19 @@ internal static class AotComposeMethodDiscovery
         // unconditional cast throwing InvalidCastException inside the generator.
         var configType = configTypeArgument as INamedTypeSymbol;
         var configConstructors = configType is { IsAbstract: false }
-            ? configType.Constructors.Where(static c => c.DeclaredAccessibility == Accessibility.Public).ToArray()
+            // PR #140 Codex review round 2: a constructor with a ref/out/in parameter is not usable
+            // for this attribute family - TypedConstantMatcher only ever compares parameter.Type
+            // (which strips the ref modifier), so a literal argument would otherwise be accepted
+            // against it, and the generated `new TConfig(literal)` call fails with CS1620 for
+            // ref/out (a literal isn't an assignable variable) or silently diverges from
+            // Compono.XunitV3's JIT-mode binder for `in` (call-site-optional there, but the JIT
+            // reflection-based binder never matches this shape at all since it sees TConfig&).
+            // Excluded from the "usable public constructor" set entirely, same category as an
+            // abstract/non-named type argument above.
+            ? configType.Constructors
+                .Where(static c => c.DeclaredAccessibility == Accessibility.Public
+                    && c.Parameters.All(static p => p.RefKind == RefKind.None))
+                .ToArray()
             : Array.Empty<IMethodSymbol>();
 
         if (configConstructors.Length != 1)
@@ -213,6 +225,14 @@ internal static class AotComposeMethodDiscovery
             ? profileType.Constructors
                 .Where(c => c.DeclaredAccessibility == Accessibility.Public
                     && c.Parameters.Length == 1
+                    // PR #140 Codex review round 2: IParameterSymbol.Type strips ref/out/in - a
+                    // Profile(ref TConfig)/Profile(out TConfig) constructor would otherwise match here
+                    // and the generated `new TProfile(profileConfig)` call (no ref/out keyword) fails
+                    // with CS1620; Profile(in TConfig) would instead *compile* (the `in` modifier is
+                    // call-site-optional) but that's a real behavioral divergence from Compono.XunitV3's
+                    // JIT-mode binder, which sees the by-ref runtime Type (TConfig&) and never matches
+                    // it as this exact shape at all - excluded uniformly here for both reasons.
+                    && c.Parameters[0].RefKind == RefKind.None
                     && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, configType))
                 .ToArray()
             : Array.Empty<IMethodSymbol>();

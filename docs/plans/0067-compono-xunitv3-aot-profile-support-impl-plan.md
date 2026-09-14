@@ -334,3 +334,53 @@ literals are real valid C#). Re-validated after these fixes: full build 0 warnin
 `Compono.Generators.Tests` 676/676, `Compono.XunitV3.Aot.Tests` 15/15,
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 2** found three more real gaps and one false positive:
+
+- **`TConfig`/`TProfile` constructor selection accepted `ref`/`out`/`in` parameters.**
+  `IParameterSymbol.Type` strips the ref modifier, so a `Profile(ref TConfig config)` or
+  `TConfig(ref int value)` constructor matched the "exactly one usable constructor" check by type
+  alone. For `ref`/`out`, the generated direct `new`/`AddProfile(profileInstance)` call (a plain
+  argument, no `ref`/`out` keyword, since it's built from a literal value with no addressable
+  variable to take a reference to) fails with `CS1620`; for `in` specifically, the generated call
+  actually *compiles* (the `in` modifier is call-site-optional in C#) - a real, silent behavioral
+  divergence from `Compono.XunitV3`'s JIT-mode `ConfigProfileBinder`, which reflects the parameter's
+  real by-ref runtime type (`TConfig&`) and never matches this shape as a candidate constructor at
+  all. Fixed by requiring `RefKind.None` on every parameter of a candidate `TConfig` constructor, and
+  on `TProfile`'s own `TConfig`-typed parameter, before counting it as "usable" - reuses the existing
+  `CMP0041`/`CMP0042` diagnostics (reported as "0 usable constructors"), no new diagnostic needed.
+- **`TypedConstantKind.Error` reached the renderer's unhandled default arm.** During an
+  incomplete/erroneous compilation (most commonly: live IDE analysis mid-edit), Roslyn can hand back a
+  `TypedConstant` of `Kind = Error` whose `Type` is still the parameter's own declared type -
+  `TypedConstantMatcher`'s `ClassifyConversion` call would find a trivial identity conversion and
+  report `Valid`, reaching `TypedConstantLiteralRenderer.Render`'s `_ => throw
+  NotSupportedException(...)` default arm, an unhandled exception that crashes the whole generator
+  invocation (not just this one method) rather than the clean "ignore/diagnose, never crash" behavior
+  every other unsupported shape in this series gets. Fixed by checking `constant.Kind ==
+  TypedConstantKind.Error` in `TypedConstantMatcher.Validate` before attempting conversion
+  classification at all, reporting it as an ordinary `CMP0043` type mismatch. New test drives the real
+  `GeneratorDriver` directly (mirroring `IncrementalCachingTests`' own pattern, since
+  `GeneratorTestHelpers.Verify`/`VerifyFailure` both assume a compilation with no *other* pre-existing
+  errors) against source containing a genuinely undefined identifier as the attribute argument, and
+  asserts `driver.GetRunResult()` doesn't throw - the property under test is generator crash-resilience,
+  not that this deliberately-invalid source compiles (it categorically can't).
+- **Rejected as a false positive, with evidence, not fixed: "unsafe pointer/function-pointer `typeof`
+  argument needs an unsafe context in the generated file."** The finding claimed `typeof(int*)` (or a
+  function-pointer type) as a `[Compose<TProfile, TConfig>]` argument would fail to compile in the
+  generated top-level file with `CS0214` since that file isn't declared `unsafe`. Verified directly
+  with two standalone compile probes before touching anything: `typeof(int*)` used as a real attribute
+  argument, and `typeof(delegate*<int, void>)` used as an ordinary local-variable initializer in a
+  ordinary (non-`unsafe`, no `<AllowUnsafeBlocks>`) method body - both compile cleanly, 0 errors. A
+  `typeof(...)` expression over a pointer or function-pointer type is exempt from C#'s unsafe-context
+  requirement entirely (the restriction applies to actually using/dereferencing a pointer value, not to
+  naming a pointer *type* via `typeof`) - the premise of this finding doesn't hold, so `int*`/function-
+  pointer `System.Type` profile-configuration arguments already render and compile correctly with no
+  change needed. Replied on the thread with both probe results; left the thread open (unresolved) rather
+  than resolving it, since nothing was actually changed in response to it.
+
+All three real fixes: new tests (`TwoTypeParameterAttribute_TConfigConstructorHasByRefParameter_
+ReportsCmp0041`, `TwoTypeParameterAttribute_TProfileConstructorHasByRefParameter_ReportsCmp0042`,
+`TwoTypeParameterAttribute_ErroneousArgumentExpression_DoesNotCrashGenerator`). Re-validated: full
+build 0 warnings/errors, `Compono.Generators.Tests` 682/682, `Compono.XunitV3.Aot.Tests` 15/15,
+`Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
+exit 0, zero `IL2xxx`/`IL3xxx` warnings.
