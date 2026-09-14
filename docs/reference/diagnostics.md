@@ -600,6 +600,57 @@ composable type. See the
 [`Compono.XunitV3.Aot` Package Guide](../packages/compono-xunitv3-aot.md)
 for Phase 1's exact scope.
 
+## CMP0041 — Profile configuration type does not have exactly one public constructor
+
+**Severity:** Error.
+
+**Message:** `'{TConfig}' is used as the TConfig type argument of
+[Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
+public constructor to be used as profile configuration - it has {Count}`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s `TConfig` type argument has
+zero or more than one public constructor (or is abstract). The compile-time
+counterpart to `Compono.XunitV3.Binding.ConfigProfileBinder`'s identical
+runtime check (ADR-0036) — performed here because
+`Compono.XunitV3.Aot.ComposeAttribute<TProfile, TConfig>` has no runtime
+`GetData` fallback to check this through (ADR-0067).
+
+**Fix:** Give `TConfig` exactly one public constructor.
+
+## CMP0042 — Profile type does not have exactly one public constructor accepting its configuration type
+
+**Severity:** Error.
+
+**Message:** `'{TProfile}' is used as the TProfile type argument of
+[Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
+public constructor accepting a single '{TConfig}' parameter - it has
+{Count}`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s `TProfile` type argument does
+not have exactly one public constructor accepting exactly one
+`TConfig`-typed parameter (or is abstract). The compile-time counterpart to
+`ConfigProfileBinder`'s identical runtime check (ADR-0036).
+
+**Fix:** Give `TProfile` exactly one public constructor accepting a single
+`TConfig` parameter.
+
+## CMP0043 — Profile configuration argument does not match the configuration type's constructor
+
+**Severity:** Error.
+
+**Message:** `[Compose<{TProfile}, {TConfig}>] on '{Method}' supplies a
+profile configuration argument that does not match '{TConfig}''s
+constructor: {Detail}`
+
+**Cause:** `[Compose<TProfile, TConfig>]`'s supplied constructor arguments
+don't match `TConfig`'s single constructor's parameters — a count
+mismatch, a `null` argument for a non-nullable parameter, or an argument
+whose type isn't assignable to its parameter's type (no numeric widening,
+matching `PositionalArgumentBinder`'s exact runtime rule).
+
+**Fix:** Match the supplied arguments to `TConfig`'s constructor
+parameters exactly — same count, same or convertible types.
+
 ## Next
 
 - [Troubleshooting: Common Errors](../troubleshooting/common-errors.md) —

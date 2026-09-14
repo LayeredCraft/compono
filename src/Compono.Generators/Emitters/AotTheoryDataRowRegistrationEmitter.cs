@@ -29,6 +29,16 @@ internal static class AotTheoryDataRowRegistrationEmitter
                 LocalName = $"value{p.Ordinal}",
                 NameLiteral = SymbolDisplay.FormatLiteral(p.Name, quote: true),
             }).ToArray(),
+            // ADR-0067/PLAN-0067: null for plain [Compose]; non-null (with ConfigTypeName null) for
+            // [Compose<TProfile>]; non-null (with ConfigTypeName set) for [Compose<TProfile, TConfig>].
+            Profile = method.Profile is { } profile
+                ? new
+                {
+                    ProfileTypeName = profile.FullyQualifiedProfileTypeName,
+                    ConfigTypeName = profile.FullyQualifiedConfigTypeName,
+                    ConfigArguments = profile.ConfigArguments.Select(a => a.RenderedLiteral).ToArray(),
+                }
+                : null,
             GeneratorVersion = GeneratorVersion.Current,
         };
 

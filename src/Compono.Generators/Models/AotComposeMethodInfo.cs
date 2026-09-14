@@ -13,7 +13,8 @@ internal sealed record AotComposeMethodInfo(
     string FullyQualifiedTestClassName,
     string MethodName,
     EquatableArray<AotComposeParameterInfo> Parameters,
-    EquatableArray<DiagnosticInfo> Diagnostics);
+    EquatableArray<DiagnosticInfo> Diagnostics,
+    AotProfileInfo? Profile = null);
 
 /// <summary>
 /// One parameter of an <see cref="AotComposeMethodInfo"/> method, in declaration order - everything
@@ -25,3 +26,25 @@ internal sealed record AotComposeParameterInfo(
     string FullyQualifiedTypeName,
     int Ordinal,
     bool IsNullable);
+
+/// <summary>
+/// The profile-selection shape of a <c>[Compose&lt;TProfile&gt;]</c>/<c>[Compose&lt;TProfile,
+/// TConfig&gt;]</c>-attributed method (ADR-0067/PLAN-0067) - everything the generated factory closure
+/// needs to construct and apply the profile with no reflection. <see cref="FullyQualifiedConfigTypeName"/>/
+/// <see cref="ConfigArguments"/> are <see langword="null"/>/empty for the one-type-parameter
+/// (<c>[Compose&lt;TProfile&gt;]</c>) form, which applies <c>TProfile</c> via
+/// <c>CompositionBuilder.AddProfile&lt;TProfile&gt;()</c> directly - no config type exists in that
+/// form.
+/// </summary>
+internal sealed record AotProfileInfo(
+    string FullyQualifiedProfileTypeName,
+    string? FullyQualifiedConfigTypeName,
+    EquatableArray<AotProfileConfigArgumentInfo> ConfigArguments);
+
+/// <summary>
+/// One already-rendered profile configuration argument (<c>[Compose&lt;TProfile, TConfig&gt;]</c>'s
+/// own constructor arguments) - the C#-source-literal text
+/// <see cref="Emitters.TypedConstantLiteralRenderer"/> produced at discovery time, in
+/// <c>TConfig</c>'s constructor's own declared parameter order.
+/// </summary>
+internal sealed record AotProfileConfigArgumentInfo(string RenderedLiteral);

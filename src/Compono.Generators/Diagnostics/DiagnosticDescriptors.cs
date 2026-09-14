@@ -377,4 +377,37 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // CMP0041-CMP0043: Compono.XunitV3.Aot.ComposeAttribute<TProfile, TConfig> compile-time shape/
+    // argument validation (ADR-0067/PLAN-0067) - the compile-time counterpart to
+    // Compono.XunitV3.Binding.ConfigProfileBinder's identical runtime checks (ADR-0036). Performed
+    // here, not at runtime, for the same reason CMP0040 exists: this attribute family has no
+    // DataAttribute.GetData runtime fallback to report through.
+
+    public static readonly DiagnosticDescriptor InvalidProfileConfigConstructorShape = new(
+        "CMP0041",
+        "Profile configuration type does not have exactly one public constructor",
+        "'{0}' is used as the TConfig type argument of [Compose<{1}, {0}>] on '{2}', but must have " +
+        "exactly one public constructor to be used as profile configuration - it has {3}",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidProfileConstructorShape = new(
+        "CMP0042",
+        "Profile type does not have exactly one public constructor accepting its configuration type",
+        "'{0}' is used as the TProfile type argument of [Compose<{0}, {1}>] on '{2}', but must have " +
+        "exactly one public constructor accepting a single '{1}' parameter - it has {3}",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ProfileConfigArgumentMismatch = new(
+        "CMP0043",
+        "Profile configuration argument does not match the configuration type's constructor",
+        "[Compose<{0}, {1}>] on '{2}' supplies a profile configuration argument that does not match " +
+        "'{1}''s constructor: {3}",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
