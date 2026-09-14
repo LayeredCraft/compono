@@ -680,3 +680,30 @@ coverage of the one-type-parameter form's constructor safety at all),
 full `Compono.Generators` build 0 warnings/errors, `Compono.Generators.Tests` 720/720,
 `Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
 re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.
+
+**PR #140 Codex review round 10** found two real documentation-debt findings - no code/behavior change,
+both about this ADR/the public API's own XML docs silently falling behind the six rounds of diagnostics
+added since:
+
+- **This ADR's Decision Outcome only ever recorded `CMP0041`-`CMP0043`** - `CMP0044`-`CMP0049` (all six
+  found across rounds 1-9) existed only in code, the package guide, and this plan's own Notes, never in
+  the ADR itself, silently letting externally-observable support-scope restrictions accumulate outside
+  the decision record they belong in (this repo's own non-negotiable: "a correction or extension found
+  later is recorded as a dated Amendment"). **Fixed:** added Amendment 2, recording all six diagnostics
+  with a one-line condition each, explicitly noting neither the Decision Outcome nor Amendment 1's Shape
+  correction needed revisiting - each addition is a restriction within the already-accepted design.
+- **`ComposeAttribute<TProfile>`'s own XML doc remarks still claimed "this form needed no new AOT-safety
+  work beyond the attribute-discovery/codegen plumbing itself"** - directly contradicted by round 9's own
+  `CMP0049` addition three rounds later. **Fixed:** removed the stale claim, added a paragraph describing
+  the `CMP0049` restriction; also updated `ComposeAttribute<TProfile, TConfig>`'s remarks (which still
+  named only `CMP0041`-`CMP0043`) to reference the fuller `CMP0044`-`CMP0048` range and Amendment 2.
+  `docs/reference/api/Compono.XunitV3.Aot/` regenerated via
+  `.github/scripts/generate-api-reference.sh` (all eleven packages rebuilt Release/net10.0 first, per the
+  script's own precondition) - exactly the two affected pages changed, confirming no unrelated drift.
+
+No test/build re-validation needed beyond a plain rebuild (XML doc comments and Markdown only, no
+generator/codegen or runtime behavior touched) - `Compono.Generators.Tests` re-run anyway as a sanity
+check: 720/720 unchanged. Per this repo's own re-review guidance, a round touching public documentation
+(this ADR, the regenerated API reference) still warrants a targeted re-review request even with zero
+source behavior change, so one was requested rather than treated as below the re-review bar the way a
+plan-Notes-only round would be.

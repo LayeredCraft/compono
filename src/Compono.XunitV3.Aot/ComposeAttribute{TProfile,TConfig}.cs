@@ -34,7 +34,10 @@ namespace Compono.XunitV3.Aot;
 /// arguments match that constructor's parameters) are performed by <c>Compono.Generators</c> at
 /// <em>compile time</em> instead, against the real declared symbols and this attribute's own
 /// compile-time-constant constructor arguments (C#'s attribute-argument rule guarantees they're
-/// constants) - see <c>CMP0041</c>/<c>CMP0042</c>/<c>CMP0043</c>. On success, the generated
+/// constants) - see <c>CMP0041</c>/<c>CMP0042</c>/<c>CMP0043</c>, plus further shape/safety
+/// restrictions found by implementation review (<c>CMP0044</c>-<c>CMP0048</c> - accessibility, stacked
+/// attributes, required members, compiler-error-on-use attributes, and overload-resolution-priority
+/// hijacking; see ADR-0067 Amendment 2). On success, the generated
 /// registration constructs <typeparamref name="TConfig"/> and <typeparamref name="TProfile"/> via
 /// direct <c>new</c> calls with the literal argument values rendered back into source - no
 /// <see cref="Type.GetConstructors()"/>, no <see cref="System.Reflection.ConstructorInfo.Invoke(object?[])"/>,

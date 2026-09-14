@@ -49,7 +49,10 @@ accepting exactly one [TConfig](Compono.XunitV3.Aot.ComposeAttribute_TProfile,TC
 arguments match that constructor's parameters\) are performed by `Compono.Generators` at
 \<em\>compile time\</em\> instead, against the real declared symbols and this attribute's own
 compile\-time\-constant constructor arguments \(C\#'s attribute\-argument rule guarantees they're
-constants\) \- see `CMP0041`/`CMP0042`/`CMP0043`\. On success, the generated
+constants\) \- see `CMP0041`/`CMP0042`/`CMP0043`, plus further shape/safety
+restrictions found by implementation review \(`CMP0044`\-`CMP0048` \- accessibility, stacked
+attributes, required members, compiler\-error\-on\-use attributes, and overload\-resolution\-priority
+hijacking; see ADR\-0067 Amendment 2\)\. On success, the generated
 registration constructs [TConfig](Compono.XunitV3.Aot.ComposeAttribute_TProfile,TConfig_.md#Compono.XunitV3.Aot.ComposeAttribute_TProfile,TConfig_.TConfig 'Compono\.XunitV3\.Aot\.ComposeAttribute\<TProfile,TConfig\>\.TConfig') and [TProfile](Compono.XunitV3.Aot.ComposeAttribute_TProfile,TConfig_.md#Compono.XunitV3.Aot.ComposeAttribute_TProfile,TConfig_.TProfile 'Compono\.XunitV3\.Aot\.ComposeAttribute\<TProfile,TConfig\>\.TProfile') via
 direct `new` calls with the literal argument values rendered back into source \- no
 [System\.Type\.GetConstructors](https://learn.microsoft.com/en-us/dotnet/api/system.type.getconstructors 'System\.Type\.GetConstructors'), no [System\.Reflection\.ConstructorInfo\.Invoke\(System\.Object\[\]\)](https://learn.microsoft.com/en-us/dotnet/api/system.reflection.constructorinfo.invoke#system-reflection-constructorinfo-invoke(system-object[]) 'System\.Reflection\.ConstructorInfo\.Invoke\(System\.Object\[\]\)'),

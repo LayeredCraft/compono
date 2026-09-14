@@ -23,14 +23,23 @@ namespace Compono.XunitV3.Aot;
 /// <c>global::Compono.Composer.Create(b =&gt; b.AddProfile&lt;TProfile&gt;())</c> call - the identical
 /// reflection-free construction <see cref="CompositionBuilder.AddProfile{TProfile}()"/> already uses in
 /// both JIT and AOT modes today (a bare <c>new TProfile()</c> against a compile-time-closed generic
-/// argument, never <c>Activator</c>/reflection), so this form needed no new AOT-safety work beyond the
-/// attribute-discovery/codegen plumbing itself.
+/// argument, never <c>Activator</c>/reflection).
 /// <para>
 /// A profile type that doesn't implement <see cref="ICompositionProfile"/> or lacks a public
 /// parameterless constructor is a compile error at the <c>[Compose&lt;TProfile&gt;]</c> use site (C#
 /// enforces generic-attribute constraints there like any other generic type) - there is no compile-time
 /// diagnostic or runtime check to design for that case, identical to
 /// <c>Compono.XunitV3.ComposeAttribute&lt;TProfile&gt;</c>'s own remarks.
+/// </para>
+/// <para>
+/// The <c>new()</c> constraint guarantees <typeparamref name="TProfile"/> has a public parameterless
+/// constructor, but not that calling it is Native-AOT/trim-safe: <c>CMP0049</c> rejects a
+/// <typeparamref name="TProfile"/> whose parameterless constructor is marked
+/// <c>[RequiresDynamicCode]</c>, <c>[RequiresUnreferencedCode]</c>, or <c>[RequiresAssemblyFiles]</c> -
+/// the generated <c>AddProfile&lt;TProfile&gt;()</c> call closes that generic <c>new TProfile()</c>
+/// construction over the real type at the generated call site, which would otherwise surface the
+/// corresponding <c>IL3050</c>/<c>IL2026</c>/<c>IL3002</c> warning for any consumer with trim/AOT
+/// analysis enabled (ADR-0067 Amendment 2).
 /// </para>
 /// <para>
 /// Derives directly from <see cref="DataAttribute"/>, <b>not</b> from the non-generic

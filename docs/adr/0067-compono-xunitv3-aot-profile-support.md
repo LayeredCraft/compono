@@ -285,6 +285,34 @@ own `[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]` declarati
 independently self-declared (never relying on inherited `AttributeUsage`), so this correction is a pure
 type-hierarchy change with zero behavioral difference to any already-verified test.
 
+## Amendment 2 (2026-09-14): `CMP0044`-`CMP0049` - additional compile-time shape restrictions found by
+implementation review
+
+This ADR's Decision Outcome originally recorded only `CMP0041`-`CMP0043` - the three checks directly
+mirroring `ConfigProfileBinder`'s own runtime rules (constructor count/shape, argument match). PR #140's
+Codex review (ten rounds) found six further real shapes where the compile-time-verified, direct-
+construction design (this ADR's chosen Option 1) needed its own additional restrictions beyond what
+`ConfigProfileBinder`'s JIT-mode reflection ever had to consider - JIT's `ConstructorInfo.Invoke` simply
+doesn't encounter most of these problems, since reflection bypasses the C# compiler checks and analyzer
+hints a direct `new T(...)`/generic `new T()` call site is subject to. These are externally observable
+restrictions on what constructor shapes are accepted, not implementation details, so they belong in this
+ADR's own decision record - PLAN-0067's Notes section has the full round-by-round discovery and fix
+narrative for each; this amendment records only the resulting diagnostics.
+
+| Code | Condition |
+|---|---|
+| `CMP0044` | A type referenced by `[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` (`TProfile`, `TConfig`, or a `typeof`/enum-typed profile configuration argument's own type) isn't accessible from the generated top-level registration |
+| `CMP0045` | More than one Compose-family attribute (`[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) on one test method - these three share no common base class (Amendment 1), so nothing else stops stacking them |
+| `CMP0046` | The selected `TConfig`/`TProfile` constructor doesn't satisfy the type's `required` members (no `[SetsRequiredMembers]`) |
+| `CMP0047` | The selected `TConfig`/`TProfile` constructor is marked with an attribute that makes any *use* of it a compiler error - `[Obsolete("...", error: true)]`, `[Experimental("...")]`, or non-optional `[CompilerFeatureRequired("...")]` |
+| `CMP0048` | An accessible sibling constructor marked with a higher `[OverloadResolutionPriority]` could silently supersede the selected `TConfig`/`TProfile` constructor at the generated call site - the explicit-cast guard this design otherwise uses to defeat ordinary overload hijacking cannot defend against priority-based pruning |
+| `CMP0049` | `[Compose<TProfile>]`'s `TProfile` has a public parameterless constructor (guaranteed by the `new()` constraint) marked `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` - the generated `AddProfile<TProfile>()` call closes a generic `new T()` construction over the real `TProfile` at that call site, surfacing the corresponding `IL3050`/`IL2026`/`IL3002` warning for a trim/AOT-analyzed consumer |
+
+None of these required revisiting this ADR's Decision Outcome (Option 1 remains chosen) or its Shape
+section (Amendment 1's correction stands unchanged) - each is an additional compile-time restriction
+within the already-accepted design, not an architectural change. `docs/reference/diagnostics.md` and
+`docs/packages/compono-xunitv3-aot.md` carry the full message/cause/fix detail for each code.
+
 ## Links
 
 - [ADR-0066](0066-compono-xunitv3-aot-package-architecture.md) - Phase 1, the package/generator
