@@ -767,3 +767,25 @@ Re-validated: full `Compono.Generators` build 0 warnings/errors, `Compono.Genera
 `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a re-published Native AOT native binary,
 exit 0, zero `IL2xxx`/`IL3xxx` warnings - full validation run (not just a sanity rebuild) since this
 round changed a real, user-facing diagnostic message, not only prose.
+
+**PR #140 Codex review round 13** found one more real finding - round 12's own message-accuracy fix had
+over-corrected: **`CMP0041`'s raw-ambiguity gate (a `TConfig` with two or more public constructors, none
+individually filtered yet) reports the *raw* count, but round 12's uniform "usable public constructor(s)"
+wording claimed that raw count was a *usable* count** - so a `TConfig` with one ordinary constructor and
+one by-ref-disqualified constructor would report "it has 2 usable public constructor(s)", when only one
+actually is. Round 12's own reasoning ("the raw count and the usable count are identical when the count
+itself is the problem") holds for the *single*-candidate case (0 or 1) but breaks down for the *ambiguous*
+case (2+) - a real gap in that round's own fix, not a new category of bug. `CMP0042` was unaffected: unlike
+`CMP0041`'s two sequential gates, `TProfile`'s usability filters (by-ref, prohibited AOT attribute) are
+folded into one combined `.Where(...)` clause *before* counting, so its count is always the true usable
+count in every case - confirmed by re-reading `BuildTwoTypeParameterProfile`'s own structure rather than
+assuming symmetry with `CMP0041`.
+
+**Fixed:** added a fifth format argument to `CMP0041`'s message template carrying the noun phrase itself,
+so each gate supplies wording that matches what it's actually counting - `"public constructor(s)"` for
+the raw-ambiguity gate, `"usable public constructor(s)"` plus the disqualifying-shapes explanation for the
+usability gate. `CMP0042`'s message template needed no change. Diagnostics reference updated to describe
+both message shapes explicitly. Eight existing `CMP0041` snapshot tests' `.verified.txt` updated (no
+generated-code change). Re-validated: full build 0 warnings/errors, `Compono.Generators.Tests` 720/720,
+`Compono.XunitV3.Aot.Tests` 18/18, `Compono.XunitV3.Aot.SampleTests` 3/3 (JIT) then 3/3 again via a
+re-published Native AOT native binary, exit 0, zero `IL2xxx`/`IL3xxx` warnings.

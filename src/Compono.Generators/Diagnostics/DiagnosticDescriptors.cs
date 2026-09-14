@@ -384,23 +384,26 @@ internal static class DiagnosticDescriptors
     // here, not at runtime, for the same reason CMP0040 exists: this attribute family has no
     // DataAttribute.GetData runtime fallback to report through.
 
-    // PR #140 Codex review round 12: both messages below originally said "it has {3}" meaning the raw
-    // public-constructor count - accurate for the first gate (ambiguous/zero/non-named-type count), but
-    // actively misleading for the second gate (round 3's by-ref exclusion, round 6's dynamic exclusion,
-    // round 8's prohibited-AOT-attribute exclusion): a TConfig/TProfile with exactly one public
-    // constructor that happens to have a ref/out/in parameter reports "it has 0", when the type in fact
-    // has 1 public constructor - it just isn't *usable* for AOT's direct-construction codegen. Reworded
-    // to describe usable constructors uniformly (still accurate for the first gate too, since nothing
-    // has been filtered out there - the raw count and the usable count are identical when the count
-    // itself is the problem) and to name what disqualifies an otherwise-matching constructor.
+    // PR #140 Codex review round 12/13: both messages below originally said "it has {3}" meaning the
+    // raw public-constructor count - accurate for the first gate (ambiguous/zero/non-named-type count),
+    // but actively misleading for the second gate (round 3's by-ref exclusion, round 6's dynamic
+    // exclusion, round 8's prohibited-AOT-attribute exclusion): a TConfig/TProfile with exactly one
+    // public constructor that happens to have a ref/out/in parameter reports "it has 0", when the type
+    // in fact has 1 public constructor - it just isn't *usable* for AOT's direct-construction codegen.
+    // Round 12's first attempt reworded the message to always say "usable", reasoning the raw and usable
+    // counts are "identical when the count itself is the problem" - true for the *single*-constructor
+    // case (0 or 1), but round 13 caught that this breaks down for the *ambiguous* case: a TConfig with
+    // two public constructors, one ordinary and one disqualified by a by-ref/dynamic parameter, hits the
+    // first gate with the RAW count (2), which the "usable" wording then falsely claims are both usable
+    // when only one is. Fixed properly this time: `{4}` carries the noun phrase itself, so each gate
+    // supplies wording that actually matches what `{3}` counts - "public constructor(s)" for the first
+    // (raw-ambiguity) gate, "usable public constructor(s)" plus the disqualifying-shapes explanation for
+    // the second (usability) gate.
     public static readonly DiagnosticDescriptor InvalidProfileConfigConstructorShape = new(
         "CMP0041",
         "Profile configuration type does not have exactly one usable public constructor",
         "'{0}' is used as the TConfig type argument of [Compose<{1}, {0}>] on '{2}', but must have " +
-        "exactly one usable public constructor to be used as profile configuration - it has {3} (a " +
-        "constructor with a ref/out/in parameter, a dynamic-typed parameter, or one marked " +
-        "[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] does not count as " +
-        "usable)",
+        "exactly one usable public constructor to be used as profile configuration - it has {3} {4}",
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

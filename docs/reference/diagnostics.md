@@ -604,11 +604,13 @@ for Phase 1's exact scope.
 
 **Severity:** Error.
 
-**Message:** `'{TConfig}' is used as the TConfig type argument of
-[Compose<{TProfile}, {TConfig}>] on '{Method}', but must have exactly one
-usable public constructor to be used as profile configuration - it has
-{Count} (a constructor with a ref/out/in parameter, a dynamic-typed
-parameter, or one marked
+**Message:** either (a raw-ambiguity case) `'{TConfig}' is used as the
+TConfig type argument of [Compose<{TProfile}, {TConfig}>] on '{Method}',
+but must have exactly one usable public constructor to be used as
+profile configuration - it has {Count} public constructor(s)`, or (a
+sole-but-unusable case) the same lead-in ending `...it has {Count} usable
+public constructor(s) (a constructor with a ref/out/in parameter, a
+dynamic-typed parameter, or one marked
 [RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles]
 does not count as usable)`
 
@@ -623,10 +625,13 @@ AOT direct-construction codegen: it has a `ref`/`out`/`in` parameter, a
 `dynamic`-typed parameter, or is marked `[RequiresDynamicCode]`/
 `[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` (ADR-0067 Amendment
 2 — AOT-only restrictions `ConfigProfileBinder`'s reflection-based
-construction never needed). `{Count}` reports the *usable* count in this
-second case, which can be `0` even though `TConfig` has one public
-constructor in the ordinary sense — the constructor exists, it just isn't
-usable here.
+construction never needed). `{Count}` and the noun phrase describing it
+change together depending on which case fired: the raw-ambiguity case
+reports the *raw* public-constructor count (which can be `2` or more,
+none individually confirmed usable, or `0`); the sole-but-unusable case
+reports the *usable* count, which is always `0` in that case even though
+`TConfig` has exactly one public constructor in the ordinary sense — the
+constructor exists, it just isn't usable here.
 
 **Fix:** Give `TConfig` exactly one public constructor, with no
 `ref`/`out`/`in` or `dynamic`-typed parameter and no

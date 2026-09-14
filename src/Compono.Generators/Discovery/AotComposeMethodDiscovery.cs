@@ -253,7 +253,13 @@ internal static class AotComposeMethodDiscovery
                 configDisplayName,
                 profileDisplayName,
                 methodDisplayName,
-                allConfigConstructors.Length));
+                allConfigConstructors.Length,
+                // PR #140 Codex review round 13: this raw-ambiguity gate's count is the raw public-
+                // constructor count, BEFORE the second gate's usability filtering - a TConfig with two
+                // public constructors, one ordinary and one disqualified by a by-ref/dynamic parameter,
+                // still hits this gate with count 2, neither of which is actually confirmed usable. The
+                // noun phrase reflects that: "public constructor(s)", not "usable public constructor(s)".
+                "public constructor(s)"));
 
             return null;
         }
@@ -290,7 +296,13 @@ internal static class AotComposeMethodDiscovery
                 configDisplayName,
                 profileDisplayName,
                 methodDisplayName,
-                configConstructors.Length));
+                configConstructors.Length,
+                // This gate's count IS the post-filtering usable count (the sole raw candidate, filtered
+                // to 0 if unusable) - "usable public constructor(s)" is accurate here.
+                "usable public constructor(s) (a constructor with a ref/out/in parameter, a " +
+                "dynamic-typed parameter, or one marked " +
+                "[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] does not " +
+                "count as usable)"));
 
             return null;
         }
