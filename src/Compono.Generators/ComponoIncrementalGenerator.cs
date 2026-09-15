@@ -374,7 +374,8 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (collection.Diagnostics.Count > 0)
                 return;
 
-            CollectionPlanEmitter.Generate(productionContext, collection);
+            EmissionIsolation.TryEmit(productionContext, "collection plan", collection.FullyQualifiedCollectionTypeName,
+                () => CollectionPlanEmitter.Generate(productionContext, collection));
         });
 
         // ADR-0043's generated test doubles - dedup by interface identity across every discovery
@@ -453,7 +454,8 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             foreach (var infoDiagnostic in testDouble.InfoDiagnostics)
                 infoDiagnostic.Report(productionContext);
 
-            TestDoubleEmitter.Generate(productionContext, testDouble);
+            EmissionIsolation.TryEmit(productionContext, "test double", testDouble.InterfaceFullyQualifiedName,
+                () => TestDoubleEmitter.Generate(productionContext, testDouble));
         });
 
         // docs/adr/0055-compono-logging-testing-support-package.md Amendments 1/3 - logging
@@ -526,7 +528,8 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (status != LoggingRuntimeSymbolsStatus.EnabledAndAvailable)
                 return;
 
-            LoggingActivationEmitter.Generate(productionContext, category);
+            EmissionIsolation.TryEmit(productionContext, "logging activation", category.CategoryFullyQualifiedName,
+                () => LoggingActivationEmitter.Generate(productionContext, category));
         });
 
         // All discovery paths produce equivalent plan-generation requests - merge before deduping
@@ -609,7 +612,8 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (type.Diagnostics.Count > 0)
                 return;
 
-            CompositionPlanEmitter.Generate(productionContext, type);
+            EmissionIsolation.TryEmit(productionContext, "composition plan", type.FullyQualifiedName,
+                () => CompositionPlanEmitter.Generate(productionContext, type));
         });
 
         // Only ComposeMethodDiscovery produces row-invoker-eligible types (ADR-0041) - Create<T>()
@@ -642,7 +646,8 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (type.Diagnostics.Count > 0)
                 return;
 
-            RowInvokerRegistrationEmitter.Generate(productionContext, type);
+            EmissionIsolation.TryEmit(productionContext, "row-invoker registration", type.FullyQualifiedTypeName,
+                () => RowInvokerRegistrationEmitter.Generate(productionContext, type));
         });
 
         // ADR-0066/PLAN-0066: Compono.XunitV3.Aot's per-method RegisteredEngineConfig.
@@ -695,7 +700,11 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (method.Diagnostics.Count > 0)
                 return;
 
-            AotTheoryDataRowRegistrationEmitter.Generate(productionContext, method);
+            EmissionIsolation.TryEmit(
+                productionContext,
+                "AOT theory-data-row registration",
+                $"{method.FullyQualifiedTestClassName}.{method.MethodName}",
+                () => AotTheoryDataRowRegistrationEmitter.Generate(productionContext, method));
         });
     }
 }

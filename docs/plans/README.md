@@ -83,3 +83,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0066](0066-compono-xunitv3-aot-package-architecture-impl-plan.md) | Compono.XunitV3.Aot Package Architecture | Done (Phase 1) |
 | [0067](0067-compono-xunitv3-aot-profile-support-impl-plan.md) | Compono.XunitV3.Aot Profile Support (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) | Done |
 | [0068](0068-testdoubles-scriban-loop-limit-fix-impl-plan.md) | Compono.TestDoubles: Two Inherited Scriban Safety-Limit Defaults for Large Interfaces (Issue #142) | Done |
+| [0069](0069-generator-wide-per-item-emission-failure-isolation-impl-plan.md) | Generator-Wide Per-Item Emission Failure Isolation (Issue #143) | Done |

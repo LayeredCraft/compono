@@ -539,4 +539,21 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // ADR-0068: generator-wide per-item emission failure isolation (issue #143) - reported by
+    // Emitters/EmissionIsolation.cs when an unexpected (non-cancellation) exception escapes one
+    // independent item's own emission work, at any of the six call sites ADR-0068 identified as
+    // having a natural per-item boundary. Location.None and no stack trace are deliberate (see
+    // ADR-0068's Diagnostic model section) - the item's own identity string, not a source
+    // location, is what a consumer needs to find the request site themselves. A single shared
+    // descriptor (not one per emitter) parameterized by an artifact-kind noun phrase, per ADR-0068's
+    // rejection of per-domain diagnostics as architectural symmetry for its own sake.
+    public static readonly DiagnosticDescriptor GeneratedSourceEmissionFailed = new(
+        "CMP0050",
+        "Generated source emission failed unexpectedly",
+        "Compono could not emit generated {0} for '{1}' due to an unexpected internal error " +
+        "({2}: {3}). Generated output for this item is unavailable.",
+        "Compono.Generators",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
