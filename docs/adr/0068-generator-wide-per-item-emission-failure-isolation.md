@@ -480,7 +480,7 @@ both, so neither needs an uglier design than its own property requires.
 - [Issue #143](https://github.com/LayeredCraft/compono/issues/143)
 - [RESEARCH-0035](../research/0035-testdoubles-generator-failure-isolation-issue-143-investigation.md) - full empirical evidence (Roslyn Scenario A/C/D experiments, pipeline trace, per-registration analysis)
 - [ADR-0005](0005-generator-implementation-conventions.md) - generator implementation conventions (no existing exception-isolation policy found there; this ADR is new, not an amendment)
-- [ADR-0043](0043-compono-generated-test-doubles.md) - generated test doubles (the domain that first exposed this defect, per RESEARCH-0034/0035)
+- [ADR-0043](0043-compono-generated-test-doubles-design.md) - generated test doubles (the domain that first exposed this defect, per RESEARCH-0034/0035)
 
 ## Non-Goals
 

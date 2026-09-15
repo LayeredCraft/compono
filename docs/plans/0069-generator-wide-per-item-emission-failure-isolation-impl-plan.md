@@ -157,11 +157,7 @@ those decisions.
 - [x] All four relevant packaged Native AOT smoke binaries publish and run;
       the existing `Compono.XunitV3.Aot.Tests` matrix and standalone
       `Compono.XunitV3.Aot.SampleTests` JIT/AOT gates also pass.
-- [x] Compono dogfood validation passed; full consumer suite externally
-      blocked by live Alexa endpoint failures. Fresh-package packing,
-      exact-version resolution, consumer compilation/generation, and all
-      non-external tests passed with no CMP0050, CS8785, or other Compono
-      failure; see Notes.
+- [x] Full `trivia-platform` dogfood validation passes; see Notes.
 - [x] Final working-tree hygiene checked.
 
 ## Critical Files
@@ -244,11 +240,9 @@ generator-change gate (`AGENTS.md`'s "Build and test" /
    generation - it does not, and is not meant to, exercise `CMP0050`
    itself. `CMP0050`'s own behavior is proven exclusively by the focused
    unit/generator-driver tests in this plan, never by attempting to force
-   a real emitter to fail inside a consumer's build. If unrelated live
-   external-service tests prevent a fully green consumer run, this gate is
-   successful when fresh-package resolution, compilation/generation, and
-   every non-external test pass with no Compono-attributable failure, with
-   the external limitation recorded exactly in Notes.
+   a real emitter to fail inside a consumer's build. The gate is complete
+   only when the consumer's full test suite passes. An external-service
+   failure is recorded exactly in Notes but does not satisfy the gate.
 7. **Final working-tree hygiene**: `git status --short` clean of anything
    but the intended diff before commit; no temporary probe files, no
    stray local NuGet feed directories left tracked; `docs/adr/README.md`/
@@ -328,8 +322,8 @@ it. No public API documentation changed.
   is not included in `Compono.slnx`; its freshly-packed standalone JIT run
   passed 3/3, and its `net10.0`/`osx-arm64` Native AOT publish and native-binary
   run also passed 3/3.
-- Default `trivia-platform` dogfood was attempted twice. Both attempts packed
-  and resolved the exact fresh four-package set (`Compono`,
+- Initial default `trivia-platform` dogfood validation was attempted twice.
+  Both attempts packed and resolved the exact fresh four-package set (`Compono`,
   `Compono.NSubstitute`, `Compono.TestDoubles`, `Compono.XunitV3`). The first
   exact version was `99.0.0-local.20260915114543-40617-19282`; with Docker
   initially unavailable it failed 82/789 consumer tests. After starting
@@ -339,7 +333,12 @@ it. No public API documentation changed.
   failed because the remote invocation API returned empty response bodies
   (and occasional HTTP 429 throttling). No `CMP0050`, `CS8785`, compilation,
   package-resolution, or Compono-related failure appeared. The script restored
-  the consumer working tree to its original clean state. **Compono dogfood
-  validation passed; full consumer suite externally blocked by live Alexa
-  endpoint failures.** This records success for PLAN-0069's Compono validation
-  objective without claiming that all 789 consumer tests passed.
+  the consumer working tree to its original clean state, but the mandatory
+  full consumer-suite gate remained incomplete.
+- Follow-up review validation reran the gate twice. The first run resolved all
+  four packages to `99.0.0-local.20260915123801-57535-15939`; all 37 live Alexa
+  acceptance tests passed, but 46/783 Testcontainers-backed tests failed because
+  Colima was not running. After starting Colima, the final run resolved every
+  package to `99.0.0-local.20260915123951-58961-3553` and passed the full
+  consumer suite: 783/783 tests, zero failures and zero skips. This successful
+  run clears the mandatory dogfood gate.
