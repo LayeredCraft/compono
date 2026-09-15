@@ -27,17 +27,48 @@ public sealed class ConcurrencyTests
     public async Task ReadsConcurrentWithWrites_NeverThrowOrCorrupt()
     {
         var logger = new CapturingLogger<ConcurrencyTests>();
-        using var cts = new CancellationTokenSource();
+        const int writeCount = 2_000;
+        const int readIterations = 50;
+
+        // RESEARCH-0033: the original version of this test had an unbounded writer
+        // (`while (!cts.IsCancellationRequested) logger.LogInformation(...)`, no yield/delay)
+        // whose only stop condition was the reader's fixed 500 iterations finishing first and
+        // calling cts.Cancel() - under enough CPU/thread-pool contention (routine during a
+        // full-solution dotnet test), the reader could be starved long enough for the writer to
+        // add an effectively unbounded number of entries before that ever happened, and because
+        // LogEntryCollector.GetEntries() does an O(n) copy under lock on every reader call, the
+        // reader's own fixed iteration count became progressively more expensive as the list
+        // grew - a resource-starvation/performance-runaway race (confirmed via live process
+        // diagnostics: RSS reaching 7+ GB, dominant thread time split between blocking GC and a
+        // contended lock), not a classic deadlock or livelock (both participants kept doing real
+        // work throughout; the work itself ran away). Redesigned so neither participant's
+        // termination ever depends on the other, and the upper bound on captured entries -
+        // therefore the upper bound on GetCapturedEntries()'s per-call cost - is `writeCount`,
+        // fixed at compile time, regardless of how the two tasks happen to be scheduled.
+        //
+        // Barrier (not a timing-based Task.Delay/sleep) is the start gate: both tasks call
+        // SignalAndWait before doing any real work, guaranteeing both are started and have
+        // reached this point before either workload begins - substantially improving the
+        // opportunity for genuine overlap versus plain Task.Run. It does not guarantee
+        // operation-level interleaving after release (the scheduler could still let one loop
+        // run ahead of the other); without the gate at all, though, one loop could in principle
+        // run to completion before the other is even scheduled, which would still pass but
+        // would exercise essentially no concurrent access.
+        using var startGate = new Barrier(2);
 
         var writer = Task.Run(() =>
         {
-            while (!cts.IsCancellationRequested)
-                logger.LogInformation("write");
+            startGate.SignalAndWait(TestContext.Current.CancellationToken);
+
+            for (var i = 0; i < writeCount; i++)
+                logger.LogInformation("write {Index}", i);
         }, TestContext.Current.CancellationToken);
 
         var reader = Task.Run(() =>
         {
-            for (var i = 0; i < 500; i++)
+            startGate.SignalAndWait(TestContext.Current.CancellationToken);
+
+            for (var i = 0; i < readIterations; i++)
             {
                 var entries = logger.GetCapturedEntries();
                 foreach (var entry in entries)
@@ -45,9 +76,12 @@ public sealed class ConcurrencyTests
             }
         }, TestContext.Current.CancellationToken);
 
-        await reader;
-        cts.Cancel();
-        await writer;
+        await Task.WhenAll(writer, reader);
+
+        // Deterministic - the writer always completes exactly writeCount iterations (its
+        // termination never depended on the reader), so the final captured count is exact, not
+        // just "at least some entries got through."
+        logger.GetCapturedEntries().Should().HaveCount(writeCount);
     }
 
     [Fact]
