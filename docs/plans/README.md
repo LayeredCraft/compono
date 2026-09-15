@@ -82,3 +82,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0065](0065-compono-http-body-header-request-matching.md) | Compono.Http: Body and Header Request Matching | Done |
 | [0066](0066-compono-xunitv3-aot-package-architecture-impl-plan.md) | Compono.XunitV3.Aot Package Architecture | Done (Phase 1) |
 | [0067](0067-compono-xunitv3-aot-profile-support-impl-plan.md) | Compono.XunitV3.Aot Profile Support (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) | Done |
+| [0068](0068-testdoubles-scriban-loop-limit-fix-impl-plan.md) | Compono.TestDoubles: Two Inherited Scriban Safety-Limit Defaults for Large Interfaces (Issue #142) | Done |
