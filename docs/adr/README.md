@@ -126,3 +126,4 @@ the mechanics: numbering, status, and the index.
 | [0062](0062-compono-http-body-header-request-matching.md) | Compono.Http: Body and Header Request Matching | Accepted |
 | [0066](0066-compono-xunitv3-aot-package-architecture.md) | Compono.XunitV3.Aot: A Separate Package for xUnit v3 Native AOT Support | Accepted |
 | [0067](0067-compono-xunitv3-aot-profile-support.md) | Compono.XunitV3.Aot: Profile-Based Composition (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) | Accepted |
+| [0068](0068-generator-wide-per-item-emission-failure-isolation.md) | Generator-Wide Per-Item Emission Failure Isolation | Accepted |

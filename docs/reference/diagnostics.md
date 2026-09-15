@@ -4,10 +4,13 @@ Every `CMP` diagnostic code Compono's source generator can report, one
 entry each. `CMP0001`–`CMP0013` are compile-time **errors** raised by
 `Compono.Generators` during a normal build — they appear in your IDE's
 error list and fail `dotnet build`, the same as any other compiler error.
-`CMP0040` is also a compile-time **error**, but only applies to
+`CMP0040`–`CMP0049` are also compile-time **errors**, but only apply to
 `Compono.XunitV3.Aot`-attributed test methods (see
-[`Compono.XunitV3.Aot`](../packages/compono-xunitv3-aot.md)) — it has no
+[`Compono.XunitV3.Aot`](../packages/compono-xunitv3-aot.md)) — they have no
 runtime fallback, unlike the other `[Compose]`-family integrations.
+`CMP0050` is a generator-wide internal-emission error: one requested
+artifact failed unexpectedly, while unrelated generated output remains
+available.
 `CMP0020`–`CMP0032` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
 is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
@@ -35,8 +38,11 @@ dispatch-eligibility guard; the generated-test-double diagnostics
 extended by [ADR-0044](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md)
 for `CMP0022`, `CMP0029`, `CMP0030`, and `CMP0031`, and by
 [ADR-0045](../adr/0045-testdoubles-configuration-required-members.md)
-for `CMP0032` (and `CMP0025`'s narrowed condition); `CMP0040` by
-[ADR-0066](../adr/0066-compono-xunitv3-aot-package-architecture.md).
+for `CMP0032` (and `CMP0025`'s narrowed condition); `CMP0040`–`CMP0049` by
+[ADR-0066](../adr/0066-compono-xunitv3-aot-package-architecture.md) and
+[ADR-0067](../adr/0067-compono-xunitv3-aot-profile-support.md); and
+`CMP0050` by
+[ADR-0068](../adr/0068-generator-wide-per-item-emission-failure-isolation.md).
 
 ## CMP0001 — Ambiguous construction path
 
@@ -850,6 +856,27 @@ code shape (a closed generic call, not a direct `new T(...)`).
 **Fix:** Choose a different `TProfile` whose parameterless constructor
 isn't marked with one of these attributes, or remove the attribute if
 the constructor doesn't actually need it.
+
+## CMP0050 — Generated source emission failed unexpectedly
+
+**Severity:** Error.
+
+**Message:** `Compono could not emit generated {ArtifactKind} for
+'{ItemIdentity}' due to an unexpected internal error ({ExceptionType}:
+{ExceptionMessage}). Generated output for this item is unavailable.`
+
+**Cause:** An unexpected non-cancellation exception occurred while the
+source generator was emitting one independently requested collection plan,
+test double, composition plan, row-invoker registration, logging
+activation, or AOT theory-data-row registration. Compono reports the
+failure for that item and emits no source for it; the generator isolates
+the failure so healthy items in the same compilation retain their output
+instead of Roslyn discarding the entire generator run with `CS8785`.
+
+**Fix:** Rebuild once to rule out a transient tool failure. If the error is
+repeatable, report it as a Compono generator defect with the complete
+`CMP0050` message, the identified type/method, and a minimal reproduction.
+The diagnostic intentionally omits an internal stack trace.
 
 ## Next
 
