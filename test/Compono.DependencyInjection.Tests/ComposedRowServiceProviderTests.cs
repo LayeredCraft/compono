@@ -304,7 +304,7 @@ public sealed class ComposedRowServiceProviderTests
     private sealed record TypeZ;
 
     [Fact]
-    public void GetService_CrossRowCycleException_HasNoDiagnostic_WhenClosedInsideAProvider()
+    public async Task GetService_CrossRowCycleException_HasNoDiagnostic_WhenClosedInsideAProvider()
     {
         // Characterizes a real gap surfaced in PR review (P2): ADR-0047's Recursion section and
         // AsServiceProvider()'s XML doc call the cross-row cycle exception "a diagnosed
@@ -357,7 +357,7 @@ public sealed class ComposedRowServiceProviderTests
             {
                 exceptionA = e;
             }
-        });
+        }, TestContext.Current.CancellationToken);
         var t2 = Task.Run(() =>
         {
             try
@@ -368,9 +368,12 @@ public sealed class ComposedRowServiceProviderTests
             {
                 exceptionB = e;
             }
-        });
+        }, TestContext.Current.CancellationToken);
 
-        Task.WaitAll([t1, t2], TimeSpan.FromSeconds(5)).Should().BeTrue();
+        var both = Task.WhenAll(t1, t2);
+        var completed = await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)) == both;
+
+        completed.Should().BeTrue();
 
         // Exactly one of the two threads is the one this adapter's own cross-row cycle detection
         // refuses (thrown from directly inside its provider call, undiagnosed) - the other either
@@ -399,7 +402,7 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
-    public void GetService_WaitsOutASlowUnrelatedNestedCall_RatherThanFalselyDetectingACycle()
+    public async Task GetService_WaitsOutASlowUnrelatedNestedCall_RatherThanFalselyDetectingACycle()
     {
         // Regression for a Codex PR review finding (P2): the previous fixed-timeout fix couldn't tell a
         // genuine cycle apart from a legitimate nested cross-row call blocked behind unrelated,
@@ -435,16 +438,18 @@ public sealed class ComposedRowServiceProviderTests
         var providerA = rowA.AsServiceProvider();
 
         // Occupies Row B's lock for 12s with unrelated work that never touches Row A.
-        var slowUnrelatedCaller = Task.Run(() => providerB.GetService(typeof(SlowMarker)));
-        slowCallerHasAcquiredRowB.Wait();
+        var slowUnrelatedCaller = Task.Run(() => providerB.GetService(typeof(SlowMarker)), TestContext.Current.CancellationToken);
+        slowCallerHasAcquiredRowB.Wait(TestContext.Current.CancellationToken);
         // A nested cross-row call (via Row A's own factory) into the SAME Row B, contending with the
         // call above but not cycling back to it. Guaranteed by the wait above to actually contend -
         // Row B's lock is genuinely held by the time this starts.
-        var nestedCrossRowCaller = Task.Run(() => providerA.GetService(typeof(TypeX)));
+        var nestedCrossRowCaller = Task.Run(() => providerA.GetService(typeof(TypeX)), TestContext.Current.CancellationToken);
 
-        var completed = Task.WaitAll([slowUnrelatedCaller, nestedCrossRowCaller], TimeSpan.FromSeconds(20));
+        var both = Task.WhenAll(slowUnrelatedCaller, nestedCrossRowCaller);
+        var completed = await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken)) == both;
 
         completed.Should().BeTrue();
+        await both;
     }
 
     private sealed record SlowMarker;
@@ -482,7 +487,7 @@ public sealed class ComposedRowServiceProviderTests
         // waiting for it, not just race past it.
         var occupyingThread = new Thread(() => provider.GetService(typeof(SlowMarker))) { IsBackground = true };
         occupyingThread.Start();
-        occupyingThreadHasAcquiredTheLock.Wait();
+        occupyingThreadHasAcquiredTheLock.Wait(TestContext.Current.CancellationToken);
 
         Exception? caught = null;
         var waitingThread = new Thread(() =>
@@ -506,7 +511,7 @@ public sealed class ComposedRowServiceProviderTests
     }
 
     [Fact]
-    public void GetService_DoesNotTimeOut_ForOrdinaryContentionLongerThanTheLockTimeout()
+    public async Task GetService_DoesNotTimeOut_ForOrdinaryContentionLongerThanTheLockTimeout()
     {
         // Regression for a Codex PR review finding (P2): the deadlock fix above originally bounded
         // EVERY GetService call with a fixed timeout, including a top-level call contending only with
@@ -523,14 +528,16 @@ public sealed class ComposedRowServiceProviderTests
         var row = composer.CreateRow(typeof(ComposedRowServiceProviderTests));
         var provider = row.AsServiceProvider();
 
-        var t1 = Task.Run(() => provider.GetService(typeof(SlowMarker)));
-        var t2 = Task.Run(() => provider.GetService(typeof(SlowMarker)));
+        var t1 = Task.Run(() => provider.GetService(typeof(SlowMarker)), TestContext.Current.CancellationToken);
+        var t2 = Task.Run(() => provider.GetService(typeof(SlowMarker)), TestContext.Current.CancellationToken);
 
-        var completed = Task.WaitAll([t1, t2], TimeSpan.FromSeconds(20));
+        var both = Task.WhenAll(t1, t2);
+        var completed = await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken)) == both;
 
         completed.Should().BeTrue();
-        t1.Result.Should().NotBeNull();
-        t2.Result.Should().BeSameAs(t1.Result);
+        var results = await both;
+        results[0].Should().NotBeNull();
+        results[1].Should().BeSameAs(results[0]);
     }
 
     [Fact]

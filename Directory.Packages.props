@@ -195,7 +195,7 @@
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <!-- Roslyn / Source Generators: Compono.Generators only, referenced with
          PrivateAssets="all" so they never leak to consumers - see
          docs/adr/0003-generator-package-distribution.md. -->
