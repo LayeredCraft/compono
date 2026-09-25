@@ -87,7 +87,7 @@
     <!-- test/Compono.MSTest.Tests' own dependency - the full MSTest meta-package (framework +
          adapter + analyzers), since that project actually executes as a real MSTest test run, not
          just authors against MSTest.TestFramework's extension surface. -->
-    <PackageVersion Include="MSTest" Version="4.3.3" />
+    <PackageVersion Include="MSTest" Version="4.4.1" />
     <!-- test/Compono.MSTest.SampleTests' own dependency, same reasoning as Compono.TUnit/
          Compono.TestDoubles above - never a ProjectReference, and this version must match the
          -p:Version passed to PackToLocalFeed's pack of Compono.MSTest. -->
