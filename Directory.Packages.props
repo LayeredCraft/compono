@@ -9,7 +9,7 @@
          xunit.v3.core.mtp-v1, whose Microsoft.Testing.Platform version is incompatible with
          a directly-referenced/newer Microsoft.Testing.Platform and throws TypeLoadException
          (IDataConsumer) at test-host startup. -->
-    <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.3" />
+    <PackageVersion Include="Microsoft.Testing.Platform" Version="2.4.1" />
     <!-- Ships Microsoft.Testing.Extensions.MSBuild.dll, the `dotnet test`-via-MTP entry point's own
          runtime dependency. TestingPlatformDotnetTestSupport=true is supposed to auto-add this
          package via the .NET SDK's own targets, but under Central Package Management with no pinned
@@ -22,14 +22,14 @@
          Compono.TUnit.SampleTests had no equivalent explicit, CPM-pinned reference at all. An
          explicit PackageReference (added to both projects) makes restore resolve it deterministically
          instead of depending on the SDK's own auto-injection timing. -->
-    <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.3.3" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.0" />
+    <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.4.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!-- samples/Compono.Samples.AspNetApi.Tests' own dependency: WebApplicationFactory<T> for the
          one integration-style endpoint test ADR-0033 calls for. Pinned to the current net10.0
          release line, matching this repo's own TargetFrameworks. -->
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <!-- Compono.XunitV3's own dependency, matching xunit.v3.mtp-v2's own resolved version - the
          Xunit.v3.DataAttribute/ITheoryDataRow extension surface, per ADR-0022. This is the
          dependency version Compono.XunitV3's own .nuspec ships to consumers - a tested-range
@@ -42,12 +42,12 @@
          produces CS0433 on TheoryAttribute). Floor 4.0.0, the version that introduced xUnit v3
          Native AOT support at all - there is no lower version to support. A tested-range constraint,
          not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="xunit.v3.extensibility.core.aot" Version="[4.0.0, 5.0.0)" />
+    <PackageVersion Include="xunit.v3.extensibility.core.aot" Version="[4.0.1, 5.0.0)" />
     <!-- test/Compono.XunitV3.Aot.Tests'/test/Compono.XunitV3.Aot.SampleTests' own dependency - the
          full AOT meta-package (framework + assert + in-proc console runner), since those projects
          actually execute as real xUnit v3 Native AOT test runs, not just author against
          xunit.v3.extensibility.core.aot's extension surface. -->
-    <PackageVersion Include="xunit.v3.aot.mtp-v2" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3.aot.mtp-v2" Version="4.0.1" />
     <!-- test/Compono.XunitV3.Aot.SampleTests' own dependency, same reasoning as Compono.TUnit/
          Compono.MSTest/Compono.NUnit above - never a ProjectReference, and this version must match
          the -p:Version passed to PackToLocalFeed's pack of Compono.XunitV3.Aot. -->
@@ -58,11 +58,11 @@
          this is the extensibility-authoring layer, matching xunit.v3.extensibility.core's
          own minimal-reference precedent immediately above. A tested-range constraint,
          not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="TUnit.Core" Version="[1.65.68, 2.0.0)" />
+    <PackageVersion Include="TUnit.Core" Version="[1.68.4, 2.0.0)" />
     <!-- test/Compono.TUnit.Tests' own dependency - the full TUnit meta-package
          (engine + core + assertions), since that project actually executes as a
          TUnit test run, not just authors against TUnit.Core's extension surface. -->
-    <PackageVersion Include="TUnit" Version="[1.65.68, 2.0.0)" />
+    <PackageVersion Include="TUnit" Version="[1.68.4, 2.0.0)" />
     <!-- Compono.XunitV3.SampleTests' own dependency, same reasoning as Compono.XunitV3/
          Compono.NSubstitute/Compono.Bogus above - never a ProjectReference, and this
          version must match the -p:Version passed to PackToLocalFeed's pack of
@@ -83,11 +83,11 @@
          Compono.MSTest.dll compiled against 3.x cannot implement the ITestDataSource a 4.x test host
          checks for, confirmed by a real FileNotFoundException reproduction during implementation. A
          tested range, not a bare unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="MSTest.TestFramework" Version="[4.3.3, 5.0.0)" />
+    <PackageVersion Include="MSTest.TestFramework" Version="[4.4.1, 5.0.0)" />
     <!-- test/Compono.MSTest.Tests' own dependency - the full MSTest meta-package (framework +
          adapter + analyzers), since that project actually executes as a real MSTest test run, not
          just authors against MSTest.TestFramework's extension surface. -->
-    <PackageVersion Include="MSTest" Version="4.3.3" />
+    <PackageVersion Include="MSTest" Version="4.4.1" />
     <!-- test/Compono.MSTest.SampleTests' own dependency, same reasoning as Compono.TUnit/
          Compono.TestDoubles above - never a ProjectReference, and this version must match the
          -p:Version passed to PackToLocalFeed's pack of Compono.MSTest. -->
@@ -232,18 +232,18 @@
          of taking a package dependency on that one - see the attribution comment on the vendored
          file. Its GetHashCode() uses System.HashCode, provided for netstandard2.0 by
          Meziantou.Polyfill below, rather than a second vendored HashCode polyfill. -->
-    <PackageVersion Include="Scriban" Version="7.2.6" />
+    <PackageVersion Include="Scriban" Version="7.4.0" />
     <!-- Polyfills modern C# language/BCL surface for netstandard2.0 (Compono.Generators, and
          Scriban's embedded source above) - matches dynamo-mapper's pattern exactly. -->
-    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.164" />
+    <PackageVersion Include="Meziantou.Polyfill" Version="1.0.165" />
     <!-- Scriban's embedded source uses the C# dynamic runtime binder - matches dynamo-mapper's
          pattern exactly. -->
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
     <!-- Generator testing: snapshot-test the generator itself, per ADR-0005. -->
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
     <PackageVersion Include="Verify.XunitV3" Version="31.28.0" />
-    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.11" />
-    <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.11" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net110" Version="1.8.12" />
     <!-- Phase 4: benchmark harness comparing generated construction against a reflection
          baseline (docs/mvp.md's explicit Milestone 1 ask). -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
