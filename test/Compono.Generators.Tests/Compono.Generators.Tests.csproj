@@ -47,6 +47,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
     <PackageReference Include="Basic.Reference.Assemblies.Net110" />
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" VersionOverride="2.5.1" />
   </ItemGroup>
 
   <ItemGroup>

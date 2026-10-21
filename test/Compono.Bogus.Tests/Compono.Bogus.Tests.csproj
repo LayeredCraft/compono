@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" VersionOverride="2.5.1" />
     <ProjectReference Include="..\..\src\Compono.Bogus\Compono.Bogus.csproj" />
     <!-- Coexistence coverage (this plan's own Goal scenario) needs both integration packages
          registered on the same real Composer - see CoexistenceTests.cs. -->

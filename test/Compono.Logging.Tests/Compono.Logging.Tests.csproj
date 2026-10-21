@@ -40,6 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" VersionOverride="2.5.1" />
     <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
     <ProjectReference Include="..\..\src\Compono.Logging\Compono.Logging.csproj" />
     <!-- Test-only: PLAN-0055 task 13's stage-6 registration-order precedence tests need a second
