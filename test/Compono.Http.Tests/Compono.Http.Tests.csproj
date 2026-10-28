@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" VersionOverride="2.5.1" />
     <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
     <ProjectReference Include="..\..\src\Compono.Http\Compono.Http.csproj" />
   </ItemGroup>

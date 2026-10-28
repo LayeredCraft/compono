@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" VersionOverride="2.5.1" />
     <ProjectReference Include="..\..\src\Compono.DependencyInjection\Compono.DependencyInjection.csproj" />
     <!-- Compono.TestDoubles is a test-project-only dependency here (ADR-0047: the shipped
          Compono.DependencyInjection package itself never references either provider package) - it
