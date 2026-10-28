@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
     <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
     <ProjectReference Include="..\..\src\Compono.Options\Compono.Options.csproj" />
   </ItemGroup>

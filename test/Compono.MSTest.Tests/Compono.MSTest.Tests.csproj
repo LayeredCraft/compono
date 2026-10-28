@@ -27,6 +27,7 @@
          alone - this project actually executes as a real MSTest test run, unlike
          src/Compono.MSTest itself, which only authors against MSTest.TestFramework's
          extensibility surface. -->
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
     <PackageReference Include="MSTest" />
   </ItemGroup>
 
