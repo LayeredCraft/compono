@@ -5,7 +5,7 @@ description: >-
   tests. Compono is a source-generated AutoFixture alternative
   (composer.Create<T>()/CreateMany<T>(), [Composable], registrations,
   profiles, [Shared]), plus optional integration packages
-  (XunitV3/TUnit/MSTest/NUnit/NSubstitute/Bogus/TestDoubles/DependencyInjection/Http/Logging/Options).
+  (XunitV3/XunitV3.Aot/TUnit/MSTest/NUnit/NSubstitute/Bogus/TestDoubles/DependencyInjection/Http/Logging/Options).
   USE FOR: writing/reviewing Compono tests, diagnosing CMP00xx diagnostics
   or CompositionException failures, deciding on
   [Composable]/Register<T>()/.For<T>()/[Shared], adding Compono, migrating
@@ -42,6 +42,7 @@ some packages and not others.
 |---|---|---|---|
 | `<PackageReference Include="Compono"` | any `.csproj` in the project | Definitive | Core Compono in use |
 | `<PackageReference Include="Compono.XunitV3"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/xunit-v3.md` |
+| `<PackageReference Include="Compono.XunitV3.Aot"` | `.csproj` | Definitive | Native AOT xUnit v3 `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]` available in namespace `Compono.XunitV3.Aot` (no inline values/`[Shared]` yet) — load `references/xunit-v3.md`; mutually exclusive with `Compono.XunitV3` in the same project (use a separate AOT test project instead) |
 | `<PackageReference Include="Compono.TUnit"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/tunit.md` |
 | `<PackageReference Include="Compono.MSTest"` | `.csproj` | Definitive | `[TestMethod]` + `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — load `references/mstest.md` |
 | `<PackageReference Include="Compono.NUnit"` | `.csproj` | Definitive | `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` available — no `[TestFixture]`/`[Test]` needed alongside `[Compose]` — load `references/nunit.md` |
@@ -343,11 +344,14 @@ undermines the reason Compono exists in this project.
   they can "opt into reflection fallback."
 - **Never claim or write code against a Compono integration package that
   hasn't shipped — but distinguish "no dedicated package" from "no
-  capability."** Only `Compono`, `Compono.XunitV3`, `Compono.TUnit`,
+  capability."** Only `Compono`, `Compono.XunitV3`, `Compono.XunitV3.Aot`, `Compono.TUnit`,
   `Compono.MSTest`, `Compono.NSubstitute`, `Compono.Bogus`,
   `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`,
   `Compono.Logging`, and `Compono.Options` ship as packages today
-  (`Compono.TUnit`
+  (`Compono.XunitV3.Aot` is the Native AOT sibling of `Compono.XunitV3` —
+  the same `[Compose]` family in namespace `Compono.XunitV3.Aot`, mutually
+  exclusive with `Compono.XunitV3` in one project, see
+  `references/xunit-v3.md`; `Compono.TUnit`
   ships the full attribute family —
   `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]`,
   see `references/tunit.md`; `Compono.TestDoubles` requires both the
@@ -462,7 +466,7 @@ Load only what the Detection table says is relevant to the current task.
 | `references/composition-model.md` | Composing a type, deciding on `[Composable]`, understanding generated-plan discovery, or anything about determinism/seeding |
 | `references/registrations-profiles-and-scopes.md` | Using `Register<T>()`, `.For<T>().Use()`/`.Member()`, `ICompositionProfile`, `Share<T>()`, `[Shared]`, or debugging a recursion/registration-conflict error |
 | `references/diagnostics.md` | A `CMP0001`-`CMP0013` build error, a `CMP0033`-`CMP0034` constructor-selection build error, a `CMP0020`-`CMP0032` or `CMP0035`-`CMP0037` informational diagnostic (surfaces whenever `ComponoGeneratedTestDoubles=true` is set, whether or not `Compono.TestDoubles` is referenced), a `CMP0038`-`CMP0039` Compono.Logging activation-generation diagnostic, or a runtime `CompositionException` needs diagnosing |
-| `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work |
+| `references/xunit-v3.md` | `Compono.XunitV3` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` theory work, and `RequireFixture<TFixture>()` fixture access. Also covers `Compono.XunitV3.Aot` (same file; namespace `Compono.XunitV3.Aot`, plus its assembly-fixture AOT limitation) |
 | `references/tunit.md` | `Compono.TUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` test-method work |
 | `references/mstest.md` | `Compono.MSTest` is referenced — `[TestMethod]` + `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` work |
 | `references/nunit.md` | `Compono.NUnit` is referenced — `[Compose]`/`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`/`[Shared]` work, no `[TestFixture]`/`[Test]` needed |

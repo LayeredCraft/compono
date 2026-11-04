@@ -82,7 +82,7 @@ jobs:
             core_or_shared_change=true
           fi
 
-          if echo "$changed" | grep -qE '^(src/Compono\.XunitV3\.Aot/|test/Compono\.XunitV3\.Aot\.SampleTests/|test/Compono\.XunitV3\.Aot\.Tests/)' || [ "$core_or_shared_change" = "true" ]; then
+          if echo "$changed" | grep -qE '^(src/Compono\.XunitV3\.Aot/|src/Shared/Compono\.XunitV3/|test/Compono\.XunitV3\.Aot\.SampleTests/|test/Compono\.XunitV3\.Aot\.Tests/)' || [ "$core_or_shared_change" = "true" ]; then
             echo "xunitv3_aot_applicable=true" >> "$GITHUB_OUTPUT"
           else
             echo "xunitv3_aot_applicable=false" >> "$GITHUB_OUTPUT"
@@ -107,6 +107,7 @@ jobs:
           echo "$changed" | grep -q '^src/Compono\.TestDoubles/' && add_leg "Compono.TestDoubles"
           echo "$changed" | grep -q '^src/Compono\.TUnit/'       && add_leg "Compono.TUnit"
           echo "$changed" | grep -q '^src/Compono\.XunitV3/'     && add_leg "Compono.XunitV3"
+          echo "$changed" | grep -q '^src/Shared/Compono\.XunitV3/' && add_leg "Compono.XunitV3"
 
           # A change scoped to one leg's own AotSmokeTest project only needs that leg re-run, not all
           # nine - extract which leg(s) directly from the changed paths.

@@ -114,6 +114,109 @@ constructor-shape checks can only happen at runtime, since "has a
 constructor accepting exactly this type" isn't expressible as a C# generic
 constraint.
 
+## Using xUnit fixtures in profiles
+
+When a composed value needs something xUnit already initialized for you —
+a class, collection, or assembly fixture (a `WebApplicationFactory<Program>`,
+a live database connection, a real handler) — call
+`TestContext.Current.RequireFixture<TFixture>()` **inside a `Register`
+factory** and register what it returns:
+
+```csharp
+using Xunit;
+
+public sealed class WebAppFixture : IAsyncLifetime
+{
+    public WebApplicationFactory<Program> Factory { get; private set; } = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        Factory = new WebApplicationFactory<Program>();
+        await Task.Yield();
+    }
+
+    public async ValueTask DisposeAsync() => await Factory.DisposeAsync();
+}
+
+public sealed record ApiClient(HttpClient Client) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync()
+    {
+        Client.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class ApiTestProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.Register(
+        () => new ApiClient(
+            TestContext.Current.RequireFixture<WebAppFixture>().Factory.CreateClient()));
+}
+
+public sealed class ApiTests : IClassFixture<WebAppFixture>
+{
+    [Theory]
+    [Compose<ApiTestProfile>]
+    public async Task Client_reaches_the_fixture(ApiClient client)
+    {
+        await using (client)
+        {
+            client.Client.BaseAddress.Should().NotBeNull();
+        }
+    }
+}
+```
+
+Three things to know:
+
+- **Read it inside the `Register` factory.** Compono composes rows at test
+  *execution* time, so the factory — invoked while xUnit is running the
+  test — sees a live `TestContext.Current` with its fixtures already
+  initialized, and it runs per row. `TestContext.Current` is ambient and
+  available during profile construction and `Configure` too, but a profile
+  instance can outlive a single row (under JIT, `Configure` runs once per
+  attribute instance and any captured value is reused for every row that
+  instance composes). Reading inside the factory avoids capturing stale or
+  cross-test state and behaves the same on both engines.
+- **Exact-type matching only.** xUnit's `GetFixture` returns `null` when
+  the requested exact fixture type isn't available (a missing fixture, or a
+  base-type/interface request against a concrete fixture);
+  `RequireFixture<TFixture>()` throws a descriptive
+  `InvalidOperationException` instead of returning `null`.
+- **It never waits.** If the fixture hasn't finished initializing, the
+  call throws immediately instead of blocking. Declare the fixture
+  concretely (`IClassFixture<T>`, `ICollectionFixture<T>`, or
+  `[assembly: AssemblyFixture(typeof(T))]`) so xUnit initializes it before
+  the test runs.
+
+`Compono.XunitV3.Aot` exposes this same method in namespace
+`Compono.XunitV3.Aot`. See the
+[Use xUnit Fixture Values in a Profile](../cookbook/use-xunit-fixture-values-in-a-profile.md)
+recipe, and [ADR-0069](../adr/0069-xunitv3-require-fixture-accessor.md) for
+the design. Compono doesn't own or dispose composed values — dispose what
+you create (above, the fixture disposes its `WebApplicationFactory` and the
+test disposes the `ApiClient`). The fixture itself stays xUnit's, and
+`RequireFixture` never disposes it or changes its lifetime.
+
+**No ambient `TestContext`?** `RequireFixture` reads
+`TestContext.Current`, so it only works under a running xUnit test. To stay
+framework-neutral, take the fixture as a profile constructor argument and
+build the composer by hand — a profile such as
+`FixtureBackedApiProfile(WebAppFixture fixture)` that registers
+`new ApiClient(fixture.Factory.CreateClient())` from its own field:
+
+```csharp
+await using var fixture = new WebAppFixture();
+await fixture.InitializeAsync();
+
+var composer = Composer.Create(b => b.AddProfile(new FixtureBackedApiProfile(fixture)));
+await using var client = composer.Create<ApiClient>();
+```
+
+That works with any test framework (the caller supplies the fixture and
+owns disposal) but does not use attribute-driven parameter composition.
+
 ## What it deliberately doesn't do
 
 - **No stacking distinct Compose-family attributes on one method.** A test
@@ -129,10 +232,12 @@ constraint.
   varying rows another way (e.g. inline `[Theory]`/`[InlineData]` rows for
   the parts that need no composition, per
   [Migrating from AutoFixture](../migrating-from-autofixture.md)).
-- **No fixture object.** There's nothing analogous to AutoFixture's
-  `IFixture` — configuration lives in a profile
+- **No AutoFixture-style fixture object.** There's nothing analogous to
+  AutoFixture's `IFixture` — configuration lives in a profile
   (`[Compose<TProfile>]`), applied per test method, not a shared mutable
-  object.
+  object. (This is unrelated to **xUnit** fixtures, which are supported —
+  see [Using xUnit fixtures in profiles](#using-xunit-fixtures-in-profiles)
+  above.)
 
 ## Next
 

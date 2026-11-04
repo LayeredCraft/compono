@@ -9,6 +9,9 @@
              RESEARCH-0031/RESEARCH-0032. There is no lower floor to support: xunit.v3.aot.mtp-v2
              itself doesn't exist below net9.0. -->
         <TargetFrameworks>net9.0;net10.0;net11.0</TargetFrameworks>
+        <!-- Selects the Compono.XunitV3.Aot namespace branch in the shared RequireFixture source
+             (ADR-0069 / PLAN-0070). -->
+        <DefineConstants>$(DefineConstants);COMPONO_XUNITV3_AOT</DefineConstants>
         <Title>Compono — xUnit v3 Native AOT Integration</Title>
         <Description>xUnit v3 Native AOT integration for Compono - the [Compose] theory data attribute for Compono.XunitV3.Aot.ComposeAttribute, generator-emitted RegisteredEngineConfig.RegisterTheoryDataRowFactory registration. Phase 1: plain [Compose] only (no inline values, [Shared], or profile variants yet) - see docs/adr/0066-compono-xunitv3-aot-package-architecture.md.</Description>
     </PropertyGroup>
@@ -30,6 +33,14 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Compono.XunitV3.Aot.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- One shared source implementation, linked per package: Compono.XunitV3 and
+             Compono.XunitV3.Aot each compile against a different xUnit engine, and each defines its
+             own Xunit.ITestContext, so a shared compiled assembly is impossible. Only this one file
+             is shared this way (ADR-0069 / PLAN-0070). -->
+        <Compile Include="..\Shared\Compono.XunitV3\FixtureContextExtensions.cs" Link="FixtureContextExtensions.cs" />
     </ItemGroup>
 
     <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a

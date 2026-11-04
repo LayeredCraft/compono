@@ -26,6 +26,14 @@
         <InternalsVisibleTo Include="Compono.XunitV3.Tests" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- One shared source implementation, linked per package: Compono.XunitV3 and
+             Compono.XunitV3.Aot each compile against a different xUnit engine, and each defines its
+             own Xunit.ITestContext, so a shared compiled assembly is impossible. Only this one file
+             is shared this way (ADR-0069 / PLAN-0070). -->
+        <Compile Include="..\Shared\Compono.XunitV3\FixtureContextExtensions.cs" Link="FixtureContextExtensions.cs" />
+    </ItemGroup>
+
     <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a
          bare, minimum-inclusive version by default (e.g. "0.3.0"), which would let a consumer
          install this package alongside a newer, incompatible Compono and still restore - exactly
