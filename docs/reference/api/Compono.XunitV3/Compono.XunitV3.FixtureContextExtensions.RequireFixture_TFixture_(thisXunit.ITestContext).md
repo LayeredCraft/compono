@@ -49,10 +49,15 @@ sealed class WebAppProfile : ICompositionProfile
 ```
 
 ### Remarks
-Call this from a registration factory \(for example inside
-`builder.Register(() => ...)`\), not from a profile constructor or from
-`Configure`: xUnit initializes fixtures before a test runs, but the profile may be
-constructed before that point, so the value read during construction can be missing\.
+Prefer reading the fixture from a registration factory \(for example inside
+`builder.Register(() => ...)`\) rather than once from a profile constructor or a
+`Configure` body\. The factory runs per row at test execution time, so it always
+reads the fixture belonging to the test that is actually running\. A profile instance can
+outlive a single row \- under the JIT engine `Configure` runs once per attribute
+instance and any value it captured is reused for every row that instance composes \- so a
+value captured in the constructor or `Configure` can be stale or leak state from
+another test\. \(`TestContext.Current` is ambient and available during construction
+and `Configure` too; this is about lifecycle correctness, not availability\.\)
 
 This method never waits for fixture initialization. If the fixture has not finished
 initializing by the time the test executes, it throws immediately rather than blocking; a
