@@ -46,4 +46,27 @@
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="AwesomeAssertions" />
   </ItemGroup>
+
+  <!-- Workaround for the .NET 11 SDK RC2/RC3 "optimized Native AOT publish" regression (dotnet/sdk#56618,
+       introduced by dotnet/sdk#54515): the optimized path skips full Build and runs only Compile, so the
+       compiler-generated XML documentation file is left in obj/ instead of being copied to bin/, while
+       Publish still expects it at bin/ (having added it to @(FinalDocFile) -> ResolvedFileToPublish). Every
+       AOT publish in .github/workflows/aot-validation.yaml therefore failed with MSB3030 ("Could not copy
+       the file bin/<config>/<tfm>/<rid>/<AssemblyName>.xml because it was not found"), across all ten legs.
+       UseOptimizedPublish=false restores the previously working non-optimized publish path (full Build,
+       XML doc copied to bin/) without disabling Native AOT, trimming, or documentation generation - the
+       exact workaround Microsoft documents on the issue, and the behavior .NET 11 servicing restores as
+       the default via dotnet/sdk#56661 (which makes optimized AOT publish opt-in, deferred to .NET 12).
+       REMOVE this PropertyGroup once the pinned SDK includes that servicing fix and aot-validation.yaml
+       is green without it.
+       Scoped to PublishAot=true - every test/*.AotSmokeTest and test/Compono.XunitV3.Aot.SampleTests
+       project is published with -p:PublishAot=true (none sets PublishAot in its own csproj), so this
+       covers exactly the AOT validation projects and leaves every non-AOT test project, and every
+       src/ package, untouched (production packages live under src/ and never set PublishAot). It lives
+       in Directory.Build.targets, not Directory.Build.props, because PublishAot is supplied as a
+       command-line global property and this file is imported after the project body, ahead of the SDK's
+       Microsoft.NET.Publish.targets where UseOptimizedPublish is otherwise defaulted. -->
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <UseOptimizedPublish>false</UseOptimizedPublish>
+  </PropertyGroup>
 </Project>
