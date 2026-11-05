@@ -127,3 +127,4 @@ the mechanics: numbering, status, and the index.
 | [0066](0066-compono-xunitv3-aot-package-architecture.md) | Compono.XunitV3.Aot: A Separate Package for xUnit v3 Native AOT Support | Accepted |
 | [0067](0067-compono-xunitv3-aot-profile-support.md) | Compono.XunitV3.Aot: Profile-Based Composition (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) | Accepted |
 | [0068](0068-generator-wide-per-item-emission-failure-isolation.md) | Generator-Wide Per-Item Emission Failure Isolation | Accepted |
+| [0069](0069-xunitv3-require-fixture-accessor.md) | xUnit v3 Fixture Accessor for Composition Profiles (`RequireFixture<TFixture>()`) | Accepted |

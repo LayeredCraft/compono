@@ -127,14 +127,107 @@ dependency it creates and must dispose resources when their lifetime
 matters. Do not copy `Compono.TUnit` disposal assumptions here: TUnit owns
 composed root method arguments, while xUnit v3 does not.
 
-## No fixture object
+## xUnit fixture values — `RequireFixture<TFixture>()`
 
-There's nothing like AutoFixture's `IFixture` to hold onto across a test
-class. Configuration is per-test via `[Compose<TProfile>]`; don't invent
-a shared fixture-holder pattern to route around this.
+To feed a value xUnit already initialized (a class, collection, or assembly
+fixture) into a composition, call
+`TestContext.Current.RequireFixture<TFixture>()` **inside a `Register`
+factory**:
+
+```csharp
+public sealed class WebAppFixture : IAsyncLifetime
+{
+    public WebApplicationFactory<Program> Factory { get; private set; } = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        Factory = new WebApplicationFactory<Program>();
+        await Task.Yield();
+    }
+
+    public async ValueTask DisposeAsync() => await Factory.DisposeAsync();
+}
+
+public sealed class ApiTestProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.Register(
+        () => new ApiClient(
+            TestContext.Current.RequireFixture<WebAppFixture>().Factory.CreateClient()));
+}
+```
+
+- **Read it inside the `Register` factory**, not once from the profile
+  constructor or a `Configure` body — Compono composes at test *execution*
+  time, so the factory sees a live `TestContext.Current` with fixtures
+  already initialized, and it runs per row. `TestContext.Current` is
+  ambient and available during construction/`Configure` too, but a profile
+  instance can outlive a single row (under JIT, `Configure` runs once per
+  attribute instance and reuses any captured value across its rows), so
+  capturing a fixture there risks stale or cross-test state. Calling it
+  with no active test class throws `InvalidOperationException`.
+- **Exact-type matching only.** xUnit's `GetFixture` returns `null` when the
+  exact fixture type isn't available; `RequireFixture` throws a descriptive
+  `InvalidOperationException` instead.
+- **It never waits** — if the fixture hasn't finished initializing it throws
+  immediately. Declare the fixture concretely (`IClassFixture<T>`,
+  `ICollectionFixture<T>`, `[assembly: AssemblyFixture(typeof(T))]`) so xUnit
+  initializes it before the test runs.
+- **The fixture stays xUnit's.** `RequireFixture` never disposes it or
+  changes its lifetime. Compono doesn't dispose composed values either — the
+  test owns what it creates (dispose a composed `HttpClient`, etc.).
+- **No ambient `TestContext`?** `RequireFixture` reads
+  `TestContext.Current`, so it only works under a running xUnit test. For a
+  framework-neutral profile, inject the fixture through the constructor and
+  build the composer by hand:
+
+  ```csharp
+  public sealed class FixtureBackedProfile(WebAppFixture fixture) : ICompositionProfile
+  {
+      public void Configure(CompositionBuilder builder) =>
+          builder.Register(() => new ApiClient(fixture.Factory.CreateClient()));
+  }
+
+  await using var fixture = new WebAppFixture();
+  await fixture.InitializeAsync();
+  var composer = Composer.Create(b => b.AddProfile(new FixtureBackedProfile(fixture)));
+  await using var client = composer.Create<ApiClient>();
+  ```
+
+  `await using` guarantees disposal even when an assertion throws. That
+  works with any test framework but skips attribute-driven parameter
+  composition.
+- This is **not** AutoFixture's `IFixture`: it's a read of a concrete xUnit
+  fixture, not a shared mutable configuration object. (There is still no
+  AutoFixture-style `IFixture`; configuration lives in a profile.)
+
+## Compono.XunitV3.Aot differences
+
+In the AOT package the same `RequireFixture<TFixture>()` method exists,
+textually identical, in namespace `Compono.XunitV3.Aot` — only the `using`
+changes (`using Compono.XunitV3.Aot;` instead of `Compono.XunitV3`). Class
+and collection fixtures work fully. An **assembly fixture**
+(`[assembly: AssemblyFixture(typeof(T))]`) currently fails to compile under
+xUnit v3's Native AOT generator (4.0.1 / 4.0.2) — an upstream xUnit issue
+(xunit/xunit#3664, reported fixed upstream in 4.0.3-pre.19 but not yet
+validated by Compono), not a Compono limitation — so use a class or
+collection fixture there.
+
+## No AutoFixture-style fixture object
+
+There is still nothing like AutoFixture's `IFixture` — no shared mutable
+configuration object to hold onto across a test class. Configuration is
+per-test via `[Compose<TProfile>]`. This is unrelated to **xUnit** fixtures,
+which are read (not owned) via `RequireFixture<TFixture>()` above — don't
+invent a shared fixture-*holder* pattern to carry Compono configuration.
 
 ## Real examples in this repo
 
+- `test/Compono.XunitV3.SampleTests/FixtureProfileTests.cs` — class- and
+  collection-fixture values registered through
+  `TestContext.Current.RequireFixture<TFixture>()`.
+- `test/Compono.XunitV3.Tests/RequireFixtureIntegrationTests.cs` — real
+  xUnit class/collection/assembly fixtures, parallel-fixture isolation, and
+  the missing-fixture failure path.
 - `test/Compono.XunitV3.SampleTests/SharedTests.cs` — `[Shared] Repository
   repository, OrderService service, CreateOrder command`.
 - `test/Compono.XunitV3.SampleTests/NSubstituteTests.cs` —

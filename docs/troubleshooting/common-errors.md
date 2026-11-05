@@ -197,6 +197,39 @@ is deliberate, not a bug. See
 [`Compono.NSubstitute`'s Package Guide](../packages/compono-nsubstitute.md#what-it-deliberately-doesnt-do)
 for why, and how to stub the member explicitly.
 
+### "`RequireFixture<TFixture>()` throws"
+
+`TestContext.Current.RequireFixture<TFixture>()` (see
+[`Compono.XunitV3`'s Package Guide](../packages/compono-xunitv3.md#using-xunit-fixtures-in-profiles))
+throws a plain `InvalidOperationException` — never a `CompositionException`
+and never a `CMP` code — for four distinct situations:
+
+- **`RequireFixture<...>() requires a running xUnit test class, but none is
+  active (pipeline stage: ...)`** — the message fires only when there is
+  genuinely no active test class: you called it outside a running xUnit
+  test (for example from a `[Fact]`-less helper, a static initializer, or
+  after the test finished). `TestContext.Current` is ambient and available
+  during profile construction and `Configure` too, so move the read into a
+  **`Register` factory** not because construction lacks a context, but for
+  lifecycle correctness: the factory runs per row and reads the fixture for
+  the test actually executing, whereas a profile instance can outlive a
+  single row (under JIT, `Configure` runs once per attribute instance and
+  reuses any captured value across its rows).
+- **`Fixture '...' for test class '...' has not finished initializing.`** —
+  the fixture exists but its `InitializeAsync` hasn't completed.
+  `RequireFixture` never waits for it. Declare the fixture concretely so
+  xUnit initializes it before the test runs; don't read a lazily- or
+  partially-initialized fixture.
+- **`Test class '...' has no fixture of exact type '...'.`** — the class
+  has no fixture of that concrete type. Fixture lookup matches the **exact
+  type** only: a base type or interface request never matches a concrete
+  fixture. Declare it with `IClassFixture<T>`, `ICollectionFixture<T>` on the
+  test's collection definition, or `[assembly: AssemblyFixture(typeof(T))]`,
+  and request the same concrete type.
+- **`Fixture lookup for '...' in test class '...' returned an instance of
+  '...', which is not a '...'.`** — the lookup returned a value of the wrong
+  type (only possible with a non-xUnit `ITestContext` implementation).
+
 ### "Two composed parameters of the same type aren't the same instance"
 
 That's the default — composition is independent per parameter unless you

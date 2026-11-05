@@ -110,6 +110,74 @@ dotnet add package xunit.v3.aot.mtp-v2
   form uses, and how it differs from `Compono.XunitV3`'s runtime
   `ConfigProfileBinder`.
 
+## Using xUnit fixtures in profiles
+
+`TestContext.Current.RequireFixture<TFixture>()` is available here too —
+the same method, textually identical to `Compono.XunitV3`'s, in namespace
+`Compono.XunitV3.Aot`. Call it **inside a `Register` factory** to register
+a value xUnit already initialized (a class or collection fixture):
+
+```csharp
+using Compono.XunitV3.Aot;
+using Xunit;
+
+public sealed class DatabaseFixture : IAsyncLifetime
+{
+    public string ConnectionString { get; private set; } = "";
+
+    public async ValueTask InitializeAsync()
+    {
+        ConnectionString = "Server=localhost;Database=app";
+        await Task.Yield();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+public sealed record DatabaseSettings(string ConnectionString);
+
+public sealed class DatabaseProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.Register(
+        () => new DatabaseSettings(
+            TestContext.Current.RequireFixture<DatabaseFixture>().ConnectionString));
+}
+
+public sealed class DatabaseTests : IClassFixture<DatabaseFixture>
+{
+    [Theory]
+    [Compose<DatabaseProfile>]
+    public void Settings_come_from_the_fixture(DatabaseSettings settings)
+    {
+        Assert.Equal("Server=localhost;Database=app", settings.ConnectionString);
+    }
+}
+```
+
+The same rules apply as in `Compono.XunitV3`: call it inside the `Register`
+factory, matching is **exact-type only** (xUnit's `GetFixture` returns
+`null` when the requested exact fixture type isn't available;
+`RequireFixture` throws a descriptive exception instead), and it **never
+waits** for initialization (throwing immediately if the fixture isn't
+ready). The fixture stays xUnit's — `RequireFixture` never disposes it or
+changes its lifetime. As in `Compono.XunitV3`, Compono doesn't own or
+dispose composed values; dispose what you create. See the
+[Compono.XunitV3 Package Guide](compono-xunitv3.md#using-xunit-fixtures-in-profiles)
+and [ADR-0069](../adr/0069-xunitv3-require-fixture-accessor.md).
+
+### Known limitation: assembly fixtures
+
+Class and collection fixtures (`IClassFixture<T>`, `ICollectionFixture<T>`)
+work fully. An **assembly fixture** — `[assembly: AssemblyFixture(typeof(T))]`
+— currently fails to *compile* under xUnit v3's Native AOT generator
+(4.0.1 / 4.0.2) with `CS1593` in the generator-emitted
+`AssemblyFixtureAttribute*.g.cs`, before Compono is involved at all. This is
+an upstream xUnit issue ([xunit/xunit#3664](https://github.com/xunit/xunit/issues/3664))
+— reported fixed upstream in xUnit **4.0.3-pre.19**, but not yet validated
+by Compono, and no stable release carrying the fix is inside Compono's
+supported range yet. Until one reaches your package graph, use a class or
+collection fixture instead.
+
 ## Not yet supported
 
 `Compono.XunitV3.Aot.ComposeAttribute`'s three forms don't support inline

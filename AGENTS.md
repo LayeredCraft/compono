@@ -119,46 +119,38 @@ compiles and runs in a real consuming project. `tasks/implement.md` and
 recent plan Notes entries (e.g. Phase 2/Phase 3 in
 `docs/plans/0001-...md`) show this pattern in detail.
 
-### Consumer/dogfood validation gate
+### Consumer/dogfood validation (optional)
 
-**For any substantive Compono package/generator behavior change that has
-an active dogfood consumer, the exact working tree being pushed must first
-pass that consumer through freshly packed local packages — Compono's own
-green test suite is necessary but not sufficient when an active consumer
-acceptance gate exists.** This governs pushing, not just merging: don't
-push a working tree whose most recent substantive change hasn't cleared
-this gate. A consumer run performed before the latest substantive change
-is stale and does not authorize a push, no matter how recently it ran —
-running the gate once at PR-open time and treating that as standing proof
-for later revisions is not sufficient; repeat it after every substantive
-PR feedback change. This is a development/PR-validation discipline, not a
-GitHub Actions requirement.
+External-repo dogfood validation is **recommended but no longer a mandatory
+gate** (product-owner policy change, 2026-11-04). Packing a change and
+running it against a known consumer repo can catch integration regressions
+Compono's own suite cannot, but skipping it does **not** block pushing or
+merging. Skipping dogfood is not a shortcut around any other required gate:
+a change still has to satisfy the build/test requirement above and every
+other gate its own scope carries — unit and integration tests, the relevant
+source-generator pack-and-consume check, ApiCompat, Native AOT validation
+when the change is AOT-facing, and package validation when a package's
+surface or contents change. Dogfood is simply the one gate that is now
+optional, not a licence to skip the rest.
 
-Known dogfood consumers today: `ncipollina/trivia-platform` (the
-`scripts/dogfood-validate.sh` default) and, for `Compono.Http`-touching
-changes per PLAN-0051, `alexa-vox-craft` (pass `--consumer-repo`). A
-package/generator change only needs to clear the gate against the
-consumer(s) it's actually relevant to, not every known consumer
-unconditionally.
+Known consumers: `ncipollina/trivia-platform` (the
+`scripts/dogfood-validate.sh` default) and `alexa-vox-craft` (pass
+`--consumer-repo`; per PLAN-0051, relevant to `Compono.Http`-touching
+changes).
 
-Verification requires all of:
+When you do choose to run it, `scripts/dogfood-validate.sh` packs the
+current working tree under one shared unique local prerelease version per
+package, restores the consumer against it (via a temporary
+`Directory.Packages.props` override, never editing the consumer's real
+file), asserts the consumer actually resolved that exact version for every
+relevant package (not a stale cache hit, and not a mix of freshly-packed and
+previously-published versions), and runs the consumer's test suite. Pass the
+consumer's full package set via `--packages`/`DOGFOOD_PACKAGES` — not always
+the original four-package default. See `scripts/dogfood-validate.sh --help`.
 
-1. `dotnet build`/`dotnet test` green in this repo.
-2. `scripts/dogfood-validate.sh` green, against the relevant consumer,
-   packing every Compono package that consumer actually depends on (its
-   `--packages`/`DOGFOOD_PACKAGES` option — not always just the original
-   four-package default) — packs the current working tree under one
-   shared unique local prerelease version per package, restores the
-   consumer against it (via a temporary `Directory.Packages.props`
-   override, never editing the consumer's real file), asserts the
-   consumer actually resolved that exact version for every one of those
-   packages (not a stale cache hit, and not a mix of freshly-packed and
-   previously-published versions), and runs the consumer's full test
-   suite.
-
-See `scripts/dogfood-validate.sh --help` for usage and
-`docs/research/0008-trivia-platform-multi-entry-testdoubles-dogfood.md` for
-the dogfood pass that established this gate.
+Historical dogfood evidence (for example
+`docs/research/0008-trivia-platform-multi-entry-testdoubles-dogfood.md`)
+remains a useful record of past runs, not an ongoing requirement.
 
 ## Generated code
 

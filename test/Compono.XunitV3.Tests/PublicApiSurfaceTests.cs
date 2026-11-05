@@ -15,8 +15,14 @@ public sealed class PublicApiSurfaceTests
         // instead - reflection's own naming split, not a synonym. Checking only IsPublic would let an
         // unapproved `public class Foo { public class Bar { } }` addition slip through this exact-set
         // assertion undetected.
+        //
+        // The Name.Contains('<') exclusion mirrors Compono.NSubstitute.Tests' version of this test:
+        // FixtureContextExtensions uses C# 14 extension-block syntax (coding-standards.md), which the
+        // compiler lowers into its own nested marker type that reflection reports as
+        // IsNestedPublic=true despite carrying no CompilerGeneratedAttribute. '<'/'>' are otherwise
+        // illegal in a C# identifier, so this exclusion can never hide a real, hand-declared type.
         var publicTypeNames = typeof(ComposeAttribute).Assembly.GetTypes()
-            .Where(static type => type.IsPublic || type.IsNestedPublic)
+            .Where(static type => (type.IsPublic || type.IsNestedPublic) && !type.Name.Contains('<'))
             .Select(static type => type.FullName);
 
         publicTypeNames.Should().BeEquivalentTo(
@@ -24,6 +30,7 @@ public sealed class PublicApiSurfaceTests
             "Compono.XunitV3.ComposeAttribute",
             "Compono.XunitV3.ComposeAttribute`1",
             "Compono.XunitV3.ComposeAttribute`2",
+            "Compono.XunitV3.FixtureContextExtensions",
             "Compono.XunitV3.SharedAttribute",
         ]);
     }
