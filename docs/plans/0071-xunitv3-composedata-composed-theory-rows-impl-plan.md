@@ -29,8 +29,12 @@ validation.
 
 **Deferred / out of scope:**
 
-- Member arguments, `MemberType` generic members, and per-row seed
-  overrides.
+- Member arguments, generic member methods (`Cases<T>()`; rejected on
+  both engines: a runtime failure on JIT, `CMP0052` on AOT), and per-row
+  seed overrides.
+- Dynamic per-derived-class member selection for inherited test methods on
+  AOT (see "B4 specification amendment" below: AOT resolves on the
+  method's declaring class, as xUnit's own AOT `MemberData` does).
 - TUnit, NUnit, and MSTest equivalents.
 - AOT `[Compose]` inline values and `[Shared]`. The emission components are
   built reusable but **not** wired into `[Compose]`. Record the follow-up in
@@ -178,34 +182,54 @@ responsibilities and messages are normative.
   - Attribute `Seed` plus profile `WithSeed` is core's
     `DuplicateConfigurationOption` error (no override). Assert it in tests.
 
-### Diagnostics (AOT, `CMP0051`+, added to `AnalyzerReleases.Unshipped.md`)
+### Diagnostics (AOT, `CMP0051`–`CMP0057`, added to `AnalyzerReleases.Unshipped.md`)
 
-Final numbering is chosen in B4. Each has a JIT runtime counterpart with the
-same condition (D1–D4/R0):
+Numbering is final (B4 specification amendment, 2026-11-06). Every ID is
+`Error`, category `Compono.Usage`. Each new ID has a JIT runtime counterpart
+for the same condition (D1–D4/R0, or JIT's member-read/ambiguity
+`CompositionException`). `{0}` is the lookup type's display name plus
+`.Member`; `{1}` is the test method's display name (the existing AOT
+`methodDisplayName` convention: compile-time messages use Roslyn display
+names; only the runtime R0 text must be CLR-style, see B4.3).
 
-- member not found or ambiguous,
-- not public static, or requires arguments,
-- unsupported return or row element type,
-- open-generic member type,
-- `TConfig` statically incompatible with the row's first element type
-  (statically known: a `TheoryData<…>` collection, or a collection whose
-  element type is `TheoryDataRow<…>`),
-- statically known too many values, or a value type that can never be
-  assigned to its parameter (no implicit or explicit reference/boxing/
-  unboxing path),
-- **invalid** attribute-level skip usage only: both `SkipUnless` and
-  `SkipWhen` set, or the member isn't a public static `bool` property on
-  `SkipType ?? test class` (base types walked). This matches the JIT
-  runtime `TestPipelineException` conditions and xUnit's own AOT generator
-  checks. **Valid** `SkipUnless`/`SkipWhen`/`SkipType` usage must be fully
-  supported on AOT. There's no diagnostic-only fallback. If rendering it
-  hits a significant obstacle, stop and bring it to the product owner.
+| ID | Condition | Message text (one descriptor per ID; the reason varies) |
+|---|---|---|
+| `CMP0051` | member not found; member ambiguous | `ComposeData member '{0}' for '{1}' was not found. Expected a public static field, property, or parameterless method.` / `ComposeData member '{0}' for '{1}' is ambiguous: more than one inherited or hidden static member matches. Set MemberType to disambiguate, or rename the member.` (JIT's texts) |
+| `CMP0052` | not public static; requires arguments; generic member method | `ComposeData member '{0}' for '{1}' must be public and static.` / `… requires arguments, which ComposeData does not support.` / `… is a generic method; ComposeData cannot supply type arguments.` |
+| `CMP0053` | unsupported return type or row element type | `ComposeData member '{0}' for '{1}' has unsupported {return/row element} type '{2}'. Expected IEnumerable, Task/ValueTask of IEnumerable, or IAsyncEnumerable of ITheoryDataRow, object?[], or ITuple rows.` |
+| `CMP0054` | open-generic `MemberType` | `ComposeData MemberType '{2}' for '{1}' is an open generic type; supply a closed type.` |
+| `CMP0055` | `TConfig` statically incompatible with the typed row's element 0 | `ComposeData member '{0}' for '{1}': row element 0 type '{2}' can never be the '{3}' profile configuration value.` |
+| `CMP0056` | statically known too many values; a typed row value that can never be assigned to its parameter | `ComposeData member '{0}' for '{1}' supplies {n} row value(s), but the method has {p} parameter(s).` / `ComposeData member '{0}' for '{1}': row value {i} type '{2}' can never be assigned to parameter '{name}' of type '{3}'.` |
+| `CMP0057` | invalid **active** attribute-level skip condition (B4.9) | `[ComposeData…] on '{1}' sets both SkipUnless and SkipWhen.` / `[ComposeData…] on '{1}': {SkipUnless/SkipWhen} '{prop}' must be a public static bool property on '{holder}' or one of its base types.` |
 
-`CMP0045`'s message and logic are extended to include the `ComposeData`
-forms. `CMP0040`'s method and parameter rules apply unchanged. The
-`TProfile` constructor checks reuse `CMP0042`/`CMP0044`/`CMP0046`–`CMP0049`.
+Reused IDs, through **twin `DiagnosticDescriptor`s** (same ID, severity,
+and category as the existing descriptor, with ComposeData-specific
+wording; the existing `[Compose]` descriptors, their message formats, and
+their 18 existing Verify snapshots stay byte-identical, product-owner
+decision C-3):
+
+- `CMP0040` (twin): the existing signature rules (generic test method,
+  ref/out/in, `params`, a non-composable parameter shape), plus **duplicate
+  `[Shared]` parameter types** (C5; same rule and reason text as JIT
+  `BindingPlan`). No new ID.
+- `CMP0042`, `CMP0046`, `CMP0047`, `CMP0048` (twins): **`TProfile`
+  constructor only**, for `ComposeData<TProfile, TConfig>`.
+- `CMP0044` (twin): `TProfile`, `TConfig`, the **member holder types**
+  (lookup type and the member's containing type), and the **active
+  `SkipType`/skip-condition holder**, whenever not accessible from the
+  generated top-level registration (C-2; JIT accepts private nested
+  holders, xUnit's own AOT `MemberData` silently drops them, Compono
+  reports instead).
+- `CMP0049` (twin): `ComposeData<TProfile>`'s parameterless constructor.
+- `CMP0045` (twin): used whenever at least one `ComposeData` form is among
+  the stacked attributes; names all six forms (JIT `BindingPlan` text).
+  `[Compose]`-only stacking keeps the existing descriptor and text.
+- **Never** `CMP0041` or `CMP0043` for `ComposeData`: `TConfig` comes from
+  the row and is never constructed by generated code (C2).
+
 Statically unknown row element types (`object?[]`, `ITheoryDataRow`,
-`ITuple`) are validated at runtime through the shared helper.
+`ITuple`, `object`, non-unique enumerable element types) are validated at
+runtime through the shared helper.
 
 ## Tasks
 
@@ -278,12 +302,232 @@ default.
 
 #### B4 (`compono-lsx.4`, after B2): AOT discovery and diagnostics
 
-- [ ] `AotComposeMethodDiscovery` (or a sibling): match the three AOT `ComposeData` metadata names. Resolve the member symbol (static field, property, or parameterless method, including inherited, on `MemberType ?? test class`). Classify the return shape (sync / `Task` / `ValueTask` / `IAsyncEnumerable`) and the row element type (statically typed: elements of a `TheoryData<…>` collection, or `TheoryDataRow<…>` elements; versus untyped `ITheoryDataRow`/`object?[]`/`ITuple`/`object` elements). Note that `TheoryData<…>` is the collection, never a row. Read `Seed` and **every** `DataAttribute` named argument (`Label`, `Skip`, `SkipType`, `SkipUnless`, `SkipWhen`, `TestDisplayName`, `Timeout`, `Explicit`, `Traits`, `DisableParallelization`). Resolve `SkipUnless`/`SkipWhen` to a public static `bool` property on `SkipType ?? test class` (walking base types), following xUnit's own AOT generator
-- [ ] Treat an explicit `Seed = 0` as a *configured* seed: read it from `AttributeData.NamedArguments` (`Seed`), never by testing `Seed != 0` (B2 review finding)
-- [ ] Keep existing Compono semantics for a negative `Seed` (rejected at runtime as today); do **not** add a new AOT compile-time diagnostic for it - that would be unapproved surface (B2 review finding)
-- [ ] An equatable model (`AotComposeDataMethodInfo` or an extension of `AotComposeMethodInfo`) for incremental caching
-- [ ] New `CMP0051`+ descriptors and `AnalyzerReleases.Unshipped.md` entries. Extend `CMP0045`
-- [ ] Generator tests: one per diagnostic (positive/negative), exclusivity with every `[Compose]` form, invalid skip usage (both conditions set, missing member, non-static, non-`bool`), and that every valid shape **including valid `SkipUnless`/`SkipWhen`/`SkipType`** produces no diagnostics
+B4 is **discovery and validation only**. It emits no `ComposeData`
+execution source. The contract below is the B4 specification amendment
+(2026-11-06, product-owner decisions C1–C6 and C-1–C-4; evidence: a
+reflection probe that reproduces JIT `BuildMemberAccessor` exactly, and
+decompiled `xunit.v3.core.aot` 4.0.2 plus its generators, recorded in
+Notes).
+
+**B4.1 Two separate pipelines (raw discovery vs. validated methods).**
+
+- *Plan generation (raw, unvalidated):* three `ComposeMethodDiscovery`
+  providers for `Compono.XunitV3.Aot.ComposeDataAttribute`, `` `1 ``, and
+  `` `2 ``, using the existing attribute-family-agnostic
+  `ComposeMethodDiscovery.TransformMethod`, folded into
+  `composeMethodResultsAll` exactly like the AOT `[Compose]` and JIT
+  `ComposeData` providers. **Rule (the existing generator behavior, kept
+  unchanged):** every eligible parameter type of every attributed method
+  gets its plan and row-invoker registration **whether or not the method
+  passes ComposeData validation**, because plans and row invokers are
+  type-keyed, deduplicated across the compilation, and independent of any
+  one method (AOT `[Compose]` behaves the same way today with `CMP0040`–
+  `CMP0049`). Ref/out/in and `params` parameters and non-eligible shapes are
+  skipped, as today. This pipeline's own diagnostics (for example `CMP0013`)
+  are unchanged and may appear alongside a ComposeData diagnostic. A
+  ComposeData diagnostic never removes a plan another method needs.
+- *Validated ComposeData methods:* three per-method providers (one per
+  metadata name) that produce the B4.2 model. A method with **any**
+  diagnostic gets **no** `ComposeData` execution registration (B5 must
+  check `Diagnostics.Count == 0`, as the AOT `[Compose]` output step does).
+  In B4 no registration is emitted for any method.
+
+**B4.2 Model** (`AotComposeDataMethodInfo`, a `sealed record`; strings,
+`bool`s, `int?`s, and `EquatableArray<T>` only; no `ISymbol`,
+`Location`, or `Compilation`):
+
+- form (arity 0/1/2); `TProfile` and `TConfig` fully qualified names
+- `TestDeclaringTypeFqn`: the method's containing type (registration key
+  and `CreateRow` type, as AOT `[Compose]` and JIT `CreateRow` use)
+- `LookupTypeFqn`: `MemberType ?? TestDeclaringType`
+- `MemberContainingTypeFqn`: the member's own containing type (the target
+  of the generated call; never the lookup type, see B4.4)
+- `MemberName`, `MethodName`
+- member kind (`Field`/`Property`/`Method`); return shape (`Sync`,
+  `TaskOf`, `ValueTaskOf`, `AsyncEnumerable`)
+- row typing: `Typed` with the element type FQNs in order, or `Untyped`
+- parameters: `Name`, `Fqn`, `Ordinal`, `IsNullable` (the existing
+  `AotComposeMethodDiscovery.IsNullable` rule: oblivious reference =
+  non-nullable), `IsShared`
+- `int? Seed`: non-null only when the `Seed` named argument is present. An
+  explicit `Seed = 0` is `0`; a negative value is stored as is (runtime
+  rejection, no compile-time diagnostic, B2 review finding)
+- attribute metadata, **presence-tracked**: `Label`, `Skip`,
+  `TestDisplayName` (`string?`), `Explicit` (`bool?`), `Timeout`
+  (`int?`), `Traits` (`null` when absent or empty, matching JIT),
+  `DisableParallelization` (`bool?`, raw presence; B5 decides rendering)
+- active skip conditions only (B4.9): `SkipUnlessHolderFqn` +
+  `SkipUnlessProperty`, `SkipWhenHolderFqn` + `SkipWhenProperty`
+- `Diagnostics` (`EquatableArray<DiagnosticInfo>`)
+
+**B4.3 `{M}`/`{T}` names.** B4 stores only the FQNs above. B5 renders the
+runtime R0 names on the failure path as
+`typeof(<Lookup>).FullName + "." + MemberName` and
+`typeof(<TestDeclaring>).FullName + "." + MethodName`. That reproduces JIT's
+CLR-style text exactly (including `+` for nested types and the
+assembly-qualified closed-generic form Roslyn can't produce statically).
+B6 verifies it under Native AOT. Compile-time CMP messages use Roslyn
+display names, as every existing AOT diagnostic does.
+
+**B4.4 Member resolution.** It copies JIT reflection, pinned by the probe
+table in Notes (rows 01–29).
+
+- **Lookup type:** `MemberType` when present; otherwise the test method's
+  **declaring class** (C-1). JIT defaults to the *concrete reflected* test
+  class instead, so an inherited test method whose member is declared only
+  on, or hidden by, a derived class differs between engines. xUnit's AOT
+  runtime keys data factories by the declaring type and gives the factory
+  no derived-class identity, which is exactly how xUnit's own AOT
+  `MemberData` behaves. Setting `MemberType` names one **fixed** holder
+  class for every derived class. It does **not** reproduce JIT's
+  per-derived-class selection. It's the workaround only where a fixed
+  holder is appropriate. (ADR-0070 Amendment 2 §1.)
+- **Order:** fields, then properties, then parameterless methods, each
+  across the whole base-type chain. Interfaces' base interfaces are not
+  walked.
+  - *Fields:* the most-derived public static field named `MemberName`.
+  - *Properties:* public static, non-indexer properties named `MemberName`.
+    A more-derived property of the **identical** type
+    (`SymbolEqualityComparer.Default`) hides a base one. Two or more
+    remaining → **ambiguous**. If the selected property's getter isn't
+    public, fall through to methods.
+  - *Methods:* the most-derived type that declares any public static
+    zero-parameter method named `MemberName` (generic or not). Two or more
+    in that type → **ambiguous** (for example `Cases<T>()` + `Cases()`).
+    A single generic method → `CMP0052` generic method (C-2).
+  - Instance members and non-public members never take part in selection.
+- **Failure classification** (when nothing was selected):
+  - no member named `MemberName` on the lookup type itself, and none that
+    is non-private on a base type → **not found** (`CMP0051`; a base
+    class's private members are invisible, as in reflection)
+  - otherwise, any method candidate with one or more parameters (including
+    optional-only and `params`-only) → **requires arguments** (`CMP0052`)
+  - otherwise → **not public static** (`CMP0052`; includes `internal`,
+    `protected`, instance members, and a non-public getter)
+- `MemberName` null or empty → `CMP0051` not found. An open-generic
+  `MemberType` → `CMP0054`.
+- **Generated-call target** is `MemberContainingTypeFqn`. Probe rows
+  10/11/21 show that `global::<Lookup>.Member` can bind to a different
+  member (a derived method group or instance member).
+
+**B4.5 Return shape** (from the member's **declared** type):
+
+- `IAsyncEnumerable<T>` (or a type implementing it) is checked first, so it
+  wins over `IEnumerable`
+- non-generic `Task`/`ValueTask` → `CMP0053`
+- `Task<X>`/`ValueTask<X>`: `CMP0053` only when `X` can provably never be a
+  non-`string` `IEnumerable` (`string`, or a sealed or value type that
+  doesn't implement `IEnumerable`). Otherwise it's valid and checked at
+  runtime (`Task<object>` is valid)
+- sync: the declared type must implement `IEnumerable` and not be
+  `string`. A declared `object` → `CMP0053` (JIT rejects the declared type
+  when building the accessor)
+
+**B4.6 Element types.**
+
+- *Typed* rows are a `TheoryData<…>` collection (walking base types, so
+  subclasses count) or a collection whose unique `IEnumerable<T>`/
+  `IAsyncEnumerable<T>` element is `TheoryDataRow<…>`. The element FQNs
+  are the generic arguments.
+- Otherwise the element type is the unique `IEnumerable<T>`/
+  `IAsyncEnumerable<T>` element, or *untyped* when there isn't one.
+- `CMP0053` (row element) only when the element type is provably never
+  `ITheoryDataRow`, `object?[]`, or `ITuple`: a sealed or value type that
+  implements none of them. A reference-type array (`string[]`) **is** an
+  `object?[]` row (array covariance); `int[]` is not.
+
+**B4.7 Static assignability** (C1, typed rows only):
+
+- Unwrap `Nullable<T>` on **both** sides, then require identity, an
+  implicit or explicit reference conversion, boxing, or unboxing
+  (`Compilation.ClassifyConversion` on the unwrapped types, ignoring
+  nullable annotations). Otherwise `CMP0056` (value) or `CMP0055`
+  (`TConfig` vs element 0).
+- Too many values: typed arity (minus 1 for the `TConfig` form) greater
+  than the parameter count → `CMP0056`. Fewer is fine; the remaining
+  parameters are composed.
+- Null values, and all untyped rows, are checked at runtime (shared
+  helper).
+
+**B4.8 Profile checks** (C2, twins per "Diagnostics"):
+
+- `ComposeData<TProfile>`: `CMP0044` (`TProfile`), `CMP0049`.
+- `ComposeData<TProfile, TConfig>`: `CMP0042` (exactly one usable public
+  `TProfile(TConfig)` constructor, the existing rules), `CMP0044`
+  (`TProfile` and `TConfig`), then `CMP0046`/`CMP0047`/`CMP0048` on the
+  **`TProfile` constructor only**. Never `CMP0041`/`CMP0043`. `TConfig`
+  may be any type (`DateTimeOffset`, an interface, a record with several
+  constructors).
+
+**B4.9 Skip conditions** (C4, option A; matches the shared helper's grouped
+merge, `ComposeDataRows.CreateDataRow`):
+
+- A condition is **active** only when the attribute's `Skip` named
+  argument is present and non-null (`""` counts as set, matching the
+  helper's `is { }`).
+- For each active `SkipUnless`/`SkipWhen`: walk `SkipType ?? test declaring
+  class` and its base types for a property declared `Public`, `static`, of
+  type `bool` (xUnit's own AOT `TestMethodDetails` rule). Both set, or not
+  found / not static / not public / not `bool` → `CMP0057`. An inaccessible
+  holder → `CMP0044`.
+- Inactive conditions (no attribute `Skip`) produce no diagnostic and are
+  **not recorded**, so B5 can never render a reference to a nonexistent
+  property. `SkipType` without a condition is inert.
+- Accepted residual (C-4): when the attribute `Skip` is set but every row
+  sets its own `Skip`, or the member returns no rows, JIT never evaluates
+  the attribute's conditions while AOT still reports `CMP0057`.
+
+**B4.10 `[Shared]`** (C5): two or more `IsShared` parameters of the same
+type (`SymbolEqualityComparer.Default`: `string`/`string?` are the same
+type, `int`/`int?` are not) → `CMP0040` (twin) with JIT's reason text.
+
+**B4.11 Diagnostic location and precedence.**
+
+- Every B4 diagnostic is reported at the test method's location
+  (`LocationInfo.From(method)`, as `CMP0040`–`CMP0049` are).
+- **First failure wins**, so at most one ComposeData diagnostic per method,
+  except the existing per-pipeline duplicate of `CMP0045`. The fixed order:
+  1. `CMP0045` (more than one of the six Compose-family forms; both the
+     `[Compose]` and `ComposeData` per-method pipelines count all six forms
+     and both suppress their registration)
+  2. `CMP0040` (method signature, then duplicate `[Shared]`)
+  3. profile, in the existing helper's order with the `TConfig`
+     constructor gates removed. `ComposeData<TProfile>`: `CMP0044`
+     (`TProfile`), then `CMP0049`. `ComposeData<TProfile, TConfig>`:
+     `CMP0044` (`TConfig`), `CMP0042`, `CMP0044` (`TProfile`), `CMP0046`,
+     `CMP0047`, `CMP0048` (the last three on the `TProfile` constructor)
+  4. `CMP0054` (open-generic `MemberType`)
+  5. `CMP0051` / `CMP0052` (member resolution, B4.4)
+  6. `CMP0044` (member holder types)
+  7. `CMP0053` (return shape, then element type)
+  8. `CMP0055`, then `CMP0056` (count before per-value type)
+  9. `CMP0057`, then `CMP0044` (skip holder)
+- Suppression applies only to the ComposeData execution registration. The
+  raw plan-generation pipeline (B4.1) is never suppressed.
+
+**B4.12 Out of B4 scope:** all emission (B5), `{M}`/`{T}` rendering (B5),
+`DisableParallelization` rendering (B5), negative-seed message placement
+(B5), `CMP0050` emission isolation (B5), the #166 checkpoint (B5), and every
+runtime and cross-engine parity check (B6).
+
+**B4 acceptance checklist**
+
+- [ ] Plan pipeline: the three `ComposeMethodDiscovery` AOT `ComposeData` providers exist. A composed custom parameter type of an AOT `[ComposeData]` method gets a generated plan, **including when the method fails validation**. A plan for a type shared with a valid `[Compose]` method is still emitted when the `ComposeData` method is invalid
+- [ ] A JIT-namespace `[Compono.XunitV3.ComposeData("Missing")]` method (the `SeedSampleMethods` shape) produces no `CMP0051`–`CMP0057` and no AOT `ComposeData` model
+- [ ] Incremental-caching test: an unrelated edit leaves the `ComposeData` per-method steps `Cached`/`Unchanged` (`TrackingNames`)
+- [ ] Model tests cover every B4.2 field, including `Seed` unset → `null`, `Seed = 0` → `0`, `Seed = -1` → `-1` with no diagnostic, and every metadata field present vs. absent
+- [ ] Member resolution: one generator test per probe row 01–29 (Notes, 2026-11-06), asserting the outcome recorded there. Valid rows also assert `MemberContainingTypeFqn` (rows 10/11/21 → the base class). Inherited test method with a base-declared member: valid. Derived-only member without `MemberType`: `CMP0051`. With `MemberType`: valid
+- [ ] Return/element shapes (B4.5/B4.6). Valid: `Task<object>`, `ValueTask<TheoryData<…>>`, `IAsyncEnumerable<object[]>`, `List<string[]>`, a `TheoryData` subclass, `IEnumerable<object>`. `CMP0053`: `string`, a single `TheoryDataRow`, non-generic `Task`, `Task<int>`, a declared `object`, `IEnumerable<int>`, `IEnumerable<string>`. `CMP0054`: `typeof(Holder<>)`
+- [ ] Assignability (B4.7). Valid: `int?`→`int`, `int`→`int?`, `string?`→`string`, subclass→base, element `object`, struct `TConfig` with element `TConfig?`. `CMP0056`: `int`→`long`, too many values with and without `TConfig`. `CMP0055`: unrelated `TConfig`
+- [ ] Profile (B4.8): `CMP0042`/`CMP0044`/`CMP0046`/`CMP0047`/`CMP0048`/`CMP0049` through the ComposeData twins (wording asserted). **No** diagnostic for `TConfig` = `DateTimeOffset`, an interface, or a two-constructor record
+- [ ] `CMP0040` twin: generic test method, ref/out/in, `params`, duplicate `[Shared]` (`string` + `string?` → diagnostic; `int` + `int?` → none)
+- [ ] `CMP0045`: every pairing among the six AOT forms (ComposeData twin text whenever a `ComposeData` form is involved); no ComposeData model emitted as valid. `[InlineData]`/`[MemberData]` alongside `[ComposeData]` → no diagnostic
+- [ ] Skip (B4.9): valid active conditions on the test class, a base class, and a `SkipType` class → no diagnostic. Inactive conditions (no attribute `Skip`), including a missing property → no diagnostic and nothing recorded. Active: both set, missing, instance, non-public, non-`bool` → `CMP0057`
+- [ ] `CMP0044` twin for a private nested `MemberType` holder, a holder reached only through a private nested type, and an active private `SkipType` holder. Internal holders are valid
+- [ ] Precedence (B4.11): one test with several simultaneous faults per adjacent pair in the order, asserting only the first is reported
+- [ ] **All existing `CMP0040`–`CMP0049` Verify snapshots byte-identical** (twins, C-3). Existing AOT `[Compose]` snapshots unchanged
+- [ ] `AnalyzerReleases.Unshipped.md`: `CMP0051`–`CMP0057` added; the `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049` notes say they also apply to `ComposeData`
+- [ ] `dotnet build` 0 warnings / 0 errors; `dotnet test` green
 
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
@@ -294,6 +538,7 @@ default.
 - [ ] **Not** wired into AOT `[Compose]`. Leave its template unchanged
 - [ ] Generator snapshot tests for each form × each member shape × `[Shared]`/no-`[Shared]` × typed/untyped rows. Compile the generated code in-test (no `CS` errors)
 - [ ] ADR-0068 isolation: emission failures surface as `CMP0050` for that item only
+- [ ] B4 hand-off obligations: emit only for models with zero diagnostics; call the member through `MemberContainingTypeFqn`, never the lookup type; render `{M}`/`{T}` as `typeof(…).FullName` (B4.3); never textually name a typed row element type that B4 hasn't accessibility-checked (bind through parameter types, which `CMP0013`/`CMP0040` cover); render only the active skip conditions B4 recorded; decide and record how `DisableParallelization` is rendered (JIT always supplies the attribute's non-null `bool` on xUnit 4.x) and where the negative-seed message lives (the JIT text is a literal in `ComposeDataAttribute`, not in the shared helper)
 
 #### B6 (`compono-lsx.6`, after B5 and B3): AOT real-runner tests, samples, Native AOT
 
@@ -303,6 +548,8 @@ default.
 - [ ] Real-runner skip parity: mirror the JIT baseline B3 established in `test/Compono.XunitV3.Tests/ComposeDataTheoryTests.cs` (`ComposeDataRowSkipConditionTests`, `ComposeDataAttributeSkipTypeTests`, `ComposeDataSkipPrecedenceTests`, `ComposeDataTheoryLevelSkipTests`) — row-level and attribute-level `SkipUnless`/`SkipWhen` with `SkipType` on a different class, grouped-skip precedence (unconditional row `Skip` wins), and theory-level `[Theory(Skip = …)]` conditions combined with unconditional row `Skip` — and assert identical run/skip outcomes and skip reasons on JIT and AOT
 - [ ] **Theory-level `SkipUnless`/`SkipWhen` interaction tests** (RESEARCH-0038 §2.6 item 3, §9.2 S2), mirrored in both test projects: a `[Theory(Skip = …, SkipUnless = …)]` and a `[Theory(Skip = …, SkipWhen = …)]` (condition true and false), each combined with (a) no `ComposeData` skip, (b) a row `Skip` with no condition, (c) a row `Skip` with its own condition, (d) an attribute `Skip` with and without a condition. Assert identical run/skip outcomes and skip reasons on JIT and AOT. If the planned approach can't reach parity, **stop and request review**. No speculative workarounds
 - [ ] Seed parity: the same seed-line variants as B3, with identical text
+- [ ] Name parity: `typeof(…).FullName`-based `{M}`/`{T}` text matches JIT under JIT-run **and** real Native AOT, for a nested test class and a closed-generic holder. Inherited test methods **without** `MemberType` are excluded from `{M}` byte parity (C-1: JIT names the concrete class, AOT the declaring class); add one test per engine that documents that difference
+- [ ] ADR-0070 Amendment 2 documenting tests (runtime side; the AOT compile-time side is B4's `CMP0051`/`CMP0044` tests): (a) an inherited test method with a member that a derived class hides, without `MemberType`, asserting each engine's actual resolution (JIT: the derived member; AOT: the declaring-class member); (b) the same inherited test with an explicit `MemberType`, asserting identical rows on both engines; (c) on JIT only, a private nested `MemberType` holder that runs (AOT can't compile it, `CMP0044`). Each test carries a comment naming Amendment 2
 - [ ] Samples: `test/Compono.XunitV3.SampleTests/ComposeDataTests.cs` and `test/Compono.XunitV3.Aot.SampleTests/ComposeDataTests.cs` (documentation-quality: the `TConfig` pricing table, the email table with `[Shared]`, an async source, a fixture-backed row)
 - [ ] V3: real Native AOT publish and run of `Compono.XunitV3.Aot.SampleTests`, 0 IL/AOT warnings, all `ComposeData` tests executed (count them in the output)
 - [ ] V7: pack-and-consume, a throwaway consumer outside the repo using both packages from a local feed (`AGENTS.md` generator rule)
@@ -312,7 +559,7 @@ default.
 #### B7 (`compono-lsx.7`, after B3 and B6): documentation and API reference
 
 - [ ] `docs/packages/compono-xunitv3.md`: a "Composed theory rows (`[ComposeData]`)" section (forms, collection vs. row shapes, row layout, binding and nullable/value-type rules, effective-seed precedence and seed-line meanings, the row-vs-attribute metadata table including `SkipType`/`SkipUnless`/`SkipWhen`, labels, failure granularity, disposal note, mixing with xUnit attributes). Replace the "No stacking…" bullet with a pointer
-- [ ] `docs/packages/compono-xunitv3-aot.md`: the same section, the diagnostics table (`CMP0051`+, extended `CMP0045`), the JIT/AOT differences (disposal, assembly fixtures), and "Not yet supported" updated: AOT `[Compose]` inline values and `[Shared]` remain a follow-up (record it explicitly). Seed status per #166
+- [ ] `docs/packages/compono-xunitv3-aot.md`: the same section, the diagnostics table (`CMP0051`–`CMP0057`, plus the ComposeData uses of `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049`), the JIT/AOT differences (disposal, assembly fixtures, inherited test methods resolving the member on the declaring class with `MemberType` as a fixed-holder workaround only, private/protected nested holders rejected with `CMP0044`, the C-4 skip residual), and "Not yet supported" updated: AOT `[Compose]` inline values and `[Shared]` remain a follow-up (record it explicitly). Seed status per #166
 - [ ] `docs/cookbook/vary-composed-configuration-per-theory-row.md` plus `docs/cookbook/index.md` (alphabetical)
 - [ ] `docs/migrating-from-autofixture.md`: `MemberAutoData`/`InlineAutoData` → `ComposeData`
 - [ ] `docs/troubleshooting/common-errors.md`: D1–D5/R0 entries. `docs/reference/diagnostics.md`: new CMP entries
@@ -456,9 +703,9 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   Compono, since the xUnit engines disagree; #166 checkpoint kept.
 - The skill update is a **mandatory** completion requirement (product owner,
   2026-11-05). B8 can't be skipped or deferred.
-- Open items for product-owner review are in RESEARCH-0038 §10
-  (`MemberType`, AOT attribute-level `SkipUnless`/`SkipWhen` fallback, #166
-  ordering).
+- The open items from RESEARCH-0038 §10 were all resolved in review round 2
+  (RESEARCH-0038 §9.2). None remain open. (Corrected 2026-11-06; this
+  bullet previously listed them as open.)
 - Beads: epic `compono-lsx` with children `.1`–`.9`, local only (never
   `bd dolt push`, never `git add .beads`). Don't commit, push, or open a PR
   without product-owner approval.
@@ -582,7 +829,11 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   parameterless methods with no `[Theory]`/`[Fact]`). They are not run by
   xUnit today, but when B4's AOT discovery/emission lands their parameter
   types must be handled the same way (they currently have none/void, so this
-  is expected to be a no-op — verify in B4). B3 is **not** yet approved or
+  is expected to be a no-op — verify in B4). (Corrected 2026-11-06: those
+  fixtures use the JIT `Compono.XunitV3.ComposeData` attribute, which AOT
+  discovery never matches. B4 only needs the regression test in its
+  checklist: no `CMP0051`–`CMP0057` and no AOT model for a JIT-namespace
+  `[ComposeData("Missing")]`.) B3 is **not** yet approved or
   closed — it awaits independent review. B4 not started.
 
 - **B3 review remediation (2026-11-05).** An independent review of B3 returned
@@ -618,7 +869,9 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   enumeration failure (cancellation still propagates as cancellation).
   **Cross-engine decisions recorded:** (1) `{M}` uses CLR-style fully qualified
   names incl. `+` for nested types — B4/B5 must reproduce the same formatting from
-  Roslyn symbols; (2) `DisableParallelization` must behave equivalently JIT vs AOT
+  Roslyn symbols (superseded 2026-11-06 by B4.3: B5 renders `{M}`/`{T}` at
+  runtime with `typeof(…).FullName`, because Roslyn can't reproduce the
+  closed-generic `FullName` form); (2) `DisableParallelization` must behave equivalently JIT vs AOT
   (no public-API workaround for xUnit's non-nullable bool); parity verified in B6;
   (3) existing seed/negative-seed semantics preserved; (4) generator changes stay
   limited to B3's JIT row-invoker registration. Validation after remediation:
@@ -671,3 +924,67 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
 - **B3 approved and closed (2026-11-05).** Claude Opus's final independent review
   returned **APPROVE**. B3 (`compono-lsx.3`) is complete and closed. B1, B2, and B3
   are all independently reviewed and approved. B4 and every later bead remain open.
+
+- **B4 specification amendment (2026-11-06, product owner).** Two readiness
+  reviews before B4 found six blockers (C1–C6) and four follow-up decisions
+  (C-1–C-4). All are resolved, and the B4 section above is the resulting
+  contract:
+  - **C1** (static assignability): unwrap `Nullable<T>` on both sides; identity/reference/boxing/unboxing only; null values still checked at runtime; the same rule for `TConfig`.
+  - **C2** (profile checks): `TConfig` is row-supplied and never constructed, so no `CMP0041`/`CMP0043`. `CMP0046`–`CMP0048` apply to the `TProfile` constructor only. `CMP0044` covers both types. Wording is attribute-aware through twins.
+  - **C3** (member resolution): JIT's field → property → method order across the hierarchy, hiding and ambiguity pinned by the probe below, CLR-style `{M}`/`{T}` (rendered at runtime, B4.3), parameterless overloads accepted.
+  - **C4** (skip): option A; only active conditions (attribute `Skip` set) are validated and recorded.
+  - **C5** (`[Shared]`): `IsShared` in the model; duplicates reuse `CMP0040`.
+  - **C6** (plans): B4 owns the three AOT `ComposeData` plan-generation providers.
+  - **C-1** (inherited test methods): option A; AOT resolves on the declaring class (xUnit AOT runtime keys data factories by `DeclaredTypeIndex`, `RegisteredEngineConfig.GetTheoryDataRowFactories`; xUnit's own AOT `MemberData` does the same). `MemberType` is a fixed-holder workaround only.
+  - **C-2**: `CMP0044` for inaccessible `MemberType`/`SkipType` holders (JIT accepts them; xUnit AOT silently drops them; Compono never silently omits a test). `CMP0052` for generic member methods.
+  - **C-3**: twin `DiagnosticDescriptor`s with the same IDs; existing `[Compose]` text and its 18 snapshots stay unchanged.
+  - **C-4**: accepted residual. AOT reports invalid active attribute conditions even when every row overrides `Skip` or there are no rows.
+
+  **Reflection probe** (a scratch console app on net10.0 reproducing JIT
+  `BuildMemberAccessor` verbatim; the expected outcome for each B4 member-resolution test):
+
+  | # | Shape | JIT outcome | AOT (B4) |
+  |---|---|---|---|
+  | 01 | `Cases<T>()` only | selected; `Invoke` throws (member-read failure) | `CMP0052` generic |
+  | 02 | `Cases<T>()` + `Cases()` | ambiguous | `CMP0051` ambiguous |
+  | 03 | `Cases<T>()` + `Cases(int)` | generic selected; `Invoke` throws | `CMP0052` generic |
+  | 04 | `Cases()` + `Cases(int)` | parameterless; valid | valid |
+  | 05 | `Cases(int x = 0)` only | D3 | `CMP0052` requires arguments |
+  | 06 | `Cases(params int[])` only | D3 | `CMP0052` requires arguments |
+  | 07 | base field, derived `new` field of another type | derived field | valid (derived) |
+  | 08 | base property, derived `new` property of another type | ambiguous | `CMP0051` ambiguous |
+  | 09 | base property, derived `new` property of the same type | derived property | valid (derived) |
+  | 10 | base field, derived method | **base field** | valid; call target = base |
+  | 11 | base static property, derived instance property | **base static** | valid; call target = base |
+  | 12 | base method, derived `new` method | derived method | valid (derived) |
+  | 13 | public static property, private getter | D2 | `CMP0052` not public static |
+  | 14 | field on a closed generic base (`GB<int>`) | resolved | valid; call target `GB<int>` |
+  | 15 | public static member on a private nested holder | resolved | `CMP0044` (C-2) |
+  | 16 | inherited test, member only on derived, no `MemberType` (declaring-class lookup) | n/a on JIT (JIT looks on derived) | `CMP0051` not found (C-1) |
+  | 17 | member on the class itself | resolved | valid |
+  | 18 | static property on an interface `MemberType` | resolved | valid |
+  | 19 | own protected static | D2 | `CMP0052` |
+  | 20 | own internal static | D2 | `CMP0052` |
+  | 21 | base static property, derived instance field | base static | valid; call target = base |
+  | 22 | base private static | D1 | `CMP0051` not found |
+  | 23 | base internal static | D2 | `CMP0052` |
+  | 24 | base protected static | D2 | `CMP0052` |
+  | 25 | base private instance | D1 | `CMP0051` not found |
+  | 26 | base public instance | D2 | `CMP0052` |
+  | 27 | base `Cases<T>()`, derived `new Cases()` | derived; valid | valid (derived) |
+  | 28 | base static property, derived static field | derived field | valid (derived field) |
+  | 29 | base `Cases(int)` only | D3 | `CMP0052` requires arguments |
+
+  Names: `ReflectedType.FullName` is the derived class for an inherited test
+  method, while `DeclaringType` is the base. A nested type's `FullName` uses
+  `+`. A closed generic's `FullName` is assembly-qualified with the runtime
+  core library, which Roslyn can't reproduce, hence B4.3.
+
+  **ADR consistency:** C-1's derived-only-member case and C-2's holder
+  accessibility are product-owner-approved AOT-only rejections. ADR-0070
+  item 13 says valid usage is never rejected on one engine only, so the
+  product owner approved and recorded them as ADR-0070 Amendment 2
+  (2026-11-06). They are the only AOT-only exceptions. The C-4 skip residual
+  is an invalid-usage timing difference, already covered by item 13. No new public API, no core change, no architectural
+  redesign. The diagnostic IDs fall inside the ADR's approved `CMP0051`+
+  range.

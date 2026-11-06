@@ -6,7 +6,7 @@ review rounds 1 (§9.1) and 2 (§9.2) are complete. Recorded as
 (**Accepted** 2026-11-05).
 Implementation is planned in
 [PLAN-0071](../plans/0071-xunitv3-composedata-composed-theory-rows-impl-plan.md)
-(Not Started). Review round 1 added §2.6 (metadata), §2.7 (row shapes),
+(In Progress). Review round 1 added §2.6 (metadata), §2.7 (row shapes),
 and §5.1 (effective seed).
 
 **Issue:** [#163](https://github.com/LayeredCraft/compono/issues/163)

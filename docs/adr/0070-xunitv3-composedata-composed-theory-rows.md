@@ -480,3 +480,76 @@ amendment and must stop and return for review.
 
 **Recorded:** PLAN-0071 B1; covered by
 `test/Compono.Tests/CompositionExceptionTests.cs`.
+
+## Amendment 2 (2026-11-06): Two narrow AOT-only member-resolution limitations
+
+**Amends:** Behavior contract item 2 ("on `MemberType ?? the test class`")
+and the sentence in item 13 "**Valid usage is never rejected on one engine
+only.**", for exactly the two cases below. Approved by the product owner
+during the PLAN-0071 B4 specification review (decisions C-1 and C-2,
+recorded in PLAN-0071 Notes, "B4 specification amendment").
+
+### 1. Inherited theory methods (C-1)
+
+When `MemberType` is not set, the engines resolve the member against
+different classes:
+
+- **JIT** resolves against the concrete reflected test class
+  (`MemberType ?? ReflectedType ?? DeclaringType`), so an inherited test
+  method sees the members of each derived class.
+- **AOT** resolves against the test method's **declaring** class. This
+  follows xUnit's AOT architecture: theory-data factories are registered
+  per declaring type and looked up by the test method's declared type
+  index (`RegisteredEngineConfig.GetTheoryDataRowFactories`). The factory
+  receives no derived-class identity. xUnit's own AOT `MemberData` behaves
+  the same way.
+
+Consequences:
+
+- A member that exists only on a derived test class is rejected on AOT
+  with `CMP0051` (not found).
+- Member hiding in a derived class (a derived `new` member with the same
+  name) can resolve to a different member on each engine.
+- An explicit `MemberType` names one **fixed** holder class for every
+  derived class. It's a workaround only when a fixed holder fits. It does
+  **not** reproduce JIT's per-derived-class selection.
+
+### 2. Inaccessible member-holder types (C-2)
+
+Generated AOT code calls the member and the skip-condition property
+directly, so it can't reach a `private` or `protected` nested `MemberType`
+or `SkipType` holder, or one reached only through such a type.
+
+- JIT may accept these holders, because reflection ignores accessibility.
+- AOT reports `CMP0044`, with wording that names the holder role (the
+  `MemberType` holder or the `SkipType` holder). A `SkipType` holder is
+  checked only when its condition is active (PLAN-0071 B4.9).
+- AOT must never silently omit an affected test. (xUnit's own AOT
+  `MemberData` generator silently drops such tests. Compono doesn't follow
+  that.)
+
+### 3. Parity scope
+
+These two are the **only** newly approved AOT-only compatibility
+exceptions. The general requirement in item 13 stays in force for every
+other case: supported, valid usage must behave the same on JIT and AOT and
+must never be rejected on one engine only. Any further engine difference
+needs its own amendment.
+
+Unchanged by this amendment:
+
+- The previously accepted runtime-versus-compile-time validation
+  differences: a JIT `CompositionException` or xUnit
+  `TestPipelineException` versus an AOT `CMPxxxx` for the same invalid
+  usage (item 13). This includes the accepted static-skip residual, where
+  AOT reports an invalid active attribute-level skip condition even when no
+  row ends up evaluating it (PLAN-0071 B4.9, C-4).
+- The documented disposal and assembly-fixture differences.
+- Amendment 1.
+
+There is no new public API and no core `Compono` change. Both limitations
+use existing or approved diagnostic IDs (`CMP0044`, and `CMP0051` from the
+approved `CMP0051`+ range).
+
+**Recorded:** PLAN-0071 B4.4 and B4.9 (rules), B6 (documenting tests), and
+B7 (`docs/packages/compono-xunitv3-aot.md` JIT/AOT differences).
