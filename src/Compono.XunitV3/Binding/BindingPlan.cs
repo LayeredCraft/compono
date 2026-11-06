@@ -97,11 +97,14 @@ internal sealed class BindingPlan
         // [Compose<TProfile, TConfig>] (or two differently-closed forms of either generic one) are
         // distinct types that each individually satisfy their own AllowMultiple = false, so nothing
         // stops stacking more than one Compose-family attribute on the same method without this
-        // explicit check (PR #23 review; extended to the two-type-parameter form by PR #65 review).
-        var composeAttributeCount = testMethod.GetCustomAttributes<ComposeAttribute>().Count();
+        // explicit check (PR #23 review; extended to the two-type-parameter form by PR #65 review;
+        // extended to the three [ComposeData...] forms by ADR-0070, which treats every [Compose...]
+        // and [ComposeData...] form as one Compose family for this exclusivity rule).
+        var composeAttributeCount = testMethod.GetCustomAttributes<ComposeAttribute>().Count()
+            + testMethod.GetCustomAttributes<ComposeDataAttribute>().Count();
 
         if (composeAttributeCount > 1)
-            return $"More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>] attribute on '{methodDisplayName}' - only one Compose-family attribute per test method is allowed.";
+            return $"More than one [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]/[ComposeData]/[ComposeData<TProfile>]/[ComposeData<TProfile, TConfig>] attribute on '{methodDisplayName}' - only one Compose-family attribute per test method is allowed.";
 
         if (testMethod.IsGenericMethodDefinition)
             return $"Compono.XunitV3 does not support generic test methods ('{methodDisplayName}').";

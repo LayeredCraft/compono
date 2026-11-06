@@ -121,6 +121,38 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
             .WithTrackingName(TrackingNames.ComposeTwoTypeParameterMethods);
 
+        // [ComposeData]'s three forms (ADR-0070) - a Composed theory rows method's parameter types
+        // still need plans and RowInvokerRegistry registrations, exactly like the [Compose] family
+        // above. Same attribute-family-agnostic TransformMethod (it operates on the attributed
+        // method's own parameters alone). The AOT-side registration emission for Composed theory rows
+        // is a later change (issue #163 phase B4) and is deliberately not wired here.
+        var composeDataMethodResults = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.ComposeDataAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeDataMethods);
+
+        var composeDataGenericMethodResults = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.ComposeDataGenericAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeDataGenericMethods);
+
+        var composeDataTwoTypeParameterMethodResults = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ComposeMethodDiscovery.ComposeDataTwoTypeParameterAttributeMetadataName,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => ctx)
+            .Combine(generatorFlags)
+            .Select(static (pair, ct) => ComposeMethodDiscovery.TransformMethod(pair.Left, pair.Right, ct))
+            .WithTrackingName(TrackingNames.ComposeDataTwoTypeParameterMethods);
+
         // Compono.TUnit's own [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]-attributed
         // methods hit the identical discovery gap the three Compono.XunitV3 registrations above
         // solve - Compono.TUnit's binding is likewise entirely runtime reflection over
@@ -166,6 +198,12 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Combine(composeTwoTypeParameterMethodResults.Collect())
             .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsXunitV3);
+
+        var composeDataMethodResultsXunitV3 = composeDataMethodResults.Collect()
+            .Combine(composeDataGenericMethodResults.Collect())
+            .Combine(composeDataTwoTypeParameterMethodResults.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Concat(results.Left.Right).Concat(results.Right))
+            .WithTrackingName(TrackingNames.ComposeDataMethodsXunitV3);
 
         var composeMethodResultsTUnitAll = composeMethodResultsTUnit.Collect()
             .Combine(composeGenericMethodResultsTUnit.Collect())
@@ -294,7 +332,8 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             .Combine(composeMethodResultsMSTestAll.Collect())
             .Combine(composeMethodResultsNUnitAll.Collect())
             .Combine(composeMethodResultsXunitV3AotAll.Collect())
-            .SelectMany(static (results, _) => results.Left.Left.Left.Left.Concat(results.Left.Left.Left.Right).Concat(results.Left.Left.Right).Concat(results.Left.Right).Concat(results.Right))
+            .Combine(composeDataMethodResultsXunitV3.Collect())
+            .SelectMany(static (results, _) => results.Left.Left.Left.Left.Left.Concat(results.Left.Left.Left.Left.Right).Concat(results.Left.Left.Left.Right).Concat(results.Left.Left.Right).Concat(results.Left.Right).Concat(results.Right))
             .WithTrackingName(TrackingNames.ComposeMethodsAll);
 
         // Each discovery result carries its own transitive closure (Types) alongside every closed
@@ -732,6 +771,10 @@ internal static class TrackingNames
     public const string ComposeGenericMethods = "ComposeMethods.Generic";
     public const string ComposeTwoTypeParameterMethods = "ComposeMethods.TwoTypeParameter";
     public const string ComposeMethodsXunitV3 = "ComposeMethods.XunitV3";
+    public const string ComposeDataMethods = "ComposeDataMethods";
+    public const string ComposeDataGenericMethods = "ComposeDataMethods.Generic";
+    public const string ComposeDataTwoTypeParameterMethods = "ComposeDataMethods.TwoTypeParameter";
+    public const string ComposeDataMethodsXunitV3 = "ComposeDataMethods.XunitV3";
     public const string ComposeMethodsTUnit = "ComposeMethods.TUnit";
     public const string ComposeGenericMethodsTUnit = "ComposeMethods.TUnit.Generic";
     public const string ComposeTwoTypeParameterMethodsTUnit = "ComposeMethods.TUnit.TwoTypeParameter";

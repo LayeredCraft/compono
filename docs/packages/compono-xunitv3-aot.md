@@ -190,8 +190,11 @@ behavior). See
 
 Composed theory rows (`[ComposeData]`, issue #163) are decided by
 [ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md), with
-full JIT/AOT parity planned (including row values and `[Shared]`). That
-decision is accepted but **isn't implemented yet**. It doesn't
+full JIT/AOT parity planned (including row values and `[Shared]`). The AOT
+`[ComposeData]`/`[ComposeData<TProfile>]`/`[ComposeData<TProfile, TConfig>]`
+attribute markers exist, but the AOT generator discovery and execution
+integration are **not implemented yet** (future B4/B5 work) — they are not
+operational. The JIT (`Compono.XunitV3`) form is implemented. This doesn't
 change `[Compose]`'s limits above.
 
 ## `[Compose<TProfile, TConfig>]` diagnostics differ from `Compono.XunitV3` — by design

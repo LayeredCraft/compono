@@ -233,10 +233,13 @@ owns disposal) but does not use attribute-driven parameter composition.
   the parts that need no composition, per
   [Migrating from AutoFixture](../migrating-from-autofixture.md)).
   Composed theory rows (one method, many rows, each with its own profile
-  configuration and expected values) are now decided by
+  configuration and expected values) are decided by
   [ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md)
-  (`[ComposeData]`, issue #163). That decision is accepted but
-  **isn't implemented yet**. This section describes current behavior.
+  (`[ComposeData]`/`[ComposeData<TProfile>]`/`[ComposeData<TProfile, TConfig>]`,
+  issue #163). This JIT form is **implemented**: rows are read from a
+  `[MemberData]`-style member and each row is composed in its own scope at
+  theory execution time. Native AOT parity is planned but not yet available
+  (see the AOT package docs).
 - **No AutoFixture-style fixture object.** There's nothing analogous to
   AutoFixture's `IFixture` — configuration lives in a profile
   (`[Compose<TProfile>]`), applied per test method, not a shared mutable

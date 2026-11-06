@@ -58,6 +58,26 @@ internal static class ComposeMethodDiscovery
     public const string TwoTypeParameterAttributeMetadataName = "Compono.XunitV3.ComposeAttribute`2";
 
     /// <summary>
+    /// The metadata name of the non-generic <c>[ComposeData]</c> form (ADR-0070). Discovered through
+    /// the same <see cref="TransformMethod"/> path as the <c>[Compose]</c> family: a Composed theory
+    /// rows method's parameter types still need plans and <c>RowInvokerRegistry</c> registrations. The
+    /// AOT-side generator emission for Composed theory rows is a later change (issue #163 phase B4).
+    /// </summary>
+    public const string ComposeDataAttributeMetadataName = "Compono.XunitV3.ComposeDataAttribute";
+
+    /// <summary>
+    /// The metadata name of the closed-over-nothing generic <c>[ComposeData&lt;TProfile&gt;]</c> form -
+    /// same arity-suffixed reasoning as <see cref="GenericAttributeMetadataName"/>.
+    /// </summary>
+    public const string ComposeDataGenericAttributeMetadataName = "Compono.XunitV3.ComposeDataAttribute`1";
+
+    /// <summary>
+    /// The metadata name of the two-type-parameter <c>[ComposeData&lt;TProfile, TConfig&gt;]</c> form -
+    /// same arity-suffixed reasoning as <see cref="TwoTypeParameterAttributeMetadataName"/>.
+    /// </summary>
+    public const string ComposeDataTwoTypeParameterAttributeMetadataName = "Compono.XunitV3.ComposeDataAttribute`2";
+
+    /// <summary>
     /// <c>Compono.TUnit</c>'s own <c>[Compose]</c> - the identical discovery gap as
     /// <see cref="AttributeMetadataName"/>, for a second attribute family. See
     /// <c>docs/adr/0040-compono-tunit-package-design.md</c>'s "Generator discovery" section:
