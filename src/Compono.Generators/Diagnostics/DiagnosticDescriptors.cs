@@ -764,4 +764,76 @@ internal static class DiagnosticDescriptors
         "Compono.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // ComposeData AOT-only rejections from ADR-0070 Amendment 4 - shapes the JIT/reflection path can
+    // execute but generated (Native AOT) code cannot name or call, so each gets its own compile-time
+    // diagnostic instead of a silent omission. CMP0054 twins reuse the B4 open-generic rule ID;
+    // CMP0052/CMP0047 twins reuse their [Compose]-family rule IDs with ComposeData-specific wording.
+    public static readonly DiagnosticDescriptor ComposeDataOpenGenericMemberHolder = new(
+        "CMP0054",
+        "ComposeData member is declared on an open generic type",
+        "ComposeData member '{0}' for '{1}' is declared on open generic type '{2}', which generated " +
+        "code cannot name; set MemberType to a non-generic or closed generic type that declares the " +
+        "member",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataOpenGenericSkipHolder = new(
+        "CMP0054",
+        "ComposeData skip condition is declared on an open generic type",
+        "[ComposeData] on '{0}': {1} '{2}' is declared on open generic type '{3}', which generated " +
+        "code cannot name; set SkipType to a non-generic or closed generic type that declares the " +
+        "property",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataStaticInterfaceMember = new(
+        "CMP0052",
+        "ComposeData member is a static abstract or static virtual interface member",
+        "ComposeData member '{0}' for '{1}' is a static abstract or static virtual interface member, " +
+        "which generated code cannot call; move the data to a static member of a class or struct",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedMember = new(
+        "CMP0047",
+        "ComposeData member cannot be used at its generated call site",
+        "ComposeData member '{0}' for '{1}' is marked {2}, which makes any use of it a compiler " +
+        "error; the generated registration reads the member directly, so it would fail to compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedMemberGetter = new(
+        "CMP0047",
+        "ComposeData member getter cannot be used at its generated call site",
+        "ComposeData member '{0}' for '{1}' has a getter marked {2}, which makes any use of it a " +
+        "compiler error; the generated registration reads the member directly, so it would fail to " +
+        "compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedSkipProperty = new(
+        "CMP0047",
+        "ComposeData skip condition property cannot be used at its generated call site",
+        "[ComposeData] on '{0}': {1} '{2}' on '{3}' is marked {4}, which makes any use of it a " +
+        "compiler error; the generated registration reads the property directly, so it would fail to " +
+        "compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedSkipPropertyGetter = new(
+        "CMP0047",
+        "ComposeData skip condition getter cannot be used at its generated call site",
+        "[ComposeData] on '{0}': {1} '{2}' on '{3}' has a getter marked {4}, which makes any use of " +
+        "it a compiler error; the generated registration reads the property directly, so it would " +
+        "fail to compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

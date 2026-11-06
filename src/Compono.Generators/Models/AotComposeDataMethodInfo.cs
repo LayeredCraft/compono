@@ -148,6 +148,30 @@ internal sealed record AotComposeDataSkipCondition(string FullyQualifiedHolderTy
 /// <param name="AttributeMetadata">The presence-tracked xUnit attribute metadata.</param>
 /// <param name="SkipUnless">The validated active <c>SkipUnless</c> binding, or <see langword="null"/> when inactive/absent.</param>
 /// <param name="SkipWhen">The validated active <c>SkipWhen</c> binding, or <see langword="null"/> when inactive/absent.</param>
+/// <param name="TestClassIndex">
+/// xUnit's declared-type index for the test method's containing type (ADR-0070 Amendment 4 / PLAN-0071
+/// B5.3) - the open-generic-rendered name the Native AOT theory-data-row registration is keyed by.
+/// Equal to <see cref="FullyQualifiedTestClassName"/> exactly when no type in the containing-type chain
+/// is generic.
+/// </param>
+/// <param name="IsGenericTestClass">
+/// Whether the test method's containing type, or any containing type of it, is generic
+/// (<c>Arity &gt; 0</c>) - the generated factory resolves the closed constructed base at run time.
+/// </param>
+/// <param name="IsTestClassAccessible">
+/// Whether the containing type is accessible from Compono.Generators' generated top-level registration;
+/// an inaccessible test class emits no registration (and is reported by xUnit's own xUnit1000).
+/// </param>
+/// <param name="LookupIsTestClass">
+/// Whether the member was resolved against the test class itself (the <c>MemberType</c> named argument
+/// was absent) rather than an explicit <c>MemberType</c>.
+/// </param>
+/// <param name="AsyncRowElementIsValueType">
+/// For the <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> shape only: whether the declared
+/// member type implements exactly one <c>IAsyncEnumerable&lt;T&gt;</c> and <c>T</c> is a value type.
+/// <see langword="false"/> for every other shape, and for the supported one-reference-plus-value
+/// mixed case.
+/// </param>
 /// <param name="Diagnostics">
 /// Every diagnostic produced for this method. Non-empty means no AOT registration is emitted for it.
 /// </param>
@@ -168,4 +192,9 @@ internal sealed record AotComposeDataMethodInfo(
     AotComposeDataAttributeMetadata AttributeMetadata,
     AotComposeDataSkipCondition? SkipUnless,
     AotComposeDataSkipCondition? SkipWhen,
+    string TestClassIndex,
+    bool IsGenericTestClass,
+    bool IsTestClassAccessible,
+    bool LookupIsTestClass,
+    bool AsyncRowElementIsValueType,
     EquatableArray<DiagnosticInfo> Diagnostics);

@@ -86,6 +86,12 @@ internal static class AotComposeDataMethodDiscovery
         var lookupFqn = lookupType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var memberDisplayName = $"{memberTypeDisplay}.{memberName}";
 
+        var testClassIndex = AotComposeDataTestClassIndex.Render(declaringType);
+        var isGenericTestClass = IsGenericTestClass(declaringType);
+        var isTestClassAccessible = compilation.IsSymbolAccessibleWithin(declaringType, compilation.Assembly);
+        var lookupIsTestClass = memberTypeArgument is null;
+        var asyncRowElementIsValueType = false;
+
         AotComposeDataMethodInfo Fail(
             DiagnosticInfo diagnostic,
             MemberResolutionKind? memberKind = null,
@@ -112,6 +118,11 @@ internal static class AotComposeDataMethodDiscovery
                 metadata,
                 skipUnless,
                 skipWhen,
+                testClassIndex,
+                isGenericTestClass,
+                isTestClassAccessible,
+                lookupIsTestClass,
+                asyncRowElementIsValueType,
                 new[] { diagnostic }.ToEquatableArray());
 
         AotComposeDataMethodInfo Unsupported(string reason)
@@ -160,7 +171,7 @@ internal static class AotComposeDataMethodDiscovery
                 if (!compilation.IsSymbolAccessibleWithin(configType, compilation.Assembly))
                     return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInaccessibleProfileSymbol, location, configType.ToDisplayString(), methodDisplayName, "the TConfig type argument"));
 
-                var usableProfileConstructors = FindUsableProfileConstructors(profileType, configType);
+                var usableProfileConstructors = FindUsableProfileConstructors(profileType, configType, compilation);
                 if (usableProfileConstructors.Length != 1)
                 {
                     return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInvalidProfileConstructorShape, location, profileType.ToDisplayString(), configType.ToDisplayString(), methodDisplayName, usableProfileConstructors.Length));
@@ -218,8 +229,27 @@ internal static class AotComposeDataMethodDiscovery
         if (!compilation.IsSymbolAccessibleWithin(memberContainingType, compilation.Assembly))
             return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInaccessibleProfileSymbol, location, memberContainingType.ToDisplayString(), methodDisplayName, "the ComposeData member holder type"), resolution.Kind, memberContainingFqn);
 
+        // Step 6a: CMP0054 - the selected member is declared on an open generic type the generated
+        // registration cannot name (ADR-0070 Amendment 4).
+        if (IsOpenGenericType(memberContainingType))
+            return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataOpenGenericMemberHolder, location, memberDisplayName, methodDisplayName, memberContainingType.ToDisplayString()), resolution.Kind, memberContainingFqn);
+
+        // Step 6b: CMP0052 - a static abstract/static virtual interface member cannot be called from
+        // generated code (ADR-0070 Amendment 4).
+        if (IsStaticInterfaceMember(selectedMember))
+            return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataStaticInterfaceMember, location, memberDisplayName, methodDisplayName), resolution.Kind, memberContainingFqn);
+
+        // Step 6c: CMP0047 - the selected member (or, for a property, its getter) is marked with an
+        // attribute that makes any use of it a compiler error (ADR-0070 Amendment 4).
+        if (ProhibitedCallSiteAttribute(selectedMember) is { } prohibitedMember)
+            return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataProhibitedMember, location, memberDisplayName, methodDisplayName, prohibitedMember), resolution.Kind, memberContainingFqn);
+        if (selectedMember is IPropertySymbol { GetMethod: { } memberGetter }
+            && ProhibitedCallSiteAttribute(memberGetter) is { } prohibitedMemberGetter)
+            return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataProhibitedMemberGetter, location, memberDisplayName, methodDisplayName, prohibitedMemberGetter), resolution.Kind, memberContainingFqn);
+
         // Step 7: CMP0053 - return shape, then row element shape.
         var declaredMemberType = GetMemberType(selectedMember);
+        asyncRowElementIsValueType = AnalyzeAsyncRowElementIsValueType(declaredMemberType);
         var returnAnalysis = AnalyzeReturnShape(declaredMemberType);
         if (returnAnalysis.ErrorType is not null)
         {
@@ -279,6 +309,14 @@ internal static class AotComposeDataMethodDiscovery
             var skipTypeSymbol = GetNamedArgument(namedArguments, "SkipType") is { Kind: TypedConstantKind.Type, Value: ITypeSymbol skipType } ? skipType : null;
             var skipHolder = (ITypeSymbol?)skipTypeSymbol ?? declaringType;
 
+            // An explicitly supplied unbound generic SkipType (e.g. typeof(Holder<>)) exposes no members
+            // to Roslyn's GetMembers, so resolve the skip property through its OriginalDefinition - the
+            // property still exists, and when it lives on the open generic the CMP0054 open-generic
+            // skip-holder rejection reports exactly that. Scoped to SkipType only: no broader fallback.
+            var skipLookupHolder = skipTypeSymbol is INamedTypeSymbol { IsUnboundGenericType: true } unboundSkipType
+                ? unboundSkipType.OriginalDefinition
+                : skipHolder;
+
             if (skipUnlessProperty is not null && skipWhenProperty is not null)
             {
                 return Fail(
@@ -288,21 +326,33 @@ internal static class AotComposeDataMethodDiscovery
 
             if (skipUnlessProperty is not null)
             {
-                var resolvedSkipUnless = ResolveSkipProperty(skipHolder, skipUnlessProperty);
+                var resolvedSkipUnless = ResolveSkipProperty(skipLookupHolder, skipUnlessProperty);
                 if (resolvedSkipUnless is null || !IsUsableSkipProperty(resolvedSkipUnless))
                     return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInvalidSkipConditionProperty, location, methodDisplayName, "SkipUnless", skipUnlessProperty, skipHolder.ToDisplayString()), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
                 if (!compilation.IsSymbolAccessibleWithin(skipHolder, compilation.Assembly))
                     return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInaccessibleProfileSymbol, location, skipHolder.ToDisplayString(), methodDisplayName, "the SkipType type argument"), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
+                if (IsOpenGenericType(resolvedSkipUnless.ContainingType))
+                    return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataOpenGenericSkipHolder, location, methodDisplayName, "SkipUnless", skipUnlessProperty, resolvedSkipUnless.ContainingType.ToDisplayString()), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
+                if (ProhibitedCallSiteAttribute(resolvedSkipUnless) is { } prohibitedSkipUnless)
+                    return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataProhibitedSkipProperty, location, methodDisplayName, "SkipUnless", skipUnlessProperty, resolvedSkipUnless.ContainingType.ToDisplayString(), prohibitedSkipUnless), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
+                if (resolvedSkipUnless.GetMethod is { } skipUnlessGetter && ProhibitedCallSiteAttribute(skipUnlessGetter) is { } prohibitedSkipUnlessGetter)
+                    return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataProhibitedSkipPropertyGetter, location, methodDisplayName, "SkipUnless", skipUnlessProperty, resolvedSkipUnless.ContainingType.ToDisplayString(), prohibitedSkipUnlessGetter), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
                 skipUnless = new AotComposeDataSkipCondition(resolvedSkipUnless.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), skipUnlessProperty);
             }
 
             if (skipWhenProperty is not null)
             {
-                var resolvedSkipWhen = ResolveSkipProperty(skipHolder, skipWhenProperty);
+                var resolvedSkipWhen = ResolveSkipProperty(skipLookupHolder, skipWhenProperty);
                 if (resolvedSkipWhen is null || !IsUsableSkipProperty(resolvedSkipWhen))
                     return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInvalidSkipConditionProperty, location, methodDisplayName, "SkipWhen", skipWhenProperty, skipHolder.ToDisplayString()), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
                 if (!compilation.IsSymbolAccessibleWithin(skipHolder, compilation.Assembly))
                     return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataInaccessibleProfileSymbol, location, skipHolder.ToDisplayString(), methodDisplayName, "the SkipType type argument"), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
+                if (IsOpenGenericType(resolvedSkipWhen.ContainingType))
+                    return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataOpenGenericSkipHolder, location, methodDisplayName, "SkipWhen", skipWhenProperty, resolvedSkipWhen.ContainingType.ToDisplayString()), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
+                if (ProhibitedCallSiteAttribute(resolvedSkipWhen) is { } prohibitedSkipWhen)
+                    return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataProhibitedSkipProperty, location, methodDisplayName, "SkipWhen", skipWhenProperty, resolvedSkipWhen.ContainingType.ToDisplayString(), prohibitedSkipWhen), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
+                if (resolvedSkipWhen.GetMethod is { } skipWhenGetter && ProhibitedCallSiteAttribute(skipWhenGetter) is { } prohibitedSkipWhenGetter)
+                    return Fail(new DiagnosticInfo(DiagnosticDescriptors.ComposeDataProhibitedSkipPropertyGetter, location, methodDisplayName, "SkipWhen", skipWhenProperty, resolvedSkipWhen.ContainingType.ToDisplayString(), prohibitedSkipWhenGetter), resolution.Kind, memberContainingFqn, returnAnalysis.Shape, rowAnalysis.RowsAreTyped, rowAnalysis.RowElementTypeNames);
                 skipWhen = new AotComposeDataSkipCondition(resolvedSkipWhen.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), skipWhenProperty);
             }
         }
@@ -324,6 +374,11 @@ internal static class AotComposeDataMethodDiscovery
             metadata,
             skipUnless,
             skipWhen,
+            testClassIndex,
+            isGenericTestClass,
+            isTestClassAccessible,
+            lookupIsTestClass,
+            asyncRowElementIsValueType,
             EquatableArray<DiagnosticInfo>.Empty);
     }
 
@@ -365,6 +420,39 @@ internal static class AotComposeDataMethodDiscovery
 
     private static bool IsSharedMarker(IParameterSymbol parameter)
         => parameter.GetAttributes().Any(static a => a.AttributeClass is { } attributeClass && MetadataName(attributeClass) == SharedAttributeMetadataName);
+
+    private static bool IsGenericTestClass(INamedTypeSymbol type)
+    {
+        for (var current = (INamedTypeSymbol?)type; current is not null; current = current.ContainingType)
+        {
+            if (current.Arity > 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsOpenGenericType(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol named)
+            return false;
+
+        if (named.IsUnboundGenericType)
+            return true;
+
+        if (named.IsGenericType && named.TypeArguments.Any(ComposedTypeAnalyzer.ContainsTypeParameter))
+            return true;
+
+        return named.ContainingType is not null && IsOpenGenericType(named.ContainingType);
+    }
+
+    private static bool IsStaticInterfaceMember(ISymbol member)
+    {
+        if (member.ContainingType.TypeKind != TypeKind.Interface)
+            return false;
+
+        return member.IsStatic && (member.IsAbstract || member.IsVirtual);
+    }
 
     private static MemberResolution ResolveMember(ITypeSymbol lookupType, string memberName, Compilation compilation)
     {
@@ -459,8 +547,29 @@ internal static class AotComposeDataMethodDiscovery
 
     private static ReturnAnalysis AnalyzeReturnShape(ITypeSymbol declaredType)
     {
-        if (GetAsyncEnumerableElement(declaredType) is not null)
+        var asyncInterfaces = GetAsyncEnumerableInterfaces(declaredType);
+        if (asyncInterfaces.Count > 0)
+        {
+            // The JIT path reads through `source is IAsyncEnumerable<object?>` when that variance cast
+            // succeeds, else the first matching interface from Type.GetInterfaces(). Exactly one
+            // reference-type element is therefore deterministic (any number of value-type elements is
+            // shadowed by it); two-or-more reference-type elements, or two-or-more value-type elements
+            // with no reference-type element, is not (ADR-0070 Amendment 4).
+            var referenceCount = 0;
+            var valueCount = 0;
+            foreach (var asyncInterface in asyncInterfaces)
+            {
+                if (asyncInterface.TypeArguments[0].IsValueType)
+                    valueCount++;
+                else
+                    referenceCount++;
+            }
+
+            if (referenceCount >= 2 || (referenceCount == 0 && valueCount >= 2))
+                return new ReturnAnalysis(null, null, declaredType);
+
             return new ReturnAnalysis(AotComposeDataReturnShape.AsyncEnumerable, declaredType, null);
+        }
 
         if (declaredType is INamedTypeSymbol named)
         {
@@ -541,20 +650,52 @@ internal static class AotComposeDataMethodDiscovery
 
     private static ITypeSymbol? GetAsyncEnumerableElement(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol named && MetadataName(named) == IAsyncEnumerableGenericMetadataName)
-            return named.TypeArguments[0];
+        ITypeSymbol? referenceElement = null;
+        var referenceCount = 0;
+        ITypeSymbol? valueElement = null;
+        var valueCount = 0;
 
-        ITypeSymbol? element = null;
-        foreach (var @interface in type.AllInterfaces)
+        foreach (var asyncInterface in GetAsyncEnumerableInterfaces(type))
         {
-            if (MetadataName(@interface) != IAsyncEnumerableGenericMetadataName)
-                continue;
-            if (element is not null)
-                return null;
-            element = @interface.TypeArguments[0];
+            var element = asyncInterface.TypeArguments[0];
+            if (element.IsValueType)
+            {
+                valueCount++;
+                valueElement = element;
+            }
+            else
+            {
+                referenceCount++;
+                referenceElement = element;
+            }
         }
 
-        return element;
+        if (referenceCount == 1)
+            return referenceElement;
+        if (referenceCount == 0 && valueCount == 1)
+            return valueElement;
+        return null;
+    }
+
+    private static List<INamedTypeSymbol> GetAsyncEnumerableInterfaces(ITypeSymbol type)
+    {
+        var interfaces = new List<INamedTypeSymbol>();
+        if (type is INamedTypeSymbol named && MetadataName(named) == IAsyncEnumerableGenericMetadataName)
+            interfaces.Add(named);
+
+        foreach (var @interface in type.AllInterfaces)
+        {
+            if (MetadataName(@interface) == IAsyncEnumerableGenericMetadataName)
+                interfaces.Add(@interface);
+        }
+
+        return interfaces;
+    }
+
+    private static bool AnalyzeAsyncRowElementIsValueType(ITypeSymbol type)
+    {
+        var asyncInterfaces = GetAsyncEnumerableInterfaces(type);
+        return asyncInterfaces.Count == 1 && asyncInterfaces[0].TypeArguments[0].IsValueType;
     }
 
     private static ITypeSymbol? GetEnumerableElement(ITypeSymbol type)
@@ -659,16 +800,20 @@ internal static class AotComposeDataMethodDiscovery
             && property.Type.SpecialType == SpecialType.System_Boolean
             && property.GetMethod is { IsStatic: true, DeclaredAccessibility: Accessibility.Public };
 
-    private static IMethodSymbol[] FindUsableProfileConstructors(ITypeSymbol profileType, ITypeSymbol configType)
+    private static IMethodSymbol[] FindUsableProfileConstructors(ITypeSymbol profileType, ITypeSymbol configType, Compilation compilation)
     {
         if (profileType is not INamedTypeSymbol { IsAbstract: false } namedProfile)
             return [];
 
+        // Match the configuration parameter against TConfig using the compiler's own CLR-identity
+        // classification (System.Type semantics on the JIT path): `dynamic` is `object`, tuple element
+        // names are erased, and reference-type nullability does not change identity - while a nullable
+        // value type (`int?`) stays distinct from its underlying type (`int`).
         return namedProfile.Constructors
             .Where(c => c.DeclaredAccessibility == Accessibility.Public
                 && c.Parameters.Length == 1
                 && c.Parameters[0].RefKind == RefKind.None
-                && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, configType)
+                && compilation.ClassifyConversion(c.Parameters[0].Type, configType).IsIdentity
                 && !HasProhibitedAotAttribute(c))
             .ToArray();
     }
@@ -754,9 +899,9 @@ internal static class AotComposeDataMethodDiscovery
         return "(unknown)";
     }
 
-    private static string? ProhibitedCallSiteAttribute(IMethodSymbol constructor)
+    private static string? ProhibitedCallSiteAttribute(ISymbol symbol)
     {
-        foreach (var attribute in constructor.GetAttributes())
+        foreach (var attribute in symbol.GetAttributes())
         {
             switch (attribute.AttributeClass?.ToDisplayString())
             {

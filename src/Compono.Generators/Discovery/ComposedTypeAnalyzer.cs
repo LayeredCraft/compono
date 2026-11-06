@@ -115,7 +115,7 @@ internal static class ComposedTypeAnalyzer
         return type is INamedTypeSymbol named && !named.IsRefLikeType;
     }
 
-    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    internal static bool ContainsTypeParameter(ITypeSymbol type) => type switch
     {
         ITypeParameterSymbol => true,
         INamedTypeSymbol named =>

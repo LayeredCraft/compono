@@ -9,10 +9,16 @@ namespace Compono.Generators.Tests;
 
 internal static class ComposeDataAotTestHelper
 {
-    internal static (ImmutableArray<Diagnostic> Diagnostics, IReadOnlyList<AotComposeDataMethodInfo> Models) Discover(string source) =>
-        DiscoverFullSource(ComposeDataAotStandIns.Source + source);
+    internal static IReadOnlyList<MetadataReference> BaseReferences { get; } = BuildBaseReferences();
 
-    internal static (ImmutableArray<Diagnostic> Diagnostics, IReadOnlyList<AotComposeDataMethodInfo> Models) DiscoverFullSource(string fullSource)
+    internal static (ImmutableArray<Diagnostic> Diagnostics, IReadOnlyList<AotComposeDataMethodInfo> Models) Discover(
+        string source,
+        IReadOnlyList<MetadataReference>? extraReferences = null) =>
+        DiscoverFullSource(ComposeDataAotStandIns.Source + source, extraReferences);
+
+    internal static (ImmutableArray<Diagnostic> Diagnostics, IReadOnlyList<AotComposeDataMethodInfo> Models) DiscoverFullSource(
+        string fullSource,
+        IReadOnlyList<MetadataReference>? extraReferences = null)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
@@ -27,12 +33,8 @@ internal static class ComposeDataAotTestHelper
             allowUnsafe: true);
         List<MetadataReference> references =
         [
-#if NET11_0_OR_GREATER
-            .. Net110.References.All,
-#elif NET10_0_OR_GREATER
-            .. Net100.References.All,
-#endif
-            MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+            .. BaseReferences,
+            .. (extraReferences ?? []),
         ];
         var compilation = CSharpCompilation.Create(
             "AotComposeDataDiscoveryTestsAssembly",
@@ -62,7 +64,9 @@ internal static class ComposeDataAotTestHelper
         return (result.Diagnostics, models);
     }
 
-    internal static (GeneratorDriver Driver, CSharpCompilation Compilation) CreateTrackingDriver(string source)
+    internal static (GeneratorDriver Driver, CSharpCompilation Compilation) CreateTrackingDriver(
+        string source,
+        IReadOnlyList<MetadataReference>? extraReferences = null)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14);
@@ -77,12 +81,8 @@ internal static class ComposeDataAotTestHelper
             allowUnsafe: true);
         List<MetadataReference> references =
         [
-#if NET11_0_OR_GREATER
-            .. Net110.References.All,
-#elif NET10_0_OR_GREATER
-            .. Net100.References.All,
-#endif
-            MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+            .. BaseReferences,
+            .. (extraReferences ?? []),
         ];
         var compilation = CSharpCompilation.Create(
             "AotComposeDataRemediationTestsAssembly",
@@ -121,5 +121,19 @@ internal static class ComposeDataAotTestHelper
         }
 
         return diagnostics;
+    }
+
+    private static List<MetadataReference> BuildBaseReferences()
+    {
+        List<MetadataReference> references =
+        [
+#if NET11_0_OR_GREATER
+            .. Net110.References.All,
+#elif NET10_0_OR_GREATER
+            .. Net100.References.All,
+#endif
+            MetadataReference.CreateFromFile(typeof(Composer).Assembly.Location),
+        ];
+        return references;
     }
 }
