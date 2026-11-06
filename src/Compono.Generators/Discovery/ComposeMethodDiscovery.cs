@@ -165,6 +165,34 @@ internal static class ComposeMethodDiscovery
     /// </remarks>
     public const string AotTwoTypeParameterAttributeMetadataName = AotComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName;
 
+    /// <summary>
+    /// <c>Compono.XunitV3.Aot</c>'s own <c>[ComposeData]</c> (ADR-0070/PLAN-0071) - the identical
+    /// discovery gap as <see cref="ComposeDataAttributeMetadataName"/>, for the AOT attribute family,
+    /// feeding the same attribute-family-agnostic <see cref="TransformMethod"/> so a Composed theory
+    /// rows method's parameter types still get ordinary <c>PlanCache&lt;T&gt;</c>/<c>RowInvokerRegistry</c>
+    /// entries regardless of whether the ComposeData member itself later validates. Deliberately the
+    /// same string <see cref="AotComposeDataMethodDiscovery.AttributeMetadataName"/> uses - one
+    /// attribute, two independent discovery registrations (this one for plan generation, that one for
+    /// the per-method AOT ComposeData model; see its own remarks for why they're separate).
+    /// </summary>
+    public const string AotComposeDataAttributeMetadataName = AotComposeDataMethodDiscovery.AttributeMetadataName;
+
+    /// <inheritdoc cref="GenericAttributeMetadataName"/>
+    /// <remarks>
+    /// <c>Compono.XunitV3.Aot.ComposeDataAttribute&lt;TProfile&gt;</c>'s own arity-suffixed form
+    /// (ADR-0070) - same "same string, two independent discovery registrations" reasoning as
+    /// <see cref="AotComposeDataAttributeMetadataName"/>.
+    /// </remarks>
+    public const string AotComposeDataGenericAttributeMetadataName = AotComposeDataMethodDiscovery.GenericAttributeMetadataName;
+
+    /// <inheritdoc cref="TwoTypeParameterAttributeMetadataName"/>
+    /// <remarks>
+    /// <c>Compono.XunitV3.Aot.ComposeDataAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed
+    /// form (ADR-0070) - same "same string, two independent discovery registrations" reasoning as
+    /// <see cref="AotComposeDataAttributeMetadataName"/>.
+    /// </remarks>
+    public const string AotComposeDataTwoTypeParameterAttributeMetadataName = AotComposeDataMethodDiscovery.TwoTypeParameterAttributeMetadataName;
+
     public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not IMethodSymbol method || method.IsGenericMethod)

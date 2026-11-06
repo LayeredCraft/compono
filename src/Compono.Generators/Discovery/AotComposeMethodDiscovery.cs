@@ -61,11 +61,18 @@ internal static class AotComposeMethodDiscovery
         // other processing.
         if (CountAotComposeAttributes(method) > 1)
         {
+            // When a [ComposeData] form is also stacked, name all six forms in the message (the
+            // ComposeData descriptor) so the diagnostic is accurate; a Compose-only stack keeps the
+            // original three-form wording (and its existing snapshots).
+            var descriptor = HasAotComposeDataAttribute(method)
+                ? DiagnosticDescriptors.ComposeDataMultipleAttributes
+                : DiagnosticDescriptors.MultipleAotComposeAttributes;
+
             return new AotComposeMethodInfo(
                 fullyQualifiedTestClassName,
                 method.Name,
                 Array.Empty<AotComposeParameterInfo>().ToEquatableArray(),
-                new[] { new DiagnosticInfo(DiagnosticDescriptors.MultipleAotComposeAttributes, location, methodDisplayName) }.ToEquatableArray());
+                new[] { new DiagnosticInfo(descriptor, location, methodDisplayName) }.ToEquatableArray());
         }
 
         // No runtime BindingPlan.ValidateSignature-equivalent exists for this attribute family
@@ -510,15 +517,34 @@ internal static class AotComposeMethodDiscovery
     // types (ADR-0067 Amendment 1) with no shared base class for a single GetAttributes<T>() query to
     // catch, so this compares each attribute's own metadata name against all three forms directly -
     // the compile-time equivalent of Compono.XunitV3.Binding.BindingPlan.ValidateSignature's runtime
-    // GetCustomAttributes<ComposeAttribute>().Count() check.
+    // GetCustomAttributes<ComposeAttribute>().Count() check. The three [ComposeData] markers
+    // (ADR-0070) count too: all six Compose-family forms are mutually exclusive, so a method stacking
+    // a [Compose] with a [ComposeData] must trip CMP0045 here rather than let either registration run.
     private static int CountAotComposeAttributes(IMethodSymbol method) =>
         method.GetAttributes().Count(a => a.AttributeClass is { } attributeClass && IsAotComposeAttribute(attributeClass));
+
+    private static bool HasAotComposeDataAttribute(IMethodSymbol method) =>
+        method.GetAttributes().Any(a => a.AttributeClass is { } attributeClass && IsAotComposeDataAttribute(attributeClass));
+
+    private static bool IsAotComposeDataAttribute(INamedTypeSymbol attributeClass)
+    {
+        var metadataName = $"{attributeClass.ContainingNamespace.ToDisplayString()}.{attributeClass.MetadataName}";
+
+        return metadataName is AotComposeDataMethodDiscovery.AttributeMetadataName
+            or AotComposeDataMethodDiscovery.GenericAttributeMetadataName
+            or AotComposeDataMethodDiscovery.TwoTypeParameterAttributeMetadataName;
+    }
 
     private static bool IsAotComposeAttribute(INamedTypeSymbol attributeClass)
     {
         var metadataName = $"{attributeClass.ContainingNamespace.ToDisplayString()}.{attributeClass.MetadataName}";
 
-        return metadataName is AttributeMetadataName or GenericAttributeMetadataName or TwoTypeParameterAttributeMetadataName;
+        return metadataName is AttributeMetadataName
+            or GenericAttributeMetadataName
+            or TwoTypeParameterAttributeMetadataName
+            or AotComposeDataMethodDiscovery.AttributeMetadataName
+            or AotComposeDataMethodDiscovery.GenericAttributeMetadataName
+            or AotComposeDataMethodDiscovery.TwoTypeParameterAttributeMetadataName;
     }
 
     private static DiagnosticInfo InaccessibleSymbolDiagnostic(ITypeSymbol type, string methodDisplayName, LocationInfo? location, string role) =>

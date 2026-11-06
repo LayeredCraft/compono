@@ -33,6 +33,7 @@ public sealed class PublicApiSurfaceTests
             "Compono.XunitV3.Aot.FixtureContextExtensions",
             "Compono.XunitV3.Aot.RowContext",
             "Compono.XunitV3.Aot.RowData",
+            "Compono.XunitV3.Aot.SharedAttribute",
         ];
 
         Assert.Equal(expected, publicTypeNames);

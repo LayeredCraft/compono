@@ -192,10 +192,18 @@ Composed theory rows (`[ComposeData]`, issue #163) are decided by
 [ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md), with
 full JIT/AOT parity planned (including row values and `[Shared]`). The AOT
 `[ComposeData]`/`[ComposeData<TProfile>]`/`[ComposeData<TProfile, TConfig>]`
-attribute markers exist, but the AOT generator discovery and execution
-integration are **not implemented yet** (future B4/B5 work) — they are not
-operational. The JIT (`Compono.XunitV3`) form is implemented. This doesn't
-change `[Compose]`'s limits above.
+attribute markers exist, as does the AOT `[Shared]` parameter marker
+(`Compono.XunitV3.Aot.SharedAttribute` — see [ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md)
+Amendment 3). Compile-time discovery and validation (phase B4) **is
+implemented**: the generator finds each attributed test method, validates its
+signature, member, row shape, profile, and skip metadata, and reports the
+`CMP0051`–`CMP0057` diagnostics (plus the `[ComposeData]` wordings of the
+reused `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049` rules). The execution
+integration (phase B5) is **not implemented yet** — no theory-data factory is
+emitted, so a `[ComposeData]`-attributed theory still does not execute under
+AOT, and the AOT `[Shared]` marker produces no sharing behavior until B5
+lands. The JIT (`Compono.XunitV3`) form is implemented. This doesn't change
+`[Compose]`'s limits above.
 
 ## `[Compose<TProfile, TConfig>]` diagnostics differ from `Compono.XunitV3` — by design
 

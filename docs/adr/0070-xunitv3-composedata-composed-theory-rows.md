@@ -553,3 +553,63 @@ approved `CMP0051`+ range).
 
 **Recorded:** PLAN-0071 B4.4 and B4.9 (rules), B6 (documenting tests), and
 B7 (`docs/packages/compono-xunitv3-aot.md` JIT/AOT differences).
+
+## Amendment 3 (2026-11-06): One additive AOT marker for `ComposeData` parameter sharing
+
+**Amends:** the "Public API" section's "Both packages, same shape" statement
+and the `Compono.XunitV3.Aot` marker list, for exactly one missing type.
+Approved by the product owner during PLAN-0071 B4 implementation.
+
+### The omission
+
+The Decision's item 6 (per-row isolation and `[Shared]` ordering) and the
+stated goal of full JIT/AOT parity for the feature "including `[Shared]` and
+row values" require AOT `ComposeData` test methods to accept a `[Shared]`
+parameter marker. The JIT `ComposeDataAttribute`
+(`Compono.XunitV3.ComposeDataAttribute`) already honors it via
+`Compono.XunitV3.SharedAttribute`.
+
+B2 added the six `ComposeData` attribute markers to `Compono.XunitV3.Aot`
+but **omitted the `[Shared]` parameter marker**. `Compono.XunitV3.Aot` cannot
+reference the JIT `Compono.XunitV3.SharedAttribute`: that package depends on
+the reflection-mode xUnit extensibility package, which is exactly what xUnit's
+native AOT package family rejects (ADR-0066). An AOT consumer therefore had no
+way to write `[Shared]` on an AOT `ComposeData` parameter. This is a B2
+public-API omission discovered during B4.
+
+### The additive marker
+
+One new public type in the AOT package, mirroring the JIT marker's exact
+public contract (a pure marker: sealed, `System.Attribute`, parameter-target
+only, parameterless, no additional public members):
+
+```csharp
+namespace Compono.XunitV3.Aot;
+
+[AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
+public sealed class SharedAttribute : Attribute;
+```
+
+It carries no runtime logic, exactly like the other AOT markers - it is read
+by `Compono.Generators` by its own fully qualified metadata name
+(`Compono.XunitV3.Aot.SharedAttribute`), the same fully-qualified-metadata-name
+matching the AOT `Compose`/`ComposeData` markers already use.
+
+### Ownership
+
+- **B4** owns discovery and validation: it detects `[Shared]` on AOT
+  `ComposeData` parameters by matching the marker's fully qualified metadata
+  name and records `IsShared` on the parameter model. Duplicate `[Shared]`
+  parameter types reuse `CMP0040`, as specified in B4.10.
+- **B5** owns the generated sharing behavior (`ShareExplicit<T>` /
+  `ResolveShared<T>` ordering and emission). This amendment adds the marker
+  only; it does not generate or execute anything.
+
+### Scope
+
+No core `Compono` change and no change to existing core sharing semantics
+(ADR-0011 / ADR-0022). This is the sole public-API addition approved for the
+B4 slice; any further public API needs its own amendment.
+
+**Recorded:** PLAN-0071 B2 (omission corrected), B4.10 (discovery), B5
+(generated behavior), and `docs/packages/compono-xunitv3-aot.md`.

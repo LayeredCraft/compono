@@ -147,11 +147,11 @@ responsibilities and messages are normative.
   `CompositionException.WithSeedInMessage` semantics), with the formats
   below.
 
-### Messages (byte-identical on both engines; `{M}` = `Namespace.Type.Member`, `{T}` = test method display name as `BindingPlan.MethodDisplayName`)
+### Messages (byte-identical on both engines, except that single-sentence compile-time diagnostics omit the trailing period per RS1032 - see the `RS1032` note under the diagnostics table; `{M}` = `Namespace.Type.Member`, `{T}` = test method display name as `BindingPlan.MethodDisplayName`)
 
 - **D1, member not found:** `ComposeData member '{M}' for '{T}' was not found. Expected a public static field, property, or parameterless method.`
-- **D2, not public static:** `ComposeData member '{M}' for '{T}' must be public and static.`
-- **D3, needs arguments:** `ComposeData member '{M}' for '{T}' requires arguments, which ComposeData does not support.`
+- **D2, not public static:** `ComposeData member '{M}' for '{T}' must be public and static`
+- **D3, needs arguments:** `ComposeData member '{M}' for '{T}' requires arguments, which ComposeData does not support`
 - **D4, unsupported return:** `ComposeData member '{M}' for '{T}' returned unsupported type '{type}'. Expected IEnumerable, Task/ValueTask of IEnumerable, or IAsyncEnumerable of ITheoryDataRow, object?[], or ITuple rows.`
 - **D5, null result:** `ComposeData member '{M}' for '{T}' returned null.`
 - **D6, no rows:** let xUnit's own "No data found" behavior stand. Don't
@@ -195,12 +195,14 @@ names; only the runtime R0 text must be CLR-style, see B4.3).
 | ID | Condition | Message text (one descriptor per ID; the reason varies) |
 |---|---|---|
 | `CMP0051` | member not found; member ambiguous | `ComposeData member '{0}' for '{1}' was not found. Expected a public static field, property, or parameterless method.` / `ComposeData member '{0}' for '{1}' is ambiguous: more than one inherited or hidden static member matches. Set MemberType to disambiguate, or rename the member.` (JIT's texts) |
-| `CMP0052` | not public static; requires arguments; generic member method | `ComposeData member '{0}' for '{1}' must be public and static.` / `… requires arguments, which ComposeData does not support.` / `… is a generic method; ComposeData cannot supply type arguments.` |
+| `CMP0052` | not public static; requires arguments; generic member method | `ComposeData member '{0}' for '{1}' must be public and static` / `… requires arguments, which ComposeData does not support` / `… is a generic method; ComposeData cannot supply type arguments` |
 | `CMP0053` | unsupported return type or row element type | `ComposeData member '{0}' for '{1}' has unsupported {return/row element} type '{2}'. Expected IEnumerable, Task/ValueTask of IEnumerable, or IAsyncEnumerable of ITheoryDataRow, object?[], or ITuple rows.` |
-| `CMP0054` | open-generic `MemberType` | `ComposeData MemberType '{2}' for '{1}' is an open generic type; supply a closed type.` |
-| `CMP0055` | `TConfig` statically incompatible with the typed row's element 0 | `ComposeData member '{0}' for '{1}': row element 0 type '{2}' can never be the '{3}' profile configuration value.` |
-| `CMP0056` | statically known too many values; a typed row value that can never be assigned to its parameter | `ComposeData member '{0}' for '{1}' supplies {n} row value(s), but the method has {p} parameter(s).` / `ComposeData member '{0}' for '{1}': row value {i} type '{2}' can never be assigned to parameter '{name}' of type '{3}'.` |
-| `CMP0057` | invalid **active** attribute-level skip condition (B4.9) | `[ComposeData…] on '{1}' sets both SkipUnless and SkipWhen.` / `[ComposeData…] on '{1}': {SkipUnless/SkipWhen} '{prop}' must be a public static bool property on '{holder}' or one of its base types.` |
+| `CMP0054` | open-generic `MemberType` | `ComposeData MemberType '{0}' for '{1}' is an open generic type; supply a closed type` |
+| `CMP0055` | `TConfig` statically incompatible with the typed row's element 0 | `ComposeData member '{0}' for '{1}': row element 0 type '{2}' can never be the '{3}' profile configuration value` |
+| `CMP0056` | statically known too many values; a typed row value that can never be assigned to its parameter | `ComposeData member '{0}' for '{1}' supplies {n} row value(s), but the method has {p} parameter(s)` / `ComposeData member '{0}' for '{1}': row value {i} type '{2}' can never be assigned to parameter '{name}' of type '{3}'` |
+| `CMP0057` | invalid **active** attribute-level skip condition (B4.9) | `[ComposeData…] on '{1}' sets both SkipUnless and SkipWhen` / `[ComposeData…] on '{1}': {SkipUnless/SkipWhen} '{prop}' must be a public static bool property on '{holder}' or one of its base types` |
+
+> **`RS1032` note:** single-sentence diagnostic messages omit the trailing period (all three `CMP0052` texts, and likewise `CMP0054`, `CMP0055`, and both `CMP0056`/`CMP0057` texts). Multi-sentence texts (`CMP0051`, `CMP0053`) keep it. This is the only intentional deviation from the JIT runtime texts, which append a period.
 
 Reused IDs, through **twin `DiagnosticDescriptor`s** (same ID, severity,
 and category as the existing descriptor, with ComposeData-specific
@@ -268,6 +270,7 @@ default.
 
 - [x] `src/Compono.XunitV3/ComposeDataAttribute.cs`, `ComposeDataAttribute{TProfile}.cs`, `ComposeDataAttribute{TProfile,TConfig}.cs`: shapes per ADR-0070, with `DynamicallyAccessedMembers` annotations and XML docs. The `GetData` body lands in B3. Until then, throw `NotSupportedException` with a clear message (never released)
 - [x] `src/Compono.XunitV3.Aot/ComposeData*.cs`: sealed, independent markers, same public shapes
+- [x] **Correction during B4 (ADR-0070 Amendment 3):** B2's AOT marker set omitted the `[Shared]` parameter marker. `src/Compono.XunitV3.Aot/SharedAttribute.cs` was added under B4 with the same public contract as the JIT marker, plus the public-API surface test, a focused marker contract test, and the package docs. Actual AOT `[Shared]` execution remains B5's (see B5)
 - [x] `PublicApiSurfaceTests` exact-set updates (JIT, and AOT if present, or add an equivalent)
 - [x] Package `<Description>` updates in both `.csproj`s
 - [x] Package validation / ApiCompat: an additive-only check against the previous release baseline (`-p:PackageValidationBaselineVersion=<prior>`)
@@ -477,9 +480,19 @@ merge, `ComposeDataRows.CreateDataRow`):
   sets its own `Skip`, or the member returns no rows, JIT never evaluates
   the attribute's conditions while AOT still reports `CMP0057`.
 
-**B4.10 `[Shared]`** (C5): two or more `IsShared` parameters of the same
-type (`SymbolEqualityComparer.Default`: `string`/`string?` are the same
-type, `int`/`int?` are not) → `CMP0040` (twin) with JIT's reason text.
+**B4.10 `[Shared]`** (C5): a parameter's marker is the AOT
+`Compono.XunitV3.Aot.SharedAttribute`, matched on that fully qualified
+metadata name (ADR-0070 Amendment 3 - a minimal public marker added under
+this phase because B2 omitted it; identical public shape to the JIT
+`Compono.XunitV3.SharedAttribute`). Two or more `IsShared` parameters whose
+types share the same CLR identity - `Compilation.ClassifyConversion(a.Type,
+b.Type).IsIdentity` - are a duplicate. That comparison erases
+nullable-reference annotations (`string`/`string?` are identical), treats
+`dynamic` as `object`, and erases tuple element names, while keeping a
+nullable value type distinct from its underlying type (`Box<int?>` is not
+`Box<int>`) → `CMP0040` (twin) with JIT's reason text.
+B4 discovers and validates the marker only; the generated sharing behavior
+is B5's.
 
 **B4.11 Diagnostic location and precedence.**
 
@@ -512,27 +525,28 @@ runtime and cross-engine parity check (B6).
 
 **B4 acceptance checklist**
 
-- [ ] Plan pipeline: the three `ComposeMethodDiscovery` AOT `ComposeData` providers exist. A composed custom parameter type of an AOT `[ComposeData]` method gets a generated plan, **including when the method fails validation**. A plan for a type shared with a valid `[Compose]` method is still emitted when the `ComposeData` method is invalid
-- [ ] A JIT-namespace `[Compono.XunitV3.ComposeData("Missing")]` method (the `SeedSampleMethods` shape) produces no `CMP0051`–`CMP0057` and no AOT `ComposeData` model
-- [ ] Incremental-caching test: an unrelated edit leaves the `ComposeData` per-method steps `Cached`/`Unchanged` (`TrackingNames`)
-- [ ] Model tests cover every B4.2 field, including `Seed` unset → `null`, `Seed = 0` → `0`, `Seed = -1` → `-1` with no diagnostic, and every metadata field present vs. absent
-- [ ] Member resolution: one generator test per probe row 01–29 (Notes, 2026-11-06), asserting the outcome recorded there. Valid rows also assert `MemberContainingTypeFqn` (rows 10/11/21 → the base class). Inherited test method with a base-declared member: valid. Derived-only member without `MemberType`: `CMP0051`. With `MemberType`: valid
-- [ ] Return/element shapes (B4.5/B4.6). Valid: `Task<object>`, `ValueTask<TheoryData<…>>`, `IAsyncEnumerable<object[]>`, `List<string[]>`, a `TheoryData` subclass, `IEnumerable<object>`. `CMP0053`: `string`, a single `TheoryDataRow`, non-generic `Task`, `Task<int>`, a declared `object`, `IEnumerable<int>`, `IEnumerable<string>`. `CMP0054`: `typeof(Holder<>)`
-- [ ] Assignability (B4.7). Valid: `int?`→`int`, `int`→`int?`, `string?`→`string`, subclass→base, element `object`, struct `TConfig` with element `TConfig?`. `CMP0056`: `int`→`long`, too many values with and without `TConfig`. `CMP0055`: unrelated `TConfig`
-- [ ] Profile (B4.8): `CMP0042`/`CMP0044`/`CMP0046`/`CMP0047`/`CMP0048`/`CMP0049` through the ComposeData twins (wording asserted). **No** diagnostic for `TConfig` = `DateTimeOffset`, an interface, or a two-constructor record
-- [ ] `CMP0040` twin: generic test method, ref/out/in, `params`, duplicate `[Shared]` (`string` + `string?` → diagnostic; `int` + `int?` → none)
-- [ ] `CMP0045`: every pairing among the six AOT forms (ComposeData twin text whenever a `ComposeData` form is involved); no ComposeData model emitted as valid. `[InlineData]`/`[MemberData]` alongside `[ComposeData]` → no diagnostic
-- [ ] Skip (B4.9): valid active conditions on the test class, a base class, and a `SkipType` class → no diagnostic. Inactive conditions (no attribute `Skip`), including a missing property → no diagnostic and nothing recorded. Active: both set, missing, instance, non-public, non-`bool` → `CMP0057`
-- [ ] `CMP0044` twin for a private nested `MemberType` holder, a holder reached only through a private nested type, and an active private `SkipType` holder. Internal holders are valid
-- [ ] Precedence (B4.11): one test with several simultaneous faults per adjacent pair in the order, asserting only the first is reported
-- [ ] **All existing `CMP0040`–`CMP0049` Verify snapshots byte-identical** (twins, C-3). Existing AOT `[Compose]` snapshots unchanged
-- [ ] `AnalyzerReleases.Unshipped.md`: `CMP0051`–`CMP0057` added; the `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049` notes say they also apply to `ComposeData`
-- [ ] `dotnet build` 0 warnings / 0 errors; `dotnet test` green
+- [x] Plan pipeline: the three `ComposeMethodDiscovery` AOT `ComposeData` providers exist. A composed custom parameter type of an AOT `[ComposeData]` method gets a generated plan, **including when the method fails validation**. A plan for a type shared with a valid `[Compose]` method is still emitted when the `ComposeData` method is invalid
+- [x] A JIT-namespace `[Compono.XunitV3.ComposeData("Missing")]` method (the `SeedSampleMethods` shape) produces no `CMP0051`–`CMP0057` and no AOT `ComposeData` model
+- [x] Incremental-caching test: an unrelated edit leaves the `ComposeData` per-method steps `Cached`/`Unchanged` (`TrackingNames`)
+- [x] Model tests cover every B4.2 field, including `Seed` unset → `null`, `Seed = 0` → `0`, `Seed = -1` → `-1` with no diagnostic, and every metadata field present vs. absent
+- [x] Member resolution: one generator test per probe row 01–29 (Notes, 2026-11-06), asserting the outcome recorded there. Valid rows also assert `MemberContainingTypeFqn` (rows 10/11/21 → the base class). Inherited test method with a base-declared member: valid. Derived-only member without `MemberType`: `CMP0051`. With `MemberType`: valid
+- [x] Return/element shapes (B4.5/B4.6). Valid: `Task<object>`, `ValueTask<TheoryData<…>>`, `IAsyncEnumerable<object[]>`, `List<string[]>`, a `TheoryData` subclass, `IEnumerable<object>`. `CMP0053`: `string`, a single `TheoryDataRow`, non-generic `Task`, `Task<int>`, a declared `object`, `IEnumerable<int>`, `IEnumerable<string>`. `CMP0054`: `typeof(Holder<>)`
+- [x] Assignability (B4.7). Valid: `int?`→`int`, `int`→`int?`, `string?`→`string`, subclass→base, element `object`, struct `TConfig` with element `TConfig?`. `CMP0056`: `int`→`long`, too many values with and without `TConfig`. `CMP0055`: unrelated `TConfig`
+- [x] Profile (B4.8): `CMP0042`/`CMP0044`/`CMP0046`/`CMP0047`/`CMP0048`/`CMP0049` through the ComposeData twins (wording asserted). **No** diagnostic for `TConfig` = `DateTimeOffset`, an interface, or a two-constructor record
+- [x] `CMP0040` twin: generic test method, ref/out/in, `params`, duplicate `[Shared]` (`string` + `string?` → diagnostic; `int` + `int?` → none)
+- [x] `CMP0045`: every pairing among the six AOT forms (ComposeData twin text whenever a `ComposeData` form is involved); no ComposeData model emitted as valid. `[InlineData]`/`[MemberData]` alongside `[ComposeData]` → no diagnostic
+- [x] Skip (B4.9): valid active conditions on the test class, a base class, and a `SkipType` class → no diagnostic. Inactive conditions (no attribute `Skip`), including a missing property → no diagnostic and nothing recorded. Active: both set, missing, instance, non-public, non-`bool` → `CMP0057`
+- [x] `CMP0044` twin for a private nested `MemberType` holder, a holder reached only through a private nested type, and an active private `SkipType` holder. Internal holders are valid
+- [x] Precedence (B4.11): one test with several simultaneous faults per adjacent pair in the order, asserting only the first is reported
+- [x] **All existing `CMP0040`–`CMP0049` Verify snapshots byte-identical** (twins, C-3). Existing AOT `[Compose]` snapshots unchanged
+- [x] `AnalyzerReleases.Unshipped.md`: `CMP0051`–`CMP0057` added; the `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049` notes say they also apply to `ComposeData`
+- [x] `dotnet build` 0 warnings / 0 errors; `dotnet test` green
 
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
 - [ ] **Coordination checkpoint (#166):** before writing the seeded-row scaffold, check #166's status. If #166 has landed (or has an `Accepted` design for the scaffold), reuse it. Otherwise build it here as a reusable emitter component, and note in #166 that it should adopt it. Record the outcome in Notes
 - [ ] Reusable emission components (emitter helpers or Scriban partials): member invocation (direct call; `await` for `Task`/`ValueTask`; `await foreach … WithCancellation(TestContext.Current.CancellationToken)` for `IAsyncEnumerable`), row loop with index, config extraction, typed value binding through the helper's `BindValue<T>`, `[Shared]`-first ordering (`ShareExplicit<T>`/`ResolveShared<T>`), composed `Resolve<T>` with literal descriptors, seeded-row scaffold (`WithSeed` when `Seed` is set, negative check, `CreateRow`, failure wrapping per R0, `Compono.Seed` trait), and attribute metadata passed into the shared helper's single merge rule (constants rendered, `SkipUnless`/`SkipWhen` rendered as `() => global::T.Prop`). **Not** through `DataAttributeRegistration.CreateDataRow`, whose field-by-field merge diverges from JIT. If valid skip metadata can't be emitted with full parity, **stop and bring it to the product owner**. There's no preapproved diagnostic fallback
+- [ ] **Owns AOT `[Shared]` execution** (ADR-0070 Amendment 3): the marker (`Compono.XunitV3.Aot.SharedAttribute`) only makes sharing expressible; B4 discovers/validates `IsShared`, and B5 renders the `ShareExplicit<T>`/`ResolveShared<T>` ordering for those parameters
 - [ ] New template `AotComposeDataRegistration.scriban` (or an equivalent emitter), `file`-scoped registration class, `global::`-qualified, `disableDiscoveryEnumeration: true`, low-allocation (pre-sized arrays, no LINQ)
 - [ ] Per-row isolation in generated code: a new profile, composer, and row per iteration
 - [ ] **Not** wired into AOT `[Compose]`. Leave its template unchanged
@@ -988,3 +1002,28 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   is an invalid-usage timing difference, already covered by item 13. No new public API, no core change, no architectural
   redesign. The diagnostic IDs fall inside the ADR's approved `CMP0051`+
   range.
+
+- **2026-11-06 (B4 implementation, `compono-lsx.4`):** B4 (AOT `ComposeData` discovery + validation) is implemented and all 16 acceptance-checklist items pass. Implementation: `src/Compono.Generators/Models/AotComposeDataMethodInfo.cs` (equatable model, no retained Roslyn symbols/locations); `src/Compono.Generators/Discovery/AotComposeDataMethodDiscovery.cs` (member resolution B4.4, return/element shapes B4.5-B4.6, typed-row assignability B4.7, profile checks B4.8, active-only skip B4.9, duplicate-`[Shared]` B4.10, precedence B4.11, diagnostics CMP0051-CMP0057 + ComposeData twins); `ComposeMethodDiscovery` AOT-ComposeData metadata-name consts; `ComponoIncrementalGenerator` raw plan providers (3) folded into `composeMethodResultsAll` (so parameter plans are emitted even for invalid methods) plus a validated per-method pipeline whose `RegisterSourceOutput` reports diagnostics only (B4 emits no registration); `AotComposeMethodDiscovery` CMP0045 extended to all six Compose-family forms; `DiagnosticDescriptors` CMP0051-CMP0057 + ComposeData twin descriptors (existing `[Compose]` descriptors and snapshots unchanged); `AnalyzerReleases.Unshipped.md` updated.
+  Also corrected a B2 public-API omission discovered during B4: added public sealed `Compono.XunitV3.Aot.SharedAttribute` (same contract as the JIT marker), recorded as ADR-0070 Amendment 3, with the AOT public-API surface test, a focused marker contract test, and the package docs updated.
+  Tests: new `test/Compono.Generators.Tests/AotComposeData*` files (member-resolution probe rows 01-29, shapes/assignability, profile, diagnostics/CMP0045/skip/CMP0044/precedence, model/metadata, plan pipeline, incremental caching) - 117/117 pass. Full solution `dotnet build`: 0 warnings/0 errors. Full solution `dotnet test`: 5153 total, 0 failed, 68 skipped.
+  B4 (`compono-lsx.4`) is complete but not yet closed, pending independent Claude Opus review. B5 (`compono-lsx.5`) is next and owns AOT `[Shared]` execution and the emission of the ComposeData registration.
+
+- **2026-11-06 (B4 independent-review remediation, `compono-lsx.4`):** The independent review returned request-changes; the blocking findings and test-strengthening asks were addressed before the second review.
+  B-1: the ComposeData parameter loop now rejects any parameter whose type fails `ComposedTypeAnalyzer.IsRowInvokerShapeEligible` (open generic parameter, ref struct, pointer, function pointer, unsupported array shape) with the CMP0040 signature rule, so an unsupported parameter can no longer produce a zero-diagnostic model.
+  B-2: `DiagnosticInfo` value equality/hash now also consider the descriptor's message format, so the ComposeData twin descriptors that share a rule id but differ in wording (e.g. `CMP0051` not-found vs ambiguous, `CMP0052` not-public-static vs requires-arguments vs generic-method) no longer compare equal - the incremental driver now re-reports correctly (unit equality test plus an incremental run test where a not-found member becomes ambiguous).
+  B-3: the skip-condition check replaced the "any static public bool property" boolean with a most-derived-by-name resolver plus a public-static-getter/bool validity check, and records the resolved property's containing type. A private getter, a setter-only property, or a derived instance member hiding a base static property now reports `CMP0057`; a valid inherited public static bool property is recorded with its (base) containing type.
+  B-4: member-resolution property hiding now matches reflection hide-by-name-and-signature across static properties of identical type regardless of accessibility (a non-public derived static property of identical type hides a public base property -> `CMP0052`; a different type leaves the base selectable).
+  B-5: `docs/packages/compono-xunitv3-aot.md` corrected - B4 compile-time discovery/validation is implemented and reports the diagnostics, while B5 execution emission is not, so a `[ComposeData]` theory still does not execute under AOT.
+  Inv1: duplicate-`[Shared]` type identity now normalizes CLR-equivalent `dynamic`/`object` and top-level tuple element names before grouping.
+  Inv2: a mixed `[Compose]`+`[ComposeData]` stack now reports the six-form `CMP0045` wording from both pipelines while Compose-only stacks keep the existing three-form text and snapshots.
+  Inv3: fixed the `CMP0040` double period (the duplicate-`[Shared]` reason no longer ends with a period); the three `CMP0052` messages keep no trailing period because RS1032 (enforced) requires a single-sentence message to have no trailing period - the PLAN's periods on those single-sentence messages are incompatible with RS1032.
+  Test strengthening: `ComposeDataAotTestHelper` now fails on unexpected compiler errors, which surfaced that the existing ComposeData test sources were not valid C# (file-scoped test namespace after the block-scoped stand-ins); the six test helpers were made block-scoped with `using Compono;`. New `test/Compono.Generators.Tests/AotComposeDataRemediationTests.cs` covers B-1..B-4 and Inv1..Inv3.
+  Post-remediation validation: full solution `dotnet build` 0 warnings/0 errors; full solution `dotnet test` 5197 total, 0 failed, 68 skipped (`Compono.Generators.Tests` 1016 = 508 per TFM, no Verify snapshot changes); `dotnet pack src/Compono.XunitV3.Aot` succeeds with the additive `Compono.XunitV3.Aot.SharedAttribute`. B4 remains open pending the second independent review.
+
+- **2026-11-06 (B4 second-review remediation, `compono-lsx.4`):** The second independent review accepted B-1/B-2/B-3/B-5 and asked for a narrowly scoped remediation; B-4 was over-corrected and has been re-scoped.
+  C-1: member-resolution property hiding no longer lets an inherited private static property participate - a private property participates only when declared on the lookup type itself (where it can still cause `CMP0052`); internal/protected/base-public static properties keep the reflection-probe behavior, and differing types still leave the base selectable.
+  C-2: duplicate-`[Shared]` detection is now a direct pairwise check using `Compilation.ClassifyConversion(a.Type, b.Type).IsIdentity` (the custom `NormalizeSharedTypeIdentity` grouping was removed). This matches CLR identity: nullable-reference annotations, `dynamic` vs `object`, and tuple element names are erased, while `Box<int?>` stays distinct from `Box<int>`.
+  C-3 (recorded here): the plan's `CMP0052` diagnostic texts no longer show a trailing period (RS1032); the B4.10 duplicate-`[Shared]` rule now states the CLR-identity comparison (preserving the nullable-reference vs nullable-value distinction); and an `RS1032` diagnostic-message note was added under the diagnostics table. ADR-0070 was not modified.
+  Tests: added the C-1 three-level `G`/`M`/`L` hierarchy tests and the C-2 CLR-identity `Box<...>` theory (plus the corrected, renamed dynamic-parameter `CMP0040` test); strengthened probe rows 02/08/16/22/25 to assert the ambiguous/not-found message variant; added profile-twin wording tests (incl. the `<TProfile>`-only `CMP0044`), a `CMP0056` too-many-values-with-`TConfig` test, adjacent-precedence tests asserting the winning message, and an incremental diagnostic test that edits a separate holder source file while keeping the method location stable. B4 remains open pending the third independent review.
+- **2026-11-06 (B4 third-review remediation, `compono-lsx.4`):** D-1 (property hiding must use CLR type identity) fixed: `AotComposeDataMethodDiscovery.ResolveMember` now takes the `Compilation` and compares candidate property signatures with `compilation.ClassifyConversion(existing, candidate).IsIdentity` instead of `SymbolEqualityComparer.Default`. This makes `IEnumerable<dynamic>` hide `IEnumerable<object>` and keeps tuple-element-name differences (`List<(int a, int b)>` vs `List<(int c, int d)>`) as the same CLR signature, so a derived property hides an identical-CLR base property. Preserved behavior: private properties participate in hiding only on the lookup type, inherited private does not participate, internal/protected and public-base are unchanged, differing property types still leave the base selectable, and the field/property/method precedence is untouched. Regression tests added (probe rows 30 and 31) asserting the resolved member's containing type, not merely the absence of diagnostics. Also added the missing precedence tests asserting the winning message: `CMP0040` > profile validation, profile validation > `CMP0054`, `CMP0044` (holder) > `CMP0053`, `CMP0053` > `CMP0055`, `CMP0056` > `CMP0057`; strengthened the `ComposeData` profile-twin wording tests for `CMP0046`/`CMP0047`/`CMP0048`/`CMP0049`; and corrected the diagnostics-table trailing periods for `CMP0055`/`CMP0056`/`CMP0057` (RS1032). ADR-0070 was not modified. B4 received independent approval (all 16 acceptance criteria satisfied); `compono-lsx.4` is closed, with B5 (`compono-lsx.5`) owning the generated `ComposeData` execution.
+  Final checkpoint validation: full solution `dotnet build` 0 warnings/0 errors; full solution `dotnet test` 5,255 total tests / 5,187 passed / 68 skipped / 0 failed; `dotnet pack src/Compono.XunitV3.Aot -c Release` succeeds; no Verify snapshot changes.

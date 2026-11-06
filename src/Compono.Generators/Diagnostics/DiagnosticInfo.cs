@@ -14,6 +14,13 @@ internal sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationI
     public bool Equals(DiagnosticInfo? other) =>
         other is not null
         && Descriptor.Id == other.Descriptor.Id
+        // Two distinct descriptors can share a rule Id but carry different message text (the AOT
+        // ComposeData twin descriptors reuse CMP0040/CMP0042/CMP0044-CMP0049 with ComposeData-specific
+        // wording, and several single-rule families - e.g. CMP0051 not-found vs ambiguous - are separate
+        // descriptors under one Id). Without the message format, a diagnostic that changes only its
+        // wording (same Id, same Location, same MessageArgs) reads as "unchanged" to Roslyn's
+        // incremental caching, so a stale message keeps being reported.
+        && Descriptor.MessageFormat.ToString() == other.Descriptor.MessageFormat.ToString()
         && Equals(Location, other.Location)
         // MessageArgs has to participate in equality, not just Descriptor.Id/Location - otherwise
         // an ambiguous type going from 2 to 3 constructors (same location, same descriptor, different
@@ -25,6 +32,7 @@ internal sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationI
     {
         var hash = new HashCode();
         hash.Add(Descriptor.Id);
+        hash.Add(Descriptor.MessageFormat.ToString());
         hash.Add(Location);
 
         foreach (var arg in MessageArgs)
