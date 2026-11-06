@@ -613,3 +613,222 @@ B4 slice; any further public API needs its own amendment.
 
 **Recorded:** PLAN-0071 B2 (omission corrected), B4.10 (discovery), B5
 (generated behavior), and `docs/packages/compono-xunitv3-aot.md`.
+
+## Amendment 4 (2026-11-06): B5 AOT emission - generic test-class bases, AOT-only call-site limits, and hidden helper members
+
+**Status:** **Approved** by the product owner on 2026-11-06.
+
+- Proposed by the B5 design owner on 2026-11-06.
+- Approved in principle the same day: §1 (including the ADR-0001
+  confirmation), §3, the `TConfig` identity fix (§5), both JIT async paths,
+  exact diagnostic contracts, and real generated-code compilation and
+  execution.
+- Final approval on 2026-11-06 covers the whole amendment, including the
+  narrowed §2e async-interface classification:
+  - one reference-type `IAsyncEnumerable<T>` plus any number of value-type
+    ones is supported;
+  - two or more reference-type implementations, or two or more value-type
+    ones with no reference-type implementation, are rejected with
+    `CMP0053`;
+  - JIT's runtime-object path selection is preserved, including the
+    `IAsyncEnumerable<object?>` check before the value-type reader.
+
+**Amends:**
+
+- Item 13's sentence "**Valid usage is never rejected on one engine only.**"
+  and Amendment 2 §3, which named Amendment 2's two cases as the only
+  AOT-only exceptions. This amendment adds exactly the cases in §2.
+- Amendment 3's Scope sentence "any further public API needs its own
+  amendment", for exactly the hidden members in §3.
+- Amendment 2 §1's stated rationale (§4). The C-1 decision itself is
+  unchanged.
+
+**Evidence:** the B5 architecture-review probes (2026-11-06, PLAN-0071
+Notes). They hand-wrote B5-shaped registrations against
+`Compono.XunitV3.Aot` at `93c8c40`, with xUnit AOT 4.0.1 and 4.0.2, ran
+them under the JIT host and under a real Native AOT publish (0 IL/AOT
+warnings), and checked the result against decompiled `xunit.v3.core.aot`
+4.0.2.
+
+### 1. Generic test-class bases are supported on AOT
+
+A concrete test class can inherit a `[ComposeData]` test method that is
+declared on a generic base class (`IntTests : GenericBase<int>`). JIT
+supports this. On AOT:
+
+- **Registration key.** xUnit AOT keys theory-data factories by the
+  declaring type's *open-generic* index: `global::Ns.GenericBase<>`,
+  `global::Ns.Two<,>`, `global::Ns.OuterPlain.InnerGen<>`, or
+  `global::Ns.Outer<>.InnerBase`. All four were verified on 4.0.2. The
+  generated registration uses exactly that string, and `typeof(...)` of the
+  same text.
+- **Composition root.** Each time the factory runs, generated code
+  resolves the **closed** constructed base. It reads
+  `TestContext.Current.TestClass` (`ICoreTestClass.Class`) and walks
+  `BaseType` until it finds the type whose generic type definition is the
+  open base. That closed type is used everywhere JIT uses
+  `testMethod.DeclaringType`:
+  - `Composer.CreateRow`
+  - every `CompositionRequestDescriptor.DeclaringType`
+  - the `{T}` text
+  - the `{M}` text, when `MemberType` isn't set
+
+  This gives exact JIT parity. It reads only type identity metadata
+  (`BaseType`, `IsGenericType`, `GetGenericTypeDefinition`). It uses no
+  member reflection, no `MakeGenericType`, and no dynamic code, and the
+  probe showed Native AOT with 0 IL/AOT warnings. The product owner
+  confirmed (2026-11-06) that this is consistent with
+  [ADR-0001](0001-source-generation-first.md), because it doesn't
+  dynamically discover or invoke members.
+- **Rejected: the open-generic type as composition root.** Using
+  `typeof(GenericBase<>)` as the root changes what valid usage observes
+  compared with JIT:
+  - the `request.DeclaringType` that custom `ICompositionValueProvider`s
+    receive (`PublicProviderAdapter`)
+  - the diagnostic root type and path text
+  - the `{T}` failure text
+
+  There is no fallback. If the closed base can't be resolved, the factory
+  throws. Under xUnit's delayed enumeration that can't happen.
+- A method declared directly on an open generic test class (`xUnit1063`)
+  or on a class nested in a generic type (`xUnit1032`) is invalid on both
+  engines. Compono adds no rule for these. The factory is still
+  registered, because the generator can't know whether a concrete subclass
+  exists, possibly in another assembly. xUnit runs it only for concrete
+  subclasses.
+
+### 2. AOT-only rejections
+
+Generated AOT code is ordinary C# in the consumer's assembly, and JIT
+reaches the same members through reflection. In each case below JIT
+accepts the usage, but AOT can't express it as a compilable direct call.
+Each gets a compile-time diagnostic, never a silently omitted test
+(Amendment 2 §2's rule):
+
+a. **Member or active skip-condition holder that contains a type
+   parameter.** Usually this is the default lookup on a generic base, with
+   the member or `SkipUnless`/`SkipWhen` property declared on
+   `GenericBase<T>`. C# can't name `GenericBase<T>.Cases` from outside the
+   class. Reported as `CMP0054` twins. Workaround: set `MemberType`/
+   `SkipType` to a non-generic or closed type that declares the member.
+   xUnit's own AOT `MemberData` rejects the same shape (`xUnit1068`).
+b. **Test parameter whose type contains the generic base's type
+   parameter** (`T value`, `List<T> items`). Generated code can't name the
+   type. This is B4's existing `CMP0040` rule, recorded here because it is
+   AOT-only for inherited generic-base tests.
+c. **Selected member, its property getter, an active skip property, or
+   that property's getter marked `[Obsolete(error: true)]`,
+   `[Experimental]`, or a non-optional `[CompilerFeatureRequired]`.** Using
+   any of these is a compiler error in generated code. Reported as
+   `CMP0047` twins, following the PR #140 constructor precedent. Plain
+   `[Obsolete]` (a warning) is **not** rejected; the generated file
+   suppresses `CS0612`/`CS0618`.
+d. **Static virtual interface member with a default body**, selected
+   through an interface `MemberType`. The direct call is `CS8926`, but JIT
+   runs it. Reported as a `CMP0052` twin. A static **abstract** interface
+   member gets the same diagnostic, but it isn't an exception: JIT fails it
+   at run time too.
+e. **A member whose declared type implements `IAsyncEnumerable<T>` more
+   than once, where JIT's choice isn't deterministic.** Reported as
+   `CMP0053` (unsupported return type). JIT (B3) treats any
+   `IAsyncEnumerable<>` implementation as an async source. It then picks
+   the reading path by the **runtime** object: if
+   `source is IAsyncEnumerable<object?>` succeeds, it reads through that
+   variance cast; otherwise it reflects over the element type it took from
+   the first matching interface `Type.GetInterfaces()` returned.
+
+   A CoreCLR probe (2026-11-06, PLAN-0071 Notes) gives three cases:
+
+   - **One reference-type element plus any number of value-type elements**
+     (`int` + `string`): deterministic. Variance never applies to value
+     types, so the cast has exactly one match and JIT always reads the
+     reference rows, whatever the declaration order. **Supported on AOT**
+     through the same cast. No exception.
+   - **Two or more reference-type elements** (`string` + `Uri`): the cast
+     matches several implementations. CoreCLR took an exact
+     `IAsyncEnumerable<object>` if present, else the first in its
+     interface map, so swapping the declaration order changed the rows
+     read. No documented rule says which one is chosen, and the AOT
+     runtime that executes the generated cast isn't shown to choose the
+     same.
+   - **Two or more value-type elements and no reference one**
+     (`int` + `long`): JIT uses the first interface `GetInterfaces()`
+     returns. .NET documents that method's order as unspecified. CoreCLR
+     happens to follow declaration order (`IntThenLong` read `int` rows,
+     `LongThenInt` read `long` rows), but Roslyn can't reproduce the
+     runtime interface-map order reliably (inherited interfaces,
+     metadata-only types).
+
+   In the last two cases, any compile-time choice would encode
+   undocumented runtime behavior and could silently read different rows
+   than JIT. Rejecting them is a correctness requirement, not an
+   implementation convenience.
+
+These five, plus Amendment 2's two, are the complete set of AOT-only
+exceptions for `ComposeData`. Item 13 stays in force for everything else.
+Exact descriptors, messages, and precedence are in PLAN-0071 B5.4.
+
+### 3. Hidden generator-facing helper members
+
+`ComposeDataRows` gains members. They are `public` with
+`[EditorBrowsable(EditorBrowsableState.Never)]` on AOT and `internal` on
+JIT, per [ADR-0058](0058-public-generator-facing-runtime-infrastructure.md).
+
+- `MemberReadFailure`, `NegativeAttributeSeed`, and `NegativeRowSeed`.
+  Their texts are currently private literals in the JIT
+  `ComposeDataAttribute`. The JIT attribute switches to these members, so
+  both engines build each message from one source and stay byte-identical.
+- `ResolveGenericTestClassType` (AOT build only): the §1 closed-root
+  lookup.
+
+Contracts are in PLAN-0071 B5.5. There are no new public types and no core
+`Compono` change.
+
+### 4. C-1 rationale correction
+
+Amendment 2 §1 says the AOT factory "receives no derived-class identity".
+That's inaccurate: at execution time the factory can read the derived test
+class through `TestContext.Current.TestClass` (§1 uses this). C-1 still
+holds for a different reason. The member *call* is bound at compile time,
+and it can't vary with derived classes the generator may not see. No
+behavior changes.
+
+### 5. Not exceptions (recorded for completeness)
+
+- **`TConfig` constructor matching.** B4 compares the `TProfile(TConfig)`
+  parameter by symbol equality, which wrongly rejects `(int A, int B)`,
+  `dynamic`, and `List<dynamic>` constructors that JIT accepts. B5 fixes
+  it to CLR identity (`ClassifyConversion(...).IsIdentity`, the B4.10/D-1
+  rule). That restores item 13 parity; it isn't an exception.
+- **`DisableParallelization`** is set through the statically typed AOT
+  property and rendered as `value ?? false`, which produces the same
+  output row as JIT on xUnit 4.x. No difference.
+- **Keyword member and property names** (`@default`) are escaped in
+  generated code. No diagnostic.
+- **Private or protected nested test classes** get `xUnit1000` on both
+  engines, so no registration is emitted.
+- **Unchanged:**
+  - Amendments 1–3
+  - the compile-time-versus-run-time validation difference and the C-4
+    skip residual
+  - the disposal and assembly-fixture differences
+  - the AOT `[Compose]` template and snapshots
+
+### 6. Follow-up (not B5 scope)
+
+The existing AOT `[Compose]` path has both defects §1 and §5 fix for
+`ComposeData`:
+
+- it renders a generic declaring type as `<T>`, which gives `CS0246` and
+  doesn't match xUnit's `<>` key
+- it matches the `TConfig` constructor by symbol equality
+  (`AotComposeMethodDiscovery`)
+
+Each should be its own issue. A third follow-up issue covers call-site
+diagnostics for `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]` on the
+data member. The product owner approved filing all three on 2026-11-06.
+B5 must not change `[Compose]`.
+
+**Recorded:** PLAN-0071 B5 (B5.2–B5.11), B6 (cross-engine and
+Amendment-4 documenting tests), and B7 (`docs/packages/compono-xunitv3-aot.md`
+JIT/AOT differences, diagnostics docs).
