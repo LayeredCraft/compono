@@ -85,3 +85,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0068](0068-testdoubles-scriban-loop-limit-fix-impl-plan.md) | Compono.TestDoubles: Two Inherited Scriban Safety-Limit Defaults for Large Interfaces (Issue #142) | Done |
 | [0069](0069-generator-wide-per-item-emission-failure-isolation-impl-plan.md) | Generator-Wide Per-Item Emission Failure Isolation (Issue #143) | Done |
 | [0070](0070-xunitv3-require-fixture-accessor-impl-plan.md) | xUnit v3 Fixture Accessor (`RequireFixture<TFixture>()`, Issue #162) | Done |
+| [0071](0071-xunitv3-composedata-composed-theory-rows-impl-plan.md) | xUnit v3 Composed Theory Rows (`[ComposeData]`, Issue #163) | In Progress |

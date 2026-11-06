@@ -232,6 +232,11 @@ owns disposal) but does not use attribute-driven parameter composition.
   varying rows another way (e.g. inline `[Theory]`/`[InlineData]` rows for
   the parts that need no composition, per
   [Migrating from AutoFixture](../migrating-from-autofixture.md)).
+  Composed theory rows (one method, many rows, each with its own profile
+  configuration and expected values) are now decided by
+  [ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md)
+  (`[ComposeData]`, issue #163). That decision is accepted but
+  **isn't implemented yet**. This section describes current behavior.
 - **No AutoFixture-style fixture object.** There's nothing analogous to
   AutoFixture's `IFixture` — configuration lives in a profile
   (`[Compose<TProfile>]`), applied per test method, not a shared mutable

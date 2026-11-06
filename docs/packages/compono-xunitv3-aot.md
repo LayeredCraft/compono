@@ -188,6 +188,12 @@ behavior). See
 [PLAN-0066](../plans/0066-compono-xunitv3-aot-package-architecture-impl-plan.md)/
 [PLAN-0067](../plans/0067-compono-xunitv3-aot-profile-support-impl-plan.md).
 
+Composed theory rows (`[ComposeData]`, issue #163) are decided by
+[ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md), with
+full JIT/AOT parity planned (including row values and `[Shared]`). That
+decision is accepted but **isn't implemented yet**. It doesn't
+change `[Compose]`'s limits above.
+
 ## `[Compose<TProfile, TConfig>]` diagnostics differ from `Compono.XunitV3` — by design
 
 `Compono.XunitV3.ComposeAttribute<TProfile, TConfig>` validates `TConfig`'s/
