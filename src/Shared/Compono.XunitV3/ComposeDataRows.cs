@@ -430,6 +430,89 @@ static class ComposeDataRows
     static CompositionException TooManyValues(in RowContext context, int supplied, int parameterCount, int rowSeed) =>
         RowFailure(context, $"too many values: {supplied} supplied, but the method has {parameterCount} parameter(s)", RowSeedLine(rowSeed));
 
+    /// <summary>
+    /// Builds the failure for a data member that threw while being read. A
+    /// <see cref="System.Reflection.TargetInvocationException"/> is unwrapped by one level so the
+    /// underlying cause is reported; the cause's <see cref="CompositionException.Diagnostic"/> is
+    /// carried through when present. No seed line is appended, because the failure occurs at the
+    /// member level before any row's composition starts. The message is byte-identical on both engines.
+    /// </summary>
+    /// <param name="member">The member display name.</param>
+    /// <param name="methodDisplayName">The test method display name.</param>
+    /// <param name="exception">The exception thrown while reading the member.</param>
+    /// <returns>The failure to throw.</returns>
+#if COMPONO_XUNITV3_AOT
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public
+#else
+    internal
+#endif
+    static CompositionException MemberReadFailure(string member, string methodDisplayName, Exception exception)
+    {
+        var cause = exception is System.Reflection.TargetInvocationException { InnerException: { } inner }
+            ? inner
+            : exception;
+
+        return new CompositionException(
+            $"ComposeData member '{member}' for '{methodDisplayName}' failed while reading its value: {cause.Message}",
+            (cause as CompositionException)?.Diagnostic,
+            cause);
+    }
+
+    /// <summary>
+    /// Builds the failure for a negative attribute-level seed. The message is byte-identical on both
+    /// engines, including the literal <c>Compono.XunitV3</c> product name.
+    /// </summary>
+    /// <param name="seed">The configured (negative) seed.</param>
+    /// <returns>The failure to throw.</returns>
+#if COMPONO_XUNITV3_AOT
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public
+#else
+    internal
+#endif
+    static CompositionException NegativeAttributeSeed(int seed) =>
+        new($"Compono.XunitV3 requires a non-negative seed, but the configured seed was {seed}." + PreRowSeedLine(seed));
+
+    /// <summary>
+    /// Builds the failure for a negative row-level seed. The message is byte-identical on both engines.
+    /// </summary>
+    /// <param name="context">The row context (index, source row label, member, method display name).</param>
+    /// <param name="rowSeed">The configured (negative) row seed.</param>
+    /// <returns>The failure to throw.</returns>
+#if COMPONO_XUNITV3_AOT
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public
+#else
+    internal
+#endif
+    static CompositionException NegativeRowSeed(in RowContext context, int rowSeed) =>
+        RowFailure(in context, $"Compono.XunitV3 requires a non-negative seed, but the configured seed was {rowSeed}.", RowSeedLine(rowSeed));
+
+#if COMPONO_XUNITV3_AOT
+    /// <summary>
+    /// Resolves the closed generic test class whose generic type definition matches
+    /// <paramref name="genericTypeDefinition"/> by walking the executing test class's base types.
+    /// Reads only type identity metadata; no member reflection is performed.
+    /// </summary>
+    /// <param name="genericTypeDefinition">The open generic test-class type.</param>
+    /// <returns>The closed generic test class.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static Type ResolveGenericTestClassType(Type genericTypeDefinition)
+    {
+        for (var type = (TestContext.Current.TestClass as Xunit.v3.ICoreTestClass)?.Class; type is not null; type = type.BaseType)
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == genericTypeDefinition)
+            {
+                return type;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"ComposeData could not resolve the closed generic test class for '{genericTypeDefinition}' from the executing test class.");
+    }
+#endif
+
     private static void MergeTraits(Dictionary<string, HashSet<string>> target, ITheoryDataRow? source)
     {
         if (source?.Traits is not { } sourceTraits)

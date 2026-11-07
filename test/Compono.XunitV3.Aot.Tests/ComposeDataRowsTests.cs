@@ -29,6 +29,47 @@ public sealed class ComposeDataRowsTests
     }
 
     [Fact]
+    public void ComposeDataRows_HelperMembersArePublicStaticAndHiddenFromIntelliSense()
+    {
+        var helperNames = new[]
+        {
+            nameof(ComposeDataRows.MemberReadFailure),
+            nameof(ComposeDataRows.NegativeAttributeSeed),
+            nameof(ComposeDataRows.NegativeRowSeed),
+            nameof(ComposeDataRows.ResolveGenericTestClassType),
+        };
+
+        foreach (var name in helperNames)
+        {
+            var method = typeof(ComposeDataRows).GetMethod(
+                name,
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
+
+            Assert.NotNull(method);
+            Assert.True(method!.IsPublic);
+            Assert.True(method.IsStatic);
+            Assert.Equal(
+                EditorBrowsableState.Never,
+                method.GetCustomAttribute<EditorBrowsableAttribute>()!.State);
+        }
+    }
+
+    [Fact]
+    public void ComposeDataRows_AllDeclaredPublicMembersAreHiddenFromIntelliSense()
+    {
+        var publicMembers = typeof(ComposeDataRows).GetMembers(
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
+
+        Assert.NotEmpty(publicMembers);
+        foreach (var publicMember in publicMembers)
+        {
+            var browsable = publicMember.GetCustomAttribute<EditorBrowsableAttribute>();
+            Assert.NotNull(browsable);
+            Assert.Equal(EditorBrowsableState.Never, browsable!.State);
+        }
+    }
+
+    [Fact]
     public void NormalizeRow_IsCallableFromAotConsumer()
     {
         var normalized = ComposeDataRows.NormalizeRow(new object?[] { 1, "a" }, new RowContext(0, null, "M", "T"), null);
@@ -124,6 +165,17 @@ public sealed class ComposeDataRowsTests
     }
 
     [Fact]
+    public void ResolveGenericTestClassType_FromNonGenericTestClass_ThrowsByteExactMessage()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => ComposeDataRows.ResolveGenericTestClassType(typeof(ComposeDataRowsGenericBase<>)));
+
+        Assert.Equal(
+            $"ComposeData could not resolve the closed generic test class for '{typeof(ComposeDataRowsGenericBase<>)}' from the executing test class.",
+            exception.Message);
+    }
+
+    [Fact]
     public void ExposedStructMembersAreHiddenFromIntelliSense()
     {
         var label = typeof(RowContext).GetProperty(nameof(RowContext.Label));
@@ -131,5 +183,42 @@ public sealed class ComposeDataRowsTests
 
         Assert.Equal(EditorBrowsableState.Never, label!.GetCustomAttribute<EditorBrowsableAttribute>()!.State);
         Assert.Equal(EditorBrowsableState.Never, values!.GetCustomAttribute<EditorBrowsableAttribute>()!.State);
+    }
+}
+
+public class ComposeDataRowsGenericBase<T>;
+
+public sealed class ResolveGenericTestClassTypeIntTests : ComposeDataRowsGenericBase<int>
+{
+    [Fact]
+    public void ResolveGenericTestClassType_FromClosedIntSubclass_ReturnsClosedBase()
+    {
+        var resolved = ComposeDataRows.ResolveGenericTestClassType(typeof(ComposeDataRowsGenericBase<>));
+
+        Assert.Equal(typeof(ComposeDataRowsGenericBase<int>), resolved);
+    }
+}
+
+public sealed class ResolveGenericTestClassTypeStringTests : ComposeDataRowsGenericBase<string>
+{
+    [Fact]
+    public void ResolveGenericTestClassType_FromClosedStringSubclass_ReturnsClosedBase()
+    {
+        var resolved = ComposeDataRows.ResolveGenericTestClassType(typeof(ComposeDataRowsGenericBase<>));
+
+        Assert.Equal(typeof(ComposeDataRowsGenericBase<string>), resolved);
+    }
+}
+
+public class Middle<T> : ComposeDataRowsGenericBase<T>;
+
+public sealed class ResolveGenericTestClassTypeLeafTests : Middle<int>
+{
+    [Fact]
+    public void ResolveGenericTestClassType_FromMultiLevelSubclass_ReturnsRootClosedBase()
+    {
+        var resolved = ComposeDataRows.ResolveGenericTestClassType(typeof(ComposeDataRowsGenericBase<>));
+
+        Assert.Equal(typeof(ComposeDataRowsGenericBase<int>), resolved);
     }
 }

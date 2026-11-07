@@ -128,9 +128,7 @@ public class ComposeDataAttribute : DataAttribute
         var attributeSeed = SeedAsNullable;
         if (attributeSeed is { } negativeSeed && negativeSeed < 0)
         {
-            throw new CompositionException(
-                $"Compono.XunitV3 requires a non-negative seed, but the configured seed was {negativeSeed}."
-                + ComposeDataRows.PreRowSeedLine(negativeSeed));
+            throw ComposeDataRows.NegativeAttributeSeed(negativeSeed);
         }
 
         var bindingPlan = EnsureBindingPlan(testMethod);
@@ -346,7 +344,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
     }
 
@@ -359,7 +357,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 
         if (pending is null)
@@ -377,7 +375,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not CompositionException and not OperationCanceledException)
         {
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 
         return accessor.ResultProperty?.GetValue(task);
@@ -407,7 +405,7 @@ public class ComposeDataAttribute : DataAttribute
         {
             // A lazily-evaluated collection can throw mid-enumeration; wrap it the same way the async
             // paths do, but never convert cooperative cancellation into a composition failure.
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
     }
 
@@ -420,7 +418,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 
         if (source is null)
@@ -440,7 +438,7 @@ public class ComposeDataAttribute : DataAttribute
             }
             catch (Exception exception) when (exception is not CompositionException and not OperationCanceledException)
             {
-                throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+                throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
             }
 
             return;
@@ -467,7 +465,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 
         Exception? failure = null;
@@ -508,7 +506,7 @@ public class ComposeDataAttribute : DataAttribute
                 ExceptionDispatchInfo.Capture(failure).Throw();
             }
 
-            throw MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, failure);
+            throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, failure);
         }
     }
 
@@ -570,10 +568,7 @@ public class ComposeDataAttribute : DataAttribute
 
         if (row.Seed < 0)
         {
-            throw ComposeDataRows.RowFailure(
-                context,
-                $"Compono.XunitV3 requires a non-negative seed, but the configured seed was {row.Seed}.",
-                ComposeDataRows.RowSeedLine(row.Seed));
+            throw ComposeDataRows.NegativeRowSeed(context, row.Seed);
         }
 
         var parameters = bindingPlan.Parameters;
@@ -671,15 +666,6 @@ public class ComposeDataAttribute : DataAttribute
             $"ComposeData member '{member}' for '{methodDisplayName}' is ambiguous: more than one inherited or hidden static member matches. Set MemberType to disambiguate, or rename the member.",
             (exception as CompositionException)?.Diagnostic,
             exception);
-
-    private static CompositionException MemberReadFailure(string member, string methodDisplayName, Exception exception)
-    {
-        var cause = exception is TargetInvocationException { InnerException: { } inner } ? inner : exception;
-        return new CompositionException(
-            $"ComposeData member '{member}' for '{methodDisplayName}' failed while reading its value: {cause.Message}",
-            (cause as CompositionException)?.Diagnostic,
-            cause);
-    }
 
     private ComposeDataAttributeMetadata BuildAttributeMetadata() => new()
     {

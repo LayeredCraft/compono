@@ -731,6 +731,114 @@ public sealed class ComposeDataRowsTests
             $"ComposeData row 2 [case] from '{Member}' for '{Method}' failed: too many values: 5 supplied, but the method has 3 parameter(s)\n\nSeed: 8");
     }
 
+    [Fact]
+    public void MemberReadFailure_BuildsByteExactMessage()
+    {
+        var exception = ComposeDataRows.MemberReadFailure(Member, Method, new InvalidOperationException("boom"));
+
+        exception.Message.Should().Be(
+            $"ComposeData member '{Member}' for '{Method}' failed while reading its value: boom");
+    }
+
+    [Fact]
+    public void MemberReadFailure_UnwrapsTargetInvocationException()
+    {
+        var inner = new InvalidOperationException("inner boom");
+
+        var exception = ComposeDataRows.MemberReadFailure(
+            Member,
+            Method,
+            new System.Reflection.TargetInvocationException(inner));
+
+        exception.Message.Should().Be(
+            $"ComposeData member '{Member}' for '{Method}' failed while reading its value: inner boom");
+        exception.InnerException.Should().BeSameAs(inner);
+    }
+
+    [Fact]
+    public void MemberReadFailure_PreservesCompositionExceptionDiagnostic()
+    {
+        var diagnostic = new CompositionDiagnostic
+        {
+            RootType = typeof(ComposeDataRowsTests),
+            FailedType = typeof(ComposeDataRowsTests),
+            Path = "ComposeDataRowsTests",
+            Trace = [],
+            Seed = 1UL,
+            Message = "member failure",
+        };
+        var cause = new CompositionException(diagnostic);
+
+        var exception = ComposeDataRows.MemberReadFailure(Member, Method, cause);
+
+        exception.InnerException.Should().BeSameAs(cause);
+        exception.Diagnostic.Should().BeSameAs(diagnostic);
+    }
+
+    [Fact]
+    public void MemberReadFailure_HasNoSeedLine()
+    {
+        var exception = ComposeDataRows.MemberReadFailure(Member, Method, new InvalidOperationException("boom"));
+
+        exception.Message.Should().NotContain("Seed:");
+    }
+
+    [Fact]
+    public void NegativeAttributeSeed_BuildsByteExactMessage()
+    {
+        var exception = ComposeDataRows.NegativeAttributeSeed(-1);
+
+        exception.Message.Should().Be(
+            "Compono.XunitV3 requires a non-negative seed, but the configured seed was -1.\n\nSeed: -1");
+    }
+
+    [Fact]
+    public void NegativeRowSeed_WithLabel_BuildsByteExactMessage()
+    {
+        var source = new TheoryDataRow(1) { Label = "case" };
+        var context = new RowContext(2, source, Member, Method);
+
+        var exception = ComposeDataRows.NegativeRowSeed(context, -1);
+
+        exception.Message.Should().Be(
+            $"ComposeData row 2 [case] from '{Member}' for '{Method}' failed: Compono.XunitV3 requires a non-negative seed, but the configured seed was -1.\n\nSeed: -1");
+    }
+
+    [Fact]
+    public void NegativeRowSeed_WithoutLabel_BuildsByteExactMessage()
+    {
+        var context = new RowContext(2, null, Member, Method);
+
+        var exception = ComposeDataRows.NegativeRowSeed(context, -1);
+
+        exception.Message.Should().Be(
+            $"ComposeData row 2 from '{Member}' for '{Method}' failed: Compono.XunitV3 requires a non-negative seed, but the configured seed was -1.\n\nSeed: -1");
+    }
+
+    [Fact]
+    public void MemberReadFailure_UnwrapsOneLayer_PreservingCompositionExceptionAndDiagnostic()
+    {
+        var diagnostic = new CompositionDiagnostic
+        {
+            RootType = typeof(ComposeDataRowsTests),
+            FailedType = typeof(ComposeDataRowsTests),
+            Path = "ComposeDataRowsTests",
+            Trace = [],
+            Seed = 1UL,
+            Message = "pipeline failure",
+        };
+        var cause = new CompositionException(diagnostic);
+        var wrapper = new System.Reflection.TargetInvocationException(cause);
+
+        var exception = ComposeDataRows.MemberReadFailure(Member, Method, wrapper);
+
+        exception.InnerException.Should().BeSameAs(cause);
+        exception.Diagnostic.Should().BeSameAs(diagnostic);
+        exception.Message.Should().Be(
+            $"ComposeData member '{Member}' for '{Method}' failed while reading its value: {cause.Message}");
+        exception.Message.Should().NotContain("Seed:");
+    }
+
     private class BaseService;
 
     private sealed class DerivedService : BaseService;
