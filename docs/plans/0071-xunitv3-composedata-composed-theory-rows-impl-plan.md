@@ -561,8 +561,8 @@ runtime and cross-engine parity check (B6).
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
 **Status:** In progress. **Design approval gate passed.** S0 is committed
-at `5db86fc`. S1 is committed at `4b9d12e`, verified, and approved (Notes,
-2026-11-07). S2 is not started.
+at `5db86fc`, S1 at `4b9d12e`, and S2 at `bb67950`; each is verified and
+approved (Notes, 2026-11-07). S3–S7 are pending. B5 remains in progress.
 
 - The B5 design owner specified this on 2026-11-06.
 - On the same day the product owner approved
@@ -855,6 +855,16 @@ static Type ResolveGenericTestClassType(Type genericTypeDefinition)
 
   An emission failure therefore surfaces as `CMP0050` for that method only
   (ADR-0068).
+- **S2 emission gate.** Every path that can emit a registration gates on the
+  single predicate `AotComposeDataRegistrationEmitter.IsWithinS2Envelope`
+  (slice S2, `bb67950`): the non-generic test class; plain `[ComposeData]`;
+  the `Sync` member shape; untyped and typed rows; no profile, no `Seed`, no
+  `[Shared]`, no active skip predicate; constants-only metadata. Any model
+  outside that envelope produces **no** registration (and no invalid
+  generated source) rather than a registration that silently drops the
+  feature's semantics. **S3–S6 must each explicitly widen
+  `IsWithinS2Envelope` as they implement their own functionality** - a later
+  slice must not emit a shape whose semantics it does not yet reproduce.
 - **No Scriban partials or includes.** `TemplateHelper` has no loader, and
   adding one is out of scope. "Reusable components" are named, commented
   template sections plus small view-model builder methods in the emitter:
@@ -1137,12 +1147,26 @@ scope (see "Remaining risks").
   - **Success-path targets** are ordinary `[Theory]` + `[ComposeData…]`
     methods that the real runner executes, with assertions in the theory
     body.
-  - **Failure-path and metadata targets** are
-    `[Theory(Explicit = true)]` + `[ComposeData…]`, so the runner doesn't
-    execute them by default; their factory is still registered by the
-    module initializer. A `[Fact]` invokes them through the harness and
-    asserts exact messages, `InnerException`/`Diagnostic`, row counts,
-    labels, traits (`Compono.Seed`), and merged metadata.
+  - **Failure-path and metadata targets** are plain `[ComposeData…]`
+    methods **without** `[Theory]`. Their factory is still registered by
+    the module initializer, but the runner does not discover the method as
+    a theory, so it is never executed as one. A `[Fact]` invokes the actual
+    registered generated factory through the harness and asserts exact
+    messages, `InnerException`/`Diagnostic`, row counts, labels, traits
+    (`Compono.Seed`), and merged metadata.
+
+    **Approved S2 deviation (2026-11-07).** The original plan used
+    `[Theory(Explicit = true)]` so the runner would not execute the targets
+    by default. That is wrong for the xUnit AOT runner: the xUnit AOT
+    runner invokes the row factory even for `[Theory(Explicit = true)]`
+    methods during a default test run. For intentionally failing factories,
+    this causes the theory to fail before the harness can independently
+    validate the expected exception. Claude Opus reproduced this behavior
+    on net9.0, net10.0, and net11.0. Plain `[ComposeData]` (no `[Theory]`)
+    is the approved pattern. **B6 must reuse this pattern for its
+    failure-path and metadata assertions. Risk:** a future diagnostic that
+    requires `[Theory]` alongside `[ComposeData]` could invalidate it; if
+    that arises, stop and report to the design owner.
 - **Generic targets:** the invoking `[Fact]` lives in the **closed
   subclass** (e.g. `IntTests : GenericBase<int>`), so
   `TestContext.Current.TestClass` is the derived class. Also assert that
@@ -1152,10 +1176,14 @@ scope (see "Remaining risks").
   adds the full behavioral matrix in `ComposeDataTests.cs` and reuses the
   harness.
 - **Generator snapshot tests** (`Compono.Generators.Tests`) assert the
-  generated text with Verify and the absence of `CMP0050`. They do **not**
+  generated text with `GeneratorTestHelpers.VerifyGeneratedSource` - the
+  B5.10 compile-free snapshot helper (S2). It snapshots the driver's
+  generated source **without** recompiling it, and still fails when the
+  generator reported any diagnostic, so a `CMP0050` emission failure fails
+  the test rather than silently snapshotting nothing. They do **not**
   compile the generated code against a stand-in `ComposeDataRows`; a
-  stand-in would drift from the real helper. The compile proof is the real
-  AOT test project build.
+  stand-in would drift from the real helper. Real generated-code
+  compilation is validated separately by the AOT test project build.
 
 ##### B5.11 Implementation slices and gates
 
@@ -1192,11 +1220,11 @@ product-owner approval.
 
 - [x] ADR-0070 Amendment 4 approved in principle by the product owner (2026-11-06, Notes)
 - [x] Product owner confirmed the narrowed Amendment 4 §2e before S0 (2026-11-06, Notes)
-- [ ] #166 checkpoint re-checked at S2 start and recorded (B5.1)
+- [x] #166 checkpoint re-checked at S2 start and recorded (B5.1)
 - [x] S0: `TConfig` identity fix; the B5.4 diagnostics at the B5.4 precedence; model fields; every B4 test and snapshot unchanged
 - [x] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
 - [ ] S2–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
-- [ ] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method
+- [x] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method (S2 wiring, B5.6)
 - [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
 - [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
 - [ ] AOT `[Compose]` template, emitter, discovery, and snapshots byte-identical
@@ -1781,7 +1809,7 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **G1:** full-solution `dotnet build`, 0 warnings, 0 errors.
   - **G2:** full-solution `dotnet test`, 5385 total, 0 failed, 5317 passed, 68 skipped. The 68 skips are pre-existing. The working tree was clean after the run, so no `*.verified.*` changed (the existing generator snapshots are unchanged) and the AOT `[Compose]` files are untouched.
   - **Not in S0's commit (by design):** ADR, plan, bead, and snapshot changes. This entry is S0's documentation closeout.
-  - **Open:** S1 (`4b9d12e`) is committed next and recorded below. S2 is not started and awaits product-owner authorization; the #166 re-check (B5.1) happens at S2 start.
+  - **Open:** S1 (`4b9d12e`) is committed next and recorded below. S2 (`bb67950`) followed it (see the S2 checkpoint below); the #166 re-check (B5.1) happened at S2 start.
 
 - **2026-11-07 (B5 S1 checkpoint, `compono-lsx.5`):** S1 (B5.5) is committed at `4b9d12e` ("feat(xunitv3): add shared ComposeData AOT helpers"), whose parent is the S0 commit `5db86fc`. The design owner verified it independently; the product owner approved it.
   - **Scope:** exactly four files.
@@ -1795,4 +1823,23 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **G2:** full-solution `dotnet test`, 5433 total, 0 failed, 5365 passed, 68 skipped. The skips are `Compono.XunitV3.Tests`' 17 per TFM, all predating S1, which added none. `Compono.XunitV3.Aot.Tests` passed 42 on each TFM. The working tree was clean after the run, so no `*.verified.*` changed, and the AOT `[Compose]` files are untouched.
   - **ApiCompat:** `dotnet pack -c Release` of `Compono.XunitV3` and `Compono.XunitV3.Aot` with `-p:Version=1.3.2 -p:PackageValidationBaselineVersion=1.3.2` (the nuget.org baseline) gave no warnings or errors, so the change is additive only.
   - **Not in S1's commit (by design):** ADR, plan, bead, and snapshot changes. This entry is S1's documentation closeout.
-  - **Open:** S2 is not started and awaits product-owner authorization; the #166 re-check (B5.1) happens at S2 start.
+  - **Open:** S2 (`bb67950`) followed and is recorded below; the #166 re-check (B5.1) happened at S2 start.
+
+- **2026-11-07 (B5 S2 checkpoint, `compono-lsx.5`):** S2 (B5.6 wiring and template) is committed at `bb67950` ("feat(xunitv3): generate AOT ComposeData registrations"), whose parent is the S0 documentation checkpoint `3d4bd28`. The design owner (Claude Opus) verified it independently and returned **APPROVE**; the product owner approved it.
+  - **Scope:** B5.6 only - the generated AOT `ComposeData` registration template, emitter, and generator wiring, plus its tests. 31 files changed (29 added, including 23 new Verify snapshots; 2 modified), covering only the S2 envelope: a non-generic test class; plain `[ComposeData]`; the `Sync` member shape (field, property, method; inherited member; `MemberType`); untyped and typed (`TheoryData<…>`) rows; B5.7 without a profile; B5.8 with constants only; the `Compono.Seed` trait; and R0, too-many, and null/type-mismatch row failures (the profile-driven negative row seed is S3). No generic bases, no `TaskOf`/`ValueTaskOf`/`AsyncEnumerable` shapes, and no profile/seed/`[Shared]`/active-skip features.
+    - `src/Compono.Generators/Templates/AotComposeDataRegistration.scriban` (new): the registration template - header/pragmas, the `file` class, the `[ModuleInitializer]` call, the per-shape row readers, the seeded-row scaffold `ComposeRow`, parameter binding, and the metadata block.
+    - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs` (new): the view-model builder and the S2 emission gate `IsWithinS2Envelope`.
+    - `src/Compono.Generators/ComponoIncrementalGenerator.cs`: the B5.6 wiring - after the existing diagnostics step, skip when `Diagnostics.Count > 0 || !IsTestClassAccessible`, then `EmissionIsolation.TryEmit` (so an emission failure surfaces as `CMP0050` for that method only, ADR-0068).
+    - `test/Compono.Generators.Tests/AotComposeDataRegistrationEmissionTests.cs` (new, 14 tests): the S2 envelope - an eligible sync non-generic shape emits exactly one registration; every out-of-envelope shape (profile forms, seed, `[Shared]`, active skip, generic base, async shapes, inaccessible class) emits none and reports no new diagnostic.
+    - `test/Compono.Generators.Tests/AotComposeDataRegistrationVerifyTests.cs` (new, 10 tests) plus `GeneratorTestHelpers.cs` (`VerifyGeneratedSource`): 23 new snapshots.
+    - `test/Compono.XunitV3.Aot.Tests/Support/RegisteredComposeDataFactory.cs` and `ComposeDataEmissionTests.cs` (new): the B5.10 harness and the real-runner S2 tests.
+  - **Claude Opus independent-review correction round (F1/F2/F4/F5).** The review requested changes; the correction round addressed F1, F2, F4, and F5, including making **two eligibility tests non-vacuous** (each now genuinely fails when the S2 envelope predicate is widened or removed, instead of passing without exercising the intended rejection).
+  - **G1 (DeepSeek-reported full-suite result):** full-solution `dotnet build`, 0 warnings, 0 errors.
+  - **G2 (DeepSeek-reported full-suite result):** full-solution `dotnet test`, 5,544 total, 5,476 passed, 68 skipped, 0 failed. The working tree was clean after the run, so no unexpected `*.verified.*` changed and the AOT `[Compose]` files are untouched.
+  - **G3 (Claude Opus independently verified focused tests):** 14 emission tests, 10 snapshot tests, and 23 new snapshots, with no unexpected `CMP0050`.
+  - **G4 (Claude Opus independently verified):** the generated code compiles against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
+  - **G5 (Claude Opus independently verified real-runner probes):** the slice's tests run and pass under the real xUnit AOT runner, 63/63 per TFM.
+  - **Emission gate:** S2 emits only the `IsWithinS2Envelope` shape; every emit path gates on that single predicate. S3-S6 must each explicitly widen `IsWithinS2Envelope` as they implement their own functionality.
+  - **#166 checkpoint (B5.1), re-checked at S2 start:** issue #166 was still OPEN (last updated 2026-11-04), with no accepted ADR and no implementation plan, so B5 keeps ownership of the seeded-row scaffold (B5.7) and no S2 design change was required. Issue #166 was not modified.
+  - **Not in S2's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S2's documentation closeout.
+  - **Open:** S3-S7 are pending; B5 remains in progress.
