@@ -1193,7 +1193,7 @@ product-owner approval.
 - [x] ADR-0070 Amendment 4 approved in principle by the product owner (2026-11-06, Notes)
 - [x] Product owner confirmed the narrowed Amendment 4 §2e before S0 (2026-11-06, Notes)
 - [ ] #166 checkpoint re-checked at S2 start and recorded (B5.1)
-- [ ] S0: `TConfig` identity fix; the B5.4 diagnostics at the B5.4 precedence; model fields; every B4 test and snapshot unchanged
+- [x] S0: `TConfig` identity fix; the B5.4 diagnostics at the B5.4 precedence; model fields; every B4 test and snapshot unchanged
 - [x] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
 - [ ] S2–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
 - [ ] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method
@@ -1767,6 +1767,22 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - The specification is committed as a documentation-only checkpoint.
   - The three approved follow-up issues (Amendment 4 §6) are still to be filed.
 
+- **2026-11-06 (B5 S0 checkpoint, `compono-lsx.5`):** S0 (B5.2 + B5.4) is committed at `5db86fc` ("feat(xunitv3): add AOT ComposeData S0 discovery support"), whose parent is `e709228`. The design owner verified it independently; the product owner approved it.
+  - **Scope:** discovery only — the B5.2 corrections/model additions, the B5.4 diagnostics, and the B5.3 index renderer. No emission. Twelve files.
+    - `src/Compono.Generators/Discovery/AotComposeDataMethodDiscovery.cs`: the B5.2 `TConfig` constructor-identity fix (`SymbolEqualityComparer.Default.Equals(…)` replaced by `compilation.ClassifyConversion(…).IsIdentity`); the new B5.4 checks — open-generic member/skip holder, static abstract/virtual interface member, prohibited member/getter/skip property/skip getter, and the multiple-`IAsyncEnumerable<T>` set — at the B5.4 precedence; and population of the new model fields.
+    - `src/Compono.Generators/Discovery/AotComposeDataTestClassIndex.cs` (new): the B5.3 index renderer (`Render(INamedTypeSymbol)`), rendering each containing type's own name with open-generic arity markers (`<>`, `<,>`) and `FullyQualifiedFormat` keyword escaping.
+    - `src/Compono.Generators/Discovery/ComposedTypeAnalyzer.cs`: `ContainsTypeParameter` made `internal` for reuse by the open-generic check (no behavior change).
+    - `src/Compono.Generators/Models/AotComposeDataMethodInfo.cs`: five new fields — `TestClassIndex`, `IsGenericTestClass`, `IsTestClassAccessible`, `LookupIsTestClass`, and `AsyncRowElementIsValueType`.
+    - `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: seven new `ComposeData` twin descriptors — `ComposeDataOpenGenericMemberHolder` and `ComposeDataOpenGenericSkipHolder` (`CMP0054`), `ComposeDataStaticInterfaceMember` (`CMP0052`), and `ComposeDataProhibitedMember`/`ComposeDataProhibitedMemberGetter`/`ComposeDataProhibitedSkipProperty`/`ComposeDataProhibitedSkipPropertyGetter` (`CMP0047`). The multiple-async-interface condition reuses the existing `ComposeDataUnsupportedReturnOrRowElementType` descriptor (`CMP0053`). Existing descriptors, their messages, and their Verify snapshots are unchanged.
+    - `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: the `CMP0047`/`CMP0052`/`CMP0053`/`CMP0054` notes extended for the new `ComposeData` conditions (keyed by ID, so no new rows).
+    - Tests: new `test/Compono.Generators.Tests/AotComposeDataAmendment4DiagnosticTests.cs`, `AotComposeDataAmendment4ModelTests.cs`, `AotComposeDataAmendment4TConfigIdentityTests.cs`, `AotComposeDataTestClassIndexTests.cs`, and `CompilerFeatureRequiredReference.cs`, plus additions to `ComposeDataAotTestHelper.cs`.
+  - **Approved scope:** B5.2 + B5.4 exactly. No B5 emission (no template, emitter, wiring, or generated registration) and no S1-or-later work.
+  - **Review verdict:** independent Claude Opus review returned **APPROVE**.
+  - **G1:** full-solution `dotnet build`, 0 warnings, 0 errors.
+  - **G2:** full-solution `dotnet test`, 5385 total, 0 failed, 5317 passed, 68 skipped. The 68 skips are pre-existing. The working tree was clean after the run, so no `*.verified.*` changed (the existing generator snapshots are unchanged) and the AOT `[Compose]` files are untouched.
+  - **Not in S0's commit (by design):** ADR, plan, bead, and snapshot changes. This entry is S0's documentation closeout.
+  - **Open:** S1 (`4b9d12e`) is committed next and recorded below. S2 is not started and awaits product-owner authorization; the #166 re-check (B5.1) happens at S2 start.
+
 - **2026-11-07 (B5 S1 checkpoint, `compono-lsx.5`):** S1 (B5.5) is committed at `4b9d12e` ("feat(xunitv3): add shared ComposeData AOT helpers"), whose parent is the S0 commit `5db86fc`. The design owner verified it independently; the product owner approved it.
   - **Scope:** exactly four files.
     - `src/Shared/Compono.XunitV3/ComposeDataRows.cs`: `MemberReadFailure`, `NegativeAttributeSeed`, `NegativeRowSeed`, and the AOT-only `ResolveGenericTestClassType`. Each matches the B5.5 contract text exactly, is `internal` on JIT, and is `public` + `[EditorBrowsable(Never)]` on AOT. No other helper was added.
@@ -1779,4 +1795,4 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **G2:** full-solution `dotnet test`, 5433 total, 0 failed, 5365 passed, 68 skipped. The skips are `Compono.XunitV3.Tests`' 17 per TFM, all predating S1, which added none. `Compono.XunitV3.Aot.Tests` passed 42 on each TFM. The working tree was clean after the run, so no `*.verified.*` changed, and the AOT `[Compose]` files are untouched.
   - **ApiCompat:** `dotnet pack -c Release` of `Compono.XunitV3` and `Compono.XunitV3.Aot` with `-p:Version=1.3.2 -p:PackageValidationBaselineVersion=1.3.2` (the nuget.org baseline) gave no warnings or errors, so the change is additive only.
   - **Not in S1's commit (by design):** ADR, plan, bead, and snapshot changes. This entry is S1's documentation closeout.
-  - **Open:** S0 (`5db86fc`) has no checkpoint entry in Notes, and its acceptance checkbox is unticked. S2 is not started and awaits product-owner authorization; the #166 re-check (B5.1) happens at S2 start.
+  - **Open:** S2 is not started and awaits product-owner authorization; the #166 re-check (B5.1) happens at S2 start.
