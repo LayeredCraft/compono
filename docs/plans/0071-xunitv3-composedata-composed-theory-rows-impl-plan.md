@@ -560,7 +560,9 @@ runtime and cross-engine parity check (B6).
 
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
-**Status:** Not started. **Design approval gate passed; S0 is authorized.**
+**Status:** In progress. **Design approval gate passed.** S0 is committed
+at `5db86fc`. S1 is committed at `4b9d12e`, verified, and approved (Notes,
+2026-11-07). S2 is not started.
 
 - The B5 design owner specified this on 2026-11-06.
 - On the same day the product owner approved
@@ -1192,7 +1194,7 @@ product-owner approval.
 - [x] Product owner confirmed the narrowed Amendment 4 §2e before S0 (2026-11-06, Notes)
 - [ ] #166 checkpoint re-checked at S2 start and recorded (B5.1)
 - [ ] S0: `TConfig` identity fix; the B5.4 diagnostics at the B5.4 precedence; model fields; every B4 test and snapshot unchanged
-- [ ] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
+- [x] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
 - [ ] S2–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
 - [ ] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method
 - [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
@@ -1764,3 +1766,17 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   The B5 architecture and this specification are approved for implementation. **The design approval gate has passed and B5 S0 is authorized.** B5 implementation hasn't started.
   - The specification is committed as a documentation-only checkpoint.
   - The three approved follow-up issues (Amendment 4 §6) are still to be filed.
+
+- **2026-11-07 (B5 S1 checkpoint, `compono-lsx.5`):** S1 (B5.5) is committed at `4b9d12e` ("feat(xunitv3): add shared ComposeData AOT helpers"), whose parent is the S0 commit `5db86fc`. The design owner verified it independently; the product owner approved it.
+  - **Scope:** exactly four files.
+    - `src/Shared/Compono.XunitV3/ComposeDataRows.cs`: `MemberReadFailure`, `NegativeAttributeSeed`, `NegativeRowSeed`, and the AOT-only `ResolveGenericTestClassType`. Each matches the B5.5 contract text exactly, is `internal` on JIT, and is `public` + `[EditorBrowsable(Never)]` on AOT. No other helper was added.
+    - `src/Compono.XunitV3/ComposeDataAttribute.cs`: the JIT switch-over only. The attribute- and row-level negative-seed checks call the shared helpers, the private `MemberReadFailure` is deleted, and all of its callers use the shared one. The message texts are moved verbatim.
+    - `test/Compono.XunitV3.Tests/ComposeDataRowsTests.cs`: additions only, covering all three exact texts, the `TargetInvocationException` unwrap, preserved `InnerException`/`Diagnostic`, no seed line on `MemberReadFailure`, `NegativeAttributeSeed(-1)` ending in `"\n\nSeed: -1"`, and `NegativeRowSeed` with and without a label.
+    - `test/Compono.XunitV3.Aot.Tests/ComposeDataRowsTests.cs`: `ResolveGenericTestClassType` from closed `<int>` and `<string>` subclasses, from a multi-level subclass, and from a non-generic class (exact `InvalidOperationException` text). It also checks that the four helpers are public, static, and hidden, and that every declared public member is hidden.
+  - **Public surface:** `PublicApiSurfaceTests` locks public *types* only. S1 adds members, not types, so its expected list is correctly unchanged. The member-level lock for the four helpers is in the AOT `ComposeDataRowsTests`.
+  - **JIT suite unchanged:** no existing JIT test was edited, and the exact-text assertions that existed before S1 pass. That is the byte-parity proof.
+  - **G1:** full-solution `dotnet build`, 0 warnings, 0 errors.
+  - **G2:** full-solution `dotnet test`, 5433 total, 0 failed, 5365 passed, 68 skipped. The skips are `Compono.XunitV3.Tests`' 17 per TFM, all predating S1, which added none. `Compono.XunitV3.Aot.Tests` passed 42 on each TFM. The working tree was clean after the run, so no `*.verified.*` changed, and the AOT `[Compose]` files are untouched.
+  - **ApiCompat:** `dotnet pack -c Release` of `Compono.XunitV3` and `Compono.XunitV3.Aot` with `-p:Version=1.3.2 -p:PackageValidationBaselineVersion=1.3.2` (the nuget.org baseline) gave no warnings or errors, so the change is additive only.
+  - **Not in S1's commit (by design):** ADR, plan, bead, and snapshot changes. This entry is S1's documentation closeout.
+  - **Open:** S0 (`5db86fc`) has no checkpoint entry in Notes, and its acceptance checkbox is unticked. S2 is not started and awaits product-owner authorization; the #166 re-check (B5.1) happens at S2 start.
