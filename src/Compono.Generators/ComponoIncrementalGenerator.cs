@@ -785,11 +785,13 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 () => AotTheoryDataRowRegistrationEmitter.Generate(productionContext, method));
         });
 
-        // Compono.XunitV3.Aot's [ComposeData]-attributed methods (ADR-0070/PLAN-0071 B4): the same
-        // per-method validated-model pipeline shape as the AOT [Compose] family above, but B4 is
-        // discovery/validation only - it reports every model's diagnostics and emits NO execution
-        // registration. B5 owns the actual AotComposeDataRegistration emission, gated on
-        // Diagnostics.Count == 0 exactly like the [Compose] pipeline's EmissionIsolation.TryEmit.
+        // Compono.XunitV3.Aot's [ComposeData]-attributed methods (ADR-0070/PLAN-0071 B4/B5): the same
+        // per-method validated-model pipeline shape as the AOT [Compose] family above. B4 discovery/
+        // validation reports every model's diagnostics; B5 emits the AotComposeDataRegistration for a
+        // model only when it carries no diagnostics, its test class is accessible, and it is within
+        // the emitter's own S2 feature envelope (Diagnostics.Count == 0, matching the [Compose]
+        // pipeline's EmissionIsolation.TryEmit gating). Any model outside that gate emits no
+        // registration; its own semantics arrive in a later slice.
         var aotComposeDataMethods = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 AotComposeDataMethodDiscovery.AttributeMetadataName,
@@ -827,6 +829,20 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
         {
             foreach (var diagnostic in method.Diagnostics)
                 diagnostic.Report(productionContext);
+
+            if (method.Diagnostics.Count > 0 || !method.IsTestClassAccessible)
+                return;
+
+            // The same S2 feature-envelope rule the emitter applies internally (`Generate` re-checks
+            // it) governs here, so out-of-envelope models never even enter emission isolation.
+            if (!AotComposeDataRegistrationEmitter.IsWithinS2Envelope(method))
+                return;
+
+            EmissionIsolation.TryEmit(
+                productionContext,
+                "AOT ComposeData registration",
+                $"{method.FullyQualifiedTestClassName}.{method.MethodName}",
+                () => AotComposeDataRegistrationEmitter.Generate(productionContext, method));
         });
     }
 }
