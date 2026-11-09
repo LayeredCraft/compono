@@ -763,4 +763,59 @@ public sealed class AotComposeDataRegistrationVerifyTests
                     """),
             },
             TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.3 / S6: a [ComposeData] method declared on a generic test-class base registers
+    // against the declaring type's OPEN-GENERIC index ("global::TestNamespace.ComposeDataGenericBase<>")
+    // and resolves the CLOSED constructed base once, at execution time, via
+    // ComposeDataRows.ResolveGenericTestClassType - generated code can never name the open generic type.
+    [Fact]
+    public Task GenericTestClass_MemberType_RendersResolverRegistration() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public static class ComposeDataGenericHolder
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+                    }
+
+                    public sealed class ComposeDataGenericBase<T>
+                    {
+                        [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(ComposeDataGenericHolder))]
+                        public void Generic_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.3 / S6: the member is inherited from a NON-generic root base while the declaring
+    // test class is generic. The registration still resolves the closed constructed base at execution
+    // time, but the member read binds to the non-generic root that actually declares it.
+    [Fact]
+    public Task GenericTestClass_InheritedMemberFromNonGenericRoot_RendersResolverRegistration() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public class ComposeDataRoot
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+                    }
+
+                    public class ComposeDataRootGenericBase<T> : ComposeDataRoot { }
+
+                    public sealed class ComposeDataRootTests<T> : ComposeDataRootGenericBase<T>
+                    {
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Root_member_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
 }

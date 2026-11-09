@@ -10,10 +10,13 @@ namespace Compono.Generators.Tests;
 /// B5.11) - every member return shape (<c>Sync</c>, <c>TaskOf</c>, <c>ValueTaskOf</c>, and
 /// <c>AsyncEnumerable</c> with both its reference- and value-element paths), every non-generic
 /// attribute arity, attribute-level seeds (a negative seed emits a registration whose factory body
-/// throws at execution time), <c>[Shared]</c> parameters, and active attribute-level
-/// <c>SkipUnless</c>/<c>SkipWhen</c> conditions. The only shape still outside the envelope - generic
-/// test-class bases - must produce NO registration (and no new diagnostics, in particular no
-/// CMP0050).
+/// throws at execution time), <c>[Shared]</c> parameters, active attribute-level
+/// <c>SkipUnless</c>/<c>SkipWhen</c> conditions, and a <c>[ComposeData]</c> method declared on a
+/// generic test-class base (ADR-0070 Amendment 4 / PLAN-0071 B5.3, S6). A generic test-class base is
+/// emitted against its open-generic registration index and resolved to the closed constructed base
+/// at execution time; an unsupported generic shape (a member or skip property declared on the open
+/// generic base itself, or a parameter whose type contains its type parameter) is rejected during
+/// discovery (CMP0054/CMP0040), so it still produces NO registration (and in particular no CMP0050).
 /// </summary>
 public sealed class AotComposeDataRegistrationEmissionTests
 {
@@ -309,8 +312,8 @@ public sealed class AotComposeDataRegistrationEmissionTests
     }
 
     [Fact]
-    public void GenericTestClass_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void GenericTestClass_WithMemberTypeHolder_EmitsRegistration() =>
+        AssertRegistration("""
 
             public static class GenericMemberHolder
             {
@@ -320,7 +323,140 @@ public sealed class AotComposeDataRegistrationEmissionTests
             public sealed class GenericTestClass<T>
             {
                 [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(GenericMemberHolder))]
-                public void Generic_rows_are_not_emitted(string value) { }
+                public void Generic_rows_are_composed(string value) { }
+            }
+            """);
+
+    [Fact]
+    public void GenericTestClass_InheritedMemberFromNonGenericRoot_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public class Root
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public class GenericBase<T> : Root { }
+
+            public sealed class SampleTests<T> : GenericBase<T>
+            {
+                [Compono.XunitV3.Aot.ComposeData("Cases")]
+                public void Root_member_rows_are_composed(string value) { }
+            }
+            """);
+
+    [Fact]
+    public void TwoTypeParameterGenericTestClass_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public static class GenericMemberHolder
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public sealed class Two<TA, TB>
+            {
+                [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(GenericMemberHolder))]
+                public void Two_arity_rows_are_composed(string value) { }
+            }
+            """);
+
+    [Fact]
+    public void NestedGenericTestClass_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public static class GenericMemberHolder
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public static class OuterPlain
+            {
+                public sealed class InnerGen<T>
+                {
+                    [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(GenericMemberHolder))]
+                    public void Nested_generic_rows_are_composed(string value) { }
+                }
+            }
+            """);
+
+    [Fact]
+    public void GenericTestClassWithConstraint_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public static class GenericMemberHolder
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public sealed class Constrained<T>
+                where T : class
+            {
+                [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(GenericMemberHolder))]
+                public void Constrained_rows_are_composed(string value) { }
+            }
+            """);
+
+    [Fact]
+    public void GenericTestClass_OpenGenericMemberHolder_DoesNotEmitRegistration()
+    {
+        var result = Run("""
+
+            public class GenericBase<T>
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public sealed class SampleTests<T> : GenericBase<T>
+            {
+                [Compono.XunitV3.Aot.ComposeData("Cases")]
+                public void Open_generic_member_rows_are_not_emitted(string value) { }
+            }
+            """);
+
+        RegistrationHintNames(result).Should().BeEmpty();
+        result.Diagnostics.Should().Contain(diagnostic => diagnostic.Id == "CMP0054");
+        result.Diagnostics.Should().NotContain(diagnostic => diagnostic.Id == "CMP0050");
+    }
+
+    [Fact]
+    public void GenericTestClass_TypeParameterParameter_DoesNotEmitRegistration()
+    {
+        var result = Run("""
+
+            public static class GenericMemberHolder
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public sealed class GenericTestClass<T>
+            {
+                [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(GenericMemberHolder))]
+                public void Generic_rows_are_not_emitted(T value) { }
+            }
+            """);
+
+        RegistrationHintNames(result).Should().BeEmpty();
+        result.Diagnostics.Should().Contain(diagnostic => diagnostic.Id == "CMP0040");
+        result.Diagnostics.Should().NotContain(diagnostic => diagnostic.Id == "CMP0050");
+    }
+
+    [Fact]
+    public void InaccessibleNestedGenericTestClass_DoesNotEmitRegistration() =>
+        AssertNoRegistration("""
+
+            public static class PublicMemberHolder
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+            }
+
+            public sealed class Enclosing
+            {
+                private sealed class Hidden<T>
+                {
+                    [Compono.XunitV3.Aot.ComposeData("Cases", MemberType = typeof(PublicMemberHolder))]
+                    public void Hidden_generic_rows_are_not_emitted(string value) { }
+                }
             }
             """);
 

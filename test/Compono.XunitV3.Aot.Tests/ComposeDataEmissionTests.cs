@@ -2253,3 +2253,200 @@ public static class SkipConditionHolder
 {
     public static bool ShouldSkip => true;
 }
+
+/// <summary>
+/// The open-generic index strings each generated S6 generic test-class registration is keyed by
+/// (ADR-0070 Amendment 4 / PLAN-0071 B5.3), shared by the closed subclasses whose <c>[Fact]</c>s
+/// drive the registered factories through <see cref="RegisteredComposeDataFactory"/>.
+/// </summary>
+public static class ComposeDataGenericTestClassTests
+{
+    internal const string GenericComposeBaseIndex = "global::Compono.XunitV3.Aot.Tests.GenericComposeBase<>";
+
+    internal const string GenericComposeTwoIndex = "global::Compono.XunitV3.Aot.Tests.GenericComposeTwo<,>";
+
+    internal const string GenericComposeOuterIndex =
+        "global::Compono.XunitV3.Aot.Tests.GenericComposeOuter.InnerGen<>";
+}
+
+/// <summary>
+/// A generic test-class base whose <c>[ComposeData]</c> methods are registered against the
+/// open-generic index <c>global::Compono.XunitV3.Aot.Tests.GenericComposeBase&lt;&gt;</c> and composed
+/// against whichever closed base the executing subclass supplies (S6). Every inherited <c>[Theory]</c>
+/// runs once per closed subclass; a custom semantic provider observes the <c>DeclaringType</c> each
+/// request carries so the closed type can be asserted directly.
+/// </summary>
+/// <typeparam name="T">The closed type argument each subclass pins.</typeparam>
+public abstract class GenericComposeBase<T> : GenericComposeRoot
+{
+    [Theory]
+    [ComposeData<DeclaringTypeProbeProfile>("HolderRows", MemberType = typeof(GenericComposeMemberHolder))]
+    public void MemberType_rows_compose(string label, DeclaringTypeProbe probe)
+    {
+        Assert.Equal("holder", label);
+        Assert.Equal(GetType().BaseType, probe.DeclaringType);
+    }
+
+    [Theory]
+    [ComposeData<DeclaringTypeProbeProfile>("RootRows")]
+    public void Root_member_rows_compose(string label, DeclaringTypeProbe probe)
+    {
+        Assert.Equal("root", label);
+        Assert.Equal(GetType().BaseType, probe.DeclaringType);
+    }
+
+    [ComposeData("NullRootRows")]
+    public void Null_root_row_fails(string label)
+    {
+    }
+}
+
+/// <summary>
+/// The closed <c>int</c> subclass of <see cref="GenericComposeBase{T}"/>: every inherited
+/// <c>[Theory]</c> runs against the closed <c>GenericComposeBase&lt;int&gt;</c>, and the failure
+/// <c>[Fact]</c> asserts the exact closed declaring type appears in the R0 <c>{T}</c> text (S6).
+/// </summary>
+public sealed class IntGenericComposeTests : GenericComposeBase<int>
+{
+    [Fact]
+    public async System.Threading.Tasks.Task Registered_under_open_generic_index()
+    {
+        var rows = await RegisteredComposeDataFactory
+            .InvokeAsync(
+                ComposeDataGenericTestClassTests.GenericComposeBaseIndex,
+                nameof(GenericComposeBase<int>.MemberType_rows_compose));
+
+        Assert.Single(rows);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task Null_root_row_failure_uses_closed_int_declaring_type()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory
+                .InvokeAsync(ComposeDataGenericTestClassTests.GenericComposeBaseIndex, nameof(Null_root_row_fails))
+                .AsTask());
+
+        Assert.StartsWith(
+            $"ComposeData row 0 from '{typeof(GenericComposeBase<int>).FullName}.NullRootRows' " +
+            $"for '{typeof(GenericComposeBase<int>).FullName}.Null_root_row_fails' failed: row is null",
+            exception.Message);
+    }
+}
+
+/// <summary>
+/// The closed <c>string</c> subclass of <see cref="GenericComposeBase{T}"/> - the same inherited
+/// theories and failure shape, resolving the closed <c>GenericComposeBase&lt;string&gt;</c> instead.
+/// </summary>
+public sealed class StringGenericComposeTests : GenericComposeBase<string>
+{
+    [Fact]
+    public async System.Threading.Tasks.Task Null_root_row_failure_uses_closed_string_declaring_type()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory
+                .InvokeAsync(ComposeDataGenericTestClassTests.GenericComposeBaseIndex, nameof(Null_root_row_fails))
+                .AsTask());
+
+        Assert.StartsWith(
+            $"ComposeData row 0 from '{typeof(GenericComposeBase<string>).FullName}.NullRootRows' " +
+            $"for '{typeof(GenericComposeBase<string>).FullName}.Null_root_row_fails' failed: row is null",
+            exception.Message);
+    }
+}
+
+/// <summary>
+/// A semantic provider that records the <c>DeclaringType</c> carried by the request for a
+/// <see cref="DeclaringTypeProbe"/> so a composed test parameter can assert which test class the
+/// composition root used. Registered through <see cref="DeclaringTypeProbeProfile"/>.
+/// </summary>
+public sealed class DeclaringTypeProbeProvider : ICompositionValueProvider
+{
+    public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+        request.RequestedType == typeof(DeclaringTypeProbe)
+            ? CompositionProviderResult.Handled(new DeclaringTypeProbe(request.DeclaringType))
+            : CompositionProviderResult.NotHandled;
+}
+
+/// <summary>The profile registering <see cref="DeclaringTypeProbeProvider"/>.</summary>
+public sealed class DeclaringTypeProbeProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.AddSemanticProvider(new DeclaringTypeProbeProvider());
+}
+
+/// <summary>The observed composition-root declaring type, surfaced as a composed test parameter.</summary>
+/// <param name="DeclaringType">The <c>CompositionRequestDescriptor.DeclaringType</c> the request carried.</param>
+public sealed record DeclaringTypeProbe(Type? DeclaringType);
+
+/// <summary>A non-generic holder supplying rows to a generic test-class base via <c>MemberType</c> (S6).</summary>
+public static class GenericComposeMemberHolder
+{
+    public static System.Collections.Generic.IEnumerable<object?[]> HolderRows() => [["holder"]];
+}
+
+/// <summary>A non-generic holder supplying rows to the two-arity and nested generic bases (S6).</summary>
+public static class GenericComposeTwoHolder
+{
+    public static System.Collections.Generic.IEnumerable<object?[]> Rows() => [["two"]];
+}
+
+/// <summary>A non-generic root base declaring the members a generic test class inherits (S6).</summary>
+public class GenericComposeRoot
+{
+    public static System.Collections.Generic.IEnumerable<object?[]> RootRows() => [["root"]];
+
+    public static System.Collections.Generic.IEnumerable<object?> NullRootRows() => [null];
+}
+
+/// <summary>A two-type-parameter generic test-class base (S6).</summary>
+/// <typeparam name="TA">The first type argument.</typeparam>
+/// <typeparam name="TB">The second type argument.</typeparam>
+public abstract class GenericComposeTwo<TA, TB>
+{
+    [Theory]
+    [ComposeData("Rows", MemberType = typeof(GenericComposeTwoHolder))]
+    public void Two_arity_rows_compose(string label) => Assert.Equal("two", label);
+}
+
+/// <summary>The closed two-arity subclass.</summary>
+public sealed class TwoIntStringTests : GenericComposeTwo<int, string>
+{
+    [Fact]
+    public async System.Threading.Tasks.Task Two_arity_factory_registered_under_open_index()
+    {
+        var rows = await RegisteredComposeDataFactory
+            .InvokeAsync(
+                ComposeDataGenericTestClassTests.GenericComposeTwoIndex,
+                nameof(GenericComposeTwo<int, string>.Two_arity_rows_compose));
+
+        Assert.Single(rows);
+    }
+}
+
+/// <summary>An enclosing non-generic holder of a nested generic test-class base (S6).</summary>
+public static class GenericComposeOuter
+{
+    /// <summary>A generic test class nested in a non-generic type.</summary>
+    /// <typeparam name="T">The closed type argument.</typeparam>
+    public abstract class InnerGen<T>
+    {
+        [Theory]
+        [ComposeData("Rows", MemberType = typeof(GenericComposeTwoHolder))]
+        public void Nested_generic_rows_compose(string label) => Assert.Equal("two", label);
+    }
+}
+
+/// <summary>The closed nested-generic subclass.</summary>
+public sealed class InnerGenIntTests : GenericComposeOuter.InnerGen<int>
+{
+    [Fact]
+    public async System.Threading.Tasks.Task Nested_generic_factory_registered_under_open_index()
+    {
+        var rows = await RegisteredComposeDataFactory
+            .InvokeAsync(
+                ComposeDataGenericTestClassTests.GenericComposeOuterIndex,
+                nameof(GenericComposeOuter.InnerGen<int>.Nested_generic_rows_compose));
+
+        Assert.Single(rows);
+    }
+}

@@ -17,31 +17,32 @@ namespace Compono.Generators.Emitters;
 /// (ADR-0070 / PLAN-0071 B5).
 /// </summary>
 /// <remarks>
-/// This slice (S5) emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
+/// This slice emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
 /// every member shape (<see cref="AotComposeDataReturnShape.Sync"/>,
 /// <see cref="AotComposeDataReturnShape.TaskOf"/>, <see cref="AotComposeDataReturnShape.ValueTaskOf"/>,
 /// and <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> - the last with both the reference- and
 /// value-element paths), every non-generic attribute arity (plain, <c>TProfile</c>, and
 /// <c>TProfile, TConfig</c>), attribute-level seeds (including a negative seed, whose whole factory
 /// body throws the same <c>NegativeAttributeSeed</c> failure the reflection path produces),
-/// <c>[Shared]</c> parameters, and active attribute-level <c>SkipUnless</c>/<c>SkipWhen</c> conditions
+/// <c>[Shared]</c> parameters, active attribute-level <c>SkipUnless</c>/<c>SkipWhen</c> conditions
 /// (rendered as statically bound <c>static () =&gt; global::Holder.Prop</c> predicates, matching
-/// ADR-0070's compile-time AOT rendering). The remaining shape - generic test-class bases - is
-/// discovered (and its own diagnostics reported) but emitted by a later slice against this same
-/// template, so emitting it here would silently discard its semantics.
+/// ADR-0070's compile-time AOT rendering), and a <c>[ComposeData]</c> method declared on a generic
+/// test-class base (ADR-0070 Amendment 4 / PLAN-0071 B5.3): the registration is keyed by the
+/// declaring type's open-generic index and the closed constructed base is resolved once per factory
+/// execution via <c>ComposeDataRows.ResolveGenericTestClassType</c>.
 /// </remarks>
 internal static class AotComposeDataRegistrationEmitter
 {
     /// <summary>
-    /// The exact feature envelope this slice (S5) can emit correctly: every supported member source
+    /// The exact feature envelope this emitter can produce correctly: every supported member source
     /// shape - the synchronous <see cref="AotComposeDataReturnShape.Sync"/> collection, the awaited
     /// <see cref="AotComposeDataReturnShape.TaskOf"/> and
     /// <see cref="AotComposeDataReturnShape.ValueTaskOf"/> results, and the
     /// <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> source (both the reference-element and
-    /// value-element paths) - for every non-generic, non-generic-test-class form of <c>[ComposeData]</c>
-    /// across every approved attribute arity, including profiles, profile configuration values,
-    /// attribute-level seeds, <c>[Shared]</c> parameters, and active attribute-level
-    /// <c>SkipUnless</c>/<c>SkipWhen</c> conditions. Every path that could emit a registration gates on
+    /// value-element paths) - for every form of <c>[ComposeData]</c> across every approved attribute
+    /// arity, including profiles, profile configuration values, attribute-level seeds, <c>[Shared]</c>
+    /// parameters, active attribute-level <c>SkipUnless</c>/<c>SkipWhen</c> conditions, and methods
+    /// declared on a generic test-class base. Every path that could emit a registration gates on
     /// this single predicate, so a model outside the envelope produces no registration at all rather
     /// than a registration missing the feature's semantics.
     /// </summary>
@@ -51,12 +52,12 @@ internal static class AotComposeDataRegistrationEmitter
     {
         // Every supported source shape is emittable: the synchronous collection, the awaited
         // Task<T>/ValueTask<T> results, and async-enumerable sources (both the reference-element and
-        // value-element paths). Active attribute-level SkipUnless/SkipWhen conditions are now rendered
-        // too (S5). The only shape still outside the envelope is a generic test-class base, whose
-        // emission belongs to S6.
-        if (method.ReturnShape is null
-            || method.MemberKind is null
-            || method.IsGenericTestClass)
+        // value-element paths). Active attribute-level SkipUnless/SkipWhen conditions are rendered
+        // too (S5), and a [ComposeData] method declared on a generic test-class base is rendered
+        // against the closed constructed base resolved at execution time (S6). Unsupported generic
+        // shapes are already rejected during discovery (CMP0054/CMP0040/CMP0047), so by the time an
+        // eligible method reaches here it is always emittable.
+        if (method.ReturnShape is null || method.MemberKind is null)
         {
             return false;
         }
@@ -95,9 +96,15 @@ internal static class AotComposeDataRegistrationEmitter
         {
             TestClassIndexLiteral = SymbolDisplay.FormatLiteral(method.TestClassIndex, quote: true),
             MethodNameLiteral = SymbolDisplay.FormatLiteral(method.MethodName, quote: true),
-            // IsWithinEmissionEnvelope excludes generic test classes, so the closed test class at execution
-            // time is always the attribute's own declaring type.
-            TestClassTypeExpression = $"typeof({method.FullyQualifiedTestClassName})",
+            // The closed test class used by every CreateRow/descriptor/{T}/{M} call. For a method
+            // declared on a generic test-class base (ADR-0070 Amendment 4 / PLAN-0071 B5.3) the
+            // registration is keyed by the open-generic index and the closed constructed base is
+            // resolved once, at execution time, from the executing test class - never the open
+            // generic (which generated code cannot name as a type). For every non-generic test class
+            // the closed type is simply the attribute's own declaring type.
+            TestClassTypeExpression = method.IsGenericTestClass
+                ? $"global::Compono.XunitV3.Aot.ComposeDataRows.ResolveGenericTestClassType(typeof({method.TestClassIndex}))"
+                : $"typeof({method.FullyQualifiedTestClassName})",
             // {M} is the member display name the failure messages use: the lookup type's full name
             // (the attribute's MemberType when supplied, else the test class) plus the member name.
             MemberDisplayNameBase = method.LookupIsTestClass
