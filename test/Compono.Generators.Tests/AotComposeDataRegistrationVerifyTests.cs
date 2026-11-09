@@ -595,4 +595,172 @@ public sealed class AotComposeDataRegistrationVerifyTests
                     """),
             },
             TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S5: an active attribute-level SkipUnless whose property is declared on the test
+    // class emits a static predicate bound to that class - the holder is the property's own declaring
+    // type, never a string name (Native AOT reads no reflection).
+    [Fact]
+    public Task SkipUnless_TestClassHolder_RendersPredicate() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class SkipUnlessTestClassTests
+                    {
+                        public static bool ShouldSkip => false;
+
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases", Skip = "reason", SkipUnless = "ShouldSkip")]
+                        public void Skip_unless_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S5: an inherited condition property binds to the base class that declares it,
+    // not the test class the attribute names.
+    [Fact]
+    public Task SkipUnless_BaseClassHolder_RendersPredicate() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public class SkipConditionBase
+                    {
+                        public static bool ShouldSkip => false;
+                    }
+
+                    public sealed class SkipUnlessBaseClassTests : SkipConditionBase
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases", Skip = "reason", SkipUnless = "ShouldSkip")]
+                        public void Skip_unless_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S5: SkipWhen with an explicit SkipType binds to the SkipType's class.
+    [Fact]
+    public Task SkipWhen_SkipTypeHolder_RendersPredicate() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public static class SkipConditionHolder
+                    {
+                        public static bool ShouldSkip => false;
+                    }
+
+                    public sealed class SkipWhenSkipTypeTests
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Compono.XunitV3.Aot.ComposeData(
+                            "Cases",
+                            Skip = "reason",
+                            SkipWhen = "ShouldSkip",
+                            SkipType = typeof(SkipConditionHolder))]
+                        public void Skip_when_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S5: a keyword-named skip property is escaped at the predicate call site, just
+    // like a keyword-named data member.
+    [Fact]
+    public Task SkipPropertyKeywordName_IsEscaped() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public static class KeywordSkipConditionHolder
+                    {
+                        public static bool @default => false;
+                    }
+
+                    public sealed class SkipPropertyKeywordTests
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Compono.XunitV3.Aot.ComposeData(
+                            "Cases",
+                            Skip = "reason",
+                            SkipUnless = "default",
+                            SkipType = typeof(KeywordSkipConditionHolder))]
+                        public void Keyword_skip_property_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S5: a plain [Obsolete] data member (not [Obsolete(error: true)], which is a
+    // CMP0047 rejection) is read normally; the emitted file's CS0612/CS0618 pragma keeps the read
+    // clean even when the consuming compilation raises those warnings to errors.
+    [Fact]
+    public Task PlainObsoleteMember_IsReadWithSuppressedWarning() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class ObsoleteMemberTests
+                    {
+                        [System.Obsolete("use something else")]
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Obsolete_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S5 / ADR-0070 Amendment 4 §7: a plain (non-virtual) static interface property is
+    // supported; the predicate reads it directly through the interface name.
+    [Fact]
+    public Task SkipUnless_PlainStaticInterfaceProperty_RendersPredicate() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public interface IStaticSkipConditions
+                    {
+                        static bool ShouldSkip => false;
+                    }
+
+                    public sealed class PlainStaticInterfaceTests
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Compono.XunitV3.Aot.ComposeData(
+                            "Cases",
+                            Skip = "reason",
+                            SkipUnless = "ShouldSkip",
+                            SkipType = typeof(IStaticSkipConditions))]
+                        public void Plain_static_interface_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
 }

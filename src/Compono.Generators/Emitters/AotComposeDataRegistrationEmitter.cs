@@ -17,30 +17,33 @@ namespace Compono.Generators.Emitters;
 /// (ADR-0070 / PLAN-0071 B5).
 /// </summary>
 /// <remarks>
-/// This slice (S4) emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
+/// This slice (S5) emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
 /// every member shape (<see cref="AotComposeDataReturnShape.Sync"/>,
 /// <see cref="AotComposeDataReturnShape.TaskOf"/>, <see cref="AotComposeDataReturnShape.ValueTaskOf"/>,
 /// and <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> - the last with both the reference- and
 /// value-element paths), every non-generic attribute arity (plain, <c>TProfile</c>, and
 /// <c>TProfile, TConfig</c>), attribute-level seeds (including a negative seed, whose whole factory
-/// body throws the same <c>NegativeAttributeSeed</c> failure the reflection path produces), and
-/// <c>[Shared]</c> parameters. The remaining shapes - active skip predicates and generic test-class
-/// bases - are discovered (and their own diagnostics reported) but emitted by a later slice against
-/// this same template, so emitting them here would silently discard their semantics.
+/// body throws the same <c>NegativeAttributeSeed</c> failure the reflection path produces),
+/// <c>[Shared]</c> parameters, and active attribute-level <c>SkipUnless</c>/<c>SkipWhen</c> conditions
+/// (rendered as statically bound <c>static () =&gt; global::Holder.Prop</c> predicates, matching
+/// ADR-0070's compile-time AOT rendering). The remaining shape - generic test-class bases - is
+/// discovered (and its own diagnostics reported) but emitted by a later slice against this same
+/// template, so emitting it here would silently discard its semantics.
 /// </remarks>
 internal static class AotComposeDataRegistrationEmitter
 {
     /// <summary>
-    /// The exact feature envelope this slice (S4) can emit correctly: every supported member source
+    /// The exact feature envelope this slice (S5) can emit correctly: every supported member source
     /// shape - the synchronous <see cref="AotComposeDataReturnShape.Sync"/> collection, the awaited
     /// <see cref="AotComposeDataReturnShape.TaskOf"/> and
     /// <see cref="AotComposeDataReturnShape.ValueTaskOf"/> results, and the
     /// <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> source (both the reference-element and
-    /// value-element paths) - for every non-generic, no-active-skip form of <c>[ComposeData]</c> across
-    /// every approved attribute arity, including profiles, profile configuration values, attribute-level
-    /// seeds, and <c>[Shared]</c> parameters. Every path that could emit a registration gates on this
-    /// single predicate, so a model outside the envelope produces no registration at all rather than a
-    /// registration missing the feature's semantics.
+    /// value-element paths) - for every non-generic, non-generic-test-class form of <c>[ComposeData]</c>
+    /// across every approved attribute arity, including profiles, profile configuration values,
+    /// attribute-level seeds, <c>[Shared]</c> parameters, and active attribute-level
+    /// <c>SkipUnless</c>/<c>SkipWhen</c> conditions. Every path that could emit a registration gates on
+    /// this single predicate, so a model outside the envelope produces no registration at all rather
+    /// than a registration missing the feature's semantics.
     /// </summary>
     /// <param name="method">The discovered <c>[ComposeData]</c> model.</param>
     /// <returns><see langword="true"/> when the model is within the emission envelope.</returns>
@@ -48,13 +51,12 @@ internal static class AotComposeDataRegistrationEmitter
     {
         // Every supported source shape is emittable: the synchronous collection, the awaited
         // Task<T>/ValueTask<T> results, and async-enumerable sources (both the reference-element and
-        // value-element paths). The shapes still outside the envelope are active skip predicates and
-        // generic test-class bases, whose emission belongs to a later slice.
+        // value-element paths). Active attribute-level SkipUnless/SkipWhen conditions are now rendered
+        // too (S5). The only shape still outside the envelope is a generic test-class base, whose
+        // emission belongs to S6.
         if (method.ReturnShape is null
             || method.MemberKind is null
-            || method.IsGenericTestClass
-            || method.SkipUnless is not null
-            || method.SkipWhen is not null)
+            || method.IsGenericTestClass)
         {
             return false;
         }
@@ -139,9 +141,11 @@ internal static class AotComposeDataRegistrationEmitter
                 TimeoutValue = RenderNullableInt(method.AttributeMetadata.Timeout),
                 TraitsValue = RenderTraits(method.AttributeMetadata.Traits),
                 DisableParallelizationValue = RenderBool(method.AttributeMetadata.DisableParallelization ?? false),
-                // Active skip predicates are a later slice; both are always null here.
-                SkipUnlessValue = "null",
-                SkipWhenValue = "null",
+                // A recorded active condition only (attribute Skip set, ADR-0070 / PLAN-0071 B4.9):
+                // a statically bound predicate reading the property off its own declaring holder, so
+                // the Native AOT runtime never needs reflection or a string name lookup.
+                SkipUnlessValue = RenderSkipCondition(method.SkipUnless),
+                SkipWhenValue = RenderSkipCondition(method.SkipWhen),
             },
             GeneratorVersion = GeneratorVersion.Current,
         };
@@ -191,6 +195,25 @@ internal static class AotComposeDataRegistrationEmitter
         return method.AttributeArity == 1
             ? $"var composer = global::Compono.Composer.Create(static builder => {{ builder.AddProfile<{profile}>(); builder.WithSeed({seedLiteral}); }});"
             : $"var composer = global::Compono.Composer.Create(builder => {{ builder.AddProfile(new {profile}(config)); builder.WithSeed({seedLiteral}); }});";
+    }
+
+    /// <summary>
+    /// Renders a recorded active attribute-level <c>SkipUnless</c>/<c>SkipWhen</c> condition (ADR-0070 /
+    /// PLAN-0071 B5.8) as the Native AOT <see cref="System.Func{TResult}"/> predicate the metadata
+    /// carries, or <c>null</c> when no condition is active. The predicate is a <c>static</c> lambda (it
+    /// captures nothing) that reads the <see langword="bool"/> property directly off the type that
+    /// declares it - which may be a base class of the attribute's <c>SkipType</c> or of the test class -
+    /// matching ADR-0070's compile-time rendering exactly and avoiding runtime reflection.
+    /// </summary>
+    private static string RenderSkipCondition(AotComposeDataSkipCondition? condition)
+    {
+        if (condition is null)
+        {
+            return "null";
+        }
+
+        var escaped = RequiredMemberCollector.EscapeIdentifier(condition.PropertyName);
+        return $"static () => {condition.FullyQualifiedHolderTypeName}.{escaped}";
     }
 
     private static string RenderNullableBool(bool? value) =>

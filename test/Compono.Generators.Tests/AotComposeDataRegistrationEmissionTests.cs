@@ -10,9 +10,10 @@ namespace Compono.Generators.Tests;
 /// B5.11) - every member return shape (<c>Sync</c>, <c>TaskOf</c>, <c>ValueTaskOf</c>, and
 /// <c>AsyncEnumerable</c> with both its reference- and value-element paths), every non-generic
 /// attribute arity, attribute-level seeds (a negative seed emits a registration whose factory body
-/// throws at execution time), and <c>[Shared]</c> parameters. Shapes still outside the envelope -
-/// active skip predicates and generic test-class bases - must produce NO registration (and no new
-/// diagnostics, in particular no CMP0050).
+/// throws at execution time), <c>[Shared]</c> parameters, and active attribute-level
+/// <c>SkipUnless</c>/<c>SkipWhen</c> conditions. The only shape still outside the envelope - generic
+/// test-class bases - must produce NO registration (and no new diagnostics, in particular no
+/// CMP0050).
 /// </summary>
 public sealed class AotComposeDataRegistrationEmissionTests
 {
@@ -152,9 +153,12 @@ public sealed class AotComposeDataRegistrationEmissionTests
             }
             """);
 
+    // PLAN-0071 B5.11 / S5: an active attribute-level SkipUnless (attribute Skip set) is now within
+    // the emission envelope - the registration renders the condition as a static predicate bound to
+    // the property's own declaring holder.
     [Fact]
-    public void SkipUnless_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void SkipUnless_EmitsRegistration() =>
+        AssertRegistration("""
 
             public class SkipHolder
             {
@@ -166,13 +170,13 @@ public sealed class AotComposeDataRegistrationEmissionTests
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData("Cases", Skip = "reason", SkipUnless = "ShouldSkip")]
-                public void Skip_unless_rows_are_not_emitted(string value) { }
+                public void Skip_unless_rows_are_emitted(string value) { }
             }
             """);
 
     [Fact]
-    public void SkipWhen_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void SkipWhen_EmitsRegistration() =>
+        AssertRegistration("""
 
             public class SkipHolder
             {
@@ -184,9 +188,125 @@ public sealed class AotComposeDataRegistrationEmissionTests
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData("Cases", Skip = "reason", SkipWhen = "ShouldSkip")]
-                public void Skip_when_rows_are_not_emitted(string value) { }
+                public void Skip_when_rows_are_emitted(string value) { }
             }
             """);
+
+    // PLAN-0071 B5.11 / S5: the condition property may be declared on the test class itself.
+    [Fact]
+    public void SkipConditionOnTestClass_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public sealed class SkipUnlessOnClassTests
+            {
+                public static bool ShouldSkip => false;
+
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                [Compono.XunitV3.Aot.ComposeData("Cases", Skip = "reason", SkipUnless = "ShouldSkip")]
+                public void Skip_unless_rows_are_emitted(string value) { }
+            }
+            """);
+
+    // PLAN-0071 B5.11 / S5: SkipType names a holder other than the test class.
+    [Fact]
+    public void SkipTypeHolder_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public static class SkipConditions
+            {
+                public static bool ShouldSkip => false;
+            }
+
+            public sealed class SkipTypeTests
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "ShouldSkip",
+                    SkipType = typeof(SkipConditions))]
+                public void Skip_type_rows_are_emitted(string value) { }
+            }
+            """);
+
+    // PLAN-0071 B5.11 / S5: a keyword-named skip property is escaped at the call site.
+    [Fact]
+    public void KeywordSkipProperty_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public static class KeywordSkipConditions
+            {
+                public static bool @class => false;
+            }
+
+            public sealed class KeywordSkipTests
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "class",
+                    SkipType = typeof(KeywordSkipConditions))]
+                public void Keyword_skip_rows_are_emitted(string value) { }
+            }
+            """);
+
+    // PLAN-0071 B5.11 / S5 / ADR-0070 Amendment 4 §7: a plain (non-virtual) static interface property is
+    // supported and is read directly by the generated registration.
+    [Fact]
+    public void PlainStaticInterfaceSkipProperty_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public interface ISkipConditions
+            {
+                static bool ShouldSkip => false;
+            }
+
+            public sealed class PlainStaticInterfaceSkipTests
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "ShouldSkip",
+                    SkipType = typeof(ISkipConditions))]
+                public void Plain_static_interface_skip_rows_are_emitted(string value) { }
+            }
+            """);
+
+    // PLAN-0071 B5.11 / S5 / ADR-0070 Amendment 4 §7: a static virtual/abstract interface property is
+    // rejected with CMP0052 (never generating the CS8926-failing registration).
+    [Fact]
+    public void StaticVirtualSkipProperty_DoesNotEmitRegistration()
+    {
+        var result = Run("""
+
+            public interface ISkipConditions
+            {
+                static virtual bool ShouldSkip => false;
+            }
+
+            public sealed class StaticVirtualSkipTests
+            {
+                public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "ShouldSkip",
+                    SkipType = typeof(ISkipConditions))]
+                public void Static_virtual_skip_rows_are_not_emitted(string value) { }
+            }
+            """);
+
+        RegistrationHintNames(result).Should().BeEmpty();
+        result.Diagnostics.Should().Contain(diagnostic => diagnostic.Id == "CMP0052");
+        result.Diagnostics.Should().NotContain(diagnostic => diagnostic.Id == "CMP0050");
+    }
 
     [Fact]
     public void GenericTestClass_DoesNotEmitRegistration() =>

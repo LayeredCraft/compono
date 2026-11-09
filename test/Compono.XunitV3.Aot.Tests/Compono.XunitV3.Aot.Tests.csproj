@@ -21,6 +21,14 @@
     <TargetFrameworks>net9.0;net10.0;net11.0</TargetFrameworks>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- PLAN-0071 B5.11 / S5: prove the "plain [Obsolete] member under TreatWarningsAsErrors" case.
+         The generated [ComposeData] registration reads the member through generated code whose header
+         carries `#pragma warning disable CS0612, CS0618` (AotComposeDataRegistration.scriban), so
+         raising obsolete-usage warnings to errors here fails the build if that suppression ever
+         regresses - while leaving every other warning classification untouched (this project is
+         warning-clean, so a full TreatWarningsAsErrors is unnecessary and would couple the suite to
+         unrelated analyzer output). See ADR-0070 Amendment 4 (2c) / ADR-0066. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS0612;CS0618</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

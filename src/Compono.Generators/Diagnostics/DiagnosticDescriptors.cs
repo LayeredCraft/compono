@@ -798,6 +798,16 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor ComposeDataStaticInterfaceSkipProperty = new(
+        "CMP0052",
+        "ComposeData skip condition property is a static abstract or static virtual interface member",
+        "[ComposeData] on '{0}': {1} '{2}' on '{3}' is a static abstract or static virtual interface " +
+        "property, which generated code cannot read; move the condition to a static property of a class " +
+        "or struct, or to a non-virtual static interface property",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor ComposeDataProhibitedMember = new(
         "CMP0047",
         "ComposeData member cannot be used at its generated call site",

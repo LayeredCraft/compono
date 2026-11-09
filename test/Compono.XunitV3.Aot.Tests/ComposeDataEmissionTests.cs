@@ -1098,6 +1098,279 @@ public sealed class ComposeDataEmissionTests : ComposeDataEmissionBase
         Assert.Equal("dual-b", rowArray[1].GetData()[0]);
     }
 
+    private const string SkipTargetsIndex =
+        "global::Compono.XunitV3.Aot.Tests.ComposeDataSkipTargets";
+
+    // ---------------------------------------------------------------------------------------------
+    // S5: active attribute-level SkipUnless/SkipWhen predicates, grouped-skip precedence, and the
+    // remaining B5.8 metadata, driven through the real generated factory exactly as the xUnit AOT
+    // runtime would invoke it.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SkipUnless_True_BindsPredicateReturningTrue()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_unless_true_binds_true_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("unless reason", dataRow.Skip);
+        Assert.Null(dataRow.SkipWhen);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipUnless!());
+        Assert.Equal(new object?[] { "unless" }, ((ITheoryDataRow)dataRow).GetData());
+    }
+
+    [Fact]
+    public async Task SkipUnless_False_BindsPredicateReturningFalse()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_unless_false_binds_false_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("unless-false reason", dataRow.Skip);
+        Assert.Null(dataRow.SkipWhen);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.False(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task SkipWhen_True_BindsPredicateReturningTrue()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_when_true_binds_true_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("when reason", dataRow.Skip);
+        Assert.Null(dataRow.SkipUnless);
+        Assert.NotNull(dataRow.SkipWhen);
+        Assert.True(dataRow.SkipWhen!());
+    }
+
+    [Fact]
+    public async Task SkipWhen_False_BindsPredicateReturningFalse()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_when_false_binds_false_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("when-false reason", dataRow.Skip);
+        Assert.Null(dataRow.SkipUnless);
+        Assert.NotNull(dataRow.SkipWhen);
+        Assert.False(dataRow.SkipWhen!());
+    }
+
+    [Fact]
+    public async Task SkipType_Holder_BindsPredicateReturningTrue()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_type_holder_binds_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("skip type reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task RowSkip_WinsOverAttributeGroup()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Row_skip_wins_over_attribute_group));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("row reason", dataRow.Skip);
+        // The row supplied its own Skip and no condition, so the attribute's SkipUnless is not merged.
+        Assert.Null(dataRow.SkipUnless);
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public async Task RowPredicate_WinsOverAttributePredicate()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Row_predicate_wins_over_attribute_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("row reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        // The row's own delegate wins; the attribute's NeverSkip (which returns false) is not used.
+        Assert.True(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task DisableParallelization_DefaultsToFalse()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Disable_parallelization_defaults_to_false));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.False(dataRow.DisableParallelization);
+    }
+
+    [Fact]
+    public async Task DisableParallelization_RowOverrideWins()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Disable_parallelization_row_override_wins));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.True(dataRow.DisableParallelization);
+    }
+
+    [Fact]
+    public async Task Traits_AreUnionedWithRowAndSeed()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Traits_are_unioned));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Contains("attr-value", dataRow.Traits["attr"]);
+        Assert.Contains("row-value", dataRow.Traits["row"]);
+        Assert.Single(dataRow.Traits[ComposeDataRows.SeedTraitName]);
+    }
+
+    [Fact]
+    public async Task KeywordMember_IsRead()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Keyword_member_is_read));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal(new object?[] { "keyword-member" }, ((ITheoryDataRow)dataRow).GetData());
+    }
+
+    [Fact]
+    public async Task KeywordSkipProperty_IsRead()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Keyword_skip_property_is_read));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("keyword reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.False(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task ObsoleteMember_IsRead()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Obsolete_member_is_read));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal(new object?[] { "obsolete" }, ((ITheoryDataRow)dataRow).GetData());
+    }
+
+    [Fact]
+    public async Task TimedPredicate_IsBoundButNotEvaluatedDuringComposition()
+    {
+        ComposeDataSkipTargets.ResetTimedReads();
+
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Timed_skip_predicate_is_not_evaluated_by_composition));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.NotNull(dataRow.SkipUnless);
+
+        // Compono never evaluates the predicate - it hands xUnit a bound delegate. Only the explicit
+        // invocation below runs it.
+        Assert.Equal(0, ComposeDataSkipTargets.TimedReadCount);
+        Assert.True(dataRow.SkipUnless!());
+        Assert.Equal(1, ComposeDataSkipTargets.TimedReadCount);
+    }
+
+    [Fact]
+    public async Task ThrowingPredicate_IsNotEvaluatedDuringComposition()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Throwing_skip_predicate_is_not_evaluated_by_composition));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("throwing reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.Throws<InvalidOperationException>(() => dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task DisableParallelization_AttributeTrueRowFalse_RowWins()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Attribute_disable_parallelization_true_row_false_wins));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        // The attribute says true and the row says false; row precedence (not a Boolean OR) must win.
+        Assert.False(dataRow.DisableParallelization);
+    }
+
+    [Fact]
+    public async Task SkipProperty_OnTestClassBaseClass_BindsPredicate()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_property_on_test_class_base_class_binds_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("base skip reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task SkipType_InheritsPropertyFromBaseClass_BindsPredicate()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Skip_type_inherits_property_from_base_class_binds_predicate));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("inherited skip type reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task ObsoleteSkipProperty_IsRead()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Obsolete_skip_property_is_read));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("obsolete skip reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipUnless!());
+    }
+
+    [Fact]
+    public async Task PlainStaticInterfaceSkipProperty_IsRead()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            SkipTargetsIndex,
+            nameof(ComposeDataSkipTargets.Plain_static_interface_skip_property_is_read));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("static interface reason", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.False(dataRow.SkipUnless!());
+    }
+
     private const string FailureTargetsIndex =
         "global::Compono.XunitV3.Aot.Tests.ComposeDataEmissionFailureTargets";
 
@@ -1801,4 +2074,182 @@ public sealed class MixedAsyncValueAndReferenceRows : IAsyncEnumerable<(int Quan
 
         public ValueTask<bool> MoveNextAsync() => new(++_index <= 2);
     }
+}
+
+/// <summary>
+/// S5 targets: active attribute-level <c>SkipUnless</c>/<c>SkipWhen</c> predicates, grouped-skip
+/// precedence, and the remaining B5.8 metadata. Every method is a plain <c>[ComposeData]</c> without
+/// <c>[Theory]</c>, so it is registered by the generator but never discovered as a theory by the
+/// xUnit AOT runner - the <see cref="ComposeDataEmissionTests"/> <c>[Fact]</c> drivers invoke the real
+/// generated factory through <see cref="RegisteredComposeDataFactory"/>.
+/// </summary>
+public sealed class ComposeDataSkipTargets : SkipConditionBase
+{
+    private static int _timedReads;
+
+    public static bool AlwaysSkip => true;
+
+    public static bool NeverSkip => false;
+
+    public static bool TimedSkip
+    {
+        get
+        {
+            System.Threading.Interlocked.Increment(ref _timedReads);
+            return true;
+        }
+    }
+
+    public static bool ThrowSkip =>
+        throw new InvalidOperationException("a skip predicate must never run during composition");
+
+    public static bool @default => false;
+
+    public static int TimedReadCount => System.Threading.Volatile.Read(ref _timedReads);
+
+    public static void ResetTimedReads() => System.Threading.Volatile.Write(ref _timedReads, 0);
+
+    public static IEnumerable<object[]> SkipUnlessTrueRows() => [new object[] { "unless" }];
+
+    [ComposeData(nameof(SkipUnlessTrueRows), Skip = "unless reason", SkipUnless = nameof(AlwaysSkip))]
+    public void Skip_unless_true_binds_true_predicate(string label) => _ = label;
+
+    public static IEnumerable<object[]> SkipUnlessFalseRows() => [new object[] { "unless-false" }];
+
+    [ComposeData(nameof(SkipUnlessFalseRows), Skip = "unless-false reason", SkipUnless = nameof(NeverSkip))]
+    public void Skip_unless_false_binds_false_predicate(string label) => _ = label;
+
+    public static IEnumerable<object[]> SkipWhenTrueRows() => [new object[] { "when" }];
+
+    [ComposeData(nameof(SkipWhenTrueRows), Skip = "when reason", SkipWhen = nameof(AlwaysSkip))]
+    public void Skip_when_true_binds_true_predicate(string label) => _ = label;
+
+    public static IEnumerable<object[]> SkipWhenFalseRows() => [new object[] { "when-false" }];
+
+    [ComposeData(nameof(SkipWhenFalseRows), Skip = "when-false reason", SkipWhen = nameof(NeverSkip))]
+    public void Skip_when_false_binds_false_predicate(string label) => _ = label;
+
+    public static IEnumerable<object[]> SkipTypeRows() => [new object[] { "skip-type" }];
+
+    [ComposeData(
+        nameof(SkipTypeRows),
+        Skip = "skip type reason",
+        SkipType = typeof(SkipConditionHolder),
+        SkipUnless = nameof(SkipConditionHolder.ShouldSkip))]
+    public void Skip_type_holder_binds_predicate(string label) => _ = label;
+
+    public static IEnumerable<object> RowSkipWinsRows() =>
+        [new TheoryDataRow("row-skip") { Skip = "row reason" }];
+
+    [ComposeData(nameof(RowSkipWinsRows), Skip = "attr reason", SkipUnless = nameof(AlwaysSkip))]
+    public void Row_skip_wins_over_attribute_group(string label) => _ = label;
+
+    public static IEnumerable<object> RowPredicateWinsRows() =>
+        [new TheoryDataRow("row-predicate") { Skip = "row reason", SkipUnless = static () => true }];
+
+    [ComposeData(nameof(RowPredicateWinsRows), Skip = "attr reason", SkipUnless = nameof(NeverSkip))]
+    public void Row_predicate_wins_over_attribute_predicate(string label) => _ = label;
+
+    public static IEnumerable<object[]> DefaultDisableParallelizationRows() => [new object[] { "default-dp" }];
+
+    [ComposeData(nameof(DefaultDisableParallelizationRows))]
+    public void Disable_parallelization_defaults_to_false(string label) => _ = label;
+
+    public static IEnumerable<object> DisableParallelizationRowOverrideRows() =>
+        [new TheoryDataRow("dp-row") { DisableParallelization = true }];
+
+    [ComposeData(nameof(DisableParallelizationRowOverrideRows))]
+    public void Disable_parallelization_row_override_wins(string label) => _ = label;
+
+    public static IEnumerable<object> TraitUnionRows() =>
+        [new TheoryDataRow("traits") { Traits = new Dictionary<string, HashSet<string>> { ["row"] = ["row-value"] } }];
+
+    [ComposeData(nameof(TraitUnionRows), Traits = new[] { "attr", "attr-value" })]
+    public void Traits_are_unioned(string label) => _ = label;
+
+    public static IEnumerable<object[]> @class = [new object[] { "keyword-member" }];
+
+    [ComposeData("class")]
+    public void Keyword_member_is_read(string value) => _ = value;
+
+    public static IEnumerable<object[]> KeywordSkipRows() => [new object[] { "keyword-skip" }];
+
+    [ComposeData(nameof(KeywordSkipRows), Skip = "keyword reason", SkipUnless = "default")]
+    public void Keyword_skip_property_is_read(string label) => _ = label;
+
+    [System.Obsolete("use something else")]
+    public static IEnumerable<object[]> ObsoleteRows() => [new object[] { "obsolete" }];
+
+    [ComposeData(nameof(ObsoleteRows))]
+    public void Obsolete_member_is_read(string label) => _ = label;
+
+    public static IEnumerable<object[]> TimedRows() => [new object[] { "timed" }];
+
+    [ComposeData(nameof(TimedRows), Skip = "timed reason", SkipUnless = nameof(TimedSkip))]
+    public void Timed_skip_predicate_is_not_evaluated_by_composition(string label) => _ = label;
+
+    public static IEnumerable<object[]> ThrowingPredicateRows() => [new object[] { "throwing" }];
+
+    [ComposeData(nameof(ThrowingPredicateRows), Skip = "throwing reason", SkipUnless = nameof(ThrowSkip))]
+    public void Throwing_skip_predicate_is_not_evaluated_by_composition(string label) => _ = label;
+
+    public static IEnumerable<object> AttributeDisableParallelizationRowOverrideRows() =>
+        [new TheoryDataRow("attr-dp-override") { DisableParallelization = false }];
+
+    [ComposeData(nameof(AttributeDisableParallelizationRowOverrideRows), DisableParallelization = true)]
+    public void Attribute_disable_parallelization_true_row_false_wins(string label) => _ = label;
+
+    public static IEnumerable<object[]> BaseClassSkipRows() => [new object[] { "base-skip" }];
+
+    [ComposeData(nameof(BaseClassSkipRows), Skip = "base skip reason", SkipUnless = nameof(BaseShouldSkip))]
+    public void Skip_property_on_test_class_base_class_binds_predicate(string label) => _ = label;
+
+    public static IEnumerable<object[]> InheritedSkipTypeRows() => [new object[] { "inherited-skip-type" }];
+
+    [ComposeData(
+        nameof(InheritedSkipTypeRows),
+        Skip = "inherited skip type reason",
+        SkipType = typeof(DerivedSkipConditionHolder),
+        SkipUnless = nameof(SkipConditionBase.BaseShouldSkip))]
+    public void Skip_type_inherits_property_from_base_class_binds_predicate(string label) => _ = label;
+
+    [System.Obsolete("use the supported condition instead")]
+    public static bool ObsoleteSkip => true;
+
+    public static IEnumerable<object[]> ObsoleteSkipRows() => [new object[] { "obsolete-skip" }];
+
+    [ComposeData(nameof(ObsoleteSkipRows), Skip = "obsolete skip reason", SkipUnless = "ObsoleteSkip")]
+    public void Obsolete_skip_property_is_read(string label) => _ = label;
+
+    public static IEnumerable<object[]> PlainStaticInterfaceSkipPropertyRows() => [new object[] { "static-interface-skip" }];
+
+    [ComposeData(
+        nameof(PlainStaticInterfaceSkipPropertyRows),
+        Skip = "static interface reason",
+        SkipType = typeof(IStaticSkipConditionHolder),
+        SkipUnless = nameof(IStaticSkipConditionHolder.ShouldSkip))]
+    public void Plain_static_interface_skip_property_is_read(string label) => _ = label;
+}
+
+/// <summary>A plain (non-virtual) static interface property used as a skip condition (S5 review F1).</summary>
+public interface IStaticSkipConditionHolder
+{
+    static bool ShouldSkip => false;
+}
+
+/// <summary>A base class that declares a static skip-condition property (S5 review F3).</summary>
+public class SkipConditionBase
+{
+    public static bool BaseShouldSkip => true;
+}
+
+/// <summary>A <c>SkipType</c> that inherits its skip-condition property from a base class (F3).</summary>
+public sealed class DerivedSkipConditionHolder : SkipConditionBase
+{
+}
+
+/// <summary>An external holder for an active <c>SkipType</c> skip condition (S5).</summary>
+public static class SkipConditionHolder
+{
+    public static bool ShouldSkip => true;
 }

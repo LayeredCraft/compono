@@ -517,6 +517,295 @@ public sealed class AotComposeDataAmendment4DiagnosticTests
         model.Diagnostics.Should().BeEmpty();
     }
 
+    // Step 9b (S5 / ADR-0070 Amendment 4 §7): CMP0052 - the resolved active skip condition property is
+    // a static abstract or static virtual interface member, which generated code cannot read (it would
+    // otherwise produce CS8926).
+
+    [Fact]
+    public void StaticVirtualSkipProperty_ReportsCmp0052_ForSkipUnless()
+    {
+        var message = SingleMessage("""
+            public interface IFoo
+            {
+                static virtual bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        message.Should().Be(
+            "[ComposeData] on 'TestNamespace.SampleTests.TestMethod': SkipUnless 'SkipIt' on 'TestNamespace.IFoo' " +
+            "is a static abstract or static virtual interface property, which generated code cannot read; move the " +
+            "condition to a static property of a class or struct, or to a non-virtual static interface property");
+    }
+
+    [Fact]
+    public void StaticVirtualSkipProperty_ReportsCmp0052_ForSkipWhen()
+    {
+        var message = SingleMessage("""
+            public interface IFoo
+            {
+                static virtual bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipWhen = "SkipIt",
+                    SkipType = typeof(IFoo))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        message.Should().Be(
+            "[ComposeData] on 'TestNamespace.SampleTests.TestMethod': SkipWhen 'SkipIt' on 'TestNamespace.IFoo' " +
+            "is a static abstract or static virtual interface property, which generated code cannot read; move the " +
+            "condition to a static property of a class or struct, or to a non-virtual static interface property");
+    }
+
+    [Fact]
+    public void StaticAbstractSkipProperty_ReportsCmp0052()
+    {
+        var message = SingleMessage("""
+            public interface IFoo
+            {
+                static abstract bool SkipIt { get; }
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        message.Should().Be(
+            "[ComposeData] on 'TestNamespace.SampleTests.TestMethod': SkipUnless 'SkipIt' on 'TestNamespace.IFoo' " +
+            "is a static abstract or static virtual interface property, which generated code cannot read; move the " +
+            "condition to a static property of a class or struct, or to a non-virtual static interface property");
+    }
+
+    [Fact]
+    public void StaticVirtualSkipProperty_WithUnimplementedAbstractSibling_ReportsCmp0052()
+    {
+        var message = SingleMessage("""
+            public interface IFoo
+            {
+                static abstract bool Other { get; }
+                static virtual bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        message.Should().Be(
+            "[ComposeData] on 'TestNamespace.SampleTests.TestMethod': SkipUnless 'SkipIt' on 'TestNamespace.IFoo' " +
+            "is a static abstract or static virtual interface property, which generated code cannot read; move the " +
+            "condition to a static property of a class or struct, or to a non-virtual static interface property");
+    }
+
+    [Fact]
+    public void StaticVirtualSkipProperty_OnClosedGenericInterface_ReportsCmp0052()
+    {
+        var message = SingleMessage("""
+            public interface IFoo<T>
+            {
+                static virtual bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo<int>))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        message.Should().Be(
+            "[ComposeData] on 'TestNamespace.SampleTests.TestMethod': SkipUnless 'SkipIt' on " +
+            "'TestNamespace.IFoo<int>' is a static abstract or static virtual interface property, which generated " +
+            "code cannot read; move the condition to a static property of a class or struct, or to a non-virtual " +
+            "static interface property");
+    }
+
+    // A plain (non-virtual) static interface property is supported - generated code reads it directly.
+
+    [Fact]
+    public void PlainStaticInterfaceSkipProperty_IsValid()
+    {
+        var model = Compose("""
+            public interface IFoo
+            {
+                static bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        model.Diagnostics.Should().BeEmpty();
+    }
+
+    // A property declared only on a base interface of SkipType is not resolved by ResolveSkipProperty
+    // (it walks BaseType only, and interfaces expose base interfaces via Interfaces, not BaseType), so
+    // it keeps the existing CMP0057.
+
+    [Fact]
+    public void SkipPropertyOnBaseInterface_ReportsCmp0057()
+    {
+        var id = SingleId("""
+            public interface IBase
+            {
+                static bool SkipIt => true;
+            }
+
+            public interface IDerived : IBase { }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IDerived))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        id.Should().Be("CMP0057");
+    }
+
+    // A property on an interface that a class SkipType implements, with no matching property of its own,
+    // is likewise not resolved and keeps the existing CMP0057.
+
+    [Fact]
+    public void SkipPropertyOnImplementedInterface_ReportsCmp0057()
+    {
+        var id = SingleId("""
+            public interface IHasSkip
+            {
+                static bool SkipIt => true;
+            }
+
+            public sealed class Holder : IHasSkip { }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(Holder))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        id.Should().Be("CMP0057");
+    }
+
+    // Precedence 9a (open-generic skip holder, CMP0054) beats 9b (static interface skip property, CMP0052).
+
+    [Fact]
+    public void Precedence_Step9a_OpenGeneric_Over_StaticInterfaceSkipProperty()
+    {
+        var id = SingleId("""
+            public interface IFoo<T>
+            {
+                static virtual bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo<>))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        id.Should().Be("CMP0054");
+    }
+
+    // Precedence 9b (static interface skip property, CMP0052) beats 9c (prohibited skip property, CMP0047).
+
+    [Fact]
+    public void Precedence_Step9b_StaticInterface_Over_Step9cProhibitedProperty()
+    {
+        var id = SingleId("""
+            public interface IFoo
+            {
+                [System.Obsolete("gone", true)]
+                static virtual bool SkipIt => true;
+            }
+
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases => new object[] { "x" };
+
+                [Compono.XunitV3.Aot.ComposeData(
+                    "Cases",
+                    Skip = "reason",
+                    SkipUnless = "SkipIt",
+                    SkipType = typeof(IFoo))]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        id.Should().Be("CMP0052");
+    }
+
     // Step 7: the async-interface element table.
 
     [Fact]
