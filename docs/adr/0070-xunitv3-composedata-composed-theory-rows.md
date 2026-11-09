@@ -911,3 +911,175 @@ the base-interface and implementing-class shapes keep their existing
 **Recorded:** PLAN-0071 B5.4 (descriptor, message, predicate, precedence),
 B5.11 S5 (acceptance), the B5 acceptance checklist, B6 (the JIT-side
 documenting test), and Notes (2026-11-09).
+
+## Amendment 5 (2026-11-09): AOT skip-group normalization against theory-level conditions
+
+**Status:** **Approved** by the product owner on 2026-11-09.
+
+**Amends:**
+
+- "Row and attribute metadata": the "Where it's resolved" rules gain an AOT
+  normalization step. The rule table, including grouped skip precedence, is
+  unchanged.
+- Amendment 4 §3's hidden-member list (and Amendment 3's Scope sentence
+  "any further public API needs its own amendment"), for exactly the one
+  member in §4 below.
+
+**Resolves:** RESEARCH-0038 §2.6 item 3 (the "residual theory-level edge")
+and the R2/S2 requirement to check it empirically in B6. The divergence was
+real and wider than predicted. It's fixed, so there is **no** new parity
+exception.
+
+**Evidence:** the B6 readiness review and the skip-parity investigation
+(PLAN-0071 Notes, 2026-11-09). They ran generated JIT (`Compono.XunitV3`)
+and AOT (`Compono.XunitV3.Aot`) probe suites on xUnit 4.0.1, net10.0, in
+isolated copies of `04e1a11`, comparing outcome **and** skip reason against
+JIT, on the managed xUnit AOT runner and a real Native AOT publish.
+
+### 1. Defect and root cause
+
+xUnit AOT merges each row a **registered theory-data factory** returns with
+the theory's own `[Theory]`/`[Fact]` metadata **field by field**:
+`row.SkipUnless ?? theory.SkipUnless` and `row.SkipWhen ?? theory.SkipWhen`,
+independently. It then rejects any test where both end up set
+(`Both 'SkipUnless' and 'SkipWhen' are set on test method '…'; they are
+mutually exclusive`). JIT replaces the whole skip group instead.
+
+`ComposeDataRows.CreateDataRow` produces a correctly grouped row (B5.8), but
+leaves the condition field the group doesn't use as `null`. Under a
+theory-level `SkipUnless`/`SkipWhen`, xUnit AOT fills that field from the
+theory:
+
+- **Leak.** A group with `Skip` and no condition inherits the theory's
+  condition. JIT skips the row; AOT runs it whenever the theory condition
+  doesn't trigger.
+- **Mutual exclusion.** A group whose condition is the opposite kind to the
+  theory's ends up with both fields set, and xUnit **fails** the test, on
+  valid usage that JIT runs or skips correctly.
+
+xUnit's own AOT `MemberData` path doesn't show the leak, so the defect is
+specific to the registered-factory path `ComposeData` uses. It can't be
+fixed at run time: the factory receives only a `DisposalTracker`,
+`TestContext.Current.TestCase` is `null` when the factory runs (probed), and
+setting both fields is rejected.
+
+### 2. Findings (the parity matrix)
+
+Theory variants: none; `Skip` + `SkipUnless` true or false; `Skip` +
+`SkipWhen` true or false; unconditional `Skip`. `ComposeData` variants: no
+skip; row `Skip` with no condition, `SkipUnless` true/false, `SkipWhen`
+true/false; attribute `Skip` with no condition and each condition kind and
+value; and three row-versus-attribute precedence combinations. That's 70
+conditional cases plus 14 under an unconditional theory skip.
+
+| Build | Cases matching JIT (outcome and reason) | AOT failures |
+|---|---|---|
+| HEAD `04e1a11` | 44/70 conditional, 14/14 unconditional | 20 mutual-exclusion failures; 6 leaks (row or attribute skip ran) |
+| Rejected: always-false `SkipUnless` on every unconditional group | 44/70 | 26: fixes theory-`SkipUnless` leaks but creates new mutual-exclusion failures under theory-`SkipWhen` |
+| **Approved: §3 normalization** | **84/84**, managed runner and Native AOT (0 IL/AOT warnings) | **0** |
+
+### 3. Decision: normalize the AOT skip group into the theory's condition field
+
+The effective skip group must occupy **the same condition field the theory
+uses**. Then `row ?? theory` takes Compono's value for that field, and the
+other field is `null` on both sides.
+
+- **Discovery (compile time).** The generator reads the test method's xUnit
+  `[Fact]`/`[Theory]` attribute (`Xunit.FactAttribute`/`Xunit.TheoryAttribute`
+  in `xunit.v3.core.aot`) from compile-time attribute data and records the
+  theory's skip-condition kind:
+  - **None**: neither `SkipUnless` nor `SkipWhen` is set, **or both are**;
+  - **Unless**: only `SkipUnless` is set;
+  - **When**: only `SkipWhen` is set.
+
+  No runtime reflection. Only named arguments visible in compile-time
+  attribute data count, the same information xUnit's own AOT generator
+  reads.
+- **Both conditions on the theory.** That's invalid xUnit usage. Recording
+  None leaves xUnit's own validation exactly as it is. Verified in a
+  scratch probe (xUnit 4.0.1, net10.0):
+  - By default, xUnit's analyzer rejects it at compile time on both engines
+    (`error xUnit1055: Conditional skipping cannot set both SkipUnless and
+    SkipWhen`), with or without Compono, and with the B6.0 change applied.
+  - With `xUnit1055` suppressed, xUnit's AOT generator emits **no test** for
+    the method (`[Fact]`, `[InlineData]`, and `[ComposeData]` alike: 0
+    discovered) both before and after the change. JIT runs it and reports
+    the mutual-exclusion failure for a theory whose rows don't replace the
+    skip group.
+
+  Compono adds no rule of its own here.
+- **Supported boundary.** On AOT, `FactAttribute` and `TheoryAttribute` are
+  sealed (`CS0509`, probed), so a derived test attribute that sets its
+  conditions in a constructor can't be written. Only the named arguments of
+  `[Fact]`/`[Theory]` themselves are read. A test attribute that isn't one of
+  those two types (for example, one deriving from xUnit's
+  `Xunit.Internal.FactAttributeBase`) is treated as None. That's outside
+  xUnit's supported surface, and B6.0 adds nothing for it: no runtime
+  reflection and no wider scope without evidence. B7 documents the boundary.
+- **Emission.** The generated `ComposeDataAttributeMetadata` initializer
+  sets `TheorySkipCondition` **only when the kind isn't None**. Generated
+  code for a theory without a condition is byte-identical to before, so
+  every existing snapshot is preserved.
+- **Runtime (AOT build only), in `CreateDataRow` after B5.8's grouped
+  row-versus-attribute precedence is resolved.** When the effective group
+  has `Skip` set and the theory kind isn't None:
+
+  | Theory kind | Row's `SkipUnless` | Row's `SkipWhen` |
+  |---|---|---|
+  | Unless | the group's `SkipUnless`; else `() => !when()` from the group's `SkipWhen`; else a cached static `() => false` | `null` |
+  | When | `null` | the group's `SkipWhen`; else `() => !unless()` from the group's `SkipUnless`; else a cached static `() => true` |
+
+  The conversions preserve the effective predicate exactly: a test is
+  skipped when `SkipUnless` returns `false` or `SkipWhen` returns `true`, so
+  `SkipUnless = () => !when()` skips exactly when `when()` is `true`. An
+  unconditional group becomes an always-skip predicate in the theory's
+  field. The skip reason (`Skip`) is unchanged. A negating closure is
+  allocated only when converting an opposite-kind conditional predicate;
+  unconditional groups use the two cached static delegates.
+- **No-op cases.** When the theory kind is None, or the effective group has
+  no `Skip`, the row is exactly what B5.8 produces today. In the second
+  case the theory's own skip correctly applies, as on JIT.
+
+### 4. Hidden helper member
+
+`ComposeDataAttributeMetadata` gains one AOT-only `init` property,
+`TheorySkipCondition`, `public` with
+`[EditorBrowsable(EditorBrowsableState.Never)]` per
+[ADR-0058](0058-public-generator-facing-runtime-infrastructure.md), like the
+struct's other AOT members.
+
+- **Representation:** an `int` code. **0 = None, 1 = Unless, 2 = When.** No
+  public enum and no other new public type; no core `Compono` change.
+- **Runtime:** compares the code only against named internal constants,
+  never bare literals.
+- **Generator:** may use an internal enum or named constants. Generated code
+  emits the integer value.
+- **Invalid code.** When normalization applies (the effective group has
+  `Skip` set and the code isn't 0) and the code isn't 1 or 2, the runtime
+  throws a deterministic `InvalidOperationException` naming the code and the
+  valid values. It never treats an unknown code as None, Unless, or When.
+  Only a generator/runtime mismatch or hand-written metadata can produce
+  one; generated code never does. When normalization doesn't apply (no
+  effective `Skip`), the code isn't consulted. The exact message is in
+  PLAN-0071 B6.0.
+
+### 5. Constraints
+
+- The JIT path (`Compono.XunitV3`) is unchanged.
+- B5.8's metadata rules, including grouped skip precedence and every other
+  property's `row ?? attribute` rule, are unchanged; this step runs after
+  them.
+- No reflection, no dynamic invocation, no new runtime dependency, and no
+  generated-code change beyond the conditional `TheorySkipCondition` line.
+- Valid usage still has no AOT-only rejection for this shape. Amendment 4
+  §2's exception list is unchanged.
+
+### 6. Unchanged
+
+B5's acceptance record stands as a record of what B5 delivered and
+verified. This defect sits in a combination B5's matrix didn't cover, and
+B6 owns that matrix (RESEARCH-0038 §2.6 item 3). The correction lands as
+PLAN-0071's B6.0 slice.
+
+**Recorded:** PLAN-0071 B6 (B6.0 slice and the B6 decisions) and Notes
+(2026-11-09).

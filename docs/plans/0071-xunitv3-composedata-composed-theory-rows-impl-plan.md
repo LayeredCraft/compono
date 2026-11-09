@@ -1266,6 +1266,51 @@ product-owner approval.
 
 #### B6 (`compono-lsx.6`, after B5 and B3): AOT real-runner tests, samples, Native AOT
 
+**B6 decisions (product owner, 2026-11-09; Notes):**
+
+- **Q1, theory-level skip parity:** approved [ADR-0070 Amendment 5](../adr/0070-xunitv3-composedata-composed-theory-rows.md): normalize the AOT skip group into the theory's condition field. The always-false-`SkipUnless` proposal is rejected. Implemented by **B6.0** below, before the rest of B6's skip-parity work.
+- **Q2, AOT behavioral matrix:** `ComposeDataTests.cs` adds only coverage missing beyond B5's existing tests (`ComposeDataEmissionTests`, `ComposeDataRowsTests`), audited item by item against B3's matrix. No wholesale duplication.
+- **Q3, V7:** the AOT consumer runs on the managed xUnit AOT runner. V3 is the Native AOT execution proof.
+- **Q4, CI:** the existing linux-x64 `aot-xunitv3-aot-pipeline` job, which publishes and runs `Compono.XunitV3.Aot.SampleTests`, is accepted as the CI gate for the new ComposeData samples. No workflow change.
+- **B7 follow-up (from B6.0):** `docs/packages/compono-xunitv3-aot.md` documents that theory-level `SkipUnless`/`SkipWhen` are read from `[Fact]`/`[Theory]` named arguments at compile time (ADR-0070 Amendment 5 §3), and that other test-attribute types aren't considered.
+
+##### B6.0 AOT skip-group normalization (ADR-0070 Amendment 5)
+
+A separately reviewed implementation slice: one commit, an independent review, then B6's remaining items.
+
+**Contract (exact):**
+
+- **Discovery (`AotComposeDataMethodDiscovery`).** Read the test method's `[Fact]`/`[Theory]` attribute (`Xunit.FactAttribute`/`Xunit.TheoryAttribute`, both sealed in `xunit.v3.core.aot`) from compile-time `AttributeData`. Record the theory's skip-condition kind on the model:
+  - **None**: neither `SkipUnless` nor `SkipWhen` is a non-null string named argument, **or both are**;
+  - **Unless**: only `SkipUnless` is;
+  - **When**: only `SkipWhen` is.
+
+  No runtime reflection. The generator may use an internal enum or named constants for the kind.
+  - **Both set:** recorded as None, so xUnit's own validation is untouched. Scratch-verified: xUnit's analyzer rejects it at compile time on both engines (`error xUnit1055`), with or without Compono; with `xUnit1055` suppressed, xUnit's AOT generator emits no test for the method before and after the change (0 discovered), and JIT runs it and reports the mutual-exclusion failure. Compono adds no rule.
+  - **Supported boundary:** only the named arguments of `[Fact]`/`[Theory]` themselves. On AOT both are sealed (`CS0509`, probed), so constructor-set conditions in a derived test attribute can't be written. Any other test attribute (for example, one deriving from `Xunit.Internal.FactAttributeBase`) is treated as None, with no runtime reflection and no extra scope. B7 documents the boundary (B7 follow-up below).
+- **Model.** Add the kind to `AotComposeDataAttributeMetadata` (equatable, so incremental caching stays correct). Default None.
+- **Emission.** The template renders `TheorySkipCondition = <value>,` in the `ComposeDataAttributeMetadata` initializer **only when the kind isn't None**. Generated code for every theory without a condition, and therefore every existing snapshot, stays byte-identical.
+- **Runtime (`src/Shared/Compono.XunitV3/ComposeDataRows.cs`, `#if COMPONO_XUNITV3_AOT` only).**
+  - `ComposeDataAttributeMetadata` gains one `init` property, `TheorySkipCondition`, `public` with `[EditorBrowsable(EditorBrowsableState.Never)]`, default 0. It's an `int` code: **0 = None, 1 = Unless, 2 = When**, documented in its XML doc. No public enum and no new public type. Generated code emits the integer value.
+  - The runtime compares the code only against named internal constants (for example `TheorySkipConditionNone`/`Unless`/`When` on `ComposeDataRows`), never bare literals.
+  - **Invalid code.** When normalization applies (effective `Skip` non-null and code ≠ 0) and the code isn't 1 or 2, throw `InvalidOperationException` with the exact message `ComposeData received an unsupported theory skip-condition code {code}; expected 0 (None), 1 (SkipUnless), or 2 (SkipWhen).` An unknown code is never treated as None, Unless, or When. When the effective `Skip` is null, the code isn't consulted.
+  - In `CreateDataRow`, **after** the existing grouped row-versus-attribute skip selection: if the effective `Skip` is non-null and `TheorySkipCondition` isn't None, rewrite the group into the theory's field:
+    - Unless: `SkipUnless = unless ?? (when is null ? AlwaysFalse : () => !when())`; `SkipWhen = null`.
+    - When: `SkipWhen = when ?? (unless is null ? AlwaysTrue : () => !unless())`; `SkipUnless = null`.
+  - `AlwaysFalse`/`AlwaysTrue` are cached `static readonly Func<bool>` fields holding `static` lambdas. A negating closure is allocated only for an opposite-kind conditional predicate. `Skip` (the reason) is never changed.
+  - When `TheorySkipCondition` is 0 (None), or the effective `Skip` is null, the row is exactly what B5.8 produces.
+  - The JIT branch is unchanged.
+- **Prohibited:** reflection, dynamic invocation, new runtime dependencies, any public type, and any generated-code change beyond the conditional line.
+
+**Tasks:**
+
+- [ ] Discovery and model: the theory skip-condition kind, with generator tests for `[Theory]` with no condition, with `SkipUnless` only, with `SkipWhen` only, with **both** (recorded None, no Compono diagnostic), `[Fact]`, and a theory that also carries `[InlineData]`
+- [ ] Emission: conditional `TheorySkipCondition` rendering; one new Verify snapshot for each non-None kind; **0** changes to existing snapshots
+- [ ] Runtime normalization per the contract, with full XML docs
+- [ ] `ComposeDataRowsTests` (AOT): unit tests for both kinds × {unconditional, same-kind, opposite-kind true/false} groups, asserting the resulting `SkipUnless`/`SkipWhen` pair and the preserved `Skip`; the None and null-`Skip` no-op cases; delegate caching for unconditional groups; an invalid code (for example 3 and -1) with an effective `Skip` throwing the exact `InvalidOperationException` message; and an invalid code with no effective `Skip` not consulted
+- [ ] **Full parity matrix, real runners, mirrored in `Compono.XunitV3.Tests` and `Compono.XunitV3.Aot.Tests`:** theory {none, `Skip`+`SkipUnless` true/false, `Skip`+`SkipWhen` true/false, unconditional `Skip`} × ComposeData {no skip; row `Skip` unconditional / `SkipUnless` true/false / `SkipWhen` true/false; attribute `Skip` unconditional / each condition kind and value; row-versus-attribute precedence: unconditional row over conditional attribute, conditional row over unconditional attribute, opposite-kind row over attribute}: 84 cases. Assert identical run/skip outcomes and skip reasons on both engines. This satisfies B6's theory-level interaction item below
+- [ ] Gates: G1 full build 0/0; G2 full suite green; generator tests on net10.0/net11.0 with no unexpected `CMP0050`; the AOT real-runner suite on net9.0/net10.0/net11.0; and the S7 Native AOT publish of `test/Compono.XunitV3.Aot.Tests` (`-p:ComponoAotTestsPublish=true`, net10.0, host RID) with **0** IL/AOT warnings and the parity matrix executed and counted in the native run
+
 - [ ] `test/Compono.XunitV3.Aot.Tests/ComposeDataTests.cs`: the same behavioral matrix as B3 (plain `Assert`), except assembly fixtures (xunit/xunit#3664, with a comment) and xUnit argument disposal (documented difference, with an assertion that AOT doesn't dispose)
 - [ ] Cross-engine message parity: a test in each project asserts the exact R0 text for the same failing scenario
 - [ ] Cross-engine metadata parity: the same metadata matrix as B3 (skip conditions with and without `SkipType`, grouped precedence, explicit, timeout, traits, labels) yields the same skipped/run/explicit outcomes and display names on AOT
@@ -2096,3 +2141,14 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **Accepted limitations (unchanged, not reopened):** the S6 observations (nested-base inherited theory discovery under xUnit AOT; `Outer<>.InnerBase`/`Outer<>.Inner<>` probe-only coverage); the S7 scope limits (`PublicApiSurfaceTests` excluded only from the Native AOT build; packaged-product validation is B6 V3/V7; CI integration deferred; linux-x64 not required); and the S5 F4 `ResolveSkipProperty` follow-up risk.
   - **Scope:** no scope creep; the only public additions are the approved hidden `ComposeDataRows` helpers (ADR-0070 Amendments 3 and 4). No CI changes.
   - **Open:** closing the `compono-lsx.5` bead is a separate step. The epic `compono-lsx` stays in progress; B6–B9 remain pending. This acceptance entry is uncommitted pending maintainer review.
+
+- **2026-11-09 (B6 readiness, skip-parity investigation, and B6.0 approval, `compono-lsx.6`):** Claude Opus ran an independent, read-only B6 readiness review and a focused skip-parity investigation. The verdict was NEEDS DECISIONS, because the RESEARCH-0038 §2.6 item 3 check B6 requires was confirmed as a real divergence. The product owner approved the fix and the other B6 decisions.
+  - **Investigation:** generated JIT and AOT probe suites (xUnit 4.0.1, net10.0) in isolated copies of `04e1a11`, comparing outcome and skip reason against JIT across 70 conditional cases plus 14 under an unconditional theory skip.
+    - **HEAD:** 44/70 conditional cases match JIT (14/14 unconditional). Of the 26 divergences, 20 are hard xUnit failures on valid usage (`Both 'SkipUnless' and 'SkipWhen' are set … mutually exclusive`) and 6 are leaks where a row or attribute skip ran.
+    - **Root cause:** xUnit AOT merges registered-factory rows with the theory field by field (`row ?? theory` for `SkipUnless` and `SkipWhen` independently), unlike JIT's whole-group replacement and xUnit's own AOT `MemberData` path. No runtime fix is possible (the factory gets only a `DisposalTracker`; `TestContext.Current.TestCase` is `null` at factory time).
+    - **Rejected:** an always-false `SkipUnless` on every unconditional group (44/70, with 26 failures).
+    - **Approved fix (scratch-proven):** theory-kind normalization: 84/84 matching JIT on the managed runner and under a real Native AOT publish (0 IL/AOT warnings); 0 changes to existing generator snapshots (671/671) with conditional emission; `Compono.XunitV3.Aot.Tests` 145/145 and the JIT suite with 0 failures.
+  - **Decisions:** ADR-0070 Amendment 5 (approved) and the B6 decisions Q1–Q4 recorded at the top of the B6 section; B6.0 specified there as a separately reviewed slice.
+  - **Maintainer refinements (same day):** the `int` code (0/1/2) stays, with named internal constants in the runtime; an invalid code throws a deterministic `InvalidOperationException` when normalization applies; a theory with both conditions is recorded as None, scratch-verified to leave xUnit's validation unchanged (`xUnit1055` at compile time on both engines; with it suppressed, 0 AOT tests generated before and after; JIT reports mutual exclusion); and the compile-time boundary is stated (AOT `FactAttribute`/`TheoryAttribute` are sealed, `CS0509` probed), with a B7 documentation follow-up.
+  - **B5 record:** unchanged. B5's acceptance stands as a record of what B5 delivered and verified; this combination was outside B5's matrix and inside B6's.
+  - **Open:** B6.0 implementation is pending; B6–B9 statuses unchanged. These documentation changes are uncommitted pending maintainer review.
