@@ -1250,15 +1250,16 @@ product-owner approval.
 - [x] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
 - [x] S2–S3 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes (S2 `bb67950`, S3 `0680dc2`)
 - [x] S4 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S4 `3fcc5d4`)
-- [ ] S5–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
+- [x] S5 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S5 `07ff636f`)
+- [ ] S6 delivered per B5.6–B5.9, gate-passed (G1–G5) with evidence in Notes
 - [x] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method (S2 wiring, B5.6)
 - [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
 - [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
 - [ ] AOT `[Compose]` template, emitter, discovery, and snapshots byte-identical
 - [ ] S7 Native AOT publish: 0 IL/AOT warnings and `ComposeData` tests executed
-- [ ] `AnalyzerReleases.Unshipped.md` notes updated for the new `CMP0047`/`CMP0052`/`CMP0053`/`CMP0054` conditions (the `CMP0052` note also covers the S5 static-interface skip property, ADR-0070 Amendment 4 §7)
-- [ ] S5: an active `static virtual`/`static abstract` interface skip property reports the `CMP0052` twin (never generated `CS8926`); plain static interface skip properties emit and run; base-interface and implementing-class holders keep `CMP0057` (ADR-0070 Amendment 4 §7)
-- [ ] If valid skip metadata can't reach full parity, the work **stopped** and went to the product owner. There's no pre-approved fallback (unchanged from round 2)
+- [x] `AnalyzerReleases.Unshipped.md` notes updated for the new `CMP0047`/`CMP0052`/`CMP0053`/`CMP0054` conditions (the `CMP0052` note also covers the S5 static-interface skip property, ADR-0070 Amendment 4 §7)
+- [x] S5: an active `static virtual`/`static abstract` interface skip property reports the `CMP0052` twin (never generated `CS8926`); plain static interface skip properties emit and run; base-interface and implementing-class holders keep `CMP0057` (ADR-0070 Amendment 4 §7)
+- [x] If valid skip metadata can't reach full parity, the work **stopped** and went to the product owner. There's no pre-approved fallback (unchanged from round 2)
 
 #### B6 (`compono-lsx.6`, after B5 and B3): AOT real-runner tests, samples, Native AOT
 
@@ -1941,3 +1942,39 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
    - **Known follow-up risk (F4, outside S5, not scheduled):** `ResolveSkipProperty` stops at the most-derived property with the requested name, whatever its accessibility. When a derived holder declares a non-public static property that hides a public static `bool` property of the same name on a base class, AOT reports `CMP0057`. JIT's public-only reflection lookup would skip the hidden member and read the base property. That's a false compile-time rejection of usage JIT accepts, not miscompiled code. It was already present in S0 and is unverified by a runner probe. It doesn't affect interface holders (an interface's `BaseType` is null, and JIT doesn't search base interfaces either). It needs its own decision before any change. S5 must not change `ResolveSkipProperty`'s lookup.
    - **Plan housekeeping:** B5.9's reference to a nonexistent "Remaining risks" section now points to the Notes entries that record those risks: the 2026-11-06 B5 specification entry's decision (c), and the S4 checkpoint's known limitations.
    - **Open:** S5's corrections are pending implementation and re-review; S6–S7 are pending; B5 remains in progress.
+
+- **2026-11-09 (B5 S5 checkpoint, `compono-lsx.5`):** S5 (B5.8 active skip conditions and metadata) is committed at `07ff636f` ("feat(xunitv3): support conditional AOT ComposeData skips"), whose parent is the S5 design-amendment commit `f65fbf8` ("docs(xunitv3): clarify S5 interface skip holder compatibility"). The design owner (Claude Opus) independently re-reviewed after the F1–F3 correction round and returned final **APPROVE**; the product owner authorized the checkpoint commit. The branch `feat/163-composedata` was pushed to `origin` (upstream established; remote HEAD `07ff636f`). This entry is S5's documentation closeout.
+  - **Slice state:** S0–S5 completed; S6–S7 pending; B5 remains in progress.
+  - **Scope:** 21 files changed (9 modified, 12 new Verify snapshots; 2,062 insertions, 29 deletions across the slice).
+    - `src/Compono.Generators/Diagnostics/DiagnosticDescriptors.cs`: added the `CMP0052` skip-property twin `ComposeDataStaticInterfaceSkipProperty`.
+    - `src/Compono.Generators/Discovery/AotComposeDataMethodDiscovery.cs`: inserted the `CMP0052` check at precedence 9b in both the `SkipUnless` and `SkipWhen` step-9 blocks (after the 9a open-generic `CMP0054` check, before the 9c prohibited-property `CMP0047` checks).
+    - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs`: widened `IsWithinEmissionEnvelope` to admit active attribute-level `SkipUnless`/`SkipWhen`; added `RenderSkipCondition`, which emits `static () => global::<HolderFqn>.<EscapedProperty>` for a recorded active condition (the holder is the property's declaring type; the name is escaped).
+    - `src/Compono.Generators/AnalyzerReleases.Unshipped.md`: the existing `CMP0052` row's note extended (no new rows).
+    - `test/Compono.Generators.Tests/{AotComposeDataAmendment4DiagnosticTests,AotComposeDataRegistrationEmissionTests,AotComposeDataRegistrationVerifyTests}.cs` and `test/Compono.XunitV3.Aot.Tests/{Compono.XunitV3.Aot.Tests.csproj,ComposeDataEmissionTests.cs}`.
+  - **S5 functionality implemented:**
+    - Attribute-level `SkipUnless`/`SkipWhen` rendered as static, non-capturing predicate delegates (the shared helper still owns the single metadata merge rule; the Scriban template was not changed).
+    - Correct conditional-skip timing: predicates are bound but never evaluated during composition; only the xUnit runner evaluates them.
+    - Row/attribute skip-group precedence (the row group when the row's `Skip` is set, else the attribute group, else none).
+    - `SkipType` and inherited holders (the emitted accessor targets the property's declaring type).
+    - Metadata preservation (`Explicit`, `Label`, `TestDisplayName`, `Timeout`, the traits union including `Compono.Seed`, `DisableParallelization`).
+    - Plain (non-virtual) static interface skip properties are supported through direct access.
+    - `CMP0052` for static `virtual`/`abstract` interface skip properties (instead of generated `CS8926`).
+    - No `UnsafeAccessor` introduced.
+    - Diagnostic precedence (9a `CMP0054` > 9b `CMP0052` > 9c `CMP0047`) and per-method isolation (`CMP0050`) preserved.
+  - **Accepted JIT/AOT exception:** an active `SkipUnless`/`SkipWhen` naming a `static virtual` interface property is supported on JIT (condition honored) but reported as `CMP0052` on AOT - the explicit AOT-only parity exception recorded in ADR-0070 Amendment 4 §7a (the sixth in Amendment 4 §2's list). A `static abstract` interface property yields the same `CMP0052` but is **not** a parity exception, because JIT also fails it at run time (§7b).
+  - **Review corrections (all resolved before approval):**
+    - **F1:** the `CMP0052` `ComposeDataStaticInterfaceSkipProperty` diagnostic, with the full generator diagnostic acceptance matrix, a plain-static-interface Verify snapshot, and a real-runner test.
+    - **F2:** `DisableParallelization` row override - a row `false` overrides an attribute `true` (merged `false`), distinguished from a Boolean OR.
+    - **F3:** expanded real-runner coverage - a skip property inherited from the test class's base class, a `SkipType` inheriting its property from a base class, and a plain `[Obsolete]` skip property compiled under the project's `CS0612`/`CS0618` warnings-as-errors.
+    - **F4:** the pre-existing name-hiding mismatch in `ResolveSkipProperty`'s lookup remains a documented follow-up risk, deferred outside S5; the lookup algorithm was not changed.
+  - **Accepted nonblocking test-coverage observations (Claude Opus's final S5 APPROVE review; low severity; no further S5 changes required):**
+    - (1) The "no registration emitted" assertion is only exercised for `static virtual` interface skip properties, not `static abstract`. Nonblocking because generation excludes any method that reports a diagnostic, and the `static abstract` `CMP0052` diagnostic is independently tested.
+    - (2) The `CMP0054`-over-`CMP0052` and `CMP0052`-over-`CMP0047` diagnostic precedence tests exercise only `SkipUnless`, not `SkipWhen`. Nonblocking because both paths use equivalent discovery logic, and `SkipWhen` has its own exact-message `CMP0052` diagnostic test.
+  - **Validation (G1–G5, independently re-run by Claude Opus for approval):**
+    - **G1:** full-solution `dotnet build`, 0 warnings, 0 errors.
+    - **G2:** full-solution `dotnet test`, 5,834 total, 5,766 passed, 68 skipped, 0 failed; no pre-existing `*.verified.*` modified; the AOT `[Compose]` files untouched.
+    - **G3:** generator test project 1,324/1,324 across net10.0/net11.0, with no unexpected `CMP0050`; no existing verified snapshot modified.
+    - **G4:** the generated registrations compile against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
+    - **G5:** the real xUnit AOT runner executes the slice's tests - 405/405 (135 per target framework).
+  - **Not in S5's implementation commit (by design):** this PLAN-0071 checkpoint entry (uncommitted, for maintainer review). The S5 implementation commit contains the 9 modified files and 12 new snapshots only.
+  - **Open:** S6–S7 are pending; B5 remains in progress. This S5 documentation checkpoint is uncommitted pending maintainer review.
