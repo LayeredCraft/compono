@@ -833,9 +833,9 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
             if (method.Diagnostics.Count > 0 || !method.IsTestClassAccessible)
                 return;
 
-            // The same S2 feature-envelope rule the emitter applies internally (`Generate` re-checks
+            // The same feature-envelope rule the emitter applies internally (`Generate` re-checks
             // it) governs here, so out-of-envelope models never even enter emission isolation.
-            if (!AotComposeDataRegistrationEmitter.IsWithinS2Envelope(method))
+            if (!AotComposeDataRegistrationEmitter.IsWithinEmissionEnvelope(method))
                 return;
 
             EmissionIsolation.TryEmit(

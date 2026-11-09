@@ -83,6 +83,94 @@ public sealed class ComposeDataEmissionTests : ComposeDataEmissionBase
 
     public static IEnumerable<object[]> PartialRows() => [new object[] { "partial" }];
 
+    public static IEnumerable<object[]> ProfileOnlyRows() => [Array.Empty<object>()];
+
+    [Theory]
+    [ComposeData<PersistentWidgetProfile>(nameof(ProfileOnlyRows))]
+    public void Profile_only_rows_use_profile_registration(OrderService service) =>
+        Assert.Equal("profile-registered", service.Name);
+
+    public static IEnumerable<object?[]> ProfileConfigRows() =>
+        [new object?[] { new WidgetConfig("configured-widget", 7), "row-label" }];
+
+    [Theory]
+    [ComposeData<ConfiguredWidgetProfile, WidgetConfig>(nameof(ProfileConfigRows))]
+    public void Profile_config_rows_extract_configuration(string label, OrderService service, int quantity)
+    {
+        Assert.Equal("row-label", label);
+        Assert.Equal("configured-widget", service.Name);
+        Assert.Equal(7, quantity);
+    }
+
+    public static IEnumerable<object[]> SharedRows() => [Array.Empty<object>()];
+
+    [Theory]
+    [ComposeData(nameof(SharedRows))]
+    public void Shared_parameter_is_reused_by_a_later_ordinary_parameter(
+        [Shared] OrderService shared,
+        OrderService repeat)
+    {
+        Assert.Same(shared, repeat);
+        Assert.False(string.IsNullOrEmpty(shared.Name));
+    }
+
+    // S3 review: shared parameters resolve before ordinary ones even when the ordinary parameter has
+    // the lower ordinal. The generated factory therefore ResolveShared's ordinal 1 first; the ordinal
+    // 0 Resolve then finds that shared instance in the row's shared scope. If the generator instead
+    // emitted plain ordinal order, the ordinal 0 Resolve would compose its own instance and this
+    // Assert.Same would fail.
+    [Theory]
+    [ComposeData(nameof(SharedRows))]
+    public void Shared_parameter_preceded_by_ordinary_parameter_uses_the_shared_instance(
+        OrderService first,
+        [Shared] OrderService shared)
+    {
+        Assert.Same(first, shared);
+        Assert.False(string.IsNullOrEmpty(first.Name));
+    }
+
+    // S3 review / PLAN-0071 B5.11: the three S0 TConfig identity shapes (tuple, dynamic/object,
+    // List<dynamic>/List<object>) must be constructed for real through the generated arity-2 factory,
+    // not just accepted by discovery.
+    public static IEnumerable<object?[]> TupleConfigRows() => [new object?[] { (3, 4) }];
+
+    [Theory]
+    [ComposeData<TupleConfigProfile, System.ValueTuple<int, int>>(nameof(TupleConfigRows))]
+    public void Tuple_config_identity_shape_is_constructed(OrderService service) =>
+        Assert.Equal("3:4", service.Name);
+
+    public static IEnumerable<object?[]> DynamicConfigRows() => [new object?[] { "dynamic-config" }];
+
+    [Theory]
+    [ComposeData<DynamicConfigProfile, object>(nameof(DynamicConfigRows))]
+    public void Dynamic_config_identity_shape_is_constructed(OrderService service) =>
+        Assert.Equal("dynamic-config", service.Name);
+
+    public static IEnumerable<object?[]> ListConfigRows() =>
+        [new object?[] { new System.Collections.Generic.List<object> { "a", "b" } }];
+
+    [Theory]
+    [ComposeData<ListConfigProfile, System.Collections.Generic.List<object>>(nameof(ListConfigRows))]
+    public void List_config_identity_shape_is_constructed(OrderService service) =>
+        Assert.Equal("a+b", service.Name);
+
+    public static OrderService SharedExplicitService { get; } = new("shared-explicit");
+
+    public static IEnumerable<object[]> SharedExplicitRows() =>
+        [new object[] { SharedExplicitService, "row-label" }];
+
+    [Theory]
+    [ComposeData(nameof(SharedExplicitRows))]
+    public void Shared_explicit_value_is_reused_by_a_later_ordinary_parameter(
+        [Shared] OrderService shared,
+        string label,
+        OrderService repeat)
+    {
+        Assert.Same(SharedExplicitService, shared);
+        Assert.Same(shared, repeat);
+        Assert.Equal("row-label", label);
+    }
+
     [Fact]
     public async Task MetadataRows_CarryConstantsAndSeedTrait()
     {
@@ -299,6 +387,231 @@ public sealed class ComposeDataEmissionTests : ComposeDataEmissionBase
         Assert.Single(dataRow.Traits[ComposeDataRows.SeedTraitName]);
     }
 
+    [Fact]
+    public async Task AttributeSeed_IsAppliedToEveryRow()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Attribute_seed_is_applied));
+
+        Assert.Equal(2, rows.Count);
+        var rowArray = rows.ToArray();
+
+        foreach (var row in rowArray)
+        {
+            var dataRow = Assert.IsType<TheoryDataRow>(row);
+            Assert.Equal("42", dataRow.Traits[ComposeDataRows.SeedTraitName].Single());
+            Assert.Equal("seeded", row.GetData()[0]);
+        }
+    }
+
+    [Fact]
+    public async Task ProfileWithSeed_IsReportedAsTheRowSeed()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Profile_seed_is_applied));
+
+        var dataRow = Assert.IsType<TheoryDataRow>(Assert.Single(rows));
+        Assert.Equal("1234", dataRow.Traits[ComposeDataRows.SeedTraitName].Single());
+    }
+
+    [Fact]
+    public async Task AttributeSeedZero_IsAppliedAndReported()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Zero_seed_is_applied));
+
+        var row = Assert.Single(rows);
+        var dataRow = Assert.IsType<TheoryDataRow>(row);
+        Assert.Equal("0", dataRow.Traits[ComposeDataRows.SeedTraitName].Single());
+        Assert.Equal("zero", row.GetData()[0]);
+    }
+
+    [Fact]
+    public async Task SeededConfigExtractionFailure_ReportsAttributeSeedInContext()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Seeded_config_extraction_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.SeededConfigExtractionRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Seeded_config_extraction_fails));
+        var expected =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: " +
+            $"the first row element must be a non-null '{typeof(WidgetConfig)}' profile configuration value" +
+            "\n\nSeed: 42";
+
+        Assert.Equal(expected, exception.Message);
+        Assert.Null(exception.InnerException);
+        Assert.Null(exception.Diagnostic);
+    }
+
+    [Fact]
+    public async Task SeededPositionalValueFailure_ReportsAttributeSeedAsTheRowSeed()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Seeded_type_mismatch_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.SeededTypeMismatchRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Seeded_type_mismatch_fails));
+        var expected =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: " +
+            $"Row value for parameter 'label' on '{method}' has type 'System.Int32', which is not assignable to 'System.String'." +
+            "\n\nSeed: 42";
+
+        Assert.Equal(expected, exception.Message);
+        Assert.Null(exception.InnerException);
+        Assert.Null(exception.Diagnostic);
+    }
+
+    [Fact]
+    public async Task ThrowingProfileConstructor_ReportsPreCompositionFailureWithInnerException()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Throwing_profile_constructor_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingProfileRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Throwing_profile_constructor_fails));
+        var expected =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: profile constructor boom" +
+            "\n\nSeed: not assigned (the failure occurred before the row's composition started)";
+
+        Assert.Equal(expected, exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+        Assert.Equal("profile constructor boom", exception.InnerException!.Message);
+        Assert.Null(exception.Diagnostic);
+    }
+
+    [Fact]
+    public async Task ThrowingProfileConstructor_PreservesCompositionExceptionDiagnostic()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Diagnosed_profile_constructor_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingProfileRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Diagnosed_profile_constructor_fails));
+        var expected =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: diagnosed constructor failure" +
+            "\n\nSeed: not assigned (the failure occurred before the row's composition started)";
+
+        Assert.Equal(expected, exception.Message);
+        Assert.Same(DiagnosedThrowingCtorProfile.Diagnostic, exception.Diagnostic);
+        var inner = Assert.IsType<CompositionException>(exception.InnerException);
+        Assert.Same(DiagnosedThrowingCtorProfile.Diagnostic, inner.Diagnostic);
+    }
+
+    [Fact]
+    public async Task SharedRows_DoNotShareInstancesAcrossRowBoundaries()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Shared_rows_do_not_share_across_rows));
+
+        Assert.Equal(2, rows.Count);
+        var rowArray = rows.ToArray();
+        Assert.NotSame(rowArray[0].GetData()[0], rowArray[1].GetData()[0]);
+    }
+
+    [Fact]
+    public async Task ProfileConstructorIsInvokedOncePerRow()
+    {
+        var before = CountingWidgetProfile.InstanceCount;
+
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Profile_is_constructed_once_per_row));
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(before + 2, CountingWidgetProfile.InstanceCount);
+
+        var rowArray = rows.ToArray();
+        var firstName = Assert.IsType<OrderService>(rowArray[0].GetData()[0]).Name;
+        var secondName = Assert.IsType<OrderService>(rowArray[1].GetData()[0]).Name;
+        Assert.NotEqual(firstName, secondName);
+        Assert.NotSame(rowArray[0].GetData()[0], rowArray[1].GetData()[0]);
+    }
+
+    [Fact]
+    public async Task NegativeAttributeSeed_FailsBeforeReadingOrComposing()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Negative_attribute_seed_fails)).AsTask());
+
+        Assert.Equal(
+            "Compono.XunitV3 requires a non-negative seed, but the configured seed was -1." +
+            "\n\nSeed: -1",
+            exception.Message);
+        Assert.Null(exception.InnerException);
+        Assert.Null(exception.Diagnostic);
+    }
+
+    [Fact]
+    public async Task ProfileWithNegativeSeed_ReportsNegativeRowSeed()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Negative_profile_seed_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.NegativeProfileSeedRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Negative_profile_seed_fails));
+        var expected =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: " +
+            "Compono.XunitV3 requires a non-negative seed, but the configured seed was -5." +
+            "\n\nSeed: -5";
+
+        Assert.Equal(expected, exception.Message);
+    }
+
+    [Fact]
+    public async Task AttributeSeedAndProfileSeed_ReportDuplicateConfiguration()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Duplicate_seed_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.DuplicateSeedRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Duplicate_seed_fails));
+        var expectedPrefix = $"ComposeData row 0 from '{member}' for '{method}' failed: ";
+
+        Assert.StartsWith(expectedPrefix, exception.Message);
+        Assert.Contains("was configured more than once", exception.Message);
+        Assert.EndsWith("\n\nSeed: 9", exception.Message);
+        Assert.IsType<CompositionConfigurationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task ConfigExtractionFailure_ReportsPreRowSeedLine()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Config_extraction_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ConfigExtractionRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Config_extraction_fails));
+        var expectedPrefix =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: " +
+            $"the first row element must be a non-null '{typeof(WidgetConfig)}' profile configuration value";
+
+        Assert.StartsWith(expectedPrefix, exception.Message);
+        Assert.EndsWith(
+            "\n\nSeed: not assigned (the failure occurred before the row's composition started)",
+            exception.Message);
+    }
+
     private const string FailureTargetsIndex =
         "global::Compono.XunitV3.Aot.Tests.ComposeDataEmissionFailureTargets";
 
@@ -438,4 +751,158 @@ public sealed class ComposeDataEmissionFailureTargets
 
     [ComposeData(nameof(ZeroParameterRows))]
     public void Zero_parameter_method_is_composed() { }
+
+    public static IEnumerable<object[]> AttributeSeedRows() =>
+    [
+        new object[] { "seeded" },
+        new object[] { "seeded" },
+    ];
+
+    [ComposeData(nameof(AttributeSeedRows), Seed = 42)]
+    public void Attribute_seed_is_applied(string label) => _ = label;
+
+    public static IEnumerable<object[]> ProfileSeedRows() => [Array.Empty<object>()];
+
+    [ComposeData<SeededWidgetProfile>(nameof(ProfileSeedRows))]
+    public void Profile_seed_is_applied() { }
+
+    public static IEnumerable<object[]> NegativeAttributeSeedRows() =>
+        throw new InvalidOperationException("the member must never be read when the attribute seed is negative");
+
+    [ComposeData(nameof(NegativeAttributeSeedRows), Seed = -1)]
+    public void Negative_attribute_seed_fails(string label) => _ = label;
+
+    public static IEnumerable<object[]> NegativeProfileSeedRows() => [Array.Empty<object>()];
+
+    [ComposeData<NegativeSeedWidgetProfile>(nameof(NegativeProfileSeedRows))]
+    public void Negative_profile_seed_fails() { }
+
+    public static IEnumerable<object[]> DuplicateSeedRows() => [Array.Empty<object>()];
+
+    [ComposeData<SeededWidgetProfile>(nameof(DuplicateSeedRows), Seed = 9)]
+    public void Duplicate_seed_fails() { }
+
+    public static IEnumerable<object[]> ConfigExtractionRows() => [new object[] { "not-a-config" }];
+
+    [ComposeData<ConfiguredWidgetProfile, WidgetConfig>(nameof(ConfigExtractionRows))]
+    public void Config_extraction_fails(string label) => _ = label;
+
+    public static IEnumerable<object[]> ZeroSeedRows() => [new object[] { "zero" }];
+
+    [ComposeData(nameof(ZeroSeedRows), Seed = 0)]
+    public void Zero_seed_is_applied(string label) => _ = label;
+
+    public static IEnumerable<object[]> SeededConfigExtractionRows() => [new object[] { "not-a-config" }];
+
+    [ComposeData<ConfiguredWidgetProfile, WidgetConfig>(nameof(SeededConfigExtractionRows), Seed = 42)]
+    public void Seeded_config_extraction_fails(string label) => _ = label;
+
+    public static IEnumerable<object[]> SeededTypeMismatchRows() => [new object[] { 42 }];
+
+    [ComposeData(nameof(SeededTypeMismatchRows), Seed = 42)]
+    public void Seeded_type_mismatch_fails(string label) => _ = label;
+
+    public static IEnumerable<object?[]> ThrowingProfileRows() =>
+        [new object?[] { new WidgetConfig("boom", 1) }];
+
+    [ComposeData<ThrowingCtorProfile, WidgetConfig>(nameof(ThrowingProfileRows))]
+    public void Throwing_profile_constructor_fails(string label) => _ = label;
+
+    [ComposeData<DiagnosedThrowingCtorProfile, WidgetConfig>(nameof(ThrowingProfileRows))]
+    public void Diagnosed_profile_constructor_fails(string label) => _ = label;
+
+    public static IEnumerable<object[]> TwoSharedRows() => [Array.Empty<object>(), Array.Empty<object>()];
+
+    [ComposeData(nameof(TwoSharedRows))]
+    public void Shared_rows_do_not_share_across_rows([Shared] OrderService shared) => _ = shared;
+
+    public static IEnumerable<object[]> TwoProfileRows() => [Array.Empty<object>(), Array.Empty<object>()];
+
+    [ComposeData<CountingWidgetProfile>(nameof(TwoProfileRows))]
+    public void Profile_is_constructed_once_per_row(OrderService service) => _ = service;
+}
+
+public sealed class SeededWidgetProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.WithSeed(1234);
+}
+
+public sealed class NegativeSeedWidgetProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.WithSeed(-5);
+}
+
+public sealed class TupleConfigProfile : ICompositionProfile
+{
+    private readonly (int A, int B) _config;
+
+    public TupleConfigProfile((int A, int B) config) => _config = config;
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register<OrderService>(() => new OrderService($"{_config.A}:{_config.B}"));
+}
+
+public sealed class DynamicConfigProfile : ICompositionProfile
+{
+    private readonly object _config;
+
+    public DynamicConfigProfile(dynamic config) => _config = (object)config;
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register<OrderService>(() => new OrderService(_config.ToString()!));
+}
+
+public sealed class ListConfigProfile : ICompositionProfile
+{
+    private readonly System.Collections.Generic.List<object> _config;
+
+    public ListConfigProfile(System.Collections.Generic.List<dynamic> config) => _config = config;
+
+    public void Configure(CompositionBuilder builder)
+    {
+        var name = string.Empty;
+        foreach (var item in _config)
+        {
+            name = name.Length == 0 ? item?.ToString() ?? string.Empty : name + "+" + item;
+        }
+
+        builder.Register<OrderService>(() => new OrderService(name));
+    }
+}
+
+public sealed class ThrowingCtorProfile : ICompositionProfile
+{
+    public ThrowingCtorProfile(WidgetConfig config) =>
+        throw new InvalidOperationException("profile constructor boom");
+
+    public void Configure(CompositionBuilder builder) { }
+}
+
+public sealed class DiagnosedThrowingCtorProfile : ICompositionProfile
+{
+    public static CompositionDiagnostic Diagnostic { get; } = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(int),
+        Path = "root",
+        Trace = Array.Empty<ProviderAttempt>(),
+        Seed = 77,
+        Message = "diagnosed constructor failure",
+    };
+
+    public DiagnosedThrowingCtorProfile(WidgetConfig config) => throw new CompositionException(Diagnostic);
+
+    public void Configure(CompositionBuilder builder) { }
+}
+
+public sealed class CountingWidgetProfile : ICompositionProfile
+{
+    private static int _instances;
+
+    private readonly int _instance = System.Threading.Interlocked.Increment(ref _instances);
+
+    public static int InstanceCount => System.Threading.Volatile.Read(ref _instances);
+
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register<OrderService>(() => new OrderService($"instance-{_instance}"));
 }

@@ -6,9 +6,12 @@ namespace Compono.Generators.Tests;
 
 /// <summary>
 /// Eligibility coverage for <c>AotComposeDataRegistrationEmitter</c>: an AOT <c>[ComposeData]</c>
-/// registration must be emitted only for the approved S2 envelope (ADR-0070 / PLAN-0071 B5.11) -
-/// non-profile, unseeded, non-shared, non-skipped, non-generic, synchronous member shapes. Every
-/// other model must produce NO registration (and no new diagnostics, in particular no CMP0050).
+/// registration must be emitted only for the approved emission envelope (ADR-0070 / PLAN-0071
+/// B5.11) - every synchronous, non-generic member shape including the profile and profile-config
+/// arities, attribute-level seeds (a negative seed emits a registration whose factory body throws at
+/// execution time), and <c>[Shared]</c> parameters. Shapes still outside the envelope - active skip
+/// predicates, generic test-class bases, and the asynchronous return shapes - must produce NO
+/// registration (and no new diagnostics, in particular no CMP0050).
 /// </summary>
 public sealed class AotComposeDataRegistrationEmissionTests
 {
@@ -35,6 +38,13 @@ public sealed class AotComposeDataRegistrationEmissionTests
             .Select(source => source.HintName)
             .Where(hintName => hintName.EndsWith(RegistrationHintSuffix, StringComparison.Ordinal))
             .ToArray();
+
+    private static void AssertRegistration(string body)
+    {
+        var result = Run(body);
+        result.Diagnostics.Should().BeEmpty();
+        RegistrationHintNames(result).Should().ContainSingle();
+    }
 
     private static void AssertNoRegistration(string body)
     {
@@ -63,8 +73,8 @@ public sealed class AotComposeDataRegistrationEmissionTests
     }
 
     [Fact]
-    public void OneTypeParameterProfileForm_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void OneTypeParameterProfileForm_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class SampleProfile : Compono.ICompositionProfile
             {
@@ -76,13 +86,13 @@ public sealed class AotComposeDataRegistrationEmissionTests
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData<SampleProfile>("Cases")]
-                public void Profile_rows_are_not_emitted(string value) { }
+                public void Profile_rows_are_emitted(string value) { }
             }
             """);
 
     [Fact]
-    public void TwoTypeParameterProfileConfigForm_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void TwoTypeParameterProfileConfigForm_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class SampleConfig { }
 
@@ -98,46 +108,46 @@ public sealed class AotComposeDataRegistrationEmissionTests
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData<SampleProfile, SampleConfig>("Cases")]
-                public void Profile_config_rows_are_not_emitted(string value) { }
+                public void Profile_config_rows_are_emitted(string value) { }
             }
             """);
 
     [Fact]
-    public void PositiveAttributeSeed_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void PositiveAttributeSeed_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class SeededTests
             {
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData("Cases", Seed = 42)]
-                public void Seeded_rows_are_not_emitted(string value) { }
+                public void Seeded_rows_are_emitted(string value) { }
             }
             """);
 
     [Fact]
-    public void NegativeAttributeSeed_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void NegativeAttributeSeed_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class NegativeSeedTests
             {
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData("Cases", Seed = -1)]
-                public void Negative_seed_rows_are_not_emitted(string value) { }
+                public void Negative_seed_rows_are_emitted(string value) { }
             }
             """);
 
     [Fact]
-    public void SharedParameter_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void SharedParameter_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class SharedParameterTests
             {
                 public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
 
                 [Compono.XunitV3.Aot.ComposeData("Cases")]
-                public void Shared_rows_are_not_emitted([Compono.XunitV3.Aot.Shared] string value) { }
+                public void Shared_rows_are_emitted([Compono.XunitV3.Aot.Shared] string value) { }
             }
             """);
 

@@ -17,30 +17,30 @@ namespace Compono.Generators.Emitters;
 /// (ADR-0070 / PLAN-0071 B5).
 /// </summary>
 /// <remarks>
-/// This slice (S2) emits only the exact feature envelope <see cref="IsWithinS2Envelope"/> describes:
-/// the synchronous member shape, with no profile form, no attribute seed, no <c>[Shared]</c>
-/// parameters, no active skip predicate, no generic test-class base, and constants-only attribute
-/// metadata. Every other shape - profiles, attribute seeds, <c>[Shared]</c> parameters, active skip
-/// predicates, generic test-class bases, and the asynchronous <c>TaskOf</c>/<c>ValueTaskOf</c>/
-/// <c>AsyncEnumerable</c> shapes - is discovered (and its own diagnostics reported) but emitted by a
-/// later slice against this same template, so emitting it here would silently discard its semantics.
+/// This slice (S3) emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
+/// the synchronous member shape, every non-generic attribute arity (plain, <c>TProfile</c>, and
+/// <c>TProfile, TConfig</c>), attribute-level seeds (including a negative seed, whose whole factory
+/// body throws the same <c>NegativeAttributeSeed</c> failure the reflection path produces), and
+/// <c>[Shared]</c> parameters. Every other shape - active skip predicates, generic test-class bases,
+/// and the asynchronous <c>TaskOf</c>/<c>ValueTaskOf</c>/<c>AsyncEnumerable</c> shapes - is discovered
+/// (and its own diagnostics reported) but emitted by a later slice against this same template, so
+/// emitting it here would silently discard its semantics.
 /// </remarks>
 internal static class AotComposeDataRegistrationEmitter
 {
     /// <summary>
-    /// The exact feature envelope this slice (S2) can emit correctly: the profile-less, unseeded,
-    /// non-shared, non-generic, synchronous, no-active-skip form of <c>[ComposeData]</c>. Every path
-    /// that could emit an S2 registration gates on this single predicate, so a model outside the
-    /// envelope produces no registration at all rather than a registration missing the feature's
+    /// The exact feature envelope this slice (S3) can emit correctly: the synchronous, non-generic,
+    /// no-active-skip form of <c>[ComposeData]</c> for every approved attribute arity, including
+    /// profiles, profile configuration values, attribute-level seeds, and <c>[Shared]</c> parameters.
+    /// Every path that could emit a registration gates on this single predicate, so a model outside
+    /// the envelope produces no registration at all rather than a registration missing the feature's
     /// semantics.
     /// </summary>
     /// <param name="method">The discovered <c>[ComposeData]</c> model.</param>
-    /// <returns><see langword="true"/> when the model is within the S2 emission envelope.</returns>
-    public static bool IsWithinS2Envelope(AotComposeDataMethodInfo method)
+    /// <returns><see langword="true"/> when the model is within the emission envelope.</returns>
+    public static bool IsWithinEmissionEnvelope(AotComposeDataMethodInfo method)
     {
-        if (method.AttributeArity != 0
-            || method.AttributeMetadata.Seed is not null
-            || method.ReturnShape != AotComposeDataReturnShape.Sync
+        if (method.ReturnShape != AotComposeDataReturnShape.Sync
             || method.MemberKind is null
             || method.IsGenericTestClass
             || method.SkipUnless is not null
@@ -49,12 +49,19 @@ internal static class AotComposeDataRegistrationEmitter
             return false;
         }
 
-        foreach (var parameter in method.Parameters)
+        if (method.AttributeArity is < 0 or > 2)
         {
-            if (parameter.IsShared)
-            {
-                return false;
-            }
+            return false;
+        }
+
+        if (method.AttributeArity >= 1 && method.FullyQualifiedProfileTypeName is null)
+        {
+            return false;
+        }
+
+        if (method.AttributeArity == 2 && method.FullyQualifiedConfigTypeName is null)
+        {
+            return false;
         }
 
         return true;
@@ -62,10 +69,10 @@ internal static class AotComposeDataRegistrationEmitter
 
     public static void Generate(SourceProductionContext context, AotComposeDataMethodInfo method)
     {
-        // S2 scope: only the feature envelope IsWithinS2Envelope governs. Every other shape is
-        // discovered but its emission belongs to a later slice - emit nothing here so no registration
-        // (and no broken generated source) is produced for it yet.
-        if (!IsWithinS2Envelope(method))
+        // Only the feature envelope IsWithinEmissionEnvelope governs. Every other shape is discovered
+        // but its emission belongs to a later slice - emit nothing here so no registration (and no
+        // broken generated source) is produced for it yet.
+        if (!IsWithinEmissionEnvelope(method))
         {
             return;
         }
@@ -76,7 +83,7 @@ internal static class AotComposeDataRegistrationEmitter
         {
             TestClassIndexLiteral = SymbolDisplay.FormatLiteral(method.TestClassIndex, quote: true),
             MethodNameLiteral = SymbolDisplay.FormatLiteral(method.MethodName, quote: true),
-            // IsWithinS2Envelope excludes generic test classes, so the closed test class at execution
+            // IsWithinEmissionEnvelope excludes generic test classes, so the closed test class at execution
             // time is always the attribute's own declaring type.
             TestClassTypeExpression = $"typeof({method.FullyQualifiedTestClassName})",
             // {M} is the member display name the failure messages use: the lookup type's full name
@@ -89,11 +96,17 @@ internal static class AotComposeDataRegistrationEmitter
             // The read binds to the member's own declaring type, not the lookup type, so an inherited
             // member is read through the base that actually declares it.
             MemberReadExpression = BuildMemberReadExpression(method, memberName),
+            AttributeSeedExpression = RenderNullableInt(method.AttributeMetadata.Seed),
+            HasNegativeAttributeSeed = method.AttributeMetadata.Seed is < 0,
+            HasConfig = method.AttributeArity == 2,
+            ConfigTypeName = method.FullyQualifiedConfigTypeName ?? "object",
+            ComposerCreateExpression = BuildComposerCreateExpression(method),
             ParameterCount = method.Parameters.Count,
             Parameters = method.Parameters.Select(p => new
             {
                 p.FullyQualifiedTypeName,
                 p.IsNullable,
+                p.IsShared,
                 p.Ordinal,
                 NameLiteral = SymbolDisplay.FormatLiteral(p.Name, quote: true),
                 LocalName = $"value{p.Ordinal}",
@@ -128,6 +141,37 @@ internal static class AotComposeDataRegistrationEmitter
         return method.MemberKind == AotComposeDataMemberKind.Method
             ? $"{containing}.{escaped}()"
             : $"{containing}.{escaped}";
+    }
+
+    /// <summary>
+    /// Builds the per-row <c>Composer</c> construction the generated factory runs: the profile (for
+    /// the generic arities) is always applied before the attribute-level seed, matching
+    /// <c>Compono.XunitV3.ComposeDataAttribute</c>'s reflection path exactly - including the
+    /// duplicate-seed configuration error when a profile also calls <c>WithSeed</c>.
+    /// </summary>
+    private static string BuildComposerCreateExpression(AotComposeDataMethodInfo method)
+    {
+        var seed = method.AttributeMetadata.Seed;
+        var seedLiteral = seed?.ToString(CultureInfo.InvariantCulture);
+        var profile = method.FullyQualifiedProfileTypeName;
+
+        if (method.AttributeArity == 0)
+        {
+            return seed is { }
+                ? $"var composer = global::Compono.Composer.Create(static builder => builder.WithSeed({seedLiteral}));"
+                : "var composer = global::Compono.Composer.Create();";
+        }
+
+        if (seed is null)
+        {
+            return method.AttributeArity == 1
+                ? $"var composer = global::Compono.Composer.Create(static builder => builder.AddProfile<{profile}>());"
+                : $"var composer = global::Compono.Composer.Create(builder => builder.AddProfile(new {profile}(config)));";
+        }
+
+        return method.AttributeArity == 1
+            ? $"var composer = global::Compono.Composer.Create(static builder => {{ builder.AddProfile<{profile}>(); builder.WithSeed({seedLiteral}); }});"
+            : $"var composer = global::Compono.Composer.Create(builder => {{ builder.AddProfile(new {profile}(config)); builder.WithSeed({seedLiteral}); }});";
     }
 
     private static string RenderNullableBool(bool? value) =>

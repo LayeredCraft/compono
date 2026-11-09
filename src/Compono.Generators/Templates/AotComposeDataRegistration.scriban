@@ -23,6 +23,12 @@ file static class AotComposeDataRegistration
 
     private static async global::System.Threading.Tasks.ValueTask<global::System.Collections.Generic.IReadOnlyCollection<global::Xunit.ITheoryDataRow>> CreateRowsAsync()
     {
+{{~ if has_negative_attribute_seed ~}}
+        // A negative attribute-level seed fails before any row is read or composed, exactly like
+        // Compono.XunitV3.ComposeDataAttribute's reflection path. The whole body is a throw so no
+        // unreachable code is emitted.
+        throw global::Compono.XunitV3.Aot.ComposeDataRows.NegativeAttributeSeed({{ attribute_seed_expression }});
+{{~ else ~}}
         var cancellationToken = global::Xunit.TestContext.Current.CancellationToken;
         var testClass = {{ test_class_type_expression }};
         var memberDisplayName = {{ member_display_name_base }} + {{ member_suffix_literal }};
@@ -48,6 +54,7 @@ file static class AotComposeDataRegistration
         }
 
         return result;
+{{~ end ~}}
     }
 
     private static global::System.Collections.Generic.List<object?> ReadRows(string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
@@ -96,19 +103,23 @@ file static class AotComposeDataRegistration
     private static global::Xunit.ITheoryDataRow ComposeRow(object? rawRow, int index, global::System.Type testClass, string memberDisplayName, string methodDisplayName, in global::Compono.XunitV3.Aot.ComposeDataAttributeMetadata attributeMetadata)
     {
         var initialContext = new global::Compono.XunitV3.Aot.RowContext(index, null, memberDisplayName, methodDisplayName);
-        var rowData = global::Compono.XunitV3.Aot.ComposeDataRows.NormalizeRow(rawRow, in initialContext, null);
+        var rowData = global::Compono.XunitV3.Aot.ComposeDataRows.NormalizeRow(rawRow, in initialContext, {{ attribute_seed_expression }});
         var context = new global::Compono.XunitV3.Aot.RowContext(index, rowData.Source, memberDisplayName, methodDisplayName);
+{{~ if has_config ~}}
+        var (config, values) = global::Compono.XunitV3.Aot.ComposeDataRows.ExtractConfig<{{ config_type_name }}>(rowData.Values, in context, {{ attribute_seed_expression }});
+{{~ else ~}}
         var values = rowData.Values;
+{{~ end ~}}
 
         global::Compono.CompositionRow row;
         try
         {
-            var composer = global::Compono.Composer.Create();
+            {{ composer_create_expression }}
             row = composer.CreateRow(testClass);
         }
         catch (global::System.Exception exception) when (exception is not global::System.OperationCanceledException)
         {
-            throw global::Compono.XunitV3.Aot.ComposeDataRows.RowFailure(in context, exception.Message, global::Compono.XunitV3.Aot.ComposeDataRows.PreRowSeedLine(null), exception);
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.RowFailure(in context, exception.Message, global::Compono.XunitV3.Aot.ComposeDataRows.PreRowSeedLine({{ attribute_seed_expression }}), exception);
         }
 
         if (row.Seed < 0)
@@ -132,10 +143,24 @@ file static class AotComposeDataRegistration
         try
         {
 {{~ for p in parameters ~}}
+{{~ if p.is_shared ~}}
+            if (values.Length > {{ p.ordinal }})
+            {
+                row.ShareExplicit<{{ p.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.TestParameter, {{ p.ordinal }}, {{ p.name_literal }}, testClass, {{ if p.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}), {{ p.local_name }});
+            }
+            else
+            {
+                {{ p.local_name }} = row.ResolveShared<{{ p.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.TestParameter, {{ p.ordinal }}, {{ p.name_literal }}, testClass, {{ if p.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}));
+            }
+{{~ end ~}}
+{{~ end ~}}
+{{~ for p in parameters ~}}
+{{~ if !p.is_shared ~}}
             if (values.Length <= {{ p.ordinal }})
             {
                 {{ p.local_name }} = row.Resolve<{{ p.fully_qualified_type_name }}>(new global::Compono.CompositionRequestDescriptor(global::Compono.CompositionRequestKind.TestParameter, {{ p.ordinal }}, {{ p.name_literal }}, testClass, {{ if p.is_nullable }}global::Compono.Nullability.Nullable{{ else }}global::Compono.Nullability.NotNullable{{ end }}));
             }
+{{~ end ~}}
 {{~ end ~}}
         }
         catch (global::Compono.CompositionException exception)
