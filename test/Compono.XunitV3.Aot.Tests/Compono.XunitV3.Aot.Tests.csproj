@@ -29,7 +29,33 @@
          warning-clean, so a full TreatWarningsAsErrors is unnecessary and would couple the suite to
          unrelated analyzer output). See ADR-0070 Amendment 4 (2c) / ADR-0066. -->
     <WarningsAsErrors>$(WarningsAsErrors);CS0612;CS0618</WarningsAsErrors>
+    <!-- PLAN-0071 S7 Native AOT opt-in, authorized by PLAN-0071's 2026-11-09 S7 infrastructure
+         decision. ADR-0041 Amendment 5 and PLAN-0041's "AOT harness packaging note" establish the
+         separate package-based consumer-validation policy; they do not authorize this internal
+         project-scoped mechanism. This project must NOT be published by passing a
+         global `-p:PublishAot=true`: MSBuild treats `-p:` properties as globals and forwards them to
+         every project in the reference graph - including during restore. That reaches the
+         netstandard2.0 `Compono.Generators` project through two analyzer ProjectReference paths (this
+         project's own OutputItemType="Analyzer" reference, and transitively via Compono.XunitV3.Aot ->
+         Compono -> Compono.csproj's analyzer-only reference), producing
+         `NETSDK1207: Ahead-of-time compilation is not supported for the target framework`. Setting
+         PublishAot here makes it a project-local property instead, so it never propagates to either
+         analyzer reference; the opt-in property itself propagates harmlessly. This is the same
+         propagation PLAN-0041 recorded for `Compono.AotSmokeTest`, but resolved without changing the
+         shipped analyzer-reference shape. Publish with
+         `-p:ComponoAotTestsPublish=true` instead of `-p:PublishAot=true`. This internal-suite mechanism
+         is distinct from the package-based policy in ADR-0041 Amendment 5 / PLAN-0041 (local-feed
+         PackageReference) - it does not prove packaging. -->
+    <PublishAot Condition="'$(ComponoAotTestsPublish)' == 'true'">true</PublishAot>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(ComponoAotTestsPublish)' == 'true'">
+    <!-- Enumerating every type in the assembly (Assembly.GetTypes) is inherently trimming-incompatible:
+         the trimmer removes unused public types, so this test reports IL2026 and fails under Native AOT.
+         Exclude it ONLY for the S7 Native AOT publish; it stays compiled and executed in every ordinary
+         build and `dotnet test` run, where it still guards the public API surface. -->
+    <Compile Remove="PublicApiSurfaceTests.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="xunit.v3.aot.mtp-v2" />

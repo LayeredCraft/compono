@@ -70,14 +70,19 @@ public sealed class ComposeDataAttributeTests
     [Fact]
     public void AllForms_ExposeMemberNameMemberTypeAndSeed()
     {
-        Type[] forms = [typeof(ComposeDataAttribute), typeof(ComposeDataAttribute<>), typeof(ComposeDataAttribute<,>)];
+        AssertExposesMemberNameMemberTypeAndSeed(typeof(ComposeDataAttribute));
+        AssertExposesMemberNameMemberTypeAndSeed(typeof(ComposeDataAttribute<>));
+        AssertExposesMemberNameMemberTypeAndSeed(typeof(ComposeDataAttribute<,>));
+    }
 
-        foreach (var form in forms)
-        {
-            Assert.NotNull(form.GetProperty(nameof(ComposeDataAttribute.MemberName)));
-            Assert.NotNull(form.GetProperty(nameof(ComposeDataAttribute.MemberType)));
-            Assert.NotNull(form.GetProperty(nameof(ComposeDataAttribute.Seed)));
-        }
+    // Trimming-safe: annotating the parameter keeps the public properties of each attribute form reachable
+    // under Native AOT, so this test asserts the same members in JIT and AOT builds without IL warnings.
+    private static void AssertExposesMemberNameMemberTypeAndSeed(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type form)
+    {
+        Assert.NotNull(form.GetProperty(nameof(ComposeDataAttribute.MemberName)));
+        Assert.NotNull(form.GetProperty(nameof(ComposeDataAttribute.MemberType)));
+        Assert.NotNull(form.GetProperty(nameof(ComposeDataAttribute.Seed)));
     }
 
     [Fact]
