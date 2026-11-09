@@ -561,9 +561,10 @@ runtime and cross-engine parity check (B6).
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
 **Status:** In progress. **Design approval gate passed.** S0 is committed
-at `5db86fc`, S1 at `4b9d12e`, S2 at `bb67950`, and S3 at `0680dc2`; each is
-verified, approved, and (S3) independently re-reviewed (Notes, 2026-11-07).
-S4–S7 are pending. B5 remains in progress.
+at `5db86fc`, S1 at `4b9d12e`, S2 at `bb67950`, S3 at `0680dc2`, and S4 at
+`3fcc5d4`; each is verified, approved, and (S3, S4) independently reviewed,
+with S4 receiving a final **APPROVE** (Notes, 2026-11-09). S5–S7 are pending.
+B5 remains in progress.
 
 - The B5 design owner specified this on 2026-11-06.
 - On the same day the product owner approved
@@ -1234,7 +1235,8 @@ product-owner approval.
 - [x] S0: `TConfig` identity fix; the B5.4 diagnostics at the B5.4 precedence; model fields; every B4 test and snapshot unchanged
 - [x] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
 - [x] S2–S3 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes (S2 `bb67950`, S3 `0680dc2`)
-- [ ] S4–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
+- [x] S4 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S4 `3fcc5d4`)
+- [ ] S5–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
 - [x] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method (S2 wiring, B5.6)
 - [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
 - [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
@@ -1872,5 +1874,26 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **G4 (Claude independently verified):** the generated registrations compile against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
   - **G5 (DeepSeek-reported, Claude independently verified):** the real xUnit AOT runner executes the slice's tests - 126/126 `ComposeDataEmission` tests across the three TFMs.
   - **Claude independently verified (full focused suites):** `test/Compono.XunitV3.Aot.Tests` 252/252; generator test project 1,264/1,264; and no existing verified snapshot changed.
-  - **Not in S3's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S3's documentation closeout.
-  - **Open:** S4-S7 are pending; B5 remains in progress.
+   - **Not in S3's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S3's documentation closeout.
+   - **Open:** S4-S7 are pending; B5 remains in progress.
+
+- **2026-11-09 (B5 S4 checkpoint, `compono-lsx.5`):** S4 (B5.6-B5.9 asynchronous member sources) is committed at `3fcc5d4` ("feat(xunitv3): support async AOT ComposeData sources"), whose immediate Git parent is the S3 documentation checkpoint `e721e33` ("docs(xunitv3): record ComposeData S3 checkpoint"); the S3 implementation commit is `0680dc2`. The design owner (Claude Opus) independently reviewed after a correction round and returned final **APPROVE**; the maintainer authorized the checkpoint commit. This entry is S4's documentation closeout.
+   - **Scope:** 21 files changed (5 modified, 16 new Verify snapshots; 882 insertions, 29 deletions on the five source/test files before snapshot acceptance), covering the S4 envelope only.
+     - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs`: `IsWithinEmissionEnvelope` widened to admit all four return shapes (still excluding a null `ReturnShape`/`MemberKind`, generic test classes, and active `SkipUnless`/`SkipWhen`); view-model additions `IsSync`/`IsTaskOf`/`IsValueTaskOf`/`IsAsyncEnumerable`/`IsAsyncEnumerableValueElement` (the last = `AsyncEnumerable` shape with a value-type row element).
+     - `src/Compono.Generators/Templates/AotComposeDataRegistration.scriban`: the row-reader selection (`ReadRows` for `Sync`, `await ReadRowsAsync` otherwise), the `TaskOf`/`ValueTaskOf` awaited reader (with the `TaskOf` null-`Task` check → D5, no null check for `ValueTaskOf`), the `AsyncEnumerable` reference-element reader (`await foreach` over the `IAsyncEnumerable<object?>` covariance fast path), and the value-element reader (`ReadValueRowsAsync<TElement>`, element type inferred) that first performs the runtime `IAsyncEnumerable<object?>` check before the manual enumerator loop.
+     - `test/Compono.Generators.Tests/AotComposeDataRegistrationEmissionTests.cs`: three former async no-emit tests converted to positive emission tests, plus new `Task<object>` and value-element emission coverage.
+     - `test/Compono.Generators.Tests/AotComposeDataRegistrationVerifyTests.cs`: seven new snapshot tests.
+     - `test/Compono.XunitV3.Aot.Tests/ComposeDataEmissionTests.cs`: real-runner S4 success and failure coverage.
+   - **S4 features implemented:** `Task<T>` member sources (including a null `Task` → D5, never awaited); `ValueTask<T>` member sources; `IAsyncEnumerable<T>` member sources on both the reference-element and value-element paths; runtime-covariance path selection (a declared value-element source whose runtime object also implements a reference `IAsyncEnumerable<T>` reads the reference rows, matching JIT); full source enumeration/materialization before any per-row composition; preservation of profiles, config extraction, `Seed` (attribute/profile/row), `[Shared]`, row metadata, and per-row isolation; the B5.9 exception/cancellation filter matrix (a member that throws `CompositionException` when invoked → wrapped; thrown while awaiting → passes through unwrapped; thrown at a reference-path `GetAsyncEnumerator` → passes through; at a value-path `GetAsyncEnumerator` → wrapped; `DisposeAsync` failure precedence: reference path replaces the original failure, value path keeps the original); and `OperationCanceledException` propagation on both async enumeration paths. `ConfigureAwait(false)` on every emitted await; no runtime reflection and no LINQ in generated code.
+   - **Emission envelope widening:** `IsWithinEmissionEnvelope` (renamed from `IsWithinS2Envelope` in S3) is the single authoritative emission-eligibility predicate. S4 widened it to admit the `TaskOf`/`ValueTaskOf`/`AsyncEnumerable` (reference- and value-element) shapes while retaining the S5 active-skip and S6 generic-test-class exclusions and the zero-diagnostic/accessibility gates and per-method `CMP0050` `EmissionIsolation`.
+   - **Review findings and resolution (all addressed before approval):** (1) awaited `CompositionException` for `Task<T>` and `ValueTask<T>` passes through unwrapped - added real-runner tests asserting message, preserved `Diagnostic`, and null `InnerException`; (2) `GetAsyncEnumerator` exceptions - reference path `CompositionException` passes through, value path wraps per B5.9, proven with custom enumerables that throw at `GetAsyncEnumerator`; (3) `DisposeAsync` failure precedence on each path; (4) a static mixed source whose declared type implements both a value- and a reference-`IAsyncEnumerable` proves the reference reader is selected and reads valid rows; (5) a strengthened runtime-covariance test reading rows successfully through the reference interface; (6) restored explicit `Task<object>` emission coverage (kept alongside `Task<IEnumerable<object>>`); (7) corrected two misleading emitter comments (no logic change).
+   - **G1 (DeepSeek-reported full-suite result):** full-solution `dotnet build`, 0 warnings, 0 errors.
+   - **G2 (DeepSeek-reported full-suite result, Claude independently re-ran):** full-solution `dotnet test`, 5,732 total, 5,664 passed, 68 skipped, 0 failed. The 68 skips are pre-existing; the tree was clean after the run, so no `*.verified.*` changed and the AOT `[Compose]` files are untouched.
+   - **G3 (DeepSeek-reported, Claude independently verified):** generator test project 1,282/1,282 across net10.0/net11.0, with no unexpected `CMP0050`; no existing verified snapshot modified.
+   - **G4 (DeepSeek-reported, Claude independently verified):** the generated registrations compile against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
+   - **G5 (DeepSeek-reported, Claude independently verified):** the real xUnit AOT runner executes the slice's tests - 345/345 (115 per target framework).
+   - **Claude independently ran** the full build, the full suite, the generator tests, and the real AOT runner, and issued **APPROVE**.
+   - **Known limitation - reflection wrapping (accepted, low severity, not an S4 blocker):** JIT uses `MethodInfo.Invoke` for member and value-path enumerator calls, so a synchronous exception may arrive wrapped in a `TargetInvocationException`; AOT direct calls expose the original exception to the exception filters. This can produce a different wrapper or `InnerException` identity for synchronous `CompositionException`/`OperationCanceledException` failures. Compiler-generated async methods and iterators generally surface failures through tasks and avoid the discrepancy. S4 intentionally changed neither JIT nor AOT production semantics. Recorded as a known remaining risk; no new implementation task was created and it was not assigned to S5.
+   - **Known limitation - cancellation (nonblocking test limitation):** the S4 tests cover `OperationCanceledException` propagation on both async enumeration paths, but they simulate cancellation by throwing `OperationCanceledException` rather than exercising a real cancelled `TestContext` token. The per-row `ThrowIfCancellationRequested()` check is emitted according to the plan, but real-token observation remains untested and is not claimed to have been independently verified; it may be considered during B6 validation.
+   - **Not in S4's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S4's documentation closeout. The documentation changes in this entry are not yet committed.
+   - **Open:** S5-S7 are pending; B5 remains in progress.
