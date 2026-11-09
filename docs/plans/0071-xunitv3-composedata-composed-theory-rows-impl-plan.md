@@ -561,8 +561,9 @@ runtime and cross-engine parity check (B6).
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
 **Status:** In progress. **Design approval gate passed.** S0 is committed
-at `5db86fc`, S1 at `4b9d12e`, and S2 at `bb67950`; each is verified and
-approved (Notes, 2026-11-07). S3–S7 are pending. B5 remains in progress.
+at `5db86fc`, S1 at `4b9d12e`, S2 at `bb67950`, and S3 at `0680dc2`; each is
+verified, approved, and (S3) independently re-reviewed (Notes, 2026-11-07).
+S4–S7 are pending. B5 remains in progress.
 
 - The B5 design owner specified this on 2026-11-06.
 - On the same day the product owner approved
@@ -855,16 +856,25 @@ static Type ResolveGenericTestClassType(Type genericTypeDefinition)
 
   An emission failure therefore surfaces as `CMP0050` for that method only
   (ADR-0068).
-- **S2 emission gate.** Every path that can emit a registration gates on the
-  single predicate `AotComposeDataRegistrationEmitter.IsWithinS2Envelope`
-  (slice S2, `bb67950`): the non-generic test class; plain `[ComposeData]`;
-  the `Sync` member shape; untyped and typed rows; no profile, no `Seed`, no
-  `[Shared]`, no active skip predicate; constants-only metadata. Any model
-  outside that envelope produces **no** registration (and no invalid
-  generated source) rather than a registration that silently drops the
-  feature's semantics. **S3–S6 must each explicitly widen
-  `IsWithinS2Envelope` as they implement their own functionality** - a later
-  slice must not emit a shape whose semantics it does not yet reproduce.
+- **Emission gate.** Every path that can emit a registration gates on the
+  single predicate `AotComposeDataRegistrationEmitter.IsWithinEmissionEnvelope`
+  - the single authoritative emission-eligibility check. It was introduced in
+  slice S2 (`bb67950`) as `IsWithinS2Envelope` and renamed in slice S3
+  (`0680dc2`) when S3 widened it. As first introduced (S2) it admitted only the
+  non-generic test class; plain `[ComposeData]`; the `Sync` member shape;
+  untyped and typed rows; no profile, no `Seed`, no `[Shared]`, no active skip
+  predicate; constants-only metadata - the S2 checkpoint Notes below record
+  that historical form and name. S3 widened the envelope to admit the
+  profile (`<TProfile>`), profile-config (`<TProfile, TConfig>`), attribute
+  `Seed` (including a negative seed, whose factory body throws at execution
+  time), and `[Shared]` forms, while the envelope still excludes the S4
+  (`TaskOf`/`ValueTaskOf`/`AsyncEnumerable`), S5 (active `SkipUnless`/
+  `SkipWhen`), and S6 (generic test-class bases) shapes: those still produce
+  **no** registration (and no invalid generated source) rather than a
+  registration that silently drops the feature's semantics. **S4–S6 must each
+  explicitly widen `IsWithinEmissionEnvelope` as they implement their own
+  functionality** - a later slice must not emit a shape whose semantics it
+  does not yet reproduce.
 - **No Scriban partials or includes.** `TemplateHelper` has no loader, and
   adding one is out of scope. "Reusable components" are named, commented
   template sections plus small view-model builder methods in the emitter:
@@ -1223,7 +1233,8 @@ product-owner approval.
 - [x] #166 checkpoint re-checked at S2 start and recorded (B5.1)
 - [x] S0: `TConfig` identity fix; the B5.4 diagnostics at the B5.4 precedence; model fields; every B4 test and snapshot unchanged
 - [x] S1: the four helper members with exact contracts; JIT switched over with its suite unchanged; AOT `PublicApiSurfaceTests` and ApiCompat additive
-- [ ] S2–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
+- [x] S2–S3 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes (S2 `bb67950`, S3 `0680dc2`)
+- [ ] S4–S6 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes
 - [x] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method (S2 wiring, B5.6)
 - [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
 - [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
@@ -1828,7 +1839,7 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
 - **2026-11-07 (B5 S2 checkpoint, `compono-lsx.5`):** S2 (B5.6 wiring and template) is committed at `bb67950` ("feat(xunitv3): generate AOT ComposeData registrations"), whose parent is the S0 documentation checkpoint `3d4bd28`. The design owner (Claude Opus) verified it independently and returned **APPROVE**; the product owner approved it.
   - **Scope:** B5.6 only - the generated AOT `ComposeData` registration template, emitter, and generator wiring, plus its tests. 31 files changed (29 added, including 23 new Verify snapshots; 2 modified), covering only the S2 envelope: a non-generic test class; plain `[ComposeData]`; the `Sync` member shape (field, property, method; inherited member; `MemberType`); untyped and typed (`TheoryData<…>`) rows; B5.7 without a profile; B5.8 with constants only; the `Compono.Seed` trait; and R0, too-many, and null/type-mismatch row failures (the profile-driven negative row seed is S3). No generic bases, no `TaskOf`/`ValueTaskOf`/`AsyncEnumerable` shapes, and no profile/seed/`[Shared]`/active-skip features.
     - `src/Compono.Generators/Templates/AotComposeDataRegistration.scriban` (new): the registration template - header/pragmas, the `file` class, the `[ModuleInitializer]` call, the per-shape row readers, the seeded-row scaffold `ComposeRow`, parameter binding, and the metadata block.
-    - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs` (new): the view-model builder and the S2 emission gate `IsWithinS2Envelope`.
+    - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs` (new): the view-model builder and the S2 emission gate `IsWithinS2Envelope` (renamed to `IsWithinEmissionEnvelope` in S3, `0680dc2` - see the S3 checkpoint below).
     - `src/Compono.Generators/ComponoIncrementalGenerator.cs`: the B5.6 wiring - after the existing diagnostics step, skip when `Diagnostics.Count > 0 || !IsTestClassAccessible`, then `EmissionIsolation.TryEmit` (so an emission failure surfaces as `CMP0050` for that method only, ADR-0068).
     - `test/Compono.Generators.Tests/AotComposeDataRegistrationEmissionTests.cs` (new, 14 tests): the S2 envelope - an eligible sync non-generic shape emits exactly one registration; every out-of-envelope shape (profile forms, seed, `[Shared]`, active skip, generic base, async shapes, inaccessible class) emits none and reports no new diagnostic.
     - `test/Compono.Generators.Tests/AotComposeDataRegistrationVerifyTests.cs` (new, 10 tests) plus `GeneratorTestHelpers.cs` (`VerifyGeneratedSource`): 23 new snapshots.
@@ -1839,7 +1850,27 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **G3 (Claude Opus independently verified focused tests):** 14 emission tests, 10 snapshot tests, and 23 new snapshots, with no unexpected `CMP0050`.
   - **G4 (Claude Opus independently verified):** the generated code compiles against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
   - **G5 (Claude Opus independently verified real-runner probes):** the slice's tests run and pass under the real xUnit AOT runner, 63/63 per TFM.
-  - **Emission gate:** S2 emits only the `IsWithinS2Envelope` shape; every emit path gates on that single predicate. S3-S6 must each explicitly widen `IsWithinS2Envelope` as they implement their own functionality.
+  - **Emission gate:** S2 emits only the `IsWithinS2Envelope` shape; every emit path gates on that single predicate. S3-S6 must each explicitly widen `IsWithinS2Envelope` as they implement their own functionality. (Historical: S3 renamed this predicate to `IsWithinEmissionEnvelope` and widened it for the S3 forms - see the S3 checkpoint below; the pre-widening S2 shape/name is what is recorded here.)
   - **#166 checkpoint (B5.1), re-checked at S2 start:** issue #166 was still OPEN (last updated 2026-11-04), with no accepted ADR and no implementation plan, so B5 keeps ownership of the seeded-row scaffold (B5.7) and no S2 design change was required. Issue #166 was not modified.
   - **Not in S2's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S2's documentation closeout.
   - **Open:** S3-S7 are pending; B5 remains in progress.
+
+- **2026-11-09 (B5 S3 checkpoint, `compono-lsx.5`):** S3 (B5.7-B5.9 profile, seed, and `[Shared]` support) is committed at `0680dc2` ("feat(xunitv3): support AOT ComposeData profiles and seeds"), whose parent is the S2 documentation checkpoint `7c52b0e`. The design owner (Claude Opus) independently re-reviewed after a correction round and returned final **APPROVE**; the maintainer authorized the checkpoint commit.
+  - **Scope:** 20 files changed (6 modified, 14 new Verify snapshots; 1,894 insertions, 49 deletions), covering the S3 envelope only.
+    - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs`: the emission gate renamed and widened (see below); view-model additions (`AttributeSeedExpression`, `HasNegativeAttributeSeed`, `HasConfig`, `ConfigTypeName`, `ComposerCreateExpression`, per-parameter `IsShared`).
+    - `src/Compono.Generators/Templates/AotComposeDataRegistration.scriban`: per-row profile/config construction, config extraction (`ExtractConfig<TConfig>`), attribute-seed application (`WithSeed` after `AddProfile`), the negative-seed whole-body throw, and shared-first parameter resolution (`ShareExplicit`/`ResolveShared` before ordinary `Resolve`).
+    - `src/Compono.Generators/ComponoIncrementalGenerator.cs`: the wiring call updated to the renamed predicate.
+    - `test/Compono.Generators.Tests/AotComposeDataRegistrationEmissionTests.cs`: five former S2 no-emit tests converted to positive S3 emission tests; no-emit retained for still-out-of-envelope shapes.
+    - `test/Compono.Generators.Tests/AotComposeDataRegistrationVerifyTests.cs`: five new snapshot tests (profile, profile-config+seed, seed-after-profile, negative seed, shared value/branch).
+    - `test/Compono.XunitV3.Aot.Tests/ComposeDataEmissionTests.cs`: real-runner S3 success and failure coverage.
+  - **S3 features implemented:** `<TProfile>` (fresh profile instance per row, `AddProfile<TProfile>()`) and `<TProfile, TConfig>` (fresh `TProfile(rowConfig)` per row); attribute `Seed` (positive, `0` treated as a real configured seed, and a negative seed whose whole factory body throws `NegativeAttributeSeed`); effective-seed precedence (attribute `Seed` pins every row, else profile `WithSeed`, else a fresh non-negative row seed; attribute `Seed` + profile `WithSeed` surfaces the core duplicate-configuration conflict as a wrapped row failure); `[Shared]` parameters resolved shared-first with row-value → `ShareExplicit`, else `ResolveShared`, and an ordinary parameter of the same type reusing the shared instance; per-row composition independence (fresh `Composer`, per-row shared scope, profile constructed once per row); negative-seed and failure propagation with the approved `Seed:` context lines and preserved `InnerException`/`Diagnostic`.
+  - **Initial review findings and resolution (all seven resolved before re-review):** (1) shared-parameter ordering when an ordinary parameter precedes a `[Shared]` parameter of the same type - added a real-runner `Assert.Same` witness and a snapshot proving shared-first emission; (2) the three S0 `TConfig` identity shapes (tuple, dynamic/object, `List<dynamic>`/`List<object>`) - added real generated-registration coverage; (3) attribute `Seed = 0` - added a runtime trait assertion and a `WithSeed(0)` snapshot; (4) seed failure context - added exact-message tests proving `Seed: 42` on both a before-composition failure (config extraction) and an after-row-creation failure (positional mismatch); (5) throwing profile constructors - added ordinary-exception and diagnosed-`CompositionException` cases asserting preserved `InnerException`/`Diagnostic` and the pre-composition seed line; (6) per-row independence - added tests proving `[Shared]` instances are not reused across rows and that the profile constructor runs once per row (distinct instances); (7) low-severity cleanup - the negative-seed test now uses a member that throws if read (proving `NegativeAttributeSeed` wins without evaluating it), and the emitter's trailing newline was restored.
+  - **Emission envelope rename:** `IsWithinS2Envelope` → `IsWithinEmissionEnvelope` (single authoritative emission-eligibility predicate). It now admits the S3 profile/config, `Seed`, and `[Shared]` forms while retaining the S4-S6 exclusions. The forward-looking gate text above and the S2 checkpoint Notes were annotated with the rename; S2's pre-widening shape/name is preserved as historical evidence.
+  - **G1 (DeepSeek-reported full-suite result):** full-solution `dotnet build`, 0 warnings, 0 errors.
+  - **G2 (DeepSeek-reported full-suite result):** full-solution `dotnet test`, 5,621 total, 5,553 passed, 68 skipped, 0 failed. The 68 skips are pre-existing; the tree was clean after the run, so no `*.verified.*` changed and the AOT `[Compose]` files are untouched.
+  - **G3 (DeepSeek-reported, Claude independently verified):** generator `AotComposeData` suite 526/526, with no unexpected `CMP0050`.
+  - **G4 (Claude independently verified):** the generated registrations compile against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
+  - **G5 (DeepSeek-reported, Claude independently verified):** the real xUnit AOT runner executes the slice's tests - 126/126 `ComposeDataEmission` tests across the three TFMs.
+  - **Claude independently verified (full focused suites):** `test/Compono.XunitV3.Aot.Tests` 252/252; generator test project 1,264/1,264; and no existing verified snapshot changed.
+  - **Not in S3's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S3's documentation closeout.
+  - **Open:** S4-S7 are pending; B5 remains in progress.
