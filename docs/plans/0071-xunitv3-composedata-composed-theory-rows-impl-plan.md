@@ -560,11 +560,13 @@ runtime and cross-engine parity check (B6).
 
 #### B5 (`compono-lsx.5`, after B4 and B1): AOT emission
 
-**Status:** In progress. **Design approval gate passed.** S0 is committed
-at `5db86fc`, S1 at `4b9d12e`, S2 at `bb67950`, S3 at `0680dc2`, and S4 at
-`3fcc5d4`; each is verified, approved, and (S3, S4) independently reviewed,
-with S4 receiving a final **APPROVE** (Notes, 2026-11-09). S5–S7 are pending.
-B5 remains in progress.
+**Status:** **Accepted** (2026-11-09; product owner, on Claude Opus's
+independent final acceptance review, Notes). **Design approval gate passed.**
+S0 is committed at `5db86fc`, S1 at `4b9d12e`, S2 at `bb67950`, S3 at
+`0680dc2`, S4 at `3fcc5d4`, S5 at `07ff636f`, S6 at `20c1eb9`, and S7 at
+`faa09a4`; every slice is verified and independently approved, and every B5
+acceptance checkbox below is checked. Closing the `compono-lsx.5` bead is a
+separate step. B6–B9 remain pending.
 
 - The B5 design owner specified this on 2026-11-06.
 - On the same day the product owner approved
@@ -1254,9 +1256,9 @@ product-owner approval.
 - [x] S6 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S6 `20c1eb9`)
 - [x] S7 delivered per B5.11: project-scoped Native AOT opt-in (`ComponoAotTestsPublish`), AOT-only `PublicApiSurfaceTests` exclusion, trim-safe `ComposeDataAttributeTests`; gate-passed (G1–G5) and independently approved with evidence in Notes (S7 `faa09a4`)
 - [x] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method (S2 wiring, B5.6)
-- [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
-- [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
-- [ ] AOT `[Compose]` template, emitter, discovery, and snapshots byte-identical
+- [x] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named (final acceptance review, Notes 2026-11-09)
+- [x] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow` (final acceptance review, Notes 2026-11-09)
+- [x] AOT `[Compose]` template, emitter, discovery, and snapshots byte-identical (git blob-hash comparison against `e709228`; final acceptance review, Notes 2026-11-09)
 - [x] S7 Native AOT publish: 0 IL/AOT warnings and `ComposeData` tests executed (144/144 native; 0 IL/AOT; Notes, 2026-11-09 S7 checkpoint)
 - [x] `AnalyzerReleases.Unshipped.md` notes updated for the new `CMP0047`/`CMP0052`/`CMP0053`/`CMP0054` conditions (the `CMP0052` note also covers the S5 static-interface skip property, ADR-0070 Amendment 4 §7)
 - [x] S5: an active `static virtual`/`static abstract` interface skip property reports the `CMP0052` twin (never generated `CS8926`); plain static interface skip properties emit and run; base-interface and implementing-class holders keep `CMP0057` (ADR-0070 Amendment 4 §7)
@@ -2068,3 +2070,29 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
     - CI integration is deferred - adding an `aot-validation.yaml` leg changes the required-check design ADR-0041 Amendment 5 governs and needs its own decision.
     - linux-x64 is not required for S7; S7 validates on the host RID (`osx-arm64`) only.
   - **Open:** B5 remains in progress pending final B5 review; B6–B9 untouched. This S7 documentation checkpoint is uncommitted pending maintainer review.
+
+- **2026-11-09 (B5 final acceptance, `compono-lsx.5`):** Claude Opus performed an independent, read-only final acceptance review of the three remaining general B5 criteria against the source, the generator, the template, and every generated snapshot, not against checkpoint summaries. Verdict: **APPROVE**. The product owner approved B5 final acceptance on that basis. **B5 is accepted**; all B5 acceptance checkboxes are checked.
+  - **Baseline:** pre-B5 `e709228` ("docs(xunitv3): approve ComposeData B5 AOT emission spec"), the parent of S0 `5db86fc`. Final implementation HEAD: `7b311895e4836c6e18723fb3a9aac14b929e7362`.
+  - **Criterion 1 (member invocation and `{M}`/`{T}`): PASS.**
+    - The member is read through its actual declaring type (`FullyQualifiedMemberContainingTypeName`, the plan's `MemberContainingTypeFqn`: `AotComposeDataMethodDiscovery.cs` records `selectedMember.ContainingType`; `AotComposeDataRegistrationEmitter.BuildMemberReadExpression`). Snapshots show an inherited member read through its declaring base (`ComposeDataBase.Cases`, `ComposeDataRoot.Cases`) and `MemberType` members through the holder.
+    - `{T}` is `testClass.FullName + ".<Method>"` in every snapshot. `testClass` is `typeof(<Fqn>)` for non-generic classes and `ResolveGenericTestClassType(typeof(<OpenIndex>))` for generic classes, which resolves the closed runtime type.
+    - `{M}` is `testClass.FullName` without `MemberType` and `typeof(<Holder>).FullName` with it.
+    - No typed row element type is named: 0 `TheoryData<`/`TheoryDataRow<` across all 32 `AotComposeDataRegistration` snapshots. Rows are read as `object?`, Task/ValueTask through `var`, and async value elements through a generic `ReadValueRowsAsync<TElement>`. The model's `RowElementTypeNames` is not used by the emitter or template.
+    - Supported shapes verified in snapshots: field, property, method, keyword-named member, inherited member, `MemberType`, Task/ValueTask, async reference/value/mixed, and generic test classes.
+  - **Criterion 2 (reflection, LINQ, registration): PASS.**
+    - Generated code: 0 occurrences of `System.Reflection`, `GetMethod`/`GetProperty`/`GetField`, `.Invoke(`, `MakeGeneric`, `Activator`, `dynamic`, `BaseType`, `GetGenericTypeDefinition`, `System.Linq`/`.Select(`/`.Where(`/`.ToArray()`, or `DataAttributeRegistration`. All 32 `CreateDataRow` calls are the approved helper `ComposeDataRows.CreateDataRow`. `source.GetType()` appears only as the type-name argument to the `UnsupportedReturnType` failure message (type identity, JIT message parity).
+    - Runtime helper (`src/Shared/Compono.XunitV3/ComposeDataRows.cs`): no LINQ; its only member reflection (`GetProperty("DisableParallelization")`) is inside `#if !COMPONO_XUNITV3_AOT` (the JIT package's xUnit 3.2.2 shim) and never compiles into `Compono.XunitV3.Aot`. On AOT, `ResolveGenericTestClassType` is the only metadata walk (`BaseType`, `GetGenericTypeDefinition`); `BindValue`'s `typeof(T)`/`Nullable.GetUnderlyingType`/`IsValueType` are type identity on statically known generic arguments, part of the approved B5.5 helper contract.
+    - Native AOT validation passed (S7).
+  - **Criterion 3 (AOT `[Compose]` pipeline unchanged): PASS, byte-identical.** Compared by Git blob hash (`git rev-parse e709228:<path>` vs `git rev-parse HEAD:<path>`), not by semantic inspection:
+    - `Templates/AotTheoryDataRowRegistration.scriban` (`528da74`), `Emitters/AotTheoryDataRowRegistrationEmitter.cs` (`3aac00f`), `Discovery/AotComposeMethodDiscovery.cs` (`6bafd59`), and `Models/AotComposeMethodInfo.cs` (`d163311`): identical.
+    - Snapshots (`git diff --name-status e709228 HEAD`): B5 added 69 snapshots and modified, deleted, or renamed none. All 80 existing `AotTheoryDataRow*` snapshots are unchanged.
+    - Outside those files, and not affecting the `[Compose]` pipeline: `ComponoIncrementalGenerator.cs` gained additive ComposeData wiring only; `ComposedTypeAnalyzer.ContainsTypeParameter` changed from `private` to `internal` with an identical body (reused by ComposeData discovery); `GeneratorTestHelpers.cs` gained the additive `VerifyGeneratedSource`.
+  - **Validation:** the S0–S7 evidence above stands. S7 Native AOT (net10.0/osx-arm64): 0 IL/AOT warnings; 144/144 native tests passed; 101 `ComposeData` test methods discovered and 103 rows executed.
+  - **Nonblocking observations (not fixed; candidates for B7's documentation pass):**
+    - **Stale generator wiring comment:** `ComponoIncrementalGenerator.cs` still describes "the emitter's own S2 feature envelope" and "its own semantics arrive in a later slice".
+    - **`CMP0047` emitter comment (deferred since S6):** an `AotComposeDataRegistrationEmitter` comment groups `CMP0047` with the generic-shape diagnostics.
+    - **Project-file comment (S7 review): resolved at HEAD.** The `Compono.XunitV3.Aot.Tests.csproj` comment now cites PLAN-0071's 2026-11-09 S7 infrastructure decision as the authority and states that ADR-0041 Amendment 5 / PLAN-0041 govern the separate package-based policy.
+    - **Unreachable member-read fallback:** `BuildMemberReadExpression`'s `?? FullyQualifiedTestClassName` can't be reached, because emission requires a resolved member. Harmless.
+  - **Accepted limitations (unchanged, not reopened):** the S6 observations (nested-base inherited theory discovery under xUnit AOT; `Outer<>.InnerBase`/`Outer<>.Inner<>` probe-only coverage); the S7 scope limits (`PublicApiSurfaceTests` excluded only from the Native AOT build; packaged-product validation is B6 V3/V7; CI integration deferred; linux-x64 not required); and the S5 F4 `ResolveSkipProperty` follow-up risk.
+  - **Scope:** no scope creep; the only public additions are the approved hidden `ComposeDataRows` helpers (ADR-0070 Amendments 3 and 4). No CI changes.
+  - **Open:** closing the `compono-lsx.5` bead is a separate step. The epic `compono-lsx` stays in progress; B6–B9 remain pending. This acceptance entry is uncommitted pending maintainer review.
