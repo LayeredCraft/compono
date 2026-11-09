@@ -764,8 +764,11 @@ e. **A member whose declared type implements `IAsyncEnumerable<T>` more
    than JIT. Rejecting them is a correctness requirement, not an
    implementation convenience.
 
-These five, plus Amendment 2's two, are the complete set of AOT-only
-exceptions for `ComposeData`. Item 13 stays in force for everything else.
+As approved on 2026-11-06, these five, plus Amendment 2's two, were the
+complete set of AOT-only exceptions for `ComposeData`. §7 (2026-11-09) adds
+a sixth exception, §7a: an active skip-condition property that is a
+`static virtual` interface property. The complete set is now these five,
+§7a, and Amendment 2's two. Item 13 stays in force for everything else.
 Exact descriptors, messages, and precedence are in PLAN-0071 B5.4.
 
 ### 3. Hidden generator-facing helper members
@@ -832,3 +835,79 @@ B5 must not change `[Compose]`.
 **Recorded:** PLAN-0071 B5 (B5.2–B5.11), B6 (cross-engine and
 Amendment-4 documenting tests), and B7 (`docs/packages/compono-xunitv3-aot.md`
 JIT/AOT differences, diagnostics docs).
+
+### 7. Interface skip-condition properties (2026-11-09, B5 S5 review)
+
+**Status:** **Approved** by the product owner on 2026-11-09.
+
+**Amends:** §2's complete exception list (one addition, §7a) and §2d's
+scope, which named only the data member.
+
+**Evidence:** the S5 independent review (finding F1) and its follow-up
+investigation (PLAN-0071 Notes, 2026-11-09). These ran real xUnit 4.0.1
+JIT runner probes, generator probes against `Compono.XunitV3.Aot`, and
+Native AOT publishes on net9.0, net10.0, and net11.0.
+
+**Defect.** Before S5 no active skip condition was emitted. S5 renders each
+one as `static () => global::Holder.Prop`. B4's skip-property validation
+never checked for static interface members, so an active `SkipUnless`/
+`SkipWhen` that names a `static virtual` or `static abstract` interface
+property produced generated code failing with `CS8926` instead of a Compono
+diagnostic. xUnit's own AOT generator has the same gap: it emits `CS8926`
+for `[Fact(SkipType = typeof(IFoo), SkipUnless = …)]` with the same
+property.
+
+Observed JIT behavior, with `SkipType` set to the interface:
+
+| Interface skip property | JIT (`[ComposeData]` and native `[Fact]`) | AOT |
+|---|---|---|
+| Plain (non-virtual) `static bool P` | runs, condition honored | **supported**: direct `global::IFoo.P` access, legal C# |
+| `static virtual bool P` with a body (including when the interface also carries an unimplemented `static abstract` member, or is a closed generic interface) | runs, condition honored | **`CMP0052`** (§7a, AOT-only exception) |
+| `static abstract bool P { get; }` | fails at run time (`BadImageFormatException` reading the property) | **`CMP0052`** (§7b, not an exception) |
+| Declared on a base interface of `SkipType` | fails at run time ("Cannot find public static property"; xUnit1054 on a native `[Fact]`) | existing `CMP0057`, unchanged |
+| Declared on an interface that `SkipType`, a class, implements, with no matching property of its own | fails the same way | existing `CMP0057`, unchanged |
+
+**a. `static virtual` interface skip properties are an AOT-only exception.**
+JIT reads the default body through reflection, so the test runs. C# can't
+name the property outside a type-parameter context (`CS8926`), so generated
+code can't read it directly. It's reported as a skip-property twin of
+`CMP0052`. This adds a sixth case to §2's list. Workaround: move the
+condition to a static property of a class or struct, or to a plain
+(non-virtual) static interface property.
+
+**b. `static abstract` interface skip properties are diagnosed, but that is
+not a parity exception.** JIT fails the same usage at run time, so this is
+item 13's existing rule for invalid skip-condition usage (a run-time
+failure on JIT, a compile-time diagnostic on AOT), with a clearer
+compile-time message than `CS8926`. It uses the same `CMP0052` twin as §7a,
+just as `CMP0052`'s data-member descriptor already covers both forms (§2d).
+
+**Rejected: full `static virtual` parity.** The investigation found two
+ways to read the default body without reflection:
+
+- A constrained generic accessor (`static bool Read<T>() where T : IFoo
+  => T.P`, called with `T = IFoo`). It is `CS8920` whenever the interface
+  carries any unimplemented `static abstract` member, inherited or its own.
+  It also compiles and runs on JIT but **throws `TypeLoadException` at run
+  time under Native AOT on net9.0 and net10.0**, with 0 publish warnings
+  (it works on net11.0). It's unusable.
+- `[UnsafeAccessor(UnsafeAccessorKind.StaticMethod, Name = "get_P")]`
+  against the interface. It ran correctly on JIT and Native AOT for all
+  three TFMs, but a closed generic interface needs a separate generic
+  accessor class whose type parameters mirror the holder's. It would be
+  the first `UnsafeAccessor` in Compono's generated code. It also relies on
+  interface-targeted static accessors that work today but aren't explicitly
+  documented. It needs model, emitter, and template changes, plus Native AOT
+  coverage for every holder form.
+
+The product owner rejected both. The complexity and maintenance cost are
+disproportionate for an uncommon shape that xUnit's own AOT generator
+doesn't support either, and that has a direct workaround.
+
+**Unchanged:** plain static interface skip properties stay supported, and
+the base-interface and implementing-class shapes keep their existing
+`CMP0057`. §2d's data-member rule and every other section are unchanged.
+
+**Recorded:** PLAN-0071 B5.4 (descriptor, message, predicate, precedence),
+B5.11 S5 (acceptance), the B5 acceptance checklist, B6 (the JIT-side
+documenting test), and Notes (2026-11-09).

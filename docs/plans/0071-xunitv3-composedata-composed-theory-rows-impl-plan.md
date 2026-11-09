@@ -696,6 +696,7 @@ Argument conventions match B4:
 | `CMP0054` | `ComposeDataOpenGenericMemberHolder` | ComposeData member is declared on an open generic type | `ComposeData member '{0}' for '{1}' is declared on open generic type '{2}', which generated code cannot name; set MemberType to a non-generic or closed generic type that declares the member` ({0} memberDisplay, {1} method, {2} the member's containing type) |
 | `CMP0054` | `ComposeDataOpenGenericSkipHolder` | ComposeData skip condition is declared on an open generic type | `[ComposeData] on '{0}': {1} '{2}' is declared on open generic type '{3}', which generated code cannot name; set SkipType to a non-generic or closed generic type that declares the property` ({0} method, {1} `SkipUnless`/`SkipWhen`, {2} property name, {3} the property's containing type) |
 | `CMP0052` | `ComposeDataStaticInterfaceMember` | ComposeData member is a static abstract or static virtual interface member | `ComposeData member '{0}' for '{1}' is a static abstract or static virtual interface member, which generated code cannot call; move the data to a static member of a class or struct` |
+| `CMP0052` | `ComposeDataStaticInterfaceSkipProperty` (**added in S5**, ADR-0070 Amendment 4 §7) | ComposeData skip condition property is a static abstract or static virtual interface member | `[ComposeData] on '{0}': {1} '{2}' on '{3}' is a static abstract or static virtual interface property, which generated code cannot read; move the condition to a static property of a class or struct, or to a non-virtual static interface property` ({0} method, {1} `SkipUnless`/`SkipWhen`, {2} property name, {3} the property's containing type) |
 | `CMP0047` | `ComposeDataProhibitedMember` | ComposeData member cannot be used at its generated call site | `ComposeData member '{0}' for '{1}' is marked {2}, which makes any use of it a compiler error; the generated registration reads the member directly, so it would fail to compile` |
 | `CMP0047` | `ComposeDataProhibitedMemberGetter` | ComposeData member getter cannot be used at its generated call site | `ComposeData member '{0}' for '{1}' has a getter marked {2}, which makes any use of it a compiler error; the generated registration reads the member directly, so it would fail to compile` |
 | `CMP0047` | `ComposeDataProhibitedSkipProperty` | ComposeData skip condition property cannot be used at its generated call site | `[ComposeData] on '{0}': {1} '{2}' on '{3}' is marked {4}, which makes any use of it a compiler error; the generated registration reads the property directly, so it would fail to compile` |
@@ -712,6 +713,15 @@ Argument conventions match B4:
 - **Static interface member:** the selected member's `ContainingType` has
   `TypeKind.Interface`, and the member (the property symbol for
   properties) `IsStatic && (IsAbstract || IsVirtual)`.
+- **Static interface skip property** (S5, Amendment 4 §7): the same
+  predicate (reuse `IsStaticInterfaceMember`), applied to the *resolved*
+  active skip property returned by `ResolveSkipProperty`. A plain
+  (non-virtual, non-abstract) static interface property doesn't match and
+  stays supported through direct `global::IFoo.P` access. A property found
+  only on a base interface of `SkipType`, or on an interface implemented by
+  a class `SkipType`, isn't resolved at all (`ResolveSkipProperty` walks
+  `BaseType` only) and keeps the existing `CMP0057`. Don't change that
+  lookup.
 - **Async interface set** (ADR-0070 Amendment 4 §2e). Collect the distinct
   constructed `IAsyncEnumerable<T>` from the declared member type's
   `AllInterfaces`, plus the type itself when it *is* `IAsyncEnumerable<>`.
@@ -740,7 +750,10 @@ unchanged; the new checks are appended inside the step they belong to:
 - **Step 9**, per active condition in the existing order (`SkipUnless`
   then `SkipWhen`): `CMP0057` → `CMP0044` (existing), then **9a** `CMP0054`
   open-generic skip holder (the *resolved* property's containing type),
-  then **9b** `CMP0047` skip property, then `CMP0047` skip getter.
+  then **9b** `CMP0052` static interface skip property (**added in S5**,
+  mirroring 6a > 6b > 6c), then **9c** `CMP0047` skip property, then
+  `CMP0047` skip getter. (S0 shipped 9c as "9b". The relative order of the
+  S0 checks doesn't change.)
 
 There is still at most one `ComposeData` diagnostic per method.
 
@@ -767,7 +780,7 @@ exact message.
     `AsyncEnumerable`, as on JIT)
 - **One adjacent-precedence test per new boundary:**
   - 6 > 6a > 6b > 6c > 7
-  - 8 > 9's `CMP0057` > `CMP0044` > 9a > 9b
+  - 8 > 9's `CMP0057` > `CMP0044` > 9a > 9c (S0); S5 adds 9a > 9b > 9c
 - **Index renderer:** a unit test for every row of the B5.3 table.
 - **Model:** a test for every new field.
 - **Regression:** every existing B4 test and Verify snapshot passes
@@ -1134,7 +1147,8 @@ The single merge rule stays in `ComposeDataRows.CreateDataRow`. Never call
 
 This deliberately reproduces JIT's two async behaviors, which differ from
 each other. Normalizing them would change B3's behavior and is out of
-scope (see "Remaining risks").
+scope (see Notes: the 2026-11-06 B5 specification entry, decision (c), and
+the S4 checkpoint entry's known limitations).
 
 ##### B5.10 Test harness for real-runner gates (`test/Compono.XunitV3.Aot.Tests`)
 
@@ -1223,7 +1237,7 @@ product-owner approval.
 | **S2** | B5.6 wiring and template; non-generic test class; plain `[ComposeData]`; `Sync` shape (field, property, method; inherited member; `MemberType`); untyped and typed (`TheoryData<…>`) rows; B5.7 without a profile; B5.8 with constants only; `Compono.Seed` trait; R0, too-many, null/type-mismatch values (the profile-driven negative row seed is tested in S3) | G1–G5 |
 | **S3** | `<TProfile>`, `<TProfile, TConfig>` (incl. the S0 identity shapes executed for real), attribute `Seed` (positive, `0`, negative-throw body), duplicate-seed conflict, every seed-line variant, profile `WithSeed` negative → `NegativeRowSeed`, `[Shared]` (row value and composed; ordering witness) | G1–G5 |
 | **S4** | `TaskOf` (incl. null task → D5), `ValueTaskOf`, `AsyncEnumerable` reference and value element paths, the full B5.9 filter matrix (a member that throws `CompositionException` when invoked → wrapped; while awaiting → passes through; at `GetAsyncEnumerator` reference → passes through, value → wrapped; `DisposeAsync` failure precedence on each path), cancellation mid-enumeration → `OperationCanceledException`; async path selection: a declared `int` + `string` type reads the `string` rows; a declared `IAsyncEnumerable<int>` whose runtime object also implements `IAsyncEnumerable<string>` reads the `string` rows (JIT parity) | G1–G5 |
-| **S5** | B5.8 full metadata: active `SkipUnless`/`SkipWhen` lambdas (test class, base class, `SkipType` class), grouped-skip precedence, `Explicit`, `Timeout`, traits union, `DisableParallelization` (absent → `false`, `true`, row override), keyword-named member and skip property (`@default`), a plain `[Obsolete]` member under `TreatWarningsAsErrors` | G1–G5 |
+| **S5** | B5.8 full metadata: active `SkipUnless`/`SkipWhen` lambdas (test class, base class, `SkipType` class), grouped-skip precedence, `Explicit`, `Timeout`, traits union, `DisableParallelization` (absent → `false`, `true`, row override), keyword-named member and skip property (`@default`), a plain `[Obsolete]` member under `TreatWarningsAsErrors`. **Added by the S5 review (2026-11-09, Notes; ADR-0070 Amendment 4 §7):** (a) the B5.4 `CMP0052` static-interface skip-property twin at precedence 9b. Generator tests assert the exact message for each of: a `static virtual` interface property (for both `SkipUnless` and `SkipWhen`); a `static abstract` interface property; a `static virtual` property on an interface that also carries an unimplemented `static abstract` member; and a `static virtual` property on a closed generic interface. Adjacent precedence: an open generic interface holder → `CMP0054` (9a > 9b), and a `static virtual` property marked `[Obsolete(error: true)]` → `CMP0052` (9b > 9c). A plain (non-virtual) static interface property is supported: a Verify snapshot plus a real-runner test. A property on a base interface of `SkipType`, and on an interface implemented by a class `SkipType`, → existing `CMP0057` (regression tests). No `CMP0050` and no `CS8926` anywhere. (b) Required test corrections (review F2/F3): a row `DisableParallelization = false` overrides an attribute `DisableParallelization = true` (merged `false`); real-runner tests in `ComposeDataEmissionTests` for a skip property inherited from the test class's base class, for a `SkipType` whose property is inherited from its own base class, and for a plain `[Obsolete]` skip property (compiled under the project's `CS0612`/`CS0618` warnings-as-errors) | G1–G5 |
 | **S6** | B5.3 generic bases: `GenericBase<T>` with `MemberType` to a non-generic holder and with a member on a non-generic `Root` base; two closed subclasses (`<int>`, `<string>`) each composing with its own closed root (assert `CreateRow`'s type through a custom provider seeing the closed `request.DeclaringType`, and `{T}` = `typeof(GenericBase<int>).FullName + ".M"` in an R0 failure); `Two<,>` and `OuterPlain.InnerGen<>` index registration; inaccessible nested test class → nothing emitted | G1–G5 |
 | **S7** | Completion: the snapshot matrix (each form × each member shape × `[Shared]`/no `[Shared]` × typed/untyped × metadata/no metadata × generic/non-generic); a Native AOT publish of `test/Compono.XunitV3.Aot.Tests` (`-f net10.0`, host RID, `PublishAot=true`) with **0** `IL`/`AOT` warnings, then run the published binary and confirm the `ComposeData` tests executed and passed (count them). If the project can't be AOT-published for a reason unrelated to B5, record the exact error and stop for the design owner; don't mark it passed. Then the B5 acceptance checklist | G1–G5, plus the Native AOT result |
 
@@ -1242,7 +1256,8 @@ product-owner approval.
 - [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
 - [ ] AOT `[Compose]` template, emitter, discovery, and snapshots byte-identical
 - [ ] S7 Native AOT publish: 0 IL/AOT warnings and `ComposeData` tests executed
-- [ ] `AnalyzerReleases.Unshipped.md` notes updated for the new `CMP0047`/`CMP0052`/`CMP0053`/`CMP0054` conditions
+- [ ] `AnalyzerReleases.Unshipped.md` notes updated for the new `CMP0047`/`CMP0052`/`CMP0053`/`CMP0054` conditions (the `CMP0052` note also covers the S5 static-interface skip property, ADR-0070 Amendment 4 §7)
+- [ ] S5: an active `static virtual`/`static abstract` interface skip property reports the `CMP0052` twin (never generated `CS8926`); plain static interface skip properties emit and run; base-interface and implementing-class holders keep `CMP0057` (ADR-0070 Amendment 4 §7)
 - [ ] If valid skip metadata can't reach full parity, the work **stopped** and went to the product owner. There's no pre-approved fallback (unchanged from round 2)
 
 #### B6 (`compono-lsx.6`, after B5 and B3): AOT real-runner tests, samples, Native AOT
@@ -1256,7 +1271,7 @@ product-owner approval.
 - [ ] Name parity: `typeof(…).FullName`-based `{M}`/`{T}` text matches JIT under JIT-run **and** real Native AOT, for a nested test class and a closed-generic holder. Inherited test methods **without** `MemberType` are excluded from `{M}` byte parity (C-1: JIT names the concrete class, AOT the declaring class); add one test per engine that documents that difference
 - [ ] ADR-0070 Amendment 2 documenting tests (runtime side; the AOT compile-time side is B4's `CMP0051`/`CMP0044` tests): (a) an inherited test method with a member that a derived class hides, without `MemberType`, asserting each engine's actual resolution (JIT: the derived member; AOT: the declaring-class member); (b) the same inherited test with an explicit `MemberType`, asserting identical rows on both engines; (c) on JIT only, a private nested `MemberType` holder that runs (AOT can't compile it, `CMP0044`). Each test carries a comment naming Amendment 2
 - [ ] **Generic test-class bases (ADR-0070 Amendment 4 §1)**, mirrored in both projects: an inherited `[ComposeData]` method on `GenericBase<T>` (with `MemberType` to a non-generic holder) run through two closed subclasses. Assert identical rows, identical `{T}` R0 text (the closed-generic `FullName`), and that a custom `ICompositionValueProvider` sees the same closed `request.DeclaringType` on both engines
-- [ ] **ADR-0070 Amendment 4 §2 documenting tests** (runtime side, JIT project only, each with a comment naming Amendment 4; the AOT compile-time side is covered by B5 S0): a member declared on `GenericBase<T>` without `MemberType` runs on JIT; a static virtual interface member through an interface `MemberType` runs on JIT; an `[Obsolete(error: true)]` data member runs on JIT; a member type implementing `IAsyncEnumerable<string>` and `IAsyncEnumerable<Uri>`, and one implementing `IAsyncEnumerable<int>` and `IAsyncEnumerable<long>`, each run on JIT (they're `CMP0053` on AOT); plus a cross-engine parity test for the supported `int` + `string` shape (both engines read the `string` rows)
+- [ ] **ADR-0070 Amendment 4 §2 documenting tests** (runtime side, JIT project only, each with a comment naming Amendment 4; the AOT compile-time side is covered by B5 S0): a member declared on `GenericBase<T>` without `MemberType` runs on JIT; a static virtual interface member through an interface `MemberType` runs on JIT; an `[Obsolete(error: true)]` data member runs on JIT; a member type implementing `IAsyncEnumerable<string>` and `IAsyncEnumerable<Uri>`, and one implementing `IAsyncEnumerable<int>` and `IAsyncEnumerable<long>`, each run on JIT (they're `CMP0053` on AOT); an active `SkipUnless` naming a `static virtual` interface property through `SkipType = typeof(IFoo)` runs on JIT with its condition honored (it's `CMP0052` on AOT, Amendment 4 §7a); plus a cross-engine parity test for the supported `int` + `string` shape (both engines read the `string` rows)
 - [ ] `DisableParallelization` parity: absent, `true`, and a row override yield the same merged `ITheoryDataRow.DisableParallelization` on both engines (B5.8)
 - [ ] Reuse B5.10's `RegisteredComposeDataFactory` harness for AOT failure-path and metadata assertions. Don't add a second harness
 - [ ] Samples: `test/Compono.XunitV3.SampleTests/ComposeDataTests.cs` and `test/Compono.XunitV3.Aot.SampleTests/ComposeDataTests.cs` (documentation-quality: the `TConfig` pricing table, the email table with `[Shared]`, an async source, a fixture-backed row)
@@ -1897,3 +1912,32 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
    - **Known limitation - cancellation (nonblocking test limitation):** the S4 tests cover `OperationCanceledException` propagation on both async enumeration paths, but they simulate cancellation by throwing `OperationCanceledException` rather than exercising a real cancelled `TestContext` token. The per-row `ThrowIfCancellationRequested()` check is emitted according to the plan, but real-token observation remains untested and is not claimed to have been independently verified; it may be considered during B6 validation.
    - **Not in S4's commit (by design):** ADR, plan, bead, and snapshot-list changes. This entry is S4's documentation closeout. The documentation changes in this entry are not yet committed.
    - **Open:** S5-S7 are pending; B5 remains in progress.
+- **2026-11-09 (B5 S5 review and interface skip-holder design decision, `compono-lsx.5`):** S5 is implemented on top of `fc8fe54` and is **uncommitted**. The design owner (Claude Opus) independently reviewed it and returned **REQUEST CHANGES**. The maintainer did not accept deferring finding F1 and decided its design the same day. S0–S4 checkpoint history and status are unchanged.
+   - **F1 (blocking): interface skip holders.** An active `SkipUnless`/`SkipWhen` naming a `static virtual` or `static abstract` interface property produced generated code failing with `CS8926` instead of a diagnostic. B4/S0 skip validation (`ResolveSkipProperty`/`IsUsableSkipProperty`) never checked for static interface members, and S5 made the shape emittable.
+     - **Investigation probes:** real xUnit 4.0.1 JIT runner, with `[ComposeData]` and native `[Fact]`:
+       - `static virtual` runs with its condition honored, including on a closed generic interface and on an interface that also carries an unimplemented `static abstract`
+       - `static abstract` fails at run time (`BadImageFormatException`)
+       - base-interface and implementing-class holders fail with "Cannot find public static property" (xUnit1054 on `[Fact]`)
+       - plain static interface properties run
+     - **xUnit's own AOT generator** emits the same `CS8926` for a native `[Fact]` with a `static virtual` interface `SkipType`.
+     - **Parity options evaluated:**
+       - a constrained generic accessor: `CS8920` for interfaces with unimplemented `static abstract` members, and `TypeLoadException` at Native AOT run time on net9.0/net10.0 with 0 publish warnings
+       - `[UnsafeAccessor]`: worked on JIT and Native AOT on net9.0–net11.0, but needs a generic accessor class for generic interfaces and would be a new generated-code pattern
+   - **Decision (product owner, 2026-11-09), recorded in ADR-0070 Amendment 4 §7:**
+     - no `UnsafeAccessor` support
+     - plain static interface skip properties are supported through direct access
+     - `static virtual` → `CMP0052` twin, an explicit **AOT-only parity exception** (§7a; the sixth in Amendment 4 §2's list)
+     - `static abstract` → the same `CMP0052` twin, **not** a parity exception, because JIT also fails it (§7b)
+     - base-interface and implementing-class holders keep the existing `CMP0057`
+     - specified in B5.4 (`ComposeDataStaticInterfaceSkipProperty`, predicate, precedence 9b) and the B5.11 S5 row
+   - **Required S5 test corrections (F2/F3, specified in the B5.11 S5 row):**
+     - `DisableParallelization`: row `false` overrides attribute `true`
+     - real-runner coverage for a skip property inherited from the test class's base class
+     - real-runner coverage for a `SkipType` that inherits its property from a base class
+     - real-runner coverage for a plain `[Obsolete]` skip property under the project's `CS0612`/`CS0618` warnings-as-errors
+
+     Each shape compiled and passed in a design-owner probe, so these are coverage gaps, not defects.
+   - **`AnalyzerReleases.Unshipped.md` (implementation phase, not yet changed):** the existing `CMP0052` row's note gains the skip-property condition. The rest of the row stays unchanged. Proposed note: `A [ComposeData] member is not public and static, requires arguments, or is a generic method - ComposeData can only invoke a public static field, property, or parameterless non-generic method; also covers a selected member, or an active SkipUnless/SkipWhen property, that is a static abstract or static virtual interface member, which generated code cannot call (ADR-0070/PLAN-0071 B4/B5)`. No new rows, because the file is keyed by ID.
+   - **Known follow-up risk (F4, outside S5, not scheduled):** `ResolveSkipProperty` stops at the most-derived property with the requested name, whatever its accessibility. When a derived holder declares a non-public static property that hides a public static `bool` property of the same name on a base class, AOT reports `CMP0057`. JIT's public-only reflection lookup would skip the hidden member and read the base property. That's a false compile-time rejection of usage JIT accepts, not miscompiled code. It was already present in S0 and is unverified by a runner probe. It doesn't affect interface holders (an interface's `BaseType` is null, and JIT doesn't search base interfaces either). It needs its own decision before any change. S5 must not change `ResolveSkipProperty`'s lookup.
+   - **Plan housekeeping:** B5.9's reference to a nonexistent "Remaining risks" section now points to the Notes entries that record those risks: the 2026-11-06 B5 specification entry's decision (c), and the S4 checkpoint's known limitations.
+   - **Open:** S5's corrections are pending implementation and re-review; S6–S7 are pending; B5 remains in progress.
