@@ -413,4 +413,186 @@ public sealed class AotComposeDataRegistrationVerifyTests
                     """),
             },
             TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S4: the asynchronous member shapes emit their own readers on the same
+    // template. Task<T> reads the member, null-checks the pending task, awaits with ConfigureAwait,
+    // then shares the sync append path; ValueTask<T> is identical minus the null check (ValueTask<>
+    // can never be null).
+    [Fact]
+    public Task TaskOf_GeneratesAwaitingReader() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class ComposeDataTaskTests
+                    {
+                        public static System.Threading.Tasks.Task<IEnumerable<object>> Cases { get; } = null!;
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Task_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ValueTaskOf_GeneratesAwaitingReader() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class ComposeDataValueTaskTests
+                    {
+                        public static System.Threading.Tasks.ValueTask<Xunit.TheoryData<int, string>> Cases { get; }
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Value_task_rows_are_composed(int quantity, string label)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S4: a reference-type async row element is read through
+    // IAsyncEnumerable<object?> with WithCancellation + ConfigureAwait, checking cancellation before
+    // every row add, and wrapping every non-CompositionException/non-OperationCanceledException into
+    // MemberReadFailure.
+    [Fact]
+    public Task AsyncEnumerableReferenceElement_GeneratesReferenceReader() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class ComposeDataAsyncReferenceTests
+                    {
+                        public static System.Collections.Generic.IAsyncEnumerable<object[]> Cases() =>
+                            throw new System.NotImplementedException();
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Async_reference_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S4: a value-type async row element cannot be read by covariance, so the
+    // declared member type is enumerated manually through a file-local generic reader. The reader
+    // still performs the JIT reference-path runtime check first, and reproduces the reflection path's
+    // GetAsyncEnumerator/MoveNextAsync/DisposeAsync failure precedence exactly.
+    [Fact]
+    public Task AsyncEnumerableValueElement_GeneratesValueReader() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class ComposeDataAsyncValueTests
+                    {
+                        public static System.Collections.Generic.IAsyncEnumerable<(int Quantity, string Value)> Cases() =>
+                            throw new System.NotImplementedException();
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Async_value_rows_are_composed(int quantity, string label)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S4: a declared member type carrying one reference-type and one value-type
+    // IAsyncEnumerable<T> (the supported mixed case) is classified with
+    // AsyncRowElementIsValueType == false, so it takes the reference reader - never the value reader.
+    [Fact]
+    public Task AsyncEnumerableMixedReferenceAndValue_UsesReferenceReader() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class MixedAsyncRows
+                        : System.Collections.Generic.IAsyncEnumerable<int>,
+                          System.Collections.Generic.IAsyncEnumerable<object[]>
+                    {
+                        public System.Collections.Generic.IAsyncEnumerator<int> GetAsyncEnumerator(
+                            System.Threading.CancellationToken cancellationToken = default) =>
+                            throw new System.NotImplementedException();
+
+                        System.Collections.Generic.IAsyncEnumerator<object[]> System.Collections.Generic.IAsyncEnumerable<object[]>.GetAsyncEnumerator(
+                            System.Threading.CancellationToken cancellationToken) =>
+                            throw new System.NotImplementedException();
+                    }
+
+                    public sealed class ComposeDataAsyncMixedTests
+                    {
+                        public static MixedAsyncRows Cases() => throw new System.NotImplementedException();
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Mixed_async_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S4: the async reader composes with every S3 feature - profile, attribute
+    // seed, and [Shared] parameter resolution all still run through the unchanged ComposeRow scaffold.
+    [Fact]
+    public Task AsyncEnumerable_WithProfileSeedAndShared_ComposesRows() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class AsyncSnapshotProfile : Compono.ICompositionProfile
+                    {
+                        public void Configure(Compono.CompositionBuilder builder) { }
+                    }
+
+                    public sealed class ComposeDataAsyncProfileTests
+                    {
+                        public static System.Collections.Generic.IAsyncEnumerable<object[]> Cases() =>
+                            throw new System.NotImplementedException();
+
+                        [Compono.XunitV3.Aot.ComposeData<AsyncSnapshotProfile>("Cases", Seed = 42)]
+                        public void Async_profile_rows_are_composed(
+                            [Compono.XunitV3.Aot.Shared] string shared,
+                            string ordinary)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B5.11 / S4 review: Task<object> is a supported TaskOf source whose awaited value is
+    // an object, so the appended sync path reads it without any typed row element being named.
+    [Fact]
+    public Task TaskOfObject_GeneratesAwaitingReader() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class ComposeDataTaskObjectTests
+                    {
+                        public static System.Threading.Tasks.Task<object> Cases { get; } = null!;
+
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Task_object_rows_are_composed(string value)
+                        {
+                        }
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
 }

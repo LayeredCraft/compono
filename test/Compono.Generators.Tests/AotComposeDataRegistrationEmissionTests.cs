@@ -7,11 +7,12 @@ namespace Compono.Generators.Tests;
 /// <summary>
 /// Eligibility coverage for <c>AotComposeDataRegistrationEmitter</c>: an AOT <c>[ComposeData]</c>
 /// registration must be emitted only for the approved emission envelope (ADR-0070 / PLAN-0071
-/// B5.11) - every synchronous, non-generic member shape including the profile and profile-config
-/// arities, attribute-level seeds (a negative seed emits a registration whose factory body throws at
-/// execution time), and <c>[Shared]</c> parameters. Shapes still outside the envelope - active skip
-/// predicates, generic test-class bases, and the asynchronous return shapes - must produce NO
-/// registration (and no new diagnostics, in particular no CMP0050).
+/// B5.11) - every member return shape (<c>Sync</c>, <c>TaskOf</c>, <c>ValueTaskOf</c>, and
+/// <c>AsyncEnumerable</c> with both its reference- and value-element paths), every non-generic
+/// attribute arity, attribute-level seeds (a negative seed emits a registration whose factory body
+/// throws at execution time), and <c>[Shared]</c> parameters. Shapes still outside the envelope -
+/// active skip predicates and generic test-class bases - must produce NO registration (and no new
+/// diagnostics, in particular no CMP0050).
 /// </summary>
 public sealed class AotComposeDataRegistrationEmissionTests
 {
@@ -204,34 +205,47 @@ public sealed class AotComposeDataRegistrationEmissionTests
             """);
 
     [Fact]
-    public void TaskOfReturnShape_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void TaskOfReturnShape_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class TaskShapeTests
             {
-                public static System.Threading.Tasks.Task<object> Cases { get; } = null!;
+                public static System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object>> Cases { get; } = null!;
 
                 [Compono.XunitV3.Aot.ComposeData("Cases")]
-                public void Task_rows_are_not_emitted(string value) { }
+                public void Task_rows_are_emitted(string value) { }
             }
             """);
 
     [Fact]
-    public void ValueTaskOfReturnShape_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void TaskOfObjectReturnShape_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public sealed class TaskObjectShapeTests
+            {
+                public static System.Threading.Tasks.Task<object> Cases { get; } = null!;
+
+                [Compono.XunitV3.Aot.ComposeData("Cases")]
+                public void Task_object_rows_are_emitted(string value) { }
+            }
+            """);
+
+    [Fact]
+    public void ValueTaskOfReturnShape_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class ValueTaskShapeTests
             {
                 public static System.Threading.Tasks.ValueTask<Xunit.TheoryData<int, string>> Cases { get; }
 
                 [Compono.XunitV3.Aot.ComposeData("Cases")]
-                public void Value_task_rows_are_not_emitted(int quantity, string value) { }
+                public void Value_task_rows_are_emitted(int quantity, string value) { }
             }
             """);
 
     [Fact]
-    public void AsyncEnumerableReturnShape_DoesNotEmitRegistration() =>
-        AssertNoRegistration("""
+    public void AsyncEnumerableReturnShape_EmitsRegistration() =>
+        AssertRegistration("""
 
             public sealed class AsyncEnumerableShapeTests
             {
@@ -239,7 +253,21 @@ public sealed class AotComposeDataRegistrationEmissionTests
                     throw new System.NotImplementedException();
 
                 [Compono.XunitV3.Aot.ComposeData("Cases")]
-                public void Async_rows_are_not_emitted(string value) { }
+                public void Async_rows_are_emitted(string value) { }
+            }
+            """);
+
+    [Fact]
+    public void AsyncEnumerableValueElementReturnShape_EmitsRegistration() =>
+        AssertRegistration("""
+
+            public sealed class AsyncEnumerableValueShapeTests
+            {
+                public static System.Collections.Generic.IAsyncEnumerable<(int Quantity, string Value)> Cases() =>
+                    throw new System.NotImplementedException();
+
+                [Compono.XunitV3.Aot.ComposeData("Cases")]
+                public void Async_value_rows_are_emitted(int quantity, string value) { }
             }
             """);
 

@@ -46,7 +46,7 @@ file static class AotComposeDataRegistration
             SkipWhen = {{ attribute_metadata.skip_when_value }},
         };
 
-        var rawRows = ReadRows(memberDisplayName, methodDisplayName, cancellationToken);
+        var rawRows = {{ if is_sync }}ReadRows(memberDisplayName, methodDisplayName, cancellationToken){{ else }}await ReadRowsAsync(memberDisplayName, methodDisplayName, cancellationToken).ConfigureAwait(false){{ end }};
         var result = new global::Xunit.ITheoryDataRow[rawRows.Count];
         for (var index = 0; index < result.Length; index++)
         {
@@ -57,6 +57,7 @@ file static class AotComposeDataRegistration
 {{~ end ~}}
     }
 
+{{~ if is_sync ~}}
     private static global::System.Collections.Generic.List<object?> ReadRows(string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
     {
         object? source = ReadMember(static () => {{ member_read_expression }}, memberDisplayName, methodDisplayName);
@@ -87,6 +88,164 @@ file static class AotComposeDataRegistration
 
         return rows;
     }
+{{~ end ~}}
+{{~ if is_task_of || is_value_task_of ~}}
+    private static async global::System.Threading.Tasks.ValueTask<global::System.Collections.Generic.List<object?>> ReadRowsAsync(string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
+    {
+        var pending = ReadMember(static () => {{ member_read_expression }}, memberDisplayName, methodDisplayName);
+{{~ if is_task_of ~}}
+
+        if (pending is null)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.NullResult(memberDisplayName, methodDisplayName);
+        }
+{{~ end ~}}
+
+        object? awaited;
+        try
+        {
+            awaited = await pending.ConfigureAwait(false);
+        }
+        catch (global::System.Exception exception) when (exception is not global::Compono.CompositionException and not global::System.OperationCanceledException)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.MemberReadFailure(memberDisplayName, methodDisplayName, exception);
+        }
+
+        return AppendSync(awaited, memberDisplayName, methodDisplayName, cancellationToken);
+    }
+
+    private static global::System.Collections.Generic.List<object?> AppendSync(object? source, string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
+    {
+        if (source is null)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.NullResult(memberDisplayName, methodDisplayName);
+        }
+
+        if (!global::Compono.XunitV3.Aot.ComposeDataRows.IsSupportedCollectionResult(source))
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.UnsupportedReturnType(memberDisplayName, methodDisplayName, source.GetType());
+        }
+
+        var rows = new global::System.Collections.Generic.List<object?>();
+        try
+        {
+            foreach (var row in (global::System.Collections.IEnumerable)source)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(row);
+            }
+        }
+        catch (global::System.Exception exception) when (exception is not global::Compono.CompositionException and not global::System.OperationCanceledException)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.MemberReadFailure(memberDisplayName, methodDisplayName, exception);
+        }
+
+        return rows;
+    }
+{{~ end ~}}
+{{~ if is_async_enumerable ~}}
+    private static async global::System.Threading.Tasks.ValueTask<global::System.Collections.Generic.List<object?>> ReadRowsAsync(string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
+    {
+{{~ if is_async_enumerable_value_element ~}}
+        // A value-typed row element cannot be read through IAsyncEnumerable<object?> by covariance, so
+        // the declared member type is enumerated directly - but the runtime object still gets the same
+        // reference-path check Compono.XunitV3.ComposeDataAttribute performs first, so a runtime object
+        // that also presents IAsyncEnumerable<object?> reads its reference rows (JIT parity).
+        var source = ReadMember(static () => {{ member_read_expression }}, memberDisplayName, methodDisplayName);
+
+        if ((object?)source is null)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.NullResult(memberDisplayName, methodDisplayName);
+        }
+
+        if ((object)source is global::System.Collections.Generic.IAsyncEnumerable<object?>)
+        {
+            return await ReadReferenceRowsAsync(source, memberDisplayName, methodDisplayName, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await ReadValueRowsAsync(source, memberDisplayName, methodDisplayName, cancellationToken).ConfigureAwait(false);
+{{~ else ~}}
+        object? source = ReadMember(static () => {{ member_read_expression }}, memberDisplayName, methodDisplayName);
+
+        if (source is null)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.NullResult(memberDisplayName, methodDisplayName);
+        }
+
+        return await ReadReferenceRowsAsync(source, memberDisplayName, methodDisplayName, cancellationToken).ConfigureAwait(false);
+{{~ end ~}}
+    }
+
+    private static async global::System.Threading.Tasks.ValueTask<global::System.Collections.Generic.List<object?>> ReadReferenceRowsAsync(object source, string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
+    {
+        var rows = new global::System.Collections.Generic.List<object?>();
+        try
+        {
+            await foreach (var row in global::System.Threading.Tasks.TaskAsyncEnumerableExtensions.WithCancellation((global::System.Collections.Generic.IAsyncEnumerable<object?>)source, cancellationToken).ConfigureAwait(false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(row);
+            }
+        }
+        catch (global::System.Exception exception) when (exception is not global::Compono.CompositionException and not global::System.OperationCanceledException)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.MemberReadFailure(memberDisplayName, methodDisplayName, exception);
+        }
+
+        return rows;
+    }
+{{~ if is_async_enumerable_value_element ~}}
+
+    private static async global::System.Threading.Tasks.ValueTask<global::System.Collections.Generic.List<object?>> ReadValueRowsAsync<TElement>(global::System.Collections.Generic.IAsyncEnumerable<TElement> source, string memberDisplayName, string methodDisplayName, global::System.Threading.CancellationToken cancellationToken)
+    {
+        global::System.Collections.Generic.IAsyncEnumerator<TElement> enumerator;
+        try
+        {
+            enumerator = source.GetAsyncEnumerator(cancellationToken);
+        }
+        catch (global::System.Exception exception) when (exception is not global::System.OperationCanceledException)
+        {
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.MemberReadFailure(memberDisplayName, methodDisplayName, exception);
+        }
+
+        var rows = new global::System.Collections.Generic.List<object?>();
+        global::System.Exception? failure = null;
+        try
+        {
+            while (await enumerator.MoveNextAsync().ConfigureAwait(false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(enumerator.Current);
+            }
+        }
+        catch (global::System.Exception exception)
+        {
+            failure = exception;
+        }
+
+        try
+        {
+            await enumerator.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (global::System.Exception disposeException)
+        {
+            failure ??= disposeException;
+        }
+
+        if (failure is not null)
+        {
+            if (failure is global::System.OperationCanceledException or global::Compono.CompositionException)
+            {
+                global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+            }
+
+            throw global::Compono.XunitV3.Aot.ComposeDataRows.MemberReadFailure(memberDisplayName, methodDisplayName, failure);
+        }
+
+        return rows;
+    }
+{{~ end ~}}
+{{~ end ~}}
 
     private static T ReadMember<T>(global::System.Func<T> read, string memberDisplayName, string methodDisplayName)
     {

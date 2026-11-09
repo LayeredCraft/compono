@@ -612,6 +612,492 @@ public sealed class ComposeDataEmissionTests : ComposeDataEmissionBase
             exception.Message);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // S4: asynchronous member sources. Success paths are ordinary [Theory] targets the runner
+    // executes directly; the generated factory awaits the member (Task<T>/ValueTask<T>) or the
+    // async-enumerable reader before composing rows.
+    // ---------------------------------------------------------------------------------------------
+
+    public static async Task<IEnumerable<object[]>> TaskSourceRows()
+    {
+        await Task.Yield();
+        return [new object[] { "task" }];
+    }
+
+    [Theory]
+    [ComposeData(nameof(TaskSourceRows))]
+    public void Task_source_rows_are_composed(string label) => Assert.Equal("task", label);
+
+    public static Task<object> TaskObjectRows() =>
+        Task.FromResult<object>(new object[] { new object[] { "task-object" } });
+
+    [Theory]
+    [ComposeData(nameof(TaskObjectRows))]
+    public void Task_object_source_rows_are_composed(string label) => Assert.Equal("task-object", label);
+
+    public static ValueTask<IEnumerable<object[]>> ValueTaskSourceRows() =>
+        new([new object[] { "value-task" }]);
+
+    [Theory]
+    [ComposeData(nameof(ValueTaskSourceRows))]
+    public void ValueTask_source_rows_are_composed(string label) => Assert.Equal("value-task", label);
+
+    public static async IAsyncEnumerable<object[]> AsyncReferenceRows()
+    {
+        await Task.Yield();
+        yield return new object[] { "async-ref" };
+    }
+
+    [Theory]
+    [ComposeData(nameof(AsyncReferenceRows))]
+    public void Async_reference_element_rows_are_composed(string label) => Assert.Equal("async-ref", label);
+
+    public static async IAsyncEnumerable<(int Quantity, string Value)> AsyncValueRows()
+    {
+        await Task.Yield();
+        yield return (5, "async-value");
+    }
+
+    [Theory]
+    [ComposeData(nameof(AsyncValueRows))]
+    public void Async_value_element_rows_are_composed(int quantity, string value)
+    {
+        Assert.Equal(5, quantity);
+        Assert.Equal("async-value", value);
+    }
+
+    public static async Task<IEnumerable<object[]>> TaskProfileRows()
+    {
+        await Task.Yield();
+        return [Array.Empty<object>()];
+    }
+
+    [Theory]
+    [ComposeData<PersistentWidgetProfile>(nameof(TaskProfileRows))]
+    public void Async_source_combines_with_profile(OrderService service) =>
+        Assert.Equal("profile-registered", service.Name);
+
+    public static async Task<IEnumerable<object?[]>> TaskConfigRows()
+    {
+        await Task.Yield();
+        return [new object?[] { new WidgetConfig("async-widget", 9), "async-label" }];
+    }
+
+    [Theory]
+    [ComposeData<ConfiguredWidgetProfile, WidgetConfig>(nameof(TaskConfigRows))]
+    public void Async_source_combines_with_profile_config(string label, OrderService service, int quantity)
+    {
+        Assert.Equal("async-label", label);
+        Assert.Equal("async-widget", service.Name);
+        Assert.Equal(9, quantity);
+    }
+
+    public static async Task<IEnumerable<object[]>> TaskSharedRows()
+    {
+        await Task.Yield();
+        return [Array.Empty<object>()];
+    }
+
+    [Theory]
+    [ComposeData(nameof(TaskSharedRows))]
+    public void Async_source_combines_with_shared_parameter([Shared] OrderService shared, OrderService repeat)
+    {
+        Assert.Same(shared, repeat);
+        Assert.False(string.IsNullOrEmpty(shared.Name));
+    }
+
+    [Fact]
+    public async Task AsyncAttributeSeed_IsAppliedToEveryRow()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Async_attribute_seed_is_applied));
+
+        Assert.Equal(2, rows.Count);
+        foreach (var row in rows)
+        {
+            var dataRow = Assert.IsType<TheoryDataRow>(row);
+            Assert.Equal("55", dataRow.Traits[ComposeDataRows.SeedTraitName].Single());
+            Assert.Equal("async-seed", row.GetData()[0]);
+        }
+    }
+
+    [Fact]
+    public async Task AsyncRows_PreserveOrderAfterMaterialization()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Async_rows_preserve_order));
+
+        Assert.Equal(3, rows.Count);
+        var rowArray = rows.ToArray();
+        Assert.Equal("first", rowArray[0].GetData()[0]);
+        Assert.Equal("second", rowArray[1].GetData()[0]);
+        Assert.Equal("third", rowArray[2].GetData()[0]);
+    }
+
+    [Fact]
+    public async Task AsyncMixedReferenceAndValue_TakesTheReferenceReaderAtRuntime()
+    {
+        // Declared member type is IAsyncEnumerable<(int, string)> (a value element -> the value reader
+        // is generated), but the runtime object also implements IAsyncEnumerable<string>. IAsyncEnumerable
+        // is covariant, so the runtime object is an IAsyncEnumerable<object?> and the generated value
+        // reader takes the reference path first - exactly the JIT runtime-object path selection.
+        //
+        // The reference reader therefore reads the string rows, and each string is then rejected as an
+        // unsupported row shape (a string is not ITheoryDataRow, object?[], or ITuple). Had the value
+        // reader been taken instead, its GetAsyncEnumerator would have thrown the mixed source's
+        // "value-element path" guard, so this failure proves the reference path was selected.
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_mixed_rows_read_reference_path)).AsTask());
+
+        Assert.Contains("row has unsupported type 'System.String'", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("value-element path", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AsyncNullTask_ReportsNullResult()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_null_task_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.NullTaskRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_null_task_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' returned null.",
+            exception.Message);
+        Assert.Null(exception.InnerException);
+        Assert.Null(exception.Diagnostic);
+    }
+
+    [Fact]
+    public async Task AsyncTaskReadThrows_ReportsMemberReadFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_task_read_throws_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingTaskRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_task_read_throws_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' failed while reading its value: task read boom",
+            exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncTaskReadThrowsCompositionException_IsWrappedAndPreservesDiagnostic()
+    {
+        // A member that throws CompositionException while being invoked is still wrapped by ReadMember
+        // (which only lets OperationCanceledException through), carrying the diagnostic onto the
+        // MemberReadFailure - the JIT InvokeRead behaviour.
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_task_read_throws_composition_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingTaskCompositionRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_task_read_throws_composition_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' failed while reading its value: diagnosed task read failure",
+            exception.Message);
+        Assert.Same(ComposeDataEmissionFailureTargets.TaskReadDiagnostic, exception.Diagnostic);
+        Assert.IsType<CompositionException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncTaskAwaitThrows_ReportsMemberReadFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_task_await_throws_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingAwaitTaskRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_task_await_throws_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' failed while reading its value: await boom",
+            exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncValueTaskAwaitThrows_ReportsMemberReadFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_task_await_throws_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingAwaitValueTaskRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_value_task_await_throws_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' failed while reading its value: await value-task boom",
+            exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncTaskInvalidRow_ReportsRowFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_task_null_value_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.TaskNullValueRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_task_null_value_fails));
+        var expectedPrefix =
+            $"ComposeData row 0 from '{member}' for '{method}' failed: " +
+            $"Row value for parameter 'label' on '{method}' is null, but the parameter is not nullable.";
+
+        AssertFailureWithRowSeedLine(exception.Message, expectedPrefix);
+    }
+
+    [Fact]
+    public async Task AsyncReferenceEnumerationThrows_ReportsMemberReadFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_reference_enumeration_throws_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingAsyncReferenceEnumeratorRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_reference_enumeration_throws_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' failed while reading its value: async enumeration boom",
+            exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncReferenceEnumerationThrowsCompositionException_PropagatesUnwrapped()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_reference_enumeration_throws_composition_fails)).AsTask());
+
+        Assert.Same(ComposeDataEmissionFailureTargets.AsyncEnumerationDiagnostic, exception.Diagnostic);
+        Assert.Equal("diagnosed async enumeration failure", exception.Message);
+    }
+
+    [Fact]
+    public async Task AsyncValueEnumerationThrows_ReportsMemberReadFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_enumeration_throws_fails)).AsTask());
+
+        var member = MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingAsyncValueEnumeratorRows));
+        var method = MethodDisplay(nameof(ComposeDataEmissionFailureTargets.Async_value_enumeration_throws_fails));
+
+        Assert.Equal(
+            $"ComposeData member '{member}' for '{method}' failed while reading its value: async value enumeration boom",
+            exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncValueEnumerationCancelled_PropagatesOperationCanceled()
+    {
+        // A value-element async enumerable that faults with OperationCanceledException: the generated
+        // manual loop captures the failure, disposes the enumerator, then rethrows it verbatim (never
+        // wrapped in a MemberReadFailure) - the JIT AppendAsyncByReflectionAsync rule.
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_enumeration_cancelled)).AsTask());
+
+        Assert.Equal("async value cancellation", exception.Message);
+    }
+
+    [Fact]
+    public async Task AsyncReferenceEnumerationCancelled_PropagatesOperationCanceled()
+    {
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_reference_enumeration_cancelled)).AsTask());
+
+        Assert.Equal("async reference cancellation", exception.Message);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // S4 review: awaited CompositionException passes through unwrapped (both Task<T> and
+    // ValueTask<T>). This is distinct from a synchronous member-invocation failure, which ReadMember
+    // wraps - see AsyncTaskReadThrowsCompositionException_IsWrappedAndPreservesDiagnostic.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AsyncTaskAwaitThrowsCompositionException_PropagatesUnwrapped()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_task_await_throws_composition_fails)).AsTask());
+
+        // The await rethrows the fault verbatim: the same diagnostic, the original message, and no
+        // extra wrapping.
+        Assert.Equal("diagnosed await failure", exception.Message);
+        Assert.Same(ComposeDataEmissionFailureTargets.AwaitCompositionDiagnostic, exception.Diagnostic);
+        Assert.Null(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncValueTaskAwaitThrowsCompositionException_PropagatesUnwrapped()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_task_await_throws_composition_fails)).AsTask());
+
+        Assert.Equal("diagnosed await failure", exception.Message);
+        Assert.Same(ComposeDataEmissionFailureTargets.AwaitCompositionDiagnostic, exception.Diagnostic);
+        Assert.Null(exception.InnerException);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // S4 review: GetAsyncEnumerator exceptions. The reference reader's filter exempts
+    // CompositionException (passes through); the value reader's filter exempts only
+    // OperationCanceledException (wraps), and the wrapper still preserves the diagnostic and exposes
+    // the original as InnerException.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AsyncReferenceGetEnumeratorThrowsCompositionException_PropagatesUnwrapped()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_reference_get_enumerator_throws_composition_fails)).AsTask());
+
+        Assert.Equal("diagnosed reference GetAsyncEnumerator failure", exception.Message);
+        Assert.Same(ComposeDataEmissionFailureTargets.ReferenceEnumeratorDiagnostic, exception.Diagnostic);
+        Assert.Null(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AsyncValueGetEnumeratorThrowsCompositionException_IsWrappedWithDiagnostic()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_get_enumerator_throws_composition_fails)).AsTask());
+
+        Assert.StartsWith(
+            $"ComposeData member '{MemberDisplay(nameof(ComposeDataEmissionFailureTargets.ThrowingValueGetEnumeratorRows))}'",
+            exception.Message);
+        Assert.Contains(
+            "failed while reading its value: diagnosed value GetAsyncEnumerator failure",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Same(ComposeDataEmissionFailureTargets.ValueEnumeratorDiagnostic, exception.Diagnostic);
+
+        var inner = Assert.IsType<CompositionException>(exception.InnerException);
+        Assert.Same(ComposeDataEmissionFailureTargets.ValueEnumeratorDiagnostic, inner.Diagnostic);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // S4 review: DisposeAsync failure precedence. The reference reader uses await foreach, so a
+    // disposal failure replaces the original enumeration failure (the finally wins). The value
+    // reader's manual loop keeps the original failure, and a disposal failure after a successful
+    // enumeration becomes the reader failure.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AsyncReferenceDisposeFailure_ReplacesEnumerationFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_reference_dispose_replaces_failure)).AsTask());
+
+        Assert.Contains("reference dispose boom", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("original reference enumeration", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            "reference dispose boom",
+            Assert.IsType<InvalidOperationException>(exception.InnerException).Message);
+    }
+
+    [Fact]
+    public async Task AsyncValueDisposeFailure_KeepsOriginalEnumerationFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_dispose_keeps_original_failure)).AsTask());
+
+        Assert.Contains("original value enumeration", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("value dispose boom", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            "original value enumeration",
+            Assert.IsType<InvalidOperationException>(exception.InnerException).Message);
+    }
+
+    [Fact]
+    public async Task AsyncValueDisposeFailureAfterSuccess_ReportsMemberReadFailure()
+    {
+        var exception = await Assert.ThrowsAsync<CompositionException>(
+            () => RegisteredComposeDataFactory.InvokeAsync(
+                FailureTargetsIndex,
+                nameof(ComposeDataEmissionFailureTargets.Async_value_dispose_failure_after_success)).AsTask());
+
+        Assert.Contains("value dispose after success boom", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            "value dispose after success boom",
+            Assert.IsType<InvalidOperationException>(exception.InnerException).Message);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // S4 review: a source implementing both the value- and reference-element IAsyncEnumerable<T>
+    // interfaces takes the reference path and reads its valid rows - here declared concretely, and
+    // again via runtime covariance where the declared element is a value type.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task StaticMixedSource_ReadsReferenceRowsInOrder()
+    {
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Static_mixed_source_reads_reference_rows));
+
+        Assert.Equal(2, rows.Count);
+        var rowArray = rows.ToArray();
+        Assert.Equal("dual-a", rowArray[0].GetData()[0]);
+        Assert.Equal("dual-b", rowArray[1].GetData()[0]);
+    }
+
+    [Fact]
+    public async Task RuntimeCovariance_ReadsReferenceRowsInOrder()
+    {
+        // Declared member type is IAsyncEnumerable<(int, string)> (a value element, so the generator
+        // emits the value reader), but the runtime object also implements IAsyncEnumerable<object[]> and
+        // is therefore an IAsyncEnumerable<object?> via covariance - the reference path is selected and
+        // reads the object[]-side rows successfully. The value path's GetAsyncEnumerator would have
+        // thrown the mixed source's guard, so a successful read proves the reference path was taken.
+        var rows = await RegisteredComposeDataFactory.InvokeAsync(
+            FailureTargetsIndex,
+            nameof(ComposeDataEmissionFailureTargets.Async_covariant_rows_read_reference_path));
+
+        Assert.Equal(2, rows.Count);
+        var rowArray = rows.ToArray();
+        Assert.Equal("dual-a", rowArray[0].GetData()[0]);
+        Assert.Equal("dual-b", rowArray[1].GetData()[0]);
+    }
+
     private const string FailureTargetsIndex =
         "global::Compono.XunitV3.Aot.Tests.ComposeDataEmissionFailureTargets";
 
@@ -820,6 +1306,267 @@ public sealed class ComposeDataEmissionFailureTargets
 
     [ComposeData<CountingWidgetProfile>(nameof(TwoProfileRows))]
     public void Profile_is_constructed_once_per_row(OrderService service) => _ = service;
+
+    // ---------------------------------------------------------------------------------------------
+    // S4: asynchronous member sources - failure / metadata paths driven through the registered
+    // factory from the [Fact] drivers above.
+    // ---------------------------------------------------------------------------------------------
+
+    public static CompositionDiagnostic TaskReadDiagnostic { get; } = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(string),
+        Path = "string",
+        Trace = Array.Empty<ProviderAttempt>(),
+        Seed = 3,
+        Message = "diagnosed task read failure",
+    };
+
+    public static Task<IEnumerable<object[]>> NullTaskRows() => null!;
+
+    [ComposeData(nameof(NullTaskRows))]
+    public void Async_null_task_fails(string label) => _ = label;
+
+    public static Task<IEnumerable<object[]>> ThrowingTaskRows() =>
+        throw new InvalidOperationException("task read boom");
+
+    [ComposeData(nameof(ThrowingTaskRows))]
+    public void Async_task_read_throws_fails(string label) => _ = label;
+
+    public static Task<IEnumerable<object[]>> ThrowingTaskCompositionRows() =>
+        throw new CompositionException(TaskReadDiagnostic);
+
+    [ComposeData(nameof(ThrowingTaskCompositionRows))]
+    public void Async_task_read_throws_composition_fails(string label) => _ = label;
+
+    public static async Task<IEnumerable<object[]>> ThrowingAwaitTaskRows()
+    {
+        await Task.Yield();
+        throw new InvalidOperationException("await boom");
+    }
+
+    [ComposeData(nameof(ThrowingAwaitTaskRows))]
+    public void Async_task_await_throws_fails(string label) => _ = label;
+
+    public static async ValueTask<IEnumerable<object[]>> ThrowingAwaitValueTaskRows()
+    {
+        await Task.Yield();
+        throw new InvalidOperationException("await value-task boom");
+    }
+
+    [ComposeData(nameof(ThrowingAwaitValueTaskRows))]
+    public void Async_value_task_await_throws_fails(string label) => _ = label;
+
+    public static async Task<IEnumerable<object?[]>> TaskNullValueRows()
+    {
+        await Task.Yield();
+        return [new object?[] { null }];
+    }
+
+    [ComposeData(nameof(TaskNullValueRows))]
+    public void Async_task_null_value_fails(string label) => _ = label;
+
+    public static async IAsyncEnumerable<object[]> ThrowingAsyncReferenceEnumeratorRows()
+    {
+        await Task.Yield();
+        yield return new object[] { "first" };
+        throw new InvalidOperationException("async enumeration boom");
+    }
+
+    [ComposeData(nameof(ThrowingAsyncReferenceEnumeratorRows))]
+    public void Async_reference_enumeration_throws_fails(string label) => _ = label;
+
+    public static CompositionDiagnostic AsyncEnumerationDiagnostic { get; } = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(string),
+        Path = "string",
+        Trace = Array.Empty<ProviderAttempt>(),
+        Seed = 4,
+        Message = "diagnosed async enumeration failure",
+    };
+
+    public static async IAsyncEnumerable<object[]> ThrowingAsyncReferenceEnumeratorCompositionRows()
+    {
+        await Task.Yield();
+        yield return new object[] { "first" };
+        throw new CompositionException(AsyncEnumerationDiagnostic);
+    }
+
+    [ComposeData(nameof(ThrowingAsyncReferenceEnumeratorCompositionRows))]
+    public void Async_reference_enumeration_throws_composition_fails(string label) => _ = label;
+
+    public static async IAsyncEnumerable<(int Quantity, string Value)> ThrowingAsyncValueEnumeratorRows()
+    {
+        await Task.Yield();
+        yield return (1, "first");
+        throw new InvalidOperationException("async value enumeration boom");
+    }
+
+    [ComposeData(nameof(ThrowingAsyncValueEnumeratorRows))]
+    public void Async_value_enumeration_throws_fails(int quantity, string value)
+    {
+        _ = quantity;
+        _ = value;
+    }
+
+    public static async IAsyncEnumerable<(int Quantity, string Value)> CancelledAsyncValueRows()
+    {
+        await Task.Yield();
+        yield return (0, "cancelled");
+        throw new OperationCanceledException("async value cancellation");
+    }
+
+    [ComposeData(nameof(CancelledAsyncValueRows))]
+    public void Async_value_enumeration_cancelled(int quantity, string value)
+    {
+        _ = quantity;
+        _ = value;
+    }
+
+    public static async IAsyncEnumerable<object[]> CancelledAsyncReferenceRows()
+    {
+        await Task.Yield();
+        yield return new object[] { "cancelled" };
+        throw new OperationCanceledException("async reference cancellation");
+    }
+
+    [ComposeData(nameof(CancelledAsyncReferenceRows))]
+    public void Async_reference_enumeration_cancelled(string label) => _ = label;
+
+    public static async Task<IEnumerable<object[]>> AsyncSeedRows()
+    {
+        await Task.Yield();
+        return [new object[] { "async-seed" }, new object[] { "async-seed" }];
+    }
+
+    [ComposeData(nameof(AsyncSeedRows), Seed = 55)]
+    public void Async_attribute_seed_is_applied(string label) => _ = label;
+
+    public static async Task<IEnumerable<object[]>> OrderedAsyncRows()
+    {
+        await Task.Yield();
+        return
+        [
+            new object[] { "first" },
+            new object[] { "second" },
+            new object[] { "third" },
+        ];
+    }
+
+    [ComposeData(nameof(OrderedAsyncRows))]
+    public void Async_rows_preserve_order(string label) => _ = label;
+
+    public static IAsyncEnumerable<(int Quantity, string Value)> MixedAsyncIntStringRowsSource() =>
+        new MixedAsyncIntStringRows();
+
+    [ComposeData(nameof(MixedAsyncIntStringRowsSource))]
+    public void Async_mixed_rows_read_reference_path(string value) => _ = value;
+
+    // ---------------------------------------------------------------------------------------------
+    // S4 review additions.
+    // ---------------------------------------------------------------------------------------------
+
+    public static CompositionDiagnostic AwaitCompositionDiagnostic { get; } = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(string),
+        Path = "string",
+        Trace = Array.Empty<ProviderAttempt>(),
+        Seed = 5,
+        Message = "diagnosed await failure",
+    };
+
+    public static async Task<IEnumerable<object[]>> ThrowingAwaitTaskCompositionRows()
+    {
+        await Task.Yield();
+        throw new CompositionException(AwaitCompositionDiagnostic);
+    }
+
+    [ComposeData(nameof(ThrowingAwaitTaskCompositionRows))]
+    public void Async_task_await_throws_composition_fails(string label) => _ = label;
+
+    public static async ValueTask<IEnumerable<object[]>> ThrowingAwaitValueTaskCompositionRows()
+    {
+        await Task.Yield();
+        throw new CompositionException(AwaitCompositionDiagnostic);
+    }
+
+    [ComposeData(nameof(ThrowingAwaitValueTaskCompositionRows))]
+    public void Async_value_task_await_throws_composition_fails(string label) => _ = label;
+
+    public static CompositionDiagnostic ReferenceEnumeratorDiagnostic { get; } = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(string),
+        Path = "string",
+        Trace = Array.Empty<ProviderAttempt>(),
+        Seed = 6,
+        Message = "diagnosed reference GetAsyncEnumerator failure",
+    };
+
+    public static IAsyncEnumerable<object[]> ThrowingReferenceGetEnumeratorRows() =>
+        new ThrowingReferenceEnumeratorSource();
+
+    [ComposeData(nameof(ThrowingReferenceGetEnumeratorRows))]
+    public void Async_reference_get_enumerator_throws_composition_fails(string label) => _ = label;
+
+    public static CompositionDiagnostic ValueEnumeratorDiagnostic { get; } = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(string),
+        Path = "string",
+        Trace = Array.Empty<ProviderAttempt>(),
+        Seed = 7,
+        Message = "diagnosed value GetAsyncEnumerator failure",
+    };
+
+    public static IAsyncEnumerable<(int Quantity, string Value)> ThrowingValueGetEnumeratorRows() =>
+        new ThrowingValueEnumeratorSource();
+
+    [ComposeData(nameof(ThrowingValueGetEnumeratorRows))]
+    public void Async_value_get_enumerator_throws_composition_fails(int quantity, string value)
+    {
+        _ = quantity;
+        _ = value;
+    }
+
+    public static IAsyncEnumerable<object[]> ReferenceDisposeReplacesRows() =>
+        new ReferenceDisposeReplacesSource();
+
+    [ComposeData(nameof(ReferenceDisposeReplacesRows))]
+    public void Async_reference_dispose_replaces_failure(string label) => _ = label;
+
+    public static IAsyncEnumerable<(int Quantity, string Value)> ValueDisposeKeepsOriginalRows() =>
+        new ValueDisposeKeepsOriginalSource();
+
+    [ComposeData(nameof(ValueDisposeKeepsOriginalRows))]
+    public void Async_value_dispose_keeps_original_failure(int quantity, string value)
+    {
+        _ = quantity;
+        _ = value;
+    }
+
+    public static IAsyncEnumerable<(int Quantity, string Value)> ValueDisposeAfterSuccessRows() =>
+        new ValueDisposeAfterSuccessSource();
+
+    [ComposeData(nameof(ValueDisposeAfterSuccessRows))]
+    public void Async_value_dispose_failure_after_success(int quantity, string value)
+    {
+        _ = quantity;
+        _ = value;
+    }
+
+    public static MixedAsyncValueAndReferenceRows StaticMixedRowsSource() => new();
+
+    [ComposeData(nameof(StaticMixedRowsSource))]
+    public void Static_mixed_source_reads_reference_rows(string label) => _ = label;
+
+    public static IAsyncEnumerable<(int Quantity, string Value)> CovariantReferenceRows() =>
+        new MixedAsyncValueAndReferenceRows();
+
+    [ComposeData(nameof(CovariantReferenceRows))]
+    public void Async_covariant_rows_read_reference_path(string label) => _ = label;
 }
 
 public sealed class SeededWidgetProfile : ICompositionProfile
@@ -905,4 +1652,153 @@ public sealed class CountingWidgetProfile : ICompositionProfile
 
     public void Configure(CompositionBuilder builder) =>
         builder.Register<OrderService>(() => new OrderService($"instance-{_instance}"));
+}
+
+/// <summary>
+/// An async-row source whose declared, statically-visible element type is <c>(int, string)</c> (a value
+/// type), so the generator emits the value-element reader - yet the runtime object also implements
+/// <c>IAsyncEnumerable&lt;string&gt;</c>. Because <c>IAsyncEnumerable&lt;out T&gt;</c> is covariant, the
+/// object is an <c>IAsyncEnumerable&lt;object?&gt;</c> at run time, and the generated reader's runtime
+/// check selects the reference path - reading the string rows. This is the JIT runtime-object path
+/// selection reproduced statically (ADR-0070 Amendment 4 / PLAN-0071 B5.11).
+/// </summary>
+public sealed class MixedAsyncIntStringRows : IAsyncEnumerable<(int Quantity, string Value)>, IAsyncEnumerable<string>
+{
+    public IAsyncEnumerator<(int Quantity, string Value)> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("the value-element path must not be taken for this runtime object");
+
+    IAsyncEnumerator<string> IAsyncEnumerable<string>.GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken) =>
+        new StringEnumerator();
+
+    private sealed class StringEnumerator : IAsyncEnumerator<string>
+    {
+        private int _index;
+
+        public string Current => _index switch
+        {
+            1 => "mixed-a",
+            2 => "mixed-b",
+            _ => string.Empty,
+        };
+
+        public ValueTask DisposeAsync() => default;
+
+        public ValueTask<bool> MoveNextAsync() => new(++_index <= 2);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// S4 review: hand-written sources/enumerators used to place a failure at a specific stage
+// (GetAsyncEnumerator or DisposeAsync) that compiler-generated iterators cannot express.
+// ---------------------------------------------------------------------------------------------
+
+/// <summary>Throws a <see cref="CompositionException"/> from the reference-element GetAsyncEnumerator.</summary>
+public sealed class ThrowingReferenceEnumeratorSource : IAsyncEnumerable<object[]>
+{
+    public IAsyncEnumerator<object[]> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        throw new CompositionException(ComposeDataEmissionFailureTargets.ReferenceEnumeratorDiagnostic);
+}
+
+/// <summary>Throws a <see cref="CompositionException"/> from the value-element GetAsyncEnumerator.</summary>
+public sealed class ThrowingValueEnumeratorSource : IAsyncEnumerable<(int Quantity, string Value)>
+{
+    public IAsyncEnumerator<(int Quantity, string Value)> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        throw new CompositionException(ComposeDataEmissionFailureTargets.ValueEnumeratorDiagnostic);
+}
+
+/// <summary>Reference path: a disposal failure that must replace the original enumeration failure.</summary>
+public sealed class ReferenceDisposeReplacesSource : IAsyncEnumerable<object[]>
+{
+    public IAsyncEnumerator<object[]> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        new Enumerator();
+
+    private sealed class Enumerator : IAsyncEnumerator<object[]>
+    {
+        private int _index;
+
+        public object[] Current => new object[] { "reference-dispose-first" };
+
+        public ValueTask DisposeAsync() => throw new InvalidOperationException("reference dispose boom");
+
+        public ValueTask<bool> MoveNextAsync()
+        {
+            _index++;
+            return _index == 1
+                ? new ValueTask<bool>(true)
+                : throw new InvalidOperationException("original reference enumeration");
+        }
+    }
+}
+
+/// <summary>Value path: the original enumeration failure must win over a disposal failure.</summary>
+public sealed class ValueDisposeKeepsOriginalSource : IAsyncEnumerable<(int Quantity, string Value)>
+{
+    public IAsyncEnumerator<(int Quantity, string Value)> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        new Enumerator();
+
+    private sealed class Enumerator : IAsyncEnumerator<(int Quantity, string Value)>
+    {
+        private int _index;
+
+        public (int Quantity, string Value) Current => (1, "value-dispose-first");
+
+        public ValueTask DisposeAsync() => throw new InvalidOperationException("value dispose boom");
+
+        public ValueTask<bool> MoveNextAsync()
+        {
+            _index++;
+            return _index == 1
+                ? new ValueTask<bool>(true)
+                : throw new InvalidOperationException("original value enumeration");
+        }
+    }
+}
+
+/// <summary>Value path: a disposal failure after a successful enumeration becomes the reader failure.</summary>
+public sealed class ValueDisposeAfterSuccessSource : IAsyncEnumerable<(int Quantity, string Value)>
+{
+    public IAsyncEnumerator<(int Quantity, string Value)> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        new Enumerator();
+
+    private sealed class Enumerator : IAsyncEnumerator<(int Quantity, string Value)>
+    {
+        private int _index;
+
+        public (int Quantity, string Value) Current => (7, "value-dispose-ok");
+
+        public ValueTask DisposeAsync() => throw new InvalidOperationException("value dispose after success boom");
+
+        public ValueTask<bool> MoveNextAsync() => new(++_index == 1);
+    }
+}
+
+/// <summary>
+/// A source whose declared concrete type implements both the value-element
+/// (<c>IAsyncEnumerable&lt;(int, string)&gt;</c>) and the reference-element (<c>IAsyncEnumerable&lt;object[]&gt;</c>)
+/// interfaces. The runtime reference-path check wins and reads the object[]-side rows; the value-side
+/// GetAsyncEnumerator throws a guard, so a successful read proves the reference path was taken.
+/// </summary>
+public sealed class MixedAsyncValueAndReferenceRows : IAsyncEnumerable<(int Quantity, string Value)>, IAsyncEnumerable<object[]>
+{
+    public IAsyncEnumerator<(int Quantity, string Value)> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("the value-element path must not be taken for this runtime object");
+
+    IAsyncEnumerator<object[]> IAsyncEnumerable<object[]>.GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken) =>
+        new ReferenceEnumerator();
+
+    private sealed class ReferenceEnumerator : IAsyncEnumerator<object[]>
+    {
+        private int _index;
+
+        public object[] Current => _index switch
+        {
+            1 => new object[] { "dual-a" },
+            2 => new object[] { "dual-b" },
+            _ => Array.Empty<object>(),
+        };
+
+        public ValueTask DisposeAsync() => default;
+
+        public ValueTask<bool> MoveNextAsync() => new(++_index <= 2);
+    }
 }

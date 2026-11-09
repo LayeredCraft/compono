@@ -17,30 +17,40 @@ namespace Compono.Generators.Emitters;
 /// (ADR-0070 / PLAN-0071 B5).
 /// </summary>
 /// <remarks>
-/// This slice (S3) emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
-/// the synchronous member shape, every non-generic attribute arity (plain, <c>TProfile</c>, and
+/// This slice (S4) emits the exact feature envelope <see cref="IsWithinEmissionEnvelope"/> describes:
+/// every member shape (<see cref="AotComposeDataReturnShape.Sync"/>,
+/// <see cref="AotComposeDataReturnShape.TaskOf"/>, <see cref="AotComposeDataReturnShape.ValueTaskOf"/>,
+/// and <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> - the last with both the reference- and
+/// value-element paths), every non-generic attribute arity (plain, <c>TProfile</c>, and
 /// <c>TProfile, TConfig</c>), attribute-level seeds (including a negative seed, whose whole factory
 /// body throws the same <c>NegativeAttributeSeed</c> failure the reflection path produces), and
-/// <c>[Shared]</c> parameters. Every other shape - active skip predicates, generic test-class bases,
-/// and the asynchronous <c>TaskOf</c>/<c>ValueTaskOf</c>/<c>AsyncEnumerable</c> shapes - is discovered
-/// (and its own diagnostics reported) but emitted by a later slice against this same template, so
-/// emitting it here would silently discard its semantics.
+/// <c>[Shared]</c> parameters. The remaining shapes - active skip predicates and generic test-class
+/// bases - are discovered (and their own diagnostics reported) but emitted by a later slice against
+/// this same template, so emitting them here would silently discard their semantics.
 /// </remarks>
 internal static class AotComposeDataRegistrationEmitter
 {
     /// <summary>
-    /// The exact feature envelope this slice (S3) can emit correctly: the synchronous, non-generic,
-    /// no-active-skip form of <c>[ComposeData]</c> for every approved attribute arity, including
-    /// profiles, profile configuration values, attribute-level seeds, and <c>[Shared]</c> parameters.
-    /// Every path that could emit a registration gates on this single predicate, so a model outside
-    /// the envelope produces no registration at all rather than a registration missing the feature's
-    /// semantics.
+    /// The exact feature envelope this slice (S4) can emit correctly: every supported member source
+    /// shape - the synchronous <see cref="AotComposeDataReturnShape.Sync"/> collection, the awaited
+    /// <see cref="AotComposeDataReturnShape.TaskOf"/> and
+    /// <see cref="AotComposeDataReturnShape.ValueTaskOf"/> results, and the
+    /// <see cref="AotComposeDataReturnShape.AsyncEnumerable"/> source (both the reference-element and
+    /// value-element paths) - for every non-generic, no-active-skip form of <c>[ComposeData]</c> across
+    /// every approved attribute arity, including profiles, profile configuration values, attribute-level
+    /// seeds, and <c>[Shared]</c> parameters. Every path that could emit a registration gates on this
+    /// single predicate, so a model outside the envelope produces no registration at all rather than a
+    /// registration missing the feature's semantics.
     /// </summary>
     /// <param name="method">The discovered <c>[ComposeData]</c> model.</param>
     /// <returns><see langword="true"/> when the model is within the emission envelope.</returns>
     public static bool IsWithinEmissionEnvelope(AotComposeDataMethodInfo method)
     {
-        if (method.ReturnShape != AotComposeDataReturnShape.Sync
+        // Every supported source shape is emittable: the synchronous collection, the awaited
+        // Task<T>/ValueTask<T> results, and async-enumerable sources (both the reference-element and
+        // value-element paths). The shapes still outside the envelope are active skip predicates and
+        // generic test-class bases, whose emission belongs to a later slice.
+        if (method.ReturnShape is null
             || method.MemberKind is null
             || method.IsGenericTestClass
             || method.SkipUnless is not null
@@ -101,6 +111,15 @@ internal static class AotComposeDataRegistrationEmitter
             HasConfig = method.AttributeArity == 2,
             ConfigTypeName = method.FullyQualifiedConfigTypeName ?? "object",
             ComposerCreateExpression = BuildComposerCreateExpression(method),
+            IsSync = method.ReturnShape == AotComposeDataReturnShape.Sync,
+            IsTaskOf = method.ReturnShape == AotComposeDataReturnShape.TaskOf,
+            IsValueTaskOf = method.ReturnShape == AotComposeDataReturnShape.ValueTaskOf,
+            IsAsyncEnumerable = method.ReturnShape == AotComposeDataReturnShape.AsyncEnumerable,
+            // The value-element async path is only reachable when the declared member type implements a
+            // single IAsyncEnumerable<T> whose element is a value type; the mixed one-reference-plus-
+            // value case reads through the reference path (AsyncRowElementIsValueType is false there).
+            IsAsyncEnumerableValueElement = method.ReturnShape == AotComposeDataReturnShape.AsyncEnumerable
+                && method.AsyncRowElementIsValueType,
             ParameterCount = method.Parameters.Count,
             Parameters = method.Parameters.Select(p => new
             {
