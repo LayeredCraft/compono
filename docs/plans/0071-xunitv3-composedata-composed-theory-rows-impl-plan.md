@@ -1251,7 +1251,7 @@ product-owner approval.
 - [x] S2–S3 delivered per B5.6–B5.9, each slice gate-passed (G1–G5) with evidence in Notes (S2 `bb67950`, S3 `0680dc2`)
 - [x] S4 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S4 `3fcc5d4`)
 - [x] S5 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S5 `07ff636f`)
-- [ ] S6 delivered per B5.6–B5.9, gate-passed (G1–G5) with evidence in Notes
+- [x] S6 delivered per B5.6–B5.9, gate-passed (G1–G5) and independently approved with evidence in Notes (S6 `20c1eb9`)
 - [x] Emission only for zero-diagnostic, accessible-test-class models; `CMP0050` isolation per method (S2 wiring, B5.6)
 - [ ] Member called through `MemberContainingTypeFqn`; `{M}`/`{T}` from `testClass`/`typeof(<Lookup>)` `.FullName`; no typed row element type named
 - [ ] No reflection other than `ResolveGenericTestClassType`'s type-identity walk; no LINQ; no `DataAttributeRegistration.CreateDataRow`
@@ -1978,3 +1978,39 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
     - **G5:** the real xUnit AOT runner executes the slice's tests - 405/405 (135 per target framework).
   - **Not in S5's implementation commit (by design):** this PLAN-0071 checkpoint entry (uncommitted, for maintainer review). The S5 implementation commit contains the 9 modified files and 12 new snapshots only.
   - **Open:** S6–S7 are pending; B5 remains in progress. This S5 documentation checkpoint is uncommitted pending maintainer review.
+
+- **2026-11-09 (B5 S6 checkpoint, `compono-lsx.5`):** S6 (B5.3 generic test-class bases) is committed at `20c1eb9331e2c4374f7832e25ae6093949672e8d` ("feat(xunitv3): support generic AOT ComposeData test classes"), whose parent is the S5 documentation checkpoint `b1f4bb3` ("docs(xunitv3): record ComposeData S5 checkpoint"). The implementation was independently reviewed by Claude Opus, which returned final **APPROVE** with no blocking findings; the product owner authorized the S6 implementation checkpoint commit and push. The branch `feat/163-composedata` was pushed to `origin` (fast-forward; remote HEAD `20c1eb9`). This entry is S6's documentation closeout.
+  - **Slice state:** S0–S6 completed; S7 pending; B5 remains in progress. S7 remains the final Native AOT publish validation slice.
+  - **Scope:** 8 files changed (4 modified, 4 new verified snapshots; 741 insertions, 26 deletions):
+    - `src/Compono.Generators/Emitters/AotComposeDataRegistrationEmitter.cs`.
+    - `test/Compono.Generators.Tests/AotComposeDataRegistrationEmissionTests.cs`.
+    - `test/Compono.Generators.Tests/AotComposeDataRegistrationVerifyTests.cs`.
+    - `test/Compono.XunitV3.Aot.Tests/ComposeDataEmissionTests.cs`.
+    - Four new `AotComposeDataRegistrationVerifyTests` verified snapshots: `GenericTestClass_InheritedMemberFromNonGenericRoot_RendersResolverRegistration` and `GenericTestClass_MemberType_RendersResolverRegistration`, each with the `AotComposeDataRegistration` and `RowInvokerRegistration` outputs. No pre-existing verified snapshot was modified.
+  - **S6 functionality implemented:**
+    - Generic test-class emission eligibility.
+    - Open-generic registration indices.
+    - Reuse of the existing `ResolveGenericTestClassType` closure mechanism.
+    - The closed constructed test class flowing into composition and diagnostics.
+    - Generic base inheritance.
+    - Multiple generic arguments.
+    - Nested generic test classes.
+    - Generic constraints.
+    - `MemberType` and inherited non-generic member holders.
+    - The existing unsupported-shape diagnostics.
+    - No new public API.
+    - No changes to the Scriban template.
+  - **Validation (G1–G5):**
+    - **G1:** full-solution `dotnet build`, 0 warnings, 0 errors.
+    - **G2:** full-solution `dotnet test`, 5,882 total, 5,814 passed, 68 skipped, 0 failed.
+    - **G3:** generator tests passed across net10.0/net11.0; no unexpected `CMP0050`.
+    - **G4:** generated-code compilation against the real `Compono`, `Compono.XunitV3.Aot`, and xUnit AOT assemblies on net9.0, net10.0, and net11.0.
+    - **G5:** the real xUnit AOT runner passed across net9.0/net10.0/net11.0; reported runner count 145 passed per target framework.
+    - Claude Opus independently verified G1/G2, the focused generator tests, and runner execution across all three TFMs.
+    - **Additional independent probe (distinct from the S7 gate):** Claude Opus published and executed an isolated net10.0 Native AOT probe with 0 IL/AOT warnings and 11/11 passing. This is explicitly **not** the S7 real-suite Native AOT publish gate (a full publish and run of the real test suite/project), which remains pending.
+  - **Accepted nonblocking observations (Claude Opus's final S6 APPROVE review; accepted as nonblocking, no fixes implemented):**
+    - **(A) Nested inherited theory discovery:** xUnit AOT 4.0.1 does not discover theories inherited from nested base classes, including ordinary non-generic nested base classes. The nested generic theory was therefore **not** executed through normal xUnit discovery. Direct registered-factory tests verify its registration key and resolver. End-to-end theory execution coverage is **not** claimed for this nested shape.
+    - **(B) Nested generic coverage gaps:** `Outer<>.InnerBase` and `Outer<>.Inner<>` have index-rendering/probe evidence but no repository-level emission or real-compilation tests for those exact shapes. Claude Opus independently confirmed that both compile and register correctly. `xUnit1032` prevents normal theory execution for these shapes.
+    - **(C) Comment accuracy:** an emitter comment groups `CMP0047` with generic-shape diagnostics. `CMP0047` concerns obsolete/experimental usage, not generic-shape eligibility. This is a harmless documentation nit and is deferred.
+  - **Not in S6's commit (by design):** ADR, plan, research, and bead changes. This entry is S6's documentation closeout.
+  - **Open:** S7 is pending; B5 remains in progress. This S6 documentation checkpoint is uncommitted pending maintainer review.
