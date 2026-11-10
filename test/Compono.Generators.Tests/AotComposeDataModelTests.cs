@@ -86,6 +86,14 @@ public sealed class AotComposeDataModelTests
     }
 
     [Fact]
+    public void Metadata_ExplicitlyNullTraits_IsEmptyWithoutFailing()
+    {
+        var model = ComposeWithAttribute("\"Cases\", Traits = null");
+
+        model.AttributeMetadata.Traits.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void AttributeArity_NonGeneric_IsZeroWithoutProfile()
     {
         var model = ComposeWithAttribute("\"Cases\"");

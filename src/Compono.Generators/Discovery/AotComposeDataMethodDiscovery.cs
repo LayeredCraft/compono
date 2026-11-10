@@ -834,8 +834,11 @@ internal static class AotComposeDataMethodDiscovery
         var timeout = GetNamedArgument(namedArguments, "Timeout") is { Value: int timeoutValue } ? timeoutValue : (int?)null;
         var disableParallelization = GetNamedArgument(namedArguments, "DisableParallelization") is { Value: bool disableParallelizationFlag } ? disableParallelizationFlag : (bool?)null;
 
+        // A null array constant (e.g. Traits = null) still reports Kind == Array but carries a default
+        // Values array, so IsNull must be checked before enumerating it. The JIT path already treats a
+        // null Traits as absent; normalize to an empty collection so discovery never throws.
         var traitsConstant = GetNamedArgument(namedArguments, "Traits");
-        var traits = traitsConstant is { Kind: TypedConstantKind.Array } traitsArray
+        var traits = traitsConstant is { Kind: TypedConstantKind.Array, IsNull: false } traitsArray
             ? traitsArray.Values.Select(static v => (string)v.Value!).ToEquatableArray()
             : EquatableArray<string>.Empty;
 

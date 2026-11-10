@@ -344,7 +344,23 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            RethrowIfReflectedCancellation(exception);
             throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
+        }
+    }
+
+    // A JIT member read always goes through reflection (field.GetValue / MethodInfo.Invoke), which wraps
+    // whatever the member threw in TargetInvocationException. Cooperative cancellation must reach the
+    // caller unchanged: the generated AOT path reads the member directly, so its OperationCanceledException
+    // is never wrapped, and the two engines would otherwise diverge (ADR-0070 contract item 13). Unwrap
+    // the reflected cause and rethrow it before the composition-failure wrapper turns it into a
+    // CompositionException. Non-cancellation causes still flow through MemberReadFailure, which unwraps the
+    // TargetInvocationException for the reported cause.
+    private static void RethrowIfReflectedCancellation(Exception exception)
+    {
+        if (exception is TargetInvocationException { InnerException: OperationCanceledException cancellation })
+        {
+            ExceptionDispatchInfo.Capture(cancellation).Throw();
         }
     }
 
@@ -357,6 +373,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            RethrowIfReflectedCancellation(exception);
             throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 
@@ -418,6 +435,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            RethrowIfReflectedCancellation(exception);
             throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 

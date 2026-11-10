@@ -694,6 +694,36 @@ public sealed class ComposeDataGetDataTests
     }
 
     [Fact]
+    public async Task GetData_SyncMemberThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingCancellationProperty));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task GetData_TaskMemberThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingCancellationMethod));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task GetData_AsyncEnumerableMemberThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingCancellationAsyncEnumerable));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task GetData_AmbiguousInheritedStaticMember_ReportsCompositionException()
     {
         var attribute = new ComposeDataAttribute("Rows") { MemberType = typeof(AmbiguousDerived) };
@@ -997,6 +1027,16 @@ public sealed class ComposeDataGetDataTests
         await Task.Yield();
         yield return (2, "two");
     }
+
+    // A JIT member read is reflected (property getter / MethodInfo.Invoke), which wraps a thrown
+    // OperationCanceledException in TargetInvocationException. The read path must unwrap and propagate the
+    // cancellation unchanged, matching the generated AOT path that invokes the member directly. Each shape
+    // reaches a different read site: sync collection, Task result, and async enumerable.
+    public static object?[] ThrowingCancellationProperty => throw new OperationCanceledException();
+
+    public static Task<object?[]> ThrowingCancellationMethod() => throw new OperationCanceledException();
+
+    public static IAsyncEnumerable<object?[]> ThrowingCancellationAsyncEnumerable() => throw new OperationCanceledException();
 
     public static readonly TheoryDataRow<int, string>[] TypedTheoryRows = [new(1, "one"), new(2, "two")];
 
