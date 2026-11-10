@@ -832,3 +832,131 @@ composition architecture on the same terms as the other three packages
   now correct; its central `[TestFixture]`-elimination finding was
   independently reproduced (not merely trusted) in a second scratch
   spike before this ADR was amended.
+
+## Amendment 1 (2026-11-10): classic-VSTest discovery-time module initialization
+
+**Status:** Accepted. This amendment corrects §11's classic-VSTest claim,
+records the real discovery/execution lifecycle behavior underpinning §12,
+and decides the discovery-time module-initialization mechanism that makes
+classic VSTest genuinely work. The original Decision/Rationale/
+Consequences text above is unchanged; only this additive record is new.
+Tracked as [issue #171](https://github.com/LayeredCraft/compono/issues/171)
+and implemented by [PLAN-0073](../plans/0073-compono-nunit-classic-vstest-discovery-impl-plan.md).
+
+### What §11 got wrong
+
+§11 claimed classic VSTest compatibility, citing RESEARCH-0018 §11. That
+spike's `ITestBuilder` extension performed **its own reflection-based
+binding** and therefore never depended on the *consumer* assembly's
+generated `[ModuleInitializer]`s. The real package's dispatch is
+delivered *only* by those generated initializers (ADR-0041, ADR-0058):
+`RowInvokerRegistry.Register(...)` and `PlanCache<T>.Instance` are
+populated by `[ModuleInitializer]`s emitted into the consuming test
+assembly, and by nothing else. So RESEARCH-0018's "classic VSTest works"
+result did not transfer to the package, and §11 was based on a false
+positive.
+
+### Actual classic-VSTest behavior
+
+Under the classic VSTest test host, NUnit builds test cases
+(`DefaultTestCaseBuilder.BuildFrom` →
+`ComposeAttribute.BuildFrom` → `EnsureBindingPlan` → `BindingPlan.Build`
+→ `RowInvokers.Build`) **before** the test assembly's module initializers
+have run. At that point `RowInvokerRegistry` is still empty, so discovery
+throws:
+
+```
+Compono.CompositionException: No row-binding dispatch is registered for
+'<TestAssembly>.<SomeType>' - either its containing assembly's generated
+module initializers haven't run yet, or the generator refused to register
+it (see CMP0013 ...).
+```
+
+MTP does not have this problem because there the test assembly is the
+entry assembly, so its module initializers run during normal .NET startup
+before any discovery. This is a `Compono.NUnit`/classic-host
+incompatibility that exists independently of .NET version; it is **not** a
+.NET 11 GA regression. §12's "composition may run more than once under
+classic VSTest" observation stands and is now the *expected* consequence
+of discovery-time composition under that host.
+
+### Why the previous matrix was a false green
+
+The compatibility matrix built an **MTP-enabled** artifact
+(`EnableNUnitRunner`/`UseMicrosoftTestingPlatformRunner`/
+`TestingPlatformDotnetTestSupport` all `true`, `OutputType=Exe`) and ran
+that *same artifact* under `dotnet vstest` for its "classic VSTest" leg.
+`vstest.console` **18.10.0** silently auto-routed that MTP-enabled
+assembly through `MtpTestRuntimeProvider`, so the leg was actually running
+MTP and passed. From **18.11.0** onward `vstest.console` selects the true
+classic `DotnetTestHostManager`, which exposes the defect. The leg as
+written could not distinguish the two hosts.
+
+### Decision: force the declaring module's constructor at discovery
+
+`ComposeAttribute.BuildFrom`, immediately after unwrapping the reflected
+`MethodInfo` and before binding-plan construction, forces the test
+method's declaring module to initialize:
+
+```csharp
+RuntimeHelpers.RunModuleConstructor(reflectedMethod.DeclaringType!.Module.ModuleHandle);
+```
+
+This is the exact step MTP performs for free. It is:
+
+- **Reflection-free and AOT-safe** — `RuntimeHelpers.RunModuleConstructor`
+  and `Module.ModuleHandle` are not reflection; they are the documented,
+  AOT-supported way to trigger a module's initializers. The
+  `ReflectionSourceGuardTests` forbidden-pattern list is unaffected.
+- **Idempotent** — the runtime guarantees a module constructor runs at most
+  once, so repeated/concurrent `BuildFrom` calls are a no-op after the
+  first and thread-safe without additional locking.
+- **Correctly scoped** — `DeclaringType.Module` is always the assembly
+  that declares the `[Compose]` method, which is exactly where the
+  generator emitted that method's parameter-type registrations. This holds
+  for inherited methods (`DeclaringType` is the base type that declares the
+  attribute), nested types, closed generic fixtures, and methods declared
+  in a different assembly from the caller.
+- **Surface-neutral** — no new public API; nothing is added to
+  `Compono.NUnit`'s exported surface, so ADR-0058 is not triggered.
+
+Alternatives rejected: (a) an explicit generated registration entry point
+located by the package — needs `Assembly.GetType`/reflection, breaks AOT
+and the no-reflection-fallback rule (ADR-0001), and adds ADR-0058-governed
+public surface; (b) a NUnit discovery/extensibility hook
+(`IFixtureBuilder`, `ISetUpFixture`, `ITestAction`, engine addin) — none
+run test-assembly user code before attribute `BuildFrom`; (c) deferring row
+composition to execution — redesigns the attribute-owns-the-whole-row-at-
+discovery model and the seed-bearing test name.
+
+### Matrix correction
+
+The classic leg now builds a genuinely non-MTP artifact
+(`NUnitMatrixRunner=VSTest`: `OutputType=Library`, the three MTP properties
+off, `CopyLocalLockFileAssemblies`/`GenerateRuntimeConfigurationFiles` on)
+and runs it under `dotnet vstest`, so it exercises the real classic host
+regardless of `vstest.console` version; the MTP leg keeps the MTP-enabled
+exe. Both legs run per NUnit version.
+
+### Evidence
+
+- Instrumented reproduction: registry emptied, old behavior fails under
+  classic VSTest (empty at discovery), passes under MTP; with the forced
+  module constructor, classic VSTest passes and the test body runs.
+- Real packaged `Compono.NUnit`: NUnit 3.14.0 and NUnit 4.x, each under
+  both classic VSTest (genuinely classic) and MTP, pass; pre-fix the
+  non-MTP classic artifact failed with the exact `CompositionException`
+  above.
+- Native AOT: `test/Compono.NUnit.AotSmokeTest` publish + run passes for
+  both `[Compose]` and `[Compose<TProfile,TConfig>]` dispatch; only
+  pre-existing `nunit.framework` IL3053/IL2104 warnings appear — none
+  attributable to Compono code.
+
+### Consequences
+
+- §11's classic-VSTest claim is now true by construction and covered by a
+  matrix leg that cannot silently degrade to MTP.
+- Composition under classic VSTest now necessarily runs at discovery time
+  (the module-initialization guarantee), consistent with §12.
+- `Compono.NUnit`'s public API surface is unchanged; the two-part AOT
+  claim (§17) is preserved.

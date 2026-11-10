@@ -98,6 +98,17 @@ are supported — `Compono.NUnit` itself is runner-neutral and takes no
 dependency on either; which one runs your tests is entirely your test
 project's own choice.
 
+**Discovery-time module initialization.** Under MTP your test assembly is
+the entry assembly, so the `[ModuleInitializer]`s the generator emits into
+it (which register row-invoker dispatch and composition plans) run during
+normal .NET startup, before any test is discovered. The classic VSTest
+test host instead builds test cases *before* running them, so
+`Compono.NUnit` forces the declaring test method's module constructor at
+the start of `BuildFrom` to guarantee those registrations exist by the time
+binding happens. This is reflection-free, idempotent, and Native-AOT-safe;
+it adds no public API. See
+[ADR-0059](../adr/0059-compono-nunit-package-design.md) Amendment 1.
+
 ## Supported NUnit versions
 
 `NUnit >= 3.14.0, < 5.0.0` — one compiled `Compono.NUnit` package supports
