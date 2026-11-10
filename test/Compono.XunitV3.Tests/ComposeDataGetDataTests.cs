@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Xunit;
 using Xunit.Sdk;
 using Xunit.v3;
@@ -734,6 +735,80 @@ public sealed class ComposeDataGetDataTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    // A value-element async stream takes the reflection fallback path, where a synchronous throw from any
+    // of the enumerator's members (GetAsyncEnumerator / MoveNextAsync / Current / DisposeAsync) is wrapped
+    // in TargetInvocationException. Each site must unwrap and propagate the cancellation unchanged, matching
+    // the generated AOT reader that invokes the members directly.
+    [Fact]
+    public async Task GetData_AsyncEnumeratorGetEnumeratorThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingGetEnumeratorTupleRows));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task GetData_AsyncEnumeratorMoveNextThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingMoveNextTupleRows));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task GetData_AsyncEnumeratorCurrentThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingCurrentTupleRows));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task GetData_AsyncEnumeratorDisposeThrowsOperationCanceled_PropagatesUnwrapped()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingDisposeTupleRows));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    // A custom ITheoryDataRow or ITuple that throws while producing its values must surface as an R0 row
+    // failure carrying the row index, member, and pre-composition seed line (ADR-0070 item 9) rather than
+    // escaping raw, and the original exception must be preserved as the inner exception.
+    [Fact]
+    public async Task GetData_CustomRowGetDataThrows_IsWrappedAsRowFailure()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingRowGetDataRows));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        var exception = await act.Should().ThrowAsync<CompositionException>();
+        exception.Which.Message.Should().Contain("row 0");
+        exception.Which.Message.Should().Contain("row-getdata-boom");
+        exception.Which.Message.Should().Contain("not assigned");
+        exception.Which.InnerException.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task GetData_CustomTupleThrows_IsWrappedAsRowFailure()
+    {
+        var attribute = new ComposeDataAttribute(nameof(ThrowingTupleRows));
+
+        var act = async () => await GetDataAsync(attribute, GetMethod(nameof(TwoParams)));
+
+        var exception = await act.Should().ThrowAsync<CompositionException>();
+        exception.Which.Message.Should().Contain("row 0");
+        exception.Which.Message.Should().Contain("tuple-boom");
+        exception.Which.InnerException.Should().BeOfType<InvalidOperationException>();
+    }
+
     [Fact]
     public async Task GetData_AmbiguousInheritedStaticMember_ReportsCompositionException()
     {
@@ -1048,6 +1123,110 @@ public sealed class ComposeDataGetDataTests
     public static Task<object?[]> ThrowingCancellationMethod() => throw new OperationCanceledException();
 
     public static IAsyncEnumerable<object?[]> ThrowingCancellationAsyncEnumerable() => throw new OperationCanceledException();
+
+    // A value-element async stream whose enumerator members throw synchronously. Because the element type
+    // is a value tuple, the JIT reader goes through the reflection fallback, so each throw is surfaced
+    // through MethodInfo.Invoke as TargetInvocationException and must be unwrapped back to cancellation.
+    public static IAsyncEnumerable<(int Value, string Name)> ThrowingGetEnumeratorTupleRows() =>
+        new ThrowingTupleAsyncEnumerable<(int Value, string Name)>(ThrowingAsyncEnumeratorSite.GetEnumerator);
+
+    public static IAsyncEnumerable<(int Value, string Name)> ThrowingMoveNextTupleRows() =>
+        new ThrowingTupleAsyncEnumerable<(int Value, string Name)>(ThrowingAsyncEnumeratorSite.MoveNext);
+
+    public static IAsyncEnumerable<(int Value, string Name)> ThrowingCurrentTupleRows() =>
+        new ThrowingTupleAsyncEnumerable<(int Value, string Name)>(ThrowingAsyncEnumeratorSite.Current);
+
+    public static IAsyncEnumerable<(int Value, string Name)> ThrowingDisposeTupleRows() =>
+        new ThrowingTupleAsyncEnumerable<(int Value, string Name)>(ThrowingAsyncEnumeratorSite.Dispose);
+
+    // A custom ITheoryDataRow whose GetData throws, and a custom ITuple whose Length/indexer throws. Both
+    // must be wrapped as R0 row failures by NormalizeRow.
+    public static object?[] ThrowingRowGetDataRows => [new ThrowingTheoryDataRow(new InvalidOperationException("row-getdata-boom"))];
+
+    public static object?[] ThrowingTupleRows => [new ThrowingTuple(new InvalidOperationException("tuple-boom"))];
+
+    private enum ThrowingAsyncEnumeratorSite
+    {
+        GetEnumerator,
+        MoveNext,
+        Current,
+        Dispose,
+    }
+
+    private sealed class ThrowingTupleAsyncEnumerable<T> : IAsyncEnumerable<T>
+    {
+        private readonly ThrowingAsyncEnumeratorSite _site;
+
+        public ThrowingTupleAsyncEnumerable(ThrowingAsyncEnumeratorSite site) => _site = site;
+
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            if (_site == ThrowingAsyncEnumeratorSite.GetEnumerator)
+            {
+                throw new OperationCanceledException();
+            }
+
+            return new ThrowingTupleAsyncEnumerator<T>(_site);
+        }
+    }
+
+    private sealed class ThrowingTupleAsyncEnumerator<T> : IAsyncEnumerator<T>
+    {
+        private readonly ThrowingAsyncEnumeratorSite _site;
+
+        public ThrowingTupleAsyncEnumerator(ThrowingAsyncEnumeratorSite site) => _site = site;
+
+        public T Current => _site == ThrowingAsyncEnumeratorSite.Current ? throw new OperationCanceledException() : default!;
+
+        public ValueTask<bool> MoveNextAsync() => _site switch
+        {
+            ThrowingAsyncEnumeratorSite.MoveNext => throw new OperationCanceledException(),
+            ThrowingAsyncEnumeratorSite.Current => new ValueTask<bool>(true),
+            _ => new ValueTask<bool>(false),
+        };
+
+        public ValueTask DisposeAsync() => _site == ThrowingAsyncEnumeratorSite.Dispose ? throw new OperationCanceledException() : default;
+    }
+
+    private sealed class ThrowingTheoryDataRow : ITheoryDataRow
+    {
+        private readonly Exception _exception;
+
+        public ThrowingTheoryDataRow(Exception exception) => _exception = exception;
+
+        public object?[] GetData() => throw _exception;
+
+        public string? Skip => null;
+
+        public Type? SkipType => null;
+
+        public string? SkipUnless => null;
+
+        public string? SkipWhen => null;
+
+        public string? Label => null;
+
+        public string? TestDisplayName => null;
+
+        public int? Timeout => null;
+
+        public bool? Explicit => null;
+
+        public Dictionary<string, HashSet<string>>? Traits => null;
+
+        public bool? DisableParallelization => null;
+    }
+
+    private sealed class ThrowingTuple : ITuple
+    {
+        private readonly Exception _exception;
+
+        public ThrowingTuple(Exception exception) => _exception = exception;
+
+        public int Length => throw _exception;
+
+        public object? this[int index] => throw _exception;
+    }
 
     // Cancels only when the consumer asks for the element past the last row, so enumeration of every
     // real row succeeds and the token is cancelled once raw-row reading has completed. The between-row

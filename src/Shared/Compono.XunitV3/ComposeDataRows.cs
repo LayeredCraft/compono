@@ -187,17 +187,38 @@ static class ComposeDataRows
             case null:
                 throw RowFailure(context, "row is null", seedLine);
             case ITheoryDataRow theoryRow:
-                return new RowData { Values = theoryRow.GetData(), Source = theoryRow };
+                try
+                {
+                    return new RowData { Values = theoryRow.GetData(), Source = theoryRow };
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    // A custom row that throws while producing its values must still surface as an R0
+                    // failure carrying the member, row index, and seed context (ADR-0070 item 9); only
+                    // cooperative cancellation passes through unchanged.
+                    throw RowFailure(context, exception.Message, seedLine, exception);
+                }
+
             case object?[] array:
                 return new RowData { Values = array, Source = null };
             case ITuple tuple:
-                var values = new object?[tuple.Length];
-                for (var i = 0; i < tuple.Length; i++)
+                try
                 {
-                    values[i] = tuple[i];
+                    var values = new object?[tuple.Length];
+                    for (var i = 0; i < tuple.Length; i++)
+                    {
+                        values[i] = tuple[i];
+                    }
+
+                    return new RowData { Values = values, Source = null };
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    // A custom tuple whose Length or indexer throws is wrapped like any other
+                    // normalization failure; cancellation still propagates unchanged.
+                    throw RowFailure(context, exception.Message, seedLine, exception);
                 }
 
-                return new RowData { Values = values, Source = null };
             default:
                 throw RowFailure(context, $"row has unsupported type '{row.GetType()}'; expected ITheoryDataRow, object?[], or ITuple", seedLine);
         }

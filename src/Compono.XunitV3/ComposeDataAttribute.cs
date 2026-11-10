@@ -487,6 +487,7 @@ public class ComposeDataAttribute : DataAttribute
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            RethrowIfReflectedCancellation(exception);
             throw ComposeDataRows.MemberReadFailure(accessor.MemberDisplayName, methodDisplayName, exception);
         }
 
@@ -521,8 +522,13 @@ public class ComposeDataAttribute : DataAttribute
         {
             // Cooperative cancellation propagates as cancellation, and an already composition-shaped
             // failure is never double-wrapped - both preserve the original failure-context contract
-            // (ADR-0070). Everything else becomes a member-read failure carrying the original
-            // exception (and its diagnostic, when it has one).
+            // (ADR-0070). A synchronously-thrown cancellation from MoveNextAsync, Current, or
+            // DisposeAsync is wrapped by reflection and must be unwrapped first so it still propagates
+            // as cancellation rather than being classified as a composition failure. Everything else
+            // becomes a member-read failure carrying the original exception (and its diagnostic, when
+            // it has one).
+            RethrowIfReflectedCancellation(failure);
+
             if (failure is OperationCanceledException or CompositionException)
             {
                 ExceptionDispatchInfo.Capture(failure).Throw();
