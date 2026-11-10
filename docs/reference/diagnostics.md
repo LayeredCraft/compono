@@ -11,6 +11,14 @@ runtime fallback, unlike the other `[Compose]`-family integrations.
 `CMP0050` is a generator-wide internal-emission error: one requested
 artifact failed unexpectedly, while unrelated generated output remains
 available.
+`CMP0051`–`CMP0057` are the `[ComposeData]` family's own compile-time
+**errors** (see [Composed theory rows
+(`[ComposeData]`)](../packages/compono-xunitv3.md#composed-theory-rows-composedata)).
+Like `CMP0040`–`CMP0049`, they are enforced only on the
+`Compono.XunitV3.Aot` compile-time path — the `Compono.XunitV3` JIT path
+reports the equivalent condition at run time instead (usually a
+`CompositionException`), with no diagnostic code. The AOT-only cases in
+ADR-0070 Amendments 2 and 4 are the exception: JIT accepts those shapes.
 `CMP0020`–`CMP0032` are a separate, **informational** family — they only
 apply if `<ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>`
 is set (see [`Compono.TestDoubles`](../packages/compono-testdoubles.md))
@@ -42,7 +50,10 @@ for `CMP0032` (and `CMP0025`'s narrowed condition); `CMP0040`–`CMP0049` by
 [ADR-0066](../adr/0066-compono-xunitv3-aot-package-architecture.md) and
 [ADR-0067](../adr/0067-compono-xunitv3-aot-profile-support.md); and
 `CMP0050` by
-[ADR-0068](../adr/0068-generator-wide-per-item-emission-failure-isolation.md).
+[ADR-0068](../adr/0068-generator-wide-per-item-emission-failure-isolation.md);
+and `CMP0051`–`CMP0057` — together with the `[ComposeData]`-specific uses
+of `CMP0040`, `CMP0042`, and `CMP0044`–`CMP0049` — by
+[ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md).
 
 ## CMP0001 — Ambiguous construction path
 
@@ -877,6 +888,193 @@ instead of Roslyn discarding the entire generator run with `CS8785`.
 repeatable, report it as a Compono generator defect with the complete
 `CMP0050` message, the identified type/method, and a minimal reproduction.
 The diagnostic intentionally omits an internal stack trace.
+
+## CMP0051 — `[ComposeData]` member was not found, or is ambiguous
+
+**Severity:** Error.
+
+**Message:** `ComposeData member '{MemberName}' for '{Method}' was not
+found. Expected a public static field, property, or parameterless method.`
+— or — `ComposeData member '{MemberName}' for '{Method}' is ambiguous:
+more than one inherited or hidden static member matches. Set MemberType to
+disambiguate, or rename the member.`
+
+**Cause:** The member named by `[ComposeData]`'s `MemberName` doesn't exist
+on the resolved holder (`MemberType`, or the test class), or more than one
+inherited/hidden static member matches the name. `ComposeData` resolves a
+public static field, property, or parameterless non-generic method; the
+holder is the type given by `MemberType` (defaulting to the test class).
+
+**Fix:** Add the missing public static member, fix the spelling of
+`MemberName`, or — when the name genuinely matches more than one inherited
+or hidden static member — set `MemberType` to the specific declaring type,
+or rename the member.
+
+**AOT-only:** Reported at compile time for a `[ComposeData]` method under
+`Compono.XunitV3.Aot`. On `Compono.XunitV3` the equivalent condition is a
+run-time `CompositionException` — except a member that exists only on a
+derived class of an inherited theory method (ADR-0070 Amendment 2 §1),
+which JIT accepts.
+
+## CMP0052 — `[ComposeData]` member can't be invoked
+
+**Severity:** Error.
+
+**Message:** `ComposeData member '{MemberName}' for '{Method}' must be
+public and static`, `ComposeData member '{MemberName}' for '{Method}'
+requires arguments, which ComposeData does not support`, or `ComposeData
+member '{MemberName}' for '{Method}' is a generic method; ComposeData
+cannot supply type arguments` — with the AOT-only variants `ComposeData
+member '{MemberName}' for '{Method}' is a static abstract or static virtual
+interface member, which generated code cannot call` and, for an active skip
+condition, `[ComposeData] on '{Method}': {Kind} '{PropertyName}' on
+'{Holder}' is a static abstract or static virtual interface property, which
+generated code cannot read`.
+
+**Cause:** The resolved `[ComposeData]` member isn't a public static field,
+property, or parameterless **non-generic** method — it's an instance
+member, a non-public member, a method that requires arguments, or a generic
+method. A separate AOT-only case covers a selected member (or an active
+`SkipUnless`/`SkipWhen` property) that is a `static abstract` or `static
+virtual` interface member, which the generated registration cannot call.
+
+**Fix:** Make the member public, static, and non-generic, and give a
+method-based member no parameters. For the interface-member case, move the
+data (or the skip condition) to a plain `static` member on a class or
+struct, or a non-virtual `static` interface property.
+
+**AOT-only:** Reported at compile time for a `[ComposeData]` method under
+`Compono.XunitV3.Aot`. On `Compono.XunitV3` the equivalent run-time
+condition is a `CompositionException` — except a `static virtual` interface
+member or skip property (ADR-0070 Amendment 4 §2d/§7a), which JIT accepts.
+A `static abstract` member is not an exception: JIT fails it at run time
+too.
+
+## CMP0053 — `[ComposeData]` member's return or row element type is unsupported
+
+**Severity:** Error.
+
+**Message:** `ComposeData member '{MemberName}' for '{Method}' has
+unsupported {Kind} type '{Type}'. Expected IEnumerable, Task/ValueTask of
+IEnumerable, or IAsyncEnumerable of ITheoryDataRow, object?[], or ITuple
+rows.` — and a related form for a member type that implements
+`IAsyncEnumerable<T>` for more than one element type, where the JIT path's
+interface choice is not deterministic.
+
+**Cause:** The member's declared return type, or a typed row's element
+type, can never be one of `ComposeData`'s supported theory-data shapes —
+a supported collection (`IEnumerable` except `string`, `Task`/`ValueTask`
+of `IEnumerable`, or `IAsyncEnumerable<TRow>`) whose elements are
+`ITheoryDataRow`, `object?[]`, or `ITuple` rows. The multi-implementation
+variant fires when the member's type implements `IAsyncEnumerable<T>` for
+more than one `T`, so which element type the JIT path reads is not
+deterministic.
+
+**Fix:** Have the member return a supported collection shape — for example
+`TheoryData<…>`, `TheoryDataRow<…>[]`, `List<object?[]>`, or an
+`IAsyncEnumerable<…>` over a single element type — and give each row one
+of the supported element shapes.
+
+**AOT-only:** Reported at compile time for a `[ComposeData]` method under
+`Compono.XunitV3.Aot`. On `Compono.XunitV3` an unsupported return or
+element type throws a run-time `CompositionException` — except the
+ambiguous multi-`IAsyncEnumerable<T>` case (ADR-0070 Amendment 4 §2e),
+which JIT accepts by reading a non-deterministically chosen interface.
+
+## CMP0054 — `[ComposeData]` references an open generic type
+
+**Severity:** Error.
+
+**Message:** `ComposeData MemberType '{Type}' for '{Method}' is an open
+generic type; supply a closed type`, `ComposeData member '{MemberName}' for
+'{Method}' is declared on open generic type '{Type}', which generated code
+cannot name`, or `[ComposeData] on '{Method}': {Kind} '{PropertyName}' is
+declared on open generic type '{Type}', which generated code cannot name`.
+
+**Cause:** The `[ComposeData]` `MemberType` (or an active `SkipType`
+holder) is an open generic type, or the selected member / active skip
+condition is declared on one. The generated registration must name the
+holder as a closed type, so an open generic can't be used there — the same
+restriction xUnit's own `xUnit1068` applies to row data.
+
+**Fix:** Set `MemberType` (or `SkipType`) to a specific non-generic or
+**closed** generic type that declares the member, or move the member/skip
+condition to a non-generic holder.
+
+**AOT-only (in part):** Only the "declared on a generic base" forms are
+AOT-only. When the selected member or active skip property is declared on a
+generic base and reached through the default lookup, `Compono.XunitV3.Aot`
+rejects it at compile time while the JIT `Compono.XunitV3` engine accepts it
+through reflection (ADR-0070 Amendment 4 §2a). An explicitly open-generic
+`MemberType` is **not** AOT-only: the JIT engine also fails at run time with
+a `CompositionException`, and the same condition is xUnit's own `xUnit1068`
+restriction.
+
+## CMP0055 — `[ComposeData<TProfile, TConfig>]` row element 0 can never be the configuration value
+
+**Severity:** Error.
+
+**Message:** `ComposeData member '{MemberName}' for '{Method}': row element
+0 type '{Type}' can never be the '{TConfig}' profile configuration value.`
+
+**Cause:** For the two-type-parameter form, element 0 of every row is the
+row's `TConfig` value, and it must be non-null and assignable to
+`TConfig`. An element 0 whose type can never be assigned to `TConfig` can
+never satisfy that contract.
+
+**Fix:** Make element 0 of each row a non-null `TConfig` value (or a
+subtype of it), matching the sample's `[[new PricingConfig(0.10m), 100m,
+90m], …]` layout.
+
+**AOT-only:** Reported at compile time for a `[ComposeData]` method under
+`Compono.XunitV3.Aot`; on `Compono.XunitV3` the same condition throws a
+`CompositionException` at run time.
+
+## CMP0056 — `[ComposeData]` row doesn't fit the method's parameters
+
+**Severity:** Error.
+
+**Message:** `ComposeData member '{MemberName}' for '{Method}' supplies
+{RowCount} row value(s), but the method has {ParameterCount} parameter(s)`
+— or — `ComposeData member '{MemberName}' for '{Method}': row value {Index}
+type '{ValueType}' can never be assigned to parameter '{ParameterName}' of
+type '{ParameterType}'`.
+
+**Cause:** A row supplies more values than the test method has parameters,
+or a row value's type can never be assigned to its parameter. `ComposeData`
+binds row values to leading parameters positionally, exactly like the
+`[Compose]`-family inline values: no numeric widening and no xUnit
+`TypeHelper` conversion (same strictness as `[Compose(42)]`).
+
+**Fix:** Supply at most one value per parameter, in leading positional
+order, with a type directly assignable to its parameter (or `null` only
+for a nullable value type or a `?`-annotated reference type).
+
+**AOT-only:** Reported at compile time for a `[ComposeData]` method under
+`Compono.XunitV3.Aot`; on `Compono.XunitV3` the same condition throws a
+`CompositionException` at run time.
+
+## CMP0057 — `[ComposeData]` skip condition is invalid
+
+**Severity:** Error.
+
+**Message:** `[ComposeData] on '{Method}' sets both SkipUnless and
+SkipWhen` — or — `[ComposeData] on '{Method}': {Kind} '{PropertyName}'
+must be a public static bool property on '{Holder}' or one of its base
+types`.
+
+**Cause:** An active `[ComposeData]` skip condition is invalid: both
+`SkipUnless` and `SkipWhen` are set, or the named property isn't a public
+static `bool` property on its holder (`SkipType`, or the test class) or a
+base type.
+
+**Fix:** Set at most one of `SkipUnless`/`SkipWhen`, and name a public
+static `bool` property that exists on the holder or one of its base types.
+
+**AOT-only:** Reported at compile time for a `[ComposeData]` method under
+`Compono.XunitV3.Aot`; on `Compono.XunitV3` xUnit itself rejects the
+conflicting or invalid skip condition at run time with a
+`TestPipelineException` (Compono reports no diagnostic code).
 
 ## Next
 

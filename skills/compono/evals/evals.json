@@ -712,6 +712,48 @@
         "Does not hand-write ad-hoc string splitting/percent-decoding logic for the form body when the package already provides this",
         "Asserts on actual field values (e.g. a username/password comparison), not just the presence or type of the content"
       ]
+    },
+    {
+      "id": 58,
+      "category": "activation",
+      "prompt": "In my xUnit v3 project (JIT, Compono.XunitV3 referenced) I'm testing PriceCalculator. I want one [Theory] that runs three cases; each case has a different discount rate that must feed the composed PriceCalculator, plus its own input price and expected output. Right now I have three separate [Fact] methods. How do I collapse this into one theory where each row carries its own configuration?",
+      "expected_output": "Use a single [ComposeData<TProfile, TConfig>(nameof(Rows))] on one [Theory]. Each row is an object?[]/TheoryData row whose element 0 is that row's TConfig (the per-row configuration) and whose remaining elements are the row values bound left-to-right to the test's leading parameters; the composed PriceCalculator is the trailing (composed) parameter. Do not stack multiple [Compose...] attributes and do not combine [InlineData] with a [Compose...] attribute - ComposeData is the one multi-row answer.",
+      "files": [],
+      "expectations": [
+        "Uses a single [ComposeData<TProfile, TConfig>(nameof(Member))] on one [Theory], not several [Fact]s or two stacked [Compose...] attributes",
+        "Puts the per-row TConfig as element 0 of each row, with the remaining elements as that row's values",
+        "Binds row values left-to-right to the test method's leading parameters and leaves the composed parameter (PriceCalculator) to be composed",
+        "Does not stack [InlineData]/[MemberData] together with a [Compose...] attribute as the answer",
+        "Keeps only one Compose-family attribute on the method"
+      ]
+    },
+    {
+      "id": 59,
+      "category": "routing",
+      "prompt": "My test project publishes with PublishAot and uses the Compono.XunitV3.Aot package. I want a [ComposeData] theory that supplies a couple of literal rows. Will the same [ComposeData] code I'd write for a JIT project compile and run under Native AOT, and what should I expect if a row can't bind?",
+      "expected_output": "Yes - Compono.XunitV3.Aot provides the identical three [ComposeData] forms at parity, including per-row TConfig and a row-supplied [Shared] value. The difference is diagnostic timing: unsupported rows are rejected at compile time on AOT with CMP0051-CMP0057 (plus the ComposeData uses of CMP0040/CMP0042/CMP0044-CMP0049), whereas the JIT Compono.XunitV3 reports the equivalent condition at run time (usually a CompositionException) - except the AOT-only cases in ADR-0070 Amendments 2 and 4, where JIT accepts the shape. Reference Compono.XunitV3.Aot (mutually exclusive with Compono.XunitV3) and use the namespace Compono.XunitV3.Aot. Generic test-class bases are supported; a member/skip holder declared on a generic base (CMP0054) and a member declared only on a derived class of an inherited theory method are AOT-only rejections.",
+      "files": [],
+      "expectations": [
+        "States Compono.XunitV3.Aot supports the same three [ComposeData] forms at parity (including per-row TConfig and row [Shared])",
+        "Points to Compono.XunitV3.Aot / namespace Compono.XunitV3.Aot (mutually exclusive with Compono.XunitV3), not the JIT package",
+        "Explains the difference is diagnostic timing: compile-time CMP0051-CMP0057 on AOT; JIT reports the equivalent condition at run time (usually a CompositionException) except the AOT-only cases in ADR-0070 Amendments 2/4, which JIT accepts",
+        "Does not claim the plain [Compose] AOT inline-value/[Shared] gap applies to [ComposeData]",
+        "Does not invent a separate AOT-only ComposeData syntax"
+      ]
+    },
+    {
+      "id": 60,
+      "category": "behavioral-correctness",
+      "prompt": "I want a [ComposeData] theory whose rows are built from a value that only exists at test-execution time - specifically the connection string from my xUnit IClassFixture<CatalogDatabaseFixture>. Can the row member read the fixture, and can the composed graph read it too?",
+      "expected_output": "Yes to both. ComposeData reads the row member at execution time (never during discovery, and it declares no discovery-enumerable data), so the member can call TestContext.Current.RequireFixture<CatalogDatabaseFixture>() to build rows; the profile can likewise read the same fixture inside a Register factory. Use [ComposeData<TProfile>(nameof(Member))] with a static member returning object?[]/TheoryData rows. Do not read the fixture once in Configure and assume it is current across rows - each row builds a fresh profile instance, so read it where the value is consumed.",
+      "files": [],
+      "expectations": [
+        "States ComposeData reads the row member at execution time, after fixtures exist (never at discovery)",
+        "Shows or permits the row member reading TestContext.Current.RequireFixture<TFixture>() to build rows",
+        "Permits the profile's Register factory to read the same fixture for the composed graph",
+        "Does not try to read the fixture in a static initializer or at discovery time",
+        "Does not pass a fixture-owned IDisposable as a theory argument (the JIT xUnit engine would dispose the fixture's instance); does not imply the concern is missing automatic cleanup"
+      ]
     }
   ]
 }

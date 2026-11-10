@@ -66,6 +66,13 @@ Use this over `AddProfile<TProfile>()` only when the profile itself needs
 constructor arguments — most profiles don't, and `AddProfile<TProfile>()`
 is the more common form.
 
+If a profile's parameterless constructor throws, `AddProfile<TProfile>()`
+surfaces **that** exception directly — its original type and stack, not a
+`TargetInvocationException` wrapper — so the failure points at your profile
+rather than at Compono's construction plumbing. This applies wherever
+`AddProfile<TProfile>()` is used, including `[Compose<TProfile>]` and
+`[ComposeData<TProfile>]`.
+
 ## Common mistakes
 
 - A profile that applies itself again while already applying (directly, or

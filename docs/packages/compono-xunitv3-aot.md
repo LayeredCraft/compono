@@ -22,6 +22,7 @@ with a mode switch — never reference both in the same project.
 | Minimum xUnit v3 version | Whatever `Compono.XunitV3` already supports | **4.0.0+** — the version that introduced xUnit's Native AOT support at all |
 | Minimum .NET | Compono's ordinary floor | **.NET 9+** — xUnit's own stated Native AOT requirement |
 | `[Compose]` surface | Full: inline values, `[Shared]`, `[Compose<TProfile>]`, `[Compose<TProfile, TConfig>]` | Plain `[Compose]`, `[Compose<TProfile>]`, `[Compose<TProfile, TConfig>]` — no inline values or `[Shared]` yet |
+| `[ComposeData]` surface | Full: `[ComposeData]`, `[ComposeData<TProfile>]`, `[ComposeData<TProfile, TConfig>]`, row `[Shared]` | Full: the same three forms and row `[Shared]` — composed theory rows are at parity across both engines |
 
 **Why two packages, not one:** xUnit v3 ships its reflection-mode and
 Native AOT surfaces as genuinely separate, non-interchangeable assemblies
@@ -178,6 +179,63 @@ by Compono, and no stable release carrying the fix is inside Compono's
 supported range yet. Until one reaches your package graph, use a class or
 collection fixture instead.
 
+## Composed theory rows (`[ComposeData]`)
+
+`Compono.XunitV3.Aot` supports the full `[ComposeData]` family —
+`[ComposeData]`, `[ComposeData<TProfile>]`, and
+`[ComposeData<TProfile, TConfig>]` — plus the row `[Shared]` behavior
+(ADR-0070, issue #163; `Compono.XunitV3.Aot.SharedAttribute` is the AOT
+package's own `[Shared]` marker, since it cannot reference the JIT
+package's — ADR-0070 Amendment 3). The rows come from the same public
+static member shapes, bind the same leading-positional way, merge the same
+row/attribute metadata, and follow the same seed rules as
+[`Compono.XunitV3`'s `[ComposeData]`](compono-xunitv3.md#composed-theory-rows-composedata).
+This is full JIT/AOT parity for ComposeData: moving a `[ComposeData]` theory
+from a JIT project to an AOT project changes only the `using` and the
+referenced packages — the same three examples live in both
+`test/Compono.XunitV3.SampleTests/ComposeDataTests.cs` and
+`test/Compono.XunitV3.Aot.SampleTests/ComposeDataTests.cs`. (This is unlike
+`[Compose]`, whose inline values and `[Shared]` remain AOT follow-ups — see
+[Not yet supported](#not-yet-supported).)
+
+Because the AOT package's attributes are thin markers with no runtime
+`GetData` path, `Compono.Generators` reads the member and validates every
+row shape **at compile time**, then emits a
+`Xunit.v3.RegisteredEngineConfig.RegisterTheoryDataRowFactory(...)`
+registration whose factory composes each row through real,
+compile-time-closed-generic `CompositionRow.Resolve<T>()` calls. A shape the
+generator can't name or call is a build error, not a silent omission — see
+[ComposeData diagnostics on Native AOT](#composedata-diagnostics-on-native-aot).
+
+### ComposeData vs. `Compono.XunitV3`: where they differ
+
+A `[ComposeData]` theory behaves identically across both engines except where
+a shape is unreachable from generated code. The differences:
+
+- **Diagnosis time.** An unsupported shape is a compile-time `CMP` diagnostic
+  on AOT, reported against the test method; the JIT path reports the
+  equivalent condition at run time, except the AOT-only cases in ADR-0070
+  Amendments 2 and 4, which JIT accepts.
+- **Inherited theory methods.** JIT resolves the row member against the
+  concrete reflected test class; AOT resolves it against the method's
+  **declaring** class (ADR-0070 Amendment 2). A member that exists only on a
+  derived class is rejected on AOT (`CMP0051`). Set `MemberType` to name the
+  holder explicitly, but note it selects one fixed holder type — it does not
+  reproduce JIT's per-derived-class selection.
+- **Inaccessible nested holders.** A `private`/`protected` nested
+  `MemberType` or `SkipType` holder may work under JIT reflection but is
+  rejected on AOT (`CMP0044`) and must never be silently skipped. Make it at
+  least `internal`.
+- **Assembly fixtures.** As with `[Compose]`, only class and collection
+  fixtures work under xUnit's Native AOT generator today
+  ([xunit/xunit#3664](https://github.com/xunit/xunit/issues/3664)); an
+  assembly-fixture-backed row member won't compile. See
+  [Known limitation: assembly fixtures](#known-limitation-assembly-fixtures).
+- **Disposal.** xUnit's JIT runner disposes `IDisposable` theory arguments;
+  its Native AOT core does not. Don't pass a fixture-owned disposable as a
+  theory parameter on either engine — see [`Compono.XunitV3`'s
+  disposal note](compono-xunitv3.md#disposal).
+
 ## Not yet supported
 
 `Compono.XunitV3.Aot.ComposeAttribute`'s three forms don't support inline
@@ -188,22 +246,12 @@ behavior). See
 [PLAN-0066](../plans/0066-compono-xunitv3-aot-package-architecture-impl-plan.md)/
 [PLAN-0067](../plans/0067-compono-xunitv3-aot-profile-support-impl-plan.md).
 
-Composed theory rows (`[ComposeData]`, issue #163) are decided by
-[ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md), with
-full JIT/AOT parity planned (including row values and `[Shared]`). The AOT
-`[ComposeData]`/`[ComposeData<TProfile>]`/`[ComposeData<TProfile, TConfig>]`
-attribute markers exist, as does the AOT `[Shared]` parameter marker
-(`Compono.XunitV3.Aot.SharedAttribute` — see [ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md)
-Amendment 3). Compile-time discovery and validation (phase B4) **is
-implemented**: the generator finds each attributed test method, validates its
-signature, member, row shape, profile, and skip metadata, and reports the
-`CMP0051`–`CMP0057` diagnostics (plus the `[ComposeData]` wordings of the
-reused `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049` rules). The execution
-integration (phase B5) is **not implemented yet** — no theory-data factory is
-emitted, so a `[ComposeData]`-attributed theory still does not execute under
-AOT, and the AOT `[Shared]` marker produces no sharing behavior until B5
-lands. The JIT (`Compono.XunitV3`) form is implemented. This doesn't change
-`[Compose]`'s limits above.
+Composed theory rows (`[ComposeData]`, issue #163) **are** fully supported
+under AOT — see
+[Composed theory rows (`[ComposeData]`)](#composed-theory-rows-composedata)
+above for the three forms, the row `[Shared]` behavior, the compile-time
+diagnostics, and the JIT/AOT differences. This doesn't change `[Compose]`'s
+limits above.
 
 ## `[Compose<TProfile, TConfig>]` diagnostics differ from `Compono.XunitV3` — by design
 
@@ -261,6 +309,82 @@ at compile time with **`CMP0040`** instead:
 
 See [CMP0040](../reference/diagnostics.md#cmp0040-unsupported-componoxunitv3aot-attributed-method-signature)
 for the full diagnostic reference entry.
+
+## ComposeData diagnostics on Native AOT
+
+Because `[ComposeData]` is validated at compile time under AOT (there is no
+runtime member read to fail late), every unsupported shape is a `CMP`
+diagnostic against the test method:
+
+| Diagnostic | Condition |
+|---|---|
+| `CMP0051` | The `[ComposeData]` member wasn't found, or more than one inherited/hidden static member matches (ambiguous) — set `MemberType` to disambiguate, or rename the member |
+| `CMP0052` | The member isn't public and static, requires arguments, or is a generic method; **or** a selected member (or an active skip-condition property) is a `static abstract`/`static virtual` interface member the generated code cannot call |
+| `CMP0053` | The member's return type, or a typed row's element type, can never be a supported collection/row shape; **or** the member's type implements `IAsyncEnumerable<T>` for more than one element type, where the JIT path's interface choice isn't deterministic |
+| `CMP0054` | `MemberType` is an open generic type; **or** the selected member (or an active skip-condition property) is declared on an open generic type the generated code cannot name — set `MemberType`/`SkipType` to a non-generic or closed generic type that declares it |
+| `CMP0055` | `[ComposeData<TProfile, TConfig>]`: a typed row's element 0 can never be the `TConfig` configuration value |
+| `CMP0056` | A typed row supplies more values than the method has parameters, or a row value can never be assigned to its parameter |
+| `CMP0057` | An active skip condition is invalid — both `SkipUnless` and `SkipWhen` are set, or the named property isn't a public static `bool` property on the holder (or a base type) |
+| `CMP0040` | The `[ComposeData]`-attributed method's signature is unsupported (a generic method, a `ref`/`out`/`in`/`params` parameter, an uncomposable parameter type, or two `[Shared]` parameters sharing a type) |
+| `CMP0042` | `[ComposeData<TProfile, TConfig>]`'s `TProfile` doesn't have exactly one usable public constructor accepting a single `TConfig` parameter |
+| `CMP0044` | A type referenced by `[ComposeData<...>]` — a profile/config type or a `MemberType`/`SkipType` holder — isn't accessible from the generated top-level registration |
+| `CMP0045` | More than one Compose-family attribute (including `[ComposeData…]`) on one test method |
+| `CMP0046`–`CMP0048` | The same required-members / prohibited-constructor / overload-supersede conditions as the `[Compose<TProfile, TConfig>]` table above, applied to `[ComposeData<TProfile, TConfig>]`'s selected `TProfile(TConfig)` constructor |
+| `CMP0049` | `[ComposeData<TProfile>]`'s `TProfile` has a public parameterless constructor marked `[RequiresDynamicCode]`/`[RequiresUnreferencedCode]`/`[RequiresAssemblyFiles]` |
+| `CMP0047` (members) | A selected member (or its getter) — or an active skip property (or its getter) — is marked `[Obsolete(error: true)]`/`[Experimental]`/non-optional `[CompilerFeatureRequired]` |
+
+### AOT-only exclusions
+
+ADR-0070 Amendments 2 and 4 (with §7a) approve **eight** shapes that JIT
+accepts but generated AOT code cannot name or call. Each is rejected with a
+compile-time `CMP` diagnostic — never a silently omitted test — and each has a
+workaround:
+
+1. A member that exists only on a derived class of an inherited theory method
+   (`CMP0051`) — set `MemberType` to a fixed holder, or move the member to the
+   declaring class (Amendment 2 §1).
+2. A `private`/`protected` nested `MemberType`/`SkipType` holder (`CMP0044`) —
+   make it at least `internal` (Amendment 2 §2).
+3. A member or active skip-condition holder that contains a type parameter,
+   e.g. declared on a generic base (`CMP0054`) — set `MemberType`/`SkipType` to
+   a non-generic or closed holder (Amendment 4 §2a).
+4. A test parameter whose type contains the generic base's type parameter, e.g.
+   `List<T>` (`CMP0040`) (Amendment 4 §2b).
+5. A selected member/getter or active skip property/getter marked
+   `[Obsolete(error: true)]`/`[Experimental]`/non-optional
+   `[CompilerFeatureRequired]` (`CMP0047`) — remove the marking or move the data
+   (Amendment 4 §2c).
+6. A `static virtual` interface member with a default body selected through an
+   interface `MemberType` (`CMP0052`) — move the data to a class/struct static
+   member (Amendment 4 §2d).
+7. A member whose type implements `IAsyncEnumerable<T>` more than once with no
+   deterministic JIT choice (`CMP0053`) — see the supported mixed shape below
+   (Amendment 4 §2e).
+8. An active skip-condition property that is a `static virtual` interface
+   property (`CMP0052`) — move it to a class/struct static property or a
+   non-virtual static interface property (Amendment 4 §7a).
+
+A `static abstract` interface member — data member or skip property — gets the
+same `CMP0052` twin but is **not** an exception: JIT fails it at run time too
+(Amendment 4 §2d, §7b).
+
+**Supported mixed async shape.** A member type that implements
+`IAsyncEnumerable<T>` with one reference-type element plus any number of
+value-type implementations is supported on both engines — variance never
+applies to value types, so the reference rows are always read (Amendment 4
+§2e). Only the ambiguous cases above are rejected.
+
+**Accepted residual (C-4).** AOT reports an invalid *active* attribute-level
+skip condition at compile time even when no row ends up evaluating it — a
+known, accepted compile-time-versus-run-time difference (Amendment 2 §3,
+PLAN-0071 B4.9).
+
+**Generic test-class bases are supported** — a `[ComposeData]` theory declared
+on a generic base is registered against the open-generic base and resolved to
+the closed test class at runtime, with no IL/AOT warnings. See
+[ADR-0070](../adr/0070-xunitv3-composedata-composed-theory-rows.md)
+Amendments 2 and 4 for the full account and
+[the diagnostics reference](../reference/diagnostics.md) for every code.
 
 ## How it actually works under the hood
 

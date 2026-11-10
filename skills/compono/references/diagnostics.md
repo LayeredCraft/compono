@@ -50,8 +50,14 @@ CMP0013, no more, no fewer. `CMP0020`-`CMP0032` and `CMP0035`-`CMP0037`
 (below) belong to generated test doubles, not core composition. `CMP0033`-
 `CMP0034` (below) are also always-on core diagnostics — explicit
 constructor selection — listed separately only because they shipped later
-than CMP0001-CMP0013. If something references a `CMP00xx` code outside
-these ranges, it isn't real; don't invent one.
+than CMP0001-CMP0013. The Compose-family binding-plan codes
+`CMP0040`-`CMP0049` and the `[ComposeData]` codes `CMP0051`-`CMP0057`
+(below) are real too — they are emitted on the `Compono.XunitV3.Aot`
+compile-time path (the JIT `Compono.XunitV3` engine reports the same
+conditions at run time as a `CompositionException`, **except** the AOT-only
+cases in ADR-0070 Amendments 2 and 4, which JIT accepts). If a
+`CMP00xx` code is outside all of those ranges, it isn't real; don't invent
+one.
 
 ## Compile-time, explicit constructor selection: CMP0033-CMP0034
 
@@ -149,6 +155,43 @@ misconfiguration (the property forced on without the package), and
 `CMP0039` is a narrow, honestly-diagnosed edge case, not a regression in
 what's supported.
 
+## Compose-family binding-plan diagnostics: CMP0040-CMP0049 and `[ComposeData]` CMP0051-CMP0057
+
+On the **`Compono.XunitV3.Aot`** (Native AOT) compile-time path, a
+`[Compose]`- or `[ComposeData]`-attributed method whose signature or member
+shape Compono can't bind is a **`CMP00xx` error** — the generator can't
+emit the row-registration code, so the build fails. On the JIT
+`Compono.XunitV3` engine the *same* conditions surface at run time, usually
+as a `CompositionException` with no diagnostic code (the attribute throws
+when xUnit asks it for its rows) — **except** the AOT-only cases in
+ADR-0070 Amendments 2 and 4, which JIT accepts. Don't look for a `CMP00xx`
+on a JIT project for one of these — read the exception instead.
+
+| Code | Meaning | Fix |
+|---|---|---|
+| CMP0040 | A `[Compose]`/`[ComposeData]` method's signature is unsupported — a generic method, a `ref`/`out`/`in`/`params` parameter, an uncomposable parameter type, or two `[Shared]` parameters of the same type | Change the signature; compose an interface/wrapper; give the two shared params different types |
+| CMP0042 | `TProfile`'s constructor shape is wrong for `[Compose<TProfile, TConfig>]` — it must have exactly one usable public constructor accepting a single `TConfig` | Give `TProfile` exactly one public `(TConfig)` constructor |
+| CMP0044 | A type referenced by `[Compose<...>]`/`[ComposeData<...>]` isn't accessible from the generated registration (private/protected, e.g. a nested holder) | Widen accessibility, or use a non-generic/closed holder |
+| CMP0045 | More than one Compose-family attribute on the method (including any `[ComposeData...]`) | Keep exactly one |
+| CMP0046-CMP0049 | Required members (CMP0046), a prohibited constructor/member or one marked `[Obsolete(error:true)]`/`[Experimental]`/non-optional `[CompilerFeatureRequired]` (CMP0047), overload-resolution priority (CMP0048), and an AOT-unsafe parameterless constructor (CMP0049) | Follow the message's fix column |
+| CMP0051 | A `[ComposeData]` member wasn't found, or is ambiguous (more than one inherited/hidden static match) | Name a real public static field/property/parameterless method; set `MemberType` to disambiguate |
+| CMP0052 | A `[ComposeData]` member can't be invoked — not public static, requires arguments, or is generic; **AOT-only:** `static abstract`/`static virtual` interface member (also a skip property) | Make the member public static parameterless; move interface data to a class/struct static member |
+| CMP0053 | A `[ComposeData]` member's return/row-element type is unsupported (or it implements `IAsyncEnumerable<T>` for more than one element type) | Return `IEnumerable`, `Task`/`ValueTask` of one, or `IAsyncEnumerable` of `ITheoryDataRow`/`object?[]`/`ITuple` rows |
+| CMP0054 | A `[ComposeData]` `MemberType`, member, or skip condition is declared on an **open generic** type | Supply a closed/non-generic holder |
+| CMP0055 | A `[ComposeData]` row's element 0 can never be the `TConfig` value | Make element 0 a non-null instance assignable to `TConfig` |
+| CMP0056 | A `[ComposeData]` row supplies too many values, or a row value can't be assigned to its parameter | Trim to the method's parameter count; match the row value's type |
+| CMP0057 | `[ComposeData]` sets both `SkipUnless` and `SkipWhen`, or names an invalid skip-condition property | Set one condition; point at a public static `bool` property |
+
+`CMP0051`-`CMP0057` are `[ComposeData]`-specific and, like
+`CMP0040`/`CMP0042`/`CMP0044`-`CMP0049`, are emitted on the
+`Compono.XunitV3.Aot` **compile-time** path. The `Compono.XunitV3` JIT engine
+reports the equivalent condition at run time (usually a `CompositionException`),
+**except** the AOT-only cases in ADR-0070 Amendments 2 and 4 — there JIT
+accepts the shape (it resolves the same condition via reflection). See
+`references/xunit-v3.md` for the row/member rules and
+`docs/adr/0070-xunitv3-composedata-composed-theory-rows.md` for the full list
+of AOT-only rejections.
+
 ## Runtime: `CompositionException` tree path and seed
 
 ```text
@@ -175,6 +218,17 @@ code rather than read the printed form. It's nullable on the exception —
 some failures (e.g. `HashSet<T>`/`Dictionary` unique-value exhaustion via
 `UniqueValueResolver`) have no structured diagnostic, only the exception
 message with `Seed:` appended.
+
+**`[ComposeData]` row failures.** A member that can't be read, or a row
+that can't be composed, throws a `CompositionException` naming the member
+(`Type.Member`), the zero-based **row index**, and the row label if it has
+one — the whole theory fails as a unit. Its `Seed:` line says which seed
+applied: a row failure *before* the row's `CreateRow` (row shape, `TConfig`
+selection, profile construction, `Configure`, the composer build) shows the
+attribute's `Seed` (or `Seed: not assigned (the failure occurred before the
+row's composition started)`), while a failure *from* `CreateRow` on — including
+row-value validation and too many values — shows that row's own `Seed`. Every
+row also carries a `Compono.Seed` xUnit trait.
 
 ## The generator silently not running — a secondary-symptom trap
 

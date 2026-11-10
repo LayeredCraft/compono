@@ -183,6 +183,68 @@ constructor accepting exactly this type" isn't expressible as a C# generic
 constraint. All three failures above are deterministic runtime checks
 instead, computed once and cached, but not compile errors.
 
+### "My `[ComposeData]` theory can't find or read its rows"
+
+Two failure classes, both `CompositionException`s: the member-level
+**D1–D5** (found while reading the row source) and the row-level **R0**
+wrapper (one row failed to build). Under `Compono.XunitV3` these surface at
+test-execution time; under `Compono.XunitV3.Aot` the same member/shape
+conditions are compile-time `CMP` diagnostics instead (see the
+[AOT package guide](../packages/compono-xunitv3-aot.md#composedata-diagnostics-on-native-aot)).
+The full contract is in
+[Composed theory rows (`[ComposeData]`)](../packages/compono-xunitv3.md#composed-theory-rows-composedata).
+
+Member-level failures (each with **no** seed line):
+
+- **D1 — member not found:**
+  `ComposeData member '{M}' for '{T}' was not found. Expected a public
+  static field, property, or parameterless method.` No matching public static
+  member on `MemberType` (or the test class). Check the spelling and
+  `MemberType`; an ambiguous inherited/hidden match reads as
+  `...is ambiguous: more than one inherited or hidden static member
+  matches...` — set `MemberType` or rename the member.
+- **D2 — not public static:** `ComposeData member '{M}' for '{T}' must be
+  public and static`. Make the field/property/method both `public` and
+  `static`.
+- **D3 — requires arguments:** `ComposeData member '{M}' for '{T}' requires
+  arguments, which ComposeData does not support`. The member matched is a
+  method taking parameters; ComposeData supplies none, so use a parameterless
+  method, field, or property.
+- **D4 — unsupported return:** `ComposeData member '{M}' for '{T}' returned
+  unsupported type '{type}'. Expected IEnumerable, Task/ValueTask of
+  IEnumerable, or IAsyncEnumerable of ITheoryDataRow, object?[], or ITuple
+  rows.` A `string` is not a collection, and a single row is not itself a
+  theory — return a collection of rows.
+- **D5 — null result:** `ComposeData member '{M}' for '{T}' returned null.`
+  The member (or its awaited `Task`/`ValueTask` result) was `null`.
+
+A **row-level** failure is wrapped as
+`ComposeData row {i}[ [label]] from '{M}' for '{T}' failed: {cause}` — `i` is
+the zero-based row index. The `{cause}` covers a null row, an unsupported row
+shape, too many values, a null value for a non-nullable parameter, a value
+that can't be assigned to its parameter, a missing/malformed `TConfig` in
+element 0 of the arity-two form, or a profile/`Configure` that threw. Row
+values are validated **before** anything is composed, so a binding mistake is
+reported as an exact row error, not a downstream null.
+
+The seed line follows the effective-seed rule (attribute `Seed`, else a
+profile `WithSeed`, else a fresh per-row seed; setting both is a
+configuration error): an `R0` failure **before** the row's `CreateRow` — row
+shape, `TConfig` selection, profile construction, `Configure`, or the composer
+build — prints `Seed: {n}` when the attribute's `Seed` was set, otherwise
+`Seed: not assigned (the failure occurred before the row's composition
+started)`; from `CreateRow` on (including row-value validation and too many
+values) it prints `Seed: {row.Seed}`. Paste that value into the attribute's
+`Seed` to reproduce the row.
+
+**Profile-construction failure (ADR-0070 Amendment 6).** When the arity-one
+or arity-two form's profile constructor itself throws, the `R0` cause is the
+constructor's **own** message and the original exception is kept as
+`InnerException` — Compono no longer leaks
+`System.Reflection.TargetInvocationException`. This fix lives in
+`AddProfile<TProfile>()` and applies to every framework's `[Compose<TProfile>]`
+and `[ComposeData<TProfile>]`, so those failures read identically.
+
 ### "A composed value doesn't look realistic" (looks like an anonymous string)
 
 `Compono.Bogus` isn't installed, or `UseBogus()` wasn't called, or the

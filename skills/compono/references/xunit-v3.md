@@ -104,20 +104,196 @@ test method's own parameters, all of which are still composed in full.
   for a value that's genuinely different per call site and needs to
   reach configuration logic running *inside* the profile.
 
+## `[ComposeData]` — composed theory rows from a member
+
+`[ComposeData]` composes **many** theory rows from a public static member,
+instead of the single row `[Compose]` provides. Reach for it whenever one
+`[Theory]` needs several rows and each row needs its **own** composed
+values — especially its own per-row configuration — which `[Compose]`'s
+single row can't express. See `docs/adr/0070-xunitv3-composedata-composed-theory-rows.md`
+for the full design.
+
+```csharp
+// Arity 2 — every row carries its own TConfig (element 0) + values.
+public static readonly object?[][] PricingRows =
+[
+    [new PricingConfig(0.10m), 100m, 90m],
+    [new PricingConfig(0.25m), 80m,  60m],
+];
+
+[Theory]
+[ComposeData<PricingProfile, PricingConfig>(nameof(PricingRows))]
+public void Prices_by_discount(decimal price, decimal expected, PriceCalculator calculator) { }
+
+// Arity 1 — one profile for every row; every element is a row value (no TConfig).
+[Theory]
+[ComposeData<AppProfile>(nameof(EmailCases))]
+public void Validates(string email, bool expected, [Shared] IClock clock, EmailValidator sut) { }
+
+// Non-generic — no profile; rows are just values + composed parameters.
+[Theory]
+[ComposeData(nameof(SharedRows))]
+public void Reuses_the_row_repository(
+    string label, [Shared] CatalogRepository repository, CatalogService service) { }
+```
+
+### The three forms
+
+- `[ComposeData(string memberName)]` — no profile; every row element is a
+  row value and every remaining parameter is composed normally.
+- `[ComposeData<TProfile>(string memberName)]` — applies `TProfile` (built
+  like `[Compose<TProfile>]`, its own parameterless ctor) to every row.
+- `[ComposeData<TProfile, TConfig>(string memberName)]` — **element 0 of
+  every row is that row's `TConfig`** (a non-null instance assignable to
+  `TConfig`); elements `1..n` are that row's values. The profile is built
+  **fresh per row** from that row's config, exactly like
+  `[Compose<TProfile, TConfig>]` builds one from the attribute's own
+  arguments — but the config comes from the row here, not the attribute.
+
+A `MemberType` named argument points at the type that holds the member
+(default is the test class); `Seed` pins every row (see below).
+
+### Row source
+
+The named member must be a **public static field, property, or parameterless
+method** on the member type (inherited static members included). Return
+shapes:
+
+- `IEnumerable<TRow>` (not `string`) — e.g. `TheoryData<...>`,
+  `TheoryDataRow<...>[]`, `List<object?[]>`, `object?[]`.
+- `Task<IEnumerable>…`, `ValueTask<IEnumerable>…`, `IAsyncEnumerable<TRow>`.
+
+Each element is one row. An element is read, in this order, as an xUnit
+`ITheoryDataRow` (its `.Data`, `Label`, `Skip`, etc. are honored), else as
+an `object?[]`, else as an `ITuple` (8+ values flattened). A single row as
+the member's result, a null result, or a null row is an error. A member
+requiring arguments or a generic member is an error — supply rows from a
+parameterless member.
+
+### Row layout and binding
+
+Row values bind **leading-positionally**: row value `i` binds to test
+parameter `i`; any parameters left over after the row's values are
+composed. Binding is **strict** — no numeric widening and none of xUnit's
+own `TypeHelper` conversions, the same strictness as `[Compose(42)]`:
+
+- `null` is allowed only for a nullable value type or a `?`-annotated
+  reference parameter.
+- An oblivious reference parameter is treated as non-nullable.
+- Too many values for the method's parameters is an error.
+
+The same leading-positional, compose-the-rest algorithm `[Compose]` uses
+(ADR-0022) applies to the composed parameters — `[Shared]` parameters
+resolve first, then the rest.
+
+### Shared dependencies and `[Shared]`
+
+`[Shared]` works on a `[ComposeData]` row exactly as on `[Compose]`: put a
+row value for that type on the row and mark the parameter `[Shared]` and
+the composed graph reuses that exact instance. A `[Shared]` parameter with
+no row value is composed and shared like any other.
+
+### Reading xUnit fixtures from a row member
+
+Rows are read at **execution time**, after fixtures exist, so the row
+member (or a profile's `Register` factory) can call
+`TestContext.Current.RequireFixture<TFixture>()` — the same execution-time
+path `[Compose]` uses. See the fixture section below.
+
+### When the rows are read
+
+`[ComposeData]` runs at execution time only — it is never enumerated at
+discovery. The member is read and **all** rows are composed up front, when
+xUnit builds the row's tests (before the first row runs). Nothing is
+cached from discovery.
+
+### Skip, labels, traits, and other metadata
+
+Row metadata merges with the attribute's own by one rule:
+
+- Skip/SkipType/SkipUnless/SkipWhen are **grouped** — the row's skip group
+  wins if the row sets one, else the attribute's, else none (a row's `Skip`
+  with the attribute's `SkipUnless` never mix).
+- `Label`/`TestDisplayName`/`Timeout`/`Explicit` — row value, else the
+  attribute's.
+- `Traits` — the union of the row's and the attribute's, plus
+  `Compono.Seed`.
+- `DisableParallelization` (xUnit 4.x) — row else attribute.
+
+`Label` gives the row its deterministic display name.
+
+### Failures, seeds, and row labels
+
+Reading the member or building row `i` throws `CompositionException` — the
+whole theory fails **as a unit** (there are no placeholder rows). The
+message names the member (`Type.Member`), the zero-based row index, and the
+row label if it has one.
+
+Exactly **one** seed source applies per row:
+
+- the attribute's `Seed` (pins every row; must be non-negative), or
+- the profile's `WithSeed` in `Configure` (pins every row), or
+- otherwise a fresh non-negative seed per row.
+
+Setting **both** the attribute `Seed` and a profile `WithSeed` is a
+duplicate-configuration error — there is no override. Every row carries
+`Compono.Seed` as an xUnit trait.
+
+### Disposal
+
+Compono registers nothing and disposes nothing for a `[ComposeData]` row —
+same as `[Compose]`. Under **JIT** xUnit v3 disposes every `IDisposable`
+theory argument, a `[Shared]` parameter included, so a fixture-owned instance
+passed as a row value would be disposed by JIT; under **Native AOT** it is not
+disposed. Keep fixture-owned disposables out of theory parameters (including
+`[Shared]` ones) so JIT doesn't dispose the fixture's own instance.
+
+### Mixing with xUnit's own data attributes
+
+`[InlineData]`/`[MemberData]`/`[ClassData]` remain legal **alongside** a
+Compose-family attribute and are never merged or composed — but a
+`[ComposeData]`/`[Compose…]` method still allows **only one** Compose-family
+attribute (see the hard constraint below).
+
+### Native AOT
+
+`Compono.XunitV3.Aot` ships the identical three `[ComposeData]` forms (in
+namespace `Compono.XunitV3.Aot`). Composed theory rows are at **parity**
+across both engines, including row `[Shared]` and per-row `TConfig`.
+Generic test-class bases are supported on AOT. The differences are
+diagnostic-time and the AOT-only rejections (open-generic member/skip
+holders, `static abstract`/`static virtual` interface members and skip
+properties, a member declared only on a derived class of an inherited theory
+method, inaccessible nested member/skip holders) — diagnosed at **compile
+time** with `CMP0051`-`CMP0057` (plus the `[ComposeData]`-specific uses of
+`CMP0040`/`CMP0042`/`CMP0044`-`CMP0049`). For those AOT-only cases JIT
+**accepts** the shape; for every other condition here the JIT engine reports
+the equivalent at run time as a `CompositionException`. (The assembly-fixture
+limitation is xUnit's own, not a Compono diagnostic.) See
+`references/diagnostics.md`.
+
+### Real examples in this repo
+
+`test/Compono.XunitV3.SampleTests/ComposeDataTests.cs` and its AOT twin
+`test/Compono.XunitV3.Aot.SampleTests/ComposeDataTests.cs` hold the three
+canonical examples: per-row `TConfig`, a `[Shared]` row value, and a row
+member reading an xUnit fixture.
+
 ## Hard constraint: one Compose-family attribute per method
 
-`[Compose]` and `[Compose<TProfile>]` are both `DataAttribute` subclasses.
-Two **different** Compose-family attributes on one method (e.g.
-`[Compose]` + `[Compose<ProfileA>]`) *compile* but throw
-`CompositionException` at data-binding time, not compile time — the
-signature is only validated once xUnit actually asks the attribute for
-its row data. The identical attribute type twice on one method **is** a
+`[Compose]`, `[Compose<TProfile>]`, `[Compose<TProfile, TConfig>]`, and
+every `[ComposeData…]` form are all Compose-family. Two **different**
+Compose-family attributes on one method (e.g. `[Compose]` +
+`[Compose<ProfileA>]`, or `[Compose]` + `[ComposeData]`) *compile* but
+throw `CompositionException` at data-binding time, not compile time — the
+signature is only validated once xUnit actually asks the attribute for its
+row data. The identical attribute type twice on one method **is** a
 compiler error (`AllowMultiple=false`).
 
-**There is no equivalent of stacking multiple `[InlineAutoData(...)]`
-rows on one method.** If a test needs several independent inline+composed
-combinations, split into separate `[Theory]`/`[InlineData]` methods —
-don't try to layer multiple Compose-family attributes to get that effect.
+**The multi-row answer is one `[ComposeData]`, never several attributes
+stacked.** If a test needs several independent inline+composed
+combinations, that's the member-backed row source `[ComposeData]` reads —
+don't layer multiple Compose-family attributes to get that effect.
 
 ## Disposal
 

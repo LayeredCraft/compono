@@ -6,7 +6,7 @@
 | Overloads | |
 | :--- | :--- |
 | [AddProfile\(ICompositionProfile\)](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile(Compono.ICompositionProfile) 'Compono\.CompositionBuilder\.AddProfile\(Compono\.ICompositionProfile\)') | Applies [profile](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile(Compono.ICompositionProfile).profile 'Compono\.CompositionBuilder\.AddProfile\(Compono\.ICompositionProfile\)\.profile')'s [Configure\(CompositionBuilder\)](Compono.ICompositionProfile.Configure(Compono.CompositionBuilder).md 'Compono\.ICompositionProfile\.Configure\(Compono\.CompositionBuilder\)') to this builder immediately, synchronously \- the instance\-based counterpart to [AddProfile&lt;TProfile&gt;\(\)](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_() 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)'), for a profile that needs constructor arguments or is already an instance\. |
-| [AddProfile&lt;TProfile&gt;\(\)](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_() 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)') | Applies [TProfile](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_().TProfile 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)\.TProfile')'s [Configure\(CompositionBuilder\)](Compono.ICompositionProfile.Configure(Compono.CompositionBuilder).md 'Compono\.ICompositionProfile\.Configure\(Compono\.CompositionBuilder\)') to this builder immediately, synchronously \- constructed via an ordinary, reflection\-free `new()`\. |
+| [AddProfile&lt;TProfile&gt;\(\)](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_() 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)') | Applies [TProfile](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_().TProfile 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)\.TProfile')'s [Configure\(CompositionBuilder\)](Compono.ICompositionProfile.Configure(Compono.CompositionBuilder).md 'Compono\.ICompositionProfile\.Configure\(Compono\.CompositionBuilder\)') to this builder immediately, synchronously \- constructed via its public parameterless constructor\. |
 
 <a name='Compono.CompositionBuilder.AddProfile(Compono.ICompositionProfile)'></a>
 
@@ -43,7 +43,7 @@ error naming the full chain\.
 ## CompositionBuilder\.AddProfile\<TProfile\>\(\) Method
 
 Applies [TProfile](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_().TProfile 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)\.TProfile')'s [Configure\(CompositionBuilder\)](Compono.ICompositionProfile.Configure(Compono.CompositionBuilder).md 'Compono\.ICompositionProfile\.Configure\(Compono\.CompositionBuilder\)') to this
-builder immediately, synchronously \- constructed via an ordinary, reflection\-free `new()`\.
+builder immediately, synchronously \- constructed via its public parameterless constructor\.
 
 ```csharp
 public Compono.CompositionBuilder AddProfile<TProfile>()
@@ -67,6 +67,14 @@ Applying [TProfile](Compono.CompositionBuilder.AddProfile.md#Compono.Composition
 exactly one [ProfileCycle](Compono.CompositionConfigurationError.ProfileCycle.md 'Compono\.CompositionConfigurationError\.ProfileCycle') error naming the full chain\.
 
 ### Remarks
+
+If [TProfile](Compono.CompositionBuilder.AddProfile.md#Compono.CompositionBuilder.AddProfile_TProfile_().TProfile 'Compono\.CompositionBuilder\.AddProfile\<TProfile\>\(\)\.TProfile')'s constructor throws, that exception propagates unchanged from
+this call: its type, message, [Diagnostic](Compono.CompositionException.Diagnostic.md 'Compono\.CompositionException\.Diagnostic') (for a
+[CompositionException](Compono.CompositionException.md 'Compono\.CompositionException')), [System\.Exception\.InnerException](https://learn.microsoft.com/en-us/dotnet/api/system.exception.innerexception 'System\.Exception\.InnerException') chain, and original
+stack-trace frames are preserved, rather than being wrapped in a
+[System\.Reflection\.TargetInvocationException](https://learn.microsoft.com/en-us/dotnet/api/system.reflection.targetinvocationexception 'System\.Reflection\.TargetInvocationException'). An exception thrown by
+[Configure\(CompositionBuilder\)](Compono.ICompositionProfile.Configure(Compono.CompositionBuilder).md 'Compono\.ICompositionProfile\.Configure\(Compono\.CompositionBuilder\)') likewise propagates unchanged.
+
 A profile applied while another profile of the exact same declared type is already applying
-\(directly or nested several levels deep\) is a cycle \- see
-`docs/adr/0018-composition-profiles.md`\.
+(directly or nested several levels deep) is a cycle - see
+`docs/adr/0018-composition-profiles.md`.
