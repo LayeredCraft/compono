@@ -1,6 +1,6 @@
 # [ADR-0071] `Compono.Logging`: Host-Wide Log Capture (`LogCollector` + `AddComponoCapture`)
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Date:** 2026-11-10
 

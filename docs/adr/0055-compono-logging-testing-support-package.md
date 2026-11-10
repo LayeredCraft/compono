@@ -1673,7 +1673,7 @@ evidence appeared. Issue #164 (child of #161) supplies that evidence: a
 Generic Host test that must assert nothing was logged at `Error` or above
 in any category, including categories the test never composes.
 
-[ADR-0071](0071-compono-logging-host-wide-log-capture.md) (Proposed)
+[ADR-0071](0071-compono-logging-host-wide-log-capture.md) (Accepted 2026-11-10)
 decides the response: an internal `ILoggerProvider` attached to the host's
 existing pipeline through `ILoggingBuilder.AddComponoCapture(LogCollector)`,
 a test-owned public `LogCollector`, a new `CapturedLogEntry.Category`, and

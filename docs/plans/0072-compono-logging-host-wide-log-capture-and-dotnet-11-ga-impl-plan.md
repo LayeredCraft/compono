@@ -6,8 +6,10 @@
 (issue [#164](https://github.com/LayeredCraft/compono/issues/164), child of
 [#161](https://github.com/LayeredCraft/compono/issues/161)), plus the
 .NET 11 GA migration, an infrastructure workstream that needs no ADR.
-ADR-0071 is **Proposed**. Implementation starts only after bead B0 records
-product-owner acceptance and ADR-0071 reads `Accepted`.
+ADR-0071 is **Accepted** (2026-11-10). The maintainer approved ADR-0071 and
+this plan, including the review-round-1 clarifications in `768af68`, and
+B0 is closed. Architectural approval is complete. Implementation hasn't
+started yet: B1 (PR 1, .NET 11 GA) is next.
 
 ## Goal
 
@@ -513,9 +515,10 @@ and B4, B5, and B6 done.
 
 ### B0: product-owner acceptance (precedes everything)
 
-- [ ] Product owner reviews ADR-0071, PLAN-0072, and the beads, then
+- [x] Product owner reviews ADR-0071, PLAN-0072, and the beads, then
   flips ADR-0071 to `Accepted` (and updates the `docs/adr/README.md` row and
-  ADR-0055 Amendment 6's "(Proposed)" note).
+  ADR-0055 Amendment 6's "(Proposed)" note). Done 2026-11-10 (maintainer
+  approval; bead `compono-yce.1` closed).
 
 ## Critical Files
 
@@ -606,5 +609,9 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   behavioral compatibility change, with a B2 regression test and B6 docs
   and release-note text. Duplicate-registration semantics are unchanged and
   not expanded.
+- 2026-11-10 (final planning approval): the maintainer approved ADR-0071
+  and PLAN-0072, including `768af68`. ADR-0071 → `Accepted`, its index row
+  and ADR-0055 Amendment 6 were updated, and B0 is closed. Plan status
+  stays `Not Started` until B1 begins.
 - Open risk carried into B1: the RC.1 classic-VSTest NUnit matrix
   regression. GA behavior is unknown until V8 runs.
