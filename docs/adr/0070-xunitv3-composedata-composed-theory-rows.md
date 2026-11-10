@@ -1083,3 +1083,178 @@ PLAN-0071's B6.0 slice.
 
 **Recorded:** PLAN-0071 B6 (B6.0 slice and the B6 decisions) and Notes
 (2026-11-09).
+
+## Amendment 6 (2026-11-10): Core fix - `AddProfile<TProfile>()` preserves profile-constructor exceptions
+
+**Status:** **Approved** by the product owner on 2026-11-10. It's implemented
+inside #163 (same branch, same PR), not as a separate change.
+
+**Amends:**
+
+- Amendment 1's sentence "This is the sole core `Compono` change approved
+  for #163". This amendment approves exactly one more core change, the one in
+  §3. Any core change beyond it still stops and returns for review.
+- The Context claim and Decision Driver that #163 needs no core change, and
+  PLAN-0071's Scope entry for core changes, for this one case.
+
+This amendment doesn't change any Decision item. It restores the documented
+failure contract (Behavior contract item 9, and PLAN-0071's R0 row causes)
+for the one form that didn't meet it.
+
+### 1. Observed defect
+
+`ComposeData<TProfile>` builds its profile through core
+`CompositionBuilder.AddProfile<TProfile>()`. That's true on JIT
+(`ComposeDataAttribute<TProfile>.ApplyProfile`) and on AOT (the generated
+`builder.AddProfile<global::P>()`, PLAN-0071 B5.7). `AddProfile<TProfile>()`
+constructs with `new TProfile()`. For a type parameter with the `new()`
+constraint, C# compiles that to `Activator.CreateInstance<TProfile>()`, which
+wraps any exception the constructor throws in a
+`System.Reflection.TargetInvocationException`.
+
+Evidence (B6.2 coverage audit, PLAN-0071 Notes 2026-11-10; scratch probes
+outside the repository):
+
+- **Runtime primitive.** `new T()` with a throwing constructor surfaces
+  `TargetInvocationException` with the original exception as its inner
+  exception, on JIT **and** on a real Native AOT publish (net10.0,
+  osx-arm64).
+- **End to end on JIT** (net10.0, real generator, real
+  `ComposeDataAttribute.GetData`):
+  - Arity-1, constructor throws `InvalidOperationException("ctor boom")`:
+    `ComposeData row 0 from 'Targets.Rows' for 'Targets.A1' failed: Exception has been thrown by the target of an invocation.`
+    plus the not-assigned seed line. `InnerException` is the
+    `TargetInvocationException`.
+  - Arity-1, constructor throws a `CompositionException`: the same generic
+    text, so the constructor's message is lost.
+  - Arity-2, the same constructor body: `… failed: ctor boom`, with
+    `InnerException` the original exception. `ConfigProfileBinder` already
+    unwraps on JIT, and AOT calls `new P(config)` directly.
+- **Diagnostic loss.** `ComposeDataRows.RowFailure` carries
+  `(inner as CompositionException)?.Diagnostic`. The inner exception is the
+  `TargetInvocationException`, so a constructor's `Diagnostic` is always
+  dropped.
+
+So arity-1 breaks three parts of the contract: the R0 cause text, the
+`InnerException` identity, and `Diagnostic` preservation. Arity-2 meets all
+three. The same wrapping reaches every other `AddProfile<TProfile>()`
+caller, for example `[Compose<TProfile>]`, whose `catch
+(CompositionException)` can't see a wrapped constructor failure, so the raw
+`TargetInvocationException` escapes with no seed line.
+
+### 2. Why the fix belongs in core
+
+- **One root cause, one place.** Every consumer goes through
+  `AddProfile<TProfile>()`: `ComposeData<TProfile>` (JIT and generated AOT);
+  `Compose<TProfile>` in `Compono.XunitV3`, `Compono.TUnit`,
+  `Compono.NUnit`, and `Compono.MSTest`; the AOT `[Compose<P>]` registration
+  template; and any consumer or nested profile calling it directly. Fixing
+  only the `ComposeData` layer would leave every other caller inconsistent.
+- **The xUnit-layer alternatives are worse.** On JIT, a generic `new
+  TProfile()` always goes through `Activator`, so the xUnit layer could only
+  repeat the same unwrap per package. Emitting `new global::P()` on AOT would
+  split the JIT and AOT construction paths that B5.7 deliberately kept
+  identical.
+- **Consistency with arity-2.** The two-type-parameter forms already
+  surface the original constructor exception (`ConfigProfileBinder.Invoke`'s
+  unwrap on JIT, a direct call on AOT). After the fix, both arities behave
+  the same on every engine.
+
+### 3. Contract (exception preservation)
+
+- `AddProfile<TProfile>()` constructs the profile in a dedicated step, then
+  applies it exactly as today (cycle detection, `Configure`).
+- **Only the construction expression is guarded.** When it throws
+  `TargetInvocationException` with a non-null `InnerException`, the inner
+  exception is rethrown through
+  `ExceptionDispatchInfo.Capture(inner).Throw()`. This is the precedent in
+  `ConfigProfileBinder.Invoke`. The caller receives the **same exception
+  instance**, so its type, message, `Diagnostic` (for a
+  `CompositionException`), `InnerException` chain, and original stack trace
+  are all preserved; `ExceptionDispatchInfo` appends the rethrow frames
+  rather than resetting the trace.
+- **`Configure` is never unwrapped.** `Configure` runs outside the guarded
+  step, so any exception it throws, including a `TargetInvocationException`
+  from the consumer's own reflection, propagates exactly as today.
+- A `TargetInvocationException` with no inner exception propagates
+  unchanged.
+- **No public API change.** No signature, type, or member changes; only
+  the method body and its XML documentation change, so ApiCompat stays
+  clean. `AddProfile(ICompositionProfile)` is unchanged.
+
+### 4. Intentional cross-framework impact
+
+This is a behavior fix for every `AddProfile<TProfile>()` caller, released
+with #163 in the #161 release and called out in its release notes:
+
+- **A constructor that throws a non-`CompositionException`**: callers see
+  the original exception type and message instead of
+  `TargetInvocationException`. That affects `Compose<TProfile>` on all four
+  frameworks, the AOT `[Compose<P>]` registration, and direct callers.
+- **A constructor that throws a `CompositionException`**: each
+  `Compose<TProfile>` package's existing `catch (CompositionException)` now
+  handles it like a `Configure` failure, appending its existing seed line
+  (including `Compose`'s existing message-only seed when no seed is
+  configured). That seed-reporting behavior is pre-existing and stays out of
+  scope, as "Effective seed" already records. This amendment doesn't change
+  it.
+- **`ComposeData<TProfile>`**: R0 now reports the constructor's message,
+  keeps the original exception as `InnerException`, and carries a
+  `CompositionException`'s `Diagnostic`, identical to arity-2 and identical
+  on JIT, the managed AOT runner, and Native AOT.
+- Code that caught `TargetInvocationException` from `AddProfile<TProfile>()`
+  no longer sees it. This is accepted: the wrapper is an incidental artifact
+  of `new()` lowering, and no documented contract promised it.
+
+### 5. Native AOT considerations
+
+- The fix adds no reflection, dynamic code, or new dependency. `new
+  TProfile()` under the `new()` constraint is already AOT-safe (no IL/AOT
+  warnings), and `ExceptionDispatchInfo` is AOT-safe.
+- The Native AOT probe showed the same wrapping, so the fix is required on
+  Native AOT too, not only on JIT.
+- No generator, template, emitter, diagnostic (`CMP0049` included), or
+  snapshot changes. Generated code keeps calling `AddProfile<global::P>()`.
+- **Factual correction (descriptive only).** ADR-0018 says the generic form
+  compiles to "an ordinary `new TProfile()` … no `Activator.CreateInstance`".
+  The compiler actually lowers it to `Activator.CreateInstance<TProfile>()`.
+  ADR-0018's decision and its reflection-free, AOT-safe conclusion still
+  hold, because no `Type`-keyed lookup or trim-unsafe API is involved. Only
+  the exception-wrapping side effect is new information. ADR-0018 records
+  the same clarification in its own 2026-11-10 amendment, which leaves its
+  decision and rationale unchanged.
+
+### 6. Focused regression requirements
+
+- **Core** (`test/Compono.Tests`):
+  - a constructor throwing a non-`CompositionException` reaches the
+    `AddProfile<TProfile>()` caller as the same instance (type and message
+    asserted, and the stack trace contains the constructor's frame);
+  - a constructor throwing a `CompositionException` with a `Diagnostic`
+    reaches the caller as the same instance with the same `Diagnostic`
+    reference;
+  - a `TargetInvocationException` thrown from `Configure` is **not**
+    unwrapped.
+- **`ComposeData<TProfile>` parity**, in both `ComposeDataParityTests.cs`
+  files (JIT through `GetData`, AOT through the B5.10 harness):
+  - the exact R0 text for a throwing parameterless constructor, with the
+    same literal on both engines, and the original exception as
+    `InnerException`;
+  - a constructor throwing a `CompositionException`, whose `Diagnostic` is
+    carried through by reference.
+
+  Both run in the real Native AOT binary (the S7 publish).
+- **Existing `Compose` regression**: the full suite stays green with no test
+  changes. No existing test asserts the `TargetInvocationException` wrapper
+  (verified by search during the audit). No new per-framework tests are
+  required, because every framework reaches the fix through the same core
+  method; the core tests are the single source of proof.
+
+### 7. Unchanged
+
+Amendment 1's additive `CompositionException` constructor, Amendments 2–5,
+every Decision item, and ADR-0018's decision. JIT `ConfigProfileBinder` and
+the AOT arity-2 path are unchanged.
+
+**Recorded:** PLAN-0071 B6 ("Streamlined remaining work", Pass 1) and Notes
+(2026-11-10).

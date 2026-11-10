@@ -261,3 +261,34 @@ explicit rule:
 - [ADR-0011](0011-composition-scope-shared-values-and-recursion-detection.md) — the
   active-construction-frame stack this ADR's profile-cycle detection mirrors the
   shape of (type-keyed, push-on-entry/pop-in-`finally`)
+
+## Amendment (2026-11-10): how generic `AddProfile<TProfile>()` construction is actually compiled
+
+**Factual clarification only.** The decision, the chosen options, and the
+rationale above are unchanged. This corrects two descriptive statements: the
+Decision Driver that generic construction happens "without
+`Activator.CreateInstance`", and option 1's "no `Activator.CreateInstance`".
+
+- **What the source says.** `AddProfile<TProfile>()` constructs the profile
+  with `new TProfile()`, under the `where TProfile : ICompositionProfile,
+  new()` constraint.
+- **How it's compiled.** For a type parameter with the `new()` constraint, the
+  C# compiler lowers `new TProfile()` to
+  `Activator.CreateInstance<TProfile>()`. So generic construction **does** go
+  through `Activator.CreateInstance<T>`, not a direct constructor call.
+- **Native AOT stays compatible.** The generic
+  `Activator.CreateInstance<T>()` over a closed `new()`-constrained type
+  involves no `Type`-keyed lookup and produces no trim or AOT warnings. This
+  ADR's reflection-free, AOT-safe conclusion still holds.
+- **Side effect.** `Activator.CreateInstance<T>()` wraps any exception the
+  constructor throws in a `System.Reflection.TargetInvocationException`. That
+  was verified on JIT and on a real Native AOT publish (PLAN-0071 Notes,
+  2026-11-10). Callers of `AddProfile<TProfile>()` therefore received the
+  wrapper instead of the constructor's own exception, message, and (for a
+  `CompositionException`) `Diagnostic`.
+- **Resolution.**
+  [ADR-0070 Amendment 6](0070-xunitv3-composedata-composed-theory-rows.md)
+  approves narrowly unwrapping that wrapper. Only the construction step is
+  guarded, the original exception is rethrown via `ExceptionDispatchInfo`,
+  and `Configure` is never unwrapped. `AddProfile(ICompositionProfile)`,
+  profile application order, and cycle detection are unchanged.

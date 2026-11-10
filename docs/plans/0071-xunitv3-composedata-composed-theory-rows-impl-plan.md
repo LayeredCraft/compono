@@ -48,8 +48,13 @@ validation.
   Amendment 1): a public `CompositionException(string message,
   CompositionDiagnostic? diagnostic, Exception innerException)` constructor so
   the shared helper can build the R0 row-failure wrapper while preserving the
-  cause as `InnerException` and the exact `Diagnostic` reference. Any
-  *further* core change still stops and raises.
+  cause as `InnerException` and the exact `Diagnostic` reference. **Plus one
+  approved core fix** (ADR-0070 Amendment 6, 2026-11-10):
+  `CompositionBuilder.AddProfile<TProfile>()` rethrows a profile
+  constructor's original exception instead of `Activator`'s
+  `TargetInvocationException` wrapper. It's behavior-only, with no API
+  change, and lands in this branch (B6 Pass 1). Any *further* core change
+  still stops and raises.
 
 **Release:** ships in the single #161 release with #162–#166. No interim
 release.
@@ -83,6 +88,19 @@ but only when the product owner approves committing):
 - **Phase 2 checkpoint: Native AOT.** B4 → B5 → B6.
 - **Phase 3 checkpoint: docs, skill, validation.** B7 → B8 → B9. The PR
   opens only after B9, and only with product-owner approval.
+
+**Streamlined remaining work (product owner, 2026-11-10).** From B6.2 on,
+the remaining work runs as four passes (B6, "Streamlined remaining work"):
+
+- **Pass 1:** core fix, plus B6.2/B6.3 behavioral coverage.
+- **Pass 2:** reduced B6.4, plus B6.5 samples.
+- **Pass 3:** B7 + B8.
+- **Pass 4:** B9.
+
+Each pass is one cohesive implementation, one independent review, and one
+commit that carries both the implementation and its plan checkpoint. There's
+no separate documentation-closeout commit. Commits still need
+product-owner approval.
 
 This intentionally relaxes the repo's phase-per-PR default for this
 feature: the phases aren't independently shippable, because a JIT-only
@@ -1201,7 +1219,7 @@ the S4 checkpoint entry's known limitations).
 - **File:** B5's tests go in
   `test/Compono.XunitV3.Aot.Tests/ComposeDataEmissionTests.cs`. B6 later
   adds the full behavioral matrix in `ComposeDataTests.cs` and reuses the
-  harness.
+  harness. *(Reduced to the B6 Pass 1 gap-fill set by D2, 2026-11-10.)*
 - **Generator snapshot tests** (`Compono.Generators.Tests`) assert the
   generated text with `GeneratorTestHelpers.VerifyGeneratedSource` - the
   B5.10 compile-free snapshot helper (S2). It snapshots the driver's
@@ -1335,7 +1353,7 @@ A separately reviewed implementation slice: one commit, an independent review, t
 
 ##### B6.1–B6.5 Remaining slices
 
-**Status:** B6.1 is **complete** (2026-11-10; implemented at `8cd80cbef396d2364d93fb4b8bf02e24c3d62809`, independently reviewed by Claude Opus and approved with no blocking findings, committed and pushed to `origin/feat/163-composedata`; Notes, "B6.1 completion checkpoint"). B6.2–B6.5 are **not started**; **B6 overall stays in progress**. This section formalizes the slicing approved by the product owner on 2026-11-09 (Notes, "B6.1–B6.5 slicing"). B6.0 above, and B5's acceptance record, are unchanged by it.
+**Status:** B6.1 is **complete** (2026-11-10; implemented at `8cd80cbef396d2364d93fb4b8bf02e24c3d62809`, independently reviewed by Claude Opus and approved with no blocking findings, committed and pushed to `origin/feat/163-composedata`; Notes, "B6.1 completion checkpoint"). B6.2–B6.5 are **not started**; **B6 overall stays in progress**. This section formalizes the slicing approved by the product owner on 2026-11-09 (Notes, "B6.1–B6.5 slicing"). B6.0 above, and B5's acceptance record, are unchanged by it. **2026-11-10:** the remaining B6.2–B6.5 scope is reduced and regrouped into Passes 1–2 by "Streamlined remaining work" below (product owner; ADR-0070 Amendment 6). The B6.1 record, SQ2, SQ4, SQ6, and SQ7 still apply. SQ1's five-slice structure, SQ3's disposal wording, and SQ5's cite-before-adding rule are carried into the passes as described there.
 
 **Slicing decisions (product owner, 2026-11-09).** Numbered SQ1–SQ7 so they aren't confused with the B6 decisions Q1–Q4 at the top of this section, which still stand.
 
@@ -1349,23 +1367,23 @@ A separately reviewed implementation slice: one commit, an independent review, t
 
 **Remaining checklist (each item has exactly one owner slice, or is marked a cross-slice rule):**
 
-- [ ] **[B6.2]** `test/Compono.XunitV3.Aot.Tests/ComposeDataTests.cs`: the same behavioral matrix as B3 (plain `Assert`), except assembly fixtures (xunit/xunit#3664, with a comment) and xUnit argument disposal (documented difference, with an assertion that AOT doesn't dispose)
+- [ ] **[Pass 1, core]** ADR-0070 Amendment 6 core fix in `CompositionBuilder.AddProfile<TProfile>()`, with its regression tests and acceptance criteria (Pass 1, "Core fix")
+- [ ] **[Pass 1, B6.2]** `test/Compono.XunitV3.Aot.Tests/ComposeDataTests.cs`: the **reduced** behavioral set in Pass 1 (plain `Assert`). It covers fixtures, parallel isolation, `[InlineData]` mixing, the execution stage, and the disposal ownership boundary. Assembly fixtures are excluded with a comment citing xunit/xunit#3664. *(Was: "the same behavioral matrix as B3". Reduced 2026-11-10: B3 rows already proven by existing tests are cited in the Notes audit table, not re-tested.)*
 - [x] **[B6.1]** Cross-engine message parity: a test in each project asserts the exact R0 text for the same failing scenario. **Satisfied by B6.1** (implementation commit `8cd80cbef396d2364d93fb4b8bf02e24c3d62809`): one exact case per runtime R0 failure class (null row, unsupported row shape, too many values, null for a non-nullable parameter, type mismatch, `TConfig` extraction, member read throws, profile constructor throws), asserted with exact string equality and the same literal in both files (`ComposeDataParityTests` in each project; Notes, B6.1 completion checkpoint)
-- [ ] **[B6.3]** Cross-engine metadata parity: the same metadata matrix as B3 (skip conditions with and without `SkipType`, grouped precedence, explicit, timeout, traits, labels) yields the same skipped/run/explicit outcomes and display names on AOT
-- [ ] **[B6.3]** Real-runner skip parity: mirror the JIT baseline B3 established in `test/Compono.XunitV3.Tests/ComposeDataTheoryTests.cs` (`ComposeDataRowSkipConditionTests`, `ComposeDataAttributeSkipTypeTests`, `ComposeDataSkipPrecedenceTests`, `ComposeDataTheoryLevelSkipTests`) — row-level and attribute-level `SkipUnless`/`SkipWhen` with `SkipType` on a different class, grouped-skip precedence (unconditional row `Skip` wins), and theory-level `[Theory(Skip = …)]` conditions combined with unconditional row `Skip` — and assert identical run/skip outcomes and skip reasons on JIT and AOT
+- [ ] **[Pass 1, B6.3]** Cross-engine metadata parity: the same metadata matrix as B3 (skip conditions with and without `SkipType`, grouped precedence, explicit, timeout, traits, labels) yields the same skipped/run/explicit outcomes and display names on AOT. **Reduced 2026-11-10:** satisfied by citing existing evidence (Pass 1, "B6.3 evidence"), plus **one** AOT real-runner row/attribute `Explicit` theory. No `SkipType` real-runner theory is added unless the Pass 1 citation review finds an unproven link.
+- [ ] **[Pass 1, B6.3, by citation]** Real-runner skip parity: mirror the JIT baseline B3 established in `test/Compono.XunitV3.Tests/ComposeDataTheoryTests.cs` (`ComposeDataRowSkipConditionTests`, `ComposeDataAttributeSkipTypeTests`, `ComposeDataSkipPrecedenceTests`, `ComposeDataTheoryLevelSkipTests`) — row-level and attribute-level `SkipUnless`/`SkipWhen` with `SkipType` on a different class, grouped-skip precedence (unconditional row `Skip` wins), and theory-level `[Theory(Skip = …)]` conditions combined with unconditional row `Skip` — and assert identical run/skip outcomes and skip reasons on JIT and AOT
 - [x] **[B6.0, satisfied]** **Theory-level `SkipUnless`/`SkipWhen` interaction tests** (RESEARCH-0038 §2.6 item 3, §9.2 S2), mirrored in both test projects: a `[Theory(Skip = …, SkipUnless = …)]` and a `[Theory(Skip = …, SkipWhen = …)]` (condition true and false), each combined with (a) no `ComposeData` skip, (b) a row `Skip` with no condition, (c) a row `Skip` with its own condition, (d) an attribute `Skip` with and without a condition. Assert identical run/skip outcomes and skip reasons on JIT and AOT. If the planned approach can't reach parity, **stop and request review**. No speculative workarounds. **Satisfied by B6.0** (implementation commit `86bd7cb57a172c65fe39886f1f0db2a268934559`): the 84-case real-runner parity matrix (`test/Compono.XunitV3.Tests/ComposeDataTheorySkipParityTests.cs`, `test/Compono.XunitV3.Aot.Tests/ComposeDataTheorySkipParityTests.cs`) is a superset of this item's (a)–(d) combinations, plus an unconditional theory `Skip`, and it passed 84/84 with matching outcomes and skip reasons on JIT (net9.0/net10.0/net11.0), the managed AOT runner (net9.0/net10.0/net11.0), and the real Native AOT binary (net10.0) (Notes, B6.0 completion checkpoint)
 - [x] **[B6.1]** Seed parity: the same seed-line variants as B3, with identical text. **Satisfied by B6.1** (implementation commit `8cd80cbef396d2364d93fb4b8bf02e24c3d62809`): not assigned (via the null-row scenario), attribute seed, attribute seed `0`, profile `WithSeed`, negative profile seed, and the duplicate-seed conflict, with mirrored fixtures so both engines assert identical literals (Notes, B6.1 completion checkpoint)
 - [x] **[B6.1]** Name parity: `typeof(…).FullName`-based `{M}`/`{T}` text matches JIT under JIT-run **and** real Native AOT, for a nested test class and a closed-generic holder. Inherited test methods **without** `MemberType` are excluded from `{M}` byte parity (C-1: JIT names the concrete class, AOT the declaring class); add one test per engine that documents that difference. **Satisfied by B6.1** (implementation commit `8cd80cbef396d2364d93fb4b8bf02e24c3d62809`): the nested test class pins the CLR `+` form and the AOT registration-index `.` form as literals; the closed-generic holder takes only the TFM-dependent assembly-qualified type-argument portion from `typeof(…).FullName` and pins the namespace/name/arity/brackets as literals; names are never normalized or stripped; verified under JIT, the managed AOT runner, and the real Native AOT binary; one C-1 documenting test per engine (Notes, B6.1 completion checkpoint)
 - [x] **[B6.1]** ADR-0070 Amendment 2 documenting tests (runtime side; the AOT compile-time side is B4's `CMP0051`/`CMP0044` tests): (a) an inherited test method with a member that a derived class hides, without `MemberType`, asserting each engine's actual resolution (JIT: the derived member; AOT: the declaring-class member); (b) the same inherited test with an explicit `MemberType`, asserting identical rows on both engines; (c) on JIT only, a private nested `MemberType` holder that runs (AOT can't compile it, `CMP0044`). Each test carries a comment naming Amendment 2. **Satisfied by B6.1** (implementation commit `8cd80cbef396d2364d93fb4b8bf02e24c3d62809`): all three documenting tests are present, with (c)'s holder a genuinely private nested class exercised through the JIT reflection path and no AOT counterpart (Notes, B6.1 completion checkpoint)
-- [ ] **[B6.4]** **Generic test-class bases (ADR-0070 Amendment 4 §1)**, mirrored in both projects: an inherited `[ComposeData]` method on `GenericBase<T>` (with `MemberType` to a non-generic holder) run through two closed subclasses. Assert identical rows, identical `{T}` R0 text (the closed-generic `FullName`), and that a custom `ICompositionValueProvider` sees the same closed `request.DeclaringType` on both engines
-- [ ] **[B6.4]** **ADR-0070 Amendment 4 §2 documenting tests** (runtime side, JIT project only, each with a comment naming Amendment 4; the AOT compile-time side is covered by B5 S0): a member declared on `GenericBase<T>` without `MemberType` runs on JIT; a static virtual interface member through an interface `MemberType` runs on JIT; an `[Obsolete(error: true)]` data member runs on JIT; a member type implementing `IAsyncEnumerable<string>` and `IAsyncEnumerable<Uri>`, and one implementing `IAsyncEnumerable<int>` and `IAsyncEnumerable<long>`, each run on JIT (they're `CMP0053` on AOT); an active `SkipUnless` naming a `static virtual` interface property through `SkipType = typeof(IFoo)` runs on JIT with its condition honored (it's `CMP0052` on AOT, Amendment 4 §7a); plus a cross-engine parity test for the supported `int` + `string` shape (both engines read the `string` rows)
-- [ ] **[B6.3]** `DisableParallelization` parity: absent, `true`, and a row override yield the same merged `ITheoryDataRow.DisableParallelization` on both engines (B5.8)
-- [ ] **[Cross-slice rule, B6.1–B6.4]** Reuse B5.10's `RegisteredComposeDataFactory` harness for AOT failure-path and metadata assertions. Don't add a second harness. Ticked when B6.4 closes, if every slice's review confirmed it
-- [ ] **[B6.5]** Samples: `test/Compono.XunitV3.SampleTests/ComposeDataTests.cs` and `test/Compono.XunitV3.Aot.SampleTests/ComposeDataTests.cs` (documentation-quality: the `TConfig` pricing table, the email table with `[Shared]`, an async source, a fixture-backed row)
-- [ ] **[B6.5]** V3: real Native AOT publish and run of `Compono.XunitV3.Aot.SampleTests`, 0 IL/AOT warnings, all `ComposeData` tests executed (count them in the output)
-- [ ] **[B6.5]** V7: pack-and-consume, a throwaway consumer outside the repo using both packages from a local feed (`AGENTS.md` generator rule; SQ7)
+- [ ] **[Pass 2, B6.4 reduced]** **Generic test-class bases (ADR-0070 Amendment 4 §1), JIT side:** **one** JIT real-runner test. An inherited `[ComposeData]` theory on a generic base (with `MemberType` to a non-generic holder) runs through two closed subclasses (`<int>`, `<string>`), and asserts the rows and that a custom `ICompositionValueProvider` sees the closed `request.DeclaringType`, the same assertion as the AOT S6 tests (`ComposeDataEmissionTests` `IntGenericComposeTests`/`StringGenericComposeTests`). *(Was: "mirrored in both projects" plus `{T}` R0 text. Reduced 2026-11-10: the AOT side is already B5 S6, and closed-generic `{M}`/`{T}` formatting is already B6.1 name parity.)*
+- **Dropped (product owner, 2026-11-10), formerly [B6.4]:** **ADR-0070 Amendment 4 §2 documenting tests.** They would only show that JIT reflection accepts shapes AOT rejects. The AOT rejections are already generator-tested (B5 S0/S5), and no JIT behavior depends on them. The `int` + `string` cross-engine parity test is **optional** (AOT `StaticMixedSource_ReadsReferenceRowsInOrder`/`AsyncMixedReferenceAndValue_TakesTheReferenceReaderAtRuntime` already cover the AOT side), and is added only if Pass 2 shows a real gap. Original text, kept for traceability: **ADR-0070 Amendment 4 §2 documenting tests** (runtime side, JIT project only, each with a comment naming Amendment 4; the AOT compile-time side is covered by B5 S0): a member declared on `GenericBase<T>` without `MemberType` runs on JIT; a static virtual interface member through an interface `MemberType` runs on JIT; an `[Obsolete(error: true)]` data member runs on JIT; a member type implementing `IAsyncEnumerable<string>` and `IAsyncEnumerable<Uri>`, and one implementing `IAsyncEnumerable<int>` and `IAsyncEnumerable<long>`, each run on JIT (they're `CMP0053` on AOT); an active `SkipUnless` naming a `static virtual` interface property through `SkipType = typeof(IFoo)` runs on JIT with its condition honored (it's `CMP0052` on AOT, Amendment 4 §7a); plus a cross-engine parity test for the supported `int` + `string` shape (both engines read the `string` rows)
+- [ ] **[Pass 1, B6.3, by citation]** `DisableParallelization` parity: absent, `true`, and a row override yield the same merged `ITheoryDataRow.DisableParallelization` on both engines (B5.8). Expected to be satisfied by the existing tests listed under Pass 1 "B6.3 evidence"; no new test unless that review finds a gap
+- [ ] **[Cross-pass rule, Passes 1–2]** Reuse B5.10's `RegisteredComposeDataFactory` harness for AOT failure-path, metadata, and disposal assertions. Don't add a second harness. The only permitted harness change is Pass 1's optional `DisposalTracker` parameter. Ticked when Pass 2 closes, if both reviews confirmed it
+- [ ] **[Pass 2, B6.5]** Samples: `test/Compono.XunitV3.SampleTests/ComposeDataTests.cs` and `test/Compono.XunitV3.Aot.SampleTests/ComposeDataTests.cs`, documentation-quality, the **same three** examples in each: the per-row `TConfig` pricing table, a `[Shared]` dependency, and a fixture-backed theory. An async source is optional. Samples don't duplicate test-suite coverage
+- **Moved to Pass 4 (B9), 2026-11-10, formerly [B6.5]:** V3, the real Native AOT publish and run of `Compono.XunitV3.Aot.SampleTests` (0 IL/AOT warnings, all `ComposeData` tests executed and counted), and V7 pack-and-consume (SQ7). Each runs **once**, on the final tree, in B9; they're no longer repeated in B6
 
-**Common slice rules (B6.1–B6.5):**
+**Common slice rules (B6.1; superseded for the remaining work by "Streamlined remaining work" below):**
 
 - One slice at a time: implement, gate, independent review, then product-owner approval before commit. The next slice starts only after the previous one is committed and recorded in Notes.
 - Tests and samples only. Each slice changes **no** `src/` file, generator template, Verify snapshot, ADR, or CI workflow. If a slice finds that production code must change to reach parity, it **stops** and reports to the design owner. No fix inside the slice.
@@ -1381,28 +1399,119 @@ A separately reviewed implementation slice: one commit, an independent review, t
 - **Gates.** The common gates, including the Native AOT publish with the B6.1 tests counted in the native run. Record the parity scenario list (each one paired across the two files) and the per-project, per-TFM test-count change in Notes.
 - **Stop conditions.** Stop and report, without working around it, if: any R0 or seed-line text differs between engines for the same scenario; `{M}`/`{T}` differ under real Native AOT from the managed run for a genuinely identical type; a scenario can't be reached through the harness without a second harness or a `src/` change; or a test would contradict ADR-0070 (including Amendment 2's resolution rules).
 
-**B6.2: AOT behavioral-matrix gap fill.** Owns: `ComposeDataTests.cs`, assembly-fixture exclusion, disposal (SQ3).
+**B6.2–B6.5 (original slice specifications):** superseded on 2026-11-10 by "Streamlined remaining work" below. The original texts were plans, not completed work, and are replaced rather than kept as stale requirements. The decision trail is in Notes ("B6.1–B6.5 slicing", 2026-11-09, and "B6.2 audit and streamlining", 2026-11-10).
 
-- Before writing tests, audit B3's behavioral matrix (`test/Compono.XunitV3.Tests/ComposeDataTheoryTests.cs`, `ComposeDataGetDataTests.cs`, `ComposeDataRowsTests.cs`) item by item against existing AOT coverage (`ComposeDataEmissionTests`, `ComposeDataRowsTests`, `ComposeDataTheorySkipParityTests`), and record the table in Notes (SQ6): B3 item, existing AOT test(s) or "none", and the action (cited as covered, or added). Only the "none" rows get new tests in `ComposeDataTests.cs`.
-- Disposal (SQ3): AOT through the harness (Compono registers nothing with the `DisposalTracker`, and the row value is still undisposed after the tracker is disposed); a JIT documenting test that argument disposal is xUnit's own behavior. No order-dependent real-runner disposal assertion.
-- Assembly fixtures are excluded on AOT with a comment citing xunit/xunit#3664.
-- Real-token cancellation is out of scope (SQ4).
+##### Streamlined remaining work (product owner, 2026-11-10; ADR-0070 Amendment 6)
 
-**B6.3: metadata and skip real-runner parity.** Owns: metadata parity, real-runner skip parity, `DisableParallelization` parity.
+**Decisions (D1–D7).** Numbered separately from Q1–Q4 and SQ1–SQ7, which stand except where noted.
 
-- First audit existing coverage (SQ5), and tick an item only when cited tests actually prove it. **Candidate existing coverage, not yet verified against the requirements:**
-  - Skip conditions, grouped precedence, theory-level skip: the B6.0 84-case real-runner matrix (both `ComposeDataTheorySkipParityTests.cs`); the JIT B3 baseline classes in `ComposeDataTheoryTests.cs`; the AOT S5 harness tests in `ComposeDataEmissionTests.cs` (`SkipUnless_*`, `SkipWhen_*`, `SkipType_Holder_BindsPredicateReturningTrue`, `RowSkip_WinsOverAttributeGroup`, `RowPredicate_WinsOverAttributePredicate`). Known open question for the audit: the B6.0 matrix uses no `SkipType`, and the AOT `SkipType` coverage is harness-level, not a real-runner outcome.
-  - Explicit, timeout, traits, labels, display names: AOT `MetadataRows_CarryConstantsAndSeedTrait` and `Traits_AreUnionedWithRowAndSeed` (harness-level); JIT `ComposeDataSkipAndExplicitTests` and `ComposeDataDisplayAndTraitTests` (real runner).
-  - `DisableParallelization`: JIT `ComposeDataRowsTests` (`CreateDataRow_*DisableParallelization*`) and `ComposeDataGetDataTests` (`GetData_AttributeDisableParallelization_IsMergedOntoRows`, `GetData_DisableParallelization_DefaultsToFalse`); AOT `DisableParallelization_DefaultsToFalse`, `DisableParallelization_RowOverrideWins`, `DisableParallelization_AttributeTrueRowFalse_RowWins`.
-- Add tests only for what the audit shows is unproven, and record the audit result in Notes.
+- **D1, core fix:** ADR-0070 Amendment 6 is approved and lands in #163, on this branch and in this PR. There's no separate PR.
+- **D2, B6.2:** reduced to the set in Pass 1. B3 rows already proven by existing tests are cited in the Notes audit table, not re-tested. This refines SQ5/SQ6: the audit is recorded, but tests aren't added just to fill every historical B3 row.
+- **D3, B6.3 and B6.4:** B6.3 is satisfied by citing existing evidence, plus at most one AOT real-runner `Explicit` theory and one `SkipType` theory (the `SkipType` theory only if needed; see Pass 1). The 84-case matrix isn't duplicated. B6.4 keeps one JIT generic-base test; the six Amendment 4 §2 JIT documenting tests are dropped; `int` + `string` parity is optional.
+- **D4, B6.5 samples:** three examples (the `TConfig` pricing table, a `[Shared]` dependency, a fixture-backed theory). Async is optional.
+- **D5, B7 + B8:** one pass.
+- **D6, B9:** comprehensive validation **once**, on the final tree. V2 is folded into V1; V5 and V7 run in one scratch consumer; V3 and V7 aren't repeated earlier; V9 is a regression signal with no new rigid threshold.
+- **D7, workflow:** four passes. Each pass is one cohesive implementation, one independent review, and one commit containing both the implementation and its plan checkpoint. There's no separate documentation-closeout commit, and committing still needs product-owner approval. The B5, B6.0, and B6.1 records are history and aren't rewritten.
 
-**B6.4: generic bases and Amendment 4, JIT side.** Owns: the Amendment 4 §1 JIT mirror (the AOT side is B5 S6's `ComposeDataGenericTestClassTests`), the Amendment 4 §2 JIT-only documenting tests, and the `int` + `string` cross-engine parity test. Reuse B6.1's `{T}` formatting-rule assertions for closed generics.
+**Rules for every pass:**
 
-**B6.5: samples and packaged validation.** Owns: both `SampleTests/ComposeDataTests.cs` files, V3, and V7. Runs last, on the tree with B6.1–B6.4 committed. V7 follows SQ7. B9 reruns V3 and V7 on the final tree.
+- **Scope.** Pass 1 may change exactly one `src/` file, `src/Compono/CompositionBuilder.cs` (Amendment 6), including its XML documentation where necessary. Pass 1 does **not** regenerate `docs/reference/api`; Pass 3 owns all API-reference regeneration (V4) and strict docs validation. That deferral is safe because the `docs.yml` API-reference drift check runs only on pull requests and pushes to `main`, and the #163 PR opens only after Pass 4. No other pass changes `src/`, a generator template or emitter, a Verify snapshot, an ADR, a CI workflow, or a project file. If a pass finds a production change is needed (for example, an AOT runner behavior that contradicts ADR-0070), it **stops** and reports to the design owner. No fix inside the pass.
+- **Harness.** AOT failure-path, metadata, and disposal assertions reuse B5.10's `RegisteredComposeDataFactory`; targets are plain `[ComposeData…]` methods without `[Theory]`. The only permitted harness change is Pass 1's optional `DisposalTracker` parameter.
+- **Common gates.**
+  - **G1:** full build, 0 warnings and 0 errors.
+  - **G2:** full suite green, which covers JIT on net8.0–net11.0, the managed AOT runner on net9.0–net11.0, generators, core, and the samples. No modified `*.verified.*` files.
+  - A pass that adds or changes AOT tests reruns the S7 Native AOT publish of `test/Compono.XunitV3.Aot.Tests` (`-p:ComponoAotTestsPublish=true`, net10.0, host RID): **0** IL/AOT warnings, and the new tests executed and counted in the native run.
+  - The B6.0 skip-parity validator reruns only in a pass that touches skip or metadata code (none is planned), and in Pass 4.
+
+###### Pass 1: core fix + B6.2/B6.3 behavioral coverage
+
+**Core fix (ADR-0070 Amendment 6).** In `CompositionBuilder.AddProfile<TProfile>()`, construct the profile in a separate guarded step (for example, a private static `CreateProfile<TProfile>()`), then call the unchanged `ApplyProfile`. The guard catches **only** a `TargetInvocationException` with a non-null `InnerException` thrown by `new TProfile()`, and rethrows the inner exception with `ExceptionDispatchInfo.Capture(inner).Throw()`.
+
+Acceptance criteria:
+
+- [ ] The original constructor exception reaches the caller as the **same instance**: type, message, `InnerException` chain, `CompositionException.Diagnostic`, and the original stack-trace frames are preserved.
+- [ ] Exceptions from `Configure`, including a `TargetInvocationException` thrown inside it, propagate exactly as before. Cycle detection is unchanged.
+- [ ] A `TargetInvocationException` with a null inner exception propagates unchanged.
+- [ ] No public API change: signatures, types, and members are all unchanged. `AddProfile(ICompositionProfile)` is unchanged. There's no reflection, dynamic code, or new dependency.
+- [ ] Where needed, the XML docs for `AddProfile<TProfile>()` state that a constructor's exception propagates unchanged. **No** API-reference regeneration in Pass 1: Pass 3's V4 regenerates `docs/reference/api` for `Compono` along with the ComposeData packages.
+- [ ] Core tests, `test/Compono.Tests/ComposerProfileTests.cs` (additions only):
+  1. A constructor throwing `InvalidOperationException` reaches the caller as the same instance (`Assert.Same`), and its stack trace contains the constructor frame.
+  2. A constructor throwing a `CompositionException` with a `Diagnostic` reaches the caller as the same instance, with the same `Diagnostic` reference.
+  3. A `TargetInvocationException` thrown from `Configure` is **not** unwrapped: the same instance reaches the caller.
+- [ ] ComposeData arity-1 parity, in **both** `ComposeDataParityTests.cs` files. JIT goes through the real `GetData`; AOT goes through the harness, with targets in the identical `Compono.XunitV3.ComposedDataParity` namespace (SQ2).
+  4. A throwing parameterless constructor: the exact R0 text `ComposeData row 0 from '{M}' for '{T}' failed: <constructor message>\n\nSeed: not assigned (the failure occurred before the row's composition started)`, with the same literal on both engines, and `InnerException` is the original exception type (not `TargetInvocationException`).
+  5. A constructor throwing a `CompositionException` with a `Diagnostic`: the R0 `Diagnostic` is the same reference, and `InnerException` is the constructor's exception.
+- [ ] Existing `Compose` regression: the full suite stays green with no test edits. Every `Compose<TProfile>` package (xUnit v3, TUnit, NUnit, MSTest) and the AOT `[Compose<P>]` registration reach the fix through the same core method. No per-framework tests are added.
+- [ ] Real Native AOT: tests 4 and 5 execute in the S7 native binary.
+
+**B6.2 retained tests** (`test/Compono.XunitV3.Aot.Tests/ComposeDataTests.cs`, new; reuse `RequireFixtureIdFixture`, `FixtureId`, and `IdFixtureProfile` from `RequireFixtureTests.cs`, so there's no new fixture or profile type for this group):
+
+- [ ] **Fixtures, parallel isolation, and execution stage (two real-runner classes):**
+  - Class A uses `IClassFixture<RequireFixtureIdFixture>`. Class B uses `[Collection]` on one new `[CollectionDefinition]` with `ICollectionFixture<RequireFixtureIdFixture>`.
+  - Each has one `[Theory]` + `[ComposeData<IdFixtureProfile>(nameof(Rows))]`, with two rows.
+  - Each class's `Rows()` member reads `TestContext.Current.RequireFixture<RequireFixtureIdFixture>().Id` into the row values and records `TestContext.Current.PipelineStage` in a static on its own class.
+  - The theory asserts the row-supplied id equals the injected fixture's `Id`, the composed `FixtureId` equals it, and the recorded stage is `TestPipelineStage.TestMethodExecution`.
+  - This covers class and collection fixtures, a fixture read inside the member, a fixture read through a profile, the execution stage, and isolation: the two classes run concurrently with distinct fixture instances. *(Two classes, not four: decided 2026-11-10.)*
+- [ ] **Mixed `[InlineData]` and `[ComposeData]`:** one theory in Class A with `[ComposeData(nameof(MixedRows))]` + `[InlineData(99, "inline")]`. The ComposeData rows bind their values, and the InlineData row passes through uncomposed, as in JIT `ComposeDataMixedSourceTests`.
+- [ ] **Disposal ownership boundary (harness).**
+  - One plain `[ComposeData<…>]` target whose first parameter is supplied by the row (a new disposable instance per read) and whose second parameter of the same small test-local `IDisposable` type is composed through a profile registration.
+  - One `[Fact]` invokes it with a caller-owned `DisposalTracker`. It asserts `tracker.TrackedObjects` is empty, then calls `await tracker.DisposeAsync()` and asserts neither value is disposed.
+  - It needs the one harness change: an optional `DisposalTracker? disposalTracker = null` parameter on `RegisteredComposeDataFactory.InvokeAsync`, passed as `disposalTracker ?? new DisposalTracker()`, with existing callers unchanged.
+- [ ] **Assembly fixtures:** a comment only, citing xunit/xunit#3664 (the AOT test project pins `xunit.v3.aot.mtp-v2` 4.0.1). Revisit if the pin moves to a fixed release.
+- [ ] **JIT disposal documenting test** (`test/Compono.XunitV3.Tests/ComposeDataGetDataTests.cs`, addition): the same shape through the real `GetData(method, tracker)`. `TrackedObjects` stays empty, and nothing is disposed. A comment explains that the xUnit **JIT runner** itself registers theory arguments (`DisposalTracker.AddRange(row.GetData())`, RESEARCH-0038 §2.4), so JIT disposal is xUnit's behavior, not Compono's. No real-runner disposal assertion (SQ3).
+
+**B6.3 evidence** (each item is ticked by citation once the Pass 1 review confirms the cited tests prove it):
+
+- **Skip conditions, grouped precedence, theory-level interaction.** These are already proven by:
+  - the B6.0 84-case real-runner matrix in both `ComposeDataTheorySkipParityTests.cs` files (JIT, managed AOT, Native AOT), which shows the AOT runner honors row and attribute predicates and their precedence;
+  - the AOT S5 harness tests in `ComposeDataEmissionTests` (`SkipType_Holder_BindsPredicateReturningTrue`, `SkipType_InheritsPropertyFromBaseClass_BindsPredicate`, `SkipProperty_OnTestClassBaseClass_BindsPredicate`, `RowSkip_WinsOverAttributeGroup`, `RowPredicate_WinsOverAttributePredicate`, `SkipUnless_*`/`SkipWhen_*`), which show a `SkipType` condition binds to the right holder's property;
+  - the JIT real-runner baseline in `ComposeDataTheoryTests.cs` (`ComposeDataRowSkipConditionTests`, `ComposeDataAttributeSkipTypeTests`, `ComposeDataSkipPrecedenceTests`, `ComposeDataTheoryLevelSkipTests`).
+
+  Taken together, these prove AOT `SkipType` outcomes. **Default: no `SkipType` real-runner theory.** Add one only if the review finds the chain incomplete.
+- **`Explicit`.** The AOT merge is harness-proven (`MetadataRows_CarryConstantsAndSeedTrait`), but no AOT real-runner test shows the runner honoring a factory row's `Explicit`. **Add one** AOT real-runner theory, `[ComposeData(nameof(Rows), Explicit = true)]`, whose body calls `Assert.Fail`. A green run with the case reported as not run proves it.
+- **Timeout, traits, labels, display names.** Cite AOT `MetadataRows_CarryConstantsAndSeedTrait`, `Traits_AreUnionedWithRowAndSeed`, and the JIT real-runner `ComposeDataSkipAndExplicitTests` and `ComposeDataDisplayAndTraitTests`. No new tests.
+- **`DisableParallelization`.** Cite JIT `ComposeDataRowsTests.CreateDataRow_*DisableParallelization*`, `ComposeDataGetDataTests.GetData_AttributeDisableParallelization_IsMergedOntoRows` and `GetData_DisableParallelization_DefaultsToFalse`, and AOT `DisableParallelization_DefaultsToFalse`, `DisableParallelization_RowOverrideWins`, and `DisableParallelization_AttributeTrueRowFalse_RowWins`. No new tests.
+
+**Not added (existing evidence or out of scope; see the Notes audit table):** nullable-parameter binding, seed reproduction, a later labelled-row failure, the sync `(T1,T2)[]` and `TheoryDataRow<T…>[]` shapes, `List<object?[]>`, the extra two isolation classes, and real-token cancellation (SQ4, deferred).
+
+**Pass 1 gates:** the common gates, plus:
+
+- `git diff --stat -- src/` lists only `src/Compono/CompositionBuilder.cs`.
+- The S7 Native AOT publish runs with the new tests counted.
+- The Notes checkpoint records the B3 audit table (or confirms the 2026-11-10 one), the per-project test-count change, the native run counts, and which B6.3 items are ticked by citation.
+
+**Pass 1 stop conditions:**
+
+- The arity-1 R0 text differs between engines after the fix.
+- The AOT runner doesn't honor row `Explicit`, or the fixture, stage, or isolation assertions fail on AOT.
+- `[InlineData]` + `[ComposeData]` doesn't run on AOT.
+- Any of these needs a `src/` change other than Amendment 6's.
+
+###### Pass 2: reduced B6.4 + B6.5 samples
+
+- [ ] **One JIT generic-base test**, in `test/Compono.XunitV3.Tests/ComposeDataTheoryTests.cs` (addition). It needs a small JIT probe provider, profile, and record, mirroring the AOT `DeclaringTypeProbe*` types.
+  - The generic base declares an inherited `[Theory]` + `[ComposeData<…ProbeProfile>(…, MemberType = typeof(NonGenericHolder))]`.
+  - Two closed subclasses (`<int>`, `<string>`) run it.
+  - It asserts the rows and that the probe provider saw the closed generic base as `request.DeclaringType`, the same assertion as AOT S6.
+- [ ] **Samples:** the three D4 examples in both `*SampleTests/ComposeDataTests.cs`. Async is optional.
+- [ ] **Optional, only if a real gap is shown:** the `int` + `string` cross-engine parity test.
+- **Gates:** the common gates. No AOT test changes, so there's no S7 rerun. The AOT samples run in G2 under the managed runner; their Native AOT execution is Pass 4 V3 plus the existing linux-x64 CI job (Q4).
+
+###### Pass 3: B7 + B8 (documentation and skill, one pass)
+
+Runs the B7 and B8 checklists below as one implementation, with one review and one commit. That includes the D5 additions recorded in those checklists (the Amendment 6 release note, and a small eval set). Gates: V4 (regenerate `docs/reference/api` for every changed package, **including `Compono`** for Pass 1's `AddProfile<TProfile>()` XML docs, and leave no drift), `mkdocs build --strict`, V8, and G1.
+
+###### Pass 4: B9 final validation (once, on the final tree)
+
+Runs the B9 checklist below. V3, the combined V5/V7 consumer, V6, and V9 run **only** here.
 
 ### Phase 3: docs, skill, validation
 
 #### B7 (`compono-lsx.7`, after B3 and B6): documentation and API reference
+
+**Executed with B8 as Pass 3 (D5, 2026-11-10):** one implementation, one review, one commit. Keep changes to what the shipped behavior needs; no unrelated documentation churn.
+
+- [ ] **Amendment 6 (D1):** call out the `AddProfile<TProfile>()` constructor-exception fix (original exception propagates; cross-framework `Compose<TProfile>` impact) in the #163 PR description, which feeds the release-drafter notes for the #161 release. Add a sentence to `docs/how-to/use-profiles.md` only if it is the natural home for profile-construction failure behavior. Pass 1 may have updated the `AddProfile` XML docs; the matching `docs/reference/api/Compono` regeneration happens in this pass's V4 item
 
 - [ ] `docs/packages/compono-xunitv3.md`: a "Composed theory rows (`[ComposeData]`)" section (forms, collection vs. row shapes, row layout, binding and nullable/value-type rules, effective-seed precedence and seed-line meanings, the row-vs-attribute metadata table including `SkipType`/`SkipUnless`/`SkipWhen`, labels, failure granularity, disposal note, mixing with xUnit attributes). Replace the "No stacking…" bullet with a pointer
 - [ ] `docs/packages/compono-xunitv3-aot.md`: the same section, the diagnostics table (`CMP0051`–`CMP0057`, plus the ComposeData uses of `CMP0040`/`CMP0042`/`CMP0044`–`CMP0049`), the JIT/AOT differences (disposal, assembly fixtures, inherited test methods resolving the member on the declaring class with `MemberType` as a fixed-holder workaround only, private/protected nested holders rejected with `CMP0044`, the C-4 skip residual), and "Not yet supported" updated: AOT `[Compose]` inline values and `[Shared]` remain a follow-up (record it explicitly). Seed status per #166
@@ -1411,7 +1520,7 @@ A separately reviewed implementation slice: one commit, an independent review, t
 - [ ] `docs/migrating-from-autofixture.md`: `MemberAutoData`/`InlineAutoData` → `ComposeData`
 - [ ] `docs/troubleshooting/common-errors.md`: D1–D5/R0 entries. `docs/reference/diagnostics.md`: new CMP entries
 - [ ] ADR-0022: append an Amendment recording that Amendment 7's open question is answered by ADR-0070 (no change to `[Compose]`)
-- [ ] V4: regenerate `docs/reference/api` (the full API-reference regeneration for the new public types is a B7 obligation; B2 did not regenerate it). Confirm `ComposeDataAttribute*` pages under both packages. Confirm the AOT helper page shows up as infrastructure (EditorBrowsable)
+- [ ] V4: regenerate `docs/reference/api` (the full API-reference regeneration for the new public types is a B7 obligation; B2 did not regenerate it). It **includes `Compono`**, for any Pass 1 XML-doc change to `AddProfile<TProfile>()` (Pass 1 doesn't regenerate). Confirm `ComposeDataAttribute*` pages under both packages. Confirm the AOT helper page shows up as infrastructure (EditorBrowsable)
 - [ ] `mkdocs build --strict`
 - [ ] Full-file grep of touched docs for stale claims ("one Compose-family attribute", "no data rows", "InlineData")
 
@@ -1421,18 +1530,21 @@ A separately reviewed implementation slice: one commit, an independent review, t
 - [ ] `skills/compono/SKILL.md`: routing and decision guidance ("table-driven theory with per-row config/expected values → `ComposeData`"), plus guardrails (don't stack Compose attributes, don't put composed params before row values, don't rely on `Configure` captured state). Keep the frontmatter `description` ≤ 1024 chars
 - [ ] Other references: `references/patterns-and-antipatterns.md` (one-method-per-row antipattern → `ComposeData`), `references/diagnostics.md` (new CMP IDs and runtime messages), `references/registrations-profiles-and-scopes.md` (per-row profile with `TConfig`), and the migration guidance wherever `InlineAutoData`/`MemberAutoData` are mapped
 - [ ] Every skill example matches the final public API and the docs (compile-check the snippets by copying them into a sample test or a scratch project)
-- [ ] `skills/compono/evals/evals.json`: add scenarios (positive: the table-driven theory picks `ComposeData`; AOT project picks the `Compono.XunitV3.Aot` form; correct-behavior: doesn't invent `[InlineData]`+`[Compose]` merging)
+- [ ] `skills/compono/evals/evals.json`: add a **small** set (the three scenarios listed here, no more unless a real routing gap appears; D5). Scenarios (positive: the table-driven theory picks `ComposeData`; AOT project picks the `Compono.XunitV3.Aot` form; correct-behavior: doesn't invent `[InlineData]`+`[Compose]` merging)
 - [ ] Validation (V8): skill-creator `quick_validate` on `skills/compono` (frontmatter, description ≤ 1024), all relative links in `skills/compono/**` resolve, and the evals JSON parses
 
 #### B9 (`compono-lsx.9`, after B8): validation gate and closeout
 
+**Executed as Pass 4 (D6, 2026-11-10):** comprehensive validation runs **once**, against the final tree. Validation already covered by the V1 full-suite gate isn't repeated separately.
+
 - [ ] V1 full `dotnet build` (0/0) and `dotnet test` green
-- [ ] V2 focused suites (JIT, AOT, samples, generators)
-- [ ] V3 Native AOT publish and run (re-run on the final tree)
-- [ ] V5 xUnit 3.2.2 floor (JIT) and 4.0.2 (JIT plus AOT), in a throwaway consumer outside the repo
-- [ ] V6 package validation (all affected packages, against the prior baseline)
-- [ ] V7 pack-and-consume
-- [ ] V9 per-row cost spot-check: measure `[ComposeData]` (N=50 rows) vs. N `[Compose]` methods. Record it in Notes. Investigate if more than 2× per-row
+- **Folded into V1 (D6):** V2's focused suites (JIT, AOT, samples, generators) are all part of the V1 full suite and aren't run separately
+- [ ] V3 Native AOT, on the final tree and run **once**: (a) the S7 publish of `test/Compono.XunitV3.Aot.Tests` (`-p:ComponoAotTestsPublish=true`) and (b) the publish of `test/Compono.XunitV3.Aot.SampleTests`. Both need **0** IL/AOT warnings, and both executables are run with all `ComposeData` tests executed and counted (including the Amendment 6 arity-1 parity tests in (a))
+- [ ] Linux-x64 Native AOT CI: the existing `aot-xunitv3-aot-pipeline` job, which publishes and runs `Compono.XunitV3.Aot.SampleTests`, is green on the PR (Q4). No workflow change
+- [ ] **V5 + V7, combined (D6, SQ7):** one independent scratch consumer **outside the repository**. Pack `Compono`, `Compono.XunitV3`, and `Compono.XunitV3.Aot` from the final tree to a local feed under a unique prerelease version, and install them as local-feed `PackageReference`s. The consumer has a JIT project on `xunit.v3.mtp-v2` **3.2.2** (the floor), a JIT project on **4.0.2**, and an AOT project on `xunit.v3.aot.mtp-v2` **4.0.2**. Each runs a small `ComposeData` set: all three forms, `[Shared]`, an async source, and a fixture-backed row, plus one `[Compose]` regression and one arity-1 constructor failure asserting the original exception message (Amendment 6). Confirm the resolved versions for every package in `obj/project.assets.json` (no stale cache hits)
+- [ ] V6 package validation and ApiCompat against the prior release baseline: `Compono` (Amendment 6 is behavior-only, so the result must be clean), `Compono.XunitV3`, and `Compono.XunitV3.Aot` (additive only)
+- **V7 is combined with V5 above (D6).**
+- [ ] V9 per-row cost spot-check, kept as a **regression signal** (D6): measure `[ComposeData]` (N=50 rows) against N `[Compose]` methods and record the numbers in Notes. The existing 2× per-row figure stays an **investigation trigger**, not a release-blocking threshold. No new rigid threshold is set without a justified baseline; a finding that turns out to be a real defect stops for review
 - [ ] Optional: `scripts/dogfood-validate.sh` (not a gate, per `AGENTS.md`)
 - [ ] Record results in Notes, tick tasks, set `Status: Done`
 
@@ -1452,8 +1564,11 @@ A separately reviewed implementation slice: one commit, an independent review, t
   `AnalyzerReleases.Unshipped.md`, `ComponoIncrementalGenerator.cs`;
   B5: `Discovery/AotComposeDataMethodDiscovery.cs`, `Models/AotComposeDataMethodInfo.cs`,
   `src/Shared/Compono.XunitV3/ComposeDataRows.cs`, `src/Compono.XunitV3/ComposeDataAttribute.cs`
-  (helper switch-over only), AOT `PublicApiSurfaceTests.cs`
+  (helper switch-over only), AOT `PublicApiSurfaceTests.cs`;
+  B6 Pass 1 (ADR-0070 Amendment 6): `src/Compono/CompositionBuilder.cs` (`AddProfile<TProfile>()` body and XML docs only),
+  `test/Compono.XunitV3.Aot.Tests/Support/RegisteredComposeDataFactory.cs` (optional `DisposalTracker` parameter only)
 - Tests: `test/Compono.XunitV3.Tests/*ComposeData*`, `PublicApiSurfaceTests.cs`;
+  `test/Compono.Tests/ComposerProfileTests.cs` (Amendment 6);
   `test/Compono.XunitV3.Aot.Tests/ComposeDataTests.cs`;
   `test/Compono.Generators.Tests/*ComposeData*`;
   both `*SampleTests/ComposeDataTests.cs`
@@ -1476,17 +1591,18 @@ manual.
 | Per-row config isolation | Profile instance and `Configure` counter per row; `DateTimeOffset` config | Same |
 | `[Shared]` and row values | Row value shared, composed shared, ordering | Same (new on AOT) |
 | Member shapes | field, property, method; `Task`, `ValueTask`, `IAsyncEnumerable`; `MemberType`; inherited | Same plus a diagnostic per invalid shape |
-| Fixtures | Class and collection; `RequireFixture` in factory and in member; assembly fixture | Class and collection (assembly blocked by xunit#3664) |
-| Parallel | 4+ classes in parallel, distinct fixtures, no leakage | Same |
+| Fixtures | Class and collection; `RequireFixture` in factory and in member; assembly fixture | Class and collection, in factory and in member (B6 Pass 1); assembly blocked by xunit#3664 (comment) |
+| Parallel | 4 classes in parallel, distinct fixtures, no leakage (existing) | 2 classes (class- and collection-scoped fixtures), no leakage (B6 Pass 1, D2) |
 | Errors | D1–D5/R0 exact text, `InnerException`, `Diagnostic` | Compile-time CMPs, plus runtime R0 for untyped rows (exact text parity) |
-| Seeds | Effective-seed precedence; duplicate-seed conflict; every seed-line variant; trait equals the actual seed; reproduction by pasting the reported seed; never a fabricated seed | Same, identical text |
+| Seeds | Effective-seed precedence; duplicate-seed conflict; every seed-line variant; trait equals the actual seed; reproduction by pasting the reported seed; never a fabricated seed | Same, identical text (B6.1); reproduction rests on core determinism plus the seed-trait tests (D2) |
 | Collection/row shapes | All verified shapes accepted; `string`/single row/scalar arrays rejected; nullable and value-type boxing; no widening; oblivious nullability | Same, plus static (`TheoryData<…>`) compile-time checks |
 | Row/attribute metadata | Grouped skip matrix incl. `SkipUnless`/`SkipWhen`/`SkipType`; row ?? attribute for the rest; traits union; `DisableParallelization` (4.x) | Same outcomes; invalid skip usage → CMP only; theory-level skip edge checked (stop if divergent) |
 | Exclusivity and mixing | `[Compose]`+`[ComposeData]` error; `[InlineData]` coexists | `CMP0045`; `[InlineData]` coexists |
-| Disposal | Documents that xUnit disposes args; Compono registers nothing | Asserts no disposal by Compono/xUnit core |
-| Cancellation | `IAsyncEnumerable` observes the token (cancel mid-enumeration) | Same |
+| Disposal | `GetData` registers nothing with the `DisposalTracker`; documents that the xUnit JIT runner disposes args | Harness: the generated factory registers nothing, and values stay undisposed after the tracker is disposed. xUnit AOT core's non-disposal is documented, not runner-asserted (SQ3) |
+| Cancellation | `IAsyncEnumerable` observes the token (cancel mid-enumeration, injected token) | `OperationCanceledException` propagation from the source (B5 S4). Real-token cancellation is deferred (SQ4) |
 | API compatibility | `PublicApiSurfaceTests`, package validation | Same |
-| Native AOT | n/a | Publish plus run, 0 IL warnings (V3) |
+| Profile construction failure (ADR-0070 Amendment 6) | Core: original exception instance and `Diagnostic` preserved, `Configure` not unwrapped; arity-1 R0 exact text | Same arity-1 R0 literal through the harness, executed in Native AOT |
+| Native AOT | n/a | Publish plus run, 0 IL warnings (S7 per pass that adds AOT tests; V3 once in B9) |
 | Packaged consumer | V5/V7 (manual, recorded) | V5/V7 (manual, recorded) |
 | Regression | Existing `[Compose]` suites unchanged | Existing AOT suites and snapshots unchanged |
 
@@ -1498,14 +1614,16 @@ Same mechanics as PLAN-0070. Run from the repo root.
 # V1 full
 dotnet build && dotnet test
 
-# V2 focused
+# V2 focused: folded into V1 for B9 (D6, 2026-11-10). These remain handy for iteration only.
 dotnet test test/Compono.XunitV3.Tests
 dotnet test test/Compono.XunitV3.Aot.Tests
 dotnet test test/Compono.Generators.Tests
 dotnet test test/Compono.XunitV3.SampleTests
 dotnet test test/Compono.XunitV3.Aot.SampleTests
 
-# V3 Native AOT (use your RID)
+# V3 Native AOT (use your RID). B9 also runs the S7 publish of the test project:
+#   dotnet publish test/Compono.XunitV3.Aot.Tests -c Release -f net10.0 -p:RuntimeIdentifier=osx-arm64 \
+#     -p:SelfContained=true -p:ComponoAotTestsPublish=true -o <out> && <out>/Compono.XunitV3.Aot.Tests
 dotnet publish test/Compono.XunitV3.Aot.SampleTests -c Release -f net10.0 \
   -p:RuntimeIdentifier=osx-arm64 -p:SelfContained=true -p:PublishAot=true -p:UseAppHost=true \
   -o test/Compono.XunitV3.Aot.SampleTests/bin/aot-publish 2>&1 | tee "$SCRATCH/aot-publish.log"
@@ -1519,8 +1637,10 @@ git status --short docs/reference/api
 # V5 xUnit floor/current: throwaway consumer outside the repo,
 #   xunit.v3.mtp-v2 3.2.2 (JIT) and 4.0.2 (JIT + xunit.v3.aot.mtp-v2 4.0.2);
 #   confirm the resolved versions in obj/project.assets.json.
+#   B9 runs V5 and V7 together in ONE consumer (D6; see B9).
 
 # V6 package validation
+dotnet pack src/Compono -c Release -p:PackageValidationBaselineVersion=<prior>   # Amendment 6: behavior-only, must be clean
 dotnet pack src/Compono.XunitV3 -c Release -p:PackageValidationBaselineVersion=<prior>
 dotnet pack src/Compono.XunitV3.Aot -c Release -p:PackageValidationBaselineVersion=<prior>
 
@@ -1532,7 +1652,7 @@ python3 <skill-creator>/scripts/quick_validate.py skills/compono
 python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
 # relative links: every ](...) target under skills/compono/** exists
 
-# V9 per-row cost spot-check (record numbers in Notes)
+# V9 per-row cost spot-check (record numbers in Notes; regression signal, not a rigid gate, D6)
 ```
 
 ## Notes
@@ -2281,3 +2401,48 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - **Independent review:** Claude Opus returned **APPROVE** with no blocking findings (after a correction round that pinned the literal names, mirrored the seed fixtures, made the Amendment 2(c) holder genuinely private, removed the redundant unassigned-seed test, and asserted `InnerException` types). A review-round, test-only `AwesomeAssertions` dependency added to the AOT test project was reverted to xUnit `Assert` because `AwesomeAssertions.dll` produced `IL2104`/`IL3053` trim/AOT warnings under Native AOT publish, which would break the 0-IL/AOT-warning gate.
   - **Deferred to the B6.2 coverage audit:** arity-1 parameterless-profile constructor failures are **not** covered. That path constructs the profile via `Activator.CreateInstance<T>()`, which wraps any constructor exception in a `TargetInvocationException`, so its message may differ from the arity-2 path. B6.2 must audit the actual behavior under JIT, the managed AOT runner, and Native AOT, and, if the wrapping or text differs, **stop and report the evidence before proposing any production change**. Any core fix could also affect `[Compose<TProfile>]` and must not be introduced silently during B6.2.
   - **Open:** B6.1 is complete, reviewed, and committed; B6's remaining items (B6.2–B6.5) are outstanding; B6–B9 statuses otherwise unchanged. This B6.1 documentation checkpoint is committed alongside the plan update.
+
+- **2026-11-10 (B6.2 audit and streamlining, `compono-lsx.6`):** a read-only B6.2 coverage audit by Claude Opus at `5359934`, followed by a product-owner simplification review, led to ADR-0070 **Amendment 6** and the "Streamlined remaining work" section under B6 (decisions D1–D7, Passes 1–4). Documentation only: no code, test, snapshot, generator, CI, project-file, or bead change. Nothing is ticked as complete by this entry.
+  - **Arity-1 constructor defect (resolves the B6.1 deferral above):**
+    - `ComposeData<TProfile>` (JIT and generated AOT) and every `Compose<TProfile>` construct the profile through core `AddProfile<TProfile>()`'s `new TProfile()`, which compiles to `Activator.CreateInstance<T>()`.
+    - Scratch probes outside the repository:
+      - the primitive wraps constructor exceptions in `TargetInvocationException` on JIT **and** a real Native AOT publish (net10.0, osx-arm64);
+      - end to end through the real JIT `GetData` with the generator, arity-1 R0 reads `… failed: Exception has been thrown by the target of an invocation.` with `InnerException` = `TargetInvocationException`, while arity-2 reads `… failed: ctor boom`;
+      - `RowFailure` therefore can't carry a constructor `CompositionException`'s `Diagnostic`.
+    - This breaks ADR-0070 Behavior item 9 and the R0 row-cause text. The product owner approved a **core** fix inside #163 (D1, Amendment 6), so no separate PR.
+    - **Factual note:** ADR-0018's wording that the generic form uses "no `Activator.CreateInstance`" is inaccurate. Its decision and AOT-safety conclusion still hold. Amendment 6 §5 records the correction, and ADR-0018 carries a matching factual-clarification amendment (2026-11-10; the maintainer approved it after the initial planning pass). Its decision and rationale are unchanged.
+  - **B3-to-AOT coverage audit (SQ6).** "Covered" means existing tests prove the behavior, cited rather than re-tested. Test files: `ComposeDataEmissionTests` (Emission), `ComposeDataParityTests` (Parity), `ComposeDataGetDataTests` (GetData), `ComposeDataTheoryTests` (Theory).
+
+    | B3 item | JIT evidence | AOT evidence | Action |
+    |---|---|---|---|
+    | Multiple rows, distinct seed/trait, values bound, rest composed | GetData `GetData_NonGenericForm_ComposesEachRowAndWritesSeedTrait`, `GetData_DefaultSeeds_AreDistinctPerRow` | Emission `Untyped_rows_are_composed`, `Partial_rows_compose_missing_parameters`, `TwoRows_ProduceDistinctSeedsAndFreshComposition` | Covered |
+    | Per-row `TConfig`, no cross-row leakage | GetData `GetData_ConfigGenericForm_ExtractsPerRowConfigAndIsolatesProfiles`, `GetData_DateTimeOffsetConfig_ReachesTheProfile` | Emission `Profile_config_rows_extract_configuration`, the identity shapes (`Tuple_`/`Dynamic_`/`List_config_identity_shape_is_constructed`), `ProfileConstructorIsInvokedOncePerRow` | Covered (struct `TConfig` via `ValueTuple<int,int>`) |
+    | `[Shared]` (row value, composed, ordering) | GetData `GetData_SharedParameter_*`, `GetData_ComposedSharedParameter_*` | Emission `Shared_parameter_*`, `Shared_explicit_value_*`, `SharedRows_DoNotShareInstancesAcrossRowBoundaries`, `Async_source_combines_with_shared_parameter` | Covered |
+    | Nullable parameters | GetData `GetData_NullableParameters_AllowNullRowValues` | Generator snapshot `NullableParameter_FlagsNullableDescriptor`; the shared helper (`ComposeDataRowsTests`); Parity `Null_for_non_nullable_parameter_failure_text_is_exact` | Covered; no new test (D2) |
+    | Too many values, type mismatch, null/unsupported row, config null/wrong | GetData `GetData_TooManyValues_*`, `GetData_TypeMismatch_*`, `GetData_NullRow_*`, `GetData_UnsupportedRow_*`, `GetData_ConfigGenericForm_MissingConfigElement_*` | Emission R0 tests; Parity exact-text tests (B6.1) | Covered |
+    | Sync/`Task`/`ValueTask`/`IAsyncEnumerable`; `MemberType`; inherited | GetData shape tests | Emission S2/S4 success and failure tests | Covered |
+    | Fixtures: class, collection, inside the member | Theory `ComposeDataFixtureTests`, `ComposeDataCollectionFixtureTests`, `ComposeDataMemberFixtureTests` | None for ComposeData (`RequireFixtureTests` covers `[Compose]` only) | **Add** (Pass 1) |
+    | Parallel isolation | Theory `ComposeDataIsolationTests1`–`4` | None | **Add**, 2 classes (Pass 1) |
+    | Seeds and every seed-line variant; duplicate and negative seeds | GetData seed tests | Emission seed tests; Parity seed-line tests (B6.1) | Covered |
+    | Seed reproduction (pinned seed gives the same composed values) | GetData `GetData_PinnedSeed_ReproducesComposedValues`, `GetData_CapturedSeed_ReproducesComposedValues` | Core determinism plus Emission `AttributeSeed_IsAppliedToEveryRow` | Covered; no new test (D2) |
+    | Metadata (skip, precedence, explicit, timeout, traits, labels, `DisableParallelization`) | Theory real-runner classes; GetData merge tests | B6.0 84-case matrix; Emission S5 tests | B6.3 (Pass 1): cited, plus one AOT `Explicit` theory |
+    | Collection/row shapes end to end | GetData `GetData_TheoryDataShape_IsSupported`, `GetData_SyncValueTupleRows_AreFlattened`, `GetData_TypedTheoryDataRowArray_IsSupported`, `GetData_ListOfObjectArray_IsSupported` | Emission `TheoryData`, `IEnumerable<object[]>`, `ImmutableArray<object[]>`, async value-tuple rows; the shared helper | Covered; the sync `(T1,T2)[]` and `TheoryDataRow<T…>[]` shapes aren't added (D2) |
+    | Mixed `[InlineData]` | Theory `ComposeDataMixedSourceTests` | None at run time | **Add** (Pass 1) |
+    | Exclusivity | GetData `GetData_ComposeAndComposeData_AreMutuallyExclusive` | `CMP0045` generator tests | Covered |
+    | Failure in row *k* (index, label, seed, `InnerException`) | GetData `GetData_FailureInLaterRow_*` | Emission and Parity (row 0); the shared `RowFailure` unit tests | Covered; a later labelled-row test isn't added (D2) |
+    | Member read at the execution stage | Theory `ComposeDataExecutionStageTests` | None | **Add**, merged into the isolation theories (Pass 1) |
+    | Existing `[Compose]` regression; generator discovery | Full suite | Full suite; generator tests | Covered |
+    | Disposal | None | None | **Add**: AOT harness plus a JIT documenting test (Pass 1) |
+    | Assembly fixture | Theory `ComposeDataAssemblyFixtureTests` | Excluded (xunit/xunit#3664, 4.0.1 pin) | Comment only |
+    | Real-token cancellation | GetData `GetDataCore_Cancellation*` (injected token) | Emission `*Cancelled_PropagatesOperationCanceled` | Deferred (SQ4) |
+    | Arity-1 profile constructor failure | None | None | **Add** after the core fix (Pass 1, Amendment 6) |
+  - **Streamlining (D1–D7, product owner):**
+    - B6.2 is reduced to the Pass 1 set.
+    - B6.3 is satisfied by citation, plus at most one AOT `Explicit` theory and one `SkipType` theory (`SkipType` only if needed).
+    - B6.4 is reduced to one JIT generic-base test. The six Amendment 4 §2 JIT documenting tests are dropped; `int` + `string` parity is optional.
+    - B6.5 keeps three samples; V3 and V7 move to B9.
+    - B7 and B8 run as one pass.
+    - B9 runs once: V2 is folded into V1, V5 and V7 share one consumer, V6 adds `Compono`, and V9 is a regression signal.
+    - Four passes, each with one review and one commit that includes its plan checkpoint.
+  - **Unchanged:** the B5 acceptance record; the B6.0 and B6.1 checkpoints; Q1–Q4; SQ2, SQ4, and SQ7; the single-PR policy; #161 release bundling.
+  - **Open:** `compono-lsx.6` (B6) stays **in progress**. Pass 1 is next and awaits implementation authorization. B7–B9 aren't started. This ADR/PLAN update is uncommitted pending maintainer review.
