@@ -53,6 +53,10 @@ file static class AotComposeDataRegistration
         var result = new global::Xunit.ITheoryDataRow[rawRows.Count];
         for (var index = 0; index < result.Length; index++)
         {
+            // Row enumeration only checks the token between raw rows; composing each buffered row is the
+            // expensive part, so honor the between-row cancellation contract here too and match the JIT
+            // reader (ADR-0070 contract item 10).
+            cancellationToken.ThrowIfCancellationRequested();
             result[index] = ComposeRow(rawRows[index], index, testClass, memberDisplayName, methodDisplayName, in attributeMetadata);
         }
 

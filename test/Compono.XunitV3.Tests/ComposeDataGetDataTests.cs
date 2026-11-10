@@ -724,6 +724,17 @@ public sealed class ComposeDataGetDataTests
     }
 
     [Fact]
+    public async Task GetDataCore_CancellationAfterEnumeration_IsCheckedBeforeComposingRows()
+    {
+        CancellationSource = new CancellationTokenSource();
+        var attribute = new ComposeDataAttribute(nameof(CancelOnCompletionRows));
+
+        var act = async () => await attribute.GetDataCore(GetMethod(nameof(TwoParams)), CancellationSource.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task GetData_AmbiguousInheritedStaticMember_ReportsCompositionException()
     {
         var attribute = new ComposeDataAttribute("Rows") { MemberType = typeof(AmbiguousDerived) };
@@ -1037,6 +1048,16 @@ public sealed class ComposeDataGetDataTests
     public static Task<object?[]> ThrowingCancellationMethod() => throw new OperationCanceledException();
 
     public static IAsyncEnumerable<object?[]> ThrowingCancellationAsyncEnumerable() => throw new OperationCanceledException();
+
+    // Cancels only when the consumer asks for the element past the last row, so enumeration of every
+    // real row succeeds and the token is cancelled once raw-row reading has completed. The between-row
+    // cancellation check in the composition loop must then observe it before composing any buffered row.
+    public static IEnumerable<object?[]> CancelOnCompletionRows()
+    {
+        yield return new object?[] { 1, "one" };
+        yield return new object?[] { 2, "two" };
+        CancellationSource.Cancel();
+    }
 
     public static readonly TheoryDataRow<int, string>[] TypedTheoryRows = [new(1, "one"), new(2, "two")];
 

@@ -149,6 +149,10 @@ public class ComposeDataAttribute : DataAttribute
         var result = new List<ITheoryDataRow>(rawRows.Count);
         for (var index = 0; index < rawRows.Count; index++)
         {
+            // Row enumeration only checks the token between raw rows; composition of each buffered row
+            // is the expensive part, so honor the between-row cancellation contract here too (ADR-0070
+            // contract item 10). The generated AOT loop makes the same check.
+            cancellationToken.ThrowIfCancellationRequested();
             result.Add(ComposeRow(rawRows[index], index, accessor, bindingPlan, testMethod, methodDisplayName, attributeSeed, configType, attributeMetadata));
         }
 
