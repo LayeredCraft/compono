@@ -264,9 +264,20 @@ surface.
   no category-string constructor is added.
 - Adding a property to a `readonly record struct` whose only constructor is
   `internal` is source- and binary-compatible. ApiCompat must report it
-  as an addition only. Record value equality now also compares
-  `Category`. That's an accepted, documented consequence: two entries that
-  differ only by category were previously equal and no longer are.
+  as an addition only.
+- **Intentional behavioral compatibility change: record equality.** The
+  compiler-synthesized `Equals`/`GetHashCode`/`==`/`!=` of
+  `CapturedLogEntry` now include `Category`. Before, two entries that were
+  equal in every other field compared equal. They now compare unequal when
+  their categories differ, and their hash codes may differ. For example,
+  two composed `CapturingLogger<A>`/`CapturingLogger<B>` entries that are
+  otherwise identical stop being equal. This is deliberate: category is
+  part of an entry's identity once entries from many categories share one
+  destination. It's kept, not worked around (no custom `Equals` that
+  ignores `Category`). The change must be called out in the release notes
+  and in `docs/packages/compono-logging.md` as a behavioral, not
+  source/binary, compatibility change. A targeted regression test must pin
+  the new semantics.
 
 ### Composed vs. host capture: separate in v1
 
@@ -274,8 +285,8 @@ surface.
   registered with.
 - Composed `ILogger`/`ILogger<T>` (via `UseLogging()`) and directly
   constructed `CapturingLogger`/`CapturingLogger<T>` keep their own
-  per-logger store, exactly as today. Their only visible change is that
-  their entries now carry `Category`.
+  per-logger store, exactly as today. Their only visible changes are that
+  their entries now carry `Category` and that entry equality includes it.
 - `UseLogging()`, `LoggingOptions`, `LoggingProvider`, and the generated
   activation path are unchanged.
 - A host's `ILogger<T>` (from `host.Services`) is the host's own
@@ -338,10 +349,24 @@ implementation of entry construction, never two copies that can drift.
   internal provider so the host's container disposes it on host disposal
   (factory-style registration, spike fact 4). That follows ADR-0022
   Amendment 4 / RESEARCH-0015: Compono doesn't take disposal ownership of
-  host infrastructure. Provider disposal never clears or invalidates the
-  collector. A provider-created logger that is still referenced and logs
-  after host disposal still appends to the collector. That's documented
-  and harmless.
+  host infrastructure.
+- **Disposing the provider stops capture through that provider.** After
+  the provider is disposed, its loggers report `IsEnabled(...) == false`.
+  This includes loggers created earlier that a caller still holds, for
+  example a captured `ILogger<T>` that logs after `host.Dispose()`. Their
+  `Log<TState>` calls are no-ops, so nothing is appended to the collector
+  and nothing throws. `BeginScope` still returns a usable disposable and
+  doesn't throw. `CreateLogger` after disposal returns a logger that
+  doesn't capture. Disposal is idempotent and thread-safe. A log call
+  racing with disposal may be captured or dropped, but it never throws or
+  corrupts the collector.
+- **Disposal never clears or invalidates the collector.** Every entry
+  captured before disposal stays readable through the test-owned
+  `LogCollector` (`GetCapturedEntries`, `GetLastCapturedEntry`, `Verify`).
+  `ClearCapturedEntries` still works. When the same collector is
+  registered with several hosts, disposing one host's provider stops only
+  that provider's capture. Providers belonging to hosts that haven't been
+  disposed keep appending.
 - **Registration cardinality:**
   - Calling `AddComponoCapture(logs)` twice on the same builder with the
     **same** collector instance is idempotent: one provider, and no
@@ -387,12 +412,17 @@ warnings.
 
 ### Backward compatibility
 
-Additive only: one new type, one new extension class, one new property,
-and two new builder methods. No existing member changes signature,
-nullability, or behavior. The one exception is the documented
-`CapturedLogEntry` equality consequence above, plus one sentence appended
-to an existing exception message. Package validation (ApiCompat against the
-last stable baseline) must pass with no suppression.
+The public API change is additive only: one new type, one new extension
+class, one new property, and two new builder methods. No existing member
+changes signature or nullability. Package validation (ApiCompat against
+the last stable baseline) must pass with no suppression.
+
+There are exactly two behavioral changes, and both are intentional and
+documented. The first is `CapturedLogEntry` record equality, which now
+includes `Category` (see "`CapturedLogEntry.Category`" above). It's a
+behavioral compatibility change and gets a regression test and a
+release-note entry. The second is one sentence appended to an existing
+exception message.
 
 ### Relationship to ADR-0055
 
@@ -413,7 +443,8 @@ the pointer.
 - One entry model and one verification vocabulary across composed and
   host capture.
 - No new package, no new dependency, and AOT-safe.
-- Existing consumers are unaffected beyond gaining `Category`.
+- Existing consumers are unaffected beyond gaining `Category`, plus the
+  intentional equality change that comes with it.
 
 ### Negative Consequences
 
@@ -423,7 +454,12 @@ the pointer.
   additive later.
 - Under default host filtering, `Debug`/`Trace` aren't captured.
   Mitigation: documented, with the one-line host-side fix.
-- `CapturedLogEntry` equality now includes `Category`.
+- `CapturedLogEntry` equality now includes `Category`. This is an
+  intentional behavioral compatibility change. It is documented, has a
+  regression test, and gets a release-note entry.
+- A still-referenced host logger silently stops capturing once its host is
+  disposed. Mitigation: documented. Assertions belong before disposal or
+  against entries captured before it.
 
 ## Pros and Cons of the Options
 

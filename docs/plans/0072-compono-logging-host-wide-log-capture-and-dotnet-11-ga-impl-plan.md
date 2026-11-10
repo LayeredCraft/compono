@@ -69,8 +69,13 @@ From the maintainer interview (2026-11-10), recorded in ADR-0071:
 Behavioral requirements that ADR-0071 pins down and tests must prove:
 registration cardinality (same collector registered twice is idempotent,
 distinct collectors fan out, one collector across hosts is allowed), the
-disposal model (the host disposes the provider, and the collector stays
-readable and is never cleared), scope sourcing (`ISupportExternalScope`
+disposal model (the host disposes the provider, and disposal **stops
+subsequent capture through that provider**, including through loggers
+that callers still hold, with no exceptions; entries captured before
+disposal stay readable through the collector, which is never cleared),
+the intentional `CapturedLogEntry` equality change (record equality now
+includes `Category`, kept and documented as a behavioral compatibility
+change), scope sourcing (`ISupportExternalScope`
 with a fallback), `IsEnabled == level != None`, and one shared
 entry-construction path for the composed and host paths.
 
@@ -245,8 +250,13 @@ added to the not-a-capturing-logger message),
   with other filters, and failure-message text.
 - `InCategory`: exact match, case-sensitivity, a near-miss prefix
   doesn't match, null throws, and failure-message text.
-- `CapturedLogEntry` equality now differs by `Category` (documents the
-  consequence).
+- **Equality regression test (required, targeted):** two entries that are
+  identical except for `Category` (for example from `CapturingLogger<A>` and
+  `CapturingLogger<B>` logging the same call) are **not** equal under
+  `Equals`/`==`. Two entries that are identical including `Category` (same
+  logger, deterministic fields) compare equal on every field the test
+  controls. The test name or comment cites ADR-0071's "intentional
+  behavioral compatibility change" so nobody "fixes" it later.
 - **Regression:** every existing `Compono.Logging.Tests` test passes
   unmodified, except tests that assert the exact full text of the
   not-a-capturing-logger message, if any (update the assertion to the new
@@ -340,11 +350,19 @@ only to fix defects these tests reveal (note any in Notes).
   of each entry. Two collectors on one builder both receive every entry.
   One collector across two hosts receives both hosts' entries, and their
   categories are distinguishable.
-- **Disposal:** after `host.Dispose()`, the collector is still readable,
-  its entries are intact, and it is not cleared. The provider is disposed
-  by the host (observable through internal state via `InternalsVisibleTo`
-  or an equivalent seam). A provider-created logger still referenced after
-  disposal appends without throwing.
+- **Disposal regression test (required, explicit):** log N entries
+  through a host, then `host.Dispose()`. Then, through a **still-held**
+  container `ILogger<T>` and a still-held `CreateLogger("X")` logger:
+  `IsEnabled` returns `false` for every level, logging at every level
+  (including `Error`/`Critical` and a direct `Log<TState>` call) appends
+  **nothing** and doesn't throw, and `BeginScope` doesn't throw. The
+  collector still returns exactly the N pre-disposal entries
+  (`GetCapturedEntries`, `GetLastCapturedEntry`, and `Verify` counts are
+  unchanged), and `ClearCapturedEntries` still works. Also: disposal is
+  idempotent (a double dispose doesn't throw), and the provider is disposed
+  by the host (observable through an internal seam). For one collector
+  registered with two hosts, disposing host A stops A's capture while
+  host B keeps capturing into the same collector.
 - **Isolation:** two hosts with two collectors logging concurrently share
   no entries, and there's no static state (a test runs both in parallel
   and asserts exact disjoint sets).
@@ -416,8 +434,12 @@ Notes.
   (Generic Host, `services.AddLogging`, `WebApplicationFactory`-style
   `ConfigureLogging`), `Category`, the two new filters, separate-destination
   semantics, host-filtering consequences (Debug/Trace + `SetMinimumLevel`,
-  the `Compono` alias), ownership/disposal, cardinality, and activity
-  scopes. Change the "`ILoggerFactory` composition" boundary bullet to say
+  the `Compono` alias), ownership/disposal (disposal stops capture, and
+  pre-disposal entries stay readable), cardinality, and activity scopes.
+  Add a clearly labelled **behavioral compatibility note**:
+  `CapturedLogEntry` equality now includes `Category`. Draft a matching
+  release-note line in PLAN-0072 Notes for the v1.4.0 release author.
+  Don't edit the draft release itself. Change the "`ILoggerFactory` composition" boundary bullet to say
   host *provider* capture is supported, but composing an `ILoggerFactory`
   isn't.
 - Cookbook/how-to: one recipe, "Assert nothing logged at Error+ across a
@@ -472,7 +494,9 @@ and B4, B5, and B6 done.
   1. any-category capture (B3)
   2. `Category` plus every existing field (B2/B3)
   3. `Verify()` vocabulary including the level threshold (B2/B3)
-  4. no behavior change for existing capture (B2 regression + B4 separation)
+  4. no breaking change for existing capture (B2 regression + B4
+     separation), with the one intentional equality change pinned by B2's
+     equality regression test and documented in B6
   5. relationship documented (B6)
   6. no new dependency (B5)
   7. AOT/trimming (B5)
@@ -574,5 +598,13 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   instance- vs. factory-registered disposal, the `ProviderAlias` location,
   and `LoggerFactory` category naming (`N.Outer+Inner` → `N.Outer.Inner`,
   `Gen<int>` → `Gen`, `int` → `int`).
+- 2026-11-10 (ADR review round 1, product owner): architecture and plan
+  approved, subject to two clarifications, both now applied. (1) Disposing
+  the provider stops subsequent capture through it, while pre-disposal
+  entries stay readable. B4 has an explicit regression test for this. (2)
+  `CapturedLogEntry` equality including `Category` is kept as an intentional
+  behavioral compatibility change, with a B2 regression test and B6 docs
+  and release-note text. Duplicate-registration semantics are unchanged and
+  not expanded.
 - Open risk carried into B1: the RC.1 classic-VSTest NUnit matrix
   regression. GA behavior is unknown until V8 runs.
