@@ -1664,3 +1664,25 @@ consumer-assembly code is its only supported caller. `TryCreate` remains
 visible because `LoggingProvider` calls it at runtime. This changes
 IntelliSense presentation only; public accessibility remains required for the
 existing cross-assembly design.
+
+## Amendment 6 (2026-11-10): Host provider integration moves in scope via ADR-0071
+
+The "`ILoggerFactory`: out of scope" and "Explicit initial-package
+boundaries" sections deferred any `ILoggerFactory` work until real
+evidence appeared. Issue #164 (child of #161) supplies that evidence: a
+Generic Host test that must assert nothing was logged at `Error` or above
+in any category, including categories the test never composes.
+
+[ADR-0071](0071-compono-logging-host-wide-log-capture.md) (Proposed)
+decides the response: an internal `ILoggerProvider` attached to the host's
+existing pipeline through `ILoggingBuilder.AddComponoCapture(LogCollector)`,
+a test-owned public `LogCollector`, a new `CapturedLogEntry.Category`, and
+two new `LogVerificationBuilder` filters. This amendment changes only the
+boundary. **Composing or replacing an `ILoggerFactory` remains out of
+scope.** Every other boundary in this ADR (no Serilog/provider-specific
+behavior, no runner-output routing, no `ControlLevel` toggling, no
+`Microsoft.Extensions.Diagnostics.Testing` dependency, no DI-implementation
+dependency) is unchanged. `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`
+and their per-logger capture are unchanged apart from carrying `Category`.
+Implementation is tracked in
+[PLAN-0072](../plans/0072-compono-logging-host-wide-log-capture-and-dotnet-11-ga-impl-plan.md).
