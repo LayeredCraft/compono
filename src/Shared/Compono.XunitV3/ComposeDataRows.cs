@@ -46,6 +46,20 @@ static class ComposeDataRows
 #endif
     const string SeedTraitName = "Compono.Seed";
 
+#if COMPONO_XUNITV3_AOT
+    // The theory-level skip-condition codes the generator writes into
+    // ComposeDataAttributeMetadata.TheorySkipCondition (ADR-0070 Amendment 5). The runtime compares
+    // the metadata code only against these named constants - never bare literals.
+    private const int TheorySkipConditionNone = 0;
+    private const int TheorySkipConditionUnless = 1;
+    private const int TheorySkipConditionWhen = 2;
+
+    // Cached unconditional predicates: an unconditional skip group normalized into the theory's own
+    // condition field needs an always/never predicate but must not allocate a fresh delegate per row.
+    private static readonly Func<bool> AlwaysFalse = static () => false;
+    private static readonly Func<bool> AlwaysTrue = static () => true;
+#endif
+
 #if !COMPONO_XUNITV3_AOT
     // The sole reflection in the ComposeData path (ADR-0070, RESEARCH-0038 §9.2 S1). xUnit 4.x
     // exposes DisableParallelization, but this package compiles against xUnit 3.2.2, which does
@@ -310,6 +324,8 @@ static class ComposeDataRows
             dataRow.SkipUnless = attribute.SkipUnless;
             dataRow.SkipWhen = attribute.SkipWhen;
         }
+
+        NormalizeTheorySkipCondition(in attribute, dataRow);
 #else
         if (source is not null && source.Skip is { } rowSkip)
         {
@@ -358,6 +374,59 @@ static class ComposeDataRows
 
         return dataRow;
     }
+
+#if COMPONO_XUNITV3_AOT
+    /// <summary>
+    /// Normalizes a composed row's already-selected skip group into the theory's own condition field
+    /// when the test method declares a theory-level <c>SkipUnless</c>/<c>SkipWhen</c> (ADR-0070
+    /// Amendment 5). xUnit's Native AOT registered-factory path merges the row and theory skip groups
+    /// field by field and rejects a row that ends up with both conditions set; the JIT runner instead
+    /// replaces the whole group. Rewriting the row's conditions into the single field the theory uses
+    /// makes the AOT path match JIT for every interaction, including a group whose condition kind is
+    /// the opposite of the theory's.
+    /// </summary>
+    /// <param name="attribute">
+    /// The attribute-level metadata carrying the theory-level <see cref="ComposeDataAttributeMetadata.TheorySkipCondition"/> code.
+    /// </param>
+    /// <param name="dataRow">The row whose skip group was just selected from the row/attribute groups.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The theory skip-condition code is neither None, Unless, nor When while an effective skip is set.
+    /// </exception>
+    /// <remarks>
+    /// A no-op when no effective skip group was selected (the row's <c>Skip</c> is
+    /// <see langword="null"/>) or the theory declares no condition (code None) - matching the B5.8
+    /// output exactly. Unconditional conversions reuse the cached <see cref="AlwaysFalse"/>/
+    /// <see cref="AlwaysTrue"/> delegates; only an opposite-kind conditional conversion allocates a
+    /// negating closure. The skip reason is never changed.
+    /// </remarks>
+    private static void NormalizeTheorySkipCondition(in ComposeDataAttributeMetadata attribute, TheoryDataRow dataRow)
+    {
+        var conditionKind = attribute.TheorySkipCondition;
+        if (dataRow.Skip is null || conditionKind == TheorySkipConditionNone)
+        {
+            return;
+        }
+
+        switch (conditionKind)
+        {
+            case TheorySkipConditionUnless:
+                dataRow.SkipUnless = dataRow.SkipUnless ?? (dataRow.SkipWhen is { } skipWhen
+                    ? () => !skipWhen()
+                    : AlwaysFalse);
+                dataRow.SkipWhen = null;
+                break;
+            case TheorySkipConditionWhen:
+                dataRow.SkipWhen = dataRow.SkipWhen ?? (dataRow.SkipUnless is { } skipUnless
+                    ? () => !skipUnless()
+                    : AlwaysTrue);
+                dataRow.SkipUnless = null;
+                break;
+            default:
+                throw new InvalidOperationException(
+                    $"ComposeData received an unsupported theory skip-condition code {conditionKind}; expected 0 (None), 1 (SkipUnless), or 2 (SkipWhen).");
+        }
+    }
+#endif
 
     /// <summary>The seed line used for R0 failures that occur before <c>CreateRow</c>.</summary>
     /// <param name="attributeSeed">The attribute-level seed, when set.</param>
@@ -694,6 +763,15 @@ readonly struct ComposeDataAttributeMetadata
     /// <summary>The compiled attribute-level skip-when predicate, when set.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Func<bool>? SkipWhen { get; init; }
+
+    /// <summary>
+    /// The theory-level skip-condition kind, as a code: <c>0</c> = none, <c>1</c> =
+    /// <c>SkipUnless</c>, <c>2</c> = <c>SkipWhen</c> (ADR-0070 Amendment 5). The generator emits a
+    /// nonzero code only when the test method's own <c>[Fact]</c>/<c>[Theory]</c> declares exactly one
+    /// of the two conditions; the runtime rewrites the composed row's skip group into that field.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int TheorySkipCondition { get; init; }
 #else
     /// <summary>The attribute-level skip-unless property name, when set.</summary>
     public string? SkipUnless { get; init; }

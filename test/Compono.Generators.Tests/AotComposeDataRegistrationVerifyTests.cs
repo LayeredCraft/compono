@@ -818,4 +818,54 @@ public sealed class AotComposeDataRegistrationVerifyTests
                     """),
             },
             TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B6.0 / ADR-0070 Amendment 5: a [Theory] declaring SkipUnless makes the generator
+    // record theory skip-condition kind Unless, emitted as TheorySkipCondition = 1.
+    [Fact]
+    public Task TheoryLevelSkipUnless_RendersTheorySkipCondition() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class TheorySkipUnlessTests
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Xunit.Theory(Skip = "theory conditional", SkipUnless = "TheorySkipUnlessTests.ShouldSkip")]
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Theory_unless_rows_are_composed(string value)
+                        {
+                        }
+
+                        public static bool ShouldSkip => true;
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
+
+    // PLAN-0071 B6.0 / ADR-0070 Amendment 5: a [Theory] declaring SkipWhen makes the generator record
+    // theory skip-condition kind When, emitted as TheorySkipCondition = 2.
+    [Fact]
+    public Task TheoryLevelSkipWhen_RendersTheorySkipCondition() =>
+        GeneratorTestHelpers.VerifyGeneratedSource(
+            new CodeGenerationOptions
+            {
+                SourceCode = Source("""
+
+                    public sealed class TheorySkipWhenTests
+                    {
+                        public static IEnumerable<object> Cases = new object[] { new object[] { "x" } };
+
+                        [Xunit.Theory(Skip = "theory conditional", SkipWhen = "TheorySkipWhenTests.ShouldSkip")]
+                        [Compono.XunitV3.Aot.ComposeData("Cases")]
+                        public void Theory_when_rows_are_composed(string value)
+                        {
+                        }
+
+                        public static bool ShouldSkip => true;
+                    }
+                    """),
+            },
+            TestContext.Current.CancellationToken);
 }

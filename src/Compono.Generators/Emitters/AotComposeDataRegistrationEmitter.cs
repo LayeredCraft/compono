@@ -153,6 +153,10 @@ internal static class AotComposeDataRegistrationEmitter
                 // the Native AOT runtime never needs reflection or a string name lookup.
                 SkipUnlessValue = RenderSkipCondition(method.SkipUnless),
                 SkipWhenValue = RenderSkipCondition(method.SkipWhen),
+                // Emitted only for a theory-level condition (ADR-0070 Amendment 5). None renders as
+                // null so a theory without a condition stays byte-identical to the pre-B6 output and
+                // every existing snapshot is preserved.
+                TheorySkipConditionValue = RenderTheorySkipCondition(method.AttributeMetadata.TheorySkipCondition),
             },
             GeneratorVersion = GeneratorVersion.Current,
         };
@@ -222,6 +226,15 @@ internal static class AotComposeDataRegistrationEmitter
         var escaped = RequiredMemberCollector.EscapeIdentifier(condition.PropertyName);
         return $"static () => {condition.FullyQualifiedHolderTypeName}.{escaped}";
     }
+
+    private static string? RenderTheorySkipCondition(AotComposeDataTheorySkipCondition condition) =>
+        condition switch
+        {
+            AotComposeDataTheorySkipCondition.None => null,
+            AotComposeDataTheorySkipCondition.Unless => "1",
+            AotComposeDataTheorySkipCondition.When => "2",
+            _ => null,
+        };
 
     private static string RenderNullableBool(bool? value) =>
         value switch

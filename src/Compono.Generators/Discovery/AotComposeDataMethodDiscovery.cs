@@ -32,6 +32,8 @@ internal static class AotComposeDataMethodDiscovery
     private const string SharedAttributeMetadataName = "Compono.XunitV3.Aot.SharedAttribute";
 
     private const string XunitNamespace = "Xunit";
+    private const string FactAttributeMetadataName = "Xunit.FactAttribute";
+    private const string TheoryAttributeMetadataName = "Xunit.TheoryAttribute";
     private const string TheoryDataName = "TheoryData";
     private const string TheoryDataRowName = "TheoryDataRow";
     private const string ITheoryDataRowMetadataName = "Xunit.ITheoryDataRow";
@@ -73,7 +75,7 @@ internal static class AotComposeDataMethodDiscovery
             .ToEquatableArray();
 
         var namedArguments = attributeData.NamedArguments;
-        var metadata = BuildAttributeMetadata(namedArguments);
+        var metadata = BuildAttributeMetadata(namedArguments, method);
 
         var memberName = attributeData.ConstructorArguments.Length == 1 && attributeData.ConstructorArguments[0].Value is string name
             ? name
@@ -822,7 +824,7 @@ internal static class AotComposeDataMethodDiscovery
             .ToArray();
     }
 
-    private static AotComposeDataAttributeMetadata BuildAttributeMetadata(ImmutableArray<KeyValuePair<string, TypedConstant>> namedArguments)
+    private static AotComposeDataAttributeMetadata BuildAttributeMetadata(ImmutableArray<KeyValuePair<string, TypedConstant>> namedArguments, IMethodSymbol method)
     {
         var seed = GetNamedArgument(namedArguments, "Seed") is { Value: int seedValue } ? seedValue : (int?)null;
         var label = GetNamedArgument(namedArguments, "Label") is { Value: string labelValue } ? labelValue : null;
@@ -837,7 +839,53 @@ internal static class AotComposeDataMethodDiscovery
             ? traitsArray.Values.Select(static v => (string)v.Value!).ToEquatableArray()
             : EquatableArray<string>.Empty;
 
-        return new AotComposeDataAttributeMetadata(seed, label, skip, testDisplayName, explicitValue, timeout, traits, disableParallelization);
+        return new AotComposeDataAttributeMetadata(
+            seed,
+            label,
+            skip,
+            testDisplayName,
+            explicitValue,
+            timeout,
+            traits,
+            disableParallelization,
+            BuildTheorySkipCondition(method));
+    }
+
+    /// <summary>
+    /// Reads the test method's own xUnit <c>[Fact]</c>/<c>[Theory]</c> skip conditions from compile-time
+    /// attribute data (ADR-0070 Amendment 5). Only the named arguments of those two sealed attribute
+    /// types themselves are considered - any other test-attribute type is treated as
+    /// <see cref="AotComposeDataTheorySkipCondition.None"/>. Both arguments set is invalid xUnit usage and
+    /// is also None: Compono leaves xUnit's own validation untouched.
+    /// </summary>
+    private static AotComposeDataTheorySkipCondition BuildTheorySkipCondition(IMethodSymbol method)
+    {
+        var hasUnless = false;
+        var hasWhen = false;
+
+        foreach (var attribute in method.GetAttributes())
+        {
+            if (attribute.AttributeClass is not { } attributeClass)
+            {
+                continue;
+            }
+
+            var metadataName = MetadataName(attributeClass);
+            if (metadataName != FactAttributeMetadataName && metadataName != TheoryAttributeMetadataName)
+            {
+                continue;
+            }
+
+            hasUnless |= GetNamedArgument(attribute.NamedArguments, "SkipUnless") is { Value: string };
+            hasWhen |= GetNamedArgument(attribute.NamedArguments, "SkipWhen") is { Value: string };
+        }
+
+        return (hasUnless, hasWhen) switch
+        {
+            (true, false) => AotComposeDataTheorySkipCondition.Unless,
+            (false, true) => AotComposeDataTheorySkipCondition.When,
+            _ => AotComposeDataTheorySkipCondition.None,
+        };
     }
 
     private static TypedConstant? GetNamedArgument(ImmutableArray<KeyValuePair<string, TypedConstant>> namedArguments, string name)

@@ -59,6 +59,24 @@ internal sealed record AotComposeDataParameterInfo(
     bool IsShared);
 
 /// <summary>
+/// The theory-level skip-condition kind read from the test method's own xUnit
+/// <c>[Fact]</c>/<c>[Theory]</c> attribute (ADR-0070 Amendment 5). The Native AOT registered-factory
+/// path must normalize a composed row's skip group into whichever condition field the theory uses, so
+/// Compono matches the JIT runner's whole-group replacement semantics.
+/// </summary>
+internal enum AotComposeDataTheorySkipCondition
+{
+    /// <summary>No theory-level condition: neither argument, or both (invalid xUnit usage).</summary>
+    None,
+
+    /// <summary>Only the theory's <c>SkipUnless</c> named argument is set.</summary>
+    Unless,
+
+    /// <summary>Only the theory's <c>SkipWhen</c> named argument is set.</summary>
+    When,
+}
+
+/// <summary>
 /// The presence-tracked xUnit metadata a <c>[ComposeData]</c> attribute carries, inherited from
 /// <c>Xunit.v3.DataAttribute</c> (ADR-0070). Every field is <see langword="null"/> (or empty for
 /// <see cref="Traits"/>) exactly when the corresponding named argument was not supplied, matching the
@@ -80,6 +98,11 @@ internal sealed record AotComposeDataParameterInfo(
 /// the JIT side's own "null when absent or empty" normalization).
 /// </param>
 /// <param name="DisableParallelization">The <c>DisableParallelization</c> named argument, or <see langword="null"/> when absent.</param>
+/// <param name="TheorySkipCondition">
+/// The test method's own theory-level skip-condition kind (ADR-0070 Amendment 5), defaulting to
+/// <see cref="AotComposeDataTheorySkipCondition.None"/> when the method is not an xUnit
+/// <c>[Fact]</c>/<c>[Theory]</c> or declares neither/both conditions.
+/// </param>
 internal sealed record AotComposeDataAttributeMetadata(
     int? Seed,
     string? Label,
@@ -88,7 +111,8 @@ internal sealed record AotComposeDataAttributeMetadata(
     bool? Explicit,
     int? Timeout,
     EquatableArray<string> Traits,
-    bool? DisableParallelization);
+    bool? DisableParallelization,
+    AotComposeDataTheorySkipCondition TheorySkipCondition = AotComposeDataTheorySkipCondition.None);
 
 /// <summary>
 /// One validated, active condition-skip binding (<c>SkipUnless</c>/<c>SkipWhen</c>) for a

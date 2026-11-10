@@ -29,6 +29,22 @@ internal static class ComposeDataAotStandIns
                 public MemberDataAttribute(string memberName) { }
             }
 
+            [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple = false)]
+            public sealed class FactAttribute : System.Attribute
+            {
+                public string? Skip { get; set; }
+                public string? SkipUnless { get; set; }
+                public string? SkipWhen { get; set; }
+            }
+
+            [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple = false)]
+            public sealed class TheoryAttribute : System.Attribute
+            {
+                public string? Skip { get; set; }
+                public string? SkipUnless { get; set; }
+                public string? SkipWhen { get; set; }
+            }
+
             public abstract class TheoryData : System.Collections.IEnumerable
             {
                 System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>

@@ -44,6 +44,9 @@ file static class AotComposeDataRegistration
             DisableParallelization = {{ attribute_metadata.disable_parallelization_value }},
             SkipUnless = {{ attribute_metadata.skip_unless_value }},
             SkipWhen = {{ attribute_metadata.skip_when_value }},
+{{~ if attribute_metadata.theory_skip_condition_value != null ~}}
+            TheorySkipCondition = {{ attribute_metadata.theory_skip_condition_value }},
+{{~ end ~}}
         };
 
         var rawRows = {{ if is_sync }}ReadRows(memberDisplayName, methodDisplayName, cancellationToken){{ else }}await ReadRowsAsync(memberDisplayName, methodDisplayName, cancellationToken).ConfigureAwait(false){{ end }};

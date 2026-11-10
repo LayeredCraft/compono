@@ -235,4 +235,85 @@ public sealed class AotComposeDataModelTests
         model.RowsAreTyped.Should().BeFalse();
         model.RowElementTypeNames.Count.Should().Be(0);
     }
+
+    private static AotComposeDataMethodInfo ComposeWithTheoryAttribute(string theoryAttribute)
+    {
+        var source = Source($$"""
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases() => new object[] { "x" };
+
+                {{theoryAttribute}}
+                [Compono.XunitV3.Aot.ComposeData("Cases")]
+                public void TestMethod(string value) { }
+            }
+            """);
+
+        return ComposeDataAotTestHelper.SingleModel(source);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_NoCondition_IsNone()
+    {
+        var model = ComposeWithTheoryAttribute("[Xunit.Theory]");
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.None);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_SkipUnlessOnly_IsUnless()
+    {
+        var model = ComposeWithTheoryAttribute("[Xunit.Theory(SkipUnless = \"Sample.ShouldSkip\")]");
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.Unless);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_SkipWhenOnly_IsWhen()
+    {
+        var model = ComposeWithTheoryAttribute("[Xunit.Theory(SkipWhen = \"Sample.ShouldSkip\")]");
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.When);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_BothConditions_IsNoneWithoutDiagnostic()
+    {
+        var model = ComposeWithTheoryAttribute(
+            "[Xunit.Theory(SkipUnless = \"Sample.Unless\", SkipWhen = \"Sample.When\")]");
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.None);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_FactAttribute_IsDiscovered()
+    {
+        var model = ComposeWithTheoryAttribute("[Xunit.Fact(SkipUnless = \"Sample.ShouldSkip\")]");
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.Unless);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_TheoryWithInlineData_IsDiscovered()
+    {
+        var model = ComposeWithTheoryAttribute(
+            "[Xunit.Theory(SkipWhen = \"Sample.ShouldSkip\")]\n    [Xunit.InlineData(1)]");
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.When);
+    }
+
+    [Fact]
+    public void TheorySkipCondition_NoTheoryAttribute_IsNone()
+    {
+        var model = Compose($$"""
+            public sealed class SampleTests
+            {
+                public static System.Collections.Generic.IEnumerable<object> Cases() => new object[] { "x" };
+
+                {{Method}}
+            }
+            """);
+
+        model.AttributeMetadata.TheorySkipCondition.Should().Be(AotComposeDataTheorySkipCondition.None);
+    }
 }

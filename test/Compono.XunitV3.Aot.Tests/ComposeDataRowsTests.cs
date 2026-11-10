@@ -184,6 +184,211 @@ public sealed class ComposeDataRowsTests
         Assert.Equal(EditorBrowsableState.Never, label!.GetCustomAttribute<EditorBrowsableAttribute>()!.State);
         Assert.Equal(EditorBrowsableState.Never, values!.GetCustomAttribute<EditorBrowsableAttribute>()!.State);
     }
+
+    // PLAN-0071 B6.0 / ADR-0070 Amendment 5: the theory skip-condition normalization. Codes are
+    // 0 = None, 1 = Unless, 2 = When; the runtime rewrites the composed row's already-selected skip
+    // group into the single field the theory uses, matching the JIT runner's whole-group replacement.
+
+    [Fact]
+    public void CreateDataRow_TheoryNone_LeavesConditionalGroupUnchanged()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipWhen = () => true };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 0 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.Null(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipWhen!());
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryConditionWithoutEffectiveSkip_IsNotConsulted()
+    {
+        var context = new RowContext(0, null, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 1 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Null(dataRow.Skip);
+        Assert.Null(dataRow.SkipUnless);
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryUnless_UnconditionalGroup_BecomesAlwaysFalse()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip" };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 1 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.False(dataRow.SkipUnless!());
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryWhen_UnconditionalGroup_BecomesAlwaysTrue()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip" };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 2 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipWhen);
+        Assert.True(dataRow.SkipWhen!());
+        Assert.Null(dataRow.SkipUnless);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryUnless_SameKindGroup_PreservesPredicateAndNullsWhen()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipUnless = () => true, SkipWhen = () => true };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 1 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.True(dataRow.SkipUnless!());
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryWhen_SameKindGroup_PreservesPredicateAndNullsUnless()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipUnless = () => true, SkipWhen = () => true };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 2 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.True(dataRow.SkipWhen!());
+        Assert.Null(dataRow.SkipUnless);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryUnless_OppositeConditionalGroup_NegatesWhen()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipWhen = () => true };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 1 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.False(dataRow.SkipUnless!());
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryUnless_OppositeConditionalGroup_NegatesWhen_FalsePredicate()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipWhen = () => false };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 1 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.True(dataRow.SkipUnless!());
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryWhen_OppositeConditionalGroup_NegatesUnless()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipUnless = () => true };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 2 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipWhen);
+        Assert.False(dataRow.SkipWhen!());
+        Assert.Null(dataRow.SkipUnless);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryWhen_OppositeConditionalGroup_NegatesUnless_FalsePredicate()
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip", SkipUnless = () => false };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = 2 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("row skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipWhen);
+        Assert.True(dataRow.SkipWhen!());
+        Assert.Null(dataRow.SkipUnless);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryUnless_AttributeGroupCondition_IsPreserved()
+    {
+        var context = new RowContext(0, null, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { Skip = "attribute skip", SkipWhen = () => true, TheorySkipCondition = 1 };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Equal("attribute skip", dataRow.Skip);
+        Assert.NotNull(dataRow.SkipUnless);
+        Assert.False(dataRow.SkipUnless!());
+        Assert.Null(dataRow.SkipWhen);
+    }
+
+    [Fact]
+    public void CreateDataRow_TheoryUnconditional_ReusesCachedDelegateAcrossRows()
+    {
+        var context = new RowContext(0, null, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { Skip = "attribute skip", TheorySkipCondition = 1 };
+
+        var first = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+        var second = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 2);
+
+        Assert.Same(first.SkipUnless, second.SkipUnless);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(-1)]
+    public void CreateDataRow_InvalidTheorySkipCondition_WithEffectiveSkip_ThrowsByteExactMessage(int code)
+    {
+        var source = new TheoryDataRow(1) { Skip = "row skip" };
+        var context = new RowContext(0, source, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = code };
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1));
+
+        Assert.Equal(
+            $"ComposeData received an unsupported theory skip-condition code {code}; expected 0 (None), 1 (SkipUnless), or 2 (SkipWhen).",
+            exception.Message);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(-1)]
+    public void CreateDataRow_InvalidTheorySkipCondition_WithoutEffectiveSkip_IsIgnored(int code)
+    {
+        var context = new RowContext(0, null, "M", "T");
+        var attribute = new ComposeDataAttributeMetadata { TheorySkipCondition = code };
+
+        var dataRow = ComposeDataRows.CreateDataRow(new object?[] { 1 }, context, attribute, 1);
+
+        Assert.Null(dataRow.Skip);
+        Assert.Null(dataRow.SkipUnless);
+        Assert.Null(dataRow.SkipWhen);
+    }
 }
 
 public class ComposeDataRowsGenericBase<T>;
