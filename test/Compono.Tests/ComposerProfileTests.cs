@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Compono.Tests;
 
 /// <summary>
@@ -138,6 +140,45 @@ public sealed class ComposerProfileTests
         profileSource.Profiles.Should().Equal(typeof(OuterProfile), typeof(MiddleProfile), typeof(InnerProfile));
     }
 
+    // ADR-0070 Amendment 6: AddProfile<TProfile>() constructs TProfile via `new TProfile()`, which lowers
+    // to Activator.CreateInstance<TProfile>() under the `new()` constraint and would otherwise wrap a
+    // throwing constructor in System.Reflection.TargetInvocationException. The original exception must
+    // reach the caller instead - same instance, message, Diagnostic, and stack-trace frames.
+
+    [Fact]
+    public void AddProfileOfT_ConstructorThrows_OriginalExceptionReachesCallerUnwrapped()
+    {
+        ThrowingConstructorProfile.Captured = null;
+
+        var act = () => Composer.Create(builder => builder.AddProfile<ThrowingConstructorProfile>());
+
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Should().BeSameAs(ThrowingConstructorProfile.Captured);
+        exception.Message.Should().Be("constructor-boom");
+        exception.StackTrace.Should().Contain(nameof(ThrowingConstructorProfile));
+    }
+
+    [Fact]
+    public void AddProfileOfT_ConstructorThrowsDiagnostic_InstanceAndDiagnosticPreserved()
+    {
+        ThrowingDiagnosticProfile.Captured = null;
+
+        var act = () => Composer.Create(builder => builder.AddProfile<ThrowingDiagnosticProfile>());
+
+        var exception = act.Should().Throw<CompositionException>().Which;
+        exception.Should().BeSameAs(ThrowingDiagnosticProfile.Captured);
+        exception.Diagnostic.Should().BeSameAs(ThrowingDiagnosticProfile.Diagnostic);
+    }
+
+    [Fact]
+    public void AddProfileOfT_ConfigureThrowsTargetInvocationException_IsNotUnwrapped()
+    {
+        var act = () => Composer.Create(builder => builder.AddProfile<ConfigureThrowsTargetInvocationProfile>());
+
+        var exception = act.Should().Throw<TargetInvocationException>().Which;
+        exception.Should().BeSameAs(ConfigureThrowsTargetInvocationProfile.Captured);
+    }
+
     private sealed record Widget(string Value);
 
     private sealed record Gadget(string Value);
@@ -206,5 +247,53 @@ public sealed class ComposerProfileTests
     {
         public void Configure(CompositionBuilder builder) =>
             builder.Register<Widget>(() => new Widget("from-inner-profile"));
+    }
+
+    private sealed class ThrowingConstructorProfile : ICompositionProfile
+    {
+        public static InvalidOperationException? Captured;
+
+        public ThrowingConstructorProfile()
+        {
+            Captured = new InvalidOperationException("constructor-boom");
+            throw Captured;
+        }
+
+        public void Configure(CompositionBuilder builder)
+        {
+        }
+    }
+
+    private sealed class ThrowingDiagnosticProfile : ICompositionProfile
+    {
+        public static readonly CompositionDiagnostic Diagnostic = new()
+        {
+            RootType = typeof(Widget),
+            FailedType = typeof(int),
+            Path = "ctor",
+            Trace = [],
+            Seed = 5UL,
+            Message = "diagnostic-boom",
+        };
+
+        public static CompositionException? Captured;
+
+        public ThrowingDiagnosticProfile()
+        {
+            Captured = new CompositionException(Diagnostic);
+            throw Captured;
+        }
+
+        public void Configure(CompositionBuilder builder)
+        {
+        }
+    }
+
+    private sealed class ConfigureThrowsTargetInvocationProfile : ICompositionProfile
+    {
+        public static readonly TargetInvocationException Captured =
+            new(new InvalidOperationException("inner-boom"));
+
+        public void Configure(CompositionBuilder builder) => throw Captured;
     }
 }

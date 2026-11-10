@@ -15,7 +15,8 @@ internal static class RegisteredComposeDataFactory
 {
     public static async ValueTask<IReadOnlyCollection<ITheoryDataRow>> InvokeAsync(
         string testClassIndex,
-        string methodName)
+        string methodName,
+        DisposalTracker? disposalTracker = null)
     {
         var testMethod = new StubCodeGenTestMethod(testClassIndex, methodName);
 
@@ -26,7 +27,7 @@ internal static class RegisteredComposeDataFactory
             disableDiscoveryEnumeration,
             "A generated ComposeData registration must delay discovery enumeration to execution time.");
 
-        return await factory(new DisposalTracker()).ConfigureAwait(false);
+        return await factory(disposalTracker ?? new DisposalTracker()).ConfigureAwait(false);
     }
 
     /// <summary>

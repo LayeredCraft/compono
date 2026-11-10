@@ -940,6 +940,32 @@ public sealed class ComposeDataGetDataTests
         rows[0].GetData().Should().Equal(1, "one");
     }
 
+    [Fact]
+    public async Task GetData_RowAndComposedValues_AreNotRegisteredWithTheCallersDisposalTracker()
+    {
+        // Ownership boundary (PLAN-0071 Pass 1 B6.2): Compono's GetData composes row values but never
+        // registers any of them with the DisposalTracker it is handed. That tracker belongs to the
+        // xUnit runner, which later calls DisposalTracker.AddRange(row.GetData()) for each row it
+        // executes (RESEARCH-0038 §2.4) - i.e. JIT theory-argument disposal is xUnit's behavior, not
+        // Compono's. So a caller-owned tracker comes back empty here, and disposing it disposes none
+        // of the values. No real-runner disposal is asserted (SQ3).
+        var tracker = new DisposalTracker();
+        var attribute = new ComposeDataAttribute<TrackedDisposableProfile>(nameof(DisposalRows));
+
+        var rows = await attribute.GetData(GetMethod(nameof(DisposalTarget)), tracker);
+
+        tracker.TrackedObjects.Should().BeEmpty();
+
+        var data = rows.Should().ContainSingle().Subject.GetData();
+        var rowSupplied = data[0].Should().BeOfType<ComposeDataTrackedDisposable>().Subject;
+        var composed = data[1].Should().BeOfType<ComposeDataTrackedDisposable>().Subject;
+
+        await tracker.DisposeAsync();
+
+        rowSupplied.Disposed.Should().BeFalse();
+        composed.Disposed.Should().BeFalse();
+    }
+
     // ---- remediation row sources ----
 
     public static IEnumerable<object?[]> ThrowingSyncRows()
@@ -980,6 +1006,21 @@ public sealed class ComposeDataGetDataTests
         [new object?[] { new DateTimeOffset(2020, 1, 2, 3, 4, 5, TimeSpan.Zero) }];
 
     // ---- remediation test methods ----
+
+    public static object?[] DisposalRows => [new object?[] { new ComposeDataTrackedDisposable() }];
+
+    // Carries [ComposeData] (but no [Theory], so the runner never executes it) purely so the source
+    // generator registers a row-binding dispatch for ComposeDataTrackedDisposable - the real GetData
+    // path below cannot bind a custom parameter type without one. xUnit1008 is suppressed because the
+    // attribute is a generator-dispatch request here, not a test-data source.
+#pragma warning disable xUnit1008
+    [ComposeData<TrackedDisposableProfile>(nameof(DisposalRows))]
+    private static void DisposalTarget(ComposeDataTrackedDisposable rowSupplied, ComposeDataTrackedDisposable composed)
+    {
+        _ = rowSupplied;
+        _ = composed;
+    }
+#pragma warning restore xUnit1008
 
     private static void OneString(string configured)
     {
@@ -1023,4 +1064,20 @@ public sealed class ComposeDataGetDataTests
     }
 
     private sealed class DerivedComposeDataAttribute(string memberName) : ComposeDataAttribute(memberName);
+}
+
+// Disposal ownership-boundary fixture types (PLAN-0071 Pass 1 B6.2). Declared at namespace scope
+// rather than nested: the source generator only emits row-binding dispatch for accessible parameter
+// types, and a private nested type trips CMP0013.
+public sealed class ComposeDataTrackedDisposable : IDisposable
+{
+    public bool Disposed { get; private set; }
+
+    public void Dispose() => Disposed = true;
+}
+
+public sealed class TrackedDisposableProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register(() => new ComposeDataTrackedDisposable());
 }

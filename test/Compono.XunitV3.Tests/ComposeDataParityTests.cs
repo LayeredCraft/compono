@@ -180,6 +180,44 @@ public sealed class ComposeDataParityTests
             .Which.Message.Should().Be("parity ctor boom");
     }
 
+    [Fact]
+    public async Task Profile_parameterless_constructor_failure_text_is_exact()
+    {
+        // ADR-0070 Amendment 6: an arity-1 profile is constructed by core AddProfile<TProfile>()'s
+        // `new TProfile()`, which lowers to Activator.CreateInstance<TProfile>(). Before the fix a
+        // throwing constructor surfaced as the generic "Exception has been thrown by the target of an
+        // invocation." with a TargetInvocationException InnerException; the fix rethrows the original.
+        var expected = RowFailure(0, Member(nameof(ParityFailureTargets.Ctor1Rows)),
+            Test(nameof(ParityFailureTargets.Ctor1Target)), "parity ctor1 boom", PreRowUnassigned);
+
+        var exception = await FailureAsync(
+            new ComposeDataAttribute<ParityThrowingParameterlessCtorProfile>(nameof(ParityFailureTargets.Ctor1Rows)),
+            typeof(ParityFailureTargets), nameof(ParityFailureTargets.Ctor1Target));
+
+        exception.Message.Should().Be(expected);
+        exception.InnerException.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be("parity ctor1 boom");
+        exception.InnerException.Should().NotBeOfType<TargetInvocationException>();
+    }
+
+    [Fact]
+    public async Task Profile_parameterless_constructor_diagnostic_is_preserved_by_reference()
+    {
+        // ADR-0070 Amendment 6: the arity-1 constructor's CompositionException reaches the R0 row-failure
+        // wrapper unwrapped, so RowFailure carries its Diagnostic by reference - the same guarantee the
+        // arity-2 path already had.
+        var expected = RowFailure(0, Member(nameof(ParityFailureTargets.DiagnosticCtorRows)),
+            Test(nameof(ParityFailureTargets.DiagnosticCtorTarget)), "parity diagnostic boom", PreRowUnassigned);
+
+        var exception = await FailureAsync(
+            new ComposeDataAttribute<ParityDiagnosticCtorProfile>(nameof(ParityFailureTargets.DiagnosticCtorRows)),
+            typeof(ParityFailureTargets), nameof(ParityFailureTargets.DiagnosticCtorTarget));
+
+        exception.Message.Should().Be(expected);
+        exception.Diagnostic.Should().BeSameAs(ParityDiagnosticCtorProfile.Diagnostic);
+        exception.InnerException.Should().BeSameAs(ParityDiagnosticCtorProfile.Captured);
+    }
+
     // -------------------------------------------------------------------------------------------------
     // Seed-line parity - every variant B3 defines, with fixture names identical to the AOT file.
     // -------------------------------------------------------------------------------------------------
@@ -404,6 +442,10 @@ public sealed class ParityFailureTargets
 
     public static IEnumerable<object?[]> CtorRows() => [new object?[] { new ParityWidgetConfig("value") }];
 
+    public static IEnumerable<object?[]> Ctor1Rows() => [new object?[] { "value" }];
+
+    public static IEnumerable<object?[]> DiagnosticCtorRows() => [new object?[] { "value" }];
+
     public static IEnumerable<object?[]> SimpleRows() => [new object?[] { "value" }];
 
     public static IEnumerable<object?[]> NullRowSeed42Rows() => [null!];
@@ -439,6 +481,14 @@ public sealed class ParityFailureTargets
     }
 
     public void CtorTarget(string value)
+    {
+    }
+
+    public void Ctor1Target(string value)
+    {
+    }
+
+    public void DiagnosticCtorTarget(string value)
     {
     }
 
@@ -482,6 +532,40 @@ public sealed class ParityConfigProfile : ICompositionProfile
 public sealed class ParityThrowingCtorProfile : ICompositionProfile
 {
     public ParityThrowingCtorProfile(ParityWidgetConfig config) => throw new InvalidOperationException("parity ctor boom");
+
+    public void Configure(CompositionBuilder builder)
+    {
+    }
+}
+
+public sealed class ParityThrowingParameterlessCtorProfile : ICompositionProfile
+{
+    public ParityThrowingParameterlessCtorProfile() => throw new InvalidOperationException("parity ctor1 boom");
+
+    public void Configure(CompositionBuilder builder)
+    {
+    }
+}
+
+public sealed class ParityDiagnosticCtorProfile : ICompositionProfile
+{
+    public static readonly CompositionDiagnostic Diagnostic = new()
+    {
+        RootType = typeof(string),
+        FailedType = typeof(int),
+        Path = "parity-ctor",
+        Trace = [],
+        Seed = 7UL,
+        Message = "parity diagnostic boom",
+    };
+
+    public static CompositionException? Captured;
+
+    public ParityDiagnosticCtorProfile()
+    {
+        Captured = new CompositionException(Diagnostic);
+        throw Captured;
+    }
 
     public void Configure(CompositionBuilder builder)
     {
