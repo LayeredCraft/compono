@@ -71,7 +71,7 @@ See ADR-0059 Amendment 1. Summary:
       `docs/architecture/current/generated-plans-and-discovery.md`.
 - [x] File issue #171 and bead `compono-03n`.
 - [x] Run the full validation gates (below) and record results in Notes.
-- [ ] Commit, push, open PR to `main` (do not merge).
+- [x] Commit, push, open PR to `main` (do not merge).
 
 ## Critical Files
 
@@ -129,3 +129,6 @@ See ADR-0059 Amendment 1. Summary:
   `Compono.NUnit.nuspec` still exact-pins `Compono` and constrains NUnit to
   `[3.14.0, 5.0.0)`), and package validation / ApiCompat produced no `CP`
   errors against the `1.4.0-preview.123` baseline.
+- 2026-11-10 — PR [#172](https://github.com/LayeredCraft/compono/pull/172)
+  opened against `main` (not merged; pending maintainer review). Status stays
+  `In Progress` until it merges.
