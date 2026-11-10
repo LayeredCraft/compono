@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Compono.NUnit.Binding;
 using NUnit.Framework;
@@ -121,6 +122,14 @@ public class ComposeAttribute : TestAttribute, ITestBuilder
         // NUnit's own metadata-wrapper type, not the real System.Reflection.MethodInfo the rest of
         // this package's binding machinery operates on (ADR-0059 §4/§5) - unwrap first, once.
         var reflectedMethod = method.MethodInfo;
+
+        // Under the classic VSTest test host NUnit builds test cases before the test assembly's
+        // generated [ModuleInitializer]s have run, so RowInvokerRegistry/PlanCache are still empty
+        // when binding begins below (ADR-0059 Amendment 1). Force this method's module to initialize
+        // now - exactly the step MTP performs for free because the test assembly is the entry
+        // assembly. Idempotent (a no-op once the module is initialized) and targets the module that
+        // declares the test method, which is where the generator emits the consumer's registrations.
+        RuntimeHelpers.RunModuleConstructor(reflectedMethod.DeclaringType!.Module.ModuleHandle);
 
         var composer = _composer.Value;
         var bindingPlan = EnsureBindingPlan(reflectedMethod);
