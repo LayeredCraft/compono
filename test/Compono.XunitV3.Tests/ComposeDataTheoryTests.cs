@@ -487,3 +487,61 @@ public sealed class ComposeDataTheoryLevelSkipTests
     [ComposeData(nameof(Rows))]
     public void TheoryLevelConditionThatDoesNotTriggerRuns(int value) => value.Should().BeOneOf(1, 2);
 }
+
+// B6.4 (ADR-0070 Amendment 4 §1, JIT side): a generic test-class base. A [ComposeData] theory declared
+// on an open generic base runs once per closed subclass, and the composition root the engine uses is
+// that closed base - the JIT counterpart to the AOT S6 tests (ComposeDataEmissionTests'
+// IntGenericComposeTests/StringGenericComposeTests). The probe provider records the
+// CompositionProviderRequest.DeclaringType each request carries, so the closed type can be asserted
+// from the running test rather than inferred. JIT does support a row member declared on the generic
+// base itself; the non-generic holder here (reached via MemberType) keeps this shape compatible with
+// Native AOT as well, which rejects a row member declared on a generic holder under CMP0054
+// (ADR-0070 Amendment 4 §2a).
+public sealed class ComposeDataGenericDeclaringTypeProbeProvider : ICompositionValueProvider
+{
+    public CompositionProviderResult TryProvide(in CompositionProviderRequest request, ICompositionContext context) =>
+        request.RequestedType == typeof(ComposeDataGenericDeclaringTypeProbe)
+            ? CompositionProviderResult.Handled(new ComposeDataGenericDeclaringTypeProbe(request.DeclaringType))
+            : CompositionProviderResult.NotHandled;
+}
+
+public sealed class ComposeDataGenericDeclaringTypeProbeProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder.AddSemanticProvider(new ComposeDataGenericDeclaringTypeProbeProvider());
+}
+
+public sealed record ComposeDataGenericDeclaringTypeProbe(Type? DeclaringType);
+
+public static class ComposeDataGenericMemberHolder
+{
+    public static IEnumerable<object?[]> HolderRows() => [["holder"]];
+}
+
+public class ComposeDataGenericRoot
+{
+    public static IEnumerable<object?[]> RootRows() => [["root"]];
+}
+
+public abstract class ComposeDataGenericBase<T> : ComposeDataGenericRoot
+{
+    [Theory]
+    [ComposeData<ComposeDataGenericDeclaringTypeProbeProfile>("HolderRows", MemberType = typeof(ComposeDataGenericMemberHolder))]
+    public void InheritedMemberTypeRowSourceComposesAgainstTheClosedGenericBase(string label, ComposeDataGenericDeclaringTypeProbe probe)
+    {
+        label.Should().Be("holder");
+        probe.DeclaringType.Should().Be(GetType().BaseType);
+    }
+
+    [Theory]
+    [ComposeData<ComposeDataGenericDeclaringTypeProbeProfile>("RootRows")]
+    public void InheritedRootRowSourceComposesAgainstTheClosedGenericBase(string label, ComposeDataGenericDeclaringTypeProbe probe)
+    {
+        label.Should().Be("root");
+        probe.DeclaringType.Should().Be(GetType().BaseType);
+    }
+}
+
+public sealed class ComposeDataGenericIntTests : ComposeDataGenericBase<int>;
+
+public sealed class ComposeDataGenericStringTests : ComposeDataGenericBase<string>;
