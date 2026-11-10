@@ -128,3 +128,4 @@ the mechanics: numbering, status, and the index.
 | [0067](0067-compono-xunitv3-aot-profile-support.md) | Compono.XunitV3.Aot: Profile-Based Composition (`[Compose<TProfile>]`/`[Compose<TProfile, TConfig>]`) | Accepted |
 | [0068](0068-generator-wide-per-item-emission-failure-isolation.md) | Generator-Wide Per-Item Emission Failure Isolation | Accepted |
 | [0069](0069-xunitv3-require-fixture-accessor.md) | xUnit v3 Fixture Accessor for Composition Profiles (`RequireFixture<TFixture>()`) | Accepted |
+| [0070](0070-xunitv3-composedata-composed-theory-rows.md) | xUnit v3 Composed Theory Rows (`[ComposeData]`) | Accepted |

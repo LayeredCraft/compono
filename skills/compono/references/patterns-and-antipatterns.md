@@ -33,7 +33,9 @@ drawn from real dogfooding evidence
    entirely, with no replacement concept. Don't reinvent them as
    project-local helpers; adjust the test instead.
 9. **Stacking multiple Compose-family attributes** on one test method —
-   see `xunit-v3.md`; split into separate methods instead.
+   only one is allowed per method, and a second is a `CompositionException`
+   at data-binding time. For several rows, reach for a single
+   `[ComposeData]` (see `xunit-v3.md`), not stacked attributes.
 10. **Composing an ambiguous-constructor BCL type directly** (e.g.
     `HttpClient`, `Exception` — both seen in real migrations). `CMP0001`
     has no registration-based escape hatch — wrap in an app-owned
@@ -72,6 +74,13 @@ drawn from real dogfooding evidence
     `ICompositionValueProvider` to solve a call-site-configuration
     problem** — these are two different questions (see `xunit-v3.md`),
     not two names for the same mechanism.
+18. **Rewriting one `[Theory]` as several near-identical methods — one per
+    row — when the rows are really a table.** Collapse them into a single
+    `[ComposeData]` reading a public static row source; use
+    `[ComposeData<TProfile, TConfig>]` when each row brings its own
+    `TConfig` as element 0. Rows bind leading-positionally, so a row's own
+    values come first and the remaining parameters are composed — never
+    place a composed parameter before a row value. See `xunit-v3.md`.
 
 ## AutoFixture → Compono concept mapping
 
@@ -82,7 +91,8 @@ drawn from real dogfooding evidence
 | `[Frozen]` | `[Shared]` (one-off, `Compono.XunitV3`/`Compono.TUnit` only) or `Share<T>()` (reusable, core `Compono`) | Audit each usage — see antipattern 11 above |
 | `AutoNSubstituteCustomization` | `builder.UseNSubstitute()` | No `ConfigureMembers` equivalent — see antipattern 12 and `nsubstitute.md` |
 | `fixture.Customize<T>(...)` | `builder.Register<T>()` / `.For<T>().Use()` | Re-customizing the same type is a build-time conflict, not override |
-| `[AutoData]`/`[InlineAutoData]` | `[Compose]` / inline args on `[Compose(...)]` | Only one Compose-family attribute per method — see `xunit-v3.md` |
+| `[AutoData]`/`[InlineAutoData]` | `[Compose]` / inline args on `[Compose(...)]` | Only one Compose-family attribute per method — a multi-row table is one `[ComposeData]` (next row), never stacked attributes — see `xunit-v3.md` |
+| Several `[InlineAutoData(...)]`/`[MemberAutoData(...)]` rows with composed parameters (a table) | `[ComposeData]` over a public static row source | One `[Theory]`, one `[ComposeData]`; each row's own values come first (leading-positional), the rest composed — see `xunit-v3.md` |
 | Parameterized custom `AutoDataAttribute` (constructor args driving customization logic) | `[Compose<TProfile, TConfig>]` | `TConfig`'s constructor args, not the test method's parameters — see `xunit-v3.md`. Use an enum/`typeof(...)`, not a bare string |
 | `OmitOnRecursionBehavior` | *(none)* | Real cycles fail fast; break them with an explicit `Register<T>()` |
 | `IFixture` | *(none)* | No fixture-holder object; configure via `[Compose<TProfile>]`/`ICompositionProfile` per test |

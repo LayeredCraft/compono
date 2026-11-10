@@ -58,6 +58,54 @@ public sealed class CompositionExceptionTests
     }
 
     [Fact]
+    public void Constructor_PreservesMessageDiagnosticReferenceAndInnerException()
+    {
+        // ADR-0070 Amendment 1: the [ComposeData] row-failure wrapper prepends the failing row's
+        // identity to the cause's message, so it needs a message it controls exactly while still
+        // keeping the cause as InnerException and carrying the original CompositionDiagnostic by
+        // reference. None of the pre-existing public constructors could do all three at once.
+        var diagnostic = new CompositionDiagnostic
+        {
+            RootType = typeof(CompositionExceptionTests),
+            FailedType = typeof(CompositionExceptionTests),
+            Path = "unrelated-path",
+            Trace = [],
+            Seed = 0,
+            Message = "original pipeline failure message",
+        };
+        var cause = new Exception("the cause");
+
+        var exception = new CompositionException("ComposeData row 0 failed: original pipeline failure message", diagnostic, cause);
+
+        exception.Message.Should().Be("ComposeData row 0 failed: original pipeline failure message");
+        exception.Diagnostic.Should().BeSameAs(diagnostic);
+        exception.Diagnostic!.Message.Should().Be("original pipeline failure message", "the supplied message is used verbatim and the diagnostic is not rewritten");
+        exception.InnerException.Should().BeSameAs(cause);
+    }
+
+    [Fact]
+    public void Constructor_AllowsNullDiagnostic()
+    {
+        // A non-pipeline cause (a profile constructor or Configure throwing a plain exception) has
+        // no CompositionDiagnostic; Diagnostic stays null and the cause is still preserved.
+        var cause = new InvalidOperationException("profile configuration blew up");
+
+        var exception = new CompositionException("ComposeData row 1 failed: profile configuration blew up", diagnostic: null, cause);
+
+        exception.Message.Should().Be("ComposeData row 1 failed: profile configuration blew up");
+        exception.Diagnostic.Should().BeNull();
+        exception.InnerException.Should().BeSameAs(cause);
+    }
+
+    [Fact]
+    public void Constructor_ThrowsArgumentNullException_WhenInnerExceptionIsNull()
+    {
+        var act = () => new CompositionException("message", diagnostic: null, innerException: null!);
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
     public void DoesNotDeclareAnyMemberOfTypeCompositionContext()
     {
         // Regression for a real gap (PR #17 review): an earlier fix identified which

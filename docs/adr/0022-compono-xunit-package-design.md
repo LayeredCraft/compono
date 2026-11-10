@@ -1222,3 +1222,25 @@ rule; this Amendment records the constraint and its rationale (the same
 data-binding-time validation this ADR already documents for other
 signature errors) so a future project's dogfooding has somewhere to point
 if it does hit a real call site.
+
+## Amendment 8 (2026-11-10): the multi-row case Amendment 7 left open is answered by ADR-0070's `[ComposeData]`, not by enabling stacking
+
+Amendment 7 recorded a discovered-but-unexercised constraint — stacking
+two *different* Compose-family attribute types on one method compiles but
+throws at data-binding time — and left it unaddressed on the grounds that
+no real call site needed it, so a future project's dogfooding would have
+"somewhere to point" if one did.
+
+Issue #163 (a child of #161, item 3) is that call site: composing a
+`[Theory]` whose rows each carry their own non-constant configuration and
+expected values — AutoFixture's stacked-`[InlineAutoData]` idiom (or a
+member-supplied `[MemberAutoData]` table) — is a real, recurring need. [ADR-0070](0070-xunitv3-composedata-composed-theory-rows.md)
+resolves it with a new `[ComposeData]` attribute family that reads rows
+from a public static member, rather than by enabling stacking.
+
+**No change to this ADR's binding behavior.** `[ComposeData]` counts as a
+Compose-family attribute for the one-attribute-per-method rule, so
+stacking stays unsupported exactly as Amendment 7 recorded — the
+multi-row answer is a single `[ComposeData]`, never several `[Compose]`
+attributes. Amendment 7's rationale and its data-binding-time validation
+are unchanged.

@@ -61,6 +61,28 @@ public sealed class CompositionException : Exception
     }
 
     /// <summary>
+    /// Creates a <see cref="CompositionException"/> with an explicit <paramref name="message"/>,
+    /// together with a structured <paramref name="diagnostic"/> and a preserved
+    /// <paramref name="innerException"/> - the shape a caller that supplies its own
+    /// <see cref="Exception.Message"/> while keeping the causing exception and the original
+    /// <see cref="CompositionDiagnostic"/> reference needs. Added for the <c>[ComposeData]</c>
+    /// row-failure wrapper, which prefixes the cause's message with the failing row's identity
+    /// (ADR-0070 Amendment 1).
+    /// </summary>
+    /// <param name="message">The message to surface exactly as supplied.</param>
+    /// <param name="diagnostic">
+    /// The structured detail behind this failure, or <see langword="null"/> when the cause carried
+    /// none; preserved by reference.
+    /// </param>
+    /// <param name="innerException">The exception that caused this failure.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="innerException"/> is <see langword="null"/>.</exception>
+    public CompositionException(string message, CompositionDiagnostic? diagnostic, Exception innerException)
+        : base(message, RequireInnerException(innerException))
+    {
+        Diagnostic = diagnostic;
+    }
+
+    /// <summary>
     /// Creates a copy of <paramref name="original"/> whose <see cref="Exception.Message"/> has a
     /// <c>"Seed: &lt;value&gt;"</c> line appended, so a consumer building custom composition-failure
     /// tooling (e.g. a test-framework integration reporting a reproducible seed) can surface it
@@ -124,11 +146,5 @@ public sealed class CompositionException : Exception
     {
         ArgumentNullException.ThrowIfNull(innerException);
         return innerException;
-    }
-
-    private CompositionException(string message, CompositionDiagnostic? diagnostic, Exception innerException)
-        : base(message, innerException)
-    {
-        Diagnostic = diagnostic;
     }
 }

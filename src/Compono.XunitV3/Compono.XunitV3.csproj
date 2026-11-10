@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
         <Title>Compono — xUnit v3 Integration</Title>
-        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] theory data attributes and [Shared] parameter sharing.</Description>
+        <Description>xUnit v3 integration for Compono - [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] theory data attributes, [ComposeData]/[ComposeData&lt;TProfile&gt;]/[ComposeData&lt;TProfile, TConfig&gt;] composed theory rows read from a [MemberData]-style member, and [Shared] parameter sharing.</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,11 +27,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- One shared source implementation, linked per package: Compono.XunitV3 and
+        <!-- Shared source implementations, linked per package: Compono.XunitV3 and
              Compono.XunitV3.Aot each compile against a different xUnit engine, and each defines its
-             own Xunit.ITestContext, so a shared compiled assembly is impossible. Only this one file
-             is shared this way (ADR-0069 / PLAN-0070). -->
+             own Xunit.ITestContext, so a shared compiled assembly is impossible. These files are
+             shared this way (ADR-0069 / PLAN-0070 for FixtureContextExtensions, ADR-0070 for
+             ComposeDataRows). -->
         <Compile Include="..\Shared\Compono.XunitV3\FixtureContextExtensions.cs" Link="FixtureContextExtensions.cs" />
+        <Compile Include="..\Shared\Compono.XunitV3\ComposeDataRows.cs" Link="ComposeDataRows.cs" />
     </ItemGroup>
 
     <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a

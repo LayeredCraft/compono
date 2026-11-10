@@ -89,6 +89,8 @@ each row is expanded into its own section below.
 | `[AutoData]` | `[Compose]` |
 | Custom `AutoDataAttribute` subclass | `[Compose<TProfile>]` |
 | **Parameterized** custom `AutoDataAttribute` subclass (constructor args driving customization logic) | `[Compose<TProfile, TConfig>]` |
+| `[InlineAutoData(...)]` rows — one `[Theory]`, many inline values plus composed parameters | `[ComposeData]` over an `object?[]`/`TheoryData` row source |
+| `[MemberAutoData(...)]` — rows supplied by a member, with composed parameters | `[ComposeData]` reading a public static member |
 | `ICustomization` | `ICompositionProfile` |
 | Exact-type specimen customization | `Register<T>()` |
 | Exact-type `ISpecimenBuilder` | `Register<T>()` |
@@ -172,13 +174,16 @@ composed ones, `[Compose(...)]` binds the inline values positionally and
 composes the rest — see
 [How Do I Write a Composed Theory?](how-to/write-a-composed-theory.md).
 
-**Only one Compose-family attribute per test method is supported.**
-AutoFixture's idiom of stacking multiple `[InlineAutoData(...)]` instances
-for several rows, each with its own composed parameters, has no direct
-Compono equivalent — pick one Compose-family attribute per method and
-cover the rest with a separate `[Theory]`/`[InlineData]` method instead.
-See [`Compono.XunitV3`'s Package Guide](packages/compono-xunitv3.md#what-it-deliberately-doesnt-do)
-for the full mechanics of why stacking isn't supported.
+**Several rows, each with its own composed parameters, is one
+`[ComposeData]` — never several attributes.** AutoFixture's idiom of
+stacking multiple `[InlineAutoData(...)]` instances (or one
+`[MemberAutoData(...)]` reading a member) for many rows maps to a single
+[`[ComposeData]`](packages/compono-xunitv3.md#composed-theory-rows-composedata)
+on the method, reading a member that returns one row per case. The
+one-Compose-family-attribute-per-method rule still holds, so the multi-row
+answer is one `[ComposeData]`, not several `[Compose]`s. See
+[Migrate a multi-row `[InlineAutoData]`/`[MemberAutoData]` table](#migrate-a-multi-row-inlineautodatamemberautodata-table)
+below.
 
 ## Migrate a parameterized custom `AutoDataAttribute`
 
@@ -266,6 +271,58 @@ value, a member rule) already cover it — reserve this form for the case
 this section actually describes: a value that's genuinely different per
 call site and needs to reach configuration logic running *inside* the
 profile, not at the test method's own parameter list.
+
+## Migrate a multi-row `[InlineAutoData]`/`[MemberAutoData]` table
+
+AutoFixture's row-stacking idioms — several `[InlineAutoData(...)]`
+attributes on one `[Theory]`, or one `[MemberAutoData(...)]` reading a
+member — map to a single
+[`[ComposeData]`](packages/compono-xunitv3.md#composed-theory-rows-composedata)
+attribute reading a public static member that returns one row per case.
+Each row's leading values bind positionally to the test method's own
+parameters; every remaining parameter is composed, and a two-type-parameter
+`[ComposeData<TProfile, TConfig>]` can carry a per-row configuration value
+as element 0.
+
+```csharp
+// Before — one stacked attribute per row
+[Theory]
+[InlineAutoData(0.10, 100, 90)]
+[InlineAutoData(0.25, 80, 60)]
+public void Prices_by_discount(
+    decimal discount, decimal price, decimal expected, PriceCalculator sut) { }
+```
+
+```csharp
+// After — one [ComposeData<TProfile, TConfig>], one row per case
+[Theory]
+[ComposeData<PricingProfile, PricingConfig>(nameof(PricingRows))]
+public void Prices_by_discount(decimal price, decimal expected, PriceCalculator sut) { }
+
+public static readonly object?[][] PricingRows =
+[
+    [new PricingConfig(0.10m), 100m, 90m],
+    [new PricingConfig(0.25m), 80m, 60m],
+];
+```
+
+The `discount` that was a test parameter becomes part of each row's
+`PricingConfig` value (element 0), so the profile can register a
+`PriceCalculator` built from that row's configuration — the same shape as
+the parameterized-attribute migration above, now varying *per row* instead
+of per call site.
+
+`[MemberAutoData]` is the same shape when a member already supplies the
+rows: rename the attribute and point its `MemberName` (and `MemberType`, when
+the member lives on a different type) at the member. Two differences from
+xUnit: `ComposeData` binds strictly (no `TypeHelper` numeric or string
+conversion), and the member takes no arguments.
+
+Three complete worked examples — per-row configuration, a `[Shared]` row
+value, and a fixture-backed row member — live in
+[`Compono.XunitV3`'s Package Guide](packages/compono-xunitv3.md#composed-theory-rows-composedata)
+and in [Vary Composed Configuration per Theory
+Row](cookbook/vary-composed-configuration-per-theory-row.md).
 
 ## Migrate `ICustomization`
 
@@ -549,7 +606,7 @@ built-in list and its member-name-matching limits.
 |---|---|
 | `ICustomization` | `ICompositionProfile` |
 | `ISpecimenBuilder` (exact-type case) | `CompositionBuilder.Register<T>(...)` |
-| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses | `[Compose]`/`[Compose<TProfile>]`, applied directly |
+| Custom `AutoDataAttribute`/`InlineAutoDataAttribute` subclasses | `[Compose]`/`[Compose<TProfile>]` applied directly; multi-row tables to `[ComposeData]` |
 | `AutoNSubstituteCustomization`'s substitute creation itself | `builder.UseNSubstitute()` |
 | `Freeze<T>()`/`[Frozen]` | `[Shared]` |
 
@@ -652,7 +709,9 @@ in [Troubleshooting](troubleshooting/index.md#known-limitations).
 - [ ] Add the required Compono packages at matching versions.
 - [ ] Replace custom AutoData attributes with `[Compose]` or
       `[Compose<TProfile>]` — or, for one whose constructor arguments
-      drive customization logic, `[Compose<TProfile, TConfig>]`.
+      drive customization logic, `[Compose<TProfile, TConfig>]`; for a
+      test with several `[InlineAutoData]`/`[MemberAutoData]` rows, one
+      `[ComposeData]`.
 - [ ] Convert real customizations into profiles.
 - [ ] Delete empty or obsolete fixture abstractions.
 - [ ] Audit every `[Frozen]` usage to determine whether identity is

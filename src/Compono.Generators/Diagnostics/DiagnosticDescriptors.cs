@@ -556,4 +556,294 @@ internal static class DiagnosticDescriptors
         "Compono.Generators",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // CMP0051-CMP0057: Native AOT [ComposeData] member resolution, return/element shape, and row-value
+    // validation (ADR-0070, PLAN-0071 B4). The ComposeData twins further below deliberately reuse the
+    // IDs of the corresponding [Compose]-family descriptors (CMP0040/0042/0044/0045/0046/0047/0048/
+    // 0049) with ComposeData-specific wording, so a consumer's suppression/configuration keyed on the
+    // shared ID keeps working across both families; the original [Compose] descriptors and their
+    // snapshots are untouched byte-for-byte. ComposeData never reuses CMP0041/CMP0043: its TConfig is
+    // not constructed by the generator, so TConfig's constructor shape and any profile configuration
+    // arguments are validated at runtime, not at compile time. CMP0051 and CMP0052 each use more than
+    // one descriptor (a distinct message per failure reason) under a single rule ID.
+
+    public static readonly DiagnosticDescriptor ComposeDataMemberNotFound = new(
+        "CMP0051",
+        "ComposeData member was not found",
+        "ComposeData member '{0}' for '{1}' was not found. Expected a public static field, property, " +
+        "or parameterless method.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataMemberAmbiguous = new(
+        "CMP0051",
+        "ComposeData member is ambiguous",
+        "ComposeData member '{0}' for '{1}' is ambiguous: more than one inherited or hidden static " +
+        "member matches. Set MemberType to disambiguate, or rename the member.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataMemberNotPublicStatic = new(
+        "CMP0052",
+        "ComposeData member must be public and static",
+        "ComposeData member '{0}' for '{1}' must be public and static",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataMemberRequiresArguments = new(
+        "CMP0052",
+        "ComposeData member requires arguments",
+        "ComposeData member '{0}' for '{1}' requires arguments, which ComposeData does not support",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataMemberIsGenericMethod = new(
+        "CMP0052",
+        "ComposeData member is a generic method",
+        "ComposeData member '{0}' for '{1}' is a generic method; ComposeData cannot supply type arguments",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataUnsupportedReturnOrRowElementType = new(
+        "CMP0053",
+        "ComposeData member has an unsupported return or row element type",
+        "ComposeData member '{0}' for '{1}' has unsupported {3} type '{2}'. Expected IEnumerable, " +
+        "Task/ValueTask of IEnumerable, or IAsyncEnumerable of ITheoryDataRow, object?[], or ITuple rows.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataOpenGenericMemberType = new(
+        "CMP0054",
+        "ComposeData MemberType is an open generic type",
+        "ComposeData MemberType '{0}' for '{1}' is an open generic type; supply a closed type",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataConfigValueTypeMismatch = new(
+        "CMP0055",
+        "ComposeData row element 0 can never be the profile configuration value",
+        "ComposeData member '{0}' for '{1}': row element 0 type '{2}' can never be the '{3}' profile " +
+        "configuration value",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataTooManyRowValues = new(
+        "CMP0056",
+        "ComposeData row supplies too many values",
+        "ComposeData member '{0}' for '{1}' supplies {2} row value(s), but the method has {3} " +
+        "parameter(s)",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataRowValueTypeMismatch = new(
+        "CMP0056",
+        "ComposeData row value can never be assigned to its parameter",
+        "ComposeData member '{0}' for '{1}': row value {2} type '{3}' can never be assigned to " +
+        "parameter '{4}' of type '{5}'",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataConflictingSkipConditions = new(
+        "CMP0057",
+        "ComposeData sets both SkipUnless and SkipWhen",
+        "[ComposeData] on '{0}' sets both SkipUnless and SkipWhen",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataInvalidSkipConditionProperty = new(
+        "CMP0057",
+        "ComposeData skip condition property is invalid",
+        "[ComposeData] on '{0}': {1} '{2}' must be a public static bool property on '{3}' or one of " +
+        "its base types",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ComposeData twins of the [Compose]-family descriptors - same rule ID / severity / category,
+    // ComposeData-specific wording. CMP0040 covers both ComposeData signature rejections (a generic
+    // method, a ref/out/in or params parameter, an uncomposable parameter type) and the duplicate
+    // [Shared] rule; its {1} is the specific reason.
+    public static readonly DiagnosticDescriptor ComposeDataUnsupportedMethodSignature = new(
+        "CMP0040",
+        "A [ComposeData]-attributed test method has an unsupported signature",
+        "'{0}' cannot be registered for Native AOT Composed theory-data generation: {1}. ComposeData " +
+        "supports only ordinary, non-generic, non-ref/params parameters, and no two parameters may " +
+        "share a type when both are marked [Shared].",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataInvalidProfileConstructorShape = new(
+        "CMP0042",
+        "ComposeData profile type does not have exactly one usable public constructor accepting its configuration type",
+        "'{0}' is used as the TProfile type argument of [ComposeData<{0}, {1}>] on '{2}', but must " +
+        "have exactly one usable public constructor accepting a single '{1}' parameter - it has {3} " +
+        "usable public constructor(s) (a constructor with a ref/out/in parameter, or one marked " +
+        "[RequiresDynamicCode]/[RequiresUnreferencedCode]/[RequiresAssemblyFiles] does not count as usable)",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataInaccessibleProfileSymbol = new(
+        "CMP0044",
+        "A type referenced by a [ComposeData] attribute is not accessible from the generated registration",
+        "'{0}' is referenced by [ComposeData<...>] on '{1}' ({2}), but is not accessible from " +
+        "Compono.Generators' generated top-level registration - referencing it there would fail with " +
+        "CS0122. Make '{0}' at least internal (with InternalsVisibleTo if it lives in another " +
+        "assembly), or public.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataMultipleAttributes = new(
+        "CMP0045",
+        "More than one Compose-family attribute on one test method",
+        "More than one of [Compose]/[Compose<TProfile>]/[Compose<TProfile, TConfig>]/[ComposeData]/" +
+        "[ComposeData<TProfile>]/[ComposeData<TProfile, TConfig>] is applied to '{0}' - only one " +
+        "Compose-family attribute per test method is allowed. These attribute types share no common " +
+        "base class, so a second one on the same method would otherwise each independently register " +
+        "their own theory-data factory under the same generated hint name and crash the generator " +
+        "instead of producing a diagnostic.",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProfileConstructorRequiredMembersUnsatisfied = new(
+        "CMP0046",
+        "ComposeData's selected TProfile constructor does not satisfy the type's required members",
+        "'{0}''s selected constructor does not satisfy required member '{1}' (used by [ComposeData<...>] " +
+        "on '{2}') - Compono.Generators constructs '{0}' via a direct constructor call, which requires " +
+        "either no required members, or the constructor to carry " +
+        "[System.Diagnostics.CodeAnalysis.SetsRequiredMembers], or this would fail with CS9035 in the " +
+        "generated registration",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedProfileConstructor = new(
+        "CMP0047",
+        "ComposeData's selected TProfile constructor cannot be used at its generated call site",
+        "'{0}''s selected constructor is marked {2}, which makes any use of it a compiler error (used " +
+        "by [ComposeData<...>] on '{1}') - Compono.Generators constructs '{0}' via a direct " +
+        "`new {0}(...)` call in the generated registration, which would fail to compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProfileConstructorSupersededByPriority = new(
+        "CMP0048",
+        "An accessible sibling constructor could supersede ComposeData's selected TProfile constructor via OverloadResolutionPriority",
+        "'{0}''s selected constructor could be silently superseded at its generated call site by '{2}', " +
+        "which is accessible from the generated registration and marked with a higher " +
+        "[OverloadResolutionPriority] (used by [ComposeData<...>] on '{1}') - Compono.Generators " +
+        "constructs '{0}' via a direct `new {0}(...)` call, and overload-resolution-priority pruning " +
+        "would select the higher-priority constructor regardless of argument casts",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProfileConstructorRequiresAotUnsafeFeature = new(
+        "CMP0049",
+        "ComposeData's TProfile parameterless constructor is marked with an AOT/trim-unsafe attribute",
+        "'{0}''s public parameterless constructor is marked [RequiresDynamicCode]/" +
+        "[RequiresUnreferencedCode]/[RequiresAssemblyFiles] (used by [ComposeData<...>] on '{1}') - " +
+        "Compono.Generators' generated registration constructs '{0}' via AddProfile<TProfile>()'s " +
+        "generic `new TProfile()`, which would surface an IL3050/IL2026/IL3002 warning for any " +
+        "consumer with trim/AOT analysis enabled",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ComposeData AOT-only rejections from ADR-0070 Amendment 4 - shapes the JIT/reflection path can
+    // execute but generated (Native AOT) code cannot name or call, so each gets its own compile-time
+    // diagnostic instead of a silent omission. CMP0054 twins reuse the B4 open-generic rule ID;
+    // CMP0052/CMP0047 twins reuse their [Compose]-family rule IDs with ComposeData-specific wording.
+    public static readonly DiagnosticDescriptor ComposeDataOpenGenericMemberHolder = new(
+        "CMP0054",
+        "ComposeData member is declared on an open generic type",
+        "ComposeData member '{0}' for '{1}' is declared on open generic type '{2}', which generated " +
+        "code cannot name; set MemberType to a non-generic or closed generic type that declares the " +
+        "member",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataOpenGenericSkipHolder = new(
+        "CMP0054",
+        "ComposeData skip condition is declared on an open generic type",
+        "[ComposeData] on '{0}': {1} '{2}' is declared on open generic type '{3}', which generated " +
+        "code cannot name; set SkipType to a non-generic or closed generic type that declares the " +
+        "property",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataStaticInterfaceMember = new(
+        "CMP0052",
+        "ComposeData member is a static abstract or static virtual interface member",
+        "ComposeData member '{0}' for '{1}' is a static abstract or static virtual interface member, " +
+        "which generated code cannot call; move the data to a static member of a class or struct",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataStaticInterfaceSkipProperty = new(
+        "CMP0052",
+        "ComposeData skip condition property is a static abstract or static virtual interface member",
+        "[ComposeData] on '{0}': {1} '{2}' on '{3}' is a static abstract or static virtual interface " +
+        "property, which generated code cannot read; move the condition to a static property of a class " +
+        "or struct, or to a non-virtual static interface property",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedMember = new(
+        "CMP0047",
+        "ComposeData member cannot be used at its generated call site",
+        "ComposeData member '{0}' for '{1}' is marked {2}, which makes any use of it a compiler " +
+        "error; the generated registration reads the member directly, so it would fail to compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedMemberGetter = new(
+        "CMP0047",
+        "ComposeData member getter cannot be used at its generated call site",
+        "ComposeData member '{0}' for '{1}' has a getter marked {2}, which makes any use of it a " +
+        "compiler error; the generated registration reads the member directly, so it would fail to " +
+        "compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedSkipProperty = new(
+        "CMP0047",
+        "ComposeData skip condition property cannot be used at its generated call site",
+        "[ComposeData] on '{0}': {1} '{2}' on '{3}' is marked {4}, which makes any use of it a " +
+        "compiler error; the generated registration reads the property directly, so it would fail to " +
+        "compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ComposeDataProhibitedSkipPropertyGetter = new(
+        "CMP0047",
+        "ComposeData skip condition getter cannot be used at its generated call site",
+        "[ComposeData] on '{0}': {1} '{2}' on '{3}' has a getter marked {4}, which makes any use of " +
+        "it a compiler error; the generated registration reads the property directly, so it would " +
+        "fail to compile",
+        "Compono.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

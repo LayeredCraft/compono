@@ -58,6 +58,26 @@ internal static class ComposeMethodDiscovery
     public const string TwoTypeParameterAttributeMetadataName = "Compono.XunitV3.ComposeAttribute`2";
 
     /// <summary>
+    /// The metadata name of the non-generic <c>[ComposeData]</c> form (ADR-0070). Discovered through
+    /// the same <see cref="TransformMethod"/> path as the <c>[Compose]</c> family: a Composed theory
+    /// rows method's parameter types still need plans and <c>RowInvokerRegistry</c> registrations. The
+    /// AOT-side generator emission for Composed theory rows is a later change (issue #163 phase B4).
+    /// </summary>
+    public const string ComposeDataAttributeMetadataName = "Compono.XunitV3.ComposeDataAttribute";
+
+    /// <summary>
+    /// The metadata name of the closed-over-nothing generic <c>[ComposeData&lt;TProfile&gt;]</c> form -
+    /// same arity-suffixed reasoning as <see cref="GenericAttributeMetadataName"/>.
+    /// </summary>
+    public const string ComposeDataGenericAttributeMetadataName = "Compono.XunitV3.ComposeDataAttribute`1";
+
+    /// <summary>
+    /// The metadata name of the two-type-parameter <c>[ComposeData&lt;TProfile, TConfig&gt;]</c> form -
+    /// same arity-suffixed reasoning as <see cref="TwoTypeParameterAttributeMetadataName"/>.
+    /// </summary>
+    public const string ComposeDataTwoTypeParameterAttributeMetadataName = "Compono.XunitV3.ComposeDataAttribute`2";
+
+    /// <summary>
     /// <c>Compono.TUnit</c>'s own <c>[Compose]</c> - the identical discovery gap as
     /// <see cref="AttributeMetadataName"/>, for a second attribute family. See
     /// <c>docs/adr/0040-compono-tunit-package-design.md</c>'s "Generator discovery" section:
@@ -144,6 +164,34 @@ internal static class ComposeMethodDiscovery
     /// <see cref="AotComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName"/> uses.
     /// </remarks>
     public const string AotTwoTypeParameterAttributeMetadataName = AotComposeMethodDiscovery.TwoTypeParameterAttributeMetadataName;
+
+    /// <summary>
+    /// <c>Compono.XunitV3.Aot</c>'s own <c>[ComposeData]</c> (ADR-0070/PLAN-0071) - the identical
+    /// discovery gap as <see cref="ComposeDataAttributeMetadataName"/>, for the AOT attribute family,
+    /// feeding the same attribute-family-agnostic <see cref="TransformMethod"/> so a Composed theory
+    /// rows method's parameter types still get ordinary <c>PlanCache&lt;T&gt;</c>/<c>RowInvokerRegistry</c>
+    /// entries regardless of whether the ComposeData member itself later validates. Deliberately the
+    /// same string <see cref="AotComposeDataMethodDiscovery.AttributeMetadataName"/> uses - one
+    /// attribute, two independent discovery registrations (this one for plan generation, that one for
+    /// the per-method AOT ComposeData model; see its own remarks for why they're separate).
+    /// </summary>
+    public const string AotComposeDataAttributeMetadataName = AotComposeDataMethodDiscovery.AttributeMetadataName;
+
+    /// <inheritdoc cref="GenericAttributeMetadataName"/>
+    /// <remarks>
+    /// <c>Compono.XunitV3.Aot.ComposeDataAttribute&lt;TProfile&gt;</c>'s own arity-suffixed form
+    /// (ADR-0070) - same "same string, two independent discovery registrations" reasoning as
+    /// <see cref="AotComposeDataAttributeMetadataName"/>.
+    /// </remarks>
+    public const string AotComposeDataGenericAttributeMetadataName = AotComposeDataMethodDiscovery.GenericAttributeMetadataName;
+
+    /// <inheritdoc cref="TwoTypeParameterAttributeMetadataName"/>
+    /// <remarks>
+    /// <c>Compono.XunitV3.Aot.ComposeDataAttribute&lt;TProfile, TConfig&gt;</c>'s own arity-suffixed
+    /// form (ADR-0070) - same "same string, two independent discovery registrations" reasoning as
+    /// <see cref="AotComposeDataAttributeMetadataName"/>.
+    /// </remarks>
+    public const string AotComposeDataTwoTypeParameterAttributeMetadataName = AotComposeDataMethodDiscovery.TwoTypeParameterAttributeMetadataName;
 
     public static ComposeMethodDiscoveryResult TransformMethod(GeneratorAttributeSyntaxContext context, GeneratorFeatureFlags flags, CancellationToken cancellationToken)
     {

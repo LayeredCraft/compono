@@ -13,7 +13,7 @@
              (ADR-0069 / PLAN-0070). -->
         <DefineConstants>$(DefineConstants);COMPONO_XUNITV3_AOT</DefineConstants>
         <Title>Compono — xUnit v3 Native AOT Integration</Title>
-        <Description>xUnit v3 Native AOT integration for Compono - the [Compose] theory data attribute for Compono.XunitV3.Aot.ComposeAttribute, generator-emitted RegisteredEngineConfig.RegisterTheoryDataRowFactory registration. Phase 1: plain [Compose] only (no inline values, [Shared], or profile variants yet) - see docs/adr/0066-compono-xunitv3-aot-package-architecture.md.</Description>
+        <Description>xUnit v3 Native AOT integration for Compono - the [Compose]/[Compose&lt;TProfile&gt;]/[Compose&lt;TProfile, TConfig&gt;] and [ComposeData]/[ComposeData&lt;TProfile&gt;]/[ComposeData&lt;TProfile, TConfig&gt;] theory data attribute markers, with execution via generator-emitted RegisteredEngineConfig.RegisterTheoryDataRowFactory registration. See docs/adr/0066-compono-xunitv3-aot-package-architecture.md and docs/adr/0070-xunitv3-composedata-composed-theory-rows.md.</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -36,11 +36,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- One shared source implementation, linked per package: Compono.XunitV3 and
+        <!-- Shared source implementations, linked per package: Compono.XunitV3 and
              Compono.XunitV3.Aot each compile against a different xUnit engine, and each defines its
-             own Xunit.ITestContext, so a shared compiled assembly is impossible. Only this one file
-             is shared this way (ADR-0069 / PLAN-0070). -->
+             own Xunit.ITestContext, so a shared compiled assembly is impossible. These files are
+             shared this way (ADR-0069 / PLAN-0070 for FixtureContextExtensions, ADR-0070 for
+             ComposeDataRows). -->
         <Compile Include="..\Shared\Compono.XunitV3\FixtureContextExtensions.cs" Link="FixtureContextExtensions.cs" />
+        <Compile Include="..\Shared\Compono.XunitV3\ComposeDataRows.cs" Link="ComposeDataRows.cs" />
     </ItemGroup>
 
     <!-- ADR-0031/PLAN-0008 Phase 0: dotnet pack's own ProjectReference-to-Compono dependency is a

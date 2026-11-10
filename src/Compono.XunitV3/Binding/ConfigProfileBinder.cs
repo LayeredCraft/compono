@@ -105,10 +105,22 @@ internal static class ConfigProfileBinder
     public static TProfile BuildProfile<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProfile, TConfig>(object config)
         where TProfile : ICompositionProfile
     {
-        var constructor = ResolveSingleProfileConstructor(typeof(TProfile), typeof(TConfig));
+        var constructor = ResolveProfileConstructor(typeof(TProfile), typeof(TConfig));
 
-        return (TProfile)Invoke(constructor, [config]);
+        return InvokeProfile<TProfile>(constructor, config);
     }
+
+    // The configuration-constructor lookup is invariant for a given TProfile/TConfig pair, so the
+    // ComposeData path resolves it once per attribute instance and reuses it for every row (ADR-0070
+    // B3 remediation F5). These internal wrappers expose the existing resolution/invocation logic so
+    // that cache does not duplicate it.
+    internal static ConstructorInfo ResolveProfileConstructor(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type profileType,
+        Type configType) =>
+        ResolveSingleProfileConstructor(profileType, configType);
+
+    internal static TProfile InvokeProfile<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProfile>(ConstructorInfo constructor, object config) =>
+        (TProfile)Invoke(constructor, [config]);
 
     // ConstructorInfo.Invoke wraps any exception the constructor body itself throws (e.g. a
     // CompositionException from custom TConfig/TProfile validation logic) in a

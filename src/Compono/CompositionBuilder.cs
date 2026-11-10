@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Compono.Providers;
 
 namespace Compono;
@@ -142,12 +144,22 @@ public sealed class CompositionBuilder
 
     /// <summary>
     /// Applies <typeparamref name="TProfile"/>'s <see cref="ICompositionProfile.Configure"/> to this
-    /// builder immediately, synchronously - constructed via an ordinary, reflection-free <c>new()</c>.
+    /// builder immediately, synchronously - constructed via its public parameterless constructor.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// If <typeparamref name="TProfile"/>'s constructor throws, that exception propagates unchanged from
+    /// this call: its type, message, <see cref="CompositionException.Diagnostic"/> (for a
+    /// <see cref="CompositionException"/>), <see cref="Exception.InnerException"/> chain, and original
+    /// stack-trace frames are preserved, rather than being wrapped in a
+    /// <see cref="TargetInvocationException"/>. An exception thrown by
+    /// <see cref="ICompositionProfile.Configure"/> likewise propagates unchanged.
+    /// </para>
+    /// <para>
     /// A profile applied while another profile of the exact same declared type is already applying
     /// (directly or nested several levels deep) is a cycle - see
     /// <c>docs/adr/0018-composition-profiles.md</c>.
+    /// </para>
     /// </remarks>
     /// <typeparam name="TProfile">The profile type to construct and apply.</typeparam>
     /// <exception cref="CompositionConfigurationException">
@@ -157,7 +169,7 @@ public sealed class CompositionBuilder
     public CompositionBuilder AddProfile<TProfile>()
         where TProfile : ICompositionProfile, new()
     {
-        ApplyProfile(new TProfile());
+        ApplyProfile(CreateProfile<TProfile>());
         return this;
     }
 
@@ -396,6 +408,27 @@ public sealed class CompositionBuilder
         }
 
         sources.Add(CurrentSource());
+    }
+
+    // Constructs one profile instance for AddProfile<TProfile>(). The `new TProfile()` form lowers to
+    // Activator.CreateInstance<TProfile>() under a `new()` constraint, so a throwing constructor surfaces
+    // as a TargetInvocationException wrapping the real exception. This guard unwraps exactly that one
+    // layer - and only during construction, never around Configure - rethrowing the original exception
+    // instance (type, message, Diagnostic, InnerException chain, and stack frame) via ExceptionDispatchInfo,
+    // mirroring ConfigProfileBinder.Invoke. A TargetInvocationException with no inner exception, and every
+    // exception thrown by Configure, pass through untouched.
+    private static TProfile CreateProfile<TProfile>()
+        where TProfile : ICompositionProfile, new()
+    {
+        try
+        {
+            return new TProfile();
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
+        }
     }
 
     // Applies one profile's Configure to this builder. Cycle identity is the profile's declared CLR

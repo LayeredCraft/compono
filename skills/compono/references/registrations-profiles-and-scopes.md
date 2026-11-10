@@ -173,6 +173,13 @@ profile already applies to the same tests — **don't stack a second
 method; fold the existing profile in via `builder.AddProfile<...>()`
 inside the new one's `Configure` instead.
 
+**The same context-aware profile works per theory row, too** — via
+`[ComposeData<TProfile, TConfig>]` (see `xunit-v3.md`): each row supplies
+its own `TConfig` as element 0, and Compono builds a **fresh profile
+instance per row** from it, so per-row configuration stays isolated. That
+also means a value captured once in `Configure` (e.g. a fixture read) is
+reused only within that row, never assumed current across rows.
+
 ## Custom providers — matching on request shape, including name
 
 `Register<T>()`/`.For<T>()` are exact-type-keyed. When a value genuinely

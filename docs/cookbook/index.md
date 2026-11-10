@@ -24,6 +24,7 @@ made once the list is actually large enough to need it, not guessed at now.
 - [Reuse Configuration Through a Profile](reuse-configuration-through-a-profile.md)
 - [Seed a Specific Failing Case for Reproduction](seed-a-specific-failing-case-for-reproduction.md)
 - [Use xUnit Fixture Values in a Profile](use-xunit-fixture-values-in-a-profile.md)
+- [Vary Composed Configuration per Theory Row](vary-composed-configuration-per-theory-row.md)
 
 ## Next
 

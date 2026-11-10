@@ -115,6 +115,25 @@ internal static partial class GeneratorTestHelpers
         return VerifyDriver(driver);
     }
 
+    // Snapshots a run's generated source WITHOUT recompiling it. Unlike Verify (which adds the
+    // generated trees back and asserts they compile), this is for generator output whose real
+    // compile proof lives in a separate consumer test project that references assemblies this
+    // generator-only test project does not - e.g. Compono.XunitV3.Aot's [ComposeData] registration,
+    // which names Compono.XunitV3.Aot.ComposeDataRows in generated code that is compiled for real by
+    // test/Compono.XunitV3.Aot.Tests. It still asserts the generator itself reported no diagnostics
+    // (so a CMP0050 emission failure fails the test rather than silently snapshotting nothing).
+    internal static Task VerifyGeneratedSource(CodeGenerationOptions options, CancellationToken cancellationToken = default)
+    {
+        var (driver, _) = GenerateFromSource(options, cancellationToken);
+        var result = driver.GetRunResult();
+
+        result.Diagnostics.Should().BeEmpty(
+            "code should be generated without errors, but found:\n" +
+            string.Join("\n---\n", result.Diagnostics.Select(e => $"  - {e.Id}: {e.GetMessage()} at {e.Location}")));
+
+        return VerifyDriver(driver);
+    }
+
     // ADR-0044: a diamond-colliding identity or an overload-set-internal unsupported ref/out/in
     // shape reports a non-blocking, Info-severity diagnostic *and* still emits a working double -
     // unlike VerifyFailure (which asserts the leaf produces zero members), this asserts the
