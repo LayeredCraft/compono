@@ -206,7 +206,7 @@ public sealed class HostLogCaptureTests
 
 #if NET10_0_OR_GREATER
     [Fact]
-    public void ProviderAliasConfiguration_TargetsOnlyTheComponoProvider()
+    public void ProviderAliasConfiguration_AppliesProviderSpecificRuleToComponoProvider()
     {
         // ADR-0071 Amendment 1: [ProviderAlias("Compono")] lives in Logging.Abstractions only on
         // net10.0+, so this provider-specific configuration rule is a net10/net11 capability; net8

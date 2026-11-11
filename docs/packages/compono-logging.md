@@ -11,7 +11,7 @@ registered with `AddComponoCapture()` captures a real Generic Host's
 so a test can assert something like "nothing at `Error` or above was
 logged anywhere in the host." See
 [ADR-0055](../adr/0055-compono-logging-testing-support-package.md) (and
-its three amendments) for the full decision record and
+its amendments) for the full decision record and
 [RESEARCH-0013](../research/0013-compono-logging-testing-design-research.md)
 for the design investigation this package's shape came from.
 
@@ -458,4 +458,4 @@ the rationale behind each:
   note above if a composed type depends on both an `ILogger<T>` and another
   interface.
 - [ADR-0055](../adr/0055-compono-logging-testing-support-package.md) —
-  the full decision record, including its three amendments.
+  the full decision record, including its amendments.

@@ -22,7 +22,7 @@ internal sealed class ComponoLogCollectorProvider : ILoggerProvider, ISupportExt
 {
     private readonly LogCollector _collector;
     private readonly LoggerExternalScopeProvider _fallbackScopeProvider = new();
-    private IExternalScopeProvider? _scopeProvider;
+    private volatile IExternalScopeProvider? _scopeProvider;
     private volatile bool _disposed;
 
     public ComponoLogCollectorProvider(LogCollector collector)

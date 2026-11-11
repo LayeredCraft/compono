@@ -82,7 +82,6 @@ internal static class Program
         if (collector.GetCapturedEntries().Count != 1)
             throw new InvalidOperationException($"Expected exactly 1 host-captured entry, got {collector.GetCapturedEntries().Count}.");
 
-
         var entry = collector.GetLastCapturedEntry()!.Value;
         if (entry.Category != "Host.Smoke")
             throw new InvalidOperationException($"Expected Host.Smoke category, got '{entry.Category}'.");

@@ -47,6 +47,19 @@ public sealed class CategoryTests
     }
 
     [Fact]
+    public void GenericLogger_CategoryMatchesLoggerFactory_ForNestedTypeInGlobalNamespaceType()
+    {
+        AssertCategoryMatchesFactory<GlobalCategoryType.NestedCategoryType>();
+    }
+
+    [Fact]
+    public void GenericLogger_CategoryMatchesLoggerFactory_ForMultiArgumentGenericType()
+    {
+        AssertCategoryMatchesFactory<Dictionary<string, int>>();
+        AssertCategoryMatchesFactory<(int, string)>();
+    }
+
+    [Fact]
     public void GenericLogger_CategoryMatchesLoggerFactory_ForBuiltInTypes()
     {
         AssertCategoryMatchesFactory<int>();
@@ -93,6 +106,15 @@ public sealed class CategoryTests
         logger.LogInformation("captured");
 
         logger.GetCapturedEntries()[0].Category.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void BareCapturingLogger_InCategoryEmptyString_MatchesItsEntries()
+    {
+        var logger = new CapturingLogger();
+        logger.LogInformation("captured");
+
+        logger.Verify().InCategory(string.Empty).Once();
     }
 
     [Fact]

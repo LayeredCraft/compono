@@ -168,6 +168,55 @@ public sealed class LogCollectorDisposalAndIsolationTests
     }
 
     [Fact]
+    public async Task ConcurrentMultiCategoryWritesWithReadsAndClears_NeverThrowOrCorrupt()
+    {
+        // RESEARCH-0033: every participant has a fixed iteration count and never waits for another
+        // participant to stop, so the test cannot hang in CI.
+        const int categoryCount = 4;
+        const int perCategory = 300;
+        const int readIterations = 30;
+        const int clearIterations = 30;
+        string[] categories = ["Multi.Category.0", "Multi.Category.1", "Multi.Category.2", "Multi.Category.3"];
+        var collector = new LogCollector();
+        using var host = CreateHost(collector);
+        var factory = host.Services.GetRequiredService<ILoggerFactory>();
+        using var startGate = new Barrier(categoryCount + 2);
+
+        var writers = categories.Select(category => Task.Run(() =>
+        {
+            var logger = factory.CreateLogger(category);
+            startGate.SignalAndWait(TestContext.Current.CancellationToken);
+            for (var i = 0; i < perCategory; i++)
+                logger.LogInformation("write {Index}", i);
+        }, TestContext.Current.CancellationToken)).ToArray();
+
+        var reader = Task.Run(() =>
+        {
+            startGate.SignalAndWait(TestContext.Current.CancellationToken);
+            for (var i = 0; i < readIterations; i++)
+            {
+                _ = collector.GetCapturedEntries();
+                _ = collector.GetLastCapturedEntry();
+                collector.Verify().AtLeast(0);
+            }
+        }, TestContext.Current.CancellationToken);
+
+        var clearer = Task.Run(() =>
+        {
+            startGate.SignalAndWait(TestContext.Current.CancellationToken);
+            for (var i = 0; i < clearIterations; i++)
+                collector.ClearCapturedEntries();
+        }, TestContext.Current.CancellationToken);
+
+        await Task.WhenAll([.. writers, reader, clearer]);
+
+        collector.GetCapturedEntries()
+            .Should()
+            .HaveCountLessThanOrEqualTo(categoryCount * perCategory)
+            .And.OnlyContain(entry => categories.Contains(entry.Category));
+    }
+
+    [Fact]
     public async Task ConcurrentWritesAndReads_NeverThrowOrCorrupt()
     {
         // RESEARCH-0033: both participants have fixed iteration counts; neither termination depends

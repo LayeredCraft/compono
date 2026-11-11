@@ -46,7 +46,8 @@
          capture tests exercise a real IServiceProvider/host lifecycle. Compono.Logging itself never
          references either (ADR-0071's Abstractions-only dependency graph is unaffected). -->
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Microsoft.Extensions.Logging" />    <!-- Test-only: PLAN-0055 task 13's stage-6 registration-order precedence tests need a second
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <!-- Test-only: PLAN-0055 task 13's stage-6 registration-order precedence tests need a second
          real stage-6 provider to register alongside UseLogging() - Compono.Logging itself has no
          dependency on this package (ADR-0055's dependency graph is unaffected). -->
     <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />

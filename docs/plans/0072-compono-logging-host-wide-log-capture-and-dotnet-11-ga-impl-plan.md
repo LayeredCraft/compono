@@ -675,21 +675,23 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
     The attribute is compiled under `#if NET10_0_OR_GREATER`, the shipped
     dependency graph is unchanged, and the alias config rule is tested
     only on net10/net11. Recorded as ADR-0071 Amendment 1 (2026-11-11).
-  - Tests: `test/Compono.Logging.Tests` 490 passed / 0 failed across
+  - Tests: `test/Compono.Logging.Tests` 514 passed / 0 failed across
     net8.0/net9.0/net10.0/net11.0. New coverage: MEL category parity
-    against a real `LoggerFactory` probe (including nested, generic,
-    global-namespace, built-in and array categories), equality regression
-    for `Category`, both new filters and their failure text, real Generic
+    against a real `LoggerFactory` probe (including nested, closed and
+    multi-argument generics, global-namespace, built-in and array
+    categories), equality regression for `Category`, both new filters and
+    their failure text, the provider's fallback scope source, real Generic
     Host capture (arbitrary/container categories, host lifetime, every
     entry field, `[LoggerMessage]`, scopes across `await`, sibling-task
     isolation, activity scopes), host filtering (default
     Information minimum, `SetMinimumLevel`, `AddFilter`, net10+ alias),
     cardinality, disposal (post-dispose loggers disabled, entries remain
     readable, `Clear` still works, double dispose safe, two-host
-    independence), isolation, and bounded concurrency.
+    independence), isolation, and bounded concurrency (including multi-category
+    writes racing reads and clears).
   - Validation (B7): `dotnet build Compono.slnx -c Release` 0 warnings /
-    0 errors; `dotnet test Compono.slnx -c Release --no-build` 7033
-    total, 0 failed, 6532 succeeded, 501 skipped.
+    0 errors; `dotnet test Compono.slnx -c Release --no-build` 7057
+    total, 0 failed, 6556 succeeded, 501 skipped.
   - AOT (V3 logging leg): pack-and-publish `net10.0`/`osx-arm64`
     `PublishAot=true` binary passed, host-wide capture and category
     parity assertions included, and the publish emitted zero IL2xxx/
@@ -726,3 +728,13 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
     | 5 | Host/composed relationship documented | ADR-0071; package doc "Host vs. composed"; logging skill |
     | 6 | No new package dependency | `Compono.Logging.csproj` unchanged; packed dependency groups identical |
     | 7 | Native AOT/trimming retained | `IsAotCompatible` unchanged; AOT smoke publish zero IL warnings |
+- 2026-11-11 (independent review follow-up, PR #177): addressed review
+  findings by fixing the test csproj comment placement and stale amendment
+  count, marking the provider scope field `volatile`, documenting the
+  deliberate `!` uses in `LoggerCategoryName`, renaming the alias test to
+  describe what it proves, and adding tests for the provider fallback scope
+  source, multi-argument generic and nested global-namespace categories,
+  `InCategory("")` on a bare logger, and multi-category writes racing reads
+  and clears. Re-ran focused logging tests (514 passed/0 failed per TFM),
+  full build 0/0, full suite 7057 total/0 failed, and the AOT logging leg
+  (PASS, zero IL warnings).

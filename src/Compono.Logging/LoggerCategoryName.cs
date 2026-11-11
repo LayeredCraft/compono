@@ -56,6 +56,7 @@ internal static class LoggerCategoryName
         }
         else
         {
+            // FullName is present for every constructed runtime type; '+' separates nested types.
             builder.Append(type.FullName!.Replace('+', '.'));
         }
     }
@@ -64,6 +65,7 @@ internal static class LoggerCategoryName
     {
         var elementType = type;
         while (elementType.IsArray)
+            // IsArray guarantees an element type.
             elementType = elementType.GetElementType()!;
 
         AppendType(builder, elementType);
@@ -73,6 +75,7 @@ internal static class LoggerCategoryName
             builder.Append('[');
             builder.Append(',', type.GetArrayRank() - 1);
             builder.Append(']');
+            // IsArray is re-checked by the loop condition.
             type = type.GetElementType()!;
         }
     }
@@ -81,6 +84,7 @@ internal static class LoggerCategoryName
     {
         if (type.IsNested)
         {
+            // IsNested guarantees a declaring type.
             AppendType(builder, type.DeclaringType!);
             builder.Append('.');
         }
