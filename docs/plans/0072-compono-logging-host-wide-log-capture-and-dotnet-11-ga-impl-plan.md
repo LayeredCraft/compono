@@ -517,7 +517,7 @@ and B4, B5, and B6 done.
 
 - [x] B7.1 Full validation green
 - [x] B7.2 Acceptance-criteria cross-check table in Notes
-- [ ] B7.3 Plan closeout, PR 2 opened with product-owner approval
+- [x] B7.3 Plan closeout, PR 2 opened with product-owner approval (PR #177)
 
 ### B0: product-owner acceptance (precedes everything)
 
@@ -710,7 +710,8 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
     index + documentation architecture); troubleshooting entries for
     host `ILogger<T>` `Verify()` and missing Debug entries;
     `skills/compono/references/logging.md` + `SKILL.md`; two new evals.
-  - Release-note line for the v1.4.0 draft author (not edited here):
+  - PR 2: #177 (`feat/164-host-wide-log-capture`). Release-note line for the
+    v1.4.0 draft author (not edited here):
     "`Compono.Logging`: `CapturedLogEntry` equality now includes the new
     `Category` property. This is a behavioral change to value equality,
     not a source or binary breaking change."
