@@ -1,11 +1,15 @@
 # Compono.Logging
 
-First-class `Microsoft.Extensions.Logging` testing support — `ILogger`/
+First-class `Microsoft.Extensions.Logging` testing support. `ILogger`/
 `ILogger<T>` compose naturally through `UseLogging()`, backed by a
 hand-written `CapturingLogger`/`CapturingLogger<T>` pair (real scope
 tracking, thread-safe capture, reflection-free structured-property
 extraction) and Compono-native `Verify()` verification reusing core
-`Compono`'s `CallVerifier` unmodified. See
+`Compono`'s `CallVerifier` unmodified. A test-owned `LogCollector`
+registered with `AddComponoCapture()` captures a real Generic Host's
+*host-wide* output — every category, not just loggers Compono composed —
+so a test can assert something like "nothing at `Error` or above was
+logged anywhere in the host." See
 [ADR-0055](../adr/0055-compono-logging-testing-support-package.md) (and
 its three amendments) for the full decision record and
 [RESEARCH-0013](../research/0013-compono-logging-testing-design-research.md)
@@ -79,7 +83,8 @@ Console.WriteLine(failure.Properties?.First().Key);   // "OrderId", e.g.
   `ClearCapturedEntries()`** — direct inspection, no assertion framework
   required.
 - **`logger.Verify()`** — the fluent entry point:
-  `.AtLevel(level)`, `.WithEventId(id)`, `.WithException<TException>()`,
+  `.AtLevel(level)`, `.AtLevelOrAbove(level)`, `.InCategory(category)`,
+  `.WithEventId(id)`, `.WithException<TException>()`,
   `.WithMessageContaining(text)`, `.Matching(predicate)`, ending in
   `.Once()` / `.Never()` / `.Exactly(n)` / `.AtLeast(n)` / `.AtMost(n)`
   ([ADR-0044 Amendment 22](../adr/0044-compono-testdoubles-v2-overloads-generics-verification.md#amendment-22-2026-09-06-callverifieratleastintatmostint-added-requirement-3s-minimality-preserved-not-reversed))
@@ -99,6 +104,138 @@ Console.WriteLine(failure.Properties?.First().Key);   // "OrderId", e.g.
   A provider-composed logger and a directly-constructed one behave
   identically — one implementation, not two.
 
+## Host-wide capture: `LogCollector` + `AddComponoCapture`
+
+Composed loggers only see what Compono composed. A real Generic Host (or
+`WebApplicationFactory`, or anything else with an
+`Microsoft.Extensions.Logging.ILoggingBuilder`) also logs through
+categories your test never composed — framework lifetime messages,
+libraries, your own `ILogger<T>` resolved from `host.Services`. Register a
+test-owned `LogCollector` to capture all of it:
+
+```csharp
+using Compono.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+var logs = new LogCollector();
+var builder = Host.CreateApplicationBuilder();
+builder.Logging.ClearProviders();          // optional: drop console/debug noise
+builder.Logging.AddComponoCapture(logs);
+using var host = builder.Build();
+
+// ... start the host, call the code under test ...
+
+logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("Payments").Never();
+```
+
+`AddComponoCapture` returns the same builder, so it chains; it also works
+from `services.AddLogging(logging => logging.AddComponoCapture(logs))` and
+`WebApplicationFactory.ConfigureLogging`. It is additive: it never changes
+the host's filter rules.
+
+```csharp
+logs.GetCapturedEntries();
+logs.GetLastCapturedEntry();
+logs.ClearCapturedEntries();
+logs.Verify().AtLevelOrAbove(LogLevel.Warning).AtLeast(1);
+```
+
+### `Category`
+
+Every `CapturedLogEntry` carries `Category`:
+
+- Host-captured entries: the exact string passed to
+  `ILoggerProvider.CreateLogger(category)`.
+- Composed/directly-constructed `CapturingLogger<T>`: the same string
+  `LoggerFactory.CreateLogger<T>()` produces (full name, `.`-separated
+  nesting, generic arity and arguments removed, C# keyword names for
+  built-ins).
+- Non-generic `CapturingLogger` and a bare composed `ILogger`: `""`.
+
+`InCategory` is exact, ordinal, case-sensitive. For prefix/wildcard
+matching use `.Matching(entry => ...)`.
+
+> **Behavioral compatibility note.** `Category` is part of
+> `CapturedLogEntry`'s record value equality: two entries identical in
+> every other field but produced by different categories are **not** equal
+> under `Equals`, `==`, or `!=`. This is an intentional behavioral change
+> from earlier previews (not a source or binary breaking change), decided
+> in [ADR-0071](../adr/0071-compono-logging-host-wide-log-capture.md).
+
+### Filters
+
+Two filters exist for the host-wide scenario and behave identically on a
+composed `logger.Verify()` and a `LogCollector.Verify()`:
+
+- `.AtLevelOrAbove(level)` — `Error` matches `Error` and `Critical`.
+  `AtLevelOrAbove(LogLevel.None)` matches nothing.
+- `.InCategory(category)` — exact ordinal match; `null` throws
+  `ArgumentNullException`.
+
+Both produce readable failure text, e.g. `a log entry matching level Error
+or above`, `a log entry matching category "Payments"`.
+
+### Host filtering still applies
+
+The host's own `LoggerFilterOptions` decides what reaches the collector;
+`AddComponoCapture` does not override it. Under a default host (minimum
+`Information`), `Debug`/`Trace` are not captured. Lower the host's own
+level if you need them:
+
+```csharp
+builder.Logging.SetMinimumLevel(LogLevel.Trace);
+// or a category rule:
+builder.Logging.AddFilter("Payments", LogLevel.Debug);
+```
+
+On net10.0/net11.0 the provider carries `[ProviderAlias("Compono")]`, so a
+provider-specific rule works too:
+
+```json
+{ "Logging": { "Compono": { "LogLevel": { "Default": "Warning" } } } }
+```
+
+`LogLevel.None` is never captured on any target framework. On net8.0/net9.0
+the alias attribute is unavailable from `Logging.Abstractions` alone
+(documented in ADR-0071 Amendment 1); use `SetMinimumLevel`/`AddFilter`
+there.
+
+### Host vs. composed: separate destinations
+
+In this release the two capture destinations are deliberately separate:
+
+- Host loggers (anything created by the host's `ILoggerFactory`, including
+  a container-resolved `ILogger<T>`) write only to the registered
+  `LogCollector`.
+- Loggers composed by `UseLogging()` keep their own per-logger capture
+  store, exactly as before.
+
+`GetCapturedEntries()`/`Verify()` on a host `ILogger<T>` still throw
+`InvalidOperationException` (it is not a Compono capturing logger); the
+message now points at `LogCollector`/`AddComponoCapture`. Read and verify
+through the collector instead. Opt-in forwarding is deferred.
+
+### Ownership, lifetime, and cardinality
+
+- The test owns the `LogCollector`. The host owns only its provider. The
+  collector is never disposed, cleared, or detached by the host and stays
+  readable after the host is disposed.
+- Disposing the host stops new capture through its provider. Held loggers
+  become disabled (`IsEnabled` is `false`, `Log` is a no-op, `BeginScope`
+  still returns a usable disposable); entries captured before disposal
+  remain, and `ClearCapturedEntries()` still works.
+- Registering the **same** collector twice on one builder is idempotent:
+  one provider, one copy of each entry. Different collectors on one builder
+  each get their own provider and both receive every entry. The same
+  collector across several hosts receives entries from all of them;
+  disposing one host stops only that host.
+- One private lock per collector guards appends, clears, and reads; reads
+  return snapshots. There is no static/ambient state, so parallel tests with
+  their own hosts and collectors do not interfere.
+- Activity scopes configured through `LoggerFactoryOptions
+  .ActivityTrackingOptions` appear in `Scopes` like any other scope.
+
 ## Structured properties and `MessageTemplate`
 
 `CapturedLogEntry` carries both the raw `State` (always present, the
@@ -107,6 +244,7 @@ escape hatch) and derived, reflection-free structured fields:
 ```csharp
 public readonly record struct CapturedLogEntry
 {
+    public string Category { get; }                                         // ADR-0071; part of value equality
     public LogLevel LogLevel { get; }
     public EventId EventId { get; }
     public Exception? Exception { get; }
@@ -173,7 +311,10 @@ time:
    latter only possible when `ComponoGeneratedLogging` is explicitly
    disabled, since it's otherwise excluded from generation, Amendment 4).
    Most common cause: `UseNSubstitute()` was registered *before*
-   `UseLogging()` — see "Registration order," below.
+   `UseLogging()` — see "Registration order," below. A container-resolved
+   `ILogger<T>` from a real host hits this too: it is the host's logger,
+   not a Compono one — capture it with `LogCollector`/`AddComponoCapture`
+   instead.
 2. **`LoggingProvider` recognized a closed `ILogger<T>` request but found
    no generated activation for it** (`InvalidOperationException`, at
    composition time, at runtime) — the category type isn't reachable from
@@ -291,7 +432,9 @@ this section used to describe as unsolved.
 Deliberately not in this package — see ADR-0055's Decision Outcome for
 the rationale behind each:
 
-- `ILoggerFactory` composition.
+- Composing/replacing a host's `ILoggerFactory`. (A host *provider* that
+  captures into a test-owned `LogCollector` is supported — see "Host-wide
+  capture," above.)
 - Serilog-specific or other logging-provider-specific behavior.
 - Test-runner output capture/routing (a different problem —
   `TUnit.Logging.Microsoft`'s concern, not behavior verification).

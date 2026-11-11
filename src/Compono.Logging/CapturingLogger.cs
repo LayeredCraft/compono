@@ -26,7 +26,7 @@ public sealed class CapturingLogger : ILogger, ICapturingLoggerFacade
     /// (<see cref="LogLevel.Trace"/> minimum level).</param>
     public CapturingLogger(LoggingOptions? options = null)
     {
-        _collector = new LogEntryCollector(options);
+        _collector = new LogEntryCollector(options, string.Empty);
     }
 
     /// <inheritdoc />

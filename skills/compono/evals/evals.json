@@ -754,6 +754,34 @@
         "Does not try to read the fixture in a static initializer or at discovery time",
         "Does not pass a fixture-owned IDisposable as a theory argument (the JIT xUnit engine would dispose the fixture's instance); does not imply the concern is missing automatic cleanup"
       ]
+    },
+    {
+      "id": 61,
+      "category": "activation",
+      "prompt": "My test starts the real app with Host.CreateApplicationBuilder and runs its startup path. I want to assert that nothing at Error or above was logged anywhere during startup, including framework categories I never composed. How do I do that with Compono.Logging?",
+      "expected_output": "Create a test-owned LogCollector, register it with builder.Logging.AddComponoCapture(logs) (optionally after ClearProviders), build/start the host, then assert logs.Verify().AtLevelOrAbove(LogLevel.Error).Never(). Verify on the collector, not on a composed logger - host-wide and composed capture are separate destinations in this release. The host's own filters still apply: with the default minimum Information, Debug/Trace are not captured (lower it with SetMinimumLevel/AddFilter if needed). Do not use FakeLogCollector/Microsoft.Extensions.Diagnostics.Testing, and do not propose forwarding host output into a composed logger.",
+      "files": [],
+      "expectations": [
+        "Creates a LogCollector and registers it via AddComponoCapture on the host's ILoggingBuilder",
+        "Asserts with collector.Verify().AtLevelOrAbove(LogLevel.Error).Never() (not a composed logger's Verify())",
+        "Explains host and composed capture are separate destinations in this release",
+        "Notes the host's filter minimum still applies, so Debug/Trace need SetMinimumLevel/AddFilter to be captured",
+        "Does not reach for FakeLogCollector, Microsoft.Extensions.Diagnostics.Testing, or a reflection-based capture hack"
+      ]
+    },
+    {
+      "id": 62,
+      "category": "behavioral-correctness",
+      "prompt": "Compono.Logging is referenced and UseLogging() works for my composed types, but when I resolve ILogger<OrderService> from host.Services and call logger.Verify(), it throws InvalidOperationException. Why, and what should I do instead?",
+      "expected_output": "An ILogger<T> resolved from a real host's IServiceProvider is the host's own Logger<T>, not a Compono CapturingLogger<T>, so the CapturingLogger facade (and Verify()/GetCapturedEntries()) is unavailable. In this release host-wide capture and composed capture are separate: register a test-owned LogCollector with AddComponoCapture() on the host's logging builder and verify/read through the collector (e.g. logs.Verify().InCategory(...)); the exception message points there. Do not suggest UseLogging() on the host, casting/unwrapping the logger, or forwarding host output into a composed logger - none of those exist.",
+      "files": [],
+      "expectations": [
+        "Explains the host-resolved ILogger<T> is the host's Logger<T>, not a Compono capturing logger, so Verify() cannot work on it",
+        "Points to LogCollector + AddComponoCapture as the host-wide capture mechanism",
+        "States host-wide and composed capture are separate destinations, with no forwarding in this release",
+        "Does not suggest registering UseLogging() on the host, casting/unwrapping the host logger, or a nonexistent forwarding option",
+        "Does not claim host-wide capture is unsupported"
+      ]
     }
   ]
 }

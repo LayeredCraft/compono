@@ -118,7 +118,8 @@ docs/
 │   ├── customize-a-member.md
 │   ├── register-a-type.md
 │   ├── use-profiles.md
-│   └── share-a-value-across-a-test.md
+│   ├── share-a-value-across-a-test.md
+│   └── assert-nothing-logged-at-error-across-a-host.md
 ├── cookbook/
 │   ├── index.md
 │   └── <one page per narrow, practical problem — expected to grow into the
@@ -286,6 +287,8 @@ Decision Drivers named:
 - `register-a-type.md` — how do I register a type?
 - `use-profiles.md` — how do I use profiles?
 - `share-a-value-across-a-test.md` — how do I share a value across a test?
+- `assert-nothing-logged-at-error-across-a-host.md` — how do I assert
+  nothing logged at Error or above across a Generic Host?
 **Relates to:** assumes Concepts. Hands off to Cookbook for narrower,
 single-snippet variants of the same tasks, to Best Practices for "what's
 the recommended way to do this at scale," and to Package Guides for
@@ -501,7 +504,9 @@ step in the linear reading order.
 **Contents:**
 - `common-errors.md` — indexed by diagnostic code (e.g. `CMP0001`, the
   real gap Milestone 7's dogfooding surfaced) and by symptom ("why did
-  composition fail," "why is my substitute returning null").
+  composition fail," "why is my substitute returning null," "why does
+  `Verify()` throw on a host `ILogger<T>`," "why are Debug entries missing
+  from `LogCollector`").
 - `faq.md` — questions that don't map to a single diagnostic but come up
   repeatedly ("why does Compono fail fast on recursion instead of omitting
   a value like AutoFixture did" is exactly this shape — a real gap-3

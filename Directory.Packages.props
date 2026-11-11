@@ -185,6 +185,27 @@
   <ItemGroup Label="Microsoft.Extensions.Options (net11.0)" Condition="'$(TargetFramework)' == 'net11.0'">
     <PackageVersion Include="Microsoft.Extensions.Options" Version="[11.0.0, 12.0.0)" />
   </ItemGroup>
+  <!-- test/Compono.Logging.Tests' own dependencies - a real Generic Host and the concrete logging
+       implementation for #164's host-wide capture tests (B3/B4). Test-only: no src project references
+       these, and they never appear in Compono.Logging's shipped dependency graph (ADR-0071 keeps it
+       Abstractions-only). Each TFM gets its own release line, matching the Abstractions groups above;
+       exact versions, not ranges, because these are tests, not a shipped constraint. -->
+  <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net8.0)" Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net9.0)" Condition="'$(TargetFramework)' == 'net9.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.23" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.23" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net10.0)" Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.15" />
+  </ItemGroup>
+  <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net11.0)" Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
+  </ItemGroup>
   <ItemGroup>
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />

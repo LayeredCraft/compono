@@ -292,6 +292,44 @@ and never a `CMP` code — for four distinct situations:
   '...', which is not a '...'.`** — the lookup returned a value of the wrong
   type (only possible with a non-xUnit `ITestContext` implementation).
 
+### "`Verify()` on a host `ILogger<T>` throws"
+
+A logger resolved from a host's `IServiceProvider` is the host's own
+`ILogger<T>` implementation, not a Compono capturing logger. `Verify()` and
+the other `LoggerTestingExtensions` members require a logger produced by
+`UseLogging()` or a directly constructed `CapturingLogger`/
+`CapturingLogger<T>`, so they throw:
+
+```text
+'Microsoft.Extensions.Logging.Logger<...>' is not a Compono.Logging capturing logger. ...
+```
+
+Host-wide capture is a **separate destination** from per-logger capture in
+v1: register a `LogCollector` on the host's logging pipeline with
+`AddComponoCapture()`, then call `Verify()`/`GetCapturedEntries()` on the
+collector instead of on the host logger. See
+[Host-wide capture](../packages/compono-logging.md#host-wide-capture-logcollector--addcomponocapture)
+and [How Do I Assert Nothing Logged at Error or Above Across a Generic
+Host?](../how-to/assert-nothing-logged-at-error-across-a-host.md).
+
+### "Debug entries are missing from `LogCollector`"
+
+The collector does not override the host's filter rules. A Generic Host's
+default minimum level is `Information`, so `Debug` and `Trace` entries are
+filtered out before they reach any provider, including Compono's. Lower the
+host minimum when the test needs them:
+
+```csharp
+builder.Logging.SetMinimumLevel(LogLevel.Trace);
+```
+
+The same happens when a configured category rule or `AddFilter` excludes
+the category. On .NET 10 and later you can also target only the Compono
+provider with the `Compono` alias, for example
+`Logging:Compono:LogLevel:Default`. On .NET 8 and 9 the alias is not
+available from the shipped `Logging.Abstractions` dependency (ADR-0071
+Amendment 1); use the global minimum level or `AddFilter` there instead.
+
 ### "Two composed parameters of the same type aren't the same instance"
 
 That's the default — composition is independent per parameter unless you

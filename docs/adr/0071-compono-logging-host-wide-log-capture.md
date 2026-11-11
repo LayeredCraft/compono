@@ -510,6 +510,31 @@ the pointer.
 - **Option 3.** Good: no surface. Bad: the scenario's headline assertion
   reads as a lambda with an opaque failure message.
 
+### Amendment 1 (2026-11-11) — `[ProviderAlias]` availability is net10.0+ only
+
+Implementation (PLAN-0072 B2/B3) found that the "Package identity and
+dependency graph" fact above — that `ProviderAliasAttribute` is available
+from `Microsoft.Extensions.Logging.Abstractions` alone — holds only on
+net10.0/net11.0. On net8.0/net9.0 the attribute lives in the concrete
+`Microsoft.Extensions.Logging` implementation package, which this package
+must not reference (the shipped graph above stays Abstractions-only, and
+B7 requires the packed dependency groups to remain byte-for-byte identical
+to `main`). Unconditional use failed to compile on net8/net9 with
+`CS0246: ProviderAliasAttribute could not be found`.
+
+Resolution: the `[ProviderAlias("Compono")]` attribute on the internal
+provider is compiled only under `NET10_0_OR_GREATER`. Consequences,
+unchanged in intent but now explicitly version-scoped:
+
+- The `Logging:Compono:LogLevel` provider-specific filter rule works on
+  net10.0/net11.0; tests covering it are `#if NET10_0_OR_GREATER`.
+- On net8.0/net9.0, consumers use the global host minimum
+  (`SetMinimumLevel`) or category `AddFilter` rules instead.
+- Host-wide capture, `LogCollector`, filtering, ownership/disposal, and
+  every other decision in this ADR are unaffected on all four TFMs.
+
+No public API or dependency changes.
+
 ## Links
 
 - Issue [#164](https://github.com/LayeredCraft/compono/issues/164); parent

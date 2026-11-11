@@ -10,6 +10,7 @@ specific job:
 - [Register a Type](register-a-type.md)
 - [Use Profiles](use-profiles.md)
 - [Share a Value Across a Test](share-a-value-across-a-test.md)
+- [Assert Nothing Logged at Error or Above Across a Generic Host](assert-nothing-logged-at-error-across-a-host.md)
 
 Looking for something integration-specific — "how do I use NSubstitute" or
 "how do I use Bogus"? That lives in the relevant

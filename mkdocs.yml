@@ -132,6 +132,7 @@ nav:
     - Register a Type: how-to/register-a-type.md
     - Use Profiles: how-to/use-profiles.md
     - Share a Value Across a Test: how-to/share-a-value-across-a-test.md
+    - Assert Nothing Logged at Error or Above Across a Host: how-to/assert-nothing-logged-at-error-across-a-host.md
   - Cookbook: cookbook/index.md
   - Samples:
     - Overview: samples/index.md

@@ -18,6 +18,7 @@ public readonly record struct CapturedLogEntry
     /// constructor is <see langword="internal"/> rather than a public object-initializer surface.
     /// </summary>
     internal CapturedLogEntry(
+        string category,
         LogLevel logLevel,
         EventId eventId,
         Exception? exception,
@@ -28,6 +29,7 @@ public readonly record struct CapturedLogEntry
         IReadOnlyList<object> scopes,
         DateTimeOffset timestamp)
     {
+        Category = category;
         LogLevel = logLevel;
         EventId = eventId;
         Exception = exception;
@@ -38,6 +40,16 @@ public readonly record struct CapturedLogEntry
         Scopes = scopes;
         Timestamp = timestamp;
     }
+
+    /// <summary>
+    /// The logger's category - the exact string passed to
+    /// <see cref="ILoggerProvider.CreateLogger"/> for a host-captured entry, or the
+    /// <c>LoggerFactory.CreateLogger&lt;T&gt;()</c>-equivalent name for a composed/directly
+    /// constructed <see cref="CapturingLogger{T}"/>. The non-generic <see cref="CapturingLogger"/>
+    /// (and a bare <see cref="ILogger"/>) uses the empty string. This is part of the record's
+    /// value equality (ADR-0071's one intentional behavioral compatibility change).
+    /// </summary>
+    public string Category { get; }
 
     /// <summary>The level this entry was logged at. Never <see cref="LogLevel.None"/> - a
     /// <see cref="LogLevel.None"/> call is never captured in the first place.</summary>

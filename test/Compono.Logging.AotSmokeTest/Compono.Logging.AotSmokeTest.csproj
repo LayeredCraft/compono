@@ -5,7 +5,8 @@
        choice below): a real Native AOT publish-and-run proof through the actual packaged
        Compono/Compono.Logging dependency chain - composing a real ILogger<T> constructor
        dependency via UseLogging(), through the shared Compono.Generators-emitted activation (not
-       direct construction alone), then verifying capture/Verify() work post-publish. -->
+       direct construction alone), then verifying capture/Verify() work post-publish, plus real
+       Generic Host AddComponoCapture/LogCollector host-wide capture and category parity. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <!-- Overrides test/Directory.Build.props' multi-TFM sweep - this is a one-shot AOT
@@ -45,6 +46,10 @@
        publish, a deliberate manual one-shot proof, not part of ordinary inner-loop restore). -->
   <ItemGroup>
     <PackageReference Include="Compono.Logging" Version="1.0.0" />
+    <!-- Test-only, for the host-wide capture leg: proves AddComponoCapture/LogCollector work through
+         a real Generic Host under Native AOT. Never a dependency of the shipped Compono.Logging
+         package (ADR-0071 keeps that graph Abstractions-only). -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
   </ItemGroup>
 
 </Project>
