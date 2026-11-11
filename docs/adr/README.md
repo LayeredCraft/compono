@@ -129,3 +129,4 @@ the mechanics: numbering, status, and the index.
 | [0068](0068-generator-wide-per-item-emission-failure-isolation.md) | Generator-Wide Per-Item Emission Failure Isolation | Accepted |
 | [0069](0069-xunitv3-require-fixture-accessor.md) | xUnit v3 Fixture Accessor for Composition Profiles (`RequireFixture<TFixture>()`) | Accepted |
 | [0070](0070-xunitv3-composedata-composed-theory-rows.md) | xUnit v3 Composed Theory Rows (`[ComposeData]`) | Accepted |
+| [0071](0071-compono-logging-host-wide-log-capture.md) | `Compono.Logging`: Host-Wide Log Capture (`LogCollector` + `AddComponoCapture`) | Accepted |
