@@ -1,6 +1,6 @@
 # [PLAN-0073] Compono.NUnit classic-VSTest discovery-time module initialization (Issue #171)
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0059](../adr/0059-compono-nunit-package-design.md)
 Amendment 1 (issue [#171](https://github.com/LayeredCraft/compono/issues/171))
@@ -183,3 +183,7 @@ See ADR-0059 Amendment 1. Summary:
   than the `[Compose]` method's declaring module. `DeclaringType` is always
   non-null for a `[Compose]` method (a method attribute cannot be applied
   without a declaring type), so no null guard is required.
+- 2026-11-11 — PR [#172](https://github.com/LayeredCraft/compono/pull/172)
+  merged into `main` (merge commit `3b87b6f`, 2026-11-11T01:17:08Z); issue
+  [#171](https://github.com/LayeredCraft/compono/issues/171) auto-closed by
+  the merge; bead `compono-03n` closed. Status set to `Done`.
