@@ -5,7 +5,8 @@
 
 Creates a [System\.Diagnostics\.Metrics\.Meter](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics.meter 'System\.Diagnostics\.Metrics\.Meter') bound to this factory\. The same name, version, and tag set
 \(order\-insensitive, [System\.Object\.Equals\(System\.Object,System\.Object\)](https://learn.microsoft.com/en-us/dotnet/api/system.object.equals#system-object-equals(system-object-system-object) 'System\.Object\.Equals\(System\.Object,System\.Object\)') on values\) returns the same
-[System\.Diagnostics\.Metrics\.Meter](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics.meter 'System\.Diagnostics\.Metrics\.Meter'); anything else creates a new one\.
+[System\.Diagnostics\.Metrics\.Meter](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics.meter 'System\.Diagnostics\.Metrics\.Meter'); anything else creates a new one\. Duplicate tag keys are significant:
+`[k=1, k=1]` is a different set from `[k=1, j=2]`\.
 
 ```csharp
 public System.Diagnostics.Metrics.Meter Create(System.Diagnostics.Metrics.MeterOptions options);
