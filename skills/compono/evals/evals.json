@@ -823,6 +823,45 @@
         "Notes that the Generic Host default lifetime does log Microsoft.Hosting.Lifetime on StartAsync, so the category itself is not wrong",
         "Does not suggest the collector is broken or that Never() is unreliable when capture is correctly wired"
       ]
+    },
+    {
+      "id": 66,
+      "category": "routing",
+      "prompt": "This class takes an IMeterFactory constructor dependency and records a counter and a histogram. The project references Compono, Compono.XunitV3, and Compono.Metrics. Write the test that asserts the recorded values.",
+      "expected_output": "Adds builder.UseMetrics() (typically in an ICompositionProfile), composes the SUT directly, and takes [Shared] IMeterFactory meters so the test sees the same factory the SUT used; the test disposes it with 'using var _ = meters;'. Asserts with meters.Verify<long>(\"shop.orders.placed\").WithTag(\"region\", \"eu\").WithValue(1).Once() and meters.Verify<double>(\"shop.orders.duration\").Once(), or reads via meters.GetMeasurements<T>(...) and does value math with LINQ. Never hand-rolls an IMeterFactory, never reaches for Microsoft.Extensions.Diagnostics.Testing MetricCollector<T>, and never adds an MSBuild opt-in property (none exists for Compono.Metrics).",
+      "files": [],
+      "expectations": [
+        "Registers UseMetrics() (or relies on it already being registered) rather than a hand-rolled IMeterFactory or MetricCollector<T>",
+        "Uses [Shared] IMeterFactory so the SUT and the test share one factory, and disposes it in the test body (using var _ = meters;)",
+        "Verifies via meters.Verify<T>(...) with WithTag/WithValue/Once (or GetMeasurements<T> plus LINQ), not a two-verb VerifyMetrics shape",
+        "Does not suggest adding a Microsoft.Extensions.Diagnostics.Testing dependency or an MSBuild opt-in property for Compono.Metrics"
+      ]
+    },
+    {
+      "id": 67,
+      "category": "behavioral-correctness",
+      "prompt": "I registered both UseNSubstitute() and UseMetrics() but the order was builder.UseNSubstitute().UseMetrics(). When my test calls meters.Verify<long>(\"shop.orders.placed\") on the composed IMeterFactory it throws InvalidOperationException saying the instance is not a Compono metrics factory. Also, do I need to set an MSBuild property so UseMetrics() generates something?",
+      "expected_output": "Explains the real cause: Compono's stage-6 test-double providers resolve first-registered-wins, and UseNSubstitute() was registered before UseMetrics(), so IMeterFactory resolved to an NSubstitute substitute instead of a CapturingMeterFactory - the fix is reordering to builder.UseMetrics().UseNSubstitute(). Explicitly answers the second question: no MSBuild property is needed or exists - unlike Compono.Logging/Compono.TestDoubles there is no generation opt-in for Compono.Metrics at all; the failure is registration order, not a missing opt-in.",
+      "files": [],
+      "expectations": [
+        "Correctly identifies first-registered-wins stage-6 provider precedence as the cause, not a Compono.Metrics bug",
+        "Recommends reordering to builder.UseMetrics().UseNSubstitute() (UseMetrics first for IMeterFactory)",
+        "Explicitly states no MSBuild opt-in property exists or is needed for Compono.Metrics",
+        "Does not suggest a priority/specificity mechanism that doesn't exist"
+      ]
+    },
+    {
+      "id": 68,
+      "category": "behavioral-correctness",
+      "prompt": "My SUT registers an ObservableGauge<int> (and an ObservableCounter<int>) against the composed IMeterFactory, but meters.Verify<int>(\"shop.queue.depth\") finds nothing and GetMeasurements<int> is empty, even though the SUT ran. What am I missing?",
+      "expected_output": "Observable instruments are only captured when polled: Compono reads never poll, so the test must call meters.RecordObservableInstruments() explicitly before verifying/reading (callbacks run synchronously for this factory's observables only, and the other instruments still record normally). Notes calling it twice records twice, that reads are side-effect-free snapshots, and that Compono provides no wait/timeout API (Compono.Metrics is the package; there is no auto-poll option).",
+      "files": [],
+      "expectations": [
+        "Explains reads (GetMeasurements/Verify) never poll observable instruments",
+        "Recommends calling meters.RecordObservableInstruments() before asserting",
+        "States the poll runs only this factory's observable callbacks, synchronously",
+        "Does not suggest an auto-poll-on-read option or a wait/timeout API (neither exists)"
+      ]
     }
   ]
 }

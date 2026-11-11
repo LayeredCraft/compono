@@ -48,6 +48,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.MSTest` | MSTest integration | [![NuGet](https://img.shields.io/nuget/v/Compono.MSTest.svg)](https://www.nuget.org/packages/Compono.MSTest) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.MSTest.svg)](https://www.nuget.org/packages/Compono.MSTest) |
 | `Compono.NUnit` | NUnit integration (no `[TestFixture]` required) | [![NuGet](https://img.shields.io/nuget/v/Compono.NUnit.svg)](https://www.nuget.org/packages/Compono.NUnit) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.NUnit.svg)](https://www.nuget.org/packages/Compono.NUnit) |
 | `Compono.Options` | `Microsoft.Extensions.Options` testing support (`TestOptionsSource<T>`, `UseOptions<T>()`) | [![NuGet](https://img.shields.io/nuget/v/Compono.Options.svg)](https://www.nuget.org/packages/Compono.Options) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Options.svg)](https://www.nuget.org/packages/Compono.Options) |
+| `Compono.Metrics` | `System.Diagnostics.Metrics` testing support (`UseMetrics()`, `CapturingMeterFactory`, `Verify<T>()`) | [![NuGet](https://img.shields.io/nuget/v/Compono.Metrics.svg)](https://www.nuget.org/packages/Compono.Metrics) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Compono.Metrics.svg)](https://www.nuget.org/packages/Compono.Metrics) |
 
 ## Example
 

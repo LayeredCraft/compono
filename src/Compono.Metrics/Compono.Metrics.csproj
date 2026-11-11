@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+        <Title>Compono — System.Diagnostics.Metrics Testing Support</Title>
+        <Description>First-class System.Diagnostics.Metrics testing support for Compono - IMeterFactory composes naturally through UseMetrics(), backed by a hand-written CapturingMeterFactory that captures counter, up-down-counter, histogram, gauge, and observable measurements per factory (scope-isolated, thread-safe, typed, no boxing) and offers Compono-native Verify&lt;T&gt;() verification reusing core CallVerifier unmodified. No dependency beyond core Compono. See docs/adr/0072-compono-metrics-testing-support-package.md.</Description>
+        <!-- ADR-0072's own AOT/trimming requirement: every metric type and every measurement callback is
+             an ordinary generic instantiation over a value type the compiler sees statically, so this
+             package is genuinely reflection-free and dynamic-code-free. Setting IsAotCompatible turns on
+             this project's own EnableAotAnalyzer/EnableTrimAnalyzer (proving that at build time) and
+             carries the trimmable metadata a consumer's AOT/trim analyzer needs, following Compono.Http's
+             precedent (ADR-0051). -->
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Core Compono only, for CallVerifier/CompositionBuilder/ICompositionValueProvider reuse -
+             no dependency on Compono.Logging, Compono.TestDoubles, or Compono.NSubstitute (ADR-0072
+             "Package identity and dependency graph"). System.Diagnostics.Metrics (IMeterFactory,
+             MeterOptions, Meter, MeterListener, Instrument) is part of the shared framework on every
+             supported TFM, so there is deliberately no PackageReference of any kind. -->
+        <ProjectReference Include="..\Compono\Compono.csproj" PrivateAssets="none" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Compono.Metrics.Tests" />
+    </ItemGroup>
+
+    <!-- ADR-0031/PLAN-0008 Phase 0: pins the packed Compono dependency to an exact version match -
+         see Compono.DependencyInjection.csproj/Compono.XunitV3.csproj/Compono.Http.csproj's
+         identical target for the full rationale. -->
+    <Target Name="PinProjectReferenceVersionsExact" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

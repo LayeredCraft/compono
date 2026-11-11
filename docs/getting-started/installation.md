@@ -50,6 +50,7 @@ dotnet add package Compono.NSubstitute         # automatic substitute compositio
 dotnet add package Compono.Bogus               # semantic fake data (names, emails, ...)
 dotnet add package Compono.DependencyInjection # row.AsServiceProvider() bridge
 dotnet add package Compono.Http                # TestHttpHandler for HttpClient tests
+dotnet add package Compono.Metrics             # System.Diagnostics.Metrics testing support
 ```
 
 Every package targets `net8.0`/`net9.0`/`net10.0`/`net11.0` and has a

@@ -27,10 +27,14 @@ deliberately not broad. Real, buildable code:
   `ILogger<NotificationService>`, composed via `UseLogging()`, captures what
   `NotificationService` actually logged, asserted with `Verify()` — see the
   [`Compono.Logging` Package Guide](../packages/compono-logging.md).
+- A `Compono.Metrics` scenario (`MetricsTests`): a `[Shared]`
+  `IMeterFactory`, composed via `UseMetrics()`, captures the measurements a
+  service records, asserted with `Verify<T>()` — see the
+  [`Compono.Metrics` Package Guide](../packages/compono-metrics.md).
 
 ## Packages
 
-`Compono`, `Compono.XunitV3`, `Compono.Logging`.
+`Compono`, `Compono.XunitV3`, `Compono.Logging`, `Compono.Metrics`.
 
 ## Running it
 

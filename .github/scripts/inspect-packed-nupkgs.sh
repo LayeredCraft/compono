@@ -245,7 +245,7 @@ main() {
     }
 
     local pkg nupkg extract_dir extra_paths nuspec
-    for pkg in Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit Compono.Options; do
+    for pkg in Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.Metrics Compono.MSTest Compono.NUnit Compono.Options; do
     nupkg=$(find "$pack_output" -maxdepth 1 -iname "${pkg}.[0-9]*.nupkg" | head -1)
     if [ -z "$nupkg" ]; then
         echo "FAIL: no .nupkg found for $pkg in $pack_output" >&2
@@ -341,6 +341,13 @@ main() {
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — Microsoft.Extensions.Logging Testing Support"
             assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
             assert_dependency_range_per_tfm "$nuspec" "$pkg" "Microsoft.Extensions.Logging.Abstractions" "$packages_props"
+            ;;
+        Compono.Metrics)
+            assert_manifest_field "$nuspec" "$pkg" "title" "Compono — System.Diagnostics.Metrics Testing Support"
+            assert_exact_pin_dependency "$nuspec" "$pkg" "Compono"
+            # No third-party or package dependency of its own: CapturingMeterFactory rides the
+            # in-box System.Diagnostics.Metrics shared-framework types on every target TFM - nothing
+            # else to range-assert here (ADR-0072 "Package identity and dependency graph").
             ;;
         Compono.MSTest)
             assert_manifest_field "$nuspec" "$pkg" "title" "Compono — MSTest Integration"

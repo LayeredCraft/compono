@@ -32,12 +32,12 @@ jobs:
       PACK_OUTPUT: ${{ github.workspace }}/artifacts/package-validation
       # Single authoritative publishable-package list (PLAN-0061 Phase 1) - the baseline-lookup and
       # pack steps below both derive from this one job-level env var instead of each repeating the
-      # same 11-package literal, so adding/removing a package can't drift across the two
+      # same 14-package literal, so adding/removing a package can't drift across the two
       # independently. A job-level `env:` entry is injected into every step's own
       # process environment by GitHub Actions itself, so this survives across the separate `run:`
       # steps below (each its own shell process) with no extra plumbing - deliberately not a Bash
       # array, which would only live for the one step that declared it.
-      PACKAGES: "Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit Compono.Options"
+      PACKAGES: "Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.Metrics Compono.MSTest Compono.NUnit Compono.Options"
     steps:
       - uses: actions/checkout@v7
 
