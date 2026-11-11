@@ -37,17 +37,3 @@ public static class InvalidSignatureFixtures
     }
 }
 
-/// <summary>
-/// A valid (non-invalid-signature) method that lives in a different assembly than
-/// <c>Compono.NUnit.Tests</c> - reflected over by <c>ModuleInitializationTests</c> to prove
-/// <c>ComposeAttribute.BuildFrom</c> targets the <em>declaring</em> assembly's module (ADR-0059
-/// Amendment 1), not the calling test's own module. Deliberately not <c>[Compose]</c>-attributed: it
-/// needs no composed row of its own, and adding the ComposeAttribute here would make this
-/// never-scanned assembly's method a real NUnit test for any host that did scan it.
-/// </summary>
-public static class CrossAssemblyComposeFixtures
-{
-    public static void CrossAssemblyComposed(int number, string text)
-    {
-    }
-}

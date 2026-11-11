@@ -16,6 +16,12 @@
 #   - an MTP Exe artifact (NUnitMatrixRunner=MTP, the project default) run as the built executable.
 # obj/bin are cleared between the two builds so neither reuses the other's intermediate/output state.
 #
+# Neither the artifact shape nor a version string is trusted on its own: each run sets
+# COMPONO_NUNIT_MATRIX_EXPECTED_HOST, and the matrix project's TestHostVerificationTests asserts the
+# host that actually executed the tests matches it, using a stable runtime signal (the process entry
+# assembly) rather than parsed console output. So the classic leg cannot silently degrade back to MTP
+# - if it did, that test would fail rather than quietly pass.
+#
 # Blocking legs (ADR-0059 §3's supported [3.14.0, 5.0.0) range):
 #   NUnit 3.14.0 (floor, exact-pinned) x classic VSTest
 #   NUnit 3.14.0 (floor, exact-pinned) x MTP
@@ -134,7 +140,7 @@ for lib in data['libraries']:
     # of aborting), and the function would return the *last* command's exit status (a trailing
     # `echo`, which always succeeds) rather than the real failure - hiding exactly the compatibility
     # signal this script exists to collect.
-    if ! dotnet vstest "$class_dll"; then
+    if ! COMPONO_NUNIT_MATRIX_EXPECTED_HOST=vstest dotnet vstest "$class_dll"; then
         echo "::error::NUnit ${resolved} failed under classic VSTest." >&2
         return 1
     fi
@@ -156,7 +162,7 @@ for lib in data['libraries']:
     local exe="$project_dir/bin/$configuration/$tfm/Compono.NUnit.CompatibilityMatrix"
 
     echo "::group::NUnit ${resolved} - MTP"
-    if ! "$exe"; then
+    if ! COMPONO_NUNIT_MATRIX_EXPECTED_HOST=mtp "$exe"; then
         echo "::error::NUnit ${resolved} failed under MTP." >&2
         return 1
     fi

@@ -915,8 +915,19 @@ This is the exact step MTP performs for free. It is:
   that declares the `[Compose]` method, which is exactly where the
   generator emitted that method's parameter-type registrations. This holds
   for inherited methods (`DeclaringType` is the base type that declares the
-  attribute), nested types, closed generic fixtures, and methods declared
-  in a different assembly from the caller.
+  attribute), nested types, closed generic fixtures (a constructed type's
+  `Module` is still the generic type definition's module), and methods
+  declared in a different assembly from the caller. The generator always
+  emits a `[Compose]` method's parameter-type registrations into the
+  assembly that declares that method, so no supported shape ever needs a
+  registration from a *different* module than the declaring type's.
+  (Independent of this fix, a parameter typed as the fixture's own open
+  type parameter is rejected by the generator's row-invoker shape guard —
+  `ComposedTypeAnalyzer.IsRowInvokerShapeEligible` returns `false` for any
+  type that contains a type parameter — so such a method gets no
+  registration in *any* module and fails at discovery under every host.
+  That is a pre-existing generator limitation, not a module-selection
+  defect, and is out of scope for #171.)
 - **Surface-neutral** — no new public API; nothing is added to
   `Compono.NUnit`'s exported surface, so ADR-0058 is not triggered.
 
@@ -936,7 +947,12 @@ The classic leg now builds a genuinely non-MTP artifact
 off, `CopyLocalLockFileAssemblies`/`GenerateRuntimeConfigurationFiles` on)
 and runs it under `dotnet vstest`, so it exercises the real classic host
 regardless of `vstest.console` version; the MTP leg keeps the MTP-enabled
-exe. Both legs run per NUnit version.
+exe. Both legs run per NUnit version. Each leg also **positively asserts**
+which host actually ran it — `MatrixTests.TestHostVerificationTests`
+compares `Assembly.GetEntryAssembly()` against the test assembly and fails
+when the leg did not run under the host it intended
+(`COMPONO_NUNIT_MATRIX_EXPECTED_HOST`), so a silent regression back to MTP
+fails the matrix instead of passing it.
 
 ### Evidence
 
