@@ -6,7 +6,7 @@ description: >-
   (composer.Create/CreateMany, [Composable], registrations,
   profiles, [Shared], [ComposeData]),
   plus optional integration packages
-  (XunitV3/XunitV3.Aot/TUnit/MSTest/NUnit/NSubstitute/Bogus/TestDoubles/DependencyInjection/Http/Logging/Options).
+  (XunitV3/XunitV3.Aot/TUnit/MSTest/NUnit/NSubstitute/Bogus/TestDoubles/DependencyInjection/Http/Logging/Options/Metrics).
   USE FOR: writing/reviewing Compono tests, diagnosing CMP00xx diagnostics
   or CompositionException failures, deciding on
   [Composable]/Register/.For/[Shared]/[ComposeData], adding Compono, migrating
@@ -15,7 +15,7 @@ description: >-
   no Compono package referenced; reflection/DI questions; production
   object construction.
   SCOPES TO: only load the matching package reference file
-  (xunit-v3/tunit/mstest/nunit/nsubstitute/bogus/testdoubles/dependencyinjection/http/logging/options.md)
+  (xunit-v3/tunit/mstest/nunit/nsubstitute/bogus/testdoubles/dependencyinjection/http/logging/options/metrics.md)
   when that package is referenced.
 license: MIT
 metadata:
@@ -54,6 +54,7 @@ some packages and not others.
 | `<PackageReference Include="Compono.Http"` | `.csproj` | Definitive | `TestHttpHandler`/`OnGet`/`OnPost`/etc. available — load `references/http.md` |
 | `<PackageReference Include="Compono.Logging"` or `UseLogging()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `ILogger`/`ILogger<T>` compose via `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`, `Verify()` available; host-wide capture via `LogCollector`/`AddComponoCapture` — load `references/logging.md`. Generation is on by default once the package is referenced — never suggest a manual MSBuild opt-in step |
 | `<PackageReference Include="Compono.Options"` or `UseOptions(` in `*.cs` | `.csproj`/`*.cs` | Definitive | `TestOptionsSource<T>`/`UseOptions<T>()` available — load `references/options.md` |
+| `<PackageReference Include="Compono.Metrics"` or `UseMetrics()` in `*.cs` | `.csproj`/`*.cs` | Definitive | `IMeterFactory` composes via `UseMetrics()` as a `CapturingMeterFactory`, with typed `GetMeasurements<T>()`/`Verify<T>()` and explicit observable polling available — load `references/metrics.md` |
 | `Composer.Create(`, `.Create<`, `.CreateMany<`, `CompositionBuilder` | `*.cs` | High | Core Compono API in active use |
 | `[Compose]`, `[Compose<...>]`, `[ComposeData]`, `[Shared]` | `*.cs` | High | `Compono.XunitV3`, `Compono.TUnit`, `Compono.MSTest`, or `Compono.NUnit` attributes in active use - check which package is referenced before assuming which |
 | `ICompositionProfile` implementations | `*.cs` | Medium | Profile-based configuration convention already established — follow it rather than inventing a new one |
@@ -72,7 +73,7 @@ if it uses TUnit, `Compono.MSTest` if it uses MSTest (`MSTest.TestFramework`
 4.0.0+ only — see `references/mstest.md`), `Compono.NUnit` if it uses
 NUnit (`NUnit` `3.14.0`+ — see `references/nunit.md`, no `[TestFixture]`/
 `[Test]` needed alongside `[Compose]`), `Compono.NSubstitute`/
-`Compono.Bogus` only if the user wants those). Don't retrofit existing
+`Compono.Bogus`/`Compono.Metrics` only if the user wants those). Don't retrofit existing
 passing tests to use Compono unprompted — that's a scope decision for the
 user to make test-by-test, not something to do as a drive-by.
 
@@ -201,6 +202,14 @@ matcher. Call-order verification remains unsupported by either.
      `UseNSubstitute()`/`UseGeneratedTestDoubles()`, register
      `UseLogging()` first — see `references/logging.md`'s registration-
      order note.
+   - A composed type takes an `IMeterFactory` dependency and the test
+     wants to assert the measurements it recorded (values, instrument
+     names, tags) → `UseMetrics()` composing a `CapturingMeterFactory`, if
+     `Compono.Metrics` is referenced — see `references/metrics.md`. Register
+     `UseMetrics()` before `UseNSubstitute()`, and never suggest a
+     hand-rolled fake `IMeterFactory` when this package is already
+     referenced. Observable instruments are read only after an explicit
+     `RecordObservableInstruments()` call; reads never poll.
    - A `string` member needs a realistic value (email, name, address) →
      `Compono.Bogus`'s member-name conventions or `UseBogus(...)`, if
      that package is referenced. Don't reach for Bogus everywhere — plain
@@ -369,8 +378,8 @@ undermines the reason Compono exists in this project.
   capability."** Only `Compono`, `Compono.XunitV3`, `Compono.XunitV3.Aot`, `Compono.TUnit`,
   `Compono.MSTest`, `Compono.NSubstitute`, `Compono.Bogus`,
   `Compono.TestDoubles`, `Compono.DependencyInjection`, `Compono.Http`,
-  `Compono.Logging`, and `Compono.Options` ship as packages today
-  (`Compono.XunitV3.Aot` is the Native AOT sibling of `Compono.XunitV3` —
+  `Compono.Logging`, `Compono.Options`, and `Compono.Metrics` ship as packages
+  today  (`Compono.XunitV3.Aot` is the Native AOT sibling of `Compono.XunitV3` —
   the same `[Compose]` family in namespace `Compono.XunitV3.Aot`, mutually
   exclusive with `Compono.XunitV3` in one project, see
   `references/xunit-v3.md`; `Compono.TUnit`
@@ -406,7 +415,12 @@ undermines the reason Compono exists in this project.
   `Compono.Options` ships `TestOptionsSource<T>`/`UseOptions<T>()` — a
   coherent `IOptions<T>`/`IOptionsSnapshot<T>`/`IOptionsMonitor<T>` source,
   not a plain `IConfiguration` package, and there is no
-  `Compono.Configuration`, see `references/options.md`)
+  `Compono.Configuration`, see `references/options.md`;
+  `Compono.Metrics` ships `UseMetrics()` and `CapturingMeterFactory` for
+  `System.Diagnostics.Metrics` testing — typed `GetMeasurements<T>()`/
+  `Verify<T>()` and explicit `RecordObservableInstruments()` polling, one
+  factory handle for every instrument, no dependency beyond core `Compono`,
+  see `references/metrics.md`)
   — there is no `Compono.FakeItEasy` or `Compono.Moq`, and never invent a
   plausible-looking API for one. That
   doesn't always mean the underlying capability is unsupported, though:
@@ -499,4 +513,5 @@ Load only what the Detection table says is relevant to the current task.
 | `references/http.md` | `Compono.Http` is referenced — `TestHttpHandler`/matching/verification/lifetime work |
 | `references/logging.md` | `Compono.Logging` is referenced or `UseLogging()` is called — `ILogger`/`ILogger<T>` composition, `CapturingLogger`/`CapturingLogger<T>`, structured properties, scope semantics, `Verify()`, host-wide capture (`LogCollector`/`AddComponoCapture`, `Category`, `AtLevelOrAbove`/`InCategory`, host-vs-composed boundaries), and the `ComponoGeneratedLogging` default-on/opt-out behavior |
 | `references/options.md` | `Compono.Options` is referenced or `UseOptions(` is called — `TestOptionsSource<T>`/`UseOptions<T>()` identity model, named options, the unconfigured-name diagnostic, `IConfiguration`-vs-`Compono.Options` routing, and the Finding B boundary |
+| `references/metrics.md` | `Compono.Metrics` is referenced or `UseMetrics()` is called — `IMeterFactory` composition, `CapturingMeterFactory`, typed `GetMeasurements<T>()`/`Verify<T>()`, observable polling, selection/matching rules, disposal patterns, and registration-order-vs-`UseNSubstitute()` |
 | `references/patterns-and-antipatterns.md` | Reviewing existing Compono usage for correctness, migrating from AutoFixture, or unsure whether an approach is idiomatic |

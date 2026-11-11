@@ -360,6 +360,74 @@ and a shared fixture may clear startup entries between tests.
 That's the default — composition is independent per parameter unless you
 opt in with `[Shared]`. See [Shared Values](../concepts/shared-values.md).
 
+### "Verify metrics on a non-Compono IMeterFactory throws"
+
+Every method on `MeterFactoryTestingExtensions` (`GetMeasurements<T>()`,
+`Verify<T>()`, `RecordObservableInstruments()`, `ClearMeasurements()`)
+requires the `IMeterFactory` to be Compono's `CapturingMeterFactory`, and
+throws `InvalidOperationException` otherwise. This usually means one of:
+
+- **`UseMetrics()` isn't registered.** Add it to the profile or
+  `Composer.Create` call.
+- **`UseMetrics()` is registered *after* `UseNSubstitute()`.** An interface
+  request resolves at whichever stage-6 provider is registered first, so
+  `NSubstituteProvider` wins and you get a substitute. Call `UseMetrics()`
+  first — see [Registration order and misuse](../packages/compono-metrics.md#registration-order-and-misuse).
+- **The Generic Host resolved its own default factory.** The builder already
+  registers a default `IMeterFactory`. Register the test's factory with
+  `builder.Services.AddSingleton<IMeterFactory>(meters)`; the container
+  resolves a single `IMeterFactory` to its **last** registration, so the
+  later one wins. Don't use `TryAddSingleton` — it keeps the first
+  registration and would discard yours. See
+  [Verify Metrics Across a Host](../how-to/verify-metrics-across-a-host.md).
+
+### "`Verify<long>` throws `instrument "x" records int, not long`"
+
+The instrument records a different numeric type than the one you asked for.
+Pass the real type to `GetMeasurements<T>`/`Verify<T>`, or read the actual
+type from `CapturedMeasurement<T>.Instrument`. There is no numeric coercion —
+`int` and `long` are distinct instruments.
+
+### "`Verify` throws about one selection merging measurements of different types"
+
+Two instruments share a name but record different value types — either two
+instruments in one meter (`CreateCounter<int>("x")` and
+`CreateCounter<long>("x")` are distinct), or same-named meters with
+different versions or tags. A single selection can't merge different types.
+Rename one instrument in the SUT, or narrow with the two-argument overload
+when the conflicting instruments live in differently named meters — see
+selection rule 5 in the
+[`Compono.Metrics` Package Guide](../packages/compono-metrics.md#selection-and-matching).
+
+### "`Verify<long>` throws about meter ambiguity"
+
+The one-argument overload matched instruments from more than one meter name.
+Use the two-argument overload (`GetMeasurements<T>(meterName, instrumentName)`
+or `Verify<T>(meterName, instrumentName)`) to pick the meter.
+
+### "`GetMeasurements<Guid>` throws `ArgumentException`"
+
+Only the seven BCL measurement types are supported: `byte`, `short`, `int`,
+`long`, `float`, `double`, `decimal`. No instrument can record any other
+type, so the mistake is caught deterministically.
+
+### "`Never()` passes but the counter was clearly incremented"
+
+`Never()` passes whenever no captured measurement matches, including when the
+instrument name matched nothing at all. A failing `Once()`/`Exactly(n)` lists
+the instruments that *do* exist, so check that message for a typo or an
+unexpected meter name.
+
+### "An undisposed factory leaks for the process lifetime"
+
+A factory that created a meter stays referenced by the BCL's static meter
+list until it's disposed, keeping its meters, listener, and captured
+measurements alive — the same cost as an undisposed `DefaultMeterFactory`.
+Dispose it at the end of the test with `using var _ = meters;` on the
+`[Shared]` parameter, or one of the other two patterns in
+[Disposal patterns](../packages/compono-metrics.md#disposal-patterns). A
+factory that never created a meter costs nothing.
+
 ## Next
 
 - [FAQ](faq.md) — design-decision questions that aren't a specific error.

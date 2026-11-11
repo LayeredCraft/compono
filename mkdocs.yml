@@ -133,6 +133,7 @@ nav:
     - Use Profiles: how-to/use-profiles.md
     - Share a Value Across a Test: how-to/share-a-value-across-a-test.md
     - Assert Nothing Logged at Error or Above Across a Host: how-to/assert-nothing-logged-at-error-across-a-host.md
+    - Verify Metrics Across a Host: how-to/verify-metrics-across-a-host.md
   - Cookbook: cookbook/index.md
   - Samples:
     - Overview: samples/index.md
@@ -153,6 +154,7 @@ nav:
     - Compono.Logging: packages/compono-logging.md
     - Compono.MSTest: packages/compono-mstest.md
     - Compono.NUnit: packages/compono-nunit.md
+    - Compono.Metrics: packages/compono-metrics.md
   - Best Practices:
     - Overview: best-practices/index.md
     - Organizing Profiles: best-practices/organizing-profiles.md
@@ -192,6 +194,7 @@ nav:
       - Compono.Logging: reference/api/Compono.Logging/index.md
       - Compono.MSTest: reference/api/Compono.MSTest/index.md
       - Compono.NUnit: reference/api/Compono.NUnit/index.md
+      - Compono.Metrics: reference/api/Compono.Metrics/index.md
     - Diagnostics: reference/diagnostics.md
     - Glossary: reference/glossary.md
   - Roadmap:

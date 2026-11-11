@@ -12,7 +12,7 @@ short overview linking out to it, not the code itself.
 
 | Sample | Demonstrates | Packages |
 |---|---|---|
-| [Basic Usage](basic-usage.md) | The core workflow: `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a reusable profile, registrations and member rules, a composed xUnit v3 theory, deterministic seed reproduction, and an `ILogger<T>` logging scenario. | `Compono`, `Compono.XunitV3`, `Compono.Logging` |
+| [Basic Usage](basic-usage.md) | The core workflow: `Composer.Create()`/`Create<T>()`/`CreateMany<T>()`, a reusable profile, registrations and member rules, a composed xUnit v3 theory, deterministic seed reproduction, an `ILogger<T>` logging scenario, and an `IMeterFactory` metrics scenario. | `Compono`, `Compono.XunitV3`, `Compono.Logging`, `Compono.Metrics` |
 | [ASP.NET API](aspnet-api.md) | The full ecosystem in one realistic API: a `[Shared]` NSubstitute substitute injected into the system under test, `Compono.Bogus`-generated request data, inline plus composed theory values, one integration-style endpoint test, an outbound-HTTP scenario, and a DI-composed row provider. | `Compono`, `Compono.XunitV3`, `Compono.NSubstitute`, `Compono.Bogus`, `Compono.Http`, `Compono.DependencyInjection` |
 
 Both samples restore against every package in their own "Packages" row

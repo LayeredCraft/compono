@@ -48,6 +48,7 @@ Compono determines **how** those requirements are satisfied.
 | `Compono.MSTest`        | MSTest integration                               |
 | `Compono.NUnit`         | NUnit integration (no `[TestFixture]` required)  |
 | `Compono.Options`       | `Microsoft.Extensions.Options` testing support (`TestOptionsSource<T>`, `UseOptions<T>()`) |
+| `Compono.Metrics`       | `System.Diagnostics.Metrics` testing support (`UseMetrics()`, `CapturingMeterFactory`, `Verify<T>()`) |
 
 ## Example
 

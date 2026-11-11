@@ -11,6 +11,7 @@
     <Project Path="src/Compono.DependencyInjection/Compono.DependencyInjection.csproj" />
     <Project Path="src/Compono.Http/Compono.Http.csproj" />
     <Project Path="src/Compono.Logging/Compono.Logging.csproj" />
+    <Project Path="src/Compono.Metrics/Compono.Metrics.csproj" />
     <Project Path="src/Compono.MSTest/Compono.MSTest.csproj" />
     <Project Path="src/Compono.NUnit/Compono.NUnit.csproj" />
     <Project Path="src/Compono.Options/Compono.Options.csproj" />
@@ -27,6 +28,7 @@
     <Project Path="test/Compono.DependencyInjection.Tests/Compono.DependencyInjection.Tests.csproj" />
     <Project Path="test/Compono.Http.Tests/Compono.Http.Tests.csproj" />
     <Project Path="test/Compono.Logging.Tests/Compono.Logging.Tests.csproj" />
+    <Project Path="test/Compono.Metrics.Tests/Compono.Metrics.Tests.csproj" />
     <Project Path="test/Compono.MSTest.Tests/Compono.MSTest.Tests.csproj" />
     <Project Path="test/Compono.NUnit.Tests/Compono.NUnit.Tests.csproj" />
     <Project Path="test/Compono.Options.Tests/Compono.Options.Tests.csproj" />

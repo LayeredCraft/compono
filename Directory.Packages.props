@@ -193,6 +193,13 @@
   <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net8.0)" Condition="'$(TargetFramework)' == 'net8.0'">
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <!-- Test-only (net8.0): Compono.Metrics.Tests' Gauge-on-net8.0 regression. A net8.0 compilation
+         only sees Gauge<T> at compile time if a newer System.Diagnostics.DiagnosticSource is
+         referenced (the in-box net8.0 shared-framework reference lacks it). Referencing 9.x for the
+         net8.0 test build reproduces a net8.0 consumer running against DiagnosticSource 9.x, which
+         proves capture is classified by the base types (Instrument<T>/ObservableInstrument<T>), not
+         a compile-time #if. Never referenced by any src project. -->
+    <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net9.0)" Condition="'$(TargetFramework)' == 'net9.0'">
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.23" />

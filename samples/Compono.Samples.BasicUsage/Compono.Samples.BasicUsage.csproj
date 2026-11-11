@@ -44,6 +44,7 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono/Compono.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.XunitV3/Compono.XunitV3.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Logging/Compono.Logging.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Metrics/Compono.Metrics.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/Compono.Generators/Compono.Generators.csproj"
                        OutputItemType="Analyzer"
                        ReferenceOutputAssembly="false" />

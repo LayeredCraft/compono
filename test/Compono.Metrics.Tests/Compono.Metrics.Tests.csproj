@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Compono.Metrics.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Compono\Compono.csproj" />
+    <ProjectReference Include="..\..\src\Compono.Metrics\Compono.Metrics.csproj" />
+    <!-- Test-only: a real Generic Host, so the documented Generic Host / DI recipe (ADR-0072's
+         Disposal patterns, pattern 3) is exercised against a real IServiceProvider/host lifecycle.
+         Compono.Metrics itself never references this (ADR-0072's zero-dependency decision). -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <!-- Test-only: stage-6 registration-order precedence tests need a second real stage-6 provider
+         to register alongside UseMetrics(). Compono.Metrics has no dependency on this package. -->
+    <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
+    <!-- A plain ProjectReference to Compono.csproj does NOT transitively propagate
+         Compono.Generators.dll as an active analyzer for THIS project's own compilation (confirmed
+         empirically for Compono.Logging.Tests, PLAN-0055 task 13). Real, generator-discovered
+         composition against this project's own fixture types requires this explicit
+         Analyzer-only reference. -->
+    <ProjectReference Include="..\..\src\Compono.Generators\Compono.Generators.csproj"
+                       OutputItemType="Analyzer"
+                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Test-only: on net8.0 the in-box shared-framework reference does not expose Gauge<T> at
+       compile time. Referencing System.Diagnostics.DiagnosticSource 9.x for the net8.0 test build
+       reproduces a net8.0 consumer whose runtime provides DiagnosticSource 9.x, so we can prove that
+       Compono.Metrics records and verifies Gauge<T> via the base-type classification rather than a
+       compile-time #if. Other TFMs get Gauge<T> from their own shared framework. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+  </ItemGroup>
+
+</Project>

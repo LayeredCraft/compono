@@ -26,6 +26,7 @@ on:
       - 'src/Compono.DependencyInjection/**'
       - 'src/Compono.Http/**'
       - 'src/Compono.Logging/**'
+      - 'src/Compono.Metrics/**'
       - 'src/Compono.MSTest/**'
       - 'src/Compono.NUnit/**'
       - 'Directory.Build.props'
@@ -52,6 +53,7 @@ on:
       - 'src/Compono.DependencyInjection/**'
       - 'src/Compono.Http/**'
       - 'src/Compono.Logging/**'
+      - 'src/Compono.Metrics/**'
       - 'src/Compono.MSTest/**'
       - 'src/Compono.NUnit/**'
       - 'Directory.Build.props'
@@ -97,7 +99,7 @@ jobs:
       - name: Build publishable packages (net10.0)
         run: |
           set -euo pipefail
-          for pkg in Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.MSTest Compono.NUnit; do
+          for pkg in Compono Compono.XunitV3 Compono.XunitV3.Aot Compono.NSubstitute Compono.Bogus Compono.TUnit Compono.TestDoubles Compono.DependencyInjection Compono.Http Compono.Logging Compono.Metrics Compono.MSTest Compono.NUnit; do
             dotnet build "src/${pkg}/${pkg}.csproj" -c Release -f net10.0
           done
 
