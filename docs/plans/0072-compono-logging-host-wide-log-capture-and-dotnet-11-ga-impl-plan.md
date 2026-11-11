@@ -1,6 +1,6 @@
 # [PLAN-0072] `Compono.Logging` Host-Wide Log Capture (Issue #164) + .NET 11 GA Migration
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Implements:** [ADR-0071](../adr/0071-compono-logging-host-wide-log-capture.md)
 (issue [#164](https://github.com/LayeredCraft/compono/issues/164), child of
@@ -8,8 +8,9 @@
 .NET 11 GA migration, an infrastructure workstream that needs no ADR.
 ADR-0071 is **Accepted** (2026-11-10). The maintainer approved ADR-0071 and
 this plan, including the review-round-1 clarifications in `768af68`, and
-B0 is closed. Architectural approval is complete. Implementation hasn't
-started yet: B1 (PR 1, .NET 11 GA) is next.
+B0 is closed. Architectural approval is complete. The accepted planning
+artifacts now live on `main` (merged via PR #175). Implementation has
+started: B1 (PR 1, .NET 11 GA) is in progress.
 
 ## Goal
 
@@ -146,10 +147,12 @@ the same `[X.0.0, (X+1).0.0)` shape as net8/9/10.
 
 - `global.json`: change `sdk.version` to `11.0.100` and keep
   `rollForward: latestFeature` (the existing policy, unchanged).
-- `.github/workflows/package-validation.yaml`: change the exact SDK pin
-  `11.0.100-preview.7.26381.103` to `11.0.100`. Keep the
-  exact-pin-in-lockstep-with-global.json policy and rewrite its comment so
-  it no longer describes a preview pin. Keep the RC.1 incident as history.
+- `.github/workflows/package-validation.yaml`: change the SDK entry
+  `11.0.100-preview.7.26381.103` to the floating `11.0.x` (product-owner
+  decision, 2026-11-11: match `pr-build.yaml`/`publish-preview.yaml`/
+  `publish-release.yaml`/`docs.yml`). Retire the
+  exact-pin-in-lockstep-with-global.json policy and rewrite the comment so it
+  no longer describes a preview pin. Keep the RC.1 incident as history.
 - `.github/workflows/aot-validation.yaml`: fix the stale comment saying
   "global.json pins a preview 11.0.x SDK". `11.0.x` stays.
 - `pr-build.yaml`, `publish-preview.yaml`, `publish-release.yaml`, and
@@ -178,10 +181,12 @@ the same `[X.0.0, (X+1).0.0)` shape as net8/9/10.
   are unchanged, and net11.0 still has no dependency entry
   (`inspect-packed-nupkgs.sh` and `inspect-packed-nupkgs.tests.sh` pass).
 - The NUnit compatibility matrix passes on 11.0.100 in **both** the classic
-  VSTest and MTP legs. **This is the known risk:** RC.1 broke the
-  classic-VSTest leg ("No row-binding dispatch is registered for Widget").
-  If it reproduces on GA, stop and escalate to the product owner, don't
-  work around it.
+  VSTest and MTP legs, and the classic leg genuinely runs the classic host
+  (PR #172's host-identity assertion). Resolved risk: the earlier
+  classic-VSTest "No row-binding dispatch is registered for Widget" failure
+  was a pre-existing Compono.NUnit defect that newer VSTest hosts exposed
+  (not caused) — fixed in PR #172 / ADR-0059 Amendment 1, not an RC.1 or GA
+  regression.
 - Package validation (ApiCompat against the nuget.org baselines, all 13
   packages) passes with no new suppressions.
 - AOT validation passes for every leg on the GA SDK with zero IL/AOT
@@ -197,10 +202,10 @@ the same `[X.0.0, (X+1).0.0)` shape as net8/9/10.
 CI green, and merged. Record the CI run links and the matrix outcome in
 this plan's Notes. Tick B1.
 
-- [ ] B1.1 SDK pin (`global.json`, `package-validation.yaml`) and comment fixes
-- [ ] B1.2 net11.0 package ranges (`Directory.Packages.props`)
-- [ ] B1.3 Current-state docs sweep (confirm or fix)
-- [ ] B1.4 Full validation (V1, V3, V6, V7, V8) on 11.0.100, results recorded in Notes
+- [x] B1.1 SDK pin (`global.json`, `package-validation.yaml`) and comment fixes
+- [x] B1.2 net11.0 package ranges (`Directory.Packages.props`)
+- [x] B1.3 Current-state docs sweep (confirm or fix)
+- [x] B1.4 Full validation (V1, V3, V6, V7, V8) on 11.0.100, results recorded in Notes
 - [ ] B1.5 PR 1 merged
 
 ---
@@ -613,5 +618,40 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   and PLAN-0072, including `768af68`. ADR-0071 → `Accepted`, its index row
   and ADR-0055 Amendment 6 were updated, and B0 is closed. Plan status
   stays `Not Started` until B1 begins.
-- Open risk carried into B1: the RC.1 classic-VSTest NUnit matrix
-  regression. GA behavior is unknown until V8 runs.
+- 2026-11-11 (B1 resume): resolved the planning-branch integration — the
+  accepted ADR-0071/PLAN-0072/ADR-0055-Amendment-6 artifacts were merged to
+  `main` via PR #175 (merge commit 4f56a03). Reconstructed `chore/dotnet-11-ga`
+  from `origin/main` (4f56a03) carrying only the four intended B1 edits, so the
+  B1 diff is B1-only (no planning or unrelated doc commits). Reconciled the CI
+  SDK policy to the approved form: `global.json` pins `11.0.100` with
+  `rollForward: latestFeature`; `package-validation.yaml` floats `11.0.x`.
+- 2026-11-11 (risk resolution): the RC.1-era classic-VSTest NUnit failure
+  ("No row-binding dispatch is registered for Widget") was NOT an SDK
+  regression — it was a pre-existing Compono.NUnit discovery-time defect,
+  fixed in PR #172 (ADR-0059 Amendment 1); PLAN-0073 is Done. The matrix's
+  classic leg now also asserts the real classic host (PR #172's host-identity
+  check), so V8 is a genuine classic-host gate.
+- 2026-11-11 (B1.4 full validation on the GA SDK 11.0.100 — all green):
+  - V1 build `dotnet build Compono.slnx -c Release`: 0 warnings, 0 errors.
+  - V1 test `dotnet test Compono.slnx -c Release --no-build`: 6791 total,
+    0 failed, 6290 succeeded, 501 skipped.
+  - V8 matrix `.github/scripts/nunit-compatibility-matrix.sh` (exit 0):
+    NUnit 3.14.0 and 4.6.1 each under genuine classic VSTest (VSTest 18.12.0)
+    and MTP at 5/5 per leg — including the host-identity assertion — plus
+    5.0.0-beta.1 surveillance 5/5 under both hosts.
+  - V3 AOT: all nine `test/*AotSmokeTest` legs pack + publish + run PASS
+    (net10.0). Only pre-existing third-party trim/AOT warnings surfaced
+    (`nunit.framework` IL3053/IL2104, `xunit.v3.core` IL2104, Compono.TUnit
+    harness's own IL2072); none attributable to Compono. B1's diff touches no
+    net10.0-affecting source (the `Directory.Packages.props` edits are strictly
+    `net11.0`-conditional), so every AOT leg is byte-identical to `main`.
+  - V6 ApiCompat: all 13 publishable packages pack against the
+    `1.4.0-preview.123` baseline with 0 `CP` errors.
+  - V7 packed-nupkg inspection: `inspect-packed-nupkgs.tests.sh` and
+    `inspect-packed-nupkgs.sh` both pass (net11.0 stays dependency-free for the
+    framework-provided `Microsoft.Extensions.*` packages).
+  - API-reference drift: `generate-api-reference.sh` +
+    `git diff --exit-code -- docs/reference/api` clean.
+  - Preview/RC grep: the only tracked match outside `docs/adr`, `docs/research`,
+    `docs/plans`, `docs/reference/api` is the intentional RC.1 history line in
+    `package-validation.yaml`.
