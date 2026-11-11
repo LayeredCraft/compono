@@ -86,5 +86,5 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0069](0069-generator-wide-per-item-emission-failure-isolation-impl-plan.md) | Generator-Wide Per-Item Emission Failure Isolation (Issue #143) | Done |
 | [0070](0070-xunitv3-require-fixture-accessor-impl-plan.md) | xUnit v3 Fixture Accessor (`RequireFixture<TFixture>()`, Issue #162) | Done |
 | [0071](0071-xunitv3-composedata-composed-theory-rows-impl-plan.md) | xUnit v3 Composed Theory Rows (`[ComposeData]`, Issue #163) | Done |
-| [0072](0072-compono-logging-host-wide-log-capture-and-dotnet-11-ga-impl-plan.md) | `Compono.Logging` Host-Wide Log Capture (Issue #164) + .NET 11 GA Migration | Not Started |
+| [0072](0072-compono-logging-host-wide-log-capture-and-dotnet-11-ga-impl-plan.md) | `Compono.Logging` Host-Wide Log Capture (Issue #164) + .NET 11 GA Migration | In Progress |
 | [0073](0073-compono-nunit-classic-vstest-discovery-impl-plan.md) | Compono.NUnit: classic-VSTest discovery-time module initialization (Issue #171) | Done |
