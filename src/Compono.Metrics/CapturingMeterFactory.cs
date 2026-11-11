@@ -15,7 +15,8 @@ namespace Compono.Metrics;
 /// rejects a <see langword="null"/> <see cref="MeterOptions"/> and a foreign <see cref="MeterOptions.Scope"/>,
 /// throws <see cref="ObjectDisposedException"/> after disposal, never mutates the caller's options, and caches
 /// meters by name, version, and order-insensitive tag set (duplicate tag keys are significant - see
-/// <see cref="Create"/>).
+/// <see cref="Create"/>). Disposing a <see cref="Meter"/> a consumer obtained from <see cref="Create"/> is a
+/// no-op: the factory owns the meter's lifetime and releases it on <see cref="Dispose"/>.
 /// </para>
 /// <para>
 /// Each factory owns one lazily created <see cref="MeterListener"/>, created on the first <see cref="Create"/>
@@ -94,7 +95,7 @@ public sealed class CapturingMeterFactory : IMeterFactory
                 Tags = tags,
             };
 
-            var meter = new Meter(owned);
+            var meter = new FactoryMeter(owned);
             _meters.Add(new MeterEntry(options.Name, options.Version, tags, meter));
             return meter;
         }
@@ -104,7 +105,9 @@ public sealed class CapturingMeterFactory : IMeterFactory
     /// Disposes every meter this factory created (raising
     /// <c>MeasurementsCompleted</c>), then its <see cref="MeterListener"/>. Idempotent and
     /// thread-safe. Captured measurements stay readable afterwards; measurements recorded on the disposed
-    /// meters' instruments are no longer captured.
+    /// meters' instruments are no longer captured. Disposing a <see cref="Meter"/> a consumer obtained from
+    /// <see cref="Create"/> is a no-op - the factory owns the meter's lifetime, matching
+    /// <c>DefaultMeterFactory</c>.
     /// </summary>
     public void Dispose()
     {
@@ -117,7 +120,7 @@ public sealed class CapturingMeterFactory : IMeterFactory
         }
 
         foreach (var entry in _meters)
-            entry.Meter.Dispose();
+            entry.Meter.Release();
 
         _listener?.Dispose();
     }
@@ -251,7 +254,7 @@ public sealed class CapturingMeterFactory : IMeterFactory
 
     private sealed class MeterEntry
     {
-        public MeterEntry(string name, string? version, KeyValuePair<string, object?>[] tags, Meter meter)
+        public MeterEntry(string name, string? version, KeyValuePair<string, object?>[] tags, FactoryMeter meter)
         {
             Name = name;
             Version = version;
@@ -265,11 +268,28 @@ public sealed class CapturingMeterFactory : IMeterFactory
 
         public KeyValuePair<string, object?>[] Tags { get; }
 
-        public Meter Meter { get; }
+        public FactoryMeter Meter { get; }
 
         public bool Matches(string name, string? version, KeyValuePair<string, object?>[] tags) =>
             string.Equals(Name, name, StringComparison.Ordinal)
             && string.Equals(Version, version, StringComparison.Ordinal)
             && TagSetsEqual(Tags, tags);
+    }
+
+    // A meter whose consumer-facing Dispose is a no-op, so a SUT that disposes (or `using`s) the meter it
+    // obtained from Create cannot disable capture for every other consumer that shares the cached meter - the
+    // same lifecycle DefaultMeterFactory provides. Only the factory releases it, via Release().
+    private sealed class FactoryMeter : Meter
+    {
+        public FactoryMeter(MeterOptions options)
+            : base(options)
+        {
+        }
+
+        internal void Release() => base.Dispose(true);
+
+        protected override void Dispose(bool disposing)
+        {
+        }
     }
 }

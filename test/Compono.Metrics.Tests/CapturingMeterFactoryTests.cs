@@ -243,4 +243,27 @@ public sealed class CapturingMeterFactoryTests
         var act = () => factory.Create(new MeterOptions("Shop"));
         act.Should().Throw<ObjectDisposedException>();
     }
+
+    [Fact]
+    public void ConsumerDisposingACachedMeter_IsANoOp_AndCaptureContinues()
+    {
+        using var factory = new CapturingMeterFactory();
+        var meter = factory.Create(new MeterOptions("Shop"));
+        var counter = meter.CreateCounter<long>("orders");
+
+        // A SUT that disposes (or `using`s) the meter it obtained must not disable capture for every other
+        // holder of the cached meter - DefaultMeterFactory makes consumer meter disposal a no-op.
+        meter.Dispose();
+
+        var again = factory.Create(new MeterOptions("Shop"));
+        again.Should().BeSameAs(meter);
+
+        // The instrument created before the consumer dispose is still enabled...
+        counter.Add(1);
+        // ...and the cached meter keeps minting working instruments.
+        again.CreateCounter<long>("orders").Add(2);
+
+        factory.GetMeasurements<long>("orders").Select(m => m.Value)
+            .Should().Equal(1L, 2L);
+    }
 }
