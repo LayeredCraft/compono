@@ -1,5 +1,7 @@
 using Compono;
 using Compono.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Compono.Logging.AotSmokeTest;
@@ -48,10 +50,15 @@ internal static class Program
             if (direct.GetCapturedEntries().Count != 1)
                 throw new InvalidOperationException("Expected direct construction to capture independently.");
 
+            VerifyHostWideCapture();
+            VerifyCategoryParityUnderAot();
+            VerifyProviderAliasRuleUnderAot();
+
             Console.WriteLine(
                 "PASS: UseLogging()-composed ILogger<OrderService> (generator-discovered activation), " +
-                "structured-property capture, Verify(), and direct CapturingLogger<T> construction " +
-                "all survived Native AOT through the packaged Compono.Logging dependency chain.");
+                "structured-property capture, Verify(), direct CapturingLogger<T> construction, and " +
+                "Generic Host AddComponoCapture/LogCollector host-wide capture all survived Native AOT " +
+                "through the packaged Compono.Logging dependency chain.");
             return 0;
         }
         catch (Exception ex)
@@ -59,5 +66,82 @@ internal static class Program
             Console.WriteLine($"FAIL: {ex}");
             return 1;
         }
+    }
+
+    private static void VerifyHostWideCapture()
+    {
+        var collector = new LogCollector();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Host.Smoke");
+
+        using (logger.BeginScope("SmokeScope"))
+            logger.LogWarning("host-wide {OrderId}", 42);
+
+        if (collector.GetCapturedEntries().Count != 1)
+            throw new InvalidOperationException($"Expected exactly 1 host-captured entry, got {collector.GetCapturedEntries().Count}.");
+
+        var entry = collector.GetLastCapturedEntry()!.Value;
+        if (entry.Category != "Host.Smoke")
+            throw new InvalidOperationException($"Expected Host.Smoke category, got '{entry.Category}'.");
+
+        if (entry.LogLevel != LogLevel.Warning)
+            throw new InvalidOperationException($"Expected Warning, got {entry.LogLevel}.");
+
+        if (entry.Properties is null || entry.Properties[0].Value is not int orderId || orderId != 42)
+            throw new InvalidOperationException("Expected a structured OrderId property with value 42.");
+
+        if (entry.Scopes.Count != 1 || !Equals(entry.Scopes[0], "SmokeScope"))
+            throw new InvalidOperationException("Expected the host-captured entry to carry its scope.");
+
+        collector.Verify().InCategory("Host.Smoke").AtLevelOrAbove(LogLevel.Warning).Once();
+        collector.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+    }
+
+    private static void VerifyProviderAliasRuleUnderAot()
+    {
+        // ADR-0071 Amendment 2: the logging framework resolves [ProviderAlias("Compono")] by the
+        // attribute's full type name via CustomAttributeData - prove that metadata survives Native
+        // AOT and a Logging:Compono:* rule actually filters the Compono provider.
+        var collector = new LogCollector();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Logging:Compono:LogLevel:Default"] = "Error";
+        builder.Logging.ClearProviders();
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Alias.Smoke");
+
+        logger.LogWarning("below the Compono alias minimum");
+        logger.LogError("meets the Compono alias minimum");
+
+        var entries = collector.GetCapturedEntries();
+        if (entries.Count != 1 || entries[0].LogLevel != LogLevel.Error)
+            throw new InvalidOperationException(
+                $"Expected the Logging:Compono rule to keep only the Error entry, got {entries.Count} entries.");
+    }
+
+    private static void VerifyCategoryParityUnderAot()
+    {
+        // Compare against the real LoggerFactory's own category, never a hard-coded string - this
+        // proves LoggerCategoryName's trim-safe naming matches the BCL under Native AOT.
+        var collector = new LogCollector();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+        var factory = host.Services.GetRequiredService<ILoggerFactory>();
+
+        factory.CreateLogger<OrderService>().LogInformation("factory category");
+        var factoryCategory = collector.GetLastCapturedEntry()!.Value.Category;
+
+        var direct = new CapturingLogger<OrderService>();
+        direct.LogInformation("direct category");
+        var directCategory = direct.GetCapturedEntries()[0].Category;
+
+        if (!string.Equals(factoryCategory, directCategory, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Category parity failed: factory '{factoryCategory}' vs direct '{directCategory}'.");
     }
 }

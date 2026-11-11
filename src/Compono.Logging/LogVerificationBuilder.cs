@@ -13,17 +13,39 @@ namespace Compono.Logging;
 /// </summary>
 public sealed class LogVerificationBuilder
 {
-    private readonly LogEntryCollector _collector;
+    private readonly ILogEntrySource _entrySource;
     private readonly List<(string Description, Func<CapturedLogEntry, bool> Predicate)> _filters = [];
 
-    internal LogVerificationBuilder(LogEntryCollector collector)
+    internal LogVerificationBuilder(ILogEntrySource entrySource)
     {
-        _collector = collector;
+        _entrySource = entrySource;
     }
 
     /// <summary>Restricts matches to entries logged at exactly <paramref name="level"/>.</summary>
     public LogVerificationBuilder AtLevel(LogLevel level) =>
         Add($"level {level}", entry => entry.LogLevel == level);
+
+    /// <summary>
+    /// Restricts matches to entries logged at <paramref name="level"/> or any more severe level
+    /// (e.g. <c>AtLevelOrAbove(LogLevel.Error)</c> matches Error and Critical). A captured entry is
+    /// never <see cref="LogLevel.None"/>, and neither is <see cref="LogLevel.None"/> ever treated as
+    /// "above" anything, so <c>AtLevelOrAbove(LogLevel.None)</c> matches nothing.
+    /// </summary>
+    public LogVerificationBuilder AtLevelOrAbove(LogLevel level) =>
+        Add($"level {level} or above", entry => entry.LogLevel != LogLevel.None && entry.LogLevel >= level);
+
+    /// <summary>
+    /// Restricts matches to entries whose <see cref="CapturedLogEntry.Category"/> is exactly
+    /// <paramref name="category"/> (ordinal, case-sensitive - use <see cref="Matching"/> for a prefix
+    /// or wildcard match).
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="category"/> is <see langword="null"/>.</exception>
+    public LogVerificationBuilder InCategory(string category)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        return Add($"category \"{category}\"", entry => string.Equals(entry.Category, category, StringComparison.Ordinal));
+    }
 
     /// <summary>Restricts matches to entries logged with exactly <paramref name="eventId"/>.</summary>
     public LogVerificationBuilder WithEventId(EventId eventId) =>
@@ -75,7 +97,7 @@ public sealed class LogVerificationBuilder
 
     private CallVerifier ToCallVerifier()
     {
-        var entries = _collector.GetEntries();
+        var entries = _entrySource.GetEntries();
         var matchCount = 0;
         foreach (var entry in entries)
         {

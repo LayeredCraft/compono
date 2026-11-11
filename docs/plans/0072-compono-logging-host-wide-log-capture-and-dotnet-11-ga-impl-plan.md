@@ -1,6 +1,6 @@
 # [PLAN-0072] `Compono.Logging` Host-Wide Log Capture (Issue #164) + .NET 11 GA Migration
 
-**Status:** In Progress
+**Status:** Done
 
 **Implements:** [ADR-0071](../adr/0071-compono-logging-host-wide-log-capture.md)
 (issue [#164](https://github.com/LayeredCraft/compono/issues/164), child of
@@ -9,8 +9,9 @@
 ADR-0071 is **Accepted** (2026-11-10). The maintainer approved ADR-0071 and
 this plan, including the review-round-1 clarifications in `768af68`, and
 B0 is closed. Architectural approval is complete. The accepted planning
-artifacts now live on `main` (merged via PR #175). Implementation has
-started: B1 (PR 1, .NET 11 GA) is in progress.
+artifacts now live on `main` (merged via PR #175). Implementation is
+complete: B1 (.NET 11 GA, PR #176) merged, and B2-B7 (host-wide log capture)
+are implemented and validated on `feat/164-host-wide-log-capture`.
 
 ## Goal
 
@@ -206,7 +207,7 @@ this plan's Notes. Tick B1.
 - [x] B1.2 net11.0 package ranges (`Directory.Packages.props`)
 - [x] B1.3 Current-state docs sweep (confirm or fix)
 - [x] B1.4 Full validation (V1, V3, V6, V7, V8) on 11.0.100, results recorded in Notes
-- [ ] B1.5 PR 1 merged
+- [x] B1.5 PR 1 merged
 
 ---
 
@@ -273,11 +274,11 @@ added to the not-a-capturing-logger message),
 and `test/Compono.Generators.Tests`' logging tests green (activation
 unchanged).
 
-- [ ] B2.1 `Category` + shared entry construction refactor
-- [ ] B2.2 MEL-parity category naming
-- [ ] B2.3 `AtLevelOrAbove` / `InCategory`
-- [ ] B2.4 Exception-message sentence
-- [ ] B2.5 Tests above, focused suites green
+- [x] B2.1 `Category` + shared entry construction refactor
+- [x] B2.2 MEL-parity category naming
+- [x] B2.3 `AtLevelOrAbove` / `InCategory`
+- [x] B2.4 Exception-message sentence
+- [x] B2.5 Tests above, focused suites green
 
 ### B3: `LogCollector`, internal provider, `AddComponoCapture`
 
@@ -340,11 +341,11 @@ these never reach a `.nuspec`.
 on all TFMs, and no new `PackageReference` in the shipped project
 (`git diff src/Compono.Logging/Compono.Logging.csproj` shows none).
 
-- [ ] B3.1 `LogCollector`
-- [ ] B3.2 Internal provider/logger (`ISupportExternalScope`, `[ProviderAlias("Compono")]`)
-- [ ] B3.3 `AddComponoCapture` with the cardinality rules
-- [ ] B3.4 Test-only package wiring
-- [ ] B3.5 Core host tests green
+- [x] B3.1 `LogCollector`
+- [x] B3.2 Internal provider/logger (`ISupportExternalScope`, `[ProviderAlias("Compono")]`)
+- [x] B3.3 `AddComponoCapture` with the cardinality rules
+- [x] B3.4 Test-only package wiring
+- [x] B3.5 Core host tests green
 
 ### B4: edge cases, concurrency, isolation, negative tests
 
@@ -394,10 +395,10 @@ only to fix defects these tests reveal (note any in Notes).
 **Acceptance:** `dotnet test test/Compono.Logging.Tests` green; then
 **full** `dotnet build && dotnet test` green (the first full run on PR 2).
 
-- [ ] B4.1 Cardinality + disposal
-- [ ] B4.2 Isolation + bounded concurrency
-- [ ] B4.3 Separation, host-logger misuse, activity scopes, exceptions
-- [ ] B4.4 Full suite green
+- [x] B4.1 Cardinality + disposal
+- [x] B4.2 Isolation + bounded concurrency
+- [x] B4.3 Separation, host-logger misuse, activity scopes, exceptions
+- [x] B4.4 Full suite green
 
 ### B5: Native AOT + package compatibility
 
@@ -429,9 +430,9 @@ assertion is missing for `Compono.Logging`).
 **Acceptance:** V3 (Logging leg), V5, V6, V7 pass, with results recorded in
 Notes.
 
-- [ ] B5.1 AOT smoke test extended, publish clean, binary passes
-- [ ] B5.2 Pack-and-consume
-- [ ] B5.3 ApiCompat + nuspec dependency check
+- [x] B5.1 AOT smoke test extended, publish clean, binary passes
+- [x] B5.2 Pack-and-consume
+- [x] B5.3 ApiCompat + nuspec dependency check
 
 ### B6: docs, examples, API reference, `compono` skill
 
@@ -478,10 +479,10 @@ Notes.
 regeneration, V8 passes, every relative link resolves, and the docs
 describe only shipped behavior.
 
-- [ ] B6.1 Package doc + recipe + troubleshooting
-- [ ] B6.2 API reference regenerated
-- [ ] B6.3 Skill reference + evals
-- [ ] B6.4 Link and validation checks
+- [x] B6.1 Package doc + recipe + troubleshooting
+- [x] B6.2 API reference regenerated
+- [x] B6.3 Skill reference + evals
+- [x] B6.4 Link and validation checks
 
 ### B7: final integration and release-readiness gate
 
@@ -514,9 +515,9 @@ and B4, B5, and B6 done.
 - Set PLAN-0072 to `Done`, tick all tasks, and close the beads. The PR
   references #164 (it closes #164, not #161).
 
-- [ ] B7.1 Full validation green
-- [ ] B7.2 Acceptance-criteria cross-check table in Notes
-- [ ] B7.3 Plan closeout, PR 2 opened with product-owner approval
+- [x] B7.1 Full validation green
+- [x] B7.2 Acceptance-criteria cross-check table in Notes
+- [x] B7.3 Plan closeout, PR 2 opened with product-owner approval (PR #177)
 
 ### B0: product-owner acceptance (precedes everything)
 
@@ -655,3 +656,175 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   - Preview/RC grep: the only tracked match outside `docs/adr`, `docs/research`,
     `docs/plans`, `docs/reference/api` is the intentional RC.1 history line in
     `package-validation.yaml`.
+
+- 2026-11-11 (B2-B6 implementation, branch `feat/164-host-wide-log-capture`):
+  - Source: `CapturedLogEntry.Category`; one shared entry-construction path
+    (`LogEntryFactory`) used by both `LogEntryCollector` and the host
+    provider; `LoggerCategoryName` reproduces MEL's
+    `TypeNameHelper.GetTypeDisplayName` result without reflection beyond
+    trim-safe `Type` name properties; `LogCollector` +
+    `ComponoLoggingBuilderExtensions.AddComponoCapture`; internal
+    `ComponoLogCollectorProvider`/`ComponoLogCollectorLogger` with
+    `ISupportExternalScope`; `AtLevelOrAbove` + `InCategory` on
+    `LogVerificationBuilder` via the internal `ILogEntrySource` seam.
+    Registration is idempotent per collector instance without
+    `TryAddEnumerable`, so two distinct collectors on one builder each get
+    a provider.
+  - `ProviderAliasAttribute` availability correction: it is in
+    `Logging.Abstractions` only for net10.0/net11.0, not net8.0/net9.0.
+    The attribute is compiled under `#if NET10_0_OR_GREATER`, the shipped
+    dependency graph is unchanged, and the alias config rule is tested
+    only on net10/net11. Recorded as ADR-0071 Amendment 1 (2026-11-11).
+  - Tests: `test/Compono.Logging.Tests` 514 passed / 0 failed across
+    net8.0/net9.0/net10.0/net11.0. New coverage: MEL category parity
+    against a real `LoggerFactory` probe (including nested, closed and
+    multi-argument generics, global-namespace, built-in and array
+    categories), equality regression for `Category`, both new filters and
+    their failure text, the provider's fallback scope source, real Generic
+    Host capture (arbitrary/container categories, host lifetime, every
+    entry field, `[LoggerMessage]`, scopes across `await`, sibling-task
+    isolation, activity scopes), host filtering (default
+    Information minimum, `SetMinimumLevel`, `AddFilter`, net10+ alias),
+    cardinality, disposal (post-dispose loggers disabled, entries remain
+    readable, `Clear` still works, double dispose safe, two-host
+    independence), isolation, and bounded concurrency (including multi-category
+    writes racing reads and clears).
+  - Validation (B7): `dotnet build Compono.slnx -c Release` 0 warnings /
+    0 errors; `dotnet test Compono.slnx -c Release --no-build` 7057
+    total, 0 failed, 6556 succeeded, 501 skipped.
+  - AOT (V3 logging leg): pack-and-publish `net10.0`/`osx-arm64`
+    `PublishAot=true` binary passed, host-wide capture and category
+    parity assertions included, and the publish emitted zero IL2xxx/
+    IL3xxx warnings. `verify-packaging.sh` passed.
+  - ApiCompat (V6): packed `Compono.Logging` against
+    `1.4.0-preview.125` (current nuget.org latest) with no `CP` errors;
+    only additions. Packed nuspec dependency groups are identical to that
+    baseline package's groups (V7), and
+    `inspect-packed-nupkgs.tests.sh` passed.
+  - API reference regenerated with `.github/scripts/generate-api-reference.sh`;
+    post-generation status contains only the intended new/changed
+    `Compono.Logging` pages. Skill validation: `evals.json` parses (62
+    evals) and skill-creator `quick_validate.py` reports "Skill is valid!".
+  - Docs: `docs/packages/compono-logging.md` host-wide section (Category,
+    filters, host filtering, separate destinations, ownership/cardinality,
+    activity scopes, intentional equality change);
+    `docs/how-to/assert-nothing-logged-at-error-across-a-host.md` (nav +
+    index + documentation architecture); troubleshooting entries for
+    host `ILogger<T>` `Verify()` and missing Debug entries;
+    `skills/compono/references/logging.md` + `SKILL.md`; two new evals.
+  - PR 2: #177 (`feat/164-host-wide-log-capture`). Release-note line for the
+    v1.4.0 draft author (not edited here):
+    "`Compono.Logging`: `CapturedLogEntry` equality now includes the new
+    `Category` property. This is a behavioral change to value equality,
+    not a source or binary breaking change."
+  - Acceptance criteria cross-check for #164:
+
+    | # | Criterion | Evidence |
+    |---|---|---|
+    | 1 | Host-created loggers of any category captured | `HostLogCaptureTests` arbitrary/container/lifetime categories; AOT host smoke |
+    | 2 | Category + existing fields exposed | `CapturedLogEntry.Category`; `HostLogCaptureTests` field assertions |
+    | 3 | Existing `Verify()` vocabulary + level threshold | `AtLevelOrAbove`/`InCategory` tests; headline Generic Host test |
+    | 4 | Composed capture unchanged | Existing suite unchanged; category parity and separation tests |
+    | 5 | Host/composed relationship documented | ADR-0071; package doc "Host vs. composed"; logging skill |
+    | 6 | No new package dependency | `Compono.Logging.csproj` unchanged; packed dependency groups identical |
+    | 7 | Native AOT/trimming retained | `IsAotCompatible` unchanged; AOT smoke publish zero IL warnings |
+- 2026-11-11 (independent review follow-up, PR #177): addressed review
+  findings by fixing the test csproj comment placement and stale amendment
+  count, marking the provider scope field `volatile`, documenting the
+  deliberate `!` uses in `LoggerCategoryName`, renaming the alias test to
+  describe what it proves, and adding tests for the provider fallback scope
+  source, multi-argument generic and nested global-namespace categories,
+  `InCategory("")` on a bare logger, and multi-category writes racing reads
+  and clears. Re-ran focused logging tests (514 passed/0 failed per TFM),
+  full build 0/0, full suite 7057 total/0 failed, and the AOT logging leg
+  (PASS, zero IL warnings).
+
+- 2026-11-11 (independent review remediation, PR #177): a second review round
+  raised seven findings; disposition below. Nothing here is merged yet — PR
+  #177 is still open for maintainer review.
+
+  - **F1 — confirmed registration defect (fixed).** Registering a collector,
+    calling `ClearProviders()`, then registering the *same* collector silently
+    stopped capturing: the old per-collector guard relied on a separate
+    registration-marker descriptor that `ClearProviders()` does not remove, so
+    the re-registration was treated as a duplicate while its provider was gone.
+    Fix: `ComponoCaptureRegistration` is no longer a standalone marker service;
+    it now exposes an instance method whose delegate target *is* the live
+    registration, and `IsAlreadyRegistered` scans the current
+    `ILoggerProvider` descriptors for that factory target (identity by
+    collector reference). Regression tests added to
+    `test/Compono.Logging.Tests/LogCollectorRegistrationTests.cs`:
+    `ClearProvidersThenReRegisteringTheSameCollector_StillCaptures`,
+    `ClearProvidersThenReRegisteringTwice_StaysIdempotent`,
+    `ClearProvidersThenRegisteringADifferentCollector_OnlyTheNewCollectorCaptures`,
+    `SameCollectorOnIndependentServiceCollections_IsNotTreatedAsADuplicate`.
+  - **F2 — provider-alias availability (fixed, ADR-0071 Amendment 2).** The
+    `Compono` provider alias was unavailable on net8.0/net9.0 because
+    `ProviderAliasAttribute` only exists in `Logging.Abstractions` for
+    net10.0+. The attribute is now applied unconditionally and an internal
+    same-full-name copy (`src/Compono.Logging/ProviderAliasAttribute.cs`, under
+    `#if !NET10_0_OR_GREATER`) is compiled for the older TFMs; MEL resolves the
+    alias by full type name, so the copy is honored. No new package
+    dependencies; `CS0436` is promoted to an error in
+    `Compono.Logging.csproj` so a consumer-visible type collision cannot slip
+    through. Recorded as ADR-0071 Amendment 2 (2026-11-11); Amendment 1's
+    historical text is unchanged.
+  - **F3/F4/F5/F6 — documentation corrections.** `InCategory` is exact
+    ordinal full-type-name matching, *not* prefix matching like `AddFilter`
+    (so `.InCategory("Payments")` matches nothing in a real host; use
+    `.Matching(e => e.Category.StartsWith(...))` for namespaces). `Never()`'s
+    failure message names the filters and match count but does **not** include
+    the matching entries. A shared `WebApplicationFactory` collector retains
+    entries across tests until explicitly cleared. A third-party
+    `ILoggerFactory` replacement (or a post-registration `ClearProviders()`)
+    can bypass the registered `ILoggerProvider`s and yield an empty capture.
+    Updated `docs/packages/compono-logging.md`,
+    `docs/how-to/assert-nothing-logged-at-error-across-a-host.md`,
+    `docs/troubleshooting/common-errors.md` + `index.md`,
+    `skills/compono/references/logging.md`, and evals #63/#64.
+  - **F7 — deferred.** AOT warnings are not universally promoted to errors in
+    this repo (a pre-existing repo-wide policy gap, not specific to this PR).
+    Left out of scope here.
+  - Validation: `dotnet build Compono.slnx -c Release` 0 warnings/0 errors;
+    full suite green (7087 total, 0 failed, 6586 succeeded, 501 skipped) with
+    the focused logging suite at 544/0. ApiCompat (V6): `Compono.Logging`
+    packs against the `1.4.0-preview.125` baseline with no `CP` errors
+    (additions only). V7 packed-nupkg inspection passes and the packed
+    dependency groups are unchanged. Pack-and-consume (F2): a multi-target
+    (`net8.0;net9.0;net10.0;net11.0`) consumer restored from a local feed
+    packed from this worktree (sha512 verified) builds 0/0 with `CS0436`/
+    `CS0104` as errors and runs on every TFM — `Logging:Compono:LogLevel:Default`
+    filters the Compono provider, an unrelated provider is unaffected, and a
+    consumer-defined `ProviderAliasAttribute` use compiles unambiguously.
+    AOT for the net8.0/net9.0 legs (not covered by CI's net10.0-only publish)
+    was verified locally: `PublishAot` osx-arm64 binaries built with zero
+    IL2xxx/IL3xxx warnings and ran, honoring the alias.
+
+- 2026-11-11 (review round 2 corrections, PR #177): Claude's second read-only
+  review approved with two non-blocking follow-ups, both addressed. Still open
+  for maintainer review; not merged.
+
+  - Capture sanity-check docs: `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)`
+    is only valid for a Generic Host running its default lifetime. Under a
+    `WebApplicationFactory`/ASP.NET Core `TestHost` it is unreliable (different
+    host lifetime, and a shared fixture may clear startup entries between
+    tests), so it can fail even when capture is wired correctly. The
+    recommendation is now host-aware: keep the `Microsoft.Hosting.Lifetime`
+    assertion for a Generic Host, but for `WebApplicationFactory` assert a
+    deterministic application-owned entry emitted during the operation under
+    test. Updated the how-to, package guide, troubleshooting entry, and skill
+    logging reference; sharpened eval #63 and added eval #65.
+  - Keyed-provider regression: added
+    `KeyedProviderDescriptorPresent_DoesNotBreakRegistrationOrCapture` (a keyed
+    `ILoggerProvider` plus `AddComponoCapture` must still capture and must not
+    throw) and verified it on net8.0/net9.0/net10.0/net11.0. While proving it,
+    found the `IsAlreadyRegistered` comment was wrong: on supported runtimes a
+    keyed descriptor's `ImplementationFactory` is `null`, not throwing (it is
+    `KeyedImplementationFactory` that throws on a non-keyed descriptor), so the
+    `!IsKeyedService` guard is defense in depth rather than a throw guard. The
+    guard stays; its comment and the test comment were corrected to match.
+  - Validation: `dotnet build Compono.slnx -c Release` 0/0; `test/Compono.Logging.Tests`
+    548 passed/0 failed (137 per TFM); full suite 7091 total/0 failed/6590
+    succeeded/501 skipped; `mkdocs build --clean --strict` exit 0; API reference
+    no drift; `evals.json` parses (65 evals) and `quick_validate.py` reports
+    valid. No package/AOT-affecting change, so those gates were not re-run.

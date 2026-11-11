@@ -4,12 +4,14 @@ namespace Compono.Logging;
 
 /// <summary>
 /// Owns the actual capture state behind one <see cref="CapturingLogger"/>/<see cref="CapturingLogger{T}"/>
-/// instance - a lock-guarded entry list, one <see cref="LoggerExternalScopeProvider"/>, and the
-/// effective <see cref="LoggingOptions.MinimumLevel"/> fixed at construction. Internal - never
-/// referenced directly by a consumer; reached only through the two public logger types and
-/// <see cref="LoggerTestingExtensions"/>. See docs/adr/0055-compono-logging-testing-support-package.md.
+/// instance - a lock-guarded entry list and one <see cref="LoggerExternalScopeProvider"/>, with the
+/// effective <see cref="LoggingOptions.MinimumLevel"/> fixed at construction and the category computed
+/// once. Internal - never referenced directly by a consumer; reached only through the two public logger
+/// types and <see cref="LoggerTestingExtensions"/>. See
+/// docs/adr/0055-compono-logging-testing-support-package.md and
+/// docs/adr/0071-compono-logging-host-wide-log-capture.md.
 /// </summary>
-internal sealed class LogEntryCollector
+internal sealed class LogEntryCollector : ILogEntrySource
 {
     // A plain object lock, not System.Threading.Lock - this project multi-targets net8.0, which
     // predates that type (introduced in .NET 9).
@@ -17,10 +19,12 @@ internal sealed class LogEntryCollector
     private readonly List<CapturedLogEntry> _entries = [];
     private readonly LoggerExternalScopeProvider _scopeProvider = new();
     private readonly LogLevel _minimumLevel;
+    private readonly string _category;
 
-    public LogEntryCollector(LoggingOptions? options)
+    public LogEntryCollector(LoggingOptions? options, string category)
     {
         _minimumLevel = (options ?? new LoggingOptions()).MinimumLevel;
+        _category = category;
     }
 
     /// <summary>
@@ -47,20 +51,8 @@ internal sealed class LogEntryCollector
         if (!IsEnabled(logLevel))
             return;
 
-        var message = formatter(state, exception);
-        var (properties, messageTemplate) = ExtractStructuredState(state);
-        var scopes = SnapshotScopes();
-
-        var entry = new CapturedLogEntry(
-            logLevel,
-            eventId,
-            exception,
-            message,
-            state,
-            properties,
-            messageTemplate,
-            scopes,
-            DateTimeOffset.UtcNow);
+        var scopes = LogEntryFactory.SnapshotScopes(_scopeProvider);
+        var entry = LogEntryFactory.Create(_category, logLevel, eventId, state, exception, formatter, scopes);
 
         lock (_lock)
         {
@@ -94,37 +86,5 @@ internal sealed class LogEntryCollector
         {
             _entries.Clear();
         }
-    }
-
-    // Reflection-free: a single pattern match against the interface both the compiler-generated
-    // FormattedLogValues (an ordinary LogInformation(...) call) and the shared LoggerMessageState
-    // (every [LoggerMessage] source-generated call site) satisfy identically - confirmed empirically
-    // during RESEARCH-0013's pre-ADR validation spike, no special-casing needed for either style.
-    private static (IReadOnlyList<KeyValuePair<string, object?>>? Properties, string? MessageTemplate) ExtractStructuredState<TState>(TState state)
-    {
-        if (state is not IReadOnlyList<KeyValuePair<string, object>> pairs)
-            return (null, null);
-
-        var properties = new KeyValuePair<string, object?>[pairs.Count];
-        string? messageTemplate = null;
-        for (var i = 0; i < pairs.Count; i++)
-        {
-            var pair = pairs[i];
-            properties[i] = new KeyValuePair<string, object?>(pair.Key, pair.Value);
-            if (pair.Key == "{OriginalFormat}")
-                messageTemplate = pair.Value as string;
-        }
-
-        return (properties, messageTemplate);
-    }
-
-    private object[] SnapshotScopes()
-    {
-        var scopes = new List<object>();
-        // ForEachScope's callback parameter is annotated `object?` even though a real scope value can
-        // never actually be null (BeginScope<TState> requires `TState : notnull`) - the null-forgiving
-        // operator here reflects that guarantee, not a genuine possible-null case.
-        _scopeProvider.ForEachScope(static (scope, state) => state.Add(scope!), scopes);
-        return [.. scopes];
     }
 }

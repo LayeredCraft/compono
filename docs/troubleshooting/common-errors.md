@@ -292,6 +292,69 @@ and never a `CMP` code — for four distinct situations:
   '...', which is not a '...'.`** — the lookup returned a value of the wrong
   type (only possible with a non-xUnit `ITestContext` implementation).
 
+### "`Verify()` on a host `ILogger<T>` throws"
+
+A logger resolved from a host's `IServiceProvider` is the host's own
+`ILogger<T>` implementation, not a Compono capturing logger. `Verify()` and
+the other `LoggerTestingExtensions` members require a logger produced by
+`UseLogging()` or a directly constructed `CapturingLogger`/
+`CapturingLogger<T>`, so they throw:
+
+```text
+'Microsoft.Extensions.Logging.Logger<...>' is not a Compono.Logging capturing logger. ...
+```
+
+Host-wide capture is a **separate destination** from per-logger capture in
+v1: register a `LogCollector` on the host's logging pipeline with
+`AddComponoCapture()`, then call `Verify()`/`GetCapturedEntries()` on the
+collector instead of on the host logger. See
+[Host-wide capture](../packages/compono-logging.md#host-wide-capture-with-logcollector-and-addcomponocapture)
+and [How Do I Assert Nothing Logged at Error or Above Across a Generic
+Host?](../how-to/assert-nothing-logged-at-error-across-a-host.md).
+
+### "Debug entries are missing from `LogCollector`"
+
+The collector does not override the host's filter rules. A Generic Host's
+default minimum level is `Information`, so `Debug` and `Trace` entries are
+filtered out before they reach any provider, including Compono's. Lower the
+host minimum when the test needs them:
+
+```csharp
+builder.Logging.SetMinimumLevel(LogLevel.Trace);
+```
+
+The same happens when a configured category rule or `AddFilter` excludes
+the category. To target only the Compono provider, use its `Compono`
+alias, for example `Logging:Compono:LogLevel:Default` — this works on every
+supported target framework.
+
+### "`Never()` passes but the host clearly logged an error"
+
+`Never()` passes whenever no captured entry matches, including when the
+filter matches nothing or the collector captured nothing at all:
+
+- **`InCategory` was given a prefix or short name.** It is an exact match
+  on the full category (normally the `ILogger<T>` type's full name), unlike
+  `AddFilter`/`Logging:LogLevel:*` rules, which match by prefix. Use the
+  full name, or
+  `.Matching(entry => entry.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal))`.
+- **The host replaced `ILoggerFactory`.** A logging library that swaps in
+  its own factory and ignores registered providers — for example Serilog's
+  `UseSerilog()` without `writeToProviders: true` — never calls the
+  Compono provider.
+- **The provider was removed after registration.** Application code that
+  calls `ClearProviders()` after the test's `AddComponoCapture` removes it.
+  Register the collector after that code runs (for `WebApplicationFactory`,
+  in `ConfigureWebHost`).
+
+Check that the collector captured something a host of this kind logs. On a
+Generic Host with its default lifetime,
+`logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)` after
+`StartAsync` confirms capture. Under a `WebApplicationFactory`/ASP.NET Core
+`TestHost`, assert a deterministic entry your own code emits during the
+operation under test instead — `TestHost` runs a different host lifetime,
+and a shared fixture may clear startup entries between tests.
+
 ### "Two composed parameters of the same type aren't the same instance"
 
 That's the default — composition is independent per parameter unless you

@@ -61,6 +61,9 @@ public static class LoggerTestingExtensions
             "wins for a given request. (UseGeneratedTestDoubles() ordering is not the cause: when " +
             "ComponoGeneratedLogging is enabled, ILogger/ILogger<T> are excluded from " +
             "Compono.TestDoubles generation entirely, so it has no generated double to offer for " +
-            "these types regardless of order.)");
+            "these types regardless of order.) If this ILogger came from a host's IServiceProvider " +
+            "(for example a container-resolved ILogger<T>), capture host-wide output with a " +
+            "LogCollector registered via AddComponoCapture() and call Verify()/GetCapturedEntries() " +
+            "on the collector instead.");
     }
 }

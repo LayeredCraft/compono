@@ -510,6 +510,87 @@ the pointer.
 - **Option 3.** Good: no surface. Bad: the scenario's headline assertion
   reads as a lambda with an opaque failure message.
 
+### Amendment 1 (2026-11-11) — `[ProviderAlias]` availability is net10.0+ only
+
+Implementation (PLAN-0072 B2/B3) found that the "Package identity and
+dependency graph" fact above — that `ProviderAliasAttribute` is available
+from `Microsoft.Extensions.Logging.Abstractions` alone — holds only on
+net10.0/net11.0. On net8.0/net9.0 the attribute lives in the concrete
+`Microsoft.Extensions.Logging` implementation package, which this package
+must not reference (the shipped graph above stays Abstractions-only, and
+B7 requires the packed dependency groups to remain byte-for-byte identical
+to `main`). Unconditional use failed to compile on net8/net9 with
+`CS0246: ProviderAliasAttribute could not be found`.
+
+Resolution: the `[ProviderAlias("Compono")]` attribute on the internal
+provider is compiled only under `NET10_0_OR_GREATER`. Consequences,
+unchanged in intent but now explicitly version-scoped:
+
+- The `Logging:Compono:LogLevel` provider-specific filter rule works on
+  net10.0/net11.0; tests covering it are `#if NET10_0_OR_GREATER`.
+- On net8.0/net9.0, consumers use the global host minimum
+  (`SetMinimumLevel`) or category `AddFilter` rules instead.
+- Host-wide capture, `LogCollector`, filtering, ownership/disposal, and
+  every other decision in this ADR are unaffected on all four TFMs.
+
+No public API or dependency changes.
+
+### Amendment 2 (2026-11-11) — the `Compono` alias works on every target framework
+
+Independent review of PR #177 found that Amendment 1's premise was
+imprecise and its conclusion unnecessary. This amendment corrects it;
+Amendment 1's text stays as recorded.
+
+**Corrected facts** (verified against the restored packages and by
+experiment):
+
+- Availability tracks the **Abstractions package version**, not the
+  target framework. `ProviderAliasAttribute` is absent from every lib
+  asset of `Microsoft.Extensions.Logging.Abstractions` 8.0.2 and 9.0.23,
+  and present in every lib asset (including `lib/net8.0`) of 10.0.15 and
+  11.0.0. Amendment 1's `NET10_0_OR_GREATER` split only lined up with
+  that because this package pins Abstractions to the 8.x/9.x line on
+  net8.0/net9.0 (`Directory.Packages.props`).
+- `Microsoft.Extensions.Logging` resolves a provider's alias **by the
+  attribute's full type name** (`CustomAttributeData`, comparing
+  `"Microsoft.Extensions.Logging.ProviderAliasAttribute"`), not by type
+  identity. A locally defined attribute with that exact full name is
+  honored; the same simple name in another namespace is not.
+- Consequence of Amendment 1 as shipped on net8.0/net9.0:
+  `Logging:Compono:*` rules were silently ignored, while
+  `Logging:Compono.Logging.ComponoLogCollectorProvider:*` (the internal
+  type's full name) did work — an accidental configuration surface.
+
+**Decision:** keep `[ProviderAlias("Compono")]` unconditional. On
+net8.0/net9.0 (`#if !NET10_0_OR_GREATER`) the package compiles an
+**internal** `Microsoft.Extensions.Logging.ProviderAliasAttribute` with the
+framework attribute's exact full name and constructor shape; on
+net10.0/net11.0 the real attribute from Abstractions is used and the copy
+compiles to nothing.
+
+**Verified before adopting it:**
+
+- Recognition: `Logging:Compono:LogLevel:*` (default and category-prefix
+  rules) applies to the Compono provider and not to other providers, under
+  a real Generic Host, in `Compono.Logging.Tests` on all four TFMs.
+- No new dependencies: the project file and packed dependency groups are
+  unchanged.
+- No type-identity collision: the copy is internal, so consumers never see
+  it. A net8.0/net9.0 consumer that references both Compono.Logging and
+  `Microsoft.Extensions.Logging` and applies the public
+  `[ProviderAlias(...)]` to its own provider compiles with warnings as
+  errors and binds to the public attribute. If an Abstractions 10.x+
+  reference ever reached net8.0/net9.0, the compiler would flag the
+  duplicate (CS0436), which `Compono.Logging.csproj` promotes to an error,
+  instead of changing behavior silently.
+- Native AOT: that consumer, published with `PublishAot=true` for net8.0
+  and net9.0, produced no IL2xxx/IL3xxx warnings and honored the alias at
+  runtime. net10.0 keeps its existing `Compono.Logging.AotSmokeTest`
+  coverage.
+
+Public API, dependency graph, and every other decision in this ADR are
+unchanged. Documentation no longer carries a net8/net9 alias caveat.
+
 ## Links
 
 - Issue [#164](https://github.com/LayeredCraft/compono/issues/164); parent

@@ -3,7 +3,9 @@
 Only relevant if the project references `Compono.Logging`. `UseLogging()`
 composes `ILogger`/`ILogger<T>` as a hand-written `CapturingLogger`/
 `CapturingLogger<T>`, plus `CapturedLogEntry` and the fluent `Verify()`
-surface.
+surface. A test-owned `LogCollector` + `AddComponoCapture()` captures a
+real Generic Host's *host-wide* output (every category, including
+container-resolved `ILogger<T>` and framework logging).
 
 ```csharp
 using Compono;
@@ -37,6 +39,11 @@ structured properties, exception, or scope. Concrete signs: the test
 currently hand-rolls a fake `ILogger`, uses `NullLogger<T>.Instance` and
 therefore can't assert anything about logging, or manually
 `Register<ILogger<TSomething>>(...)`s a logger for one specific type.
+
+Also use it for host-wide assertions against a real Generic Host/
+`WebApplicationFactory` — "nothing logged at `Error` or above anywhere,"
+framework lifetime messages, a container-resolved `ILogger<T>` — via
+`LogCollector` + `AddComponoCapture()` (below).
 
 ## When NOT to use it
 
@@ -100,7 +107,8 @@ discovered.
   `Compono.TestDoubles`/`Compono.Http`'s own `Verify()` vocabulary exactly
   — never suggest a two-verb `VerifyLog()...Verify()` shape, that was
   explicitly considered and rejected):
-  `.AtLevel(level)`, `.WithEventId(id)`, `.WithException<TException>()`,
+  `.AtLevel(level)`, `.AtLevelOrAbove(level)`, `.InCategory(category)`,
+  `.WithEventId(id)`, `.WithException<TException>()`,
   `.WithMessageContaining(text)`, `.Matching(predicate)`, ending in
   `.Once()` / `.Never()` / `.Exactly(n)` / `.AtLeast(n)` / `.AtMost(n)` —
   each a thin forward through the same shared count-verification semantics
@@ -109,6 +117,82 @@ discovered.
 - `new CapturingLogger<T>(options?)` / `new CapturingLogger(options?)` —
   direct construction, no composition required, identical behavior to a
   provider-composed instance.
+
+## Host-wide capture — `LogCollector` + `AddComponoCapture`
+
+Composed loggers only see Compono-composed output. For a real Generic Host
+(or `WebApplicationFactory.ConfigureLogging`, or
+`services.AddLogging(...)`), register a test-owned collector:
+
+```csharp
+var logs = new LogCollector();
+var builder = Host.CreateApplicationBuilder();
+builder.Logging.ClearProviders();
+builder.Logging.AddComponoCapture(logs);
+using var host = builder.Build();
+
+logs.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+// One category: the ILogger<T> type's FULL name, matched exactly.
+logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("MyApp.Payments.PaymentGateway").Never();
+// A namespace: match the prefix explicitly.
+logs.Verify().AtLevelOrAbove(LogLevel.Error)
+    .Matching(e => e.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal)).Never();
+```
+
+Key semantics to get right:
+
+- `Category` is on every `CapturedLogEntry`. Host entries carry the exact
+  `ILoggerProvider.CreateLogger` string; composed/direct `CapturingLogger<T>`
+  matches `LoggerFactory.CreateLogger<T>()`; non-generic `CapturingLogger`
+  and a bare composed `ILogger` carry `""`. `InCategory` is exact, ordinal,
+  case-sensitive — **not** a prefix match, unlike the host's own
+  `AddFilter`/`Logging:LogLevel:*` rules. Never write
+  `InCategory("Payments")`/a namespace with `.Never()`: it matches nothing
+  and passes without checking anything. Use the full category name or
+  `.Matching(e => e.Category.StartsWith(...))`.
+- `Never()`'s failure text names the filters and the match count only
+  (`Expected exactly 0 call(s) to a log entry matching level Error or
+  above, but received 1.`); it does not list entries — read them with
+  `GetCapturedEntries()`.
+- **Behavioral change**: `Category` participates in the record's value
+  equality. Entries differing only by category are not equal. This is
+  intentional (ADR-0071), not a bug to "fix."
+- Host and composed capture are **separate destinations** in this release.
+  A container-resolved `ILogger<T>` is the host's logger: calling
+  `Verify()`/`GetCapturedEntries()` on it still throws
+  `InvalidOperationException`, now pointing at `LogCollector`/
+  `AddComponoCapture`. Never suggest forwarding host output into a composed
+  logger — it doesn't exist yet.
+- The host's own filters still apply: default minimum `Information` means
+  `Debug`/`Trace` are not captured; lower it with
+  `builder.Logging.SetMinimumLevel(LogLevel.Trace)` or `AddFilter`.
+  `AddComponoCapture` never changes filter rules. A
+  `Logging:Compono:LogLevel:*` provider-alias rule targets only the
+  Compono provider, on every supported TFM (net8.0–net11.0; ADR-0071
+  Amendment 2 — don't repeat the old "net10+ only" caveat).
+- The test owns the collector; the host owns the provider. Disposing the
+  host stops capture but never clears the collector — entries stay
+  readable and `ClearCapturedEntries()` still works. Registering the same
+  collector twice is idempotent (and re-registering after `ClearProviders()`
+  adds it back); different collectors each receive every entry; one
+  collector across hosts receives all (disposing one host stops only that
+  host).
+- No size limit: the collector keeps everything until
+  `ClearCapturedEntries()`. A `WebApplicationFactory`/class-fixture
+  collector is shared across tests — clear it at the start of each test.
+- Host scopes come from the host's shared scope provider, so a scope opened
+  on one host logger also appears on entries other categories log inside it.
+- A vacuous pass is the main risk: if the app replaces `ILoggerFactory`
+  (e.g. Serilog `UseSerilog()` without `writeToProviders: true`) or calls
+  `ClearProviders()` after the test's registration, nothing is captured
+  and `Never()` passes. Suggest a sanity assertion that the collector saw a
+  known entry. On a Generic Host with its default lifetime,
+  `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)` after
+  `StartAsync` works; under a `WebApplicationFactory`/ASP.NET Core
+  `TestHost`, prefer a deterministic entry the code under test emits
+  (don't rely on framework startup logging — `TestHost` runs a different
+  host lifetime and a shared fixture may clear startup entries between
+  tests).
 
 ## Structured properties and `MessageTemplate`
 
@@ -142,8 +226,11 @@ threshold is the whole v1 surface, don't invent a richer one.
 1. **Non-Compono.Logging `ILogger`** — `logger.Verify()`/etc. called on
    an `ILogger` that isn't a `CapturingLogger`/`CapturingLogger<T>`
    (`NullLogger<T>.Instance`, an NSubstitute substitute, a
-   `Compono.TestDoubles` double) → `InvalidOperationException` at the
-   call site. Usually means registration order is backwards (below).
+   `Compono.TestDoubles` double, or a container-resolved host
+   `ILogger<T>`) → `InvalidOperationException` at the call site. Usually
+   means registration order is backwards (below), or the logger came from
+   a host's `IServiceProvider` — then use `LogCollector`/
+   `AddComponoCapture` instead.
 2. **Missing generated activation at runtime** — `LoggingProvider`
    recognized a closed `ILogger<T>` request but no generator-discovered
    activation exists for that category → a *different*
@@ -218,11 +305,12 @@ belong in an ordinary composition/verification example.
 
 ## v1 boundaries — do not invent capability beyond these
 
-No `ILoggerFactory` composition, no Serilog/provider-specific behavior,
-no test-runner output capture/routing, no DI integration
-(`services.AddCompono...`-style), no cross-scope structured-property
-flattening/searching, no category-string constructor for the non-generic
-`CapturingLogger`, no dependency on
+No *composing/replacing* a host's `ILoggerFactory` (a host *provider*
+capturing into a `LogCollector` via `AddComponoCapture` **is** supported),
+no Serilog/provider-specific behavior, no test-runner output
+capture/routing, no DI-integration package beyond `AddComponoCapture`, no
+cross-scope structured-property flattening/searching, no category-string
+constructor for the non-generic `CapturingLogger`, no dependency on
 `Microsoft.Extensions.Diagnostics.Testing`. If asked whether one of these
 exists, say plainly that it doesn't rather than improvising a plausible-
 looking API.
