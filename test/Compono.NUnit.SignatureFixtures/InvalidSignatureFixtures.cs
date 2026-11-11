@@ -36,3 +36,4 @@ public static class InvalidSignatureFixtures
         public void Configure(CompositionBuilder builder) => builder.Register(() => Config.Value);
     }
 }
+

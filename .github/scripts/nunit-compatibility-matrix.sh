@@ -5,10 +5,22 @@
 # NUnit version leg against a freshly packed local Compono/Compono.NUnit, verifies the *resolved*
 # NUnit assembly version from the real obj/project.assets.json output (not merely the requested
 # PackageReference version - the exact discipline that caught the MSTest silent-upgrade near-miss,
-# RESEARCH-0017 §17/RESEARCH-0018 §18), then runs the identical build artifact under both classic
-# VSTest (`dotnet vstest`) and MTP (running the built executable directly) - RESEARCH-0018 §11's own
-# methodology, and the only reliable way found during this project's own development to exercise
-# both runners without a real regression (see the .csproj's own comment for the reproduced hazard).
+# RESEARCH-0017 §17/RESEARCH-0018 §18), then runs the build under both classic VSTest and MTP.
+#
+# The two runners need two *different* artifacts, not one artifact invoked two ways (see the .csproj
+# for the full history): an MTP-enabled assembly run through `dotnet vstest` on vstest.console 18.10
+# was silently auto-routed to MtpTestRuntimeProvider, making the classic leg a false green until
+# 18.11+ started selecting the true classic host. So each leg builds:
+#   - a non-MTP Library artifact (NUnitMatrixRunner=VSTest) run via `dotnet vstest <dll>`, which
+#     genuinely goes through the classic DotnetTestHostManager; and
+#   - an MTP Exe artifact (NUnitMatrixRunner=MTP, the project default) run as the built executable.
+# obj/bin are cleared between the two builds so neither reuses the other's intermediate/output state.
+#
+# Neither the artifact shape nor a version string is trusted on its own: each run sets
+# COMPONO_NUNIT_MATRIX_EXPECTED_HOST, and the matrix project's TestHostVerificationTests asserts the
+# host that actually executed the tests matches it, using a stable runtime signal (the process entry
+# assembly) rather than parsed console output. So the classic leg cannot silently degrade back to MTP
+# - if it did, that test would fail rather than quietly pass.
 #
 # Blocking legs (ADR-0059 §3's supported [3.14.0, 5.0.0) range):
 #   NUnit 3.14.0 (floor, exact-pinned) x classic VSTest
@@ -65,13 +77,14 @@ run_leg() {
     # concrete version is expected to change over time as NUnit ships new 4.x releases.
     local assertion="${3:-exact}"
 
-    echo "::group::NUnit ${nunit_version} - build + resolved-version check"
+    echo "::group::NUnit ${nunit_version} - classic-VSTest (non-MTP) build + resolved-version check"
 
     rm -rf "$project_dir/obj" "$project_dir/bin"
 
     dotnet build "$project" -f "$tfm" -c "$configuration" \
         -p:NUnitMatrixVersion="$nunit_version" \
         -p:Compono_LocalPackagesId="$leg_id" \
+        -p:NUnitMatrixRunner=VSTest \
         --nologo
 
     local resolved
@@ -117,8 +130,7 @@ for lib in data['libraries']:
     RESOLVED_VERSION="$resolved"
     echo "::endgroup::"
 
-    local dll="$project_dir/bin/$configuration/$tfm/Compono.NUnit.CompatibilityMatrix.dll"
-    local exe="$project_dir/bin/$configuration/$tfm/Compono.NUnit.CompatibilityMatrix"
+    local class_dll="$project_dir/bin/$configuration/$tfm/Compono.NUnit.CompatibilityMatrix.dll"
 
     echo "::group::NUnit ${resolved} - classic VSTest"
     # Explicit exit-code capture, not bare `set -e` propagation: `run_leg` is called as the
@@ -128,14 +140,29 @@ for lib in data['libraries']:
     # of aborting), and the function would return the *last* command's exit status (a trailing
     # `echo`, which always succeeds) rather than the real failure - hiding exactly the compatibility
     # signal this script exists to collect.
-    if ! dotnet vstest "$dll"; then
+    if ! COMPONO_NUNIT_MATRIX_EXPECTED_HOST=vstest dotnet vstest "$class_dll"; then
         echo "::error::NUnit ${resolved} failed under classic VSTest." >&2
         return 1
     fi
     echo "::endgroup::"
 
+    # Fresh obj/bin for the MTP artifact - same source tree, but the MTP entry-point properties on
+    # and an Exe output instead of the classic leg's Library output. A clean directory guarantees the
+    # MTP build never reuses the classic leg's intermediate or output state.
+    rm -rf "$project_dir/obj" "$project_dir/bin"
+
+    echo "::group::NUnit ${resolved} - MTP build"
+    dotnet build "$project" -f "$tfm" -c "$configuration" \
+        -p:NUnitMatrixVersion="$nunit_version" \
+        -p:Compono_LocalPackagesId="$leg_id" \
+        -p:NUnitMatrixRunner=MTP \
+        --nologo
+    echo "::endgroup::"
+
+    local exe="$project_dir/bin/$configuration/$tfm/Compono.NUnit.CompatibilityMatrix"
+
     echo "::group::NUnit ${resolved} - MTP"
-    if ! "$exe"; then
+    if ! COMPONO_NUNIT_MATRIX_EXPECTED_HOST=mtp "$exe"; then
         echo "::error::NUnit ${resolved} failed under MTP." >&2
         return 1
     fi

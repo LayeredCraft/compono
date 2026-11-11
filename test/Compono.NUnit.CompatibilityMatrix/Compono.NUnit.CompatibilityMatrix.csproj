@@ -19,34 +19,52 @@
        packaged chain) - this project's only job is proving the same minimal Compose dispatch works
        correctly across every supported version x runner combination.
 
-       Runner selection is NOT an MSBuild-property toggle on this project - EnableNUnitRunner/
-       UseMicrosoftTestingPlatformRunner stay unconditionally on (matching Compono.NUnit.Tests'/
-       Compono.NUnit.SampleTests' own always-on convention), and the matrix script instead runs
-       classic VSTest and MTP against the *same* build artifact by invoking it two different ways
-       (`dotnet vstest <dll>` vs. running the built executable directly) - RESEARCH-0018 §11's own
-       methodology. A real, reproduced-during-this-project's-own-development regression motivates
-       this: conditionally omitting EnableNUnitRunner/UseMicrosoftTestingPlatformRunner for a
-       "classic VSTest leg" build produced a compiled assembly whose generated module initializer
-       silently failed to register Widget's row-invoker dispatch when loaded by `dotnet vstest`
-       directly (`Compono.CompositionException: No row-binding dispatch is registered for
-       'Widget'`) - a genuine, reproducible build-configuration hazard specific to toggling those
-       MSBuild properties, not a Compono.NUnit binary-compatibility problem (the identical build
-       artifact produced *with* those properties always on runs correctly under both `dotnet vstest`
-       and the built executable). Investigating the exact SDK-level root cause was out of scope for
-       this plan; avoiding the toggle entirely removes the hazard. -->
+       Runner selection IS an MSBuild-property toggle (NUnitMatrixRunner), and the matrix script
+       builds a *different artifact* per runner: "MTP" keeps EnableNUnitRunner/
+       UseMicrosoftTestingPlatformRunner/TestingPlatformDotnetTestSupport on and OutputType=Exe
+       (run as the built executable); "VSTest" turns those three off and produces a Library build
+       with its dependencies and runtimeconfig copied next to the assembly (run via
+       `dotnet vstest <dll>`), so the classic leg genuinely goes through the classic
+       DotnetTestHostManager instead of being silently auto-routed to MTP.
+
+       The earlier methodology (RESEARCH-0018 §11) ran *one* MTP-enabled artifact two ways. That
+       produced a false green on the classic leg: vstest.console 18.10 auto-routed an MTP-enabled
+       assembly to MtpTestRuntimeProvider, so `dotnet vstest` never actually used the classic host;
+       vstest.console 18.11+ selects the true classic host and exposed a real, pre-existing
+       Compono.NUnit discovery-time registration defect (the generated [ModuleInitializer] had not
+       run before NUnit built test cases). That defect is now fixed in ComposeAttribute.BuildFrom
+       (ADR-0059 Amendment 1), which is what makes a genuine non-MTP classic leg safe to exercise
+       again. See .github/scripts/nunit-compatibility-matrix.sh for the two-artifact build. -->
   <PropertyGroup>
+    <!-- "MTP" (default) or "VSTest"; normalized to a stable boolean below. -->
+    <NUnitMatrixRunner Condition="'$(NUnitMatrixRunner)' == ''">MTP</NUnitMatrixRunner>
+    <NUnitMatrixIsVSTestLeg>false</NUnitMatrixIsVSTestLeg>
+    <NUnitMatrixIsVSTestLeg Condition="'$(NUnitMatrixRunner)' == 'VSTest'">true</NUnitMatrixIsVSTestLeg>
+
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputType>Exe</OutputType>
+    <!-- MTP leg: Exe entry point run directly. Classic leg: a plain Library loaded by the classic
+         test host via `dotnet vstest`. -->
+    <OutputType Condition="'$(NUnitMatrixIsVSTestLeg)' == 'true'">Library</OutputType>
+    <OutputType Condition="'$(NUnitMatrixIsVSTestLeg)' != 'true'">Exe</OutputType>
     <RootNamespace>Compono.NUnit.CompatibilityMatrix</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <!-- Opts this project out of test/Directory.Build.targets' xUnit-v3-only ItemGroups, matching
          Compono.NUnit.SampleTests'/Compono.NUnit.Tests' identical precedent. -->
     <ComponoTestFramework>NUnit</ComponoTestFramework>
-    <EnableNUnitRunner>true</EnableNUnitRunner>
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
-    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- MTP entry-point properties, on only for the MTP leg. -->
+    <EnableNUnitRunner Condition="'$(NUnitMatrixIsVSTestLeg)' != 'true'">true</EnableNUnitRunner>
+    <EnableNUnitRunner Condition="'$(NUnitMatrixIsVSTestLeg)' == 'true'">false</EnableNUnitRunner>
+    <TestingPlatformDotnetTestSupport Condition="'$(NUnitMatrixIsVSTestLeg)' != 'true'">true</TestingPlatformDotnetTestSupport>
+    <TestingPlatformDotnetTestSupport Condition="'$(NUnitMatrixIsVSTestLeg)' == 'true'">false</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner Condition="'$(NUnitMatrixIsVSTestLeg)' != 'true'">true</UseMicrosoftTestingPlatformRunner>
+    <UseMicrosoftTestingPlatformRunner Condition="'$(NUnitMatrixIsVSTestLeg)' == 'true'">false</UseMicrosoftTestingPlatformRunner>
+    <!-- The classic leg loads a Library through the classic test host, so the host + every
+         dependency must sit next to the test assembly, with a runtimeconfig for the host. A
+         Library output produces neither by default. -->
+    <CopyLocalLockFileAssemblies Condition="'$(NUnitMatrixIsVSTestLeg)' == 'true'">true</CopyLocalLockFileAssemblies>
+    <GenerateRuntimeConfigurationFiles Condition="'$(NUnitMatrixIsVSTestLeg)' == 'true'">true</GenerateRuntimeConfigurationFiles>
     <!-- Deliberately no ProjectReference to Compono/Compono.NUnit - same packaged-consumer reasoning
          as Compono.NUnit.SampleTests. -->
     <LocalFeedPath>$(MSBuildThisFileDirectory)../../.local-nuget-feed-nunit-compat-matrix</LocalFeedPath>

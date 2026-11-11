@@ -37,6 +37,21 @@ terminates it before generated-plan dispatch is reached a second time for
 the same type while the first invocation is still on the stack — see
 [The Provider Pipeline](provider-pipeline.md#recursion-detection).
 
+Because a `[ModuleInitializer]` runs only when its module is first
+touched, any consumer whose composition happens during *test-framework
+discovery* must ensure the module has initialized first. `Compono.XunitV3`
+and `Compono.TUnit` discover through the consumer's test assembly being
+loaded and invoked, so its module initializers have run by then. The
+classic VSTest test host instead builds NUnit test cases before executing
+them, so `Compono.NUnit` forces the declaring test method's module
+constructor at the start of `BuildFrom` (`RuntimeHelpers.RunModuleConstructor`),
+guaranteeing `RowInvokerRegistry`/`PlanCache<T>` are populated before
+binding — see [ADR-0059](../../adr/0059-compono-nunit-package-design.md)
+Amendment 1. Whether `Compono.MSTest` needs the same treatment under a
+genuinely classic VSTest host is **not yet verified** — its own test
+projects enable MTP, so its classic-host behavior has not been exercised
+the way `Compono.NUnit`'s now is; tracked separately.
+
 ## Other compile-time-gated generation in this same assembly
 
 `Compono.Generators` also emits two other opt-in outputs from this same
