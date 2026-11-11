@@ -799,3 +799,32 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
     AOT for the net8.0/net9.0 legs (not covered by CI's net10.0-only publish)
     was verified locally: `PublishAot` osx-arm64 binaries built with zero
     IL2xxx/IL3xxx warnings and ran, honoring the alias.
+
+- 2026-11-11 (review round 2 corrections, PR #177): Claude's second read-only
+  review approved with two non-blocking follow-ups, both addressed. Still open
+  for maintainer review; not merged.
+
+  - Capture sanity-check docs: `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)`
+    is only valid for a Generic Host running its default lifetime. Under a
+    `WebApplicationFactory`/ASP.NET Core `TestHost` it is unreliable (different
+    host lifetime, and a shared fixture may clear startup entries between
+    tests), so it can fail even when capture is wired correctly. The
+    recommendation is now host-aware: keep the `Microsoft.Hosting.Lifetime`
+    assertion for a Generic Host, but for `WebApplicationFactory` assert a
+    deterministic application-owned entry emitted during the operation under
+    test. Updated the how-to, package guide, troubleshooting entry, and skill
+    logging reference; sharpened eval #63 and added eval #65.
+  - Keyed-provider regression: added
+    `KeyedProviderDescriptorPresent_DoesNotBreakRegistrationOrCapture` (a keyed
+    `ILoggerProvider` plus `AddComponoCapture` must still capture and must not
+    throw) and verified it on net8.0/net9.0/net10.0/net11.0. While proving it,
+    found the `IsAlreadyRegistered` comment was wrong: on supported runtimes a
+    keyed descriptor's `ImplementationFactory` is `null`, not throwing (it is
+    `KeyedImplementationFactory` that throws on a non-keyed descriptor), so the
+    `!IsKeyedService` guard is defense in depth rather than a throw guard. The
+    guard stays; its comment and the test comment were corrected to match.
+  - Validation: `dotnet build Compono.slnx -c Release` 0/0; `test/Compono.Logging.Tests`
+    548 passed/0 failed (137 per TFM); full suite 7091 total/0 failed/6590
+    succeeded/501 skipped; `mkdocs build --clean --strict` exit 0; API reference
+    no drift; `evals.json` parses (65 evals) and `quick_validate.py` reports
+    valid. No package/AOT-affecting change, so those gates were not re-run.

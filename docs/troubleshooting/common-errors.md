@@ -347,9 +347,13 @@ filter matches nothing or the collector captured nothing at all:
   Register the collector after that code runs (for `WebApplicationFactory`,
   in `ConfigureWebHost`).
 
-Check that the collector captured something you know the host logs, such
-as `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)` after
-`StartAsync`.
+Check that the collector captured something a host of this kind logs. On a
+Generic Host with its default lifetime,
+`logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)` after
+`StartAsync` confirms capture. Under a `WebApplicationFactory`/ASP.NET Core
+`TestHost`, assert a deterministic entry your own code emits during the
+operation under test instead — `TestHost` runs a different host lifetime,
+and a shared fixture may clear startup entries between tests.
 
 ### "Two composed parameters of the same type aren't the same instance"
 

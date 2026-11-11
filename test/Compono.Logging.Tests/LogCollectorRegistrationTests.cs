@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Compono.Logging.Tests;
 
@@ -132,11 +133,41 @@ public sealed class LogCollectorRegistrationTests
         collector.GetCapturedEntries().Should().Contain(entry => entry.Message == "from second");
     }
 
+    [Fact]
+    public void KeyedProviderDescriptorPresent_DoesNotBreakRegistrationOrCapture()
+    {
+        // Regression (PR #177 round 2): IsAlreadyRegistered walks ILoggerProvider descriptors and
+        // reads ImplementationFactory. A keyed descriptor is skipped by the !IsKeyedService guard
+        // (its ImplementationFactory is null on supported runtimes), so a keyed ILoggerProvider
+        // registered before AddComponoCapture must neither throw nor stop capture.
+        var collector = new LogCollector();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Services.AddKeyedSingleton<ILoggerProvider>("keyed", (_, _) => new NoOpLoggerProvider());
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+
+        host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Keyed.Category").LogError("captured despite keyed provider");
+
+        host.Services.GetServices<ILoggerProvider>().OfType<ComponoLogCollectorProvider>().Should().ContainSingle();
+        collector.GetCapturedEntries().Should().ContainSingle().Which.Message.Should().Be("captured despite keyed provider");
+        collector.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("Keyed.Category").Once();
+    }
+
     private static IHost CreateHost(LogCollector collector)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Logging.ClearProviders();
         builder.Logging.AddComponoCapture(collector);
         return builder.Build();
+    }
+
+    private sealed class NoOpLoggerProvider : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => NullLogger.Instance;
+
+        public void Dispose()
+        {
+        }
     }
 }

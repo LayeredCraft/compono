@@ -787,7 +787,7 @@
       "id": 63,
       "category": "behavioral-correctness",
       "prompt": "I registered a LogCollector with AddComponoCapture on my Generic Host. My services live in the MyApp.Payments namespace (for example ILogger<MyApp.Payments.PaymentGateway>). I wrote logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory(\"MyApp.Payments\").Never() and it passes, but I can see PaymentGateway logging errors. Why, and how should I assert no errors from anything in that namespace?",
-      "expected_output": "InCategory is an exact, ordinal, case-sensitive match on CapturedLogEntry.Category, and a host ILogger<T>'s category is the type's full name (MyApp.Payments.PaymentGateway), so InCategory(\"MyApp.Payments\") matches no entry and Never() passes without checking anything. This differs from the host's own AddFilter/Logging:LogLevel rules, which match by category prefix. Use the full category name for one logger, or for a namespace use Matching(entry => entry.Category.StartsWith(\"MyApp.Payments.\", StringComparison.Ordinal)).Never(). Optionally add a sanity assertion that the collector captured something expected.",
+      "expected_output": "InCategory is an exact, ordinal, case-sensitive match on CapturedLogEntry.Category, and a host ILogger<T>'s category is the type's full name (MyApp.Payments.PaymentGateway), so InCategory(\"MyApp.Payments\") matches no entry and Never() passes without checking anything. This differs from the host's own AddFilter/Logging:LogLevel rules, which match by category prefix. Use the full category name for one logger, or for a namespace use Matching(entry => entry.Category.StartsWith(\"MyApp.Payments.\", StringComparison.Ordinal)).Never(). Optionally add a sanity assertion that the collector captured a known entry, so a match-nothing filter can't pass silently - on a Generic Host with its default lifetime that can be the Microsoft.Hosting.Lifetime \"Application started\" entry after StartAsync, but under a WebApplicationFactory/ASP.NET Core TestHost it should be a deterministic entry the code under test emits (TestHost runs a different host lifetime and a shared fixture may clear startup entries between tests).",
       "files": [],
       "expectations": [
         "Explains InCategory is an exact match, not a prefix match, so a namespace string matches nothing",
@@ -808,6 +808,20 @@
         "Shows a Logging:Compono:LogLevel configuration rule targeting only the Compono provider",
         "States AddComponoCapture does not change filter rules - the host's filter configuration decides what is captured",
         "Does not suggest referencing the internal provider type name or adding a dependency to get the alias"
+      ]
+    },
+    {
+      "id": 65,
+      "category": "behavioral-correctness",
+      "prompt": "My WebApplicationFactory test registers a LogCollector with AddComponoCapture and asserts factory.Logs.Verify().AtLevelOrAbove(LogLevel.Error).Never(). To make sure capture is actually wired up, I added factory.Logs.Verify().InCategory(\"Microsoft.Hosting.Lifetime\").AtLeast(1) first, but it fails even though the app is clearly logging. Is that the right sanity check?",
+      "expected_output": "Not under WebApplicationFactory. ASP.NET Core TestHost runs a different host lifetime than a Generic Host, and a shared fixture may clear startup entries between tests, so Microsoft.Hosting.Lifetime (and other framework startup logging) is not a reliable sanity check there. Prefer asserting a deterministic entry the code under test emits during the operation under test - for example factory.Logs.Verify().Matching(entry => entry.Message.Contains(\"Checkout started\")).AtLeast(1) - so a wired-up collector is proven by something the test itself caused. If you want framework request diagnostics, confirm the exact category they log under for your logging configuration first, rather than assuming one. On a Generic Host with its default lifetime, the Microsoft.Hosting.Lifetime \"Application started\" entry after StartAsync is a fine sanity check.",
+      "files": [],
+      "expectations": [
+        "Explains that Microsoft.Hosting.Lifetime is not a reliable sanity check under WebApplicationFactory/ASP.NET Core TestHost",
+        "Attributes the unreliability to TestHost's different host lifetime and/or a shared fixture clearing startup entries between tests",
+        "Recommends asserting a deterministic application-owned entry emitted during the operation under test",
+        "Notes that the Generic Host default lifetime does log Microsoft.Hosting.Lifetime on StartAsync, so the category itself is not wrong",
+        "Does not suggest the collector is broken or that Never() is unreliable when capture is correctly wired"
       ]
     }
   ]

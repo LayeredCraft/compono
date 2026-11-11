@@ -146,12 +146,34 @@ If the application replaces the host's `ILoggerFactory` with one that
 ignores registered providers — for example Serilog's `UseSerilog()`
 without `writeToProviders: true` — or calls `ClearProviders()` *after* the
 test registered the collector, nothing reaches the collector and `Never()`
-passes without checking anything. Guard against that by also asserting
-something you know the host logs:
+passes without checking anything.
 
-```csharp
-logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1);
-```
+Guard against a silently-empty collector by asserting it saw a known entry.
+What to assert depends on the host:
+
+- **Generic Host with its default lifetime.** After `StartAsync` the host
+  itself logs "Application started" under `Microsoft.Hosting.Lifetime`, so:
+
+  ```csharp
+  logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1);
+  ```
+
+- **`WebApplicationFactory` / ASP.NET Core `TestHost`.** Don't depend on
+  framework startup logging: `TestHost` runs a different host lifetime, and
+  a shared fixture may clear startup entries between tests. Assert a
+  deterministic entry your own code emits during the operation under test
+  instead:
+
+  ```csharp
+  // The code under test logs this while handling the request.
+  factory.Logs.Verify()
+      .Matching(entry => entry.Message.Contains("Checkout started"))
+      .AtLeast(1);
+  ```
+
+  If you prefer to assert on framework request diagnostics, first confirm
+  the exact category they log under for your logging configuration rather
+  than assuming one.
 
 ## See also
 

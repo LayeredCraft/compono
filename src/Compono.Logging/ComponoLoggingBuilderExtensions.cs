@@ -41,7 +41,10 @@ public static class ComponoLoggingBuilderExtensions
     {
         foreach (var descriptor in services)
         {
-            // IsKeyedService is checked first: ImplementationFactory throws on a keyed descriptor.
+            // Keyed descriptors are skipped: a keyed ILoggerProvider can never be a Compono
+            // registration. (On supported runtimes a keyed descriptor's ImplementationFactory is
+            // null rather than throwing, so this is defense in depth - but it keeps the intent
+            // explicit and stays correct if that behavior ever changes.)
             if (descriptor.ServiceType == typeof(ILoggerProvider)
                 && !descriptor.IsKeyedService
                 && descriptor.ImplementationFactory?.Target is ComponoCaptureRegistration registration

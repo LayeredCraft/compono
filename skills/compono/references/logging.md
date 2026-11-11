@@ -185,8 +185,14 @@ Key semantics to get right:
 - A vacuous pass is the main risk: if the app replaces `ILoggerFactory`
   (e.g. Serilog `UseSerilog()` without `writeToProviders: true`) or calls
   `ClearProviders()` after the test's registration, nothing is captured
-  and `Never()` passes. Suggest a sanity assertion such as
-  `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)`.
+  and `Never()` passes. Suggest a sanity assertion that the collector saw a
+  known entry. On a Generic Host with its default lifetime,
+  `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)` after
+  `StartAsync` works; under a `WebApplicationFactory`/ASP.NET Core
+  `TestHost`, prefer a deterministic entry the code under test emits
+  (don't rely on framework startup logging — `TestHost` runs a different
+  host lifetime and a shared fixture may clear startup entries between
+  tests).
 
 ## Structured properties and `MessageTemplate`
 

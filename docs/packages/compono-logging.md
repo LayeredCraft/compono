@@ -275,9 +275,13 @@ example Serilog's `UseSerilog()` without `writeToProviders: true`. Then
 `Never()` passes because nothing was captured, not because nothing was
 logged. Likewise, a `ClearProviders()` call that runs *after*
 `AddComponoCapture` (for example in the application's own startup code)
-removes the Compono provider. When in doubt, assert that the collector saw
-something you know the host logs, such as the `Microsoft.Hosting.Lifetime`
-"Application started" entry after `StartAsync`.
+removes the Compono provider. When in doubt, assert the collector saw a
+known entry so an empty collector fails loudly. On a Generic Host with its
+default lifetime, the `Microsoft.Hosting.Lifetime` "Application started"
+entry after `StartAsync` works; under a `WebApplicationFactory`/ASP.NET
+Core `TestHost`, prefer a deterministic entry your own code emits during
+the operation under test — `TestHost` runs a different host lifetime, and a
+shared fixture may clear startup entries between tests.
 
 ## Structured properties and `MessageTemplate`
 
