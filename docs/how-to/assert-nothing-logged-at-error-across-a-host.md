@@ -4,7 +4,7 @@ Register a `LogCollector` on the host's logging pipeline, run the host,
 then verify the collector. The collector is the test-owned capture
 destination: it sees every category the host logs to, regardless of which
 `ILogger<T>` produced the entry. See
-[`Compono.Logging`'s Package Guide](../packages/compono-logging.md#host-wide-capture-logcollector--addcomponocapture)
+[`Compono.Logging`'s Package Guide](../packages/compono-logging.md#host-wide-capture-with-logcollector-and-addcomponocapture)
 for the full host-wide semantics.
 
 ## Basic case
@@ -102,7 +102,7 @@ after the request or startup path under test.
 
 ## See also
 
-- [Host-wide capture](../packages/compono-logging.md#host-wide-capture-logcollector--addcomponocapture)
+- [Host-wide capture](../packages/compono-logging.md#host-wide-capture-with-logcollector-and-addcomponocapture)
   — Category, filters, ownership, and cardinality rules.
 - [Share a Value Across a Test](share-a-value-across-a-test.md) — when a
   service under test needs a specific `ILogger<T>` rather than host-wide

@@ -104,7 +104,7 @@ Console.WriteLine(failure.Properties?.First().Key);   // "OrderId", e.g.
   A provider-composed logger and a directly-constructed one behave
   identically — one implementation, not two.
 
-## Host-wide capture: `LogCollector` + `AddComponoCapture`
+## Host-wide capture with LogCollector and AddComponoCapture
 
 Composed loggers only see what Compono composed. A real Generic Host (or
 `WebApplicationFactory`, or anything else with an

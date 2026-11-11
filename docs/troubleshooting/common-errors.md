@@ -308,7 +308,7 @@ Host-wide capture is a **separate destination** from per-logger capture in
 v1: register a `LogCollector` on the host's logging pipeline with
 `AddComponoCapture()`, then call `Verify()`/`GetCapturedEntries()` on the
 collector instead of on the host logger. See
-[Host-wide capture](../packages/compono-logging.md#host-wide-capture-logcollector--addcomponocapture)
+[Host-wide capture](../packages/compono-logging.md#host-wide-capture-with-logcollector-and-addcomponocapture)
 and [How Do I Assert Nothing Logged at Error or Above Across a Generic
 Host?](../how-to/assert-nothing-logged-at-error-across-a-host.md).
 
