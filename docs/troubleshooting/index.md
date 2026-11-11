@@ -11,8 +11,9 @@ than reading top to bottom.
   at runtime**, with no `CMP` code → [Common Errors: Runtime Composition
   Failures](common-errors.md#runtime-composition-failures).
 - **A `LogCollector` assertion doesn't see entries you expected** (a host
-  `ILogger<T>` throws from `Verify()`, or `Debug`/`Trace` entries are
-  missing) → [Common Errors: Host-wide logging](common-errors.md#verify-on-a-host-iloggert-throws).
+  `ILogger<T>` throws from `Verify()`, `Debug`/`Trace` entries are
+  missing, or `Never()` passes although the host logged an error) →
+  [Common Errors: Host-wide logging](common-errors.md#verify-on-a-host-iloggert-throws).
 - **Something works but doesn't behave the way you expected** (a value
   looks wrong, a substitute doesn't do what you thought, a value isn't
   shared) → [FAQ](faq.md).

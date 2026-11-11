@@ -204,13 +204,11 @@ public sealed class HostLogCaptureTests
         entries.Should().NotContain(entry => entry.Message == "excluded");
     }
 
-#if NET10_0_OR_GREATER
     [Fact]
     public void ProviderAliasConfiguration_AppliesProviderSpecificRuleToComponoProvider()
     {
-        // ADR-0071 Amendment 1: [ProviderAlias("Compono")] lives in Logging.Abstractions only on
-        // net10.0+, so this provider-specific configuration rule is a net10/net11 capability; net8
-        // and net9 use the global minimum level/AddFilter rules exercised above.
+        // ADR-0071 Amendment 2: the "Compono" alias works on every target framework - the real
+        // attribute on net10/net11, the internal same-full-name copy on net8/net9.
         var collector = new LogCollector();
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration["Logging:Compono:LogLevel:Default"] = "Warning";
@@ -226,7 +224,53 @@ public sealed class HostLogCaptureTests
         entries.Should().ContainSingle();
         entries[0].Message.Should().Be("meets alias minimum");
     }
-#endif
+
+    [Fact]
+    public void ProviderAliasCategoryRule_AppliesOnlyToTheMatchingCategoryPrefix()
+    {
+        var collector = new LogCollector();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Logging:Compono:LogLevel:Noisy"] = "Error";
+        builder.Logging.ClearProviders();
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+        var factory = host.Services.GetRequiredService<ILoggerFactory>();
+
+        factory.CreateLogger("Noisy.Component").LogWarning("filtered by the Compono alias prefix rule");
+        factory.CreateLogger("Quiet.Component").LogWarning("unaffected category");
+
+        collector.GetCapturedEntries().Should().ContainSingle().Which.Message.Should().Be("unaffected category");
+    }
+
+    [Fact]
+    public void ProviderAliasRule_DoesNotAffectOtherProviders()
+    {
+        var collector = new LogCollector();
+        var other = new RecordingProvider();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Logging:Compono:LogLevel:Default"] = "Error";
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(other);
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+
+        host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Shared.Category").LogWarning("warning");
+
+        collector.GetCapturedEntries().Should().BeEmpty();
+        other.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void ComponoProvider_CarriesTheComponoAliasByFullAttributeName()
+    {
+        // The logging framework resolves aliases by the attribute's full type name, so pin that
+        // name (not just the alias behavior) on every target framework.
+        var alias = typeof(ComponoLogCollectorProvider)
+            .GetCustomAttributesData()
+            .Single(attribute => attribute.AttributeType.FullName == "Microsoft.Extensions.Logging.ProviderAliasAttribute");
+
+        alias.ConstructorArguments.Should().ContainSingle().Which.Value.Should().Be("Compono");
+    }
 
     [Fact]
     public void LogLevelNone_IsNeverCaptured()
@@ -409,5 +453,34 @@ public sealed class HostScopeCaptureTests
         builder.Logging.ClearProviders();
         builder.Logging.AddComponoCapture(collector);
         return builder.Build();
+    }
+}
+
+internal sealed class RecordingProvider : ILoggerProvider
+{
+    private int _count;
+
+    public int Count => Volatile.Read(ref _count);
+
+    public ILogger CreateLogger(string categoryName) => new RecordingLogger(this);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class RecordingLogger(RecordingProvider owner) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Interlocked.Increment(ref owner._count);
     }
 }

@@ -131,7 +131,12 @@ builder.Logging.ClearProviders();
 builder.Logging.AddComponoCapture(logs);
 using var host = builder.Build();
 
-logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("Payments").Never();
+logs.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+// One category: the ILogger<T> type's FULL name, matched exactly.
+logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("MyApp.Payments.PaymentGateway").Never();
+// A namespace: match the prefix explicitly.
+logs.Verify().AtLevelOrAbove(LogLevel.Error)
+    .Matching(e => e.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal)).Never();
 ```
 
 Key semantics to get right:
@@ -140,7 +145,15 @@ Key semantics to get right:
   `ILoggerProvider.CreateLogger` string; composed/direct `CapturingLogger<T>`
   matches `LoggerFactory.CreateLogger<T>()`; non-generic `CapturingLogger`
   and a bare composed `ILogger` carry `""`. `InCategory` is exact, ordinal,
-  case-sensitive — use `.Matching(...)` for prefixes.
+  case-sensitive — **not** a prefix match, unlike the host's own
+  `AddFilter`/`Logging:LogLevel:*` rules. Never write
+  `InCategory("Payments")`/a namespace with `.Never()`: it matches nothing
+  and passes without checking anything. Use the full category name or
+  `.Matching(e => e.Category.StartsWith(...))`.
+- `Never()`'s failure text names the filters and the match count only
+  (`Expected exactly 0 call(s) to a log entry matching level Error or
+  above, but received 1.`); it does not list entries — read them with
+  `GetCapturedEntries()`.
 - **Behavioral change**: `Category` participates in the record's value
   equality. Entries differing only by category are not equal. This is
   intentional (ADR-0071), not a bug to "fix."
@@ -153,15 +166,27 @@ Key semantics to get right:
 - The host's own filters still apply: default minimum `Information` means
   `Debug`/`Trace` are not captured; lower it with
   `builder.Logging.SetMinimumLevel(LogLevel.Trace)` or `AddFilter`.
-  `AddComponoCapture` never changes filter rules. On net10/net11 a
-  `Logging:Compono:LogLevel` provider-alias rule also works; on net8/net9
-  it does not (ADR-0071 Amendment 1).
+  `AddComponoCapture` never changes filter rules. A
+  `Logging:Compono:LogLevel:*` provider-alias rule targets only the
+  Compono provider, on every supported TFM (net8.0–net11.0; ADR-0071
+  Amendment 2 — don't repeat the old "net10+ only" caveat).
 - The test owns the collector; the host owns the provider. Disposing the
   host stops capture but never clears the collector — entries stay
   readable and `ClearCapturedEntries()` still works. Registering the same
-  collector twice is idempotent; different collectors each receive every
-  entry; one collector across hosts receives all (disposing one host stops
-  only that host).
+  collector twice is idempotent (and re-registering after `ClearProviders()`
+  adds it back); different collectors each receive every entry; one
+  collector across hosts receives all (disposing one host stops only that
+  host).
+- No size limit: the collector keeps everything until
+  `ClearCapturedEntries()`. A `WebApplicationFactory`/class-fixture
+  collector is shared across tests — clear it at the start of each test.
+- Host scopes come from the host's shared scope provider, so a scope opened
+  on one host logger also appears on entries other categories log inside it.
+- A vacuous pass is the main risk: if the app replaces `ILoggerFactory`
+  (e.g. Serilog `UseSerilog()` without `writeToProviders: true`) or calls
+  `ClearProviders()` after the test's registration, nothing is captured
+  and `Never()` passes. Suggest a sanity assertion such as
+  `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)`.
 
 ## Structured properties and `MessageTemplate`
 

@@ -324,11 +324,32 @@ builder.Logging.SetMinimumLevel(LogLevel.Trace);
 ```
 
 The same happens when a configured category rule or `AddFilter` excludes
-the category. On .NET 10 and later you can also target only the Compono
-provider with the `Compono` alias, for example
-`Logging:Compono:LogLevel:Default`. On .NET 8 and 9 the alias is not
-available from the shipped `Logging.Abstractions` dependency (ADR-0071
-Amendment 1); use the global minimum level or `AddFilter` there instead.
+the category. To target only the Compono provider, use its `Compono`
+alias, for example `Logging:Compono:LogLevel:Default` — this works on every
+supported target framework.
+
+### "`Never()` passes but the host clearly logged an error"
+
+`Never()` passes whenever no captured entry matches, including when the
+filter matches nothing or the collector captured nothing at all:
+
+- **`InCategory` was given a prefix or short name.** It is an exact match
+  on the full category (normally the `ILogger<T>` type's full name), unlike
+  `AddFilter`/`Logging:LogLevel:*` rules, which match by prefix. Use the
+  full name, or
+  `.Matching(entry => entry.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal))`.
+- **The host replaced `ILoggerFactory`.** A logging library that swaps in
+  its own factory and ignores registered providers — for example Serilog's
+  `UseSerilog()` without `writeToProviders: true` — never calls the
+  Compono provider.
+- **The provider was removed after registration.** Application code that
+  calls `ClearProviders()` after the test's `AddComponoCapture` removes it.
+  Register the collector after that code runs (for `WebApplicationFactory`,
+  in `ConfigureWebHost`).
+
+Check that the collector captured something you know the host logs, such
+as `logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1)` after
+`StartAsync`.
 
 ### "Two composed parameters of the same type aren't the same instance"
 

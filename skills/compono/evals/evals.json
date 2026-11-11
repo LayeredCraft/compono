@@ -782,6 +782,33 @@
         "Does not suggest registering UseLogging() on the host, casting/unwrapping the host logger, or a nonexistent forwarding option",
         "Does not claim host-wide capture is unsupported"
       ]
+    },
+    {
+      "id": 63,
+      "category": "behavioral-correctness",
+      "prompt": "I registered a LogCollector with AddComponoCapture on my Generic Host. My services live in the MyApp.Payments namespace (for example ILogger<MyApp.Payments.PaymentGateway>). I wrote logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory(\"MyApp.Payments\").Never() and it passes, but I can see PaymentGateway logging errors. Why, and how should I assert no errors from anything in that namespace?",
+      "expected_output": "InCategory is an exact, ordinal, case-sensitive match on CapturedLogEntry.Category, and a host ILogger<T>'s category is the type's full name (MyApp.Payments.PaymentGateway), so InCategory(\"MyApp.Payments\") matches no entry and Never() passes without checking anything. This differs from the host's own AddFilter/Logging:LogLevel rules, which match by category prefix. Use the full category name for one logger, or for a namespace use Matching(entry => entry.Category.StartsWith(\"MyApp.Payments.\", StringComparison.Ordinal)).Never(). Optionally add a sanity assertion that the collector captured something expected.",
+      "files": [],
+      "expectations": [
+        "Explains InCategory is an exact match, not a prefix match, so a namespace string matches nothing",
+        "Explains Never() therefore passes without checking anything",
+        "Contrasts this with AddFilter/configuration category rules, which match by prefix",
+        "Recommends the full category name for one logger, or Matching(entry => entry.Category.StartsWith(...)) for a namespace",
+        "Does not claim InCategory supports wildcards or prefixes, and does not invent a new filter method"
+      ]
+    },
+    {
+      "id": 64,
+      "category": "behavioral-correctness",
+      "prompt": "My test project targets net8.0 and references Compono.Logging. I want my LogCollector to see Debug entries without changing what my other logging providers receive. Can I use a Logging:Compono configuration rule on net8.0, or is that .NET 10+ only?",
+      "expected_output": "Yes - the Compono provider is registered under the Compono alias on every supported target framework (net8.0 through net11.0), so a rule such as Logging:Compono:LogLevel:Default = Debug (plus a global minimum low enough for Debug to reach the providers, or a per-provider rule) applies only to the Compono provider. It is not .NET 10+ only. AddComponoCapture itself never changes filter rules; the host's LoggerFilterOptions decides what reaches the collector.",
+      "files": [],
+      "expectations": [
+        "States the Logging:Compono provider-alias rule works on net8.0 (every supported TFM), not only on .NET 10+",
+        "Shows a Logging:Compono:LogLevel configuration rule targeting only the Compono provider",
+        "States AddComponoCapture does not change filter rules - the host's filter configuration decides what is captured",
+        "Does not suggest referencing the internal provider type name or adding a dependency to get the alias"
+      ]
     }
   ]
 }

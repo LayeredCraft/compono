@@ -52,6 +52,7 @@ internal static class Program
 
             VerifyHostWideCapture();
             VerifyCategoryParityUnderAot();
+            VerifyProviderAliasRuleUnderAot();
 
             Console.WriteLine(
                 "PASS: UseLogging()-composed ILogger<OrderService> (generator-discovered activation), " +
@@ -97,6 +98,28 @@ internal static class Program
 
         collector.Verify().InCategory("Host.Smoke").AtLevelOrAbove(LogLevel.Warning).Once();
         collector.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+    }
+
+    private static void VerifyProviderAliasRuleUnderAot()
+    {
+        // ADR-0071 Amendment 2: the logging framework resolves [ProviderAlias("Compono")] by the
+        // attribute's full type name via CustomAttributeData - prove that metadata survives Native
+        // AOT and a Logging:Compono:* rule actually filters the Compono provider.
+        var collector = new LogCollector();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Logging:Compono:LogLevel:Default"] = "Error";
+        builder.Logging.ClearProviders();
+        builder.Logging.AddComponoCapture(collector);
+        using var host = builder.Build();
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Alias.Smoke");
+
+        logger.LogWarning("below the Compono alias minimum");
+        logger.LogError("meets the Compono alias minimum");
+
+        var entries = collector.GetCapturedEntries();
+        if (entries.Count != 1 || entries[0].LogLevel != LogLevel.Error)
+            throw new InvalidOperationException(
+                $"Expected the Logging:Compono rule to keep only the Error entry, got {entries.Count} entries.");
     }
 
     private static void VerifyCategoryParityUnderAot()

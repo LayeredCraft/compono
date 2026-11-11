@@ -32,14 +32,18 @@ public async Task Startup_LogsNothingAtErrorOrAbove()
 }
 ```
 
-`AtLevelOrAbove(LogLevel.Error)` matches `Error`, `Critical`, and anything
-else at or above that severity; `LogLevel.None` never matches. `Never()`
-fails the test with a message naming the filter and the matching entries,
-so a regression reads as:
+`AtLevelOrAbove(LogLevel.Error)` matches `Error` and `Critical`;
+`LogLevel.None` never matches. `Never()` fails the test with a message
+naming the filter and how many entries matched:
 
 ```text
 Expected exactly 0 call(s) to a log entry matching level Error or above, but received 1.
 ```
+
+The message doesn't list the offending entries. To see them, read the
+collector — for example
+`logs.GetCapturedEntries().Where(entry => entry.LogLevel >= LogLevel.Error)`
+— in the failing test or a debugger.
 
 ## Narrow it to one category
 
@@ -49,13 +53,26 @@ an exact, ordinal, case-sensitive comparison of the entry's `Category`:
 ```csharp
 logs.Verify()
     .AtLevelOrAbove(LogLevel.Error)
-    .InCategory("Payments.Gateway")
+    .InCategory("MyApp.Payments.PaymentGateway")
     .Never();
 ```
 
 For a host entry, `Category` is exactly the string the logging pipeline
-passed to `ILoggerProvider.CreateLogger` — normally the full name of the
-`ILogger<T>` category type.
+passed to `ILoggerProvider.CreateLogger` — for an `ILogger<PaymentGateway>`,
+the type's full name (`MyApp.Payments.PaymentGateway`), not its namespace
+or a short name.
+
+`InCategory` never matches by prefix, unlike the host's own `AddFilter`
+and `Logging:LogLevel:*` rules. A category string that matches nothing
+makes `Never()` pass without checking anything. To cover a whole
+namespace, match the prefix explicitly:
+
+```csharp
+logs.Verify()
+    .AtLevelOrAbove(LogLevel.Error)
+    .Matching(entry => entry.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal))
+    .Never();
+```
 
 ## What the host may not capture
 
@@ -68,7 +85,9 @@ the collector unless the host is configured to allow them:
 ```
 
 If the host filters a category out with `AddFilter`, that category is
-absent from the collector too. This is intentional: the collector reports
+absent from the collector too. To filter only what the collector sees, use
+the provider's `Compono` alias in configuration, for example
+`Logging:Compono:LogLevel:Default`. This is intentional: the collector reports
 what the host actually logged, not what any logger attempted to log.
 
 ## Keep the collector for the whole test
@@ -99,6 +118,40 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
 Then assert `factory.Logs.Verify().AtLevelOrAbove(LogLevel.Error).Never()`
 after the request or startup path under test.
+
+A factory shared across tests (an xUnit class or collection fixture)
+shares one collector, and the collector keeps every entry with no size
+limit. An error logged by one test would then fail another test's
+`Never()`. Clear it at the start of each test:
+
+```csharp
+public sealed class CheckoutTests(ApiFactory factory) : IClassFixture<ApiFactory>
+{
+    [Fact]
+    public async Task Checkout_LogsNothingAtErrorOrAbove()
+    {
+        factory.Logs.ClearCapturedEntries();
+
+        var client = factory.CreateClient();
+        await client.PostAsync("/checkout", null, TestContext.Current.CancellationToken);
+
+        factory.Logs.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+    }
+}
+```
+
+## When the collector stays empty
+
+If the application replaces the host's `ILoggerFactory` with one that
+ignores registered providers — for example Serilog's `UseSerilog()`
+without `writeToProviders: true` — or calls `ClearProviders()` *after* the
+test registered the collector, nothing reaches the collector and `Never()`
+passes without checking anything. Guard against that by also asserting
+something you know the host logs:
+
+```csharp
+logs.Verify().InCategory("Microsoft.Hosting.Lifetime").AtLeast(1);
+```
 
 ## See also
 

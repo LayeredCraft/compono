@@ -738,3 +738,64 @@ python3 -c "import json;json.load(open('skills/compono/evals/evals.json'))"
   and clears. Re-ran focused logging tests (514 passed/0 failed per TFM),
   full build 0/0, full suite 7057 total/0 failed, and the AOT logging leg
   (PASS, zero IL warnings).
+
+- 2026-11-11 (independent review remediation, PR #177): a second review round
+  raised seven findings; disposition below. Nothing here is merged yet — PR
+  #177 is still open for maintainer review.
+
+  - **F1 — confirmed registration defect (fixed).** Registering a collector,
+    calling `ClearProviders()`, then registering the *same* collector silently
+    stopped capturing: the old per-collector guard relied on a separate
+    registration-marker descriptor that `ClearProviders()` does not remove, so
+    the re-registration was treated as a duplicate while its provider was gone.
+    Fix: `ComponoCaptureRegistration` is no longer a standalone marker service;
+    it now exposes an instance method whose delegate target *is* the live
+    registration, and `IsAlreadyRegistered` scans the current
+    `ILoggerProvider` descriptors for that factory target (identity by
+    collector reference). Regression tests added to
+    `test/Compono.Logging.Tests/LogCollectorRegistrationTests.cs`:
+    `ClearProvidersThenReRegisteringTheSameCollector_StillCaptures`,
+    `ClearProvidersThenReRegisteringTwice_StaysIdempotent`,
+    `ClearProvidersThenRegisteringADifferentCollector_OnlyTheNewCollectorCaptures`,
+    `SameCollectorOnIndependentServiceCollections_IsNotTreatedAsADuplicate`.
+  - **F2 — provider-alias availability (fixed, ADR-0071 Amendment 2).** The
+    `Compono` provider alias was unavailable on net8.0/net9.0 because
+    `ProviderAliasAttribute` only exists in `Logging.Abstractions` for
+    net10.0+. The attribute is now applied unconditionally and an internal
+    same-full-name copy (`src/Compono.Logging/ProviderAliasAttribute.cs`, under
+    `#if !NET10_0_OR_GREATER`) is compiled for the older TFMs; MEL resolves the
+    alias by full type name, so the copy is honored. No new package
+    dependencies; `CS0436` is promoted to an error in
+    `Compono.Logging.csproj` so a consumer-visible type collision cannot slip
+    through. Recorded as ADR-0071 Amendment 2 (2026-11-11); Amendment 1's
+    historical text is unchanged.
+  - **F3/F4/F5/F6 — documentation corrections.** `InCategory` is exact
+    ordinal full-type-name matching, *not* prefix matching like `AddFilter`
+    (so `.InCategory("Payments")` matches nothing in a real host; use
+    `.Matching(e => e.Category.StartsWith(...))` for namespaces). `Never()`'s
+    failure message names the filters and match count but does **not** include
+    the matching entries. A shared `WebApplicationFactory` collector retains
+    entries across tests until explicitly cleared. A third-party
+    `ILoggerFactory` replacement (or a post-registration `ClearProviders()`)
+    can bypass the registered `ILoggerProvider`s and yield an empty capture.
+    Updated `docs/packages/compono-logging.md`,
+    `docs/how-to/assert-nothing-logged-at-error-across-a-host.md`,
+    `docs/troubleshooting/common-errors.md` + `index.md`,
+    `skills/compono/references/logging.md`, and evals #63/#64.
+  - **F7 — deferred.** AOT warnings are not universally promoted to errors in
+    this repo (a pre-existing repo-wide policy gap, not specific to this PR).
+    Left out of scope here.
+  - Validation: `dotnet build Compono.slnx -c Release` 0 warnings/0 errors;
+    full suite green (7087 total, 0 failed, 6586 succeeded, 501 skipped) with
+    the focused logging suite at 544/0. ApiCompat (V6): `Compono.Logging`
+    packs against the `1.4.0-preview.125` baseline with no `CP` errors
+    (additions only). V7 packed-nupkg inspection passes and the packed
+    dependency groups are unchanged. Pack-and-consume (F2): a multi-target
+    (`net8.0;net9.0;net10.0;net11.0`) consumer restored from a local feed
+    packed from this worktree (sha512 verified) builds 0/0 with `CS0436`/
+    `CS0104` as errors and runs on every TFM — `Logging:Compono:LogLevel:Default`
+    filters the Compono provider, an unrelated provider is unaffected, and a
+    consumer-defined `ProviderAliasAttribute` use compiles unambiguously.
+    AOT for the net8.0/net9.0 legs (not covered by CI's net10.0-only publish)
+    was verified locally: `PublishAot` osx-arm64 binaries built with zero
+    IL2xxx/IL3xxx warnings and ran, honoring the alias.

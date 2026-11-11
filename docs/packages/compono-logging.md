@@ -126,7 +126,13 @@ using var host = builder.Build();
 
 // ... start the host, call the code under test ...
 
-logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("Payments").Never();
+logs.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+
+// One logger's category - the full name of its ILogger<T> type, matched exactly:
+logs.Verify()
+    .AtLevelOrAbove(LogLevel.Error)
+    .InCategory("MyApp.Payments.PaymentGateway")
+    .Never();
 ```
 
 `AddComponoCapture` returns the same builder, so it chains; it also works
@@ -153,8 +159,21 @@ Every `CapturedLogEntry` carries `Category`:
   built-ins).
 - Non-generic `CapturingLogger` and a bare composed `ILogger`: `""`.
 
-`InCategory` is exact, ordinal, case-sensitive. For prefix/wildcard
-matching use `.Matching(entry => ...)`.
+`InCategory` is exact, ordinal, case-sensitive: `InCategory("MyApp.Payments")`
+does **not** match an entry whose category is
+`MyApp.Payments.PaymentGateway`. This differs from the host's own filter
+rules — `AddFilter("MyApp.Payments", ...)` and `Logging:LogLevel:MyApp.Payments`
+configuration match every category that *starts with* that prefix. Combined
+with `Never()`, a category string that matches nothing passes without
+checking anything, so use the full category name, or assert by prefix
+explicitly:
+
+```csharp
+logs.Verify()
+    .AtLevelOrAbove(LogLevel.Error)
+    .Matching(entry => entry.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal))
+    .Never();
+```
 
 > **Behavioral compatibility note.** `Category` is part of
 > `CapturedLogEntry`'s record value equality: two entries identical in
@@ -173,8 +192,10 @@ composed `logger.Verify()` and a `LogCollector.Verify()`:
 - `.InCategory(category)` — exact ordinal match; `null` throws
   `ArgumentNullException`.
 
-Both produce readable failure text, e.g. `a log entry matching level Error
-or above`, `a log entry matching category "Payments"`.
+Both contribute to the failure text, e.g. `Expected exactly 0 call(s) to a
+log entry matching level Error or above, but received 1.` The message
+names the filters and the match count only — it does not list the matching
+entries. Read them with `GetCapturedEntries()` when diagnosing a failure.
 
 ### Host filtering still applies
 
@@ -185,21 +206,19 @@ level if you need them:
 
 ```csharp
 builder.Logging.SetMinimumLevel(LogLevel.Trace);
-// or a category rule:
-builder.Logging.AddFilter("Payments", LogLevel.Debug);
+// or a category rule (prefix match: covers MyApp.Payments.*):
+builder.Logging.AddFilter("MyApp.Payments", LogLevel.Debug);
 ```
 
-On net10.0/net11.0 the provider carries `[ProviderAlias("Compono")]`, so a
-provider-specific rule works too:
+The provider is registered under the `Compono` alias, so a rule that
+targets only the Compono provider works on every supported target
+framework (net8.0 through net11.0):
 
 ```json
 { "Logging": { "Compono": { "LogLevel": { "Default": "Warning" } } } }
 ```
 
-`LogLevel.None` is never captured on any target framework. On net8.0/net9.0
-the alias attribute is unavailable from `Logging.Abstractions` alone
-(documented in ADR-0071 Amendment 1); use `SetMinimumLevel`/`AddFilter`
-there.
+`LogLevel.None` is never captured on any target framework.
 
 ### Host vs. composed: separate destinations
 
@@ -226,15 +245,39 @@ through the collector instead. Opt-in forwarding is deferred.
   still returns a usable disposable); entries captured before disposal
   remain, and `ClearCapturedEntries()` still works.
 - Registering the **same** collector twice on one builder is idempotent:
-  one provider, one copy of each entry. Different collectors on one builder
+  one provider, one copy of each entry. Duplicate detection follows the
+  provider registrations themselves, so after `ClearProviders()` removes
+  the provider, registering the same collector again adds it back. Different collectors on one builder
   each get their own provider and both receive every entry. The same
   collector across several hosts receives entries from all of them;
   disposing one host stops only that host.
 - One private lock per collector guards appends, clears, and reads; reads
   return snapshots. There is no static/ambient state, so parallel tests with
   their own hosts and collectors do not interfere.
+- Scopes come from the host's shared scope provider, not per logger: a
+  scope opened with `BeginScope` on one host logger also appears in the
+  `Scopes` of entries other categories log inside it on the same async
+  flow — the standard `Microsoft.Extensions.Logging` behavior. Composed
+  loggers keep a per-logger scope stack instead.
 - Activity scopes configured through `LoggerFactoryOptions
   .ActivityTrackingOptions` appear in `Scopes` like any other scope.
+- The collector keeps every entry until you call `ClearCapturedEntries()`;
+  there is no size limit. A collector shared by many tests (for example a
+  `WebApplicationFactory` fixture) accumulates entries across them — clear
+  it at the start of each test, or give each test its own collector.
+
+### When nothing is captured
+
+Capture relies on the host's `ILoggerFactory` dispatching to registered
+`ILoggerProvider`s. A host that **replaces** `ILoggerFactory` with one that
+ignores registered providers bypasses the collector entirely — for
+example Serilog's `UseSerilog()` without `writeToProviders: true`. Then
+`Never()` passes because nothing was captured, not because nothing was
+logged. Likewise, a `ClearProviders()` call that runs *after*
+`AddComponoCapture` (for example in the application's own startup code)
+removes the Compono provider. When in doubt, assert that the collector saw
+something you know the host logs, such as the `Microsoft.Hosting.Lifetime`
+"Application started" entry after `StartAsync`.
 
 ## Structured properties and `MessageTemplate`
 

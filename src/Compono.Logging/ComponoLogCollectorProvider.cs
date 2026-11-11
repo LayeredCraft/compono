@@ -9,15 +9,13 @@ namespace Compono.Logging;
 /// <see cref="ISupportExternalScope"/> so a logger's scopes come from the host's own scope provider
 /// (falling back to its own <see cref="LoggerExternalScopeProvider"/> only if the host never supplies
 /// one). Never public - a consumer reaches capture through <see cref="LogCollector"/>. See
-/// docs/adr/0071-compono-logging-host-wide-log-capture.md and its Amendment 1.
+/// docs/adr/0071-compono-logging-host-wide-log-capture.md and its Amendment 2.
 /// </summary>
-// ProviderAliasAttribute only lives in Logging.Abstractions on net10.0+; on net8.0/net9.0 it is in
-// the Microsoft.Extensions.Logging implementation package, which ADR-0071 deliberately doesn't
-// reference. ADR-0071 Amendment 1 therefore scopes the alias (and the Logging:Compono:* config rule
-// it enables) to net10.0/net11.0 so the shipped dependency graph stays Abstractions-only.
-#if NET10_0_OR_GREATER
+// On net10.0/net11.0 this is the real attribute from Logging.Abstractions; on net8.0/net9.0 it is
+// the internal, same-full-name copy in ProviderAliasAttribute.cs (the logging framework matches the
+// alias by full type name), so the Logging:Compono:* rule works on every target framework while the
+// shipped dependency graph stays Abstractions-only (ADR-0071 Amendment 2).
 [ProviderAlias("Compono")]
-#endif
 internal sealed class ComponoLogCollectorProvider : ILoggerProvider, ISupportExternalScope
 {
     private readonly LogCollector _collector;

@@ -30,17 +30,21 @@ public static class ComponoLoggingBuilderExtensions
         if (IsAlreadyRegistered(builder.Services, collector))
             return builder;
 
-        builder.Services.Add(ServiceDescriptor.Singleton(new ComponoCaptureRegistration(collector)));
-        builder.Services.Add(ServiceDescriptor.Singleton<ILoggerProvider>(_ => new ComponoLogCollectorProvider(collector)));
+        var registration = new ComponoCaptureRegistration(collector);
+        builder.Services.Add(ServiceDescriptor.Singleton<ILoggerProvider>(registration.CreateProvider));
         return builder;
     }
 
+    // Inspects the live ILoggerProvider descriptors themselves (not a separate marker service), so
+    // ClearProviders()/RemoveAll<ILoggerProvider>() also clears the duplicate-detection state.
     private static bool IsAlreadyRegistered(IServiceCollection services, LogCollector collector)
     {
         foreach (var descriptor in services)
         {
-            if (descriptor.ServiceType == typeof(ComponoCaptureRegistration)
-                && descriptor.ImplementationInstance is ComponoCaptureRegistration registration
+            // IsKeyedService is checked first: ImplementationFactory throws on a keyed descriptor.
+            if (descriptor.ServiceType == typeof(ILoggerProvider)
+                && !descriptor.IsKeyedService
+                && descriptor.ImplementationFactory?.Target is ComponoCaptureRegistration registration
                 && ReferenceEquals(registration.Collector, collector))
             {
                 return true;

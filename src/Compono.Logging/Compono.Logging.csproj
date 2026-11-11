@@ -12,6 +12,12 @@
              1 for why this claim is now backed by generated closed-generic activation rather than
              the originally-assumed "member surface is fixed and small" reasoning alone. -->
         <IsAotCompatible>true</IsAotCompatible>
+        <!-- ADR-0071 Amendment 2: ProviderAliasAttribute.cs compiles an internal same-full-name copy
+             of Microsoft.Extensions.Logging.ProviderAliasAttribute on net8.0/net9.0. If a newer
+             Abstractions (which ships the real attribute) ever reached those targets, CS0436 would
+             flag the duplicate - promote it so that becomes a hard build failure, never a silent
+             switch between the two attributes. -->
+        <WarningsAsErrors>$(WarningsAsErrors);CS0436</WarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
