@@ -36,9 +36,19 @@ not `Microsoft.Extensions.Diagnostics`, not
 `Microsoft.Extensions.Diagnostics.Testing`, not
 `Microsoft.Extensions.DependencyInjection.Abstractions`.
 
-**No MSBuild opt-in.** Unlike `Compono.TestDoubles`, there is nothing to
-enable — `Compono.Metrics` ships no generator, analyzer, or props asset.
-`UseMetrics()` works as soon as the package is referenced.
+**No generation opt-in.** Unlike `Compono.TestDoubles`, there is nothing to
+enable: `Compono.Metrics` ships no generator or analyzer, and `UseMetrics()`
+works as soon as the package is referenced. The package includes a
+`build`/`buildTransitive` props asset that defaults
+`ComponoMetricsOwnsMeterFactory` to `true`, so `Compono.Generators` never
+emits a `Compono.TestDoubles` double for `IMeterFactory`; consumers can
+override that property (set it to `false`) but don't need to configure it
+themselves. See
+[Registration order and misuse](#registration-order-and-misuse).
+
+**Forgot `UseMetrics()`?** A composition failure naming `IMeterFactory`
+usually means it wasn't registered — see [Runtime composition
+failures](../troubleshooting/common-errors.md#runtime-composition-failures).
 
 ## What it gives you
 
@@ -55,7 +65,7 @@ var service = composer.Create<OrderService>();   // OrderService(IMeterFactory m
 public sealed class MetricsProfile : ICompositionProfile
 {
     public void Configure(CompositionBuilder builder) =>
-        builder.UseMetrics().Share<IMeterFactory>();
+        builder.UseMetrics();
 }
 
 [Theory]
@@ -70,6 +80,16 @@ public void PlacingAnOrderCountsIt([Shared] IMeterFactory meters, OrderService s
     meters.Verify<double>("shop.orders.duration").Once();               // histogram: one recording
 }
 ```
+
+**`[Shared]` and `Share<IMeterFactory>()` — use one or the other.** The
+parameter above is `[Shared]`, so the test and the SUT receive the same
+factory with no `Share<T>()` needed; `[Shared]` resolves first, whatever
+its parameter position. Use `Share<IMeterFactory>()` in the profile
+instead for profile-wide intent — an undecorated `IMeterFactory` parameter,
+or several consumers in one `Composer.Create` graph. Declaring both is
+redundant but harmless. What matters is the sharing, not the mechanism:
+each `CapturingMeterFactory` captures only the meters it created, so a
+test observing a different instance sees no measurements.
 
 ```csharp
 var placed = meters.GetMeasurements<long>("Shop.Orders", "shop.orders.placed");

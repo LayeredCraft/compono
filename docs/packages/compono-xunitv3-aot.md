@@ -245,6 +245,16 @@ unchanged on this package. See [`Compono.XunitV3`'s per-row
 configuration](compono-xunitv3.md#per-row-configuration) and
 [Use Profiles](../how-to/use-profiles.md#a-profile-whose-constructor-takes-runtime-objects).
 
+**Failure granularity is the same whole-theory contract** (ADR-0070 item 9):
+all rows are composed before any row runs, so one row's composition failure
+stops the rest — including rows that would have passed — and the theory
+reports a single failed result instead of one per row, so the reported test
+count can drop while the failure is present. Every data attribute on the
+method, including `[InlineData]` rows, is affected. Fix the failing row and
+every row runs and is counted again. On AOT, an unsupported row/shape is
+usually a compile-time `CMP` diagnostic instead of this runtime failure — see
+[ComposeData diagnostics on Native AOT](#composedata-diagnostics-on-native-aot).
+
 ## Not yet supported
 
 `Compono.XunitV3.Aot.ComposeAttribute`'s three forms don't support inline

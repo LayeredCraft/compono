@@ -373,6 +373,15 @@ This works the same on `Compono.XunitV3.Aot`. Both engines are proven by
 ([RESEARCH-0040](../research/0040-issue-161-1-4-dogfood-follow-up.md)
 finding 2).
 
+**Optional consumer-side base profile.** If many profiles repeat
+`builder.Register(() => config)`, you can write your own
+`ConfigProfile<TConfig>` base to hold that one line — see [Vary Composed
+Configuration per Theory
+Row](../cookbook/vary-composed-configuration-per-theory-row.md#solution).
+It's a convenience type in your test project, not a Compono API. A derived
+profile must not also register `TConfig` (that's a duplicate
+registration).
+
 ### Shared dependencies and `[Shared]`
 
 A `[Shared]` parameter works the same as under `[Compose]`: it names the one
@@ -455,8 +464,17 @@ Every failure — reading the member, building one row's profile, or composing a
 row — throws a `CompositionException` that names the member (`Type.Member`). A
 row failure also names the **zero-based row index** and the row's label when it
 has one, and (per the rule below) a seed; a member-level failure has no row
-index. The whole theory fails as a unit: there are no placeholder rows
-and no custom invoker to keep the other rows running. The original cause is
+index.
+
+The whole theory fails as a unit: there are no placeholder rows and no custom
+invoker to keep the other rows running. Composition happens when the theory
+runs, and **all** rows are built before any row executes. A composition
+failure in one row therefore stops the rest: no row of that theory executes,
+including rows that would have passed. The theory then reports a **single**
+failed result instead of one result per row, so the suite's reported test
+count can drop while the failure is present. Every data attribute on the same
+method is affected, including its `[InlineData]` rows. Once the composition
+error is fixed, every row runs and is counted again. The original cause is
 preserved as the exception's `InnerException`, and any `Diagnostic` is carried
 through.
 

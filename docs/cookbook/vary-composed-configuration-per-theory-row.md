@@ -92,6 +92,33 @@ receives, `builder.Register(() => config)`, and add a composed `TConfig`
 parameter after the row values. It resolves to that row's own instance.
 See [Reading the row's `TConfig`](../packages/compono-xunitv3.md#per-row-configuration).
 
+**Optional: a consumer-side base profile.** If many profiles repeat that
+line, you can reduce the boilerplate with your own small base type — this
+is a convenience in your test project, not a Compono type or API, and
+Compono won't ship it:
+
+```csharp
+public abstract class ConfigProfile<TConfig>(TConfig config) : ICompositionProfile
+    where TConfig : class
+{
+    protected TConfig Config => config;
+
+    public void Configure(CompositionBuilder builder)
+    {
+        builder.Register(() => config);
+        ConfigureCore(builder);
+    }
+
+    protected abstract void ConfigureCore(CompositionBuilder builder);
+}
+```
+
+`PricingProfile` could derive from `ConfigProfile<PricingConfig>` and put
+only its own registrations in `ConfigureCore`. A derived profile must not
+also call `Register(() => config)` for `TConfig` — that's a duplicate
+registration and fails composition (a `CompositionException` wrapping a
+`CompositionConfigurationException`).
+
 **`[Shared]` still works.** Mark a parameter `[Shared]` and, when a row
 supplies a value at that position, that value becomes the single instance
 every other parameter in the row resolving that type receives; otherwise

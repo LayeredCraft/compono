@@ -47,8 +47,9 @@ CreateOrderHandler
     └── OrderValidator validator
         └── IRuleProvider rules
 
-No registration, semantic provider, test-double provider, built-in
-provider, or generated plan could satisfy IRuleProvider.
+No registration, configuration rule, semantic provider, test-double
+provider, built-in provider, or generated plan could satisfy
+IRuleProvider.
 
 Seed: 8451203967726193045
 ```
@@ -77,6 +78,15 @@ registration, or install `Compono.NSubstitute` and call `UseNSubstitute()`
 if you want an automatic substitute. `Compono.Bogus` doesn't supply
 interface providers — it only matches `string`-typed members by name, so
 it won't resolve this.
+
+**If the name in the message is `IMeterFactory` or `ILogger`/`ILogger<T>`**
+and you meant `Compono.Metrics` or `Compono.Logging` to supply it, call
+`UseMetrics()` or `UseLogging()` from the profile or `Composer.Create`
+builder. Supplying the type yourself through `Register<T>()` or
+`UseServiceProvider` is equally valid — the point is that no provider was
+registered for it. For the related instrument/`Verify()` symptoms, see
+[Verify metrics on a non-Compono IMeterFactory
+throws](#verify-metrics-on-a-non-compono-imeterfactory-throws).
 
 **A genuine construction cycle always fails this way too, immediately** —
 Compono has no `OmitOnRecursionBehavior`-style opt-out; a self-referencing
@@ -244,6 +254,20 @@ constructor's **own** message and the original exception is kept as
 `System.Reflection.TargetInvocationException`. This fix lives in
 `AddProfile<TProfile>()` and applies to every framework's `[Compose<TProfile>]`
 and `[ComposeData<TProfile>]`, so those failures read identically.
+
+### "A `[ComposeData]` theory's test count dropped / only one result is reported"
+
+A composition failure in any row stops the whole theory. `[ComposeData]`
+builds all rows when the theory runs, before any row executes, so one
+failing row prevents every other row — including rows that would have
+passed — from running. xUnit then reports the theory as a single failed
+result instead of one result per row, which is why the suite's reported
+count can drop. Every data attribute on the same method is affected,
+including its `[InlineData]` rows. This is the documented whole-theory
+failure contract, not a lost or silently skipped test: fix the
+`CompositionException` in the failing row, and every row runs and is
+counted again. See [Failures, seeds, and row
+labels](../packages/compono-xunitv3.md#failures-seeds-and-row-labels).
 
 ### "A composed value doesn't look realistic" (looks like an anonymous string)
 
