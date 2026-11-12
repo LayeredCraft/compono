@@ -98,6 +98,9 @@ internal static class Program
 
         collector.Verify().InCategory("Host.Smoke").AtLevelOrAbove(LogLevel.Warning).Once();
         collector.Verify().AtLevelOrAbove(LogLevel.Error).Never();
+        // ADR-0055 Amendment 7: literal ordinal prefix filters under Native AOT.
+        collector.Verify().InCategoryPrefix("Host.").AtLevelOrAbove(LogLevel.Warning).Once();
+        collector.Verify().NotInCategoryPrefix("Host.").AtLevelOrAbove(LogLevel.Warning).Never();
     }
 
     private static void VerifyProviderAliasRuleUnderAot()

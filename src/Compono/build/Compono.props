@@ -24,4 +24,14 @@
     <CompilerVisibleProperty Include="ComponoGeneratedLogging" />
   </ItemGroup>
 
+  <!--
+    Declares ComponoMetricsOwnsMeterFactory (docs/adr/0072-compono-metrics-testing-support-package.md
+    Amendment 5) as a CompilerVisibleProperty, for the same reason as the two properties above. Inert
+    for any consumer who never references Compono.Metrics - that package's own
+    build/Compono.Metrics.props asset is what defaults this to true, never this file.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoMetricsOwnsMeterFactory" />
+  </ItemGroup>
+
 </Project>

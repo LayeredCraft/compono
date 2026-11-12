@@ -301,6 +301,17 @@ values use — see [ADR-0022](../adr/0022-compono-xunit-package-design.md)):
 row value `i` binds to test parameter `i`, left to right, and any parameters
 after the row values are composed. To put a composed collaborator before a
 row value, reorder the method's parameters so the row values come first.
+Write the signature as **row values first, then `[Shared]` and composed
+parameters**:
+
+```csharp
+// row: [config, "first", 1]  ->  label = "first", count = 1, then window and sut are composed
+public void Ordered(string label, int count, [Shared] RetentionWindow window, RetentionPolicy sut)
+```
+
+Binding by parameter name, or binding a parameter to the row's `TConfig`
+element, isn't supported. Either would make a row ambiguous whenever a later
+element is also assignable to the same type.
 
 For `[ComposeData<TProfile, TConfig>]`, element 0 is consumed as the row's
 configuration and is **not** a row value; elements 1..n bind to parameters
@@ -326,6 +337,41 @@ it (`new TProfile(rowConfig)`). This is the multi-row counterpart to
 `[Compose<TProfile, TConfig>]`: instead of one call-site configuration for the
 whole method, every row carries its own. The profile (and everything it
 registers) is never shared across rows.
+
+**Reading the row's `TConfig` in the test body.** Element 0 goes to the
+profile constructor and doesn't bind to a parameter. The profile already
+holds it, so have the profile register it. A composed `TConfig` parameter
+then receives that row's own instance (an exact registration), with no
+need to repeat the same values as row elements:
+
+```csharp
+public sealed record RetentionWindow(int DaysBefore, int DaysAfter);
+
+public sealed class RetentionProfile(RetentionWindow window) : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.Register(() => window);
+}
+
+public static TheoryData<RetentionWindow, int, bool> RetentionCases => new()
+{
+    { new RetentionWindow(DaysBefore: 7, DaysAfter: 30), 30, true },
+    { new RetentionWindow(DaysBefore: 7, DaysAfter: 30), 31, false },
+};
+
+[Theory]
+[ComposeData<RetentionProfile, RetentionWindow>(nameof(RetentionCases))]
+public void Keeps(int ageInDays, bool expected, RetentionWindow window, RetentionPolicy sut)
+{
+    Assert.Equal(expected, sut.Keeps(ageInDays));
+    Assert.Equal(expected, ageInDays <= window.DaysAfter);   // the row's own config
+}
+```
+
+This works the same on `Compono.XunitV3.Aot`. Both engines are proven by
+`DocumentedRecipeTests` in `test/Compono.XunitV3.Tests` and
+`test/Compono.XunitV3.Aot.Tests`
+([RESEARCH-0040](../research/0040-issue-161-1-4-dogfood-follow-up.md)
+finding 2).
 
 ### Shared dependencies and `[Shared]`
 
@@ -393,6 +439,15 @@ theory parameter** (a value bound from a row or a composed parameter) — JIT
 disposes every `IDisposable` theory argument, a `[Shared]` parameter included,
 so a fixture-owned instance would be disposed by JIT but not by AOT. Dispose
 what you create; let the fixture own anything longer lived.
+
+The same xUnit behavior applies to `[Compose]` theories. It was confirmed on
+xUnit v3 4.0.1: the argument is disposed after the test case, once per
+argument slot, so a `[Shared]` value bound to two parameters is disposed
+twice. Disposable composed types must therefore tolerate repeated
+`Dispose()`, as .NET guidance already requires. A `using var _ = meters;`
+line for a `[Shared] IMeterFactory` is optional on this package (xUnit
+disposes the argument anyway) but still needed on `Compono.XunitV3.Aot`.
+See [Compono.Metrics — Disposal patterns](compono-metrics.md#disposal-patterns).
 
 ### Failures, seeds, and row labels
 

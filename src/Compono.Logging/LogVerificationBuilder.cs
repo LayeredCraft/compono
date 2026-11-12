@@ -36,8 +36,8 @@ public sealed class LogVerificationBuilder
 
     /// <summary>
     /// Restricts matches to entries whose <see cref="CapturedLogEntry.Category"/> is exactly
-    /// <paramref name="category"/> (ordinal, case-sensitive - use <see cref="Matching"/> for a prefix
-    /// or wildcard match).
+    /// <paramref name="category"/> (ordinal, case-sensitive - use <see cref="InCategoryPrefix"/> for a
+    /// prefix match, or <see cref="Matching"/> for anything else).
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="category"/> is <see langword="null"/>.</exception>
     public LogVerificationBuilder InCategory(string category)
@@ -45,6 +45,35 @@ public sealed class LogVerificationBuilder
         ArgumentNullException.ThrowIfNull(category);
 
         return Add($"category \"{category}\"", entry => string.Equals(entry.Category, category, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Restricts matches to entries whose <see cref="CapturedLogEntry.Category"/> starts with
+    /// <paramref name="prefix"/> (ordinal, case-sensitive). The prefix is literal - no namespace
+    /// separator is implied - so <c>InCategoryPrefix("MyApp.Jobs")</c> also matches
+    /// <c>MyApp.JobsLegacy</c>; pass a trailing dot (<c>"MyApp.Jobs."</c>) to match only categories
+    /// beneath that namespace. An empty prefix matches every entry.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    public LogVerificationBuilder InCategoryPrefix(string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+
+        return Add($"category starting with \"{prefix}\"", entry => entry.Category.StartsWith(prefix, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Restricts matches to entries whose <see cref="CapturedLogEntry.Category"/> does <b>not</b> start
+    /// with <paramref name="prefix"/> (ordinal, case-sensitive) - for host-wide guards such as "nothing
+    /// at <see cref="LogLevel.Error"/> outside <c>MyApp.Jobs.</c>". The prefix is literal, exactly as for
+    /// <see cref="InCategoryPrefix"/>; an empty prefix matches no entry.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="prefix"/> is <see langword="null"/>.</exception>
+    public LogVerificationBuilder NotInCategoryPrefix(string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+
+        return Add($"category not starting with \"{prefix}\"", entry => !entry.Category.StartsWith(prefix, StringComparison.Ordinal));
     }
 
     /// <summary>Restricts matches to entries logged with exactly <paramref name="eventId"/>.</summary>

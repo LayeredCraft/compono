@@ -8,5 +8,8 @@ namespace Compono.Generators.Models;
 /// <see langword="false"/> when unset - <see cref="LoggingEnabled"/>'s own default-to-<see langword="true"/>
 /// behavior for a consumer who references <c>Compono.Logging</c> comes from that package's own
 /// packed MSBuild props asset, not from this type or this generator.
+/// <c>ComponoMetricsOwnsMeterFactory</c> (docs/adr/0072-compono-metrics-testing-support-package.md
+/// Amendment 5) follows the same split: <see langword="false"/> when unset here, defaulted to
+/// <see langword="true"/> by <c>Compono.Metrics</c>'s own packed props.
 /// </summary>
-internal readonly record struct GeneratorFeatureFlags(bool TestDoublesEnabled, bool LoggingEnabled);
+internal readonly record struct GeneratorFeatureFlags(bool TestDoublesEnabled, bool LoggingEnabled, bool MetricsOwnsMeterFactory);

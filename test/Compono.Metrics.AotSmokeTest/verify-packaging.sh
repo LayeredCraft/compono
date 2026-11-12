@@ -5,13 +5,17 @@
 # loudly with the evidence" shape.
 #
 # Confirms, from a real packed .nupkg (not source, not a ProjectReference):
-#   1. Compono.Metrics.nupkg ships no analyzer/props of its own.
+#   1. Compono.Metrics.nupkg ships no analyzer of its own, and ships build/ + buildTransitive/
+#      Compono.Metrics.props defaulting ComponoMetricsOwnsMeterFactory to true (ADR-0072 Amendment 5).
 #   2. Compono.Metrics.nupkg's .nuspec has exactly one dependency group per target TFM (4), each with
 #      exactly one dependency - Compono - pinned to the exact version (ADR-0072: zero dependency
 #      beyond core Compono; the exact-version pin target is the same one every other package uses).
 #   3. A scratch PackageReference consumer of Compono.Metrics ALONE (no explicit property, no
 #      ProjectReference workaround) gets real generator-discovered IMeterFactory composition, capture,
 #      tag matching, and Verify() - proving the whole chain flows transitively through Compono.
+#   4. A scratch consumer that also references Compono.TestDoubles with ComponoGeneratedTestDoubles=true
+#      gets a CapturingMeterFactory even when UseGeneratedTestDoubles() is registered BEFORE
+#      UseMetrics() - the packed props' ownership default reaches the generator (ADR-0072 Amendment 5).
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,7 +38,9 @@ fail() {
 }
 
 [ -d "$metrics_inspect/analyzers" ] && fail "Compono.Metrics.nupkg unexpectedly contains an analyzers/ directory - it must ship no generator/analyzer DLL of its own"
-[ -d "$metrics_inspect/build" ] && fail "Compono.Metrics.nupkg unexpectedly contains a build/ directory - it must ship no props of its own"
+[ -f "$metrics_inspect/build/Compono.Metrics.props" ] || fail "Compono.Metrics.nupkg is missing build/Compono.Metrics.props"
+[ -f "$metrics_inspect/buildTransitive/Compono.Metrics.props" ] || fail "Compono.Metrics.nupkg is missing buildTransitive/Compono.Metrics.props"
+grep -q "ComponoMetricsOwnsMeterFactory" "$metrics_inspect/build/Compono.Metrics.props" || fail "build/Compono.Metrics.props does not default ComponoMetricsOwnsMeterFactory"
 
 nuspec=$(find "$metrics_inspect" -maxdepth 1 -name '*.nuspec' | head -n 1)
 [ -n "$nuspec" ] || fail "Compono.Metrics.nupkg is missing its .nuspec"
@@ -50,7 +56,7 @@ non_compono_deps=$(grep -o '<dependency id="[^"]*"' "$nuspec" | grep -v 'id="Com
 exact_version_deps=$(grep -o 'version="\[1.0.0\]"' "$nuspec" | wc -l | tr -d ' ')
 [ "$exact_version_deps" = "4" ] || fail "every Compono dependency must be pinned to the exact version [1.0.0], found $exact_version_deps exact pins"
 
-echo "verify-packaging.sh: packaging shape confirmed (no analyzer/props, 4 TFM groups, single exact-version Compono dependency each)."
+echo "verify-packaging.sh: packaging shape confirmed (no analyzer, ownership props in build/ + buildTransitive/, 4 TFM groups, single exact-version Compono dependency each)."
 
 echo "verify-packaging.sh: verifying a scratch PackageReference consumer of Compono.Metrics alone ..."
 consumer_dir="$work_dir/consumer"
@@ -104,5 +110,64 @@ echo "$consumer_output" | grep -q "METRICS-COMPOSITION-OK" || {
     exit 1
 }
 echo "verify-packaging.sh: confirmed - PackageReference-only composition works."
+
+echo "verify-packaging.sh: verifying IMeterFactory ownership against UseGeneratedTestDoubles() registered first ..."
+owner_dir="$work_dir/owner-consumer"
+mkdir -p "$owner_dir"
+cp "$consumer_dir/nuget.config" "$owner_dir/nuget.config"
+cat > "$owner_dir/OwnerConsumer.csproj" <<EOF
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesPath>$owner_dir/.nuget-packages</RestorePackagesPath>
+    <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Compono.Metrics" Version="1.0.0" />
+    <PackageReference Include="Compono.TestDoubles" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+EOF
+cat > "$owner_dir/Program.cs" <<'EOF'
+using System.Diagnostics.Metrics;
+using Compono;
+using Compono.Metrics;
+
+var composer = Composer.Create(builder => builder.UseGeneratedTestDoubles().UseMetrics());
+var service = composer.Create<OwnerService>();
+using var _ = service.Meters;
+
+Console.WriteLine(service.Meters is CapturingMeterFactory ? "METRICS-OWNERSHIP-OK" : "UNEXPECTED-FACTORY " + service.Meters.GetType());
+Console.WriteLine(service.Clock is not null ? "SIBLING-DOUBLE-OK" : "UNEXPECTED-SIBLING");
+
+public interface IOwnerClock
+{
+    DateTimeOffset Now();
+}
+
+public sealed class OwnerService(IMeterFactory meters, IOwnerClock clock)
+{
+    public IMeterFactory Meters { get; } = meters;
+
+    public IOwnerClock Clock { get; } = clock;
+}
+EOF
+
+owner_output=$(cd "$owner_dir" && dotnet run -c Release 2>&1)
+echo "$owner_output" | grep -q "METRICS-OWNERSHIP-OK" || {
+    echo "verify-packaging.sh: FAIL - UseGeneratedTestDoubles() registered first took IMeterFactory despite Compono.Metrics' ownership props. Output:" >&2
+    echo "$owner_output" >&2
+    exit 1
+}
+echo "$owner_output" | grep -q "SIBLING-DOUBLE-OK" || {
+    echo "verify-packaging.sh: FAIL - the exclusion was not narrow: a sibling interface did not get its generated double. Output:" >&2
+    echo "$owner_output" >&2
+    exit 1
+}
+echo "verify-packaging.sh: confirmed - Compono.Metrics owns IMeterFactory regardless of UseGeneratedTestDoubles() order."
 
 echo "verify-packaging.sh: PASS - all packaging/consumption behaviors confirmed against a real packed nupkg."

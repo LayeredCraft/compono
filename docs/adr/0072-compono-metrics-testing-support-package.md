@@ -722,3 +722,97 @@ where it reads naturally). Example:
 `Expected exactly 1 call(s) to instrument "shop.orders.placed" (long) with
 tag region = "eu" and value 1, but received 0.` No public API changed, and
 core `CallVerifier` is untouched.
+
+## Amendment 5 (2026-11-11): Compono.Metrics owns `IMeterFactory` — excluded from `Compono.TestDoubles` generation
+
+**Status:** Accepted (maintainer decision, 2026-11-11). **This amendment
+explicitly supersedes the "Precedence and misuse" sentence *"No generator
+exclusion is added."*** Everything else in that section stands, including
+first-registered-wins against `UseNSubstitute()`.
+
+### What dogfooding found
+
+The #161 follow-up ([RESEARCH-0040](../research/0040-issue-161-1-4-dogfood-follow-up.md)
+finding 1) migrated a 231-test suite with `ComponoGeneratedTestDoubles=true`.
+A shared base profile called `UseGeneratedTestDoubles()` before
+`UseMetrics()`. `Compono.Generators` emits a double for every interface it
+reaches, so it had generated one for the SUT's `IMeterFactory`, and
+`GeneratedTestDoubleProvider` won stage 6. 28 tests failed on measurement
+assertions. Separately, `UseMetrics()`'s remarks and the misuse exception
+named only `UseNSubstitute()`, never `UseGeneratedTestDoubles()`.
+
+### Decision
+
+Follow [ADR-0055](0055-compono-logging-testing-support-package.md)
+Amendment 4's ownership precedent. When `Compono.Metrics` is referenced,
+`System.Diagnostics.Metrics.IMeterFactory` is a **Metrics-owned
+abstraction**, and `Compono.Generators` never generates a
+`Compono.TestDoubles` double for it.
+
+- **Signal:** a new MSBuild property, `ComponoMetricsOwnsMeterFactory`.
+  `Compono.Metrics`'s packed `build/` and `buildTransitive/` props default
+  it to `true` when it's unset, and core `Compono.props` declares it
+  `CompilerVisibleProperty`. That's the same split `ComponoGeneratedLogging`
+  uses (ADR-0055 Amendment 3). Package or type presence isn't the signal,
+  per Amendment 3's rejection of symbol-presence gating. A consumer can set
+  it to `false` to get a generated `IMeterFactory` double back.
+- **Mechanism:** the existing `TransitiveClosureWalker.TryRecordTestDouble`
+  exclusion check that already skips Logging-owned types. When the flag is
+  on, it also skips the type `IMeterFactory` resolves to. Nothing else in
+  discovery changes. If the type can't be resolved, the flag has no effect.
+- **Unchanged:** stage-6 first-registered-wins (ADR-0024/ADR-0043), core
+  composition, and provider precedence. `UseMetrics()` must still come
+  before `UseNSubstitute()` or any other catch-all stage-6 provider. That
+  guidance stays in the remarks, the misuse message, and the docs, which
+  now also name `UseGeneratedTestDoubles()` and explain that, with
+  `Compono.Metrics` referenced, order against it doesn't matter.
+
+### Tradeoff (accepted)
+
+With `Compono.Metrics` referenced, a composer that calls
+`UseGeneratedTestDoubles()` but **not** `UseMetrics()` gets no
+`IMeterFactory` double. The request falls through to any later stage-6
+provider, or composition fails with the standard "no provider could
+satisfy" `CompositionException`. Referencing a metrics-testing package
+without calling `UseMetrics()` is almost always a mistake, and a loud
+failure beats a silently uncapturing double. Opting out is one property.
+
+### Verification
+
+Generator tests cover flag on, flag off, a sibling interface still being
+doubled, and the flag having no effect when the type can't be resolved.
+`Compono.Metrics.Tests` runtime tests (real generated doubles enabled)
+cover both registration orders with `UseGeneratedTestDoubles()` and the
+referenced-without-`UseMetrics()` case. Tracked in
+[PLAN-0075](../plans/0075-issue-161-1-4-dogfood-follow-up-impl-plan.md).
+
+## Amendment 6 (2026-11-11): disposal patterns clarified per test engine — no ownership change
+
+**Status:** Accepted (maintainer decision, 2026-11-11). This is a
+clarification only. "Composition stays non-owning", "No new ownership API
+is added", and the "Automatic disposal by composition" non-goal are
+unchanged, and [ADR-0022](0022-compono-xunit-package-design.md)
+Amendment 4 stands.
+
+"Disposal patterns" pattern 1 prescribes `using var _ = meters;` in every
+`[Compose]`-family test and says Compono doesn't rely on framework disposal
+"either way". RESEARCH-0040 finding 3 checked this empirically on xUnit
+v3 4.0.1 (JIT): xUnit itself disposes every `IDisposable`/`IAsyncDisposable`
+test-method argument after the test case, once per argument slot
+(RESEARCH-0038 §2.4, ADR-0070 contract item 12). A `[Shared] IMeterFactory`
+parameter is the SUT's instance, so on `Compono.XunitV3` xUnit already
+disposes it and the `using` line is redundant (harmless, because
+`Dispose()` is idempotent). xUnit's AOT core doesn't dispose arguments. TUnit,
+NUnit, and MSTest weren't re-tested here. TUnit's root-argument disposal is
+already documented separately in
+[ADR-0040](0040-compono-tunit-package-design.md) ("Diagnostics, disposal,
+and seed observability") and in the `Compono.TUnit` package guide. This
+amendment relies on that documented contract and doesn't re-verify it.
+
+The documented guidance is now per engine: on `Compono.XunitV3` the
+`using` line is optional. It's also optional on `Compono.TUnit`, per ADR-0040's
+documented root-argument disposal. Keep it on `Compono.XunitV3.Aot`,
+`Compono.NUnit`, `Compono.MSTest`, and `Composer.Create` tests. Compono still registers
+nothing for disposal (`ComposeAttributeDisposalTests` still guards that),
+and xUnit's argument disposal remains xUnit's behavior, not a Compono
+contract.

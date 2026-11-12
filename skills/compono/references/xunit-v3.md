@@ -184,7 +184,27 @@ own `TypeHelper` conversions, the same strictness as `[Compose(42)]`:
 
 The same leading-positional, compose-the-rest algorithm `[Compose]` uses
 (ADR-0022) applies to the composed parameters — `[Shared]` parameters
-resolve first, then the rest.
+resolve first, then the rest. So write signatures as **row values first,
+then `[Shared]`/composed parameters**. Binding by parameter name doesn't
+exist; never suggest it.
+
+**Reading the row's `TConfig` in the test body.** Element 0 is consumed by
+the profile constructor and never binds to a parameter. Don't duplicate its
+values as extra row elements, and don't invent a "bind `TConfig` to
+parameter 0" feature. The supported recipe: the profile registers the config
+it already holds, `builder.Register(() => config)`, and the test adds a
+composed `TConfig` parameter after the row values. It resolves to that row's
+own instance. Works identically on `Compono.XunitV3.Aot` (RESEARCH-0040).
+
+```csharp
+public sealed class RetentionProfile(RetentionWindow window) : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) => builder.Register(() => window);
+}
+
+[Theory, ComposeData<RetentionProfile, RetentionWindow>(nameof(Cases))]
+public void Keeps(int ageInDays, bool expected, RetentionWindow window, RetentionPolicy sut) { }
+```
 
 ### Shared dependencies and `[Shared]`
 

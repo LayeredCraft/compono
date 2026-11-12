@@ -111,6 +111,16 @@ var composer = Composer.Create(b => b.AddProfile<OrderTestProfile>());
 - Pure configuration, applied synchronously exactly once.
 - `AddProfile<TProfile>()` requires a parameterless constructor;
   `AddProfile(instance)` for one that doesn't.
+- **Profile constructor arguments with `[Compose<TProfile>]`** (runtime
+  objects such as interceptors, which can't be attribute constants): write a
+  parameterless *wrapper* profile per variant whose `Configure` calls
+  `builder.AddProfile(new DbProfile(new AuditInterceptor(log)))`. Register
+  anything the test must assert on, such as `log`. Alternatively, use a
+  single-row `[ComposeData<TProfile, TConfig>]` whose `TConfig` carries the
+  objects. Both work on JIT and Native AOT. Don't suggest adding a second
+  parameterless constructor to the real profile, and don't invent a
+  `ProfileMember`/profile-factory attribute property. That was deferred
+  (RESEARCH-0040).
 - Multiple `AddProfile<...>()` calls all apply, in the order added.
 - A profile applying itself (directly or through nesting) is a
   `CompositionConfigurationException` (`ProfileCycle`), immediately — not

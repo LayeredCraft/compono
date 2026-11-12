@@ -1,0 +1,21 @@
+<Project>
+
+  <!--
+    Defaults ComponoMetricsOwnsMeterFactory to true whenever it hasn't already been set, per
+    docs/adr/0072-compono-metrics-testing-support-package.md Amendment 5: referencing Compono.Metrics
+    makes System.Diagnostics.Metrics.IMeterFactory a Metrics-owned abstraction, so Compono.Generators
+    never emits a Compono.TestDoubles double for it and UseGeneratedTestDoubles() can't take
+    IMeterFactory ahead of UseMetrics() regardless of registration order. Mirrors
+    Compono.Logging.props' ComponoGeneratedLogging default (ADR-0055 Amendments 3-4).
+
+    Set it to false explicitly to get a generated IMeterFactory double back. The Condition guard keeps
+    an explicit consumer choice winning wherever it's set (project body or Directory.Build.props).
+
+    Packaged into both build/ and buildTransitive/ so the default applies whether Compono.Metrics is
+    referenced directly or transitively.
+  -->
+  <PropertyGroup>
+    <ComponoMetricsOwnsMeterFactory Condition="'$(ComponoMetricsOwnsMeterFactory)' == ''">true</ComponoMetricsOwnsMeterFactory>
+  </PropertyGroup>
+
+</Project>

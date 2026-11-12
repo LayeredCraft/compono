@@ -25,7 +25,7 @@ public sealed class CheckoutProfile : ICompositionProfile
 [Theory, Compose<CheckoutProfile>]
 public void PlacingAnOrderCountsIt([Shared] IMeterFactory meters, CheckoutService service)
 {
-    using var _ = meters;   // the test owns disposal
+    using var _ = meters;   // optional on Compono.XunitV3 (xUnit disposes args); required on XunitV3.Aot; keep on NUnit/MSTest
 
     service.Place(new Order("eu", 3));
 
@@ -77,7 +77,11 @@ compile-time opt-in for it — there is none.
   observable instruments. Idempotent per call (twice records twice); a no-op
   before the first `Create` or after `Dispose`.
 - `meters.ClearMeasurements()` — clears captured measurements (doesn't reset
-  capture order's sequence).
+  capture order's sequence). This is **the** supported way to assert on one
+  pass of a multi-pass test: call it immediately before the step under test,
+  then `Verify`. Take a `GetMeasurements<T>` snapshot first if an earlier
+  pass must also be asserted. Don't invent `Checkpoint()`/`Since(...)`/
+  `BeginCapture()` APIs; they were considered and deferred (RESEARCH-0040).
 
 Never suggest a two-verb `VerifyMetrics()...Verify()` shape or an aggregate
 helper (`Sum`, `LastValue`) — both were considered and rejected (ADR-0072).
@@ -157,6 +161,15 @@ measurements stay readable, `ClearMeasurements` works,
 meters' instruments isn't captured. Three documented patterns:
 
 1. `[Compose]` tests — dispose the `[Shared]` parameter: `using var _ = meters;`.
+   On `Compono.XunitV3` (JIT) the line is optional: xUnit itself disposes every
+   `IDisposable`/`IAsyncDisposable` test-method argument after the test case
+   (once per argument slot), which is xUnit's behavior, not a Compono
+   contract. Keep it on `Compono.XunitV3.Aot` (xUnit's AOT core doesn't
+   dispose arguments), NUnit, and MSTest (not verified). TUnit disposes composed
+   *root* method arguments per `Compono.TUnit`'s documented contract (ADR-0040),
+   which ADR-0072 Amendment 6 didn't re-test; there the line is optional and
+   harmless. Never tell a user Compono
+   disposes composed values; it doesn't (ADR-0072 Amendment 6).
 2. `Composer.Create` tests — construct the factory, then
    `Register<IMeterFactory>(() => meters)` (which also beats `UseMetrics()`).
 3. Generic Host/DI — `services.AddSingleton<IMeterFactory>(meters)`. The
@@ -183,19 +196,37 @@ readable; a disposed meter's instruments report `Enabled == false`.
 
 ## Registration order (stage-6 precedence) and misuse
 
-`UseMetrics()` shares stage 6 with `UseNSubstitute()`/`UseGeneratedTestDoubles()`
-— the existing first-registered-wins rule (ADR-0024) applies unchanged:
+`UseMetrics()` shares stage 6 with `UseNSubstitute()` and any other catch-all
+provider — the existing first-registered-wins rule (ADR-0024) applies
+unchanged:
 
 ```csharp
 builder.UseMetrics().UseNSubstitute();   // IMeterFactory -> CapturingMeterFactory
 builder.UseNSubstitute().UseMetrics();   // IMeterFactory -> an NSubstitute substitute instead
 ```
 
-Register `UseMetrics()` first. Every `MeterFactoryTestingExtensions` method
+Register `UseMetrics()` first, especially in a shared base profile.
+
+**Order against `UseGeneratedTestDoubles()` does not matter** (ADR-0072
+Amendment 5): referencing `Compono.Metrics` defaults the MSBuild property
+`ComponoMetricsOwnsMeterFactory` to `true`, so `Compono.TestDoubles` never
+generates an `IMeterFactory` double; both orders compose a
+`CapturingMeterFactory`, and other interfaces still get generated doubles.
+Consequences to explain when relevant: `UseGeneratedTestDoubles()` *without*
+`UseMetrics()` now fails composition with a `CompositionException` naming
+`IMeterFactory` (fix: add `UseMetrics()`), and a project that genuinely wants
+a generated `IMeterFactory` double sets
+`<ComponoMetricsOwnsMeterFactory>false</ComponoMetricsOwnsMeterFactory>`.
+A `ProjectReference` (not `PackageReference`) to Compono.Metrics doesn't get
+the packed default — set the property explicitly there.
+
+Every `MeterFactoryTestingExtensions` method
 throws `InvalidOperationException` when the `IMeterFactory` isn't a
 `CapturingMeterFactory` (detected by a type check, not reflection); the
-message names `UseMetrics()`, the registration-order requirement, and the
-host recipe. `Meter` constructor parameters are **not** composed by this
+message names `UseMetrics()`, the catch-all registration-order requirement,
+the `ComponoMetricsOwnsMeterFactory` ownership rule, and the host recipe.
+Migrating from `MetricCollector<T>`? See
+docs/migrating-from-microsoft-extensions-diagnostics-testing.md. `Meter` constructor parameters are **not** composed by this
 package — register them from the shared factory in a profile.
 
 ## `Share<T>()` and `[Shared]`

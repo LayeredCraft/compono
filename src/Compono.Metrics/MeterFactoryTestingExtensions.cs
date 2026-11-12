@@ -131,8 +131,11 @@ public static class MeterFactoryTestingExtensions
             $"'{factory.GetType()}' is not a Compono.Metrics capturing meter factory. This member is only usable " +
             "against an IMeterFactory produced by Compono.Metrics (UseMetrics(), or a directly constructed " +
             "CapturingMeterFactory). If this IMeterFactory was composed, confirm UseMetrics() is registered " +
-            "before UseNSubstitute() - Compono's stage-6 test-double providers resolve in registration order, " +
-            "and whichever provider is registered first wins for a given request. If this IMeterFactory came " +
+            "and comes before UseNSubstitute() or any other catch-all test-double provider - Compono's stage-6 " +
+            "test-double providers resolve in registration order, and whichever provider is registered first " +
+            "wins for a given request. A Compono.TestDoubles generated double only competes when " +
+            "ComponoMetricsOwnsMeterFactory has been set to false; by default Compono.Metrics owns " +
+            "IMeterFactory and UseGeneratedTestDoubles() never doubles it. If this IMeterFactory came " +
             "from a host's IServiceProvider (for example AddMetrics()'s DefaultMeterFactory), register a " +
             "CapturingMeterFactory instance with services.AddSingleton<IMeterFactory>(meters) instead. The " +
             "container resolves a single IMeterFactory to its last registration, so add that call after anything " +

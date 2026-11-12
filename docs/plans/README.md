@@ -89,3 +89,4 @@ one. This file is just the mechanics: numbering, status, and the index.
 | [0072](0072-compono-logging-host-wide-log-capture-and-dotnet-11-ga-impl-plan.md) | `Compono.Logging` Host-Wide Log Capture (Issue #164) + .NET 11 GA Migration | Done |
 | [0073](0073-compono-nunit-classic-vstest-discovery-impl-plan.md) | Compono.NUnit: classic-VSTest discovery-time module initialization (Issue #171) | Done |
 | [0074](0074-compono-metrics-testing-support-impl-plan.md) | `Compono.Metrics`: `System.Diagnostics.Metrics` Testing Support (Issue #165) | In Progress |
+| [0075](0075-issue-161-1-4-dogfood-follow-up-impl-plan.md) | Issue #161 1.4 Dogfood Follow-Up (Metrics `IMeterFactory` ownership, Logging prefix filters, docs) | Done |

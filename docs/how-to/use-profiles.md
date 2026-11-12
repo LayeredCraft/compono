@@ -43,6 +43,70 @@ for the full shape and
 [Migrating from AutoFixture](../migrating-from-autofixture.md#migrate-a-parameterized-custom-autodataattribute)
 for the AutoFixture pattern this replaces.
 
+## A profile whose constructor takes runtime objects
+
+`[Compose<TProfile, TConfig>]` arguments must be attribute constants. A
+profile that needs runtime objects, such as interceptors, a configured
+client, or an in-memory log, can't get them from an attribute. There are
+two patterns, and both work on `Compono.XunitV3` and `Compono.XunitV3.Aot`.
+
+**1. A parameterless wrapper profile per variant.** Name each variant once,
+then use it like any other profile. The wrapper builds the arguments and
+applies the real profile with `AddProfile(instance)`:
+
+```csharp
+public sealed class DbProfile(AuditInterceptor? interceptor) : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder) =>
+        builder.Register(() => new OrderRepository(interceptor));
+}
+
+public sealed class AuditedDbProfile : ICompositionProfile
+{
+    public void Configure(CompositionBuilder builder)
+    {
+        var log = new AuditLog();
+        builder.Register(() => log);                              // so the test can assert on it
+        builder.AddProfile(new DbProfile(new AuditInterceptor(log)));
+    }
+}
+
+[Theory, Compose<AuditedDbProfile>]
+public void SavingIsAudited(OrderRepository sut, AuditLog log)
+{
+    sut.Save("42");
+    Assert.Equal(["saved 42"], log.Entries);
+}
+```
+
+Prefer this over adding a parameterless constructor to `DbProfile` itself.
+The variant gets its own name, and `DbProfile` keeps one constructor.
+
+**2. A single-row `[ComposeData<TProfile, TConfig>]`.** When the arguments
+are data (built in a static member rather than per variant), put them in a
+`TConfig` and supply one row:
+
+```csharp
+public sealed record AuditConfig(AuditInterceptor Interceptor);
+
+public static TheoryData<AuditConfig> Audited =>
+    new() { new AuditConfig(new AuditInterceptor(new AuditLog())) };
+
+[Theory]
+[ComposeData<ConfiguredDbProfile, AuditConfig>(nameof(Audited))]
+public void SavingIsAudited(OrderRepository sut, AuditLog log) { /* ... */ }
+```
+
+The test is a one-row theory. Both patterns are exercised by
+`DocumentedRecipeTests` in `test/Compono.XunitV3.Tests` and
+`test/Compono.XunitV3.Aot.Tests`. A dedicated "profile factory member"
+attribute property isn't offered. It's deferred until these patterns prove
+inadequate
+([RESEARCH-0040](../research/0040-issue-161-1-4-dogfood-follow-up.md)
+finding 6). Runtime values from an xUnit fixture can also be read inside a
+profile with `TestContext.Current.RequireFixture<TFixture>()`; see the
+[`Compono.XunitV3` Package Guide](../packages/compono-xunitv3.md).
+
 ## Combining more than one profile
 
 ```csharp

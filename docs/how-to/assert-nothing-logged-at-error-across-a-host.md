@@ -65,14 +65,29 @@ or a short name.
 `InCategory` never matches by prefix, unlike the host's own `AddFilter`
 and `Logging:LogLevel:*` rules. A category string that matches nothing
 makes `Never()` pass without checking anything. To cover a whole
-namespace, match the prefix explicitly:
+namespace, use `InCategoryPrefix`, or `NotInCategoryPrefix` to check
+everything *outside* it:
 
 ```csharp
 logs.Verify()
     .AtLevelOrAbove(LogLevel.Error)
-    .Matching(entry => entry.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal))
+    .InCategoryPrefix("MyApp.Payments.")
+    .Never();
+
+// The common host guard: nothing at Error or above outside your own code.
+logs.Verify()
+    .AtLevelOrAbove(LogLevel.Error)
+    .NotInCategoryPrefix("MyApp.Jobs.")
     .Never();
 ```
+
+`InCategoryPrefix`/`NotInCategoryPrefix` are ordinal and case-sensitive like
+`InCategory`, and the prefix is **literal**: no namespace separator is
+added. `InCategoryPrefix("MyApp.Jobs")` also matches `MyApp.JobsLegacy`, so
+end the prefix with `.` to mean "beneath this namespace". `"MyApp.Jobs."`
+doesn't match the bare `MyApp.Jobs` category itself. Use `.Matching(...)` for
+anything else, such as several namespaces at once
+([ADR-0055 Amendment 7](../adr/0055-compono-logging-testing-support-package.md)).
 
 ## What the host may not capture
 
