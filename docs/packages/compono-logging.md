@@ -40,6 +40,10 @@ composition to work. There is no separate MSBuild opt-in to remember, no
 "How this actually runs," below, for what "on by default" means
 mechanically and how to opt back out.
 
+**Forgot `UseLogging()`?** A composition failure naming `ILogger` or
+`ILogger<T>` usually means it wasn't registered — see [Runtime composition
+failures](../troubleshooting/common-errors.md#runtime-composition-failures).
+
 ## What it gives you
 
 ```csharp

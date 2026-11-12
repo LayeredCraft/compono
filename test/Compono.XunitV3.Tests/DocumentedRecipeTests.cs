@@ -3,14 +3,21 @@ namespace Compono.XunitV3.Tests;
 // Real-runner proof for the recipes RESEARCH-0040 (#161 1.4 dogfood follow-up) documents instead of
 // adding API: finding 2 (read a ComposeData row's TConfig in the test body by registering it from the
 // profile; row values bind to the leading parameters) and finding 6 (supply profile constructor
-// arguments through a parameterless wrapper profile, or a single-row ComposeData). The same recipes
-// are proven under the xUnit Native AOT runner in Compono.XunitV3.Aot.Tests/DocumentedRecipeTests.cs.
+// arguments through a parameterless wrapper profile, or a single-row ComposeData). Those RESEARCH-0040
+// recipes are also proven under the xUnit Native AOT runner in
+// Compono.XunitV3.Aot.Tests/DocumentedRecipeTests.cs.
+//
+// Also covers the optional consumer-side ConfigProfile<TConfig> base-type recipe from RESEARCH-0041
+// (#161 preview.128 follow-up). That base type is consumer test-project code, not a Compono type, and
+// this JIT test is its only coverage - no Native AOT counterpart was added for it.
 
 public sealed record RetentionWindow(int DaysBefore, int DaysAfter);
 
 public sealed class RetentionPolicy(RetentionWindow window)
 {
-    public bool Keeps(int ageInDays) => ageInDays >= -window.DaysBefore && ageInDays <= window.DaysAfter;
+    public RetentionWindow Window { get; } = window;
+
+    public bool Keeps(int ageInDays) => ageInDays >= -Window.DaysBefore && ageInDays <= Window.DaysAfter;
 }
 
 // Finding 2: the profile already receives the row's config - registering it makes it composable.
@@ -50,6 +57,29 @@ public sealed class AuditedRecipeDbProfile : ICompositionProfile
         builder.Register(() => log);
         builder.AddProfile(new RecipeDbProfile(new AuditInterceptor(log)));
     }
+}
+
+// Optional consumer-side boilerplate reduction for finding 2 (the profile registers the row's own
+// config once); not a Compono type.
+public abstract class ConfigProfile<TConfig>(TConfig config) : ICompositionProfile
+    where TConfig : class
+{
+    protected TConfig Config => config;
+
+    public void Configure(CompositionBuilder builder)
+    {
+        builder.Register(() => config);
+        ConfigureCore(builder);
+    }
+
+    protected abstract void ConfigureCore(CompositionBuilder builder);
+}
+
+public sealed class BaseRetentionProfile(RetentionWindow window) : ConfigProfile<RetentionWindow>(window)
+{
+    // No additional registrations: the base type's Register(() => config) is what lets Compono
+    // compose RetentionPolicy from this row's RetentionWindow.
+    protected override void ConfigureCore(CompositionBuilder builder) { }
 }
 
 public sealed class DocumentedRecipeTests
@@ -119,5 +149,25 @@ public sealed class DocumentedRecipeTests
         sut.Save("7");
 
         log.Entries.Should().Equal("saved 7");
+    }
+
+    public static TheoryData<RetentionWindow, int, int, bool> BaseProfileCases => new()
+    {
+        { new RetentionWindow(DaysBefore: 1, DaysAfter: 2), 2, 2, true },
+        { new RetentionWindow(DaysBefore: 5, DaysAfter: 10), 11, 10, false },
+    };
+
+    [Theory]
+    [ComposeData<BaseRetentionProfile, RetentionWindow>(nameof(BaseProfileCases))]
+    public void OptionalBaseProfile_RegistersRowConfig_ForAComposedParameter(
+        int ageInDays,
+        int expectedDaysAfter,
+        bool expected,
+        RetentionWindow window,
+        RetentionPolicy sut)
+    {
+        window.DaysAfter.Should().Be(expectedDaysAfter);
+        sut.Window.Should().BeSameAs(window);
+        sut.Keeps(ageInDays).Should().Be(expected);
     }
 }

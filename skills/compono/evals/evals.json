@@ -842,12 +842,12 @@
       "id": 67,
       "category": "behavioral-correctness",
       "prompt": "I registered both UseNSubstitute() and UseMetrics() but the order was builder.UseNSubstitute().UseMetrics(). When my test calls meters.Verify<long>(\"shop.orders.placed\") on the composed IMeterFactory it throws InvalidOperationException saying the instance is not a Compono metrics factory. Also, do I need to set an MSBuild property so UseMetrics() generates something?",
-      "expected_output": "Explains the real cause: Compono's stage-6 test-double providers resolve first-registered-wins, and UseNSubstitute() was registered before UseMetrics(), so IMeterFactory resolved to an NSubstitute substitute instead of a CapturingMeterFactory - the fix is reordering to builder.UseMetrics().UseNSubstitute(). Explicitly answers the second question: no MSBuild property is needed or exists - unlike Compono.Logging/Compono.TestDoubles there is no generation opt-in for Compono.Metrics at all; the failure is registration order, not a missing opt-in.",
+      "expected_output": "Explains the real cause: Compono's stage-6 test-double providers resolve first-registered-wins, and UseNSubstitute() was registered before UseMetrics(), so IMeterFactory resolved to an NSubstitute substitute instead of a CapturingMeterFactory - the fix is reordering to builder.UseMetrics().UseNSubstitute(). Explicitly answers the second question: no MSBuild generation opt-in is needed or exists for Compono.Metrics - its packaged props asset defaults ComponoMetricsOwnsMeterFactory=true so TestDoubles won't generate an IMeterFactory double, and consumers can override it but don't set it manually; the failure is registration order.",
       "files": [],
       "expectations": [
         "Correctly identifies first-registered-wins stage-6 provider precedence as the cause, not a Compono.Metrics bug",
         "Recommends reordering to builder.UseMetrics().UseNSubstitute() (UseMetrics first for IMeterFactory)",
-        "Explicitly states no MSBuild opt-in property exists or is needed for Compono.Metrics",
+        "States no MSBuild generation opt-in is needed; the ownership property is defaulted by the package rather than manually configured",
         "Does not suggest a priority/specificity mechanism that doesn't exist"
       ]
     },
@@ -940,6 +940,46 @@
         "Recommends ClearMeasurements() right before the step under test",
         "Notes earlier GetMeasurements snapshots are unaffected by clearing",
         "Does not invent Checkpoint(), Since(...), or BeginCapture() APIs"
+      ]
+    },
+    {
+      "id": 75,
+      "category": "behavioral-correctness",
+      "prompt": "Compono throws CompositionException: \"No registration, configuration rule, semantic provider, test-double provider, built-in provider, or generated plan could satisfy 'IMeterFactory'.\" The project references Compono, Compono.XunitV3, and Compono.Metrics. What is missing?",
+      "expected_output": "The message means no composition stage could satisfy IMeterFactory: no registration, configuration rule, semantic provider, test-double provider, built-in provider, or generated plan supplied it. Since Compono.Metrics is referenced, add builder.UseMetrics() (in a profile or Composer.Create); it registers the stage-6 provider that composes IMeterFactory as CapturingMeterFactory. Register<IMeterFactory>()/UseServiceProvider is also valid. A registration-order conflict with a catch-all provider is a separate problem from this missing-provider failure. Do not suggest a hand-rolled factory.",
+      "files": [],
+      "expectations": [
+        "Recommends UseMetrics() as the fix for the IMeterFactory composition failure",
+        "Explains the message means no composition stage supplied IMeterFactory",
+        "Mentions Register<IMeterFactory>()/UseServiceProvider as a valid alternative",
+        "Does not recommend a hand-rolled IMeterFactory or Microsoft.Extensions.Diagnostics.Testing"
+      ]
+    },
+    {
+      "id": 76,
+      "category": "behavioral-correctness",
+      "prompt": "Do I need both builder.UseMetrics().Share<IMeterFactory>() in my profile and [Shared] IMeterFactory meters on my [Compose] method?",
+      "expected_output": "No - use one or the other. [Shared] is per-test intent and resolves first whatever the parameter position; Share<IMeterFactory>() is for profile-wide intent, an undecorated IMeterFactory parameter, or several consumers in one Composer.Create graph. Both together is redundant but harmless. What matters is sharing: each CapturingMeterFactory captures only its own meters, so a different factory sees no measurements.",
+      "files": [],
+      "expectations": [
+        "States that using both is unnecessary - one mechanism is enough",
+        "Explains [Shared] for per-test intent and Share<IMeterFactory>() for profile-wide/undecorated/Composer.Create sharing",
+        "Explains why sharing matters: each factory captures only its own meters",
+        "Does not claim both are required together or that [Shared] only works when declared first"
+      ]
+    },
+    {
+      "id": 77,
+      "category": "behavioral-correctness",
+      "prompt": "My [ComposeData] theory used to report several test cases, but after one row's composition started failing the suite only reports one failed result for the whole theory. Did Compono lose the other rows?",
+      "expected_output": "No - this is the documented whole-theory failure contract (ADR-0070 item 9). All rows are composed before any row runs, so the first failing row stops the rest (including rows that would have passed), and xUnit reports the theory as a single failed result instead of one per row; the reported count drops while the failure is present. Every data attribute on the method, including [InlineData], is affected. Fix the row's CompositionException and all rows run and are counted again.",
+      "files": [],
+      "expectations": [
+        "States the other rows were not lost or silently skipped - the whole theory fails as a unit",
+        "Explains all rows are composed before any run, so one failing row stops the rest",
+        "States the theory reports one failed result instead of one per row and the count can drop",
+        "Notes every data attribute on the method, including [InlineData], is affected",
+        "Recommends fixing the failing row's CompositionException to restore all rows"
       ]
     }
   ]

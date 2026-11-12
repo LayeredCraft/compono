@@ -31,6 +31,13 @@ public void RetriesLogAWarning(ILogger<OrderService> logger, OrderService servic
 }
 ```
 
+**Composition failed naming `ILogger`/`ILogger<T>`?** If you meant
+`Compono.Logging` to supply it, `UseLogging()` wasn't registered — see
+`docs/troubleshooting/common-errors.md#runtime-composition-failures`.
+`Register<ILogger<T>>()`/`UseServiceProvider` is equally valid. Provider
+registration order is a separate concern (see below); a catch-all provider
+that resolves the dependency prevents this missing-provider failure.
+
 ## When to use it
 
 A composed type takes an `ILogger`/`ILogger<T>` constructor dependency

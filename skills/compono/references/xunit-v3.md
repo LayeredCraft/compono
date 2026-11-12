@@ -206,6 +206,11 @@ public sealed class RetentionProfile(RetentionWindow window) : ICompositionProfi
 public void Keeps(int ageInDays, bool expected, RetentionWindow window, RetentionPolicy sut) { }
 ```
 
+If many profiles repeat `builder.Register(() => config)`, a consumer-side
+`ConfigProfile<TConfig>` base is an optional boilerplate reduction — not a
+Compono type. A derived profile must not register `TConfig` again
+(duplicate-registration error).
+
 ### Shared dependencies and `[Shared]`
 
 `[Shared]` works on a `[ComposeData]` row exactly as on `[Compose]`: put a
@@ -247,7 +252,12 @@ Row metadata merges with the attribute's own by one rule:
 Reading the member or building row `i` throws `CompositionException` — the
 whole theory fails **as a unit** (there are no placeholder rows). The
 message names the member (`Type.Member`), the zero-based row index, and the
-row label if it has one.
+row label if it has one. All rows are built before any runs, so one row's
+composition failure stops the rest — including rows that would have passed —
+and the theory reports a single failed result instead of one per row, so
+the reported test count can drop. Every data attribute on the method,
+including `[InlineData]`, is affected. Fix the row and every row runs and is
+counted again.
 
 Exactly **one** seed source applies per row:
 

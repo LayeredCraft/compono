@@ -33,6 +33,13 @@ public void PlacingAnOrderCountsIt([Shared] IMeterFactory meters, CheckoutServic
 }
 ```
 
+**Composition failed naming `IMeterFactory`?** If you meant
+`Compono.Metrics` to supply it, `UseMetrics()` wasn't registered — see
+`docs/troubleshooting/common-errors.md#runtime-composition-failures`.
+`Register<IMeterFactory>()`/`UseServiceProvider` is equally valid. Provider
+registration order is a separate concern (see below); a catch-all provider
+that resolves the dependency prevents this missing-provider failure.
+
 ## When to use it
 
 A composed type takes an `IMeterFactory` constructor dependency and the test
@@ -52,9 +59,15 @@ an `IMeterFactory`.
 
 Unlike `Compono.Logging` (`ComponoGeneratedLogging`) and
 `Compono.TestDoubles` (`ComponoGeneratedTestDoubles`), `Compono.Metrics`
-ships **no generator involvement and no MSBuild property at all**. It relies
-only on the in-box `System.Diagnostics.Metrics` BCL types. Never suggest a
-compile-time opt-in for it — there is none.
+ships **no generator or analyzer**, and consumers never set an MSBuild
+property to turn `UseMetrics()` on. The package ships a
+`build`/`buildTransitive` props asset that defaults
+`ComponoMetricsOwnsMeterFactory` to `true`, which tells
+`Compono.Generators` not to emit a `Compono.TestDoubles` double for
+`IMeterFactory`; consumers can override it (set it to `false`) but don't
+configure it manually. It relies only on
+the in-box `System.Diagnostics.Metrics` BCL types. Never suggest a
+compile-time generation opt-in for it — there is none.
 
 ## Core usage vocabulary
 
@@ -232,11 +245,14 @@ package — register them from the shared factory in a profile.
 ## `Share<T>()` and `[Shared]`
 
 A composed `IMeterFactory` participates in `Share<T>()` like any other type
-— no metrics-specific mechanism. `[Shared] IMeterFactory meters` gives the
-SUT and the test body the same factory, exactly like `[Shared] ILogger<T>`;
-without `[Shared]` the test's factory is a different instance from the SUT's
-and can't be asserted against or disposed. Prefer `Share<IMeterFactory>()`
-in a profile for a reusable whole-suite intent.
+— no metrics-specific mechanism. Use **one or the other**: `[Shared]
+IMeterFactory meters` for per-test intent (resolved first, any parameter
+position) gives the SUT and test body the same factory; `Share<IMeterFactory>()`
+declared in a profile for profile-wide intent, an undecorated
+`IMeterFactory` parameter, or several consumers in one `Composer.Create`
+graph. Both is redundant but harmless. Without either, the test's factory
+is a different instance from the SUT's and can't be asserted against or
+disposed — each `CapturingMeterFactory` captures only its own meters.
 
 ## Native AOT and trimming
 

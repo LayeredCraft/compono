@@ -36,6 +36,16 @@ public sealed class CompositionTests
     }
 
     [Fact]
+    public void NestedConsumers_GetIndependentFactories_WithinOneRoot_AbsentShared()
+    {
+        var composer = Composer.Create(builder => builder.UseMetrics());
+
+        var coordinator = composer.Create<OrderCoordinator>();
+
+        coordinator.Meters.Should().NotBeSameAs(coordinator.Service.Meters);
+    }
+
+    [Fact]
     public void Share_MakesMeterFactoryGraphWide_WithinOneRoot()
     {
         var composer = Composer.Create(builder => builder.UseMetrics().Share<IMeterFactory>());
