@@ -16,6 +16,19 @@ public sealed class MisuseTests
     }
 
     [Fact]
+    public void MisuseMessage_NamesCatchAllOrdering_AndGeneratedDoubleOwnership()
+    {
+        // RESEARCH-0040 finding 1: the message used to name only UseNSubstitute(), never the
+        // UseGeneratedTestDoubles() trap the #161 follow-up actually hit.
+        var act = () => ForeignFactory().GetMeasurements<int>("orders");
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*UseNSubstitute() or any other catch-all test-double provider*")
+            .WithMessage("*UseGeneratedTestDoubles()*")
+            .WithMessage("*ComponoMetricsOwnsMeterFactory*");
+    }
+
+    [Fact]
     public void Verify_ThrowsOnForeignFactory()
     {
         var act = () => ForeignFactory().Verify<int>("orders");

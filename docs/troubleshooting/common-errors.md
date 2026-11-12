@@ -368,11 +368,17 @@ requires the `IMeterFactory` to be Compono's `CapturingMeterFactory`, and
 throws `InvalidOperationException` otherwise. This usually means one of:
 
 - **`UseMetrics()` isn't registered.** Add it to the profile or
-  `Composer.Create` call.
-- **`UseMetrics()` is registered *after* `UseNSubstitute()`.** An interface
-  request resolves at whichever stage-6 provider is registered first, so
-  `NSubstituteProvider` wins and you get a substitute. Call `UseMetrics()`
-  first — see [Registration order and misuse](../packages/compono-metrics.md#registration-order-and-misuse).
+  `Composer.Create` call. (With `UseGeneratedTestDoubles()` and no
+  `UseMetrics()`, composition fails earlier with a `CompositionException`
+  naming `IMeterFactory`, because `Compono.Metrics` owns that type and no
+  generated double exists for it.)
+- **`UseMetrics()` is registered *after* `UseNSubstitute()`** (or another
+  catch-all stage-6 provider). An interface request resolves at whichever
+  stage-6 provider is registered first, so `NSubstituteProvider` wins and
+  you get a substitute. Call `UseMetrics()` first, especially in a shared
+  base profile. See [Registration order and misuse](../packages/compono-metrics.md#registration-order-and-misuse).
+  Order against `UseGeneratedTestDoubles()` doesn't matter unless the
+  project sets `ComponoMetricsOwnsMeterFactory` to `false`.
 - **The Generic Host resolved its own default factory.** The builder already
   registers a default `IMeterFactory`. Register the test's factory with
   `builder.Services.AddSingleton<IMeterFactory>(meters)`; the container
@@ -423,9 +429,26 @@ unexpected meter name.
 A factory that created a meter stays referenced by the BCL's static meter
 list until it's disposed, keeping its meters, listener, and captured
 measurements alive — the same cost as an undisposed `DefaultMeterFactory`.
-Dispose it at the end of the test with `using var _ = meters;` on the
-`[Shared]` parameter, or one of the other two patterns in
-[Disposal patterns](../packages/compono-metrics.md#disposal-patterns). A
+Compono never disposes it. Who does depends on the test engine
+([ADR-0072 Amendment 6](../adr/0072-compono-metrics-testing-support-package.md)):
+
+- **`Compono.XunitV3` (xUnit v3, JIT):** xUnit disposes every
+  `IDisposable` test-method argument after the test case, including a
+  `[Shared] IMeterFactory` parameter. `using var _ = meters;` is optional.
+- **`Compono.XunitV3.Aot`:** xUnit's AOT core doesn't dispose arguments.
+  Dispose it in the test body with `using var _ = meters;`.
+- **`Compono.TUnit`:** TUnit disposes a composed **root** method argument
+  itself, which is documented in
+  [`Compono.TUnit` — Disposal](../packages/compono-tunit.md#disposal) and
+  [ADR-0040](../adr/0040-compono-tunit-package-design.md). That's documented
+  behavior, not something ADR-0072 Amendment 6 re-tested. The `using` is
+  optional there, and keeping it is harmless.
+- **`Compono.NUnit`, `Compono.MSTest`:** not verified. Keep
+  `using var _ = meters;`. It's harmless, because `Dispose()` is idempotent.
+- **A factory you construct** (`Composer.Create` or host tests): you own it,
+  so use `using var meters = new CapturingMeterFactory();`.
+
+See [Disposal patterns](../packages/compono-metrics.md#disposal-patterns). A
 factory that never created a meter costs nothing.
 
 ## Next

@@ -7,7 +7,9 @@ namespace Compono.Samples.BasicUsage;
 // Compono.Metrics: UseMetrics() composes IMeterFactory as a CapturingMeterFactory - no substitute
 // needed to assert the measurements CheckoutService actually recorded. [Shared] reuses the exact
 // same composed factory the service's own constructor received, so the test asserts against the
-// measurements the service produced. The test owns disposal via "using var _ = meters;".
+// measurements the service produced. "using var _ = meters;" is optional here - xUnit v3 (JIT)
+// disposes IDisposable test-method arguments itself - but is kept so the example stays correct on
+// Compono.XunitV3.Aot, which doesn't (ADR-0072 Amendment 6).
 public sealed class MetricsTests
 {
     [Theory]

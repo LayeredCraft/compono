@@ -209,6 +209,14 @@ internal static class TransitiveClosureWalker
         if (IsLoggingOwned(type, ctx))
             return;
 
+        // ADR-0072 Amendment 5: Metrics owns IMeterFactory when ComponoMetricsOwnsMeterFactory is on
+        // (Compono.Metrics' packed default), so a generated double can never win stage 6 over
+        // UseMetrics()'s CapturingMeterFactory just because UseGeneratedTestDoubles() was registered
+        // first. Same ownership shape as IsLoggingOwned above; null (inert) when the flag is off or
+        // System.Diagnostics.Metrics.IMeterFactory doesn't resolve in this compilation.
+        if (ctx.MetricsOwnedMeterFactory is { } meterFactory && SymbolEqualityComparer.Default.Equals(type, meterFactory))
+            return;
+
         var interfaceType = (INamedTypeSymbol)type;
 
         if (!ctx.VisitedTestDoubleInterfaces.Add(interfaceType))
@@ -381,6 +389,8 @@ internal static class TransitiveClosureWalker
     // kind this walker learns to recognize.
     private sealed class WalkContext
     {
+        private static readonly WellKnownTypes.BoundedCacheWithFactory<Compilation, INamedTypeSymbol?> MeterFactoryCache = new();
+
         public WalkContext(Compilation compilation, LocationInfo? location, GeneratorFeatureFlags flags)
         {
             Compilation = compilation;
@@ -395,6 +405,13 @@ internal static class TransitiveClosureWalker
             LoggingWellKnown = flags.LoggingEnabled
                 ? Compono.Generators.WellKnownTypes.LoggingWellKnownTypes.TryCreate(compilation)
                 : null;
+            // Resolved only when the flag is on (so a consumer without Compono.Metrics pays nothing),
+            // and cached per compilation like LoggingWellKnownTypes, since a context is built per root.
+            MetricsOwnedMeterFactory = flags.MetricsOwnsMeterFactory
+                ? MeterFactoryCache.GetOrCreateValue(
+                    compilation,
+                    static c => c.GetTypeByMetadataName("System.Diagnostics.Metrics.IMeterFactory"))
+                : null;
         }
 
         public Compilation Compilation { get; }
@@ -408,6 +425,8 @@ internal static class TransitiveClosureWalker
         public WellKnownTypes.WellKnownTypes WellKnown { get; }
 
         public WellKnownTypes.LoggingWellKnownTypes? LoggingWellKnown { get; }
+
+        public INamedTypeSymbol? MetricsOwnedMeterFactory { get; }
 
         public CollectionWellKnownTypes CollectionTypes { get; }
 

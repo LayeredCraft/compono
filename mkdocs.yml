@@ -140,6 +140,7 @@ nav:
     - Basic Usage: samples/basic-usage.md
     - ASP.NET API: samples/aspnet-api.md
   - Migrating from AutoFixture: migrating-from-autofixture.md
+  - Migrating from Microsoft.Extensions.Diagnostics.Testing: migrating-from-microsoft-extensions-diagnostics-testing.md
   - Package Guides:
     - Overview: packages/index.md
     - Compono: packages/compono.md

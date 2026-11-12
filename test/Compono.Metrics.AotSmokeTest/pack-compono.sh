@@ -26,3 +26,6 @@ rm -rf "$restore_packages_path"
 
 dotnet pack "$script_dir/../../src/Compono/Compono.csproj" -c Release -o "$feed_dir" -p:Version=1.0.0 --nologo
 dotnet pack "$script_dir/../../src/Compono.Metrics/Compono.Metrics.csproj" -c Release -o "$feed_dir" -p:Version=1.0.0 --nologo
+# verify-packaging.sh's ownership check (ADR-0072 Amendment 5) consumes Compono.TestDoubles alongside
+# Compono.Metrics; packing it here is harmless for the AOT smoke test, which never references it.
+dotnet pack "$script_dir/../../src/Compono.TestDoubles/Compono.TestDoubles.csproj" -c Release -o "$feed_dir" -p:Version=1.0.0 --nologo

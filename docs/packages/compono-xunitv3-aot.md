@@ -234,7 +234,16 @@ a shape is unreachable from generated code. The differences:
 - **Disposal.** xUnit's JIT runner disposes `IDisposable` theory arguments;
   its Native AOT core does not. Don't pass a fixture-owned disposable as a
   theory parameter on either engine — see [`Compono.XunitV3`'s
-  disposal note](compono-xunitv3.md#disposal).
+  disposal note](compono-xunitv3.md#disposal). A composed disposable you
+  *do* own, such as a `[Shared] IMeterFactory`, must be disposed in the test
+  body here (`using var _ = meters;`), because nothing else disposes it on
+  AOT.
+
+The register-the-row-config recipe for reading a row's `TConfig` in the test
+body, and the wrapper-profile pattern for profile constructor arguments, work
+unchanged on this package. See [`Compono.XunitV3`'s per-row
+configuration](compono-xunitv3.md#per-row-configuration) and
+[Use Profiles](../how-to/use-profiles.md#a-profile-whose-constructor-takes-runtime-objects).
 
 ## Not yet supported
 

@@ -26,6 +26,16 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Defaults ComponoMetricsOwnsMeterFactory to true for any consumer who doesn't set it
+             explicitly (ADR-0072 Amendment 5), so Compono.Generators never emits a Compono.TestDoubles
+             double for IMeterFactory. Packaged into both build/ and buildTransitive/, mirroring
+             Compono.Logging's ComponoGeneratedLogging default - the CompilerVisibleProperty declaration
+             lives in core Compono's build/Compono.props, next to the generator that reads it. -->
+        <None Include="build\Compono.Metrics.props" Pack="true" PackagePath="build\Compono.Metrics.props" />
+        <None Include="build\Compono.Metrics.props" Pack="true" PackagePath="buildTransitive\Compono.Metrics.props" />
+    </ItemGroup>
+
+    <ItemGroup>
         <InternalsVisibleTo Include="Compono.Metrics.Tests" />
     </ItemGroup>
 

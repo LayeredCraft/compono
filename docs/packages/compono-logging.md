@@ -84,6 +84,7 @@ Console.WriteLine(failure.Properties?.First().Key);   // "OrderId", e.g.
   required.
 - **`logger.Verify()`** — the fluent entry point:
   `.AtLevel(level)`, `.AtLevelOrAbove(level)`, `.InCategory(category)`,
+  `.InCategoryPrefix(prefix)`, `.NotInCategoryPrefix(prefix)`,
   `.WithEventId(id)`, `.WithException<TException>()`,
   `.WithMessageContaining(text)`, `.Matching(predicate)`, ending in
   `.Once()` / `.Never()` / `.Exactly(n)` / `.AtLeast(n)` / `.AtMost(n)`
@@ -166,14 +167,28 @@ rules — `AddFilter("MyApp.Payments", ...)` and `Logging:LogLevel:MyApp.Payment
 configuration match every category that *starts with* that prefix. Combined
 with `Never()`, a category string that matches nothing passes without
 checking anything, so use the full category name, or assert by prefix
-explicitly:
+with `InCategoryPrefix`:
 
 ```csharp
 logs.Verify()
     .AtLevelOrAbove(LogLevel.Error)
-    .Matching(entry => entry.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal))
+    .InCategoryPrefix("MyApp.Payments.")
+    .Never();
+
+// The common host guard: nothing at Error or above outside your own code.
+logs.Verify()
+    .AtLevelOrAbove(LogLevel.Error)
+    .NotInCategoryPrefix("MyApp.Jobs.")
     .Never();
 ```
+
+`InCategoryPrefix`/`NotInCategoryPrefix` are ordinal and case-sensitive like
+`InCategory`, and the prefix is **literal**: no namespace separator is
+added. `InCategoryPrefix("MyApp.Jobs")` also matches `MyApp.JobsLegacy`, so
+end the prefix with `.` to mean "beneath this namespace". `"MyApp.Jobs."`
+doesn't match the bare `MyApp.Jobs` category itself. Use `.Matching(...)` for
+anything else, such as several namespaces at once
+([ADR-0055 Amendment 7](../adr/0055-compono-logging-testing-support-package.md)).
 
 > **Behavioral compatibility note.** `Category` is part of
 > `CapturedLogEntry`'s record value equality: two entries identical in
@@ -184,15 +199,19 @@ logs.Verify()
 
 ### Filters
 
-Two filters exist for the host-wide scenario and behave identically on a
+These filters exist for the host-wide scenario and behave identically on a
 composed `logger.Verify()` and a `LogCollector.Verify()`:
 
 - `.AtLevelOrAbove(level)` — `Error` matches `Error` and `Critical`.
   `AtLevelOrAbove(LogLevel.None)` matches nothing.
 - `.InCategory(category)` — exact ordinal match; `null` throws
   `ArgumentNullException`.
+- `.InCategoryPrefix(prefix)` / `.NotInCategoryPrefix(prefix)` — the
+  category does / doesn't start with the literal `prefix` (ordinal); `null`
+  throws `ArgumentNullException`. An empty prefix matches every entry /
+  no entry.
 
-Both contribute to the failure text, e.g. `Expected exactly 0 call(s) to a
+All of them contribute to the failure text, e.g. `Expected exactly 0 call(s) to a
 log entry matching level Error or above, but received 1.` The message
 names the filters and the match count only — it does not list the matching
 entries. Read them with `GetCapturedEntries()` when diagnosing a failure.
@@ -495,6 +514,9 @@ the rationale behind each:
 
 ## Next
 
+- [Migrating from Microsoft.Extensions.Diagnostics.Testing](../migrating-from-microsoft-extensions-diagnostics-testing.md)
+  — `AddFakeLogging`/`FakeLogCollector`/`MetricCollector<T>` mapped onto
+  Compono, with registration order and disposal.
 - [Basic Usage sample](../samples/basic-usage.md) (`LoggingTests`) — a
   concise `UseLogging()`/`Verify()` scenario in this repo's single clearest
   reference project.

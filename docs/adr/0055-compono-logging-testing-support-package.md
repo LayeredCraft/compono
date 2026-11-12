@@ -1686,3 +1686,37 @@ dependency) is unchanged. `UseLogging()`, `CapturingLogger`/`CapturingLogger<T>`
 and their per-logger capture are unchanged apart from carrying `Category`.
 Implementation is tracked in
 [PLAN-0072](../plans/0072-compono-logging-host-wide-log-capture-and-dotnet-11-ga-impl-plan.md).
+
+## Amendment 7 (2026-11-11): category-prefix filters `InCategoryPrefix` / `NotInCategoryPrefix`
+
+**Status:** Accepted (maintainer decision, 2026-11-11).
+
+The #161 follow-up ([RESEARCH-0040](../research/0040-issue-161-1-4-dogfood-follow-up.md)
+finding 5) reported that host-level guards filter by category prefix,
+typically negated ("no `Error` outside `MyApp.Jobs.*`"). Today that needs
+`Matching(e => !e.Category.StartsWith(...))`, because `InCategory` is an
+exact match.
+
+**Decision.** `LogVerificationBuilder` gains two named filters:
+
+```csharp
+public LogVerificationBuilder InCategoryPrefix(string prefix);    // Category starts with prefix
+public LogVerificationBuilder NotInCategoryPrefix(string prefix); // Category does not start with prefix
+```
+
+- `StringComparison.Ordinal` (case-sensitive), matching `InCategory`.
+- The prefix is literal, with no implicit `.` separator.
+  `InCategoryPrefix("MyApp.Jobs")` also matches `MyApp.JobsLegacy`. The
+  docs show a trailing dot (`"MyApp.Jobs."`) for namespace-boundary intent.
+- `null` throws `ArgumentNullException`, like `InCategory`. An empty prefix
+  isn't special-cased: `InCategoryPrefix("")` matches every entry and
+  `NotInCategoryPrefix("")` matches none.
+- Both compose with the existing AND-only chain and appear in failure
+  descriptions (`category starting with "..."`,
+  `category not starting with "..."`).
+- `InCategory` is unchanged. There's no general negation combinator.
+  `Matching` stays the escape hatch.
+
+Both work on `CapturingLogger` verification and on `LogCollector`
+verification, because they share the builder. Plain string comparison, so
+AOT-safe.

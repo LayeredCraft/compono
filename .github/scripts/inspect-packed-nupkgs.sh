@@ -268,6 +268,11 @@ main() {
         # generation lives inside the existing Compono.Generators (packed only into Compono.nupkg),
         # reached transitively through this package's Compono dependency, not a second analyzer DLL.
         extra_paths=$'build/Compono.Logging.props\nbuildTransitive/Compono.Logging.props'
+    elif [ "$pkg" = "Compono.Metrics" ]; then
+        # build/ + buildTransitive/ Compono.Metrics.props: defaults ComponoMetricsOwnsMeterFactory to
+        # true (ADR-0072 Amendment 5), so Compono.Generators never emits a TestDoubles double for
+        # IMeterFactory - same shape as Compono.Logging above, no analyzer DLL of its own.
+        extra_paths=$'build/Compono.Metrics.props\nbuildTransitive/Compono.Metrics.props'
     fi
     if [ "$pkg" = "Compono.XunitV3.Aot" ]; then
         # net9.0+ only - matches xUnit v3's own Native AOT floor (ADR-0066/RESEARCH-0032); no

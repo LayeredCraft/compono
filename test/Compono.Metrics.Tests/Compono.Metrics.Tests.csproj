@@ -10,7 +10,21 @@
     <!-- Microsoft Testing Platform (MTP) runner, not VSTest -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- ADR-0072 Amendment 5's runtime regressions need real Compono.TestDoubles-generated doubles
+         alongside UseMetrics() in the same compilation. ComponoMetricsOwnsMeterFactory is set
+         explicitly because Compono.Metrics' packed build/Compono.Metrics.props default is a NuGet
+         package-consumption mechanism a ProjectReference never triggers (same reason
+         Compono.Logging.Tests sets ComponoGeneratedLogging). -->
+    <ComponoGeneratedTestDoubles>true</ComponoGeneratedTestDoubles>
+    <ComponoMetricsOwnsMeterFactory>true</ComponoMetricsOwnsMeterFactory>
   </PropertyGroup>
+
+  <!-- The CompilerVisibleProperty declarations normally ship in Compono's packed build/Compono.props,
+       which a ProjectReference never imports (PLAN-0055 task 13, same as Compono.Logging.Tests). -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ComponoGeneratedTestDoubles" />
+    <CompilerVisibleProperty Include="ComponoMetricsOwnsMeterFactory" />
+  </ItemGroup>
 
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
@@ -26,6 +40,9 @@
     <!-- Test-only: stage-6 registration-order precedence tests need a second real stage-6 provider
          to register alongside UseMetrics(). Compono.Metrics has no dependency on this package. -->
     <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
+    <!-- Test-only: ADR-0072 Amendment 5's ownership regressions need a real generated-double provider
+         (UseGeneratedTestDoubles()). Compono.Metrics has no dependency on this package. -->
+    <ProjectReference Include="..\..\src\Compono.TestDoubles\Compono.TestDoubles.csproj" />
     <!-- A plain ProjectReference to Compono.csproj does NOT transitively propagate
          Compono.Generators.dll as an active analyzer for THIS project's own compilation (confirmed
          empirically for Compono.Logging.Tests, PLAN-0055 task 13). Real, generator-discovered

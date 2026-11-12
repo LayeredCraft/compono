@@ -108,6 +108,7 @@ discovered.
   — never suggest a two-verb `VerifyLog()...Verify()` shape, that was
   explicitly considered and rejected):
   `.AtLevel(level)`, `.AtLevelOrAbove(level)`, `.InCategory(category)`,
+  `.InCategoryPrefix(prefix)`, `.NotInCategoryPrefix(prefix)`,
   `.WithEventId(id)`, `.WithException<TException>()`,
   `.WithMessageContaining(text)`, `.Matching(predicate)`, ending in
   `.Once()` / `.Never()` / `.Exactly(n)` / `.AtLeast(n)` / `.AtMost(n)` —
@@ -134,9 +135,10 @@ using var host = builder.Build();
 logs.Verify().AtLevelOrAbove(LogLevel.Error).Never();
 // One category: the ILogger<T> type's FULL name, matched exactly.
 logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategory("MyApp.Payments.PaymentGateway").Never();
-// A namespace: match the prefix explicitly.
-logs.Verify().AtLevelOrAbove(LogLevel.Error)
-    .Matching(e => e.Category.StartsWith("MyApp.Payments.", StringComparison.Ordinal)).Never();
+// A namespace: literal ordinal prefix - end it with "." for namespace-boundary intent.
+logs.Verify().AtLevelOrAbove(LogLevel.Error).InCategoryPrefix("MyApp.Payments.").Never();
+// Host guard: nothing at Error or above OUTSIDE your own code.
+logs.Verify().AtLevelOrAbove(LogLevel.Error).NotInCategoryPrefix("MyApp.Jobs.").Never();
 ```
 
 Key semantics to get right:
@@ -148,8 +150,12 @@ Key semantics to get right:
   case-sensitive — **not** a prefix match, unlike the host's own
   `AddFilter`/`Logging:LogLevel:*` rules. Never write
   `InCategory("Payments")`/a namespace with `.Never()`: it matches nothing
-  and passes without checking anything. Use the full category name or
-  `.Matching(e => e.Category.StartsWith(...))`.
+  and passes without checking anything. Use the full category name, or
+  `.InCategoryPrefix(prefix)`/`.NotInCategoryPrefix(prefix)` (ordinal,
+  literal - `"MyApp.Jobs"` also matches `MyApp.JobsLegacy`, so recommend a
+  trailing `.`). Don't hand-write `.Matching(e => e.Category.StartsWith(...))`
+  for a single prefix any more; keep `.Matching` for multi-namespace or
+  other custom conditions.
 - `Never()`'s failure text names the filters and the match count only
   (`Expected exactly 0 call(s) to a log entry matching level Error or
   above, but received 1.`); it does not list entries — read them with

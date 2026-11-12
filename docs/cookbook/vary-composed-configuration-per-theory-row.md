@@ -86,6 +86,12 @@ parameter) and no xUnit `TypeHelper` conversion. Null is allowed only for a
 nullable value type or a `?`-annotated reference. Put the row values first in
 the parameter list; composed parameters follow.
 
+**Need the row's `TConfig` in the test body?** Don't repeat its values as
+extra row elements. Have the profile register the config it already
+receives, `builder.Register(() => config)`, and add a composed `TConfig`
+parameter after the row values. It resolves to that row's own instance.
+See [Reading the row's `TConfig`](../packages/compono-xunitv3.md#per-row-configuration).
+
 **`[Shared]` still works.** Mark a parameter `[Shared]` and, when a row
 supplies a value at that position, that value becomes the single instance
 every other parameter in the row resolving that type receives; otherwise

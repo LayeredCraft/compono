@@ -40,7 +40,12 @@ internal sealed class ComponoIncrementalGenerator : IIncrementalGenerator
                 && testDoublesEnabled,
                 provider.GlobalOptions.TryGetValue("build_property.ComponoGeneratedLogging", out var loggingValue)
                 && bool.TryParse(loggingValue, out var loggingEnabled)
-                && loggingEnabled))
+                && loggingEnabled,
+                // ADR-0072 Amendment 5: Compono.Metrics owns IMeterFactory - read into the same
+                // flags value for the same reason as ComponoGeneratedLogging above.
+                provider.GlobalOptions.TryGetValue("build_property.ComponoMetricsOwnsMeterFactory", out var metricsValue)
+                && bool.TryParse(metricsValue, out var metricsOwnsMeterFactory)
+                && metricsOwnsMeterFactory))
             .WithTrackingName(TrackingNames.TestDoublesEnabled);
 
         var callSiteResults = context.SyntaxProvider

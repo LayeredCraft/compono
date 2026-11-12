@@ -4,8 +4,8 @@
 ## LogVerificationBuilder\.InCategory\(string\) Method
 
 Restricts matches to entries whose [Category](Compono.Logging.CapturedLogEntry.Category.md 'Compono\.Logging\.CapturedLogEntry\.Category') is exactly
-[category](Compono.Logging.LogVerificationBuilder.InCategory(string).md#Compono.Logging.LogVerificationBuilder.InCategory(string).category 'Compono\.Logging\.LogVerificationBuilder\.InCategory\(string\)\.category') \(ordinal, case\-sensitive \- use [Matching\(Func&lt;CapturedLogEntry,bool&gt;\)](Compono.Logging.LogVerificationBuilder.Matching(System.Func_Compono.Logging.CapturedLogEntry,bool_).md 'Compono\.Logging\.LogVerificationBuilder\.Matching\(System\.Func\<Compono\.Logging\.CapturedLogEntry,bool\>\)') for a prefix
-or wildcard match\)\.
+[category](Compono.Logging.LogVerificationBuilder.InCategory(string).md#Compono.Logging.LogVerificationBuilder.InCategory(string).category 'Compono\.Logging\.LogVerificationBuilder\.InCategory\(string\)\.category') \(ordinal, case\-sensitive \- use [InCategoryPrefix\(string\)](Compono.Logging.LogVerificationBuilder.InCategoryPrefix(string).md 'Compono\.Logging\.LogVerificationBuilder\.InCategoryPrefix\(string\)') for a
+prefix match, or [Matching\(Func&lt;CapturedLogEntry,bool&gt;\)](Compono.Logging.LogVerificationBuilder.Matching(System.Func_Compono.Logging.CapturedLogEntry,bool_).md 'Compono\.Logging\.LogVerificationBuilder\.Matching\(System\.Func\<Compono\.Logging\.CapturedLogEntry,bool\>\)') for anything else\)\.
 
 ```csharp
 public Compono.Logging.LogVerificationBuilder InCategory(string category);
