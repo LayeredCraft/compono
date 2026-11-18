@@ -28,6 +28,7 @@
          Microsoft.NET.Test.Sdk for the shared MTP host infrastructure - this project actually
          executes as a real NUnit test run, unlike src/Compono.NUnit itself, which only authors
          against NUnit's own ITestBuilder/IMethodInfo extensibility surface. -->
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
