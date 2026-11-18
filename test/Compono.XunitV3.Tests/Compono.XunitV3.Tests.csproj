@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
     <ProjectReference Include="..\..\src\Compono.XunitV3\Compono.XunitV3.csproj" />
     <!-- A plain ProjectReference to Compono.csproj (transitively, via Compono.XunitV3) does not
          propagate Compono.Generators.dll as an active analyzer - CompositionBuilderShareTests.cs

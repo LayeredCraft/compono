@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" />
     <ProjectReference Include="..\..\src\Compono.TestDoubles\Compono.TestDoubles.csproj" />
     <ProjectReference Include="..\..\src\Compono.NSubstitute\Compono.NSubstitute.csproj" />
   </ItemGroup>
