@@ -25,7 +25,7 @@
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="2.4.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <!-- samples/Compono.Samples.AspNetApi.Tests' own dependency: WebApplicationFactory<T> for the
          one integration-style endpoint test ADR-0033 calls for. Pinned to the current net10.0
          release line, matching this repo's own TargetFrameworks. -->
@@ -35,7 +35,7 @@
          dependency version Compono.XunitV3's own .nuspec ships to consumers - a tested-range
          constraint (tested minimum, exclusive next-untested-major upper bound), not a bare
          unbounded floor or a blanket exact pin, per ADR-0031 Amendment 1. -->
-    <PackageVersion Include="xunit.v3.extensibility.core" Version="[3.2.2, 5.0.0)" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="[4.0.3, 5.0.0)" />
     <!-- Compono.XunitV3.Aot's own dependency (ADR-0066/PLAN-0066/RESEARCH-0032) - the AOT-specific
          DataAttribute/RegisteredEngineConfig extension surface, a separate, non-interchangeable
          assembly from xunit.v3.extensibility.core above (confirmed: referencing both in one project
@@ -104,7 +104,7 @@
          doesn't exist yet - revisit (a version-matrix re-run, not a redesign) once NUnit 5.0.0 ships
          stable. A tested range, not a bare unbounded floor or a blanket exact pin, per ADR-0031
          Amendment 1. -->
-    <PackageVersion Include="NUnit" Version="[3.14.0, 5.0.0)" />
+    <PackageVersion Include="NUnit" Version="5.0.0" />
     <!-- test/Compono.NUnit.Tests'/test/Compono.NUnit.SampleTests' own dependency - the classic
          VSTest-adapter runner path, per ADR-0059 §11 (Compono.NUnit itself stays runner-neutral;
          this remains a consumer/test-project concern). Current stable at time of writing. -->
@@ -199,7 +199,7 @@
          net8.0 test build reproduces a net8.0 consumer running against DiagnosticSource 9.x, which
          proves capture is classified by the base types (Instrument<T>/ObservableInstrument<T>), not
          a compile-time #if. Never referenced by any src project. -->
-    <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="9.0.0" />
+    <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup Label="Microsoft.Extensions.Hosting/Logging test-only (net9.0)" Condition="'$(TargetFramework)' == 'net9.0'">
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.23" />
@@ -217,7 +217,7 @@
     <!-- Assertions -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- NuGet package metadata (Directory.Build.props) -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
     <!-- Roslyn / Source Generators: Compono.Generators only, referenced with
          PrivateAssets="all" so they never leak to consumers - see
          docs/adr/0003-generator-package-distribution.md. -->
